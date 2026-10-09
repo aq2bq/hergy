@@ -50,7 +50,14 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
-	lang, err := i18n.Resolve(options.ScanLang(argv), configured)
+	explicit := options.ScanLang(argv)
+	// config.yaml is one of the files validate checks, so it cannot choose the
+	// display language: validate uses --lang, or the default. An unknown --lang
+	// is a command-line mistake and still stops.
+	if validating {
+		configured = ""
+	}
+	lang, err := i18n.Resolve(explicit, configured)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
@@ -350,13 +357,18 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	return nil
 }
 
-// validateConfig reads the global config.yaml the way up does.
+// validateConfig reads the global config.yaml the way up does, and holds its
+// lang to the same check every other command applies when it picks a language.
 func validateConfig(path string) error {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	_, err = config.ParseConfig(string(text), path)
+	lang, err := config.ParseConfig(string(text), path)
+	if err != nil {
+		return err
+	}
+	_, err = i18n.Resolve("", lang)
 	return err
 }
 
