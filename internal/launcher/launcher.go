@@ -12,6 +12,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/herdr"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/layout"
 	"github.com/aq2bq/hergy/internal/progress"
 )
@@ -47,7 +48,7 @@ func (l *Launcher) Boot() error {
 	if _, err := l.createTab(workspace, members[0], "team:"+l.cfg.Team); err != nil {
 		return err
 	}
-	l.stage("creating panes")
+	l.stage(i18n.T("progress.stage.creating_panes"))
 	for _, step := range layout.Plan(namesOf(members), 0) {
 		if err := l.layOut(step); err != nil {
 			return err
@@ -58,8 +59,8 @@ func (l *Launcher) Boot() error {
 			return err
 		}
 	}
-	fmt.Fprintf(l.out, "Boot complete: %s (%s)\n", l.cfg.Team, l.tabID())
-	fmt.Fprintln(l.out, "Bootstrap prompts submitted; document reading continues in each pane.")
+	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.cfg.Team, l.tabID())
+	fmt.Fprint(l.out, i18n.T("launcher.boot_submitted"))
 	return nil
 }
 
@@ -70,7 +71,7 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 	}
 	// Resolve every selected name before sending anything; never prompt a working agent.
 	for _, member := range members {
-		l.stage("checking " + member.Name)
+		l.stage(i18n.Tf("progress.stage.checking", member.Name))
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
 			return err
@@ -79,13 +80,13 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 			return err
 		}
 		if agent.PaneID == "" {
-			return fmt.Errorf("%s: unexpected Herdr response: missing pane_id", member.Name)
+			return i18n.Errorf("error.missing_pane_id", member.Name)
 		}
 		l.place(member.Name, agent.PaneID)
 	}
 	for _, member := range members {
 		pane := l.paneOf(member.Name)
-		l.stage("rechecking " + member.Name)
+		l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
 		agent, err := l.herdr.Agent(pane)
 		if err != nil {
 			return err
@@ -97,7 +98,7 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 			return err
 		}
 	}
-	fmt.Fprintf(l.out, "Refresh submitted: %s\n", strings.Join(namesOf(members), ", "))
+	fmt.Fprintf(l.out, i18n.T("launcher.refresh_submitted"), strings.Join(namesOf(members), ", "))
 	return nil
 }
 
@@ -112,14 +113,14 @@ func (l *Launcher) Hire(worker *config.Member) error {
 	if err != nil {
 		return err
 	}
-	l.mark(worker.Name, "pane created")
+	l.mark(worker.Name, i18n.T("progress.mark.pane_created"))
 	if err := l.herdr.Rename(pane, worker.Name); err != nil {
 		return err
 	}
 	if err := l.start(worker); err != nil {
 		return err
 	}
-	fmt.Fprintf(l.out, "Hired: %s (%s)\n", worker.Name, l.tabID())
+	fmt.Fprintf(l.out, i18n.T("launcher.hired"), worker.Name, l.tabID())
 	return nil
 }
 
@@ -138,7 +139,7 @@ func (l *Launcher) ReportFailure(w io.Writer) {
 func (l *Launcher) preflight(members []*config.Member) (string, error) {
 	for i := range members {
 		if !isDir(members[i].Cwd) {
-			return "", fmt.Errorf("cwd is not a directory: %s", members[i].Cwd)
+			return "", i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
 		}
 	}
 	if err := l.herdr.Verify(true); err != nil {
@@ -153,14 +154,14 @@ func (l *Launcher) preflight(members []*config.Member) (string, error) {
 		return "", err
 	}
 	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
-		return "", fmt.Errorf("live agent names already in use: %s", strings.Join(conflicts, ", "))
+		return "", i18n.Errorf("error.live_names_in_use", strings.Join(conflicts, ", "))
 	}
 	return workspace, nil
 }
 
 // createTab makes the new tab whose root pane the first member holds.
 func (l *Launcher) createTab(workspace string, first *config.Member, label string) (string, error) {
-	l.stage("creating tab")
+	l.stage(i18n.T("progress.stage.creating_tab"))
 	root, err := l.herdr.CreateTab(workspace, label, first.Cwd, first.Env, func(id string) {
 		l.mu.Lock()
 		l.progress.TabID = id
@@ -186,7 +187,7 @@ func (l *Launcher) layOut(step layout.Step) error {
 		}
 		l.place(s.Target, pane)
 	case layout.Rename:
-		l.mark(s.Member, "pane created")
+		l.mark(s.Member, i18n.T("progress.mark.pane_created"))
 		if err := l.herdr.Rename(l.paneOf(s.Member), s.Member); err != nil {
 			return err
 		}
@@ -195,23 +196,23 @@ func (l *Launcher) layOut(step layout.Step) error {
 }
 
 func (l *Launcher) start(member *config.Member) error {
-	l.stage("starting " + member.Name)
-	l.mark(member.Name, "start requested; readiness not confirmed")
+	l.stage(i18n.Tf("progress.stage.starting", member.Name))
+	l.mark(member.Name, i18n.T("progress.mark.start_requested"))
 	if err := l.herdr.Start(member, l.paneOf(member.Name), l.timeout); err != nil {
 		return err
 	}
-	l.mark(member.Name, "ready; bootstrap not submitted")
+	l.mark(member.Name, i18n.T("progress.mark.ready"))
 	return l.submit(member, member.Name)
 }
 
 func (l *Launcher) submit(member *config.Member, target string) error {
-	l.stage("submitting bootstrap to " + member.Name)
-	l.mark(member.Name, "prompt requested; delivery not confirmed")
+	l.stage(i18n.Tf("progress.stage.submitting", member.Name))
+	l.mark(member.Name, i18n.T("progress.mark.prompt_requested"))
 	if err := l.herdr.Prompt(target, member.Prompt); err != nil {
 		return err
 	}
-	l.mark(member.Name, "bootstrap submitted")
-	fmt.Fprintf(l.out, "%s: pane=%s bootstrap submitted\n", member.Name, l.paneOf(member.Name))
+	l.mark(member.Name, i18n.T("progress.mark.bootstrap_submitted"))
+	fmt.Fprintf(l.out, i18n.T("launcher.submitted"), member.Name, l.paneOf(member.Name))
 	return nil
 }
 

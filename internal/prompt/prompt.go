@@ -1,39 +1,20 @@
 // Package prompt builds the bootstrap prompts. A template names its parts with
 // %{...}; each part is built only when the template asks for it. A bare % stays
-// as it is.
+// as it is. The wording itself lives in the locale files.
 package prompt
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // MemberTemplate is the default bootstrap prompt for a team member.
-const MemberTemplate = `あなたは %{team} チームの%{role}担当、%{name} です。
-
-## あなたの役割
-%{role_doc}
-%{docs}
-## チームの名簿
-%{roster}
-
-## Herdr での連携
-%{herdr}
-%{spawn}
-ここまでを読んだら、次の指示まで待機してください。
-`
+func MemberTemplate() string { return i18n.T("prompt.member") }
 
 // WorkerTemplate is the bootstrap prompt for a hired worker.
-const WorkerTemplate = `あなたは %{team} チームの%{lead_role}担当 %{lead} が払い出した%{purpose}ワーカー、%{name} です。
-
-## 依頼
-%{task}
-
-## Herdr での連携
-%{herdr}
-
-依頼が終わったら、%{lead} へ ` + "`herdr agent prompt`" + ` で結果を報告し、待機してください。
-`
+func WorkerTemplate() string { return i18n.T("prompt.worker") }
 
 // Expand replaces every %{name} with the value its builder returns. An unknown
 // placeholder is an error; %{ with no closing } and %{} stay literal.
@@ -47,7 +28,7 @@ func Expand(template string, parts map[string]func() string) (string, error) {
 				key := rest[:end]
 				build, ok := parts[key]
 				if !ok {
-					return "", fmt.Errorf("unknown prompt placeholder: %%{%s}", key)
+					return "", i18n.Errorf("error.unknown_placeholder", key)
 				}
 				b.WriteString(build())
 				i += 2 + end + 1
@@ -72,22 +53,17 @@ func Roster(members []RosterEntry, me string) string {
 	for _, member := range members {
 		mark := ""
 		if member.Name == me {
-			mark = "（あなた）"
+			mark = i18n.T("roster.mark")
 		}
-		lines = append(lines, fmt.Sprintf("- %s担当: %s%s", member.Role, member.Name, mark))
+		lines = append(lines, fmt.Sprintf(i18n.T("roster.line"), member.Role, member.Name, mark))
 	}
 	return strings.Join(lines, "\n")
 }
 
 // Herdr states how to reach the others with Herdr as it is; the launcher adds
-// no messaging of its own.
+// no messaging of its own. intro is how the member introduces itself.
 func Herdr(intro string) string {
-	return `担当どうしの連絡には Herdr の CLI を使う。相手には名簿の名前で届く。自分のペインに書くことは人間への報告であり、他の担当には届かない。
-- 依頼・報告・手番を渡す: ` + "`herdr agent prompt <名前> \"<本文>\"`" + `。本文は「` + intro + `」で始める
-- 相手が受け取ったか、終えたかを待つ: ` + "`herdr agent wait <名前> --until working`" + `、または ` + "`--until idle --until done`" + `
-- 相手の画面を読む: ` + "`herdr agent read <名前> --source recent --lines 80`" + `
-- 人間に判断や確認を求める: 自分のペインに書いたうえで ` + "`herdr notification show \"<件名>\" --body \"<要点>\" --sound request`" + `
-- 細かい使い方は ` + "`herdr agent`" + ` と ` + "`herdr notification`" + ` のヘルプで確かめる`
+	return i18n.Tf("herdr.guide", intro)
 }
 
 // SpawnNote states what a member may spawn. It is written into the prompt and
@@ -96,13 +72,12 @@ func Herdr(intro string) string {
 func SpawnNote(memberName string, purposes, profileNames []string, profileKinds map[string]string, command string) string {
 	allowed := make([]string, 0, len(profileNames))
 	for _, name := range profileNames {
-		allowed = append(allowed, fmt.Sprintf("%s（%s）", name, profileKinds[name]))
+		allowed = append(allowed, fmt.Sprintf(i18n.T("spawn.allowed_item"), name, profileKinds[name]))
 	}
-	return fmt.Sprintf(`
-## ワーカーの払い出し
-必要なときは、次の目的でワーカーを払い出してよい: %s
-使ってよいプロファイル: %s
-払い出し方: `+"`%s`"+`
-ワーカーは別のタブで起動し、終わったらあなた（%s）へ報告してくる。ワーカー名は名簿と重ならない英小文字にする。
-`, strings.Join(purposes, "、"), strings.Join(allowed, "、"), command, memberName)
+	separator := i18n.T("list.separator")
+	return i18n.Tf("spawn.note",
+		strings.Join(purposes, separator),
+		strings.Join(allowed, separator),
+		command,
+		memberName)
 }

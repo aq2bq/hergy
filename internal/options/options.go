@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // Kind is the command.
@@ -43,6 +45,7 @@ type Options struct {
 	Layer   string // "", "global", "local"
 	Dir     string // -C: the project root to resolve against
 	Timeout int    // milliseconds
+	Lang    string // --lang: the language for this run
 
 	HelpText string
 
@@ -56,46 +59,42 @@ const (
 	maxTimeoutMS     = 300000
 )
 
-// Usage is the help text.
-const Usage = `hergy - チームと役割を Herdr の一段上で扱う
-
-使い方:
-  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [-C プロジェクト]
-  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [-C プロジェクト]
-  hergy hire <名前> --profile P --purpose X --task "…" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [-C プロジェクト]
-  hergy ls [--global|--local] [-C プロジェクト]
-  hergy show <チーム> [--global|--local] [-C プロジェクト]
-
-説明:
-  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す
-  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）
-  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける
-  ls        見えるチームを層つきで一覧する
-  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す
-
-チームの解決:
-  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、
-  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。
-  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。
-  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。
-
-  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。
-`
+// Usage is the help text in the language in use.
+func Usage() string { return i18n.T("usage") }
 
 // allowed is the flags each command accepts. Anything else is an error, so a
 // flag that belongs to another command never gets silently ignored.
 var allowed = map[Kind]map[string]bool{
-	Up:      {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "help": true},
-	Refresh: {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "help": true},
-	Hire:    {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "help": true},
-	Ls:      {"global": true, "local": true, "dir": true, "help": true},
-	Show:    {"global": true, "local": true, "dir": true, "help": true},
+	Up:      {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
+	Refresh: {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "lang": true, "help": true},
+	Hire:    {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
+	Ls:      {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+	Show:    {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+}
+
+// ScanLang finds --lang in argv before the full parse, so messages printed
+// during the parse already use the chosen language. The full parse still
+// rejects a malformed --lang.
+func ScanLang(argv []string) string {
+	for i := 0; i < len(argv); i++ {
+		arg := argv[i]
+		if arg == "--lang" {
+			if i+1 < len(argv) {
+				return argv[i+1]
+			}
+			return ""
+		}
+		if value, ok := strings.CutPrefix(arg, "--lang="); ok {
+			return value
+		}
+	}
+	return ""
 }
 
 // Parse reads argv (without the program name).
 func Parse(argv []string) (*Options, error) {
 	if len(argv) == 0 {
-		return &Options{Kind: Help, HelpText: Usage}, nil
+		return &Options{Kind: Help, HelpText: Usage()}, nil
 	}
 	cmd := argv[0]
 	o := &Options{Timeout: DefaultTimeoutMS, seen: map[string]bool{}}
@@ -111,9 +110,9 @@ func Parse(argv []string) (*Options, error) {
 	case "show":
 		o.Kind = Show
 	case "help", "-h", "--help":
-		return &Options{Kind: Help, HelpText: Usage}, nil
+		return &Options{Kind: Help, HelpText: Usage()}, nil
 	default:
-		return nil, fmt.Errorf("unknown command %q（hergy help を見てください）", cmd)
+		return nil, i18n.Errorf("error.unknown_command", cmd)
 	}
 
 	positionals, err := parseFlags(argv[1:], o)
@@ -155,7 +154,7 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 			}
 			i++
 			if i >= len(args) {
-				return "", fmt.Errorf("--%s には値が必要です", canonical)
+				return "", i18n.Errorf("error.flag_needs_value", canonical)
 			}
 			return args[i], nil
 		}
@@ -181,7 +180,7 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 			}
 			o.Dir = v
 			o.seen["dir"] = true
-		case "team", "profile", "purpose", "task", "from", "timeout":
+		case "team", "profile", "purpose", "task", "from", "timeout", "lang":
 			v, err := takeValue(name)
 			if err != nil {
 				return nil, err
@@ -198,15 +197,17 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 				o.Task = v
 			case "from":
 				o.From = v
+			case "lang":
+				o.Lang = v
 			case "timeout":
 				ms, err := strconv.Atoi(v)
 				if err != nil {
-					return nil, fmt.Errorf("--timeout はミリ秒の整数です: %q", v)
+					return nil, i18n.Errorf("error.timeout_not_int", v)
 				}
 				o.Timeout = ms
 			}
 		default:
-			return nil, fmt.Errorf("unknown option %q（hergy help を見てください）", arg)
+			return nil, i18n.Errorf("error.unknown_option", arg)
 		}
 	}
 	return positionals, nil
@@ -222,26 +223,26 @@ func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
 	case Up, Show:
 		if len(positionals) > 1 {
-			return fmt.Errorf("位置引数が多すぎます: %v", positionals)
+			return i18n.Errorf("error.too_many_args", positionals)
 		}
 		if len(positionals) == 1 {
 			o.Team = positionals[0]
 		}
 	case Refresh:
 		if len(positionals) > 1 {
-			return fmt.Errorf("位置引数が多すぎます: %v", positionals)
+			return i18n.Errorf("error.too_many_args", positionals)
 		}
 		if len(positionals) == 1 {
 			o.Member = positionals[0]
 		}
 	case Hire:
 		if len(positionals) != 1 {
-			return fmt.Errorf("hergy hire にはワーカー名が1つ必要です")
+			return i18n.Errorf("error.hire_needs_name")
 		}
 		o.Name = positionals[0]
 	case Ls:
 		if len(positionals) != 0 {
-			return fmt.Errorf("hergy ls は位置引数を取りません: %v", positionals)
+			return i18n.Errorf("error.ls_no_args", positionals)
 		}
 	}
 	return nil
@@ -249,23 +250,23 @@ func assignPositionals(o *Options, positionals []string) error {
 
 func validate(o *Options) error {
 	if o.seen["global"] && o.seen["local"] {
-		return fmt.Errorf("--global と --local は同時に使えません")
+		return i18n.Errorf("error.global_local_conflict")
 	}
 	for name := range o.seen {
 		if !allowed[o.Kind][name] {
-			return fmt.Errorf("--%s は hergy %s では使えません", name, commandName(o.Kind))
+			return i18n.Errorf("error.flag_not_allowed", name, commandName(o.Kind))
 		}
 	}
 	if o.Timeout < minTimeoutMS || o.Timeout > maxTimeoutMS {
-		return fmt.Errorf("--timeout は %d..%d ミリ秒です", minTimeoutMS, maxTimeoutMS)
+		return i18n.Errorf("error.timeout_range", minTimeoutMS, maxTimeoutMS)
 	}
 	switch o.Kind {
 	case Refresh:
 		if o.All && o.Member != "" {
-			return fmt.Errorf("refresh は <担当> と --all を同時に使えません")
+			return i18n.Errorf("error.refresh_all_and_member")
 		}
 		if !o.All && o.Member == "" {
-			return fmt.Errorf("refresh には <担当> か --all が必要です")
+			return i18n.Errorf("error.refresh_needs_member")
 		}
 	case Hire:
 		var missing []string
@@ -279,11 +280,11 @@ func validate(o *Options) error {
 			missing = append(missing, "--task")
 		}
 		if len(missing) > 0 {
-			return fmt.Errorf("hire には %s が必要です", strings.Join(missing, ", "))
+			return i18n.Errorf("error.hire_needs_flags", strings.Join(missing, ", "))
 		}
 	case Show:
 		if o.Team == "" {
-			return fmt.Errorf("hergy show にはチーム名が必要です")
+			return i18n.Errorf("error.show_needs_team")
 		}
 	}
 	return nil

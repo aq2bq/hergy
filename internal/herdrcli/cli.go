@@ -5,9 +5,9 @@ package herdrcli
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"os/exec"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
@@ -56,7 +56,7 @@ func (c CLI) capture(args ...string) (stdout, stderr string, status int, err err
 		if errors.As(runErr, &exit) {
 			return out.String(), errBuf.String(), exit.ExitCode(), nil
 		}
-		return out.String(), errBuf.String(), -1, fmt.Errorf("cannot execute %s: %v", c.Bin, runErr)
+		return out.String(), errBuf.String(), -1, i18n.Errorf("error.cannot_execute", c.Bin, runErr)
 	}
 	return out.String(), errBuf.String(), 0, nil
 }

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
@@ -103,7 +104,7 @@ func (c *Config) Member(name string) (*Member, error) {
 			return &c.Members[i], nil
 		}
 	}
-	return nil, fmt.Errorf("no member named %s", name)
+	return nil, i18n.Errorf("error.no_member", name)
 }
 
 // Select returns every member, or only the named one.
@@ -214,7 +215,7 @@ func ParseProfiles(text, path string) (map[string]Profile, error) {
 	for name, value := range raw.Profiles {
 		label := "profiles." + name
 		if !NamePattern.MatchString(name) {
-			return nil, fmt.Errorf("%s: profile names must match [a-z][a-z0-9_-]{0,31}", label)
+			return nil, i18n.Errorf("error.profile_name_pattern", label)
 		}
 		kind, err := kindOf(value.Kind, label+".kind")
 		if err != nil {
@@ -242,7 +243,7 @@ func readVersion(text, what, path string) (int, error) {
 	dec := yaml.NewDecoder(strings.NewReader(text))
 	if err := dec.Decode(&only); err != nil {
 		if errors.Is(err, io.EOF) {
-			return 0, fmt.Errorf("%s が空です（version: 1 が必要です）: %s", what, path)
+			return 0, i18n.Errorf("error.file_empty", what, path)
 		}
 		return 0, fmt.Errorf("%s: %s", path, cleanYAMLError(err))
 	}
@@ -260,10 +261,10 @@ func strictDecode(text string, out any) error {
 
 func checkVersion(version *int, what, path string) error {
 	if version == nil {
-		return fmt.Errorf("%s: version がありません（このビルドは version: 1 のみ読みます。migrate は未実装です）: %s", what, path)
+		return i18n.Errorf("error.version_missing", what, path)
 	}
 	if *version != 1 {
-		return fmt.Errorf("%s: version %d は読めません（version: 1 のみ）: %s", what, *version, path)
+		return i18n.Errorf("error.version_wrong", what, *version, path)
 	}
 	return nil
 }
@@ -279,11 +280,11 @@ func Parse(in Input) (*Config, error) {
 		return nil, fmt.Errorf("%s: %s", in.TeamYAMLPath, cleanYAMLError(err))
 	}
 	if raw.Team != "" && raw.Team != in.TeamName {
-		return nil, fmt.Errorf("%s: team は %q ですが、解決した名前は %q です（名前で解決するため一致させてください）",
+		return nil, i18n.Errorf("error.team_name_mismatch",
 			in.TeamYAMLPath, raw.Team, in.TeamName)
 	}
 	if len(raw.Members) == 0 {
-		return nil, fmt.Errorf("%s: members が空です", in.TeamYAMLPath)
+		return nil, i18n.Errorf("error.members_empty", in.TeamYAMLPath)
 	}
 
 	docs, err := expandDocs(raw.Docs, in)
@@ -325,7 +326,7 @@ func expandDocs(entries *stringList, in Input) ([]source.Doc, error) {
 	for _, entry := range *entries {
 		doc, err := resolveEntry(entry, in.TeamDir, in.Layer)
 		if err != nil {
-			return nil, fmt.Errorf("docs: %s", err)
+			return nil, i18n.Errorf("error.docs_prefix", err)
 		}
 		switch {
 		case in.Reader.IsDir(doc):
@@ -337,7 +338,7 @@ func expandDocs(entries *stringList, in Input) ([]source.Doc, error) {
 		case in.Reader.IsFile(doc):
 			docs = append(docs, doc)
 		default:
-			return nil, fmt.Errorf("docs: no such file or directory: %s", entry)
+			return nil, i18n.Errorf("error.docs_missing", entry)
 		}
 	}
 	return docs, nil
@@ -354,7 +355,7 @@ func expandRoleDirs(entries *stringList, in Input) ([]source.Doc, error) {
 	for _, entry := range *entries {
 		dir, err := resolveEntry(entry, in.TeamDir, in.Layer)
 		if err != nil {
-			return nil, fmt.Errorf("roles: %s", err)
+			return nil, i18n.Errorf("error.roles_prefix", err)
 		}
 		if seen[dir.Path] {
 			continue
@@ -369,7 +370,7 @@ func expandRoleDirs(entries *stringList, in Input) ([]source.Doc, error) {
 // own, so a "builtin:" entry is refused with the reason.
 func resolveEntry(entry, base, layer string) (source.Doc, error) {
 	if strings.HasPrefix(entry, "builtin:") {
-		return source.Doc{}, fmt.Errorf("%q は使えません（hergy は内蔵の層を持ちません。文書はチームのディレクトリに置いてください）", entry)
+		return source.Doc{}, i18n.Errorf("error.builtin_not_allowed", entry)
 	}
 	return source.EntryDoc(entry, base, layer), nil
 }
@@ -394,7 +395,7 @@ func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member,
 	seen := map[string]bool{}
 	for _, member := range members {
 		if seen[member.Name] {
-			return nil, fmt.Errorf("member names must be unique: %s", member.Name)
+			return nil, i18n.Errorf("error.duplicate_member", member.Name)
 		}
 		seen[member.Name] = true
 	}
@@ -416,26 +417,26 @@ func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member,
 func memberTemplate(rm rawMember, raw rawTeam, label string) (string, error) {
 	if rm.Prompt != nil {
 		if strings.TrimSpace(*rm.Prompt) == "" {
-			return "", fmt.Errorf("%s.prompt must be a nonempty string", label)
+			return "", i18n.Errorf("error.prompt_empty_member", label)
 		}
 		return *rm.Prompt, nil
 	}
 	if raw.Prompt != nil {
 		if strings.TrimSpace(*raw.Prompt) == "" {
-			return "", fmt.Errorf("prompt must be a nonempty string")
+			return "", i18n.Errorf("error.prompt_empty_team")
 		}
 		return *raw.Prompt, nil
 	}
-	return prompt.MemberTemplate, nil
+	return prompt.MemberTemplate(), nil
 }
 
 func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error) {
 	label := fmt.Sprintf("members[%d]", index)
 	if !NamePattern.MatchString(rm.Name) {
-		return Member{}, fmt.Errorf("%s.name must match [a-z][a-z0-9_-]{0,31}", label)
+		return Member{}, i18n.Errorf("error.name_pattern", label)
 	}
 	if strings.TrimSpace(rm.Role) == "" {
-		return Member{}, fmt.Errorf("%s.role must be a nonempty string", label)
+		return Member{}, i18n.Errorf("error.role_empty", label)
 	}
 	kind, args, env, profile, err := engine(rm, label, in.Profiles)
 	if err != nil {
@@ -474,7 +475,7 @@ func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error
 func engine(rm rawMember, label string, profiles map[string]Profile) (string, []string, map[string]string, string, error) {
 	if rm.Profile == "" {
 		if rm.Kind == "" {
-			return "", nil, nil, "", fmt.Errorf("%s needs a profile or a kind", label)
+			return "", nil, nil, "", i18n.Errorf("error.needs_profile_or_kind", label)
 		}
 		kind, err := kindOf(rm.Kind, label+".kind")
 		if err != nil {
@@ -491,25 +492,25 @@ func engine(rm rawMember, label string, profiles map[string]Profile) (string, []
 		return kind, args, env, "", nil
 	}
 	if rm.Kind != "" || rm.Args != nil || rm.Env != nil {
-		return "", nil, nil, "", fmt.Errorf("%s sets both profile and kind/args/env", label)
+		return "", nil, nil, "", i18n.Errorf("error.profile_and_inline", label)
 	}
 	profile, ok := profiles[rm.Profile]
 	if !ok {
-		return "", nil, nil, "", fmt.Errorf("%s.profile: no profile named %s", label, rm.Profile)
+		return "", nil, nil, "", i18n.Errorf("error.no_profile", label, rm.Profile)
 	}
 	return profile.Kind, profile.Args, profile.Env, profile.Name, nil
 }
 
 func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile) (*MaySpawn, error) {
 	if node.Tag == "!!null" {
-		return nil, fmt.Errorf("%s must be a mapping, not null", label)
+		return nil, i18n.Errorf("error.must_be_mapping_not_null", label)
 	}
 	if node.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("%s must be a mapping", label)
+		return nil, i18n.Errorf("error.must_be_mapping", label)
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		if key := node.Content[i].Value; key != "purposes" && key != "profiles" {
-			return nil, fmt.Errorf("unknown keys in %s: %s", label, key)
+			return nil, i18n.Errorf("error.unknown_keys", label, key)
 		}
 	}
 	var raw rawMaySpawn
@@ -530,7 +531,7 @@ func parseMaySpawn(raw rawMaySpawn, label string, profiles map[string]Profile) (
 	}
 	for _, name := range names {
 		if _, ok := profiles[name]; !ok {
-			return nil, fmt.Errorf("%s.profiles: no profile named %s", label, name)
+			return nil, i18n.Errorf("error.mayspawn_no_profile", label, name)
 		}
 	}
 	return &MaySpawn{Purposes: purposes, Profiles: names}, nil
@@ -586,7 +587,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 		},
 		"roster": func() string { return prompt.Roster(roster, member.Name) },
 		"herdr": func() string {
-			return prompt.Herdr(fmt.Sprintf("%sの%s担当の%sです。", in.TeamName, member.Role, member.Name))
+			return prompt.Herdr(i18n.Tf("prompt.self_intro_member", in.TeamName, member.Role, member.Name))
 		},
 		"spawn": func() string {
 			if member.MaySpawn == nil {
@@ -628,8 +629,8 @@ func hireCommand(in Input, memberName string) string {
 	if executable == "" {
 		executable = "hergy"
 	}
-	return fmt.Sprintf(`%s hire <ワーカー名> --profile <プロファイル> --purpose <目的> --task "<依頼>" --team %s %s -C %s --from %s`,
-		shellQuote(executable), in.TeamName, layerFlag, shellQuote(in.Base), memberName)
+	return i18n.Tf("hire.command",
+		shellQuote(executable), in.TeamName, layerFlag, i18n.Language(), shellQuote(in.Base), memberName)
 }
 
 func shellQuote(s string) string {
@@ -648,13 +649,13 @@ func roleFile(role string, dirs []source.Doc, reader source.Reader) (source.Doc,
 		}
 	}
 	if len(dirs) == 0 {
-		return source.Doc{}, fmt.Errorf("no role file for %s（roles に探す場所がありません。役割ファイルをチームの roles に置くか、roles で場所を指定してください）", role)
+		return source.Doc{}, i18n.Errorf("error.no_role_file_no_dirs", role)
 	}
 	paths := make([]string, len(dirs))
 	for i, dir := range dirs {
 		paths[i] = dir.Path
 	}
-	return source.Doc{}, fmt.Errorf("no role file for %s（探した場所: %s）", role, strings.Join(paths, ", "))
+	return source.Doc{}, i18n.Errorf("error.no_role_file_paths", role, strings.Join(paths, ", "))
 }
 
 func stripComments(text string) string {
@@ -669,13 +670,13 @@ func joinPath(a, b string) string { return filepath.Join(a, b) }
 func cleanYAMLError(err error) string {
 	msg := typeNameRE.ReplaceAllString(err.Error(), "")
 	msg = dangleRE.ReplaceAllString(msg, "")
-	msg = strings.ReplaceAll(msg, "field profiles not found", "field profiles not found（team.yaml の profiles は無くなりました。プロファイルはグローバルの profiles.yaml に置きます）")
+	msg = strings.ReplaceAll(msg, "field profiles not found", "field profiles not found"+i18n.T("error.profiles_moved"))
 	return strings.TrimSpace(msg)
 }
 
 func kindOf(value, label string) (string, error) {
 	if value == "" || !kindPattern.MatchString(value) {
-		return "", fmt.Errorf("%s must be a plain agent kind", label)
+		return "", i18n.Errorf("error.not_plain_kind", label)
 	}
 	return value, nil
 }
@@ -689,10 +690,10 @@ func argsOf(value []any, label string) ([]string, error) {
 	for i, item := range value {
 		text, ok := item.(string)
 		if !ok {
-			return nil, fmt.Errorf("%s[%d] must be a string (quote numbers)", label, i)
+			return nil, i18n.Errorf("error.arg_not_string", label, i)
 		}
 		if strings.ContainsRune(text, 0) {
-			return nil, fmt.Errorf("%s[%d] must not contain NUL", label, i)
+			return nil, i18n.Errorf("error.arg_nul", label, i)
 		}
 		out = append(out, text)
 	}
@@ -707,11 +708,11 @@ func envOf(value map[string]any, label string) (map[string]string, error) {
 	out := make(map[string]string, len(value))
 	for key, item := range value {
 		if !envPattern.MatchString(key) {
-			return nil, fmt.Errorf("%s: %q is not a variable name", label, key)
+			return nil, i18n.Errorf("error.not_variable_name", label, key)
 		}
 		text, ok := item.(string)
 		if !ok {
-			return nil, fmt.Errorf("%s.%s must be a string (quote numbers)", label, key)
+			return nil, i18n.Errorf("error.env_not_string", label, key)
 		}
 		out[key] = text
 	}

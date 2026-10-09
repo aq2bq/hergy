@@ -5,8 +5,9 @@ package protocol
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // Agent is a live agent as Herdr reports it.
@@ -21,10 +22,10 @@ type Agent struct {
 // is not in the middle of work.
 func (a Agent) Check(name, kind string) error {
 	if a.Name != name || a.Kind != kind {
-		return fmt.Errorf("%s: live name/kind does not match the config", name)
+		return i18n.Errorf("error.live_mismatch", name)
 	}
 	if a.Status != "idle" && a.Status != "done" {
-		return fmt.Errorf("%s: status=%q; reset/settle the agent before refreshing", name, a.Status)
+		return i18n.Errorf("error.reset_before_refresh", name, a.Status)
 	}
 	return nil
 }
@@ -68,14 +69,14 @@ func RequiredCommands(boot bool) []Group {
 // launcher needs. `herdr <group>` prints usage and may exit 2 for a missing one.
 func CheckHelp(group string, subs []string, help string, exitStatus int) error {
 	if exitStatus != 0 && exitStatus != 2 {
-		return fmt.Errorf("cannot inspect installed Herdr %s CLI (exit %d): %s", group, exitStatus, strings.TrimSpace(help))
+		return i18n.Errorf("error.herdr_inspect_exit", group, exitStatus, strings.TrimSpace(help))
 	}
 	if !strings.Contains(help, "herdr "+group) {
-		return fmt.Errorf("cannot inspect installed Herdr %s CLI: %s", group, strings.TrimSpace(help))
+		return i18n.Errorf("error.herdr_inspect", group, strings.TrimSpace(help))
 	}
 	for _, sub := range subs {
 		if !strings.Contains(help, "herdr "+group+" "+sub) {
-			return fmt.Errorf("installed Herdr does not advertise %s %s; inspect `herdr %s`", group, sub, group)
+			return i18n.Errorf("error.herdr_not_advertise", group, sub, group)
 		}
 	}
 	return nil
@@ -88,18 +89,18 @@ func Result(args []string, stdout, stderr string, exitStatus int) (map[string]an
 		if detail == "" {
 			detail = strings.TrimSpace(stdout)
 		}
-		return nil, fmt.Errorf("herdr %s failed (%d): %s", strings.Join(firstTwo(args), " "), exitStatus, detail)
+		return nil, i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail)
 	}
 	var data map[string]any
 	if err := json.Unmarshal([]byte(stdout), &data); err != nil {
-		return nil, fmt.Errorf("unexpected Herdr JSON: %v", err)
+		return nil, i18n.Errorf("error.herdr_json", err)
 	}
 	if value, ok := data["error"]; ok && value != nil {
-		return nil, fmt.Errorf("Herdr error: %v", value)
+		return nil, i18n.Errorf("error.herdr_error", value)
 	}
 	result, ok := data["result"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("Herdr response has no result object")
+		return nil, i18n.Errorf("error.herdr_no_result")
 	}
 	return result, nil
 }
@@ -110,11 +111,11 @@ func Dig(object map[string]any, keys ...string) (any, error) {
 	for _, key := range keys {
 		mapping, ok := current.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("unexpected Herdr response: missing %s", key)
+			return nil, i18n.Errorf("error.herdr_missing", key)
 		}
 		value, ok := mapping[key]
 		if !ok || value == nil {
-			return nil, fmt.Errorf("unexpected Herdr response: missing %s", key)
+			return nil, i18n.Errorf("error.herdr_missing", key)
 		}
 		current = value
 	}
@@ -129,7 +130,7 @@ func DigString(object map[string]any, keys ...string) (string, error) {
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("unexpected Herdr response: %s is not a string", keys[len(keys)-1])
+		return "", i18n.Errorf("error.herdr_not_string", keys[len(keys)-1])
 	}
 	return text, nil
 }

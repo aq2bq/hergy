@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
@@ -46,7 +47,7 @@ func (h *Herdr) LiveAgentNames() ([]string, error) {
 	}
 	agents, ok := raw.([]any)
 	if !ok {
-		return nil, fmt.Errorf("unexpected agents response")
+		return nil, i18n.Errorf("error.herdr_agents")
 	}
 	names := make([]string, 0, len(agents))
 	for _, item := range agents {
@@ -126,7 +127,7 @@ func (h *Herdr) Agent(target string) (protocol.Agent, error) {
 	}
 	mapping, ok := object.(map[string]any)
 	if !ok {
-		return protocol.Agent{}, fmt.Errorf("unexpected Herdr response: agent is not an object")
+		return protocol.Agent{}, i18n.Errorf("error.herdr_agent_object")
 	}
 	return protocol.AgentFrom(mapping), nil
 }

@@ -2,7 +2,11 @@
 // can say where it stopped.
 package progress
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/aq2bq/hergy/internal/i18n"
+)
 
 // Progress is the running state of one operation.
 type Progress struct {
@@ -17,9 +21,9 @@ type Progress struct {
 func Start(names []string) *Progress {
 	states := make(map[string]string, len(names))
 	for _, name := range names {
-		states[name] = "not started"
+		states[name] = i18n.T("progress.mark.not_started")
 	}
-	return &Progress{Stage: "preflight", Panes: map[string]string{}, States: states, order: append([]string(nil), names...)}
+	return &Progress{Stage: i18n.T("progress.stage.preflight"), Panes: map[string]string{}, States: states, order: append([]string(nil), names...)}
 }
 
 // At moves to a stage.
@@ -33,9 +37,9 @@ func (p *Progress) Mark(name, state string) { p.States[name] = state }
 
 // Report is the failure report, in the order it is printed.
 func (p *Progress) Report() []string {
-	lines := []string{fmt.Sprintf("Stopped at: %s", p.Stage)}
+	lines := []string{fmt.Sprintf(i18n.T("progress.stopped"), p.Stage)}
 	if p.TabID != "" {
-		lines = append(lines, fmt.Sprintf("Created tab: %s", p.TabID))
+		lines = append(lines, fmt.Sprintf(i18n.T("progress.created_tab"), p.TabID))
 	}
 	for _, name := range p.order {
 		state := p.States[name]
@@ -43,11 +47,11 @@ func (p *Progress) Report() []string {
 		if pane == "" {
 			pane = "-"
 		}
-		lines = append(lines, fmt.Sprintf("  %s: pane=%s; %s", name, pane, state))
+		lines = append(lines, fmt.Sprintf(i18n.T("progress.member"), name, pane, state))
 	}
 	lines = append(lines,
-		"Existing panes/processes are kept. A failed request may already have taken effect.",
-		"Inspect live state before retrying; bootstrap prompts are never retried automatically.",
+		i18n.T("progress.kept"),
+		i18n.T("progress.inspect"),
 	)
 	return lines
 }

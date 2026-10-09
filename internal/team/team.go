@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -47,6 +48,14 @@ func globalDir() string {
 		home = "."
 	}
 	return filepath.Join(home, ".config", "hergy")
+}
+
+// Lang is the language named in the global settings under GlobalDir, or "" when
+// none is set. The settings file's name and format are not settled yet (the
+// lead is checking with the human), so this reads nothing and returns "". Once
+// the file is fixed, read it (or the env) here and return its lang value.
+func Lang() (string, error) {
+	return "", nil
 }
 
 // WithProject pins the project root, so a hire run from outside the project
@@ -113,13 +122,13 @@ func (e Env) Resolve(name, force string) (*Resolved, error) {
 	switch force {
 	case "local":
 		if !hasLocal {
-			return nil, fmt.Errorf("ローカルにチーム %q がありません: %s\n  （ローカルは %s です）", name, local, e.LocalDir)
+			return nil, i18n.Errorf("error.team_not_local", name, local, e.LocalDir)
 		}
 		resolved.Layer = source.LayerLocal
 		resolved.TeamYAMLPath = local
 	case "global":
 		if !hasGlobal {
-			return nil, fmt.Errorf("グローバルにチーム %q がありません: %s\n  （グローバルは %s です）", name, global, e.GlobalDir)
+			return nil, i18n.Errorf("error.team_not_global", name, global, e.GlobalDir)
 		}
 		resolved.Layer = source.LayerGlobal
 		resolved.TeamYAMLPath = global
@@ -148,27 +157,27 @@ func (e Env) resolveDefault(force string) (*Resolved, error) {
 		if len(names) == 1 {
 			return e.Resolve(names[0], "global")
 		}
-		return nil, e.candidates(fmt.Sprintf("グローバルにチームが %d 個あります", len(names)))
+		return nil, e.candidates(i18n.Tf("error.global_count", len(names)))
 	case "local":
 		names := e.teamNames(e.LocalDir)
 		if len(names) == 1 {
 			return e.Resolve(names[0], "local")
 		}
-		return nil, e.candidates(fmt.Sprintf("ローカルにチームが %d 個あります", len(names)))
+		return nil, e.candidates(i18n.Tf("error.local_count", len(names)))
 	default:
 		names := e.teamNames(e.LocalDir)
 		if len(names) == 1 {
 			return e.Resolve(names[0], "local")
 		}
-		return nil, e.candidates(fmt.Sprintf("チーム名を指定してください（ローカルにチームが %d 個あります）", len(names)))
+		return nil, e.candidates(i18n.Tf("error.need_team_name", len(names)))
 	}
 }
 
 func (e Env) notFound(name, local, global string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "チーム %q が見つかりません。探した場所:\n  %s\n  %s", name, local, global)
+	fmt.Fprintf(&b, i18n.T("error.team_not_found"), name, local, global)
 	if candidates := e.candidatesList(); len(candidates) > 0 {
-		fmt.Fprintf(&b, "\n候補: %s", strings.Join(candidates, ", "))
+		fmt.Fprintf(&b, i18n.T("error.candidates"), strings.Join(candidates, ", "))
 	}
 	return fmt.Errorf("%s", b.String())
 }
@@ -176,9 +185,9 @@ func (e Env) notFound(name, local, global string) error {
 func (e Env) candidates(head string) error {
 	list := e.candidatesList()
 	if len(list) == 0 {
-		return fmt.Errorf("%s。候補がありません（グローバル %s / ローカル %s）", head, e.GlobalDir, e.LocalDir)
+		return i18n.Errorf("error.no_candidates", head, e.GlobalDir, e.LocalDir)
 	}
-	return fmt.Errorf("%s。候補: %s", head, strings.Join(list, ", "))
+	return i18n.Errorf("error.candidates_head", head, strings.Join(list, ", "))
 }
 
 // candidatesList is every team name visible in either layer.

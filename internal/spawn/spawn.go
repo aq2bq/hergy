@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 )
 
@@ -12,16 +13,16 @@ import (
 // may_spawn. Notes never stop the hire: the permission is only stated.
 func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*config.Member, []string, error) {
 	if !config.NamePattern.MatchString(name) {
-		return nil, nil, fmt.Errorf("worker name must match [a-z][a-z0-9_-]{0,31}")
+		return nil, nil, i18n.Errorf("error.worker_name_pattern")
 	}
 	for i := range cfg.Members {
 		if cfg.Members[i].Name == name {
-			return nil, nil, fmt.Errorf("%s is already a team member", name)
+			return nil, nil, i18n.Errorf("error.worker_exists", name)
 		}
 	}
 	chosen, ok := cfg.Profiles[profile]
 	if !ok {
-		return nil, nil, fmt.Errorf("no profile named %s", profile)
+		return nil, nil, i18n.Errorf("error.no_profile_named", profile)
 	}
 	var lead *config.Member
 	if from != "" {
@@ -46,17 +47,17 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		"name":      func() string { return name },
 		"task":      func() string { return task },
 		"herdr": func() string {
-			return prompt.Herdr(fmt.Sprintf("%sの%sワーカーの%sです。", cfg.Team, purpose, name))
+			return prompt.Herdr(i18n.Tf("prompt.self_intro_worker", cfg.Team, purpose, name))
 		},
 	}
-	text, err := prompt.Expand(prompt.WorkerTemplate, parts)
+	text, err := prompt.Expand(prompt.WorkerTemplate(), parts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	worker := &config.Member{
 		Name:    name,
-		Role:    purpose + "ワーカー",
+		Role:    i18n.Tf("role.worker", purpose),
 		Kind:    chosen.Kind,
 		Args:    chosen.Args,
 		Env:     chosen.Env,
@@ -81,22 +82,22 @@ func defaultLead(cfg *config.Config) (*config.Member, error) {
 	case 1:
 		return only, nil
 	case 0:
-		return nil, fmt.Errorf("--from is required (no member has may_spawn)")
+		return nil, i18n.Errorf("error.from_required_none")
 	default:
-		return nil, fmt.Errorf("--from is required (members with may_spawn: %v)", spawners)
+		return nil, i18n.Errorf("error.from_required_many", spawners)
 	}
 }
 
 func notes(lead *config.Member, profile, purpose string) []string {
 	if lead.MaySpawn == nil {
-		return []string{fmt.Sprintf("%s has no may_spawn in the config", lead.Name)}
+		return []string{fmt.Sprintf(i18n.T("error.no_may_spawn"), lead.Name)}
 	}
 	var out []string
 	if !contains(lead.MaySpawn.Purposes, purpose) {
-		out = append(out, fmt.Sprintf("purpose %s is not in %s's may_spawn.purposes", purpose, lead.Name))
+		out = append(out, fmt.Sprintf(i18n.T("error.purpose_outside"), purpose, lead.Name))
 	}
 	if !contains(lead.MaySpawn.Profiles, profile) {
-		out = append(out, fmt.Sprintf("profile %s is not in %s's may_spawn.profiles", profile, lead.Name))
+		out = append(out, fmt.Sprintf(i18n.T("error.profile_outside"), profile, lead.Name))
 	}
 	return out
 }

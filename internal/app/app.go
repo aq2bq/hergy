@@ -15,6 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
@@ -33,16 +34,37 @@ func (e reportedError) Error() string { return e.err.Error() }
 
 // Run executes one command line and returns the process exit code.
 func Run(argv []string, stdout, stderr io.Writer) int {
+	// Load the locales and check them before anything can print. The failures
+	// below happen before a language is in use, so they keep a plain prefix.
+	if err := i18n.Init(); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+	configured, err := team.Lang()
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+	lang, err := i18n.Resolve(options.ScanLang(argv), configured)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+	if err := i18n.Use(lang); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	opts, err := options.Parse(argv)
 	if err != nil {
 		if options.IsHelp(err) {
-			fmt.Fprint(stdout, options.Usage)
+			fmt.Fprint(stdout, options.Usage())
 			return 0
 		}
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fail(stderr, err)
 		return 1
 	}
 	if opts.Kind == options.Help {
@@ -52,13 +74,13 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 
 	env, err := team.NewEnv()
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fail(stderr, err)
 		return 1
 	}
 	if opts.Dir != "" {
 		env, err = env.WithProject(opts.Dir)
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fail(stderr, err)
 			return 1
 		}
 	}
@@ -67,10 +89,15 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		if errors.As(err, &reported) {
 			return reported.code
 		}
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fail(stderr, err)
 		return 1
 	}
 	return 0
+}
+
+// fail writes one error line in the language in use.
+func fail(stderr io.Writer, err error) {
+	fmt.Fprintln(stderr, i18n.Tf("error.prefix", err))
 }
 
 func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
@@ -86,7 +113,7 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	case options.Hire:
 		return runHire(ctx, env, opts, stdout, stderr)
 	default:
-		return fmt.Errorf("unhandled command")
+		return i18n.Errorf("error.unhandled_command")
 	}
 }
 
@@ -105,7 +132,7 @@ func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *conf
 
 func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 	rows := env.List()
-	fmt.Fprintf(stdout, "チーム一覧（ローカル: %s / グローバル: %s）\n", env.LocalDir, env.GlobalDir)
+	fmt.Fprintf(stdout, i18n.T("ls.header"), env.LocalDir, env.GlobalDir)
 	shown := 0
 	for _, row := range rows {
 		var label, path, note string
@@ -116,7 +143,7 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 			}
 			label, path = "global", row.GlobalPath
 			if row.Local {
-				note = "（ローカルに上書きされている）"
+				note = i18n.T("ls.note.overridden")
 			}
 		case "local":
 			if !row.Local {
@@ -124,12 +151,12 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 			}
 			label, path = "local", row.LocalPath
 			if row.Global {
-				note = "（グローバルにもある）"
+				note = i18n.T("ls.note.also_global")
 			}
 		default:
 			switch {
 			case row.Local && row.Global:
-				label, path = "local（global を上書き）", row.LocalPath
+				label, path = i18n.T("ls.label.both"), row.LocalPath
 			case row.Local:
 				label, path = "local", row.LocalPath
 			default:
@@ -140,7 +167,7 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 		fmt.Fprintf(stdout, "  %-20s %-24s %s %s\n", row.Name, label, path, note)
 	}
 	if shown == 0 {
-		fmt.Fprintln(stdout, "  （見えるチームがありません）")
+		fmt.Fprint(stdout, i18n.T("ls.empty"))
 	}
 	return nil
 }
@@ -152,40 +179,40 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "team: %s\n", cfg.Team)
 	fmt.Fprintf(stdout, "version: %d\n", cfg.Version)
-	fmt.Fprintf(stdout, "層: %s\n", cfg.Layer)
+	fmt.Fprintf(stdout, i18n.T("show.layer"), cfg.Layer)
 	fmt.Fprintf(stdout, "  team.yaml : %s\n", cfg.TeamYAML.Display())
 	if resolved.GlobalTeamYAML != "" && resolved.LocalTeamYAML != "" {
 		switch cfg.Layer {
 		case source.LayerLocal:
-			fmt.Fprintf(stdout, "  グローバル: %s （ローカルが上書き）\n", resolved.GlobalTeamYAML)
+			fmt.Fprintf(stdout, i18n.T("show.global_overridden"), resolved.GlobalTeamYAML)
 		case source.LayerGlobal:
-			fmt.Fprintf(stdout, "  ローカル: %s （グローバルを使用）\n", resolved.LocalTeamYAML)
+			fmt.Fprintf(stdout, i18n.T("show.local_used"), resolved.LocalTeamYAML)
 		}
 	}
 	if cfg.ProfilesYAML == "" {
-		fmt.Fprintln(stdout, "profiles: なし（members が kind/args を直に書いている場合のみ可）")
+		fmt.Fprint(stdout, i18n.T("show.profiles_none"))
 	} else if cfg.UsesProfiles() {
 		fmt.Fprintf(stdout, "profiles: %s\n", cfg.ProfilesYAML)
 	} else {
-		fmt.Fprintf(stdout, "profiles: %s（どの担当も使っていません）\n", cfg.ProfilesYAML)
+		fmt.Fprintf(stdout, i18n.T("show.profiles_unused"), cfg.ProfilesYAML)
 	}
 
-	fmt.Fprintln(stdout, "文書（チームが宣言した順）:")
+	fmt.Fprint(stdout, i18n.T("show.docs_header"))
 	if len(cfg.Docs) == 0 {
-		fmt.Fprintln(stdout, "  （なし）")
+		fmt.Fprint(stdout, i18n.T("show.docs_none"))
 	}
 	for i, doc := range cfg.Docs {
 		fmt.Fprintf(stdout, "  %d. %s\n", i+1, doc.Display())
 	}
 
-	fmt.Fprintln(stdout, "名簿（担当ごとに実際に読むもの）:")
+	fmt.Fprint(stdout, i18n.T("show.roster_header"))
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
 		engineLabel := fmt.Sprintf("kind=%s", member.Kind)
 		if member.Profile != "" {
 			engineLabel = fmt.Sprintf("profile=%s kind=%s", member.Profile, member.Kind)
 		}
-		fmt.Fprintf(stdout, "  - %-10s 役割=%s  %s\n", member.Name, member.Role, engineLabel)
+		fmt.Fprintf(stdout, i18n.T("show.member_line"), member.Name, member.Role, engineLabel)
 		if len(member.Args) > 0 {
 			fmt.Fprintf(stdout, "      args=%s\n", strings.Join(member.Args, " "))
 		}
@@ -198,14 +225,14 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 				strings.Join(member.MaySpawn.Purposes, ", "), strings.Join(member.MaySpawn.Profiles, ", "))
 		}
 		if member.HasRoleSource {
-			fmt.Fprintf(stdout, "      役割ファイル: %s\n", member.RoleSource.Display())
+			fmt.Fprintf(stdout, i18n.T("show.role_file"), member.RoleSource.Display())
 		} else {
-			fmt.Fprintln(stdout, "      役割ファイル: なし")
+			fmt.Fprint(stdout, i18n.T("show.role_file_none"))
 		}
 		if len(member.DocsRead) > 0 {
-			fmt.Fprintf(stdout, "      読み込む文書: %s\n", displaysOf(member.DocsRead))
+			fmt.Fprintf(stdout, i18n.T("show.docs_read"), displaysOf(member.DocsRead))
 		} else {
-			fmt.Fprintln(stdout, "      読み込む文書: なし")
+			fmt.Fprint(stdout, i18n.T("show.docs_read_none"))
 		}
 	}
 	return nil
@@ -268,7 +295,7 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		return err
 	}
 	for _, note := range notes {
-		fmt.Fprintf(stderr, "Note: %s (spawning anyway)\n", note)
+		fmt.Fprintf(stderr, i18n.T("note.spawn_outside"), note)
 	}
 	if opts.Dry {
 		printResolution(stderr, resolved, cfg)
@@ -294,7 +321,7 @@ func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, fn f
 		}
 		return nil
 	case <-ctx.Done():
-		fmt.Fprintln(stderr, "Interrupted.")
+		fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
 		l.ReportFailure(stderr)
 		return reportedError{err: context.Canceled, code: 130}
 	}
@@ -303,37 +330,37 @@ func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, fn f
 // printResolution says which layer's which file each value and document came
 // from, per member. Only documents a member actually read are listed.
 func printResolution(w io.Writer, resolved *team.Resolved, cfg *config.Config) {
-	fmt.Fprintf(w, "hergy: team %q 層=%s\n", cfg.Team, cfg.Layer)
+	fmt.Fprintf(w, i18n.T("resolution.header"), cfg.Team, cfg.Layer)
 	fmt.Fprintf(w, "  team.yaml : %s\n", cfg.TeamYAML.Display())
 	if resolved.GlobalTeamYAML != "" && resolved.LocalTeamYAML != "" {
 		switch cfg.Layer {
 		case source.LayerLocal:
-			fmt.Fprintf(w, "  グローバルにも同名チームがあります（ローカルが上書き）: %s\n", resolved.GlobalTeamYAML)
+			fmt.Fprintf(w, i18n.T("resolution.global_overridden"), resolved.GlobalTeamYAML)
 		case source.LayerGlobal:
-			fmt.Fprintf(w, "  ローカルにも同名チームがあります（グローバルを使用）: %s\n", resolved.LocalTeamYAML)
+			fmt.Fprintf(w, i18n.T("resolution.local_used"), resolved.LocalTeamYAML)
 		}
 	}
 	switch {
 	case cfg.ProfilesYAML == "":
-		fmt.Fprintln(w, "  profiles  : なし")
+		fmt.Fprint(w, i18n.T("resolution.profiles_none"))
 	case cfg.UsesProfiles():
 		fmt.Fprintf(w, "  profiles  : %s\n", cfg.ProfilesYAML)
 	default:
-		fmt.Fprintf(w, "  profiles  : %s（どの担当も使っていません）\n", cfg.ProfilesYAML)
+		fmt.Fprintf(w, i18n.T("resolution.profiles_unused"), cfg.ProfilesYAML)
 	}
-	fmt.Fprintln(w, "担当ごとの出どころ:")
+	fmt.Fprint(w, i18n.T("resolution.members_header"))
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
-		fmt.Fprintf(w, "  %s 役割=%s\n", member.Name, member.Role)
+		fmt.Fprintf(w, i18n.T("resolution.member_line"), member.Name, member.Role)
 		if member.HasRoleSource {
-			fmt.Fprintf(w, "    役割ファイル: %s\n", member.RoleSource.Display())
+			fmt.Fprintf(w, i18n.T("resolution.role_file"), member.RoleSource.Display())
 		} else {
-			fmt.Fprintln(w, "    役割ファイル: なし")
+			fmt.Fprint(w, i18n.T("resolution.role_file_none"))
 		}
 		if len(member.DocsRead) > 0 {
-			fmt.Fprintf(w, "    文書: %s\n", displaysOf(member.DocsRead))
+			fmt.Fprintf(w, i18n.T("resolution.docs"), displaysOf(member.DocsRead))
 		} else {
-			fmt.Fprintln(w, "    文書: なし")
+			fmt.Fprint(w, i18n.T("resolution.docs_none"))
 		}
 	}
 }
@@ -363,7 +390,7 @@ func newLauncher(cfg *config.Config, timeout int, out io.Writer) *launcher.Launc
 
 // reportLaunch prints where the operation stopped, then the error.
 func reportLaunch(stderr io.Writer, l *launcher.Launcher, err error) error {
-	fmt.Fprintf(stderr, "Error: %v\n", err)
+	fail(stderr, err)
 	l.ReportFailure(stderr)
 	return reportedError{err: err, code: 1}
 }
@@ -371,7 +398,7 @@ func reportLaunch(stderr io.Writer, l *launcher.Launcher, err error) error {
 // requireHerdrPane refuses to touch Herdr outside a Herdr-managed shell pane.
 func requireHerdrPane() error {
 	if os.Getenv("HERDR_ENV") != "1" || os.Getenv("HERDR_PANE_ID") == "" {
-		return fmt.Errorf("Herdr 管理下のシェルペインで実行してください（HERDR_ENV=1 と HERDR_PANE_ID が必要です）")
+		return i18n.Errorf("error.not_under_herdr")
 	}
 	return nil
 }
