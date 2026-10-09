@@ -63,8 +63,8 @@
   "error.arg_nul": "%s[%d] に NUL を含めないでください",
   "error.not_variable_name": "%s: %q は変数名ではありません",
   "error.env_not_string": "%s.%s は文字列にしてください（数値は引用符で囲む）",
-  "error.no_role_file_no_dirs": "no role file for %s（roles に探す場所がありません。役割ファイルをチームの roles に置くか、roles で場所を指定してください）",
-  "error.no_role_file_paths": "no role file for %s（探した場所: %s）",
+  "error.no_role_file_no_dirs": "役割 %s の役割ファイルがありません（roles に探す場所がありません。役割ファイルをチームの roles に置くか、roles で場所を指定してください）",
+  "error.no_role_file_paths": "役割 %s の役割ファイルがありません（探した場所: %s）",
   "error.profiles_moved": "（team.yaml の profiles は無くなりました。プロファイルはグローバルの profiles.yaml に置きます）",
   "error.unknown_placeholder": "初期プロンプトの知らないプレースホルダです: %%{%s}",
 
