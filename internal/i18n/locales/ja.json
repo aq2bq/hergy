@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
+  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n  hergy validate [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n  validate  すべての設定ファイルを up と同じ読み込みで検査し、壊れているものを示す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
 
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "扱えないコマンドです",
@@ -12,6 +12,7 @@
   "error.too_many_args": "位置引数が多すぎます: %v",
   "error.hire_needs_name": "hergy hire にはワーカー名が1つ必要です",
   "error.ls_no_args": "hergy ls は位置引数を取りません: %v",
+  "error.validate_no_args": "hergy validate は位置引数を取りません: %v",
   "error.global_local_conflict": "--global と --local は同時に使えません",
   "error.flag_not_allowed": "--%s は hergy %s では使えません",
   "error.refresh_all_and_member": "refresh は <担当> と --all を同時に使えません",
@@ -115,6 +116,10 @@
   "new.created": "チーム %q を作成しました（%s）: %s\n",
   "new.file": "  %s\n",
   "new.next": "次の一歩: hergy up %s --dry\n",
+
+  "validate.ok": "%s: 問題なし\n",
+  "validate.bad": "壊れています: %s\n",
+  "validate.summary": "検査: %d 件、壊れ %d 件\n",
 
   "resolution.header": "hergy: team %q 層=%s\n",
   "resolution.global_overridden": "  グローバルにも同名チームがあります（ローカルが上書き）: %s\n",

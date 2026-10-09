@@ -53,6 +53,7 @@ hergy up myteam         # 起動
 | `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブに起動して仕事を頼む（主に担当が使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
+| `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
 
 共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）。`refresh` と `hire` は `--team` でチームを指定します。
 
