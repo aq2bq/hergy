@@ -53,6 +53,7 @@ hergy up myteam         # start
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
+| `hergy validate` | Check every settings file and show each broken one |
 
 Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default). `refresh` and `hire` take `--team` to pick the team.
 

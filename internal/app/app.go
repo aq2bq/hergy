@@ -42,15 +42,25 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
+	// validate must still run when the global config.yaml is broken: it is one
+	// of the files validate reports. Every other command keeps stopping here.
+	validating := options.ScanCommand(argv) == "validate"
 	configured, err := team.Lang()
-	if err != nil {
+	if err != nil && !validating {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
-	lang, err := i18n.Resolve(options.ScanLang(argv), configured)
+	explicit := options.ScanLang(argv)
+	lang, err := i18n.Resolve(explicit, configured)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return 1
+		// An unknown --lang is a command-line mistake and always stops. For
+		// validate, an unknown language in config.yaml is one of the breaks it
+		// reports: fall back to the default language and go on.
+		if !validating || explicit != "" {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		lang = i18n.Fallback
 	}
 	if err := i18n.Use(lang); err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
@@ -110,6 +120,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runShow(env, opts, stdout)
 	case options.New:
 		return runNew(env, opts, stdout)
+	case options.Validate:
+		return runValidate(env, stdout)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Refresh:
@@ -288,6 +300,101 @@ func writeScaffold(dir string, files []scaffold.File) error {
 		}
 	}
 	return nil
+}
+
+// runValidate reads every settings file the way up does, shows one line per
+// file, and fails when any of them is broken. It never touches Herdr.
+func runValidate(env team.Env, stdout io.Writer) error {
+	checked, problems := 0, 0
+	report := func(path string, err error) {
+		checked++
+		if err == nil {
+			fmt.Fprint(stdout, i18n.Tf("validate.ok", path))
+			return
+		}
+		problems++
+		msg := err.Error()
+		// Some team-file errors do not name the file; the file-level parser
+		// errors already do. Show the location once either way, and keep the
+		// whole reason on one line.
+		if !strings.Contains(msg, path) {
+			msg = fmt.Sprintf("%s: %s", path, msg)
+		}
+		msg = strings.Join(strings.Fields(msg), " ")
+		fmt.Fprint(stdout, i18n.Tf("validate.bad", msg))
+	}
+
+	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {
+		report(path, validateConfig(path))
+	}
+	if path := filepath.Join(env.GlobalDir, "profiles.yaml"); isFile(path) {
+		report(path, validateProfiles(path))
+	}
+	rows := env.List()
+	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
+		for _, row := range rows {
+			var path string
+			switch layer {
+			case source.LayerGlobal:
+				if !row.Global {
+					continue
+				}
+				path = row.GlobalPath
+			case source.LayerLocal:
+				if !row.Local {
+					continue
+				}
+				path = row.LocalPath
+			}
+			report(path, validateTeam(env, row.Name, layer))
+		}
+	}
+
+	fmt.Fprint(stdout, i18n.Tf("validate.summary", checked, problems))
+	if problems > 0 {
+		return reportedError{err: errors.New("validate found problems"), code: 1}
+	}
+	return nil
+}
+
+// validateConfig reads the global config.yaml the way up does, and holds its
+// lang to the same check every other command applies when it picks a language.
+func validateConfig(path string) error {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lang, err := config.ParseConfig(string(text), path)
+	if err != nil {
+		return err
+	}
+	_, err = i18n.Resolve("", lang)
+	return err
+}
+
+// validateProfiles reads the global profiles.yaml the way up does.
+func validateProfiles(path string) error {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	_, err = config.ParseProfiles(string(text), path)
+	return err
+}
+
+// validateTeam builds one team from one layer the way up does.
+func validateTeam(env team.Env, name, layer string) error {
+	resolved, err := env.Resolve(name, layer)
+	if err != nil {
+		return err
+	}
+	_, err = env.BuildConfig(resolved, source.Disk{})
+	return err
+}
+
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

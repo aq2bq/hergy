@@ -25,6 +25,8 @@ const (
 	Show
 	// New writes a starter team's files.
 	New
+	// Validate checks every settings file and reports each broken one.
+	Validate
 	// Help prints usage.
 	Help
 )
@@ -67,12 +69,13 @@ func Usage() string { return i18n.T("usage") }
 // allowed is the flags each command accepts. Anything else is an error, so a
 // flag that belongs to another command never gets silently ignored.
 var allowed = map[Kind]map[string]bool{
-	Up:      {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
-	Refresh: {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "lang": true, "help": true},
-	Hire:    {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
-	Ls:      {"global": true, "local": true, "dir": true, "lang": true, "help": true},
-	Show:    {"global": true, "local": true, "dir": true, "lang": true, "help": true},
-	New:     {"local": true, "lang": true, "dir": true, "help": true},
+	Up:       {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
+	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "lang": true, "help": true},
+	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
+	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+	New:      {"local": true, "lang": true, "dir": true, "help": true},
+	Validate: {"dir": true, "lang": true, "help": true},
 }
 
 // ScanLang finds --lang in argv before the full parse, so messages printed
@@ -92,6 +95,16 @@ func ScanLang(argv []string) string {
 		}
 	}
 	return ""
+}
+
+// ScanCommand returns the command word, argv[0], before the full parse. It lets
+// the caller recognize a command whose own settings file may be broken, so the
+// command can run instead of stopping on that file.
+func ScanCommand(argv []string) string {
+	if len(argv) == 0 {
+		return ""
+	}
+	return argv[0]
 }
 
 // Parse reads argv (without the program name).
@@ -114,6 +127,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = Show
 	case "new":
 		o.Kind = New
+	case "validate":
+		o.Kind = Validate
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	default:
@@ -249,6 +264,10 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.ls_no_args", positionals)
 		}
+	case Validate:
+		if len(positionals) != 0 {
+			return i18n.Errorf("error.validate_no_args", positionals)
+		}
 	}
 	return nil
 }
@@ -313,6 +332,8 @@ func commandName(kind Kind) string {
 		return "show"
 	case New:
 		return "new"
+	case Validate:
+		return "validate"
 	default:
 		return "help"
 	}
