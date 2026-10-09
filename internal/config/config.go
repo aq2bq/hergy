@@ -201,6 +201,11 @@ type rawProfile struct {
 	Env  map[string]any `yaml:"env"`
 }
 
+type rawConfig struct {
+	Version *int   `yaml:"version"`
+	Lang    string `yaml:"lang"`
+}
+
 // ParseProfiles reads the machine-global profiles.yaml, checking its version
 // before anything else and then rejecting unknown keys.
 func ParseProfiles(text, path string) (map[string]Profile, error) {
@@ -232,6 +237,20 @@ func ParseProfiles(text, path string) (map[string]Profile, error) {
 		out[name] = Profile{Name: name, Kind: kind, Args: args, Env: env}
 	}
 	return out, nil
+}
+
+// ParseConfig reads the global config.yaml and returns the language it names, or
+// "" when it names none. It is held to the same strictness as team.yaml: the
+// version must be present and 1, and any unknown key is an error with a reason.
+func ParseConfig(text, path string) (string, error) {
+	if _, err := readVersion(text, "config.yaml", path); err != nil {
+		return "", err
+	}
+	var raw rawConfig
+	if err := strictDecode(text, &raw); err != nil {
+		return "", fmt.Errorf("%s: %s", path, cleanYAMLError(err))
+	}
+	return raw.Lang, nil
 }
 
 // readVersion decodes only the version, so a missing or wrong version is

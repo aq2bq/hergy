@@ -50,12 +50,20 @@ func globalDir() string {
 	return filepath.Join(home, ".config", "hergy")
 }
 
-// Lang is the language named in the global settings under GlobalDir, or "" when
-// none is set. The settings file's name and format are not settled yet (the
-// lead is checking with the human), so this reads nothing and returns "". Once
-// the file is fixed, read it (or the env) here and return its lang value.
+// Lang is the language named in the global config.yaml under GlobalDir, or ""
+// when the file is absent or names none. i18n.Resolve applies the precedence
+// with --lang; this only reads what the file says. The file is held to the same
+// strictness as team.yaml: the version must be 1 and unknown keys stop.
 func Lang() (string, error) {
-	return "", nil
+	path := filepath.Join(globalDir(), "config.yaml")
+	if !isFile(path) {
+		return "", nil
+	}
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return config.ParseConfig(string(text), path)
 }
 
 // WithProject pins the project root, so a hire run from outside the project

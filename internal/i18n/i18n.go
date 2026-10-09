@@ -1,7 +1,8 @@
 // Package i18n keeps hergy's own words in one file per language and picks the
 // one to use. The files are embedded in the binary; nothing is read at runtime.
 //
-// The language is chosen as --lang, then the global settings, then en. Init
+// The language is chosen as --lang, then the global config.yaml's lang, then
+// en. Init
 // loads every language and stops if their key sets differ, so a missing or
 // extra key is caught before the first message is printed.
 package i18n
@@ -105,7 +106,7 @@ func use(lang string) {
 }
 
 // Resolve picks a language from the --lang value and the configured language
-// (from the global settings): the explicit value wins, then the configured one,
+// (from the global config.yaml): the explicit value wins, then the configured one,
 // then Fallback. An unknown language is an error that names the ones that exist.
 func Resolve(explicit, configured string) (string, error) {
 	wanted := explicit
