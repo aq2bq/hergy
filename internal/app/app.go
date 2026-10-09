@@ -51,16 +51,16 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	explicit := options.ScanLang(argv)
-	// config.yaml is one of the files validate checks, so it cannot choose the
-	// display language: validate uses --lang, or the default. An unknown --lang
-	// is a command-line mistake and still stops.
-	if validating {
-		configured = ""
-	}
 	lang, err := i18n.Resolve(explicit, configured)
 	if err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
-		return 1
+		// An unknown --lang is a command-line mistake and always stops. For
+		// validate, an unknown language in config.yaml is one of the breaks it
+		// reports: fall back to the default language and go on.
+		if !validating || explicit != "" {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		lang = i18n.Fallback
 	}
 	if err := i18n.Use(lang); err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
