@@ -162,18 +162,18 @@
   "progress.inspect": "再試行の前に現在の状態を確かめてください。初期プロンプトは自動では再送されません。",
 
   "role.worker": "%sワーカー",
-  "prompt.self_intro_member": "%sの%s担当の%sです。",
-  "prompt.self_intro_worker": "%sの%sワーカーの%sです。",
+  "prompt.self_intro_member": "%[3]sより:",
+  "prompt.self_intro_worker": "%[3]sより:",
   "list.separator": "、",
   "spawn.allowed_item": "%s（%s）",
 
-  "prompt.member": "あなたは %{team} チームの%{role}担当、%{name} です。\n\n## あなたの役割\n%{role_doc}\n%{docs}\n## チームの名簿\n%{roster}\n\n## Herdr での連携\n%{herdr}\n%{spawn}\nここまでを読んだら、次の指示まで待機してください。\n",
-  "prompt.worker": "あなたは %{team} チームの%{lead_role}担当 %{lead} が払い出した%{purpose}ワーカー、%{name} です。\n\n## 依頼\n%{task}\n\n## Herdr での連携\n%{herdr}\n\n依頼が終わったら、%{lead} へ `herdr agent prompt` で結果を報告し、待機してください。\n",
+  "prompt.member": "あなたは %{team} チームの %{name}（%{role}担当）です。\n\n%{role_doc}\n%{docs}\n## 名簿\n%{roster}\n\n## 連絡\n%{herdr}\n%{spawn}",
+  "prompt.worker": "あなたは %{team} チームの %{name}（%{lead} が払い出した%{purpose}ワーカー）です。\n\n## 依頼\n%{task}\n\n## 連絡\n%{herdr}\n\n終わったら %{lead} へ結果を報告する。\n",
 
   "roster.mark": "（あなた）",
   "roster.line": "- %s担当: %s%s",
 
-  "herdr.guide": "担当どうしの連絡には Herdr の CLI を使う。相手には名簿の名前で届く。自分のペインに書くことは人間への報告であり、他の担当には届かない。\n- 依頼・報告・手番を渡す: `herdr agent prompt <名前> \"<本文>\"`。本文は「%s」で始める\n- 相手が受け取ったか、終えたかを待つ: `herdr agent wait <名前> --until working`、または `--until idle --until done`\n- 相手の画面を読む: `herdr agent read <名前> --source recent --lines 80`\n- 人間に判断や確認を求める: 自分のペインに書いたうえで `herdr notification show \"<件名>\" --body \"<要点>\" --sound request`\n- 細かい使い方は `herdr agent` と `herdr notification` のヘルプで確かめる",
+  "herdr.guide": "- 担当へ: `herdr agent prompt <名前> \"<本文>\"`。本文は「%s」で始める。\n- 人間へ: 自分のペインに書く。\n- ほかの使い方は `herdr agent --help`。",
 
   "spawn.note": "\n## ワーカーの払い出し\n必要なときは、次の目的でワーカーを払い出してよい: %s\n使ってよいプロファイル: %s\n払い出し方: `%s`\nワーカーは別のタブで起動し、終わったらあなた（%s）へ報告してくる。ワーカー名は名簿と重ならない英小文字にする。\n",
 

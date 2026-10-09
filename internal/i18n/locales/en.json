@@ -162,18 +162,18 @@
   "progress.inspect": "Inspect live state before retrying; bootstrap prompts are never retried automatically.",
 
   "role.worker": "%s worker",
-  "prompt.self_intro_member": "I am %[3]s, the %[2]s for team %[1]s.",
-  "prompt.self_intro_worker": "I am %[3]s, a worker for team %[1]s (%[2]s).",
+  "prompt.self_intro_member": "From %[3]s:",
+  "prompt.self_intro_worker": "From %[3]s:",
   "list.separator": ", ",
   "spawn.allowed_item": "%s (%s)",
 
-  "prompt.member": "You are %{name}, the %{role} for team %{team}.\n\n## Your role\n%{role_doc}\n%{docs}\n## Team roster\n%{roster}\n\n## Working with Herdr\n%{herdr}\n%{spawn}\nWhen you have read this far, wait for the next instruction.\n",
-  "prompt.worker": "You are %{name}, a worker for team %{team} (%{purpose}), spawned by %{lead}, the %{lead_role}.\n\n## Task\n%{task}\n\n## Working with Herdr\n%{herdr}\n\nWhen the task is done, report the result to %{lead} with `herdr agent prompt` and wait.\n",
+  "prompt.member": "You are %{name} (%{role}) on team %{team}.\n\n%{role_doc}\n%{docs}\n## Roster\n%{roster}\n\n## Contact\n%{herdr}\n%{spawn}",
+  "prompt.worker": "You are %{name} on team %{team}, a %{purpose} worker hired by %{lead}.\n\n## Task\n%{task}\n\n## Contact\n%{herdr}\n\nWhen you are done, report the result to %{lead}.\n",
 
   "roster.mark": " (you)",
   "roster.line": "- %s: %s%s",
 
-  "herdr.guide": "Use the Herdr CLI to reach the other members. A name from the roster reaches them. Writing in your own pane reports to the human and reaches no other member.\n- Pass a request, a report or the turn: `herdr agent prompt <name> \"<body>\"`. Start the body with \"%s\"\n- Wait until the other side receives or finishes: `herdr agent wait <name> --until working`, or `--until idle --until done`\n- Read the other side's screen: `herdr agent read <name> --source recent --lines 80`\n- Ask the human to decide or confirm: write in your own pane, then `herdr notification show \"<subject>\" --body \"<point>\" --sound request`\n- Check the details in the help of `herdr agent` and `herdr notification`",
+  "herdr.guide": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.",
 
   "spawn.note": "\n## Spawning workers\nWhen needed, you may spawn workers for these purposes: %s\nProfiles you may use: %s\nHow to spawn: `%s`\nThe worker starts in another tab and reports back to you (%s) when done. Worker names are lower-case ASCII and must not collide with the roster.\n",
 
