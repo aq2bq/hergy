@@ -66,7 +66,7 @@ hergy up myteam         # start
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
 
-Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project). `refresh` and `hire` take `--team` to pick the team.
+Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default). `refresh` and `hire` take `--team` to pick the team.
 
 ## Where settings live
 
@@ -77,6 +77,7 @@ Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the proj
 
 - A team lives in `teams/<team>/team.yaml`. When both layers have the same name, the local one wins
 - `profiles.yaml` lives in the global layer only
+- Put `version: 1` and `lang: ja` in the global `config.yaml` to get Japanese without `--lang`
 - `hergy up` shows the files each member read
 
 ## team.yaml
@@ -122,7 +123,7 @@ profiles:
 | `%{herdr}` | How to reach others over herdr |
 | `%{spawn}` | What the member may hire, and the command (only for members with `may_spawn`) |
 
-The default template is a provisional one in Japanese.
+The default template is provisional.
 
 ## What's next
 
