@@ -1,0 +1,9 @@
+version: 1
+docs: [protocol.md]
+members:
+  - name: lead
+    role: lead
+    kind: claude
+  - name: worker
+    role: worker
+    kind: claude

@@ -23,6 +23,8 @@ const (
 	Ls
 	// Show prints the effective config and where it came from.
 	Show
+	// New writes a starter team's files.
+	New
 	// Help prints usage.
 	Help
 )
@@ -70,6 +72,7 @@ var allowed = map[Kind]map[string]bool{
 	Hire:    {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
 	Ls:      {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	Show:    {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+	New:     {"local": true, "lang": true, "dir": true, "help": true},
 }
 
 // ScanLang finds --lang in argv before the full parse, so messages printed
@@ -109,6 +112,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = Ls
 	case "show":
 		o.Kind = Show
+	case "new":
+		o.Kind = New
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	default:
@@ -221,7 +226,7 @@ func IsHelp(err error) bool { return err == errHelp }
 
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
-	case Up, Show:
+	case Up, Show, New:
 		if len(positionals) > 1 {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}
@@ -286,6 +291,10 @@ func validate(o *Options) error {
 		if o.Team == "" {
 			return i18n.Errorf("error.show_needs_team")
 		}
+	case New:
+		if o.Team == "" {
+			return i18n.Errorf("error.new_needs_name")
+		}
 	}
 	return nil
 }
@@ -302,6 +311,8 @@ func commandName(kind Kind) string {
 		return "ls"
 	case Show:
 		return "show"
+	case New:
+		return "new"
 	default:
 		return "help"
 	}

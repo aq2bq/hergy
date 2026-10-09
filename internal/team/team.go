@@ -90,13 +90,21 @@ func gitRoot(dir string) string {
 	return dir
 }
 
+// TeamDir is where a team's files live in one layer.
+func (e Env) TeamDir(name, layer string) string {
+	if layer == source.LayerLocal {
+		return filepath.Join(e.LocalDir, "teams", name)
+	}
+	return filepath.Join(e.GlobalDir, "teams", name)
+}
+
 // Paths to a team's team.yaml in each layer.
 func (e Env) localTeamYAML(name string) string {
-	return filepath.Join(e.LocalDir, "teams", name, "team.yaml")
+	return filepath.Join(e.TeamDir(name, source.LayerLocal), "team.yaml")
 }
 
 func (e Env) globalTeamYAML(name string) string {
-	return filepath.Join(e.GlobalDir, "teams", name, "team.yaml")
+	return filepath.Join(e.TeamDir(name, source.LayerGlobal), "team.yaml")
 }
 
 // Resolved is where a team name was found.

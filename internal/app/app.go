@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/config"
@@ -18,6 +19,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/spawn"
 	"github.com/aq2bq/hergy/internal/team"
@@ -106,6 +108,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runLs(env, opts, stdout)
 	case options.Show:
 		return runShow(env, opts, stdout)
+	case options.New:
+		return runNew(env, opts, stdout)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Refresh:
@@ -233,6 +237,54 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 			fmt.Fprintf(stdout, i18n.T("show.docs_read"), displaysOf(member.DocsRead))
 		} else {
 			fmt.Fprint(stdout, i18n.T("show.docs_read_none"))
+		}
+	}
+	return nil
+}
+
+// runNew writes a starter team's files. It never overwrites: an existing team
+// directory stops it before anything is written. The files themselves come from
+// the embedded scaffold for the language in use.
+func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
+	name := opts.Team
+	if !config.NamePattern.MatchString(name) {
+		return i18n.Errorf("error.new_name_pattern", name)
+	}
+	layer := source.LayerGlobal
+	if opts.Layer == "local" {
+		layer = source.LayerLocal
+	}
+	dir := env.TeamDir(name, layer)
+	if _, err := os.Stat(dir); err == nil {
+		return i18n.Errorf("error.new_exists", name, dir)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	files, err := scaffold.Team(i18n.Language())
+	if err != nil {
+		return err
+	}
+	if err := writeScaffold(dir, files); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, i18n.T("new.created"), name, layer, dir)
+	for _, file := range files {
+		fmt.Fprintf(stdout, i18n.T("new.file"), filepath.Join(dir, file.Path))
+	}
+	fmt.Fprint(stdout, i18n.Tf("new.next", name))
+	return nil
+}
+
+// writeScaffold writes the starter files under dir, creating the directories
+// they need.
+func writeScaffold(dir string, files []scaffold.File) error {
+	for _, file := range files {
+		path := filepath.Join(dir, file.Path)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, file.Data, 0o644); err != nil {
+			return err
 		}
 	}
 	return nil

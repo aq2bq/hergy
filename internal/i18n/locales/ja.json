@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
+  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
 
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "扱えないコマンドです",
@@ -18,6 +18,9 @@
   "error.refresh_needs_member": "refresh には <担当> か --all が必要です",
   "error.hire_needs_flags": "hire には %s が必要です",
   "error.show_needs_team": "hergy show にはチーム名が必要です",
+  "error.new_needs_name": "hergy new にはチーム名が必要です",
+  "error.new_name_pattern": "チーム名は [a-z][a-z0-9_-]{0,31} に一致させてください: %q",
+  "error.new_exists": "チーム %q はすでにあります: %s（何も書きませんでした）",
   "error.not_under_herdr": "Herdr 管理下のシェルペインで実行してください（HERDR_ENV=1 と HERDR_PANE_ID が必要です）",
   "error.cannot_execute": "%s を実行できません: %v",
 
@@ -108,6 +111,10 @@
   "show.role_file_none": "      役割ファイル: なし\n",
   "show.docs_read": "      読み込む文書: %s\n",
   "show.docs_read_none": "      読み込む文書: なし\n",
+
+  "new.created": "チーム %q を作成しました（%s）: %s\n",
+  "new.file": "  %s\n",
+  "new.next": "次の一歩: hergy up %s --dry\n",
 
   "resolution.header": "hergy: team %q 層=%s\n",
   "resolution.global_overridden": "  グローバルにも同名チームがあります（ローカルが上書き）: %s\n",
