@@ -20,7 +20,7 @@
   "error.hire_needs_flags": "hire には %s が必要です",
   "error.show_needs_team": "hergy show にはチーム名が必要です",
   "error.new_needs_name": "hergy new にはチーム名が必要です",
-  "error.new_name_pattern": "チーム名は [a-z][a-z0-9_-]{0,31} に一致させてください: %q",
+  "error.new_name_pattern": "チーム名は [a-z][a-z0-9_-]{0,24} に一致させてください: %q",
   "error.new_exists": "チーム %q はすでにあります: %s（何も書きませんでした）",
   "error.not_under_herdr": "Herdr 管理下のシェルペインで実行してください（HERDR_ENV=1 と HERDR_PANE_ID が必要です）",
   "error.cannot_execute": "%s を実行できません: %v",

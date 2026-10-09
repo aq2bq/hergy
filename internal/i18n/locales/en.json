@@ -20,7 +20,7 @@
   "error.hire_needs_flags": "hire needs %s",
   "error.show_needs_team": "hergy show needs a team name",
   "error.new_needs_name": "hergy new needs a team name",
-  "error.new_name_pattern": "team name must match [a-z][a-z0-9_-]{0,31}: %q",
+  "error.new_name_pattern": "team name must match [a-z][a-z0-9_-]{0,24}: %q",
   "error.new_exists": "a team named %q already exists: %s (nothing written)",
   "error.not_under_herdr": "run inside a Herdr-managed shell pane (HERDR_ENV=1 and HERDR_PANE_ID are required)",
   "error.cannot_execute": "cannot execute %s: %v",

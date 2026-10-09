@@ -1,9 +1,9 @@
 version: 1
 docs: [protocol.md]
 members:
-  - name: lead
+  - name: %{team}-lead
     role: lead
     kind: claude
-  - name: worker
+  - name: %{team}-worker
     role: worker
     kind: claude

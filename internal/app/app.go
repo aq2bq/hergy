@@ -259,7 +259,7 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 // the embedded scaffold for the language in use.
 func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	name := opts.Team
-	if !config.NamePattern.MatchString(name) {
+	if !scaffold.NamePattern.MatchString(name) {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
 	layer := source.LayerGlobal
@@ -272,7 +272,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	files, err := scaffold.Team(i18n.Language())
+	files, err := scaffold.Team(i18n.Language(), name)
 	if err != nil {
 		return err
 	}
