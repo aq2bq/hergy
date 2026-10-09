@@ -28,26 +28,13 @@ go install github.com/aq2bq/hergy@latest
 
 ## はじめかた
 
-プロファイル（エージェントとモデルの組み合わせ）を書きます。
+lead と worker の2人チームのひな形を書き出します。
 
-```yaml
-# ~/.config/hergy/profiles.yaml
-version: 1
-profiles:
-  opus:  { kind: claude, args: ["--model", "claude-opus-5-5"] }
-  codex: { kind: codex,  args: [] }
+```sh
+hergy new myteam        # ~/.config/hergy/teams/myteam/ に書き出す（--local でプロジェクトの .hergy/ に）
 ```
 
-チームを書きます。役割の中身は `roles/<役割>.md`、全員に渡す約束事は `protocol.md` に置きます。
-
-```yaml
-# ~/.config/hergy/teams/myteam/team.yaml
-version: 1
-docs: [protocol.md]
-members:
-  - { name: lead, role: lead, profile: opus }
-  - { name: impl, role: impl, profile: codex }
-```
+`team.yaml`、`protocol.md`（チームの約束）、`roles/lead.md`、`roles/worker.md` ができます。決まりは1件1行で、すぐ下の HTML コメントに「なぜ」を書いています。HTML コメントはエージェントには送られません。
 
 herdr のシェルペインで実行します。
 
@@ -60,6 +47,7 @@ hergy up myteam         # 起動
 
 | コマンド | 内容 |
 |---|---|
+| `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
 | `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画を JSON で出す |
 | `hergy refresh <担当>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
 | `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブに起動して仕事を頼む（主に担当が使う） |
@@ -131,7 +119,8 @@ profiles:
 - 担当どうしのやりとりの定型化と記録（`hergy pass`、`hergy log`）
 - 決まりの一覧と、外して比べる仕組み（`hergy rules`）
 - 人間への質問の受け取り、役割名での指示（`hergy ask`、`hergy tell`）
-- 設定の作成・昇格・移行（`hergy new`、`promote`、`migrate`）
+- 設定の検査（`hergy validate`）
+- 設定の昇格・移行（`hergy promote`、`migrate`）
 - チームの入れ子、TUI
 
 ## ライセンス

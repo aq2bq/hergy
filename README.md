@@ -28,26 +28,13 @@ You also need [herdr](https://github.com/herdrdev/herdr) and the agent CLIs you 
 
 ## Getting started
 
-Write the profiles (pairs of agent and model).
+Write out a starter team of two, a lead and a worker.
 
-```yaml
-# ~/.config/hergy/profiles.yaml
-version: 1
-profiles:
-  opus:  { kind: claude, args: ["--model", "claude-opus-5-5"] }
-  codex: { kind: codex,  args: [] }
+```sh
+hergy new myteam        # writes to ~/.config/hergy/teams/myteam/ (--local writes to the project's .hergy/)
 ```
 
-Write the team. Put each role in `roles/<role>.md`, and the agreements every member gets in `protocol.md`.
-
-```yaml
-# ~/.config/hergy/teams/myteam/team.yaml
-version: 1
-docs: [protocol.md]
-members:
-  - { name: lead, role: lead, profile: opus }
-  - { name: impl, role: impl, profile: codex }
-```
+You get `team.yaml`, `protocol.md` (the team's agreements), `roles/lead.md` and `roles/worker.md`. Each rule is one line, with its "why" in an HTML comment right below it. HTML comments are not sent to the agents.
 
 Run it in a herdr shell pane.
 
@@ -60,6 +47,7 @@ hergy up myteam         # start
 
 | Command | What it does |
 |---|---|
+| `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan as JSON without touching herdr |
 | `hergy refresh <member>` / `--all` | Re-send the bootstrap prompt to waiting members |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
@@ -131,7 +119,8 @@ The default template is provisional.
 - A fixed shape and a record for messages between members (`hergy pass`, `hergy log`)
 - List the rules, and take one out to compare (`hergy rules`)
 - Receive questions for the human, give instructions by role name (`hergy ask`, `hergy tell`)
-- Create, promote and migrate settings (`hergy new`, `promote`, `migrate`)
+- Validate the settings (`hergy validate`)
+- Promote and migrate settings (`hergy promote`, `migrate`)
 - Nested teams, a TUI
 
 ## License
