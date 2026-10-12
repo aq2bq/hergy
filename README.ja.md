@@ -49,6 +49,7 @@ hergy up myteam         # 起動
 |---|---|
 | `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
 | `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画を JSON で出す |
+| `hergy down [チーム]` | 生きている担当のペインを閉じる。`--dry` で閉じる予定を出す。チームのタブごとは閉じない |
 | `hergy refresh <担当>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
 | `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブに起動して仕事を頼む（主に担当が使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |

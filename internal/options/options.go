@@ -15,6 +15,8 @@ type Kind int
 const (
 	// Up boots (or, with --dry, prints) a team.
 	Up Kind = iota
+	// Down closes the panes of a live team's members.
+	Down
 	// Refresh re-submits a bootstrap prompt.
 	Refresh
 	// Hire starts one worker.
@@ -70,6 +72,7 @@ func Usage() string { return i18n.T("usage") }
 // flag that belongs to another command never gets silently ignored.
 var allowed = map[Kind]map[string]bool{
 	Up:       {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
+	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "help": true},
 	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "lang": true, "help": true},
 	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
 	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
@@ -117,6 +120,8 @@ func Parse(argv []string) (*Options, error) {
 	switch cmd {
 	case "up":
 		o.Kind = Up
+	case "down":
+		o.Kind = Down
 	case "refresh":
 		o.Kind = Refresh
 	case "hire":
@@ -241,7 +246,7 @@ func IsHelp(err error) bool { return err == errHelp }
 
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
-	case Up, Show, New:
+	case Up, Down, Show, New:
 		if len(positionals) > 1 {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}
@@ -322,6 +327,8 @@ func commandName(kind Kind) string {
 	switch kind {
 	case Up:
 		return "up"
+	case Down:
+		return "down"
 	case Refresh:
 		return "refresh"
 	case Hire:

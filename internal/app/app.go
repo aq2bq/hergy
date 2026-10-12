@@ -124,6 +124,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runValidate(env, stdout)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
+	case options.Down:
+		return runDown(ctx, env, opts, stdout, stderr)
 	case options.Refresh:
 		return runRefresh(ctx, env, opts, stdout, stderr)
 	case options.Hire:
@@ -415,6 +417,31 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	return runLaunch(ctx, stderr, l, l.Boot)
 }
 
+// runDown closes the panes of a live team's members. --dry prints what would
+// close and reads the live agents, but sends no close and needs no Herdr pane.
+func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
+	resolved, cfg, err := resolveAndBuild(env, opts)
+	if err != nil {
+		return err
+	}
+	members, err := cfg.Select("")
+	if err != nil {
+		return err
+	}
+	// The pane hergy runs in is the member that must be closed last.
+	selfPane := os.Getenv("HERDR_PANE_ID")
+	if opts.Dry {
+		printResolution(stderr, resolved, cfg)
+		return newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true)
+	}
+	if err := requireHerdrPane(); err != nil {
+		return err
+	}
+	printResolution(stdout, resolved, cfg)
+	l := newLauncher(cfg, opts.Timeout, stdout)
+	return runOperation(ctx, stderr, nil, func() error { return l.Down(members, selfPane, false) })
+}
+
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	resolved, cfg, err := resolveAndBuild(env, opts)
 	if err != nil {
@@ -468,20 +495,32 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	return runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) })
 }
 
-// runLaunch runs one Herdr operation, and on Ctrl-C prints the failure report
-// and stops with 130.
+// runLaunch runs one Herdr operation, and on a failure prints the progress
+// record and stops.
 func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, fn func() error) error {
+	return runOperation(ctx, stderr, l.ReportFailure, fn)
+}
+
+// runOperation runs one Herdr operation, and on Ctrl-C stops with 130. report,
+// when set, says where a failed or interrupted operation stopped.
+func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer), fn func() error) error {
 	done := make(chan error, 1)
 	go func() { done <- fn() }()
 	select {
 	case err := <-done:
 		if err != nil {
-			return reportLaunch(stderr, l, err)
+			fail(stderr, err)
+			if report != nil {
+				report(stderr)
+			}
+			return reportedError{err: err, code: 1}
 		}
 		return nil
 	case <-ctx.Done():
 		fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
-		l.ReportFailure(stderr)
+		if report != nil {
+			report(stderr)
+		}
 		return reportedError{err: context.Canceled, code: 130}
 	}
 }
@@ -545,13 +584,6 @@ func printPlan(w io.Writer, mode string, cfg *config.Config, members []config.Me
 func newLauncher(cfg *config.Config, timeout int, out io.Writer) *launcher.Launcher {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return launcher.New(cfg, herdr.New(port), timeout, out)
-}
-
-// reportLaunch prints where the operation stopped, then the error.
-func reportLaunch(stderr io.Writer, l *launcher.Launcher, err error) error {
-	fail(stderr, err)
-	l.ReportFailure(stderr)
-	return reportedError{err: err, code: 1}
 }
 
 // requireHerdrPane refuses to touch Herdr outside a Herdr-managed shell pane.

@@ -13,7 +13,7 @@ import (
 
 // Port is what Herdr needs from the CLI: the command check and JSON replies.
 type Port interface {
-	Verify(boot bool) error
+	Verify(mode string) error
 	JSON(args ...string) (map[string]any, error)
 }
 
@@ -24,7 +24,7 @@ type Herdr struct{ port Port }
 func New(port Port) *Herdr { return &Herdr{port: port} }
 
 // Verify checks the installed commands.
-func (h *Herdr) Verify(boot bool) error { return h.port.Verify(boot) }
+func (h *Herdr) Verify(mode string) error { return h.port.Verify(mode) }
 
 // CurrentWorkspace returns the calling pane's workspace.
 func (h *Herdr) CurrentWorkspace() (string, error) {
@@ -35,8 +35,8 @@ func (h *Herdr) CurrentWorkspace() (string, error) {
 	return protocol.DigString(result, "pane", "workspace_id")
 }
 
-// LiveAgentNames lists the names already in use on the server.
-func (h *Herdr) LiveAgentNames() ([]string, error) {
+// LiveAgents lists the agents running on the server, in Herdr's order.
+func (h *Herdr) LiveAgents() ([]protocol.Agent, error) {
 	result, err := h.port.JSON("agent", "list")
 	if err != nil {
 		return nil, err
@@ -49,17 +49,37 @@ func (h *Herdr) LiveAgentNames() ([]string, error) {
 	if !ok {
 		return nil, i18n.Errorf("error.herdr_agents")
 	}
-	names := make([]string, 0, len(agents))
+	live := make([]protocol.Agent, 0, len(agents))
 	for _, item := range agents {
 		object, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		if name, ok := object["name"].(string); ok {
-			names = append(names, name)
+		live = append(live, protocol.AgentFrom(object))
+	}
+	return live, nil
+}
+
+// LiveAgentNames lists the names already in use on the server.
+func (h *Herdr) LiveAgentNames() ([]string, error) {
+	agents, err := h.LiveAgents()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(agents))
+	for _, agent := range agents {
+		if agent.Name != "" {
+			names = append(names, agent.Name)
 		}
 	}
 	return names, nil
+}
+
+// ClosePane closes one pane and nothing else. A tab is never closed as a unit:
+// the human may have added their own shell to the team's tab.
+func (h *Herdr) ClosePane(pane string) error {
+	_, err := h.port.JSON("pane", "close", pane)
+	return err
 }
 
 // CreateTab makes the team's tab. onTab runs as soon as the tab id is read, so a

@@ -56,13 +56,32 @@ var refreshGroups = []Group{
 	{Name: "agent", Subs: []string{"get", "prompt"}},
 }
 
-// RequiredCommands is the groups and subcommands needed for a boot (or a hire)
-// or a refresh. Check them in this order.
-func RequiredCommands(boot bool) []Group {
-	if boot {
+var downGroups = []Group{
+	{Name: "agent", Subs: []string{"list"}},
+	{Name: "pane", Subs: []string{"close"}},
+}
+
+// Mode is one hergy operation, which needs its own commands from Herdr.
+const (
+	// ModeBoot is a boot or a hire: it makes panes and starts agents.
+	ModeBoot = "boot"
+	// ModeRefresh re-prompts live agents; it starts nothing.
+	ModeRefresh = "refresh"
+	// ModeDown closes live agents' panes; it starts nothing.
+	ModeDown = "down"
+)
+
+// RequiredCommands is the groups and subcommands needed for one operation.
+// Check them in this order.
+func RequiredCommands(mode string) []Group {
+	switch mode {
+	case ModeRefresh:
+		return refreshGroups
+	case ModeDown:
+		return downGroups
+	default:
 		return bootGroups
 	}
-	return refreshGroups
 }
 
 // CheckHelp fails when `herdr <group>` does not advertise the subcommands the

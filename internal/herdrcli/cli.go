@@ -23,8 +23,8 @@ func New(bin string) CLI {
 }
 
 // Verify checks the installed commands advertise what the operation needs.
-func (c CLI) Verify(boot bool) error {
-	for _, group := range protocol.RequiredCommands(boot) {
+func (c CLI) Verify(mode string) error {
+	for _, group := range protocol.RequiredCommands(mode) {
 		stdout, stderr, status, err := c.capture(group.Name)
 		if err != nil {
 			return err

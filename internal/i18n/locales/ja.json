@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n  hergy validate [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n  validate  すべての設定ファイルを up と同じ読み込みで検査し、壊れているものを示す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
+  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy down [チーム] [--dry] [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n  hergy validate [--lang en|ja] [-C プロジェクト]\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す\n  down      チームの担当のペインを閉じる。--dry なら閉じる予定を出し、何も閉じない\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n  validate  すべての設定ファイルを up と同じ読み込みで検査し、壊れているものを示す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
 
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "扱えないコマンドです",
@@ -142,9 +142,20 @@
   "launcher.submitted": "%s: pane=%s 初期プロンプト送信済み\n",
   "launcher.interrupted": "中断しました。\n",
 
+  "down.closing": "%s: pane=%s を閉じています\n",
+  "down.closing_self": "%s: pane=%s を閉じています（自分のペインなので最後）\n",
+  "down.skipped": "%s: いません。そのまま進みます\n",
+  "down.would_close": "%s: pane=%s を閉じる予定\n",
+  "down.would_close_self": "%s: pane=%s を閉じる予定（自分のペインなので最後）\n",
+  "down.would_skip": "%s: いません。閉じる予定はありません\n",
+  "down.absent_only": "チーム %q の担当は誰もいません。閉じるものがありません。\n",
+  "down.done": "畳み完了: %s（閉じた %d、いなかった %d）\n",
+  "down.dry_done": "閉じる予定: %s（閉じる %d、いない %d）\n",
+
   "progress.stage.preflight": "準備",
   "progress.stage.creating_panes": "ペインを作成中",
   "progress.stage.creating_tab": "タブを作成中",
+  "progress.stage.closing": "担当のペインを閉じています",
   "progress.stage.checking": "%s を確認中",
   "progress.stage.rechecking": "%s を再確認中",
   "progress.stage.starting": "%s を起動中",

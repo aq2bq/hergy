@@ -49,6 +49,7 @@ hergy up myteam         # start
 |---|---|
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan as JSON without touching herdr |
+| `hergy down [team]` | Close the live members' panes. `--dry` prints what would close; the team's tab is never closed as a unit |
 | `hergy refresh <member>` / `--all` | Re-send the bootstrap prompt to waiting members |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |

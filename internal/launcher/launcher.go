@@ -1,6 +1,6 @@
-// Package launcher drives a boot, a refresh or a hire through Herdr and records
-// how far it got. It is the layer that touches Herdr and the filesystem; the
-// values it works on are immutable.
+// Package launcher drives a boot, a refresh, a hire or a down through Herdr and
+// records how far it got. It is the layer that touches Herdr and the
+// filesystem; the values it works on are immutable.
 package launcher
 
 import (
@@ -15,6 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/layout"
 	"github.com/aq2bq/hergy/internal/progress"
+	"github.com/aq2bq/hergy/internal/protocol"
 )
 
 // Launcher runs one operation. The mutex protects the progress record, which an
@@ -66,7 +67,7 @@ func (l *Launcher) Boot() error {
 
 // Refresh re-submits the bootstrap prompt to idle agents. It starts nothing.
 func (l *Launcher) Refresh(members []*config.Member) error {
-	if err := l.herdr.Verify(false); err != nil {
+	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
 	// Resolve every selected name before sending anything; never prompt a working agent.
@@ -124,6 +125,113 @@ func (l *Launcher) Hire(worker *config.Member) error {
 	return nil
 }
 
+// downTarget is one member hergy down acts on: its live pane, and whether that
+// pane is the one hergy itself runs in.
+type downTarget struct {
+	member *config.Member
+	pane   string
+	self   bool
+}
+
+// Down closes the panes of the team's live members. It finds a member by name
+// among the live agents; a member that is not live is reported and skipped, and
+// a team with nobody live closes nothing. The pane hergy itself runs in is
+// closed last, so the rest of the team still get closed. With dry, it prints
+// what would close and closes nothing.
+func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) error {
+	if !dry {
+		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
+			return err
+		}
+	}
+	panes, err := l.livePanes()
+	if err != nil {
+		return err
+	}
+	l.stage(i18n.T("progress.stage.closing"))
+	closed, absent := 0, 0
+	var self *downTarget
+	for _, member := range members {
+		pane := panes[member.Name]
+		if pane == "" {
+			absent++
+			if dry {
+				fmt.Fprint(l.out, i18n.Tf("down.would_skip", member.Name))
+			} else {
+				fmt.Fprint(l.out, i18n.Tf("down.skipped", member.Name))
+			}
+			continue
+		}
+		target := downTarget{member: member, pane: pane, self: pane == selfPane}
+		if target.self {
+			// Hold it back: closing this pane first would take hergy with it,
+			// and the rest of the team would stay open.
+			held := target
+			self = &held
+			continue
+		}
+		if err := l.closePane(target, dry); err != nil {
+			return err
+		}
+		closed++
+	}
+	if self != nil {
+		if err := l.closePane(*self, dry); err != nil {
+			return err
+		}
+		closed++
+	}
+	if closed == 0 {
+		fmt.Fprint(l.out, i18n.Tf("down.absent_only", l.cfg.Team))
+		return nil
+	}
+	if dry {
+		fmt.Fprint(l.out, i18n.Tf("down.dry_done", l.cfg.Team, closed, absent))
+		return nil
+	}
+	fmt.Fprint(l.out, i18n.Tf("down.done", l.cfg.Team, closed, absent))
+	return nil
+}
+
+// closePane reports one pane and, unless dry, closes it. The line comes first:
+// when the pane is hergy's own, the close ends the process before anything else
+// could be printed.
+func (l *Launcher) closePane(target downTarget, dry bool) error {
+	name, pane := target.member.Name, target.pane
+	switch {
+	case dry && target.self:
+		fmt.Fprint(l.out, i18n.Tf("down.would_close_self", name, pane))
+		return nil
+	case dry:
+		fmt.Fprint(l.out, i18n.Tf("down.would_close", name, pane))
+		return nil
+	case target.self:
+		fmt.Fprint(l.out, i18n.Tf("down.closing_self", name, pane))
+	default:
+		fmt.Fprint(l.out, i18n.Tf("down.closing", name, pane))
+	}
+	return l.herdr.ClosePane(pane)
+}
+
+// livePanes maps each live agent name to its pane. The first pane wins, so a
+// duplicate name never leads to the same pane being closed twice.
+func (l *Launcher) livePanes() (map[string]string, error) {
+	agents, err := l.herdr.LiveAgents()
+	if err != nil {
+		return nil, err
+	}
+	panes := make(map[string]string, len(agents))
+	for _, agent := range agents {
+		if agent.Name == "" || agent.PaneID == "" {
+			continue
+		}
+		if _, ok := panes[agent.Name]; !ok {
+			panes[agent.Name] = agent.PaneID
+		}
+	}
+	return panes, nil
+}
+
 // ReportFailure writes where the operation stopped.
 func (l *Launcher) ReportFailure(w io.Writer) {
 	l.mu.Lock()
@@ -142,7 +250,7 @@ func (l *Launcher) preflight(members []*config.Member) (string, error) {
 			return "", i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
 		}
 	}
-	if err := l.herdr.Verify(true); err != nil {
+	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
 		return "", err
 	}
 	workspace, err := l.herdr.CurrentWorkspace()

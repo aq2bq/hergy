@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - teams and roles, one level above Herdr\n\nUsage:\n  hergy up [team] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C project]\n  hergy refresh <member>|--all [--team team] [--global|--local] [--dry] [--lang en|ja] [-C project]\n  hergy hire <name> --profile P --purpose X --task \"…\" [--from member] [--team team] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C project]\n  hergy ls [--global|--local] [--lang en|ja] [-C project]\n  hergy show <team> [--global|--local] [--lang en|ja] [-C project]\n  hergy new <team> [--local] [--lang en|ja] [-C project]\n  hergy validate [--lang en|ja] [-C project]\n\nCommands:\n  up        Boot a team. With --dry, print the plan without touching Herdr\n  refresh   Re-submit the bootstrap prompt to idle members (--all for everyone)\n  hire      Start one worker in a separate tab. Note anything outside may_spawn and continue\n  ls        List the visible teams with their layer\n  show      Print the effective config and where each value and document came from\n  new       Write a starter team's files (global by default; --local for the project)\n  validate  Check every settings file the way up reads it, and show each broken one\n\nLanguage:\n  --lang en|ja selects the language (default en). The global config.yaml can set lang; --lang wins.\n\nTeam resolution:\n  Call by name. Local (<project>/.hergy/teams/<name>/team.yaml) first, then global\n  ($XDG_CONFIG_HOME/hergy/teams/<name>/team.yaml, or ~/.config/hergy/ when unset).\n  A name in both resolves to local. With no name, a single local team is used; otherwise the candidates are listed.\n  The project root is the git root (or the current directory); -C overrides it.\n\n  Set HERGY_HERDR to replace the herdr executable (for checking with a fake herdr).\n",
+  "usage": "hergy - teams and roles, one level above Herdr\n\nUsage:\n  hergy up [team] [--dry] [--global|--local] [--timeout ms] [--lang en|ja] [-C project]\n  hergy down [team] [--dry] [--global|--local] [--lang en|ja] [-C project]\n  hergy refresh <member>|--all [--team team] [--global|--local] [--dry] [--lang en|ja] [-C project]\n  hergy hire <name> --profile P --purpose X --task \"…\" [--from member] [--team team] [--global|--local] [--timeout ms] [--dry] [--lang en|ja] [-C project]\n  hergy ls [--global|--local] [--lang en|ja] [-C project]\n  hergy show <team> [--global|--local] [--lang en|ja] [-C project]\n  hergy new <team> [--local] [--lang en|ja] [-C project]\n  hergy validate [--lang en|ja] [-C project]\n\nCommands:\n  up        Boot a team. With --dry, print the plan without touching Herdr\n  down      Close the live members' panes. With --dry, print what would close, closing nothing\n  refresh   Re-submit the bootstrap prompt to idle members (--all for everyone)\n  hire      Start one worker in a separate tab. Note anything outside may_spawn and continue\n  ls        List the visible teams with their layer\n  show      Print the effective config and where each value and document came from\n  new       Write a starter team's files (global by default; --local for the project)\n  validate  Check every settings file the way up reads it, and show each broken one\n\nLanguage:\n  --lang en|ja selects the language (default en). The global config.yaml can set lang; --lang wins.\n\nTeam resolution:\n  Call by name. Local (<project>/.hergy/teams/<name>/team.yaml) first, then global\n  ($XDG_CONFIG_HOME/hergy/teams/<name>/team.yaml, or ~/.config/hergy/ when unset).\n  A name in both resolves to local. With no name, a single local team is used; otherwise the candidates are listed.\n  The project root is the git root (or the current directory); -C overrides it.\n\n  Set HERGY_HERDR to replace the herdr executable (for checking with a fake herdr).\n",
 
   "error.prefix": "Error: %v",
   "error.unhandled_command": "unhandled command",
@@ -142,9 +142,20 @@
   "launcher.submitted": "%s: pane=%s bootstrap submitted\n",
   "launcher.interrupted": "Interrupted.\n",
 
+  "down.closing": "%s: pane=%s closing\n",
+  "down.closing_self": "%s: pane=%s closing (own pane; last)\n",
+  "down.skipped": "%s: not present; skipped\n",
+  "down.would_close": "%s: pane=%s would close\n",
+  "down.would_close_self": "%s: pane=%s would close (own pane; last)\n",
+  "down.would_skip": "%s: not present; would skip\n",
+  "down.absent_only": "No member of team %q is present; nothing to close.\n",
+  "down.done": "Down: %s (%d closed, %d not present)\n",
+  "down.dry_done": "Dry run: %s (%d would close, %d not present)\n",
+
   "progress.stage.preflight": "preflight",
   "progress.stage.creating_panes": "creating panes",
   "progress.stage.creating_tab": "creating tab",
+  "progress.stage.closing": "closing members",
   "progress.stage.checking": "checking %s",
   "progress.stage.rechecking": "rechecking %s",
   "progress.stage.starting": "starting %s",
