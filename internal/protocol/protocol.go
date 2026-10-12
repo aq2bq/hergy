@@ -5,6 +5,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -108,20 +109,54 @@ func Result(args []string, stdout, stderr string, exitStatus int) (map[string]an
 		if detail == "" {
 			detail = strings.TrimSpace(stdout)
 		}
-		return nil, i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail)
+		return nil, &Error{
+			Code: replyCode(detail),
+			err:  i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail),
+		}
 	}
 	var data map[string]any
 	if err := json.Unmarshal([]byte(stdout), &data); err != nil {
 		return nil, i18n.Errorf("error.herdr_json", err)
 	}
 	if value, ok := data["error"]; ok && value != nil {
-		return nil, i18n.Errorf("error.herdr_error", value)
+		return nil, &Error{Code: replyCode(stdout), err: i18n.Errorf("error.herdr_error", value)}
 	}
 	result, ok := data["result"].(map[string]any)
 	if !ok {
 		return nil, i18n.Errorf("error.herdr_no_result")
 	}
 	return result, nil
+}
+
+// Error is a Herdr command that answered with an error. Code is Herdr's error
+// code, empty when the reply carried none.
+type Error struct {
+	Code string
+	err  error
+}
+
+func (e *Error) Error() string { return e.err.Error() }
+
+// ErrorCode is the Herdr error code behind err, or empty.
+func ErrorCode(err error) string {
+	var herdrErr *Error
+	if errors.As(err, &herdrErr) {
+		return herdrErr.Code
+	}
+	return ""
+}
+
+// replyCode reads the code of a JSON error reply, or empty.
+func replyCode(reply string) string {
+	var data struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(reply), &data) != nil {
+		return ""
+	}
+	return data.Error.Code
 }
 
 // Dig walks a nested object, failing when a key is missing.

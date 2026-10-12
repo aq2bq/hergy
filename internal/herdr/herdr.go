@@ -5,6 +5,7 @@ package herdr
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -120,13 +121,24 @@ func (h *Herdr) Rename(pane, name string) error {
 	return err
 }
 
-// Start starts the member's agent in its pane.
+// paneBusy is Herdr's answer when the pane is not at its shell prompt, as a new
+// pane is while its shell startup files still run.
+const paneBusy = "agent_pane_busy"
+
+// Start starts the member's agent in its pane. Herdr has no command that waits
+// for a new pane's shell, so a busy pane is tried again until the timeout.
 func (h *Herdr) Start(member *config.Member, pane string, timeoutMS int) error {
 	args := []string{"agent", "start", member.Name, "--kind", member.Kind, "--pane", pane,
 		"--timeout", fmt.Sprintf("%d", timeoutMS), "--"}
 	args = append(args, member.Args...)
-	_, err := h.port.JSON(args...)
-	return err
+	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
+	for {
+		_, err := h.port.JSON(args...)
+		if err == nil || protocol.ErrorCode(err) != paneBusy || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // Prompt sends text to a live agent name or a pane id.
