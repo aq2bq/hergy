@@ -57,7 +57,7 @@ hergy up myteam         # start
 | `hergy validate` | Check every settings file and show each broken one |
 | `hergy version` | Print the commit and time of the installed hergy |
 
-Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh` and `hire` take `--team` to pick the team.
+Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh` and `hire` take `--team` to pick the team. `up`, `down`, `refresh` and `hire` take `--as <team>` to run the same settings under a different team name (see below).
 
 ## Where settings live
 
@@ -75,18 +75,30 @@ Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the proj
 
 ```yaml
 version: 1              # required
-team: myteam            # defaults to the directory name
+team: myteam            # optional; if written it must match the settings name (teams/<settings>/)
 cwd: .                  # working directory (relative to the project root)
 docs: [protocol.md]     # documents for every member, joined in order; a directory means its *.md in name order
 roles: [roles]          # where to look for role files (defaults to roles/)
 prompt: "…"             # bootstrap prompt template (optional)
 members:
-  - name: lead          # the herdr name
+  - name: "%{team}-lead"  # the herdr name; %{team} becomes the team name (see --as below)
     role: lead          # reads roles/lead.md
     profile: opus       # or write kind / args / env directly
     may_spawn:          # purposes and profiles this member may hire for (written into the prompt, not enforced)
       purposes: [research]
       profiles: [codex]
+```
+
+### Running one settings as more than one team
+
+`--as <team>` boots the same settings under a different team name, so you can run two teams side by side from one `team.yaml`. Without `--as`, the team name is the settings name (the directory name under `teams/`).
+
+The team name must match `[a-z][a-z0-9_-]{0,24}`. Every `members[].name` that contains `%{team}` gets that name, so the two teams get different herdr names and do not collide in herdr. `--as` needs at least one `%{team}` in the member names; if none has it, hergy stops rather than boot the same names twice. hergy keeps no record of running teams, so `down`, `refresh` and `hire` point at one the same way:
+
+```sh
+hergy up demo --as alpha    # boot the demo settings as the team "alpha"
+hergy up demo --as beta     # and once more as "beta"
+hergy down demo --as alpha  # close alpha's members only
 ```
 
 ## profiles.yaml

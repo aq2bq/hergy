@@ -57,7 +57,7 @@ hergy up myteam         # 起動
 | `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
 | `hergy version` | 入っている hergy のコミットと日時を出す |
 
-共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` と `hire` は `--team` でチームを指定します。
+共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` と `hire` は `--team` でチームを指定します。`up` / `down` / `refresh` / `hire` は `--as <チーム名>` で、同じ設定を違うチーム名で起動できます（下記）。
 
 ## 設定の置き場
 
@@ -75,18 +75,30 @@ hergy up myteam         # 起動
 
 ```yaml
 version: 1              # 必須
-team: myteam            # 省略時はディレクトリ名
+team: myteam            # 任意。書くなら設定名（teams/<設定名>/）と一致させる
 cwd: .                  # 作業場所（プロジェクトの直下が基準）
 docs: [protocol.md]     # 全員に渡す文書。書いた順に連結。ディレクトリなら *.md を名前順に
 roles: [roles]          # 役割ファイルを探す場所（省略時は roles/）
 prompt: "…"             # 初期プロンプトのテンプレート（任意）
 members:
-  - name: lead          # herdr での名前
+  - name: "%{team}-lead"  # herdr での名前。%{team} はチーム名になる（下の --as 参照）
     role: lead          # roles/lead.md を読む
     profile: opus       # または kind / args / env を直接書く
     may_spawn:          # 払い出してよい目的とプロファイル（プロンプトに書くだけで、強制しない）
       purposes: [調査]
       profiles: [codex]
+```
+
+### 1つの設定から複数のチームを並べて起動する
+
+`--as <チーム名>` を付けると、同じ設定を違うチーム名で起動できます。1つの `team.yaml` から2つのチームを並べて動かせます。`--as` を付けなければ、チーム名は設定名（`teams/` の下のディレクトリ名）です。
+
+チーム名は `[a-z][a-z0-9_-]{0,24}` に一致させてください。担当名（`members[].name`）に含まれる `%{team}` がそのチーム名に置き換わるので、2つのチームで herdr の名前がぶつかりません。`--as` を付けるときは、担当名のどれかに `%{team}` が必要です。どれにも無ければ、同じ名前を2回起動しないよう hergy が止まります。hergy は起動中のチームを記録しないので、`down` / `refresh` / `hire` も同じように指します:
+
+```sh
+hergy up demo --as alpha    # demo の設定を alpha というチーム名で起動
+hergy up demo --as beta     # 同じ設定をもう一度 beta として起動
+hergy down demo --as alpha  # alpha の担当だけを閉じる
 ```
 
 ## profiles.yaml

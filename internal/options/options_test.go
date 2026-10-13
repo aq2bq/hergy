@@ -21,6 +21,10 @@ func TestParse(t *testing.T) {
 		{name: "version flag", argv: []string{"--version"}, kind: Version},
 		{name: "up with dry", argv: []string{"up", "--dry"}, kind: Up, dry: true},
 		{name: "ls", argv: []string{"ls"}, kind: Ls},
+		{name: "up with --as", argv: []string{"up", "demo", "--as", "alpha"}, kind: Up},
+		{name: "down with --as", argv: []string{"down", "--as", "alpha"}, kind: Down},
+		{name: "--as must match the name pattern", argv: []string{"up", "--as", "Alpha"}, wantErr: true},
+		{name: "--as is not allowed on ls", argv: []string{"ls", "--as", "alpha"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

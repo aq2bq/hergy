@@ -147,11 +147,19 @@ func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *conf
 	if err != nil {
 		return nil, nil, err
 	}
-	cfg, err := env.BuildConfig(resolved, source.Disk{})
+	cfg, err := env.BuildConfig(resolved, source.Disk{}, opts.As, opts.As != "")
 	if err != nil {
 		return nil, nil, err
 	}
 	return resolved, cfg, nil
+}
+
+// asSuffix is the --as part of a next command, empty when no --as was given.
+func asSuffix(opts *options.Options) string {
+	if opts.As == "" {
+		return ""
+	}
+	return " --as " + opts.As
 }
 
 func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
@@ -240,7 +248,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	files, err := scaffold.Team(i18n.Language(), name)
+	files, err := scaffold.Team(i18n.Language())
 	if err != nil {
 		return err
 	}
@@ -363,7 +371,7 @@ func validateTeam(env team.Env, name, layer string) error {
 	if err != nil {
 		return err
 	}
-	_, err = env.BuildConfig(resolved, source.Disk{})
+	_, err = env.BuildConfig(resolved, source.Disk{}, "", false)
 	return err
 }
 
@@ -378,7 +386,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return err
 	}
 	if opts.Dry {
-		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+cfg.Team)
+		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+resolved.Name+asSuffix(opts))
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
@@ -409,7 +417,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		}
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
-			printNext(stdout, "down "+cfg.Team)
+			printNext(stdout, "down "+resolved.Name+asSuffix(opts))
 		}
 		return nil
 	}
@@ -446,6 +454,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 		if opts.All {
 			next = "refresh --all"
 		}
+		next += asSuffix(opts)
 		return dryPlan(stdout, env, resolved, cfg, "reseed", members, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {

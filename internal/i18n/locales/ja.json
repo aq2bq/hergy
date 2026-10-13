@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--dry] [--json] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy down [チーム] [--dry] [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--global|--local] [--dry] [--json] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--global|--local] [--timeout ms] [--dry] [--json] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n  hergy validate [--lang en|ja] [-C プロジェクト]\n  hergy version\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す（--json で JSON）\n  down      チームの担当のペインを閉じる。--dry なら閉じる予定を出し、何も閉じない\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n  validate  すべての設定ファイルを up と同じ読み込みで検査し、壊れているものを示す\n  version   入っている hergy のコミットと日時を出す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
+  "usage": "hergy - チームと役割を Herdr の一段上で扱う\n\n使い方:\n  hergy up [チーム] [--as チーム名] [--dry] [--json] [--global|--local] [--timeout ms] [--lang en|ja] [-C プロジェクト]\n  hergy down [チーム] [--as チーム名] [--dry] [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy refresh <担当>|--all [--team チーム] [--as チーム名] [--global|--local] [--dry] [--json] [--lang en|ja] [-C プロジェクト]\n  hergy hire <名前> --profile P --purpose X --task \"…\" [--from 担当] [--team チーム] [--as チーム名] [--global|--local] [--timeout ms] [--dry] [--json] [--lang en|ja] [-C プロジェクト]\n  hergy ls [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy show <チーム> [--global|--local] [--lang en|ja] [-C プロジェクト]\n  hergy new <チーム名> [--local] [--lang en|ja] [-C プロジェクト]\n  hergy validate [--lang en|ja] [-C プロジェクト]\n  hergy version\n\n説明:\n  up        チームを起動する。--dry なら Herdr に触れず展開済みの計画を出す（--json で JSON）\n  down      チームの担当のペインを閉じる。--dry なら閉じる予定を出し、何も閉じない\n  refresh   idle な担当へ初期プロンプトを再投入する（--all で全員）\n  hire      ワーカーを1人、別のタブに起動する。may_spawn の外でも注意を出して続ける\n  ls        見えるチームを層つきで一覧する\n  show      層を重ねた最終形と、各値・各文書がどの層のどのファイルから来たかを出す\n  new       ひな形のチームのファイルを書き出す（既定はグローバル、--local でプロジェクトへ）\n  validate  すべての設定ファイルを up と同じ読み込みで検査し、壊れているものを示す\n  version   入っている hergy のコミットと日時を出す\n\n言語:\n  --lang en|ja で表示の言語を選ぶ（既定は en）。グローバル設定 config.yaml の lang でも指定でき、--lang が優先される。\n\nチームの解決:\n  名前だけで呼ぶ。ローカル（<プロジェクト>/.hergy/teams/<名前>/team.yaml）が先、\n  グローバル（$XDG_CONFIG_HOME/hergy/teams/<名前>/team.yaml、未設定なら ~/.config/hergy/）が後。\n  同名はローカルが勝つ。引数なしはローカルにチームが1つだけならそれ、それ以外は候補を示して止まる。\n  プロジェクトの直下は git のルート（無ければカレント）。-C で直下を指定できる。\n\nチーム名:\n  --as <チーム名> で、同じ設定を違うチーム名で起動できる（既定は設定名）。\n  team.yaml の担当名に %{team} を書くと、そこがそのチーム名になる（2つのチーム名が衝突しない）。\n\n  起動に HERGY_HERDR を指定すると、herdr の実行ファイルを差し替える（偽の herdr で確かめるため）。\n",
 
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "扱えないコマンドです",
@@ -21,6 +21,7 @@
   "error.show_needs_team": "hergy show にはチーム名が必要です",
   "error.new_needs_name": "hergy new にはチーム名が必要です",
   "error.new_name_pattern": "チーム名は [a-z][a-z0-9_-]{0,24} に一致させてください: %q",
+  "error.as_name_pattern": "--as のチーム名は [a-z][a-z0-9_-]{0,24} に一致させてください: %q",
   "error.new_exists": "チーム %q はすでにあります: %s（何も書きませんでした）",
   "error.not_under_herdr": "Herdr 管理下のシェルペインで実行してください（HERDR_ENV=1 と HERDR_PANE_ID が必要です）",
   "error.cannot_execute": "%s を実行できません: %v",
@@ -39,6 +40,7 @@
   "error.version_missing": "%s: version がありません（このビルドは version: 1 のみ読みます。migrate は未実装です）: %s",
   "error.version_wrong": "%s: version %d は読めません（version: 1 のみ）: %s",
   "error.team_name_mismatch": "%s: team は %q ですが、解決した名前は %q です（名前で解決するため一致させてください）",
+  "error.as_needs_team_placeholder": "--as を付けるときは、team.yaml の担当名に %%{team} が必要です（そうしないと同じ herdr 名の2つ目のチームになってしまいます）: %s",
   "error.members_empty": "%s: members が空です",
   "error.builtin_not_allowed": "%q は使えません（hergy は内蔵の層を持ちません。文書はチームのディレクトリに置いてください）",
   "error.docs_prefix": "docs: %s",
@@ -147,7 +149,7 @@
 
   "spawn.note": "\n## ワーカーの払い出し\n必要なときは、次の目的でワーカーを払い出してよい: %s\n使ってよいプロファイル: %s\n払い出し方: `%s`\nワーカーは別のタブで起動し、終わったらあなた（%s）へ報告してくる。ワーカー名は名簿と重ならない英小文字にする。\n",
 
-  "hire.command": "%s hire <ワーカー名> --profile <プロファイル> --purpose <目的> --task \"<依頼>\" --team %s %s --lang %s -C %s --from %s",
+  "hire.command": "%s hire <ワーカー名> --profile <プロファイル> --purpose <目的> --task \"<依頼>\" --team %s%s %s --lang %s -C %s --from %s",
 
   "next": "next: %s",
 

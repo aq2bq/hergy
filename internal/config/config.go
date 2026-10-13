@@ -30,6 +30,10 @@ var (
 	dangleRE    = regexp.MustCompile(`(?m)\s+into\s*$`)
 )
 
+// teamPlaceholder is where the team name goes. In a member name the parser
+// replaces it at run time; in a prompt template prompt.Expand does it.
+const teamPlaceholder = "%{team}"
+
 // Profile is one engine choice, named, kept in a profiles.yaml.
 type Profile struct {
 	Name string
@@ -128,6 +132,8 @@ func (c *Config) Select(name string) ([]*Member, error) {
 type Input struct {
 	YAML         string
 	TeamName     string // the name the team was resolved by (its directory name)
+	RunName      string // the team name at run time: --as, else TeamName
+	AsGiven      bool   // whether --as was given (so a missing %{team} must stop)
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
@@ -291,6 +297,9 @@ func checkVersion(version *int, what, path string) error {
 
 // Parse builds a Config from team.yaml text.
 func Parse(in Input) (*Config, error) {
+	if in.RunName == "" {
+		in.RunName = in.TeamName
+	}
 	version, err := readVersion(in.YAML, "team.yaml", in.TeamYAMLPath)
 	if err != nil {
 		return nil, err
@@ -322,7 +331,7 @@ func Parse(in Input) (*Config, error) {
 	}
 
 	return &Config{
-		Team:           in.TeamName,
+		Team:           in.RunName,
 		Version:        version,
 		Members:        members,
 		Profiles:       in.Profiles,
@@ -399,7 +408,14 @@ func resolveEntry(entry, base, layer string) (source.Doc, error) {
 func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member, error) {
 	members := make([]Member, 0, len(raw.Members))
 	templates := make([]string, 0, len(raw.Members))
+	usedTeam := false
 	for i, rm := range raw.Members {
+		// %{team} in a member name is the team name at run time (--as), so the
+		// same settings can boot twice under different names without colliding.
+		if strings.Contains(rm.Name, teamPlaceholder) {
+			rm.Name = strings.ReplaceAll(rm.Name, teamPlaceholder, in.RunName)
+			usedTeam = true
+		}
 		member, err := parseSeat(rm, raw.Cwd, in, i)
 		if err != nil {
 			return nil, err
@@ -411,6 +427,11 @@ func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member,
 		}
 		members = append(members, member)
 		templates = append(templates, template)
+	}
+	// A second team from the same settings would carry the same member names and
+	// collide in herdr, so --as needs %{team} somewhere in the member names.
+	if in.AsGiven && !usedTeam {
+		return nil, i18n.Errorf("error.as_needs_team_placeholder", in.TeamYAMLPath)
 	}
 	seen := map[string]bool{}
 	for _, member := range members {
@@ -575,7 +596,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 	}
 
 	parts := map[string]func() string{
-		"team": func() string { return in.TeamName },
+		"team": func() string { return in.RunName },
 		"role": func() string { return member.Role },
 		"name": func() string { return member.Name },
 		"role_doc": func() string {
@@ -607,7 +628,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 		},
 		"roster": func() string { return prompt.Roster(roster, member.Name) },
 		"herdr": func() string {
-			return prompt.Herdr(i18n.Tf("prompt.self_intro_member", in.TeamName, member.Role, member.Name))
+			return prompt.Herdr(i18n.Tf("prompt.self_intro_member", in.RunName, member.Role, member.Name))
 		},
 		"spawn": func() string {
 			if member.MaySpawn == nil {
@@ -639,7 +660,8 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 
 // hireCommand is embedded in a member's prompt. It names the exact team, layer
 // and project, so a hire works even when the member runs outside the project or
-// the same name exists in both layers.
+// the same name exists in both layers. When the team runs under a name other
+// than the settings name, --as carries the team name along.
 func hireCommand(in Input, memberName string) string {
 	layerFlag := "--local"
 	if in.Layer == source.LayerGlobal {
@@ -649,8 +671,12 @@ func hireCommand(in Input, memberName string) string {
 	if executable == "" {
 		executable = "hergy"
 	}
+	asFlag := ""
+	if in.RunName != in.TeamName {
+		asFlag = " --as " + in.RunName
+	}
 	return i18n.Tf("hire.command",
-		shellQuote(executable), in.TeamName, layerFlag, i18n.Language(), shellQuote(in.Base), memberName)
+		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), memberName)
 }
 
 func shellQuote(s string) string {
