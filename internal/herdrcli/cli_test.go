@@ -13,7 +13,7 @@ import (
 var advertised = []string{
 	"herdr agent get", "herdr agent prompt", "herdr agent start", "herdr agent list",
 	"herdr pane current", "herdr pane split", "herdr pane rename", "herdr pane close",
-	"herdr tab create",
+	"herdr tab create", "herdr tab list",
 }
 
 // fakeHerdr writes a stand-in herdr executable and returns a CLI that runs it

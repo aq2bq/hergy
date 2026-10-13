@@ -22,12 +22,12 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
   hergy up [team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
       Boot a team in a new tab. --dry prints the plan and submits nothing; --json, only with --dry, prints it as JSON.
   hergy down [team] [--as team] [--global|--local] [--dry] [-C dir]
-      Close the panes of the team's live members. --dry reads herdr's live agents, prints what would close, and closes nothing.
+      Close the panes of the team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
   hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
       Re-submit the bootstrap prompt to members that are idle or done. Both <seat> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
   hergy hire <name> --profile P --purpose X --task "..." [--from seat] [--team team] [--as team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
-      Start one worker in a tab labelled worker:<name>. --profile, --purpose and --task are required.
+      Start one worker in a tab labelled worker:<team>/<name>. --profile, --purpose and --task are required.
   hergy ls [--global|--local] [-C dir]
       List the visible teams and the layer each came from.
   hergy show <team> [--global|--local] [-C dir]
@@ -44,7 +44,7 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
 Flags:
   --ai            Cheat only: print the agent cheatsheet (always English).
   --as <team>     Run the settings under this team name instead of the settings name. up/down/refresh/hire.
-  --dry           Print what would happen and change nothing. up/refresh/hire never read herdr; down reads the live agents but closes none.
+  --dry           Print what would happen and change nothing. up/refresh/hire never read herdr; down reads the live agents and tabs but closes none.
   --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/hire.
   --global        Use the global layer only.
   --local         Use the local layer only. --global and --local together is an error.
@@ -61,7 +61,7 @@ Flags:
 Running against herdr:
   up, down, refresh and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
-  down skips a member that is not live, and closes hergy's own pane last.
+  down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
 
 Reading the output:
   Most lines are "name: value" (for example "team: demo"). The field names are translated by --lang, so a Japanese run prints "チーム: demo".

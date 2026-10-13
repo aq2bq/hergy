@@ -110,7 +110,7 @@ func (l *Launcher) Hire(worker *config.Member) error {
 	if err != nil {
 		return err
 	}
-	pane, err := l.createTab(workspace, worker, "worker:"+worker.Name)
+	pane, err := l.createTab(workspace, worker, "worker:"+l.cfg.Team+"/"+worker.Seat)
 	if err != nil {
 		return err
 	}
@@ -125,33 +125,46 @@ func (l *Launcher) Hire(worker *config.Member) error {
 	return nil
 }
 
-// downTarget is one member hergy down acts on: its live pane, and whether that
-// pane is the one hergy itself runs in.
+// downTarget is one pane hergy down acts on: the name to report, its pane,
+// whether the pane belongs to a hired worker, and whether it is the pane hergy
+// itself runs in.
 type downTarget struct {
-	member *config.Member
+	name   string
 	pane   string
+	worker bool
 	self   bool
 }
 
-// Down closes the panes of the team's live members. It finds a member by name
-// among the live agents; a member that is not live is reported and skipped, and
-// a team with nobody live closes nothing. The pane hergy itself runs in is
-// closed last, so the rest of the team still get closed. With dry, it prints
-// what would close and closes nothing. It returns how many panes it closed (or
-// would close), so a caller can tell a no-op from real work.
+// Down closes the panes of the team's live members and of the workers it hired.
+// It finds a member by name among the live agents; a member that is not live is
+// reported and skipped. A worker is found by its tab: the tab's label starts
+// with "worker:<team>/", and the live agent in that tab is closed. A team with
+// neither a live member nor a live worker closes nothing. The pane hergy itself
+// runs in is closed last, so the rest still get closed. With dry, it prints what
+// would close and closes nothing. It returns how many panes it closed (or would
+// close), so a caller can tell a no-op from real work.
 func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
 		}
 	}
-	panes, err := l.livePanes()
+	agents, err := l.herdr.LiveAgents()
 	if err != nil {
 		return 0, err
 	}
+	workers, err := l.workerTargets(agents)
+	if err != nil {
+		return 0, err
+	}
+	panes := panesOf(agents)
 	l.stage(i18n.T("progress.stage.closing"))
 	closed, absent := 0, 0
+	// A pane is closed once, however many targets point at it.
+	seen := make(map[string]bool)
 	var self *downTarget
+	// Members first, then the workers; hergy's own pane is held back to last.
+	targets := make([]downTarget, 0, len(members)+len(workers))
 	for _, member := range members {
 		pane := panes[member.Name]
 		if pane == "" {
@@ -163,10 +176,18 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 			}
 			continue
 		}
-		target := downTarget{member: member, pane: pane, self: pane == selfPane}
-		if target.self {
+		targets = append(targets, downTarget{name: member.Name, pane: pane})
+	}
+	targets = append(targets, workers...)
+	for _, target := range targets {
+		if seen[target.pane] {
+			continue
+		}
+		seen[target.pane] = true
+		if target.pane == selfPane {
 			// Hold it back: closing this pane first would take hergy with it,
-			// and the rest of the team would stay open.
+			// and the rest would stay open.
+			target.self = true
 			held := target
 			self = &held
 			continue
@@ -194,18 +215,54 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 	return closed, nil
 }
 
+// workerTargets finds the panes of the workers this team hired: a live agent
+// whose tab's label starts with "worker:<team>/". Tabs are never closed as a
+// unit; only the worker's own pane is.
+func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) {
+	tabs, err := l.herdr.Tabs()
+	if err != nil {
+		return nil, err
+	}
+	labels := make(map[string]string, len(tabs))
+	for _, tab := range tabs {
+		labels[tab.ID] = tab.Label
+	}
+	prefix := "worker:" + l.cfg.Team + "/"
+	var targets []downTarget
+	for _, agent := range agents {
+		if agent.Name == "" || agent.PaneID == "" || agent.TabID == "" {
+			continue
+		}
+		if !strings.HasPrefix(labels[agent.TabID], prefix) {
+			continue
+		}
+		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID, worker: true})
+	}
+	return targets, nil
+}
+
 // closePane reports one pane and, unless dry, closes it. The line comes first:
 // when the pane is hergy's own, the close ends the process before anything else
 // could be printed.
 func (l *Launcher) closePane(target downTarget, dry bool) error {
-	name, pane := target.member.Name, target.pane
+	name, pane := target.name, target.pane
 	switch {
+	case dry && target.self && target.worker:
+		fmt.Fprint(l.out, i18n.Tf("down.would_close_worker_self", name, pane))
+		return nil
+	case dry && target.worker:
+		fmt.Fprint(l.out, i18n.Tf("down.would_close_worker", name, pane))
+		return nil
 	case dry && target.self:
 		fmt.Fprint(l.out, i18n.Tf("down.would_close_self", name, pane))
 		return nil
 	case dry:
 		fmt.Fprint(l.out, i18n.Tf("down.would_close", name, pane))
 		return nil
+	case target.self && target.worker:
+		fmt.Fprint(l.out, i18n.Tf("down.closing_worker_self", name, pane))
+	case target.worker:
+		fmt.Fprint(l.out, i18n.Tf("down.closing_worker", name, pane))
 	case target.self:
 		fmt.Fprint(l.out, i18n.Tf("down.closing_self", name, pane))
 	default:
@@ -214,13 +271,9 @@ func (l *Launcher) closePane(target downTarget, dry bool) error {
 	return l.herdr.ClosePane(pane)
 }
 
-// livePanes maps each live agent name to its pane. The first pane wins, so a
+// panesOf maps each live agent name to its pane. The first pane wins, so a
 // duplicate name never leads to the same pane being closed twice.
-func (l *Launcher) livePanes() (map[string]string, error) {
-	agents, err := l.herdr.LiveAgents()
-	if err != nil {
-		return nil, err
-	}
+func panesOf(agents []protocol.Agent) map[string]string {
 	panes := make(map[string]string, len(agents))
 	for _, agent := range agents {
 		if agent.Name == "" || agent.PaneID == "" {
@@ -230,7 +283,7 @@ func (l *Launcher) livePanes() (map[string]string, error) {
 			panes[agent.Name] = agent.PaneID
 		}
 	}
-	return panes, nil
+	return panes
 }
 
 // ReportFailure writes where the operation stopped.

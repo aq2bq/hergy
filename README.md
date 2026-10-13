@@ -53,9 +53,9 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 |---|---|
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
-| `hergy down [team]` | Close the live members' panes. `--dry` prints what would close; the team's tab is never closed as a unit |
+| `hergy down [team]` | Close the live panes of the team's members and the workers the team hired. `--dry` prints what would close; a tab is never closed as a unit |
 | `hergy refresh <seat>` / `--all` | Re-send the bootstrap prompt to waiting members |
-| `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
+| `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one |
@@ -106,7 +106,7 @@ The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<sea
 hergy up demo --as alpha            # boot the demo settings as the team "alpha"
 hergy up demo --as beta             # and once more as "beta"
 hergy refresh lead --team demo --as alpha   # re-seed alpha's lead
-hergy down demo --as alpha          # close alpha's members only
+hergy down demo --as alpha          # close alpha's members and hired workers only
 ```
 
 ## profiles.yaml

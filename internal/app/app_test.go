@@ -24,6 +24,7 @@ fi
 case "$g $s" in
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
+  "tab list")     echo '{"result":{"tabs":[]}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   *) echo '{"result":{}}' ;;
@@ -41,6 +42,7 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"},{"name":"demo-worker","agent":"claude","agent_status":"idle","pane_id":"p2"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -129,6 +131,7 @@ case "$g $s" in
     printf '%s\n' "$name" >> "$state"
     echo '{"result":{}}'
     ;;
+  "tab list") echo '{"result":{"tabs":[]}}' ;;
   "tab create") echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   *) echo '{"result":{}}' ;;
@@ -706,6 +709,37 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	}
 	if !strings.Contains(got, "From dev-researcher:") {
 		t.Fatalf("the worker's contact intro is not its herdr name:\n%s", got)
+	}
+}
+
+// TestHireLabelsTheTabWithTheTeam: the worker's tab is labelled
+// "worker:<team>/<short name>", so down finds it; with --as, the label carries
+// the --as name.
+func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+	log := f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+		"--task", "read the docs", "--team", "dev")
+	record := readFile(t, log)
+	if !strings.Contains(record, "--label worker:dev/researcher ") {
+		t.Fatalf("hire did not label the tab with the team and short name:\n%s", record)
+	}
+
+	mustRun(t, "hire", "reviewer", "--profile", "dev", "--purpose", "research",
+		"--task", "review the docs", "--team", "dev", "--as", "dev2")
+	record = readFile(t, log)
+	if !strings.Contains(record, "--label worker:dev2/reviewer ") {
+		t.Fatalf("hire --as did not label the tab with the --as name:\n%s", record)
 	}
 }
 

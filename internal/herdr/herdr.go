@@ -76,6 +76,32 @@ func (h *Herdr) LiveAgentNames() ([]string, error) {
 	return names, nil
 }
 
+// Tabs lists the server's tabs, in Herdr's order. Without a workspace, herdr tab
+// list reports every tab, whichever workspace it belongs to.
+func (h *Herdr) Tabs() ([]protocol.Tab, error) {
+	result, err := h.port.JSON("tab", "list")
+	if err != nil {
+		return nil, err
+	}
+	raw, err := protocol.Dig(result, "tabs")
+	if err != nil {
+		return nil, err
+	}
+	tabs, ok := raw.([]any)
+	if !ok {
+		return nil, i18n.Errorf("error.herdr_tabs")
+	}
+	out := make([]protocol.Tab, 0, len(tabs))
+	for _, item := range tabs {
+		object, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, protocol.TabFrom(object))
+	}
+	return out, nil
+}
+
 // ClosePane closes one pane and nothing else. A tab is never closed as a unit:
 // the human may have added their own shell to the team's tab.
 func (h *Herdr) ClosePane(pane string) error {

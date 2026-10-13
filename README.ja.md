@@ -53,9 +53,9 @@ hergy up myteam         # 起動
 |---|---|
 | `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
 | `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画（担当ごとのプロンプトをそのままの文）を出し、`--json` では計画を JSON で出す |
-| `hergy down [チーム]` | 生きている担当のペインを閉じる。`--dry` で閉じる予定を出す。チームのタブごとは閉じない |
+| `hergy down [チーム]` | 生きている担当と、そのチームが払い出したワーカーのペインを閉じる。`--dry` で閉じる予定を出す。タブごとは閉じない |
 | `hergy refresh <担当名>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
-| `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブに起動して仕事を頼む（主に担当が使う） |
+| `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブ（`worker:<チーム名>/<名前>`）に起動して仕事を頼む（主に担当が使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
 | `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
@@ -106,7 +106,7 @@ members:
 hergy up demo --as alpha            # demo の設定を alpha というチーム名で起動
 hergy up demo --as beta             # 同じ設定をもう一度 beta として起動
 hergy refresh lead --team demo --as alpha   # alpha の lead に送り直す
-hergy down demo --as alpha          # alpha の担当だけを閉じる
+hergy down demo --as alpha          # alpha の担当とワーカーだけを閉じる
 ```
 
 ## profiles.yaml

@@ -17,6 +17,7 @@ type Agent struct {
 	Kind   string
 	Status string
 	PaneID string
+	TabID  string
 }
 
 // Check verifies the live agent still is the member the config describes, and
@@ -38,7 +39,22 @@ func AgentFrom(object map[string]any) Agent {
 	agent.Kind, _ = object["agent"].(string)
 	agent.Status, _ = object["agent_status"].(string)
 	agent.PaneID, _ = object["pane_id"].(string)
+	agent.TabID, _ = object["tab_id"].(string)
 	return agent
+}
+
+// Tab is one live tab as Herdr reports it.
+type Tab struct {
+	ID    string
+	Label string
+}
+
+// TabFrom builds a Tab from a Herdr tab object.
+func TabFrom(object map[string]any) Tab {
+	tab := Tab{}
+	tab.ID, _ = object["tab_id"].(string)
+	tab.Label, _ = object["label"].(string)
+	return tab
 }
 
 // Group is a Herdr command group and the subcommands the launcher needs.
@@ -60,6 +76,7 @@ var refreshGroups = []Group{
 var downGroups = []Group{
 	{Name: "agent", Subs: []string{"list"}},
 	{Name: "pane", Subs: []string{"close"}},
+	{Name: "tab", Subs: []string{"list"}},
 }
 
 // Mode is one hergy operation, which needs its own commands from Herdr.
