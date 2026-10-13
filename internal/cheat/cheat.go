@@ -42,8 +42,8 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
       Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
       Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
-  hergy hire <name> --profile P --purpose X --task "..." [--from member] [--team team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
-      Start one worker in a tab labelled worker:<team>/<name>. --profile, --purpose and --task are required.
+  hergy hire <name> --purpose X --task "..." [--profile P] [--from member] [--team team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
+      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. --profile is optional: without it, the profile the hiring member's may_spawn pairs with --purpose is used.
   hergy ls [--global|--local] [-C dir]
       List the visible team definitions and the layer each came from, and the running team names each one booted.
   hergy show <definition> [--global|--local] [-C dir]
@@ -66,7 +66,7 @@ Flags:
   --local         Use the local layer only. --global and --local together is an error.
   --timeout <ms>  Startup timeout, 3001..300000 (default 30000). up/refresh/hire.
   --team <team>   The team, by team name, to act on. refresh/reprompt/hire.
-  --profile <name> The worker's named engine, from profiles.yaml. hire.
+  --profile <name> The worker's named engine, from profiles.yaml. hire; optional: without it the profile may_spawn pairs with --purpose is used.
   --purpose <text> The worker's purpose. hire.
   --task <text>   The worker's task text. hire.
   --from <member> The member hiring the worker; a short member name or a herdr name. hire.
@@ -129,8 +129,9 @@ Settings files and their keys:
       cwd: <dir>         string; overrides the team cwd.
       prompt: "<text>"   string; overrides the team prompt.
       may_spawn:         mapping, optional; what this member may hire. An empty value is an error.
-        purposes: [<purpose>...] list of strings; purposes the member may hire for.
-        profiles: [<profile>...] list of strings; each must be a profile in profiles.yaml.
+        workers:           required, nonempty list of purpose-to-profile pairs.
+          - purpose: <text>    required, string; what a hired worker is for; one worker per purpose.
+            profile: <profile> required, string; the engine that worker runs; a profile in profiles.yaml.
   profiles.yaml, at <layer>/profiles.yaml, next to teams/ in the layer root:
     version: 1        required, int; must be 1.
     profiles:         mapping of profile name to engine.
@@ -141,10 +142,11 @@ Settings files and their keys:
   A local team definition reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global definition reads only the global one.
 
 hire (a member starting a worker):
-  --profile must name a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
+  --profile names a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
+  Without --profile, may_spawn must pair --purpose with a profile, and that profile is used; a purpose that names no pair is an error that lists the purposes may_spawn allows.
   The worker's name must not match an existing member name or herdr name, and <team>-<worker> must match [a-z][a-z0-9_-]{0,31}.
   With no --from, --from is required unless exactly one member has may_spawn.
-  --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
+  A --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
 
 new:
   It writes team.yaml, protocol.md, roles/lead.md and roles/builder.md, and the global config.yaml (version: 1, lang) when that file is missing.

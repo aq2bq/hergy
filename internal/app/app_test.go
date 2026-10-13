@@ -893,7 +893,7 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    kind: claude\n"+
-			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
@@ -916,7 +916,7 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    kind: claude\n"+
-			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
@@ -946,7 +946,7 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    kind: claude\n"+
-			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	log := f.statefulHerdr(t)
@@ -1092,7 +1092,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nprompt: \"%{name}\\n%{spawn}\"\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    kind: claude\n"+
-			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
@@ -1106,6 +1106,9 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	if strings.Contains(plain, "--as") {
 		t.Fatalf("the hire command carries --as:\n%s", plain)
 	}
+	if strings.Contains(plain, "--profile") {
+		t.Fatalf("the hire command still carries --profile:\n%s", plain)
+	}
 
 	named := mustRun(t, "up", "demo", "--as", "alpha", "--dry")
 	if !strings.Contains(named, "--team alpha --local --lang en") {
@@ -1116,6 +1119,134 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	}
 	if !strings.Contains(named, "--from lead") {
 		t.Fatalf("the hire command with --as does not take the short member name:\n%s", named)
+	}
+}
+
+// maySpawnFixture writes a dev team whose lead may hire for 調査 (seeker) and
+// 実装 (developer), and points the fake herdr at the running team.
+func maySpawnFixture(t *testing.T) *fixture {
+	t.Helper()
+	f := newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"    may_spawn:\n      workers:\n"+
+			"        - purpose: 調査\n          profile: seeker\n"+
+			"        - purpose: 実装\n          profile: developer\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	return f
+}
+
+// TestHireUsesTheProfilePairedWithThePurpose: with no --profile, hire takes the
+// profile may_spawn pairs with --purpose, so one purpose runs one engine and the
+// next runs another.
+func TestHireUsesTheProfilePairedWithThePurpose(t *testing.T) {
+	maySpawnFixture(t)
+
+	researcher := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry")
+	for _, want := range []string{"member: dev-researcher", "kind: claude", "profile: seeker"} {
+		if !strings.Contains(researcher, want) {
+			t.Fatalf("hire --purpose 調査 is missing %q:\n%s", want, researcher)
+		}
+	}
+
+	builder := mustRun(t, "hire", "builder", "--purpose", "実装", "--task", "build", "--team", "dev", "--dry")
+	for _, want := range []string{"member: dev-builder", "kind: codex", "profile: developer"} {
+		if !strings.Contains(builder, want) {
+			t.Fatalf("hire --purpose 実装 is missing %q:\n%s", want, builder)
+		}
+	}
+}
+
+// TestHirePurposeOutsideMaySpawn: a purpose may_spawn does not pair, with no
+// --profile, is an error that lists the purposes it may hire for. With a
+// --profile it is only a note, and so is a profile that is not the paired one.
+func TestHirePurposeOutsideMaySpawn(t *testing.T) {
+	maySpawnFixture(t)
+
+	_, stderr, code := run("hire", "w", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry")
+	if code == 0 {
+		t.Fatal("hire with a purpose outside may_spawn and no --profile succeeded")
+	}
+	for _, want := range []string{"error:", "未知", "調査", "実装"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("the error does not name %q:\n%s", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "[[") {
+		t.Fatalf("the error prints an untranslated key:\n%s", stderr)
+	}
+
+	// A --profile for a purpose outside the pairs: a note, and the hire goes on.
+	for _, argv := range [][]string{
+		{"hire", "w", "--profile", "seeker", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry"},
+		{"hire", "w", "--profile", "developer", "--purpose", "調査", "--task", "t", "--team", "dev", "--dry"},
+	} {
+		stdout, stderr, code := run(argv...)
+		if code != 0 {
+			t.Fatalf("%v: exit %d\nstderr:\n%s", argv, code, stderr)
+		}
+		if !strings.Contains(stdout, "mode: spawn") {
+			t.Fatalf("%v did not plan the hire:\n%s", argv, stdout)
+		}
+		if !strings.Contains(stderr, "note:") || !strings.Contains(stderr, "spawning anyway") {
+			t.Fatalf("%v does not note the hire outside may_spawn:\n%s", argv, stderr)
+		}
+	}
+}
+
+// TestUpDryPromptShowsMaySpawnPairs: the %{spawn} note lists purpose-to-profile
+// pairs, and the hire command it embeds needs no --profile. show and --dry
+// --json carry the same pairs.
+func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"    may_spawn:\n      workers:\n"+
+			"        - purpose: 調査\n          profile: seeker\n"+
+			"        - purpose: 実装\n          profile: developer\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
+
+	got := mustRun(t, "up", "demo", "--dry", "--lang", "ja")
+	for _, want := range []string{"## ワーカーの追加", "調査 → seeker", "実装 → developer", "hire <ワーカー名> --purpose <目的>"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("up --dry is missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "--profile") {
+		t.Fatalf("the hire command in the prompt still carries --profile:\n%s", got)
+	}
+
+	shown := mustRun(t, "show", "demo", "--lang", "ja")
+	if !strings.Contains(shown, "may_spawn: 調査 → seeker、実装 → developer\n") {
+		t.Fatalf("show does not list the may_spawn pairs:\n%s", shown)
+	}
+
+	raw := mustRun(t, "up", "demo", "--dry", "--json")
+	var plan struct {
+		Members []struct {
+			MaySpawn struct {
+				Workers []struct {
+					Purpose string `json:"purpose"`
+					Profile string `json:"profile"`
+				} `json:"workers"`
+			} `json:"may_spawn"`
+		} `json:"members"`
+	}
+	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, raw)
+	}
+	if len(plan.Members) == 0 || len(plan.Members[0].MaySpawn.Workers) != 2 {
+		t.Fatalf("--json does not carry two may_spawn workers: %s", raw)
+	}
+	first := plan.Members[0].MaySpawn.Workers[0]
+	if first.Purpose != "調査" || first.Profile != "seeker" {
+		t.Fatalf("--json may_spawn first worker = %+v, want 調査/seeker", first)
 	}
 }
 

@@ -74,17 +74,23 @@ func HerdrWorker(intro string) string {
 	return i18n.Tf("herdr.guide_worker", intro)
 }
 
+// SpawnPair is one purpose-to-profile pair a member may hire for.
+type SpawnPair struct {
+	Purpose string
+	Profile string
+}
+
 // SpawnNote states what a member may spawn. It is written into the prompt and
-// never enforced: a hire outside it only prints a note. `command` is the hire
-// command line shown to the member, with the placeholders it should fill in.
-func SpawnNote(memberName string, purposes, profileNames []string, profileKinds map[string]string, command string) string {
-	allowed := make([]string, 0, len(profileNames))
-	for _, name := range profileNames {
-		allowed = append(allowed, fmt.Sprintf(i18n.T("spawn.allowed_item"), name, profileKinds[name]))
+// never enforced: a hire outside it only prints a note. It lists the pairs of
+// purpose and profile the member may hire for. `command` is the hire command
+// line shown to the member, with the placeholders it should fill in.
+func SpawnNote(memberName string, workers []SpawnPair, command string) string {
+	allowed := make([]string, 0, len(workers))
+	for _, worker := range workers {
+		allowed = append(allowed, fmt.Sprintf(i18n.T("spawn.allowed_item"), worker.Purpose, worker.Profile))
 	}
 	separator := i18n.T("list.separator")
 	return i18n.Tf("spawn.note",
-		strings.Join(purposes, separator),
 		strings.Join(allowed, separator),
 		command,
 		memberName)

@@ -367,9 +367,6 @@ func validate(o *Options) error {
 		}
 	case Hire:
 		var missing []string
-		if o.Profile == "" {
-			missing = append(missing, "--profile")
-		}
 		if o.Purpose == "" {
 			missing = append(missing, "--purpose")
 		}

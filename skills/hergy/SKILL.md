@@ -32,7 +32,7 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you are inside a team
 
-- The lead adds workers within its `may_spawn` and gives each a short name.
+- The lead adds workers within its `may_spawn` (purpose-to-profile pairs) and gives each a short name. With no `--profile`, `hergy hire` uses the profile `may_spawn` pairs with `--purpose`.
 - A worker reports back to the member that hired it when the work is done.
 
 ## While you write settings from outside

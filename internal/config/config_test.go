@@ -200,6 +200,85 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	}
 }
 
+// parseMaySpawnTeam builds a one-member team whose may_spawn is the given block
+// (already indented under may_spawn), with two profiles defined. The prompt is
+// only %{spawn}, so no role file is needed.
+func parseMaySpawnTeam(t *testing.T, maySpawn string) (*Config, error) {
+	t.Helper()
+	dir := t.TempDir()
+	profiles := map[string]Profile{
+		"seeker":    {Name: "seeker", Kind: "claude"},
+		"developer": {Name: "developer", Kind: "codex"},
+	}
+	return Parse(Input{
+		YAML: "version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n" +
+			"  - name: lead\n    role: r\n    kind: claude\n" +
+			"    may_spawn:\n" + maySpawn,
+		TeamName:     "t",
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
+		TeamDir:      dir,
+		Base:         dir,
+		Profiles:     profiles,
+		ProfilesYAML: "profiles.yaml",
+		Reader:       source.Disk{},
+		Executable:   "hergy",
+	})
+}
+
+// TestMaySpawnReadsPurposeProfilePairs: may_spawn is a list of purpose/profile
+// pairs, and each pair reaches the member's prompt.
+func TestMaySpawnReadsPurposeProfilePairs(t *testing.T) {
+	cfg, err := parseMaySpawnTeam(t, "      workers:\n"+
+		"        - purpose: research\n          profile: seeker\n"+
+		"        - purpose: build\n          profile: developer\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Members[0].MaySpawn == nil {
+		t.Fatal("may_spawn was not read")
+	}
+	if got, ok := cfg.Members[0].MaySpawn.ProfileFor("build"); !ok || got != "developer" {
+		t.Errorf("ProfileFor(build) = %q, %v, want developer, true", got, ok)
+	}
+	if !cfg.UsesProfiles() {
+		t.Error("UsesProfiles() = false, want true")
+	}
+	for _, want := range []string{"research → seeker", "build → developer"} {
+		if !strings.Contains(cfg.Members[0].Prompt, want) {
+			t.Errorf("the prompt does not pair %q:\n%s", want, cfg.Members[0].Prompt)
+		}
+	}
+}
+
+// TestMaySpawnStopsOnBrokenPairs: every way a may_spawn block breaks stops the
+// parse, naming the pair or the key it did not like.
+func TestMaySpawnStopsOnBrokenPairs(t *testing.T) {
+	cases := []struct{ name, block, want string }{
+		{"the old purposes and profiles", "      purposes: [research]\n      profiles: [seeker]\n", "workers"},
+		{"workers empty", "      workers: []\n", "workers"},
+		{"workers null", "      workers:\n", "workers"},
+		{"workers not a list", "      workers: research\n", "workers"},
+		{"a worker without a purpose", "      workers:\n        - profile: seeker\n", "purpose"},
+		{"a worker without a profile", "      workers:\n        - purpose: research\n", "profile"},
+		{"a profile that is not in profiles.yaml", "      workers:\n        - purpose: research\n          profile: absent\n", "absent"},
+		{"two workers with one purpose", "      workers:\n        - purpose: research\n          profile: seeker\n        - purpose: research\n          profile: developer\n", "research"},
+		{"an unknown key in a worker", "      workers:\n        - purpose: research\n          profile: seeker\n          kind: claude\n", "kind"},
+		{"an unknown key in may_spawn", "      purpose: research\n", "purpose"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseMaySpawnTeam(t, tc.block)
+			if err == nil {
+				t.Fatal("a broken may_spawn did not stop the parse")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not name %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseUnknownProfileStops(t *testing.T) {
 	_, err := Parse(Input{
 		YAML:         "version: 1\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\n",
