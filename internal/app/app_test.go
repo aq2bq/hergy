@@ -876,7 +876,7 @@ func TestCheatPeopleLeadsWithTheFirstSteps(t *testing.T) {
 		lang  string
 		steps []string
 	}{
-		{"en", []string{"hergy new myteam", "edit team.yaml, profiles.yaml", "hergy up myteam"}},
+		{"en", []string{"hergy new myteam", "edit team.yaml", "hergy up myteam"}},
 		{"ja", []string{"hergy new myteam", "team.yaml を書き換える", "hergy up myteam"}},
 	}
 	for _, tt := range tests {
@@ -947,6 +947,9 @@ func TestCheatRejectsOtherFlags(t *testing.T) {
 		}
 		if !strings.Contains(stderr, "error:") {
 			t.Fatalf("%v does not say why:\n%s", argv, stderr)
+		}
+		if strings.Contains(stderr, "[[") {
+			t.Fatalf("%v prints an untranslated key:\n%s", argv, stderr)
 		}
 	}
 }

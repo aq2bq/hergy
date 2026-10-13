@@ -57,3 +57,21 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+// TestKindsCoversEveryCommand: Kinds is what the cheatsheet tests walk, so a
+// command in the parser table, or Version, that is missing from it would leave
+// that command unchecked.
+func TestKindsCoversEveryCommand(t *testing.T) {
+	inKinds := map[Kind]bool{}
+	for _, kind := range Kinds {
+		inKinds[kind] = true
+	}
+	for kind := range allowed {
+		if !inKinds[kind] {
+			t.Errorf("Kinds misses the command %q from the allowed table", commandName(kind))
+		}
+	}
+	if !inKinds[Version] {
+		t.Errorf("Kinds misses the command %q", commandName(Version))
+	}
+}
