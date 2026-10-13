@@ -495,7 +495,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return err
 	}
 	if opts.Dry {
-		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "status "+cfg.Team)
+		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+resolved.Name+asSuffix(opts))
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
@@ -961,4 +961,12 @@ func envSummary(env map[string]string) string {
 		}
 	}
 	return strings.Join(keys, ", ")
+}
+
+// asSuffix repeats --as on the up command a dry run names next.
+func asSuffix(opts *options.Options) string {
+	if opts.As == "" {
+		return ""
+	}
+	return " --as " + opts.As
 }

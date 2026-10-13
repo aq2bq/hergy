@@ -511,13 +511,13 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"  reads: .hergy/teams/demo/protocol.md",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
-		"next: status demo",
+		"next: up demo",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("up --dry is missing %q:\n%s", line, got)
 		}
 	}
-	if !strings.HasSuffix(got, "next: status demo\n") {
+	if !strings.HasSuffix(got, "next: up demo\n") {
 		t.Fatalf("up --dry does not end with next:\n%s", got)
 	}
 }
@@ -799,7 +799,7 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 			t.Fatalf("up demo --dry is missing %q:\n%s", line, plain)
 		}
 	}
-	if !strings.HasSuffix(plain, "next: status demo\n") {
+	if !strings.HasSuffix(plain, "next: up demo\n") {
 		t.Fatalf("up demo --dry does not end with next:\n%s", plain)
 	}
 
@@ -818,7 +818,7 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 			t.Fatalf("up demo --as alpha --dry is missing %q:\n%s", line, named)
 		}
 	}
-	if !strings.HasSuffix(named, "next: status alpha\n") {
+	if !strings.HasSuffix(named, "next: up demo --as alpha\n") {
 		t.Fatalf("up demo --as alpha --dry does not end with next:\n%s", named)
 	}
 }
@@ -842,7 +842,7 @@ func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 			t.Fatalf("up dev --as dev2 --dry is missing %q:\n%s", line, got)
 		}
 	}
-	if !strings.HasSuffix(got, "next: status dev2\n") {
+	if !strings.HasSuffix(got, "next: up dev --as dev2\n") {
 		t.Fatalf("up dev --as dev2 --dry does not end with next:\n%s", got)
 	}
 }
