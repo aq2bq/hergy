@@ -109,9 +109,9 @@ members:
 
 `--as <team>` boots the same settings under a different team name, so you can run two teams side by side from one `team.yaml`. Without `--as`, the team name is the settings name (the directory name under `teams/`).
 
-Write each `members[].name` as a short seat name (`lead`, `worker`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<seat>`: the `demo` settings give `demo-lead` and `demo-worker`, and `--as dev2` gives `dev2-lead` and `dev2-worker`. Because hergy adds the team name for you, two settings that both name a seat `lead` never collide in herdr. A member name that still contains `%{team}` is refused: that placeholder is no longer used in names.
+Write each `members[].name` as a short seat name (`lead`, `worker`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<seat>`: the `demo` settings give `demo-lead` and `demo-worker`, and `--as dev2` gives `dev2-lead` and `dev2-worker`. Because hergy adds the team name for you, two settings that both name a seat `lead` never collide in herdr. A seat that still contains `%{team}` is refused: that placeholder is no longer used in names.
 
-The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<seat>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams, so `down`, `refresh` and `hire` point at one the same way; the member names on the command line (`refresh <seat>`, `hire --from <seat>`) are the short seat names:
+The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<seat>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams, so `down`, `refresh` and `hire` point at one the same way; the seats on the command line (`refresh <seat>`, `hire --from <seat>`) are the short seat names:
 
 ```sh
 hergy up demo --as alpha            # boot the demo settings as the team "alpha"
@@ -138,7 +138,7 @@ profiles:
 
 | Placeholder | Content |
 |---|---|
-| `%{team}` / `%{role}` / `%{name}` | Team name, role, member name (the herdr name, `"<team>-<seat>"`) |
+| `%{team}` / `%{role}` / `%{name}` | Team name, role, herdr name (`"<team>-<seat>"`) |
 | `%{role_doc}` | The role file |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |

@@ -60,6 +60,8 @@ var glossary = []term{
 			// and the ordinary sense of a person on the team.
 			{lang: "en", word: "<member>"},
 			{lang: "en", word: "--from member"},
+			// "member name" drifted in once the bans above were in place (d-5a13, drift 1).
+			{lang: "en", word: "member name"},
 		},
 	},
 	{
