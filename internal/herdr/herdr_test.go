@@ -105,6 +105,36 @@ func TestStartDoesNotRetryAnotherError(t *testing.T) {
 	}
 }
 
+// TestFindPaneReadsTheLabel: the name hergy gives a pane with pane rename comes
+// back as "label" in pane list; a label no pane carries returns empty.
+func TestFindPaneReadsTheLabel(t *testing.T) {
+	port := &fakePort{reply: func(_ int, args []string) (map[string]any, error) {
+		if want := []string{"pane", "list"}; !slices.Equal(args, want) {
+			return nil, fmt.Errorf("unexpected args %q, want %q", args, want)
+		}
+		return map[string]any{"panes": []any{
+			map[string]any{"pane_id": "p1", "label": "team-lead"},
+			map[string]any{"pane_id": "p2"},
+		}}, nil
+	}}
+
+	got, err := New(port).FindPane("team-lead")
+	if err != nil {
+		t.Fatalf("FindPane: %v", err)
+	}
+	if got != "p1" {
+		t.Fatalf("FindPane = %q, want p1", got)
+	}
+
+	got, err = New(port).FindPane("nobody")
+	if err != nil {
+		t.Fatalf("FindPane(nobody): %v", err)
+	}
+	if got != "" {
+		t.Fatalf("FindPane(nobody) = %q, want empty", got)
+	}
+}
+
 // TestPaneProcessInfoReadsTheGroupAndShell: the pane's foreground group and
 // shell pid come from result.process_info, and a reply without a number fails.
 func TestPaneProcessInfoReadsTheGroupAndShell(t *testing.T) {

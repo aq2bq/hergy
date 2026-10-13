@@ -26,10 +26,10 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
   hergy status [team] [--as team] [--global|--local] [-C dir]
       Print one line per member and per worker of the team: its live agent_status (working/idle/done/blocked), or "not present" when the member is not live. A worker carries "(worker)". Last, a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. It only reads herdr, and runs outside a herdr-managed pane too.
   hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
-      Restart each selected member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. The conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
+      Restart each selected member. A live member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. A member that is not live: start it again in the pane hergy named after it, when that pane is still at its shell. Either way the conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
       Both <seat> and --all is an error; neither is an error.
       A member running in your own pane (HERDR_PANE_ID) cannot refresh itself: stopping it would stop hergy first. That is an error, and nothing is stopped.
-      If any selected member is not idle or done, nothing is stopped and the whole command errors.
+      If any selected member is not idle or done, is your own pane, or (when not live) has no pane at its shell, nothing is changed and the whole command errors. A pane that is gone or busy points at hergy down then hergy up.
   hergy reprompt <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
       Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
       Both <seat> and --all is an error; neither is an error.
@@ -71,6 +71,7 @@ Running against herdr:
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
+  refresh starts a member that is not live again in the pane hergy named after it, when that pane is still at its shell; a pane that is gone or busy is an error, and refresh points at down then up.
   env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env.
 
 Reading the output:

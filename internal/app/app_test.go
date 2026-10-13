@@ -87,6 +87,22 @@ case "$g $s" in
 esac
 `
 
+// noPaneHerdr is a fake herdr where the demo team's members have no live agent
+// and no pane is named after them.
+const noPaneHerdr = `#!/bin/sh
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
+  "pane list") echo '{"result":{"panes":[]}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`
+
 // fixture is one temporary project with a global config directory outside the
 // home directory, so paths inside the project go relative and paths under the
 // config directory stay absolute.
@@ -174,6 +190,32 @@ case "$g $s" in
   "tab list") echo '{"result":{"tabs":[]}}' ;;
   "tab create") echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`
+	f.herdr(t, script)
+	return log
+}
+
+// refreshDeadHerdr writes a fake herdr where the demo team's lead has no live
+// agent, but the pane hergy named after it is still there at its shell. It
+// records every call in <cfg>/herdr.log and returns that path.
+func (f *fixture) refreshDeadHerdr(t *testing.T) string {
+	t.Helper()
+	log := filepath.Join(f.cfg, "herdr.log")
+	script := `#!/bin/sh
+log='` + log + `'
+printf '%s\n' "$*" >> "$log"
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent get")         echo '{"error":{"code":"agent_not_found"}}' ;;
+  "pane list")         echo '{"result":{"panes":[{"pane_id":"w1:p9","label":"demo-lead"}]}}' ;;
+  "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"w1:p9"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -444,6 +486,43 @@ func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 	}
 	if strings.Contains(got, "next:") {
 		t.Fatalf("--json output must be the JSON alone:\n%s", got)
+	}
+}
+
+// TestRefreshStartsAStoppedMember: refresh starts a member that is not live when
+// the pane hergy named after it is still at its shell, using that pane.
+func TestRefreshStartsAStoppedMember(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	log := f.refreshDeadHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "w0:p1")
+	got := mustRun(t, "refresh", "lead")
+	if !strings.Contains(got, "restarted: demo-lead\n") {
+		t.Fatalf("refresh does not report the restart:\n%s", got)
+	}
+	record := readFile(t, log)
+	if !strings.Contains(record, "agent start demo-lead --kind claude --pane w1:p9") {
+		t.Fatalf("refresh did not start the member in its named pane:\n%s", record)
+	}
+}
+
+// TestRefreshStoppedMemberWithoutAPanePointsAtDownAndUp: when the pane is gone,
+// refresh changes nothing and tells the reader to redo down and up.
+func TestRefreshStoppedMemberWithoutAPanePointsAtDownAndUp(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, noPaneHerdr)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "w0:p1")
+	_, stderr, code := run("refresh", "lead")
+	if code == 0 {
+		t.Fatal("refresh succeeded with no pane for the member")
+	}
+	for _, want := range []string{"hergy down", "hergy up"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("refresh does not point at %q:\n%s", want, stderr)
+		}
 	}
 }
 

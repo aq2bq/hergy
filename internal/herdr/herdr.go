@@ -102,6 +102,33 @@ func (h *Herdr) Tabs() ([]protocol.Tab, error) {
 	return out, nil
 }
 
+// FindPane returns the id of the pane hergy named with this label, or "" when no
+// pane carries it. hergy names a pane after its member with pane rename.
+func (h *Herdr) FindPane(label string) (string, error) {
+	result, err := h.port.JSON("pane", "list")
+	if err != nil {
+		return "", err
+	}
+	raw, err := protocol.Dig(result, "panes")
+	if err != nil {
+		return "", err
+	}
+	panes, ok := raw.([]any)
+	if !ok {
+		return "", i18n.Errorf("error.herdr_panes")
+	}
+	for _, item := range panes {
+		object, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if pane := protocol.PaneFrom(object); pane.Label == label {
+			return pane.ID, nil
+		}
+	}
+	return "", nil
+}
+
 // ClosePane closes one pane and nothing else. A tab is never closed as a unit:
 // the human may have added their own shell to the team's tab.
 func (h *Herdr) ClosePane(pane string) error {

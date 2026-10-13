@@ -68,6 +68,21 @@ func TabFrom(object map[string]any) Tab {
 	return tab
 }
 
+// Pane is one live pane as Herdr reports it. Label is the name pane rename set.
+type Pane struct {
+	ID    string
+	Label string
+}
+
+// PaneFrom builds a Pane from a Herdr pane object. The name hergy gives a pane
+// with pane rename comes back as "label".
+func PaneFrom(object map[string]any) Pane {
+	pane := Pane{}
+	pane.ID, _ = object["pane_id"].(string)
+	pane.Label, _ = object["label"].(string)
+	return pane
+}
+
 // Group is a Herdr command group and the subcommands the launcher needs.
 type Group struct {
 	Name string
@@ -86,7 +101,7 @@ var repromptGroups = []Group{
 
 var refreshGroups = []Group{
 	{Name: "agent", Subs: []string{"get", "prompt", "start"}},
-	{Name: "pane", Subs: []string{"process-info"}},
+	{Name: "pane", Subs: []string{"process-info", "list"}},
 }
 
 var downGroups = []Group{

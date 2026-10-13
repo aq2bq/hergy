@@ -122,24 +122,27 @@ func (l *Launcher) Reprompt(members []*config.Member) error {
 	return nil
 }
 
-// Refresh restarts each selected member: it stops the member's process group,
-// waits for Herdr to forget the agent name, and starts the member again in the
-// same pane with the settings as they are now. The conversation starts empty.
-// It reads the settings again first, so an edited profile, kind or args takes
-// effect. selfPane is the pane hergy itself runs in: a member there cannot be
-// restarted, because stopping it would stop hergy before it could start the
-// agent again. It checks every selected member before it stops any, so one
-// member that is not idle or done, or that is hergy's own, stops the whole
-// command with nothing stopped.
+// Refresh restarts each selected member. A member that is live has its process
+// group stopped, Herdr's name waited away, and the member started again in the
+// same pane; a member that is not live, but whose pane hergy named after it is
+// still there at its shell, is started again in that pane. Either way the
+// conversation starts empty, and the settings are read again first, so an edited
+// profile, kind, args or prompt takes effect. selfPane is the pane hergy itself
+// runs in: a member there cannot be restarted, because stopping it would stop
+// hergy before it could start the agent again. It checks every selected member
+// before it stops or starts any, so one member that is not idle or done, is
+// hergy's own, or has no pane to start in, stops the whole command with nothing
+// changed.
 func (l *Launcher) Refresh(members []*config.Member, selfPane string) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
-	if err := l.checkTargets(members, selfPane); err != nil {
+	targets, err := l.checkTargets(members, selfPane)
+	if err != nil {
 		return err
 	}
-	for _, member := range members {
-		if err := l.restart(member); err != nil {
+	for _, target := range targets {
+		if err := l.restart(target); err != nil {
 			return err
 		}
 	}
@@ -147,10 +150,12 @@ func (l *Launcher) Refresh(members []*config.Member, selfPane string) error {
 	return nil
 }
 
-// RefreshDry checks the same targets a real refresh checks and stops nothing, so
-// --dry shows the same refusal. Like down --dry, it reads the live agents.
+// RefreshDry checks the same targets a real refresh checks and changes nothing,
+// so --dry shows the same refusal. Like down --dry, it reads the live agents and
+// panes.
 func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
-	return l.checkTargets(members, selfPane)
+	_, err := l.checkTargets(members, selfPane)
+	return err
 }
 
 // StatusRow is one line of hergy status: a member or a worker of this team, the
@@ -200,62 +205,111 @@ func (l *Launcher) Status(members []*config.Member) ([]StatusRow, error) {
 	return rows, nil
 }
 
+// refreshTarget is one member a refresh acts on: its pane, and whether an agent
+// is live there. A member with no live agent is started again in the pane hergy
+// named for it, when that pane is at its shell.
+type refreshTarget struct {
+	member *config.Member
+	pane   string
+	live   bool
+}
+
 // checkTargets reads every selected member and refuses the whole command unless
-// each is live, idle or done, and not running in hergy's own pane. Nothing is
-// stopped until every member passes.
-func (l *Launcher) checkTargets(members []*config.Member, selfPane string) error {
+// each one can be restarted: live and idle or done, or not live with its named
+// pane still at the shell. A member in hergy's own pane is refused either way.
+// Nothing is stopped or started until every member passes.
+func (l *Launcher) checkTargets(members []*config.Member, selfPane string) ([]refreshTarget, error) {
+	targets := make([]refreshTarget, 0, len(members))
 	for _, member := range members {
 		l.stage(i18n.Tf("progress.stage.checking", member.Name))
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
-			return err
+			if protocol.ErrorCode(err) != herdr.AgentNotFound {
+				return nil, err
+			}
+			target, err := l.deadTarget(member, selfPane)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, target)
+			continue
 		}
 		// No kind check here: the settings were just read again, and the live
 		// agent still runs the kind those settings had before the edit.
 		if err := agent.CheckLive(member.Name); err != nil {
-			return err
+			return nil, err
 		}
 		if agent.PaneID == "" {
-			return i18n.Errorf("error.missing_pane_id", member.Name)
+			return nil, i18n.Errorf("error.missing_pane_id", member.Name)
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return i18n.Errorf("error.refresh_self", member.Name)
+			return nil, i18n.Errorf("error.refresh_self", member.Name)
 		}
 		l.place(member.Name, agent.PaneID)
+		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
 	}
-	return nil
+	return targets, nil
 }
 
-// restart stops one member's process group, waits for Herdr to drop the name,
-// and starts the member again in the same pane.
-func (l *Launcher) restart(member *config.Member) error {
-	pane := l.paneOf(member.Name)
-	// Check once more, right before stopping: time passed since the first check
-	// (with --all, the earlier members' restarts), and the member may have
-	// started working again. This is the same second look reprompt takes.
-	l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
-	agent, err := l.herdr.Agent(pane)
+// deadTarget finds the pane hergy named after a member that has no live agent.
+// The member can be started again only when that pane is still there and its
+// foreground process is the shell; otherwise the pane is gone or something hergy
+// did not start is running in it, and refresh must not take it over.
+func (l *Launcher) deadTarget(member *config.Member, selfPane string) (refreshTarget, error) {
+	pane, err := l.herdr.FindPane(member.Name)
 	if err != nil {
-		return err
+		return refreshTarget{}, err
 	}
-	if err := agent.CheckLive(member.Name); err != nil {
-		return err
+	if pane == "" {
+		return refreshTarget{}, i18n.Errorf("error.refresh_no_pane", member.Name)
 	}
-	l.stage(i18n.Tf("progress.stage.stopping", member.Name))
+	if selfPane != "" && pane == selfPane {
+		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name)
+	}
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {
-		return err
+		return refreshTarget{}, err
 	}
-	// When no agent runs in the pane, the foreground group is the shell itself;
-	// there is nothing to stop.
 	if info.Pgid != info.ShellPID {
-		if err := l.kill(info.Pgid); err != nil {
-			return i18n.Errorf("error.kill_failed", member.Name, err)
-		}
+		return refreshTarget{}, i18n.Errorf("error.refresh_pane_busy", member.Name, pane)
 	}
-	l.stage(i18n.Tf("progress.stage.waiting", member.Name))
-	if err := l.waitGone(member.Name); err != nil {
-		return err
+	l.place(member.Name, pane)
+	return refreshTarget{member: member, pane: pane, live: false}, nil
+}
+
+// restart stops a live member's process group and waits for Herdr to drop the
+// name, then starts the member again in its pane. A member that was already not
+// live is only started.
+func (l *Launcher) restart(target refreshTarget) error {
+	member, pane := target.member, target.pane
+	if target.live {
+		// Check once more, right before stopping: time passed since the first
+		// check (with --all, the earlier members' restarts), and the member may
+		// have started working again. This is the same second look reprompt takes.
+		l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
+		agent, err := l.herdr.Agent(pane)
+		if err != nil {
+			return err
+		}
+		if err := agent.CheckLive(member.Name); err != nil {
+			return err
+		}
+		l.stage(i18n.Tf("progress.stage.stopping", member.Name))
+		info, err := l.herdr.PaneProcessInfo(pane)
+		if err != nil {
+			return err
+		}
+		// When no agent runs in the pane, the foreground group is the shell
+		// itself; there is nothing to stop.
+		if info.Pgid != info.ShellPID {
+			if err := l.kill(info.Pgid); err != nil {
+				return i18n.Errorf("error.kill_failed", member.Name, err)
+			}
+		}
+		l.stage(i18n.Tf("progress.stage.waiting", member.Name))
+		if err := l.waitGone(member.Name); err != nil {
+			return err
+		}
 	}
 	return l.start(member)
 }

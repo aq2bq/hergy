@@ -30,6 +30,7 @@ func TestMain(m *testing.M) {
 type fakePort struct {
 	live     []protocol.Agent
 	tabs     []protocol.Tab
+	panes    []protocol.Pane
 	closed   []string
 	verified []string
 	calls    []string
@@ -104,6 +105,12 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 			tabs = append(tabs, map[string]any{"tab_id": tab.ID, "label": tab.Label})
 		}
 		return map[string]any{"tabs": tabs}, nil
+	case slices.Equal(args, []string{"pane", "list"}):
+		panes := make([]any, 0, len(p.panes))
+		for _, pane := range p.panes {
+			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label})
+		}
+		return map[string]any{"panes": panes}, nil
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
 		p.closed = append(p.closed, args[2])
 		return map[string]any{}, nil
@@ -456,6 +463,164 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 	}
 	if slices.Contains(commandTrail(port.calls), "pane close") {
 		t.Fatalf("status closed a pane:\n%v", port.calls)
+	}
+}
+
+// TestRefreshStartsAMemberThatIsNotLive: when a member has no live agent but the
+// pane hergy named after it is still at its shell, refresh starts the member
+// there again and submits the prompt. It stops nothing.
+func TestRefreshStartsAMemberThatIsNotLive(t *testing.T) {
+	port := &fakePort{
+		agents:  map[string]protocol.Agent{},
+		gone:    map[string]bool{},
+		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		process: map[string][2]int{"p1": {900, 900}},
+	}
+	l, out := downLauncher(t, port, "team-lead")
+	l.timeout = 3000
+	l.kill = func(pgid int) error {
+		t.Fatalf("refresh killed %d for a member that is not live", pgid)
+		return nil
+	}
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, ""); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	want := []string{"agent get", "pane list", "pane process-info", "agent start", "agent prompt"}
+	if got := commandTrail(port.calls); !slices.Equal(got, want) {
+		t.Fatalf("call order %v, want %v", got, want)
+	}
+	if !slices.Equal(port.verified, []string{protocol.ModeRefresh}) {
+		t.Fatalf("Verify called with %v, want [%s]", port.verified, protocol.ModeRefresh)
+	}
+	if !strings.Contains(out.String(), "restarted: team-lead") {
+		t.Fatalf("refresh does not report the restart:\n%s", out.String())
+	}
+}
+
+// TestRefreshRefusesAMemberWithNoPane: a member that is not live and has no pane
+// named after it is refused, and nothing is started.
+func TestRefreshRefusesAMemberWithNoPane(t *testing.T) {
+	port := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}}
+	l, _ := downLauncher(t, port, "team-lead")
+	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, ""); err == nil {
+		t.Fatal("Refresh accepted a member with no pane")
+	}
+	if slices.Contains(commandTrail(port.calls), "agent start") {
+		t.Fatalf("refresh started a member with no pane:\n%v", port.calls)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("refresh read process info without a pane:\n%v", port.calls)
+	}
+}
+
+// TestRefreshRefusesAMemberWhosePaneIsBusy: a member that is not live, whose
+// named pane runs something else, is refused, and nothing is started.
+func TestRefreshRefusesAMemberWhosePaneIsBusy(t *testing.T) {
+	port := &fakePort{
+		agents:  map[string]protocol.Agent{},
+		gone:    map[string]bool{},
+		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		process: map[string][2]int{"p1": {4242, 900}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, ""); err == nil {
+		t.Fatal("Refresh accepted a member whose pane is busy")
+	}
+	if slices.Contains(commandTrail(port.calls), "agent start") {
+		t.Fatalf("refresh started an agent in a busy pane:\n%v", port.calls)
+	}
+}
+
+// TestRefreshRefusesItsOwnPaneForADeadMember: the self refusal holds when the
+// member is not live and its named pane is hergy's own.
+func TestRefreshRefusesItsOwnPaneForADeadMember(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{},
+		gone:   map[string]bool{},
+		panes:  []protocol.Pane{{ID: "own", Label: "team-lead"}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, "own"); err == nil {
+		t.Fatal("Refresh accepted its own pane for a member that is not live")
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("refresh read process info for its own pane:\n%v", port.calls)
+	}
+}
+
+// TestRefreshAllChecksEveryoneBeforeStarting: --all checks every member before
+// it starts any, so a working member stops the whole command before the dead one
+// is started (or its pane is read).
+func TestRefreshAllChecksEveryoneBeforeStarting(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{
+			"team-lead": {Name: "team-lead", Kind: "claude", Status: "working", PaneID: "p1"},
+		},
+		gone:    map[string]bool{},
+		panes:   []protocol.Pane{{ID: "p2", Label: "team-worker"}},
+		process: map[string][2]int{"p2": {900, 900}},
+	}
+	l, _ := downLauncher(t, port, "team-lead", "team-worker")
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, ""); err == nil {
+		t.Fatal("Refresh --all accepted a working member")
+	}
+	trail := commandTrail(port.calls)
+	if slices.Contains(trail, "agent start") || slices.Contains(trail, "pane list") {
+		t.Fatalf("refresh --all acted before checking every member:\n%v", port.calls)
+	}
+}
+
+// TestRefreshDryAcceptsADeadMember: --dry checks the same dead member and stops
+// and starts nothing.
+func TestRefreshDryAcceptsADeadMember(t *testing.T) {
+	port := &fakePort{
+		agents:  map[string]protocol.Agent{},
+		gone:    map[string]bool{},
+		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		process: map[string][2]int{"p1": {900, 900}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	l.kill = func(pgid int) error { t.Fatalf("dry refresh killed %d", pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.RefreshDry(members, ""); err != nil {
+		t.Fatalf("RefreshDry: %v", err)
+	}
+	if len(port.verified) != 0 {
+		t.Fatalf("RefreshDry checked the herdr commands: %v", port.verified)
+	}
+	if slices.Contains(commandTrail(port.calls), "agent start") {
+		t.Fatalf("dry refresh started the member:\n%v", port.calls)
 	}
 }
 
