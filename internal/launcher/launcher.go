@@ -1,6 +1,6 @@
-// Package launcher drives a boot, a refresh, a hire or a down through Herdr and
-// records how far it got. It is the layer that touches Herdr and the
-// filesystem; the values it works on are immutable.
+// Package launcher drives a boot, a reprompt, a refresh, a hire or a down
+// through Herdr and records how far it got. It is the layer that touches Herdr
+// and the filesystem; the values it works on are immutable.
 package launcher
 
 import (
@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/herdr"
@@ -26,13 +28,29 @@ type Launcher struct {
 	herdr   *herdr.Herdr
 	out     io.Writer
 
+	// kill stops a process group. It is a field so a test can record the call
+	// instead of signalling a real process group.
+	kill func(pgid int) error
+
 	mu       sync.Mutex
 	progress *progress.Progress
 }
 
 // New builds a launcher.
 func New(cfg *config.Config, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
-	return &Launcher{cfg: cfg, timeout: timeoutMS, herdr: h, out: out, progress: progress.Start(memberNames(cfg.Members))}
+	return &Launcher{
+		cfg:      cfg,
+		timeout:  timeoutMS,
+		herdr:    h,
+		out:      out,
+		kill:     defaultKill,
+		progress: progress.Start(memberNames(cfg.Members)),
+	}
+}
+
+// defaultKill sends SIGTERM to a process group.
+func defaultKill(pgid int) error {
+	return syscall.Kill(-pgid, syscall.SIGTERM)
 }
 
 // Boot creates the team tab, lays out the panes, starts the agents and submits
@@ -65,9 +83,10 @@ func (l *Launcher) Boot() error {
 	return nil
 }
 
-// Refresh re-submits the bootstrap prompt to idle agents. It starts nothing.
-func (l *Launcher) Refresh(members []*config.Member) error {
-	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
+// Reprompt re-submits the bootstrap prompt to idle agents, keeping each one's
+// conversation. It starts nothing.
+func (l *Launcher) Reprompt(members []*config.Member) error {
+	if err := l.herdr.Verify(protocol.ModeReprompt); err != nil {
 		return err
 	}
 	// Resolve every selected name before sending anything; never prompt a working agent.
@@ -99,8 +118,85 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 			return err
 		}
 	}
-	fmt.Fprintf(l.out, i18n.T("launcher.refresh_submitted"), strings.Join(namesOf(members), ", "))
+	fmt.Fprintf(l.out, i18n.T("launcher.reprompt_submitted"), strings.Join(namesOf(members), ", "))
 	return nil
+}
+
+// Refresh restarts each selected member: it stops the member's process group,
+// waits for Herdr to forget the agent name, and starts the member again in the
+// same pane with the settings as they are now. The conversation starts empty.
+// It reads the settings again first, so an edited profile, kind or args takes
+// effect. It checks every selected member before it stops any, so one member
+// that is not idle or done stops the whole command with nothing stopped.
+func (l *Launcher) Refresh(members []*config.Member) error {
+	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
+		return err
+	}
+	for _, member := range members {
+		l.stage(i18n.Tf("progress.stage.checking", member.Name))
+		agent, err := l.herdr.Agent(member.Name)
+		if err != nil {
+			return err
+		}
+		// No kind check here: the settings were just read again, and the live
+		// agent still runs the kind those settings had before the edit.
+		if err := agent.CheckLive(member.Name); err != nil {
+			return err
+		}
+		if agent.PaneID == "" {
+			return i18n.Errorf("error.missing_pane_id", member.Name)
+		}
+		l.place(member.Name, agent.PaneID)
+	}
+	for _, member := range members {
+		if err := l.restart(member); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(namesOf(members), ", "))
+	return nil
+}
+
+// restart stops one member's process group, waits for Herdr to drop the name,
+// and starts the member again in the same pane.
+func (l *Launcher) restart(member *config.Member) error {
+	pane := l.paneOf(member.Name)
+	l.stage(i18n.Tf("progress.stage.stopping", member.Name))
+	info, err := l.herdr.PaneProcessInfo(pane)
+	if err != nil {
+		return err
+	}
+	// When no agent runs in the pane, the foreground group is the shell itself;
+	// there is nothing to stop.
+	if info.Pgid != info.ShellPID {
+		if err := l.kill(info.Pgid); err != nil {
+			return i18n.Errorf("error.kill_failed", member.Name, err)
+		}
+	}
+	l.stage(i18n.Tf("progress.stage.waiting", member.Name))
+	if err := l.waitGone(member.Name); err != nil {
+		return err
+	}
+	return l.start(member)
+}
+
+// waitGone waits until Herdr no longer knows the agent name. Herdr refuses a
+// start with agent_name_taken until then. It gives up after the timeout.
+func (l *Launcher) waitGone(name string) error {
+	deadline := time.Now().Add(time.Duration(l.timeout) * time.Millisecond)
+	for {
+		_, err := l.herdr.Agent(name)
+		if err != nil {
+			if protocol.ErrorCode(err) == herdr.AgentNotFound {
+				return nil
+			}
+			return err
+		}
+		if !time.Now().Before(deadline) {
+			return i18n.Errorf("error.agent_not_gone", name, l.timeout)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // Hire starts one worker in a tab of its own, so the team layout stays as booted.

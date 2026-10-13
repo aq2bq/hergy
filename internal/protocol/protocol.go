@@ -26,6 +26,17 @@ func (a Agent) Check(name, kind string) error {
 	if a.Name != name || a.Kind != kind {
 		return i18n.Errorf("error.live_mismatch", name)
 	}
+	return a.CheckLive(name)
+}
+
+// CheckLive verifies the live agent is the member and is not in the middle of
+// work, without comparing the kind. refresh reads the settings again first, so
+// the live agent is still running the kind those settings had before an edit;
+// requiring the new kind here would block the very refresh that applies it.
+func (a Agent) CheckLive(name string) error {
+	if a.Name != name {
+		return i18n.Errorf("error.live_name_mismatch", name)
+	}
 	if a.Status != "idle" && a.Status != "done" {
 		return i18n.Errorf("error.reset_before_refresh", name, a.Status)
 	}
@@ -69,8 +80,13 @@ var bootGroups = []Group{
 	{Name: "tab", Subs: []string{"create"}},
 }
 
-var refreshGroups = []Group{
+var repromptGroups = []Group{
 	{Name: "agent", Subs: []string{"get", "prompt"}},
+}
+
+var refreshGroups = []Group{
+	{Name: "agent", Subs: []string{"get", "prompt", "start"}},
+	{Name: "pane", Subs: []string{"process-info"}},
 }
 
 var downGroups = []Group{
@@ -83,8 +99,10 @@ var downGroups = []Group{
 const (
 	// ModeBoot is a boot or a hire: it makes panes and starts agents.
 	ModeBoot = "boot"
-	// ModeRefresh re-prompts live agents; it starts nothing.
+	// ModeRefresh restarts live agents: it stops each one and starts it again.
 	ModeRefresh = "refresh"
+	// ModeReprompt re-prompts live agents in place; it starts nothing.
+	ModeReprompt = "reprompt"
 	// ModeDown closes live agents' panes; it starts nothing.
 	ModeDown = "down"
 )
@@ -95,6 +113,8 @@ func RequiredCommands(mode string) []Group {
 	switch mode {
 	case ModeRefresh:
 		return refreshGroups
+	case ModeReprompt:
+		return repromptGroups
 	case ModeDown:
 		return downGroups
 	default:
@@ -204,6 +224,24 @@ func DigString(object map[string]any, keys ...string) (string, error) {
 		return "", i18n.Errorf("error.herdr_not_string", keys[len(keys)-1])
 	}
 	return text, nil
+}
+
+// DigInt is Dig for a whole-number value. A JSON reply decodes its numbers as
+// float64; a test that builds the reply as a Go map may use any int width.
+func DigInt(object map[string]any, keys ...string) (int, error) {
+	value, err := Dig(object, keys...)
+	if err != nil {
+		return 0, err
+	}
+	switch number := value.(type) {
+	case float64:
+		return int(number), nil
+	case int:
+		return number, nil
+	case int64:
+		return int(number), nil
+	}
+	return 0, i18n.Errorf("error.herdr_not_number", keys[len(keys)-1])
 }
 
 func firstTwo(args []string) []string {

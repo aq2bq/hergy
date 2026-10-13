@@ -23,8 +23,13 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
       Boot a team in a new tab. --dry prints the plan and submits nothing; --json, only with --dry, prints it as JSON.
   hergy down [team] [--as team] [--global|--local] [--dry] [-C dir]
       Close the panes of the team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
-  hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
-      Re-submit the bootstrap prompt to members that are idle or done. Both <seat> and --all is an error; neither is an error.
+  hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
+      Restart each selected member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. The conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
+      Both <seat> and --all is an error; neither is an error.
+      If any selected member is not idle or done, nothing is stopped and the whole command errors.
+  hergy reprompt <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
+      Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
+      Both <seat> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
   hergy hire <name> --profile P --purpose X --task "..." [--from seat] [--team team] [--as team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
       Start one worker in a tab labelled worker:<team>/<name>. --profile, --purpose and --task are required.
@@ -43,13 +48,13 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
 
 Flags:
   --ai            Cheat only: print the agent cheatsheet (always English).
-  --as <team>     Run the settings under this team name instead of the settings name. up/down/refresh/hire.
-  --dry           Print what would happen and change nothing. up/refresh/hire never read herdr; down reads the live agents and tabs but closes none.
-  --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/hire.
+  --as <team>     Run the settings under this team name instead of the settings name. up/down/refresh/reprompt/hire.
+  --dry           Print what would happen and change nothing. up/refresh/reprompt/hire never read herdr; down reads the live agents and tabs but closes none.
+  --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/reprompt/hire.
   --global        Use the global layer only.
   --local         Use the local layer only. --global and --local together is an error.
-  --timeout <ms>  Startup timeout, 3001..300000 (default 30000). up/hire.
-  --team <team>   The team to act on. refresh/hire.
+  --timeout <ms>  Startup timeout, 3001..300000 (default 30000). up/refresh/hire.
+  --team <team>   The team to act on. refresh/reprompt/hire.
   --profile <name> The worker's named engine, from profiles.yaml. hire.
   --purpose <text> The worker's purpose. hire.
   --task <text>   The worker's task text. hire.
@@ -59,15 +64,16 @@ Flags:
   -h, --help      Print the usage. --dry-run is an alias of --dry.
 
 Running against herdr:
-  up, down, refresh and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
+  up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
+  env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env.
 
 Reading the output:
   Most lines are "name: value" (for example "team: demo"). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: up demo --dry").
-  --dry prints the plan; with --json it is an object: mode (up boot, refresh reseed, hire spawn), team, startup_timeout_ms, members.
+  --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
   A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, may_spawn and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   To read the text form, add --lang en, or use --dry --json.
@@ -81,7 +87,7 @@ Team resolution:
 Team name and seat names:
   members[].name is a short seat name (lead, worker). hergy prefixes the team name, so the herdr name is <team>-<seat>.
   --as <team> runs the same settings under another name: demo's lead is demo-lead, and dev2-lead with --as dev2.
-  refresh <seat> and hire --from <seat> accept the short seat or the herdr name; the short name is preferred.
+  refresh <seat>, reprompt <seat> and hire --from <seat> accept the short seat or the herdr name; the short name is preferred.
   The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<seat> matches [a-z][a-z0-9_-]{0,31}.
 
 Settings files and their keys:

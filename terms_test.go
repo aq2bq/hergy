@@ -95,6 +95,18 @@ var glossary = []term{
 		meaning:  "the first prompt hergy hands a member or a worker",
 	},
 	{
+		id:       "refresh",
+		english:  "refresh",
+		japanese: "起動し直し",
+		meaning:  "end a member's agent and start it again in the same pane, so its conversation starts empty",
+	},
+	{
+		id:       "reprompt",
+		english:  "reprompt",
+		japanese: "再投入",
+		meaning:  "send the bootstrap prompt to a member again, keeping its conversation",
+	},
+	{
 		id:       "cheatsheet",
 		english:  "cheatsheet",
 		japanese: "チートシート",

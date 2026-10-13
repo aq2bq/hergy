@@ -104,3 +104,30 @@ func TestStartDoesNotRetryAnotherError(t *testing.T) {
 		t.Fatalf("Start called herdr %d times, want 1", len(port.calls))
 	}
 }
+
+// TestPaneProcessInfoReadsTheGroupAndShell: the pane's foreground group and
+// shell pid come from result.process_info, and a reply without a number fails.
+func TestPaneProcessInfoReadsTheGroupAndShell(t *testing.T) {
+	port := &fakePort{reply: func(_ int, args []string) (map[string]any, error) {
+		if want := []string{"pane", "process-info", "--pane", "p1"}; !slices.Equal(args, want) {
+			return nil, fmt.Errorf("unexpected args %q, want %q", args, want)
+		}
+		return map[string]any{"process_info": map[string]any{
+			"foreground_process_group_id": float64(4242),
+			"shell_pid":                   float64(900),
+		}}, nil
+	}}
+
+	info, err := New(port).PaneProcessInfo("p1")
+	if err != nil {
+		t.Fatalf("PaneProcessInfo: %v", err)
+	}
+	if info.Pgid != 4242 || info.ShellPID != 900 {
+		t.Fatalf("PaneProcessInfo = %+v, want {Pgid:4242 ShellPID:900}", info)
+	}
+
+	port.reply = alwaysReply(nil)
+	if _, err := New(port).PaneProcessInfo("p1"); err == nil {
+		t.Fatal("PaneProcessInfo accepted a reply with no process_info")
+	}
+}

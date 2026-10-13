@@ -18,7 +18,7 @@ const passingHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create; do echo "  herdr $g $x"; done
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -37,7 +37,7 @@ const liveHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create; do echo "  herdr $g $x"; done
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -107,7 +107,7 @@ printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create; do echo "  herdr $g $x"; done
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -417,6 +417,12 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 	}
 	if got := mustRun(t, "refresh", "--all", "--dry"); !strings.HasSuffix(got, "next: refresh --all\n") {
 		t.Fatalf("refresh --all --dry does not end with next:\n%s", got)
+	}
+	if got := mustRun(t, "reprompt", "lead", "--dry"); !strings.HasSuffix(got, "next: reprompt lead\n") {
+		t.Fatalf("reprompt <seat> --dry does not end with next:\n%s", got)
+	}
+	if got := mustRun(t, "reprompt", "--all", "--dry"); !strings.HasSuffix(got, "next: reprompt --all\n") {
+		t.Fatalf("reprompt --all --dry does not end with next:\n%s", got)
 	}
 }
 

@@ -147,6 +147,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runDown(ctx, env, opts, stdout, stderr)
 	case options.Refresh:
 		return runRefresh(ctx, env, opts, stdout, stderr)
+	case options.Reprompt:
+		return runReprompt(ctx, env, opts, stdout, stderr)
 	case options.Hire:
 		return runHire(ctx, env, opts, stdout, stderr)
 	default:
@@ -475,7 +477,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 			next = "refresh --all"
 		}
 		next += asSuffix(opts)
-		return dryPlan(stdout, env, resolved, cfg, "reseed", members, opts, next)
+		return dryPlan(stdout, env, resolved, cfg, "restart", members, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
@@ -483,6 +485,39 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected) })
+}
+
+func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
+	resolved, cfg, err := resolveAndBuild(env, opts)
+	if err != nil {
+		return err
+	}
+	memberName := opts.Member
+	if opts.All {
+		memberName = ""
+	}
+	selected, err := cfg.Select(memberName)
+	if err != nil {
+		return err
+	}
+	if opts.Dry {
+		members := make([]config.Member, len(selected))
+		for i, member := range selected {
+			members[i] = *member
+		}
+		next := "reprompt " + memberName
+		if opts.All {
+			next = "reprompt --all"
+		}
+		next += asSuffix(opts)
+		return dryPlan(stdout, env, resolved, cfg, "reprompt", members, opts, next)
+	}
+	if err := requireHerdrPane(); err != nil {
+		return err
+	}
+	printHeader(stdout, resolved, cfg, env)
+	l := newLauncher(cfg, opts.Timeout, stdout)
+	return runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) })
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

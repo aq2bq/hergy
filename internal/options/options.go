@@ -19,8 +19,10 @@ const (
 	Up Kind = iota
 	// Down closes the panes of a live team's members.
 	Down
-	// Refresh re-submits a bootstrap prompt.
+	// Refresh restarts a member: it ends the agent and starts it again.
 	Refresh
+	// Reprompt re-submits a bootstrap prompt, keeping the conversation.
+	Reprompt
 	// Hire starts one worker.
 	Hire
 	// Ls lists visible teams.
@@ -43,9 +45,9 @@ const (
 type Options struct {
 	Kind Kind
 
-	Team   string // up/show positional, or refresh/hire --team
-	Member string // refresh positional
-	All    bool   // refresh --all
+	Team   string // up/show positional, or refresh/reprompt/hire --team
+	Member string // refresh/reprompt positional
+	All    bool   // refresh/reprompt --all
 	Name   string // hire positional
 	As     string // --as: the team name to boot under (defaults to the settings name)
 
@@ -82,7 +84,8 @@ func Usage() string { return i18n.T("usage") }
 var allowed = map[Kind]map[string]bool{
 	Up:       {"dry": true, "json": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
 	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "as": true, "help": true},
-	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
+	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
+	Reprompt: {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
 	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
 	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
@@ -94,7 +97,7 @@ var allowed = map[Kind]map[string]bool{
 // Kinds lists every command kind, Help aside, in the order the cheatsheet shows
 // them. It is the one place a new command is added for the cheatsheet tests to
 // pick up.
-var Kinds = []Kind{Up, Down, Refresh, Hire, Ls, Show, New, Validate, Version, Cheat}
+var Kinds = []Kind{Up, Down, Refresh, Reprompt, Hire, Ls, Show, New, Validate, Version, Cheat}
 
 // Commands returns every command word, in the order Kinds lists them.
 func Commands() []string {
@@ -160,6 +163,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = Down
 	case "refresh":
 		o.Kind = Refresh
+	case "reprompt":
+		o.Kind = Reprompt
 	case "hire":
 		o.Kind = Hire
 	case "ls":
@@ -301,7 +306,7 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) == 1 {
 			o.Team = positionals[0]
 		}
-	case Refresh:
+	case Refresh, Reprompt:
 		if len(positionals) > 1 {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}
@@ -348,12 +353,12 @@ func validate(o *Options) error {
 		return i18n.Errorf("error.as_name_pattern", o.As)
 	}
 	switch o.Kind {
-	case Refresh:
+	case Refresh, Reprompt:
 		if o.All && o.Member != "" {
-			return i18n.Errorf("error.refresh_all_and_member")
+			return i18n.Errorf("error.seat_all_and_member", commandName(o.Kind))
 		}
 		if !o.All && o.Member == "" {
-			return i18n.Errorf("error.refresh_needs_member")
+			return i18n.Errorf("error.needs_seat", commandName(o.Kind))
 		}
 	case Hire:
 		var missing []string
@@ -389,6 +394,8 @@ func commandName(kind Kind) string {
 		return "down"
 	case Refresh:
 		return "refresh"
+	case Reprompt:
+		return "reprompt"
 	case Hire:
 		return "hire"
 	case Ls:

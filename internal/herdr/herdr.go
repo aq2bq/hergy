@@ -190,6 +190,34 @@ func (h *Herdr) Agent(target string) (protocol.Agent, error) {
 	return protocol.AgentFrom(mapping), nil
 }
 
+// AgentNotFound is Herdr's error code when an agent name is not live.
+const AgentNotFound = "agent_not_found"
+
+// ProcessInfo is what a pane's process tree shows: the foreground process
+// group, and the pid of the shell the pane runs.
+type ProcessInfo struct {
+	Pgid     int
+	ShellPID int
+}
+
+// PaneProcessInfo reads the pane's foreground process group and shell pid. When
+// no agent is running, the foreground group is the shell itself.
+func (h *Herdr) PaneProcessInfo(pane string) (ProcessInfo, error) {
+	result, err := h.port.JSON("pane", "process-info", "--pane", pane)
+	if err != nil {
+		return ProcessInfo{}, err
+	}
+	pgid, err := protocol.DigInt(result, "process_info", "foreground_process_group_id")
+	if err != nil {
+		return ProcessInfo{}, err
+	}
+	shellPID, err := protocol.DigInt(result, "process_info", "shell_pid")
+	if err != nil {
+		return ProcessInfo{}, err
+	}
+	return ProcessInfo{Pgid: pgid, ShellPID: shellPID}, nil
+}
+
 // envArgs passes a pane's environment; Herdr agent start has no env of its own,
 // so the pane's shell carries it to the agent.
 func envArgs(env map[string]string) []string {

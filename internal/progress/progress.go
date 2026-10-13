@@ -1,5 +1,5 @@
-// Package progress records how far a boot, refresh or hire got, so a failure
-// can say where it stopped.
+// Package progress records how far a boot, reprompt, refresh or hire got, so a
+// failure can say where it stopped.
 package progress
 
 import (

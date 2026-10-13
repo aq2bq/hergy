@@ -65,7 +65,8 @@ hergy up myteam         # 起動
 | `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
 | `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画（担当ごとのプロンプトをそのままの文）を出し、`--json` では計画を JSON で出す |
 | `hergy down [チーム]` | 生きている担当と、そのチームが払い出したワーカーのペインを閉じる。`--dry` で閉じる予定を出す。タブごとは閉じない |
-| `hergy refresh <担当名>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
+| `hergy refresh <担当名>` / `--all` | 担当のエージェントを終わらせ、同じペインで起動し直す。会話は空から始まる。設定を読み直すので、書き換えた profile・kind・args・prompt が効く（`env` は効かない。下記） |
+| `hergy reprompt <担当名>` / `--all` | 待機中の担当に初期プロンプトを送り直す。会話はそのまま |
 | `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブ（`worker:<チーム名>/<名前>`）に起動して仕事を頼む（主に担当が使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
@@ -73,7 +74,9 @@ hergy up myteam         # 起動
 | `hergy version` | 入っている hergy のコミットと日時を出す |
 | `hergy cheat` | 短いチートシートを出す。`--ai` はエージェント向けの全量を、設定を読まずに英語で出す |
 
-共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` と `hire` は `--team` でチームを指定します。`up` / `down` / `refresh` / `hire` は `--as <チーム名>` で、同じ設定を違うチーム名で起動できます（下記）。
+共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` / `reprompt` / `hire` は `--team` でチームを指定し、`refresh` は `--timeout` も取ります。`up` / `down` / `refresh` / `reprompt` / `hire` は `--as <チーム名>` で、同じ設定を違うチーム名で起動できます（下記）。
+
+担当に初期プロンプトを渡し直す方法は2つあります。`reprompt` は会話をそのままに送り直すので、担当が読む文書を直したあとはこちらです。`refresh` はエージェントを終わらせて起動し直すので、会話は空から始まり、書き換えた `kind` / `args` / `profile` / prompt が反映されます。`env` はペインを作ったときに決まるので、`env` を変えたあとは `hergy down` のあと `hergy up` です。`refresh` はペインと `env` をそのまま保ちます。
 
 ## 設定の置き場
 
@@ -111,12 +114,12 @@ members:
 
 担当名（`members[].name`）は短い名前（`lead`、`worker`）で書きます。hergy が起動するときにチーム名を付けるので、herdr での名前は `<チーム名>-<担当名>` になります。`demo` の設定なら `demo-lead`、`demo-worker`、`--as dev2` なら `dev2-lead`、`dev2-worker` です。チーム名は自動で付くので、両方に `lead` がいても herdr で衝突しません。担当名に `%{team}` が残っていると止めます（この置換は名前では使わなくなりました）。
 
-チーム名は `[a-z][a-z0-9_-]{0,24}` に、付けた後の `<チーム名>-<担当名>` は `[a-z][a-z0-9_-]{0,31}` に一致させてください。hergy は起動中のチームを記録しないので、`down` / `refresh` / `hire` も同じように指します。コマンドで担当を指すとき（`refresh <担当名>`、`hire --from <担当名>`）は、書いた短い名前を使います:
+チーム名は `[a-z][a-z0-9_-]{0,24}` に、付けた後の `<チーム名>-<担当名>` は `[a-z][a-z0-9_-]{0,31}` に一致させてください。hergy は起動中のチームを記録しないので、`down` / `refresh` / `reprompt` / `hire` も同じように指します。コマンドで担当を指すとき（`refresh <担当名>`、`reprompt <担当名>`、`hire --from <担当名>`）は、書いた短い名前を使います:
 
 ```sh
 hergy up demo --as alpha            # demo の設定を alpha というチーム名で起動
 hergy up demo --as beta             # 同じ設定をもう一度 beta として起動
-hergy refresh lead --team demo --as alpha   # alpha の lead に送り直す
+hergy reprompt lead --team demo --as alpha   # alpha の lead に、会話を保ったまま送り直す
 hergy down demo --as alpha          # alpha の担当とワーカーだけを閉じる
 ```
 
