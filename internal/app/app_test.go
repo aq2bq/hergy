@@ -285,16 +285,23 @@ func TestDownDryShape(t *testing.T) {
 	)
 }
 
-func TestDownDryWithoutLiveMembersEndsWithNext(t *testing.T) {
+func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	f.herdr(t, passingHerdr)
 	got := mustRun(t, "down", "demo", "--dry")
-	if !strings.Contains(got, "demo-lead: would skip (not present)\n") {
-		t.Fatalf("down --dry does not report an absent member:\n%s", got)
-	}
-	if !strings.HasSuffix(got, "next: down demo\n") {
-		t.Fatalf("down --dry does not end with next:\n%s", got)
+	wantLines(t, got,
+		"team: demo",
+		"version: 1",
+		"layer: local",
+		"team.yaml: .hergy/teams/demo/team.yaml",
+		"profiles: none",
+		"demo-lead: would skip (not present)",
+		"demo-worker: would skip (not present)",
+		"note: nothing to close (team \"demo\")",
+	)
+	if strings.Contains(got, "next:") {
+		t.Fatalf("down --dry with nothing to close must not name a next step:\n%s", got)
 	}
 }
 

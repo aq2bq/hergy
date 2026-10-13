@@ -137,16 +137,17 @@ type downTarget struct {
 // among the live agents; a member that is not live is reported and skipped, and
 // a team with nobody live closes nothing. The pane hergy itself runs in is
 // closed last, so the rest of the team still get closed. With dry, it prints
-// what would close and closes nothing.
-func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) error {
+// what would close and closes nothing. It returns how many panes it closed (or
+// would close), so a caller can tell a no-op from real work.
+func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	panes, err := l.livePanes()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	l.stage(i18n.T("progress.stage.closing"))
 	closed, absent := 0, 0
@@ -171,26 +172,26 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) err
 			continue
 		}
 		if err := l.closePane(target, dry); err != nil {
-			return err
+			return 0, err
 		}
 		closed++
 	}
 	if self != nil {
 		if err := l.closePane(*self, dry); err != nil {
-			return err
+			return 0, err
 		}
 		closed++
 	}
 	if closed == 0 {
 		fmt.Fprint(l.out, i18n.Tf("down.absent_only", l.cfg.Team))
-		return nil
+		return 0, nil
 	}
 	if dry {
 		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, absent))
-		return nil
+		return closed, nil
 	}
 	fmt.Fprint(l.out, i18n.Tf("down.done", closed, absent))
-	return nil
+	return closed, nil
 }
 
 // closePane reports one pane and, unless dry, closes it. The line comes first:

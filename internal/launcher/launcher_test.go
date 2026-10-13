@@ -80,7 +80,7 @@ func TestDownClosesItsOwnPaneLast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Down(members, "own", false); err != nil {
+	if _, err := l.Down(members, "own", false); err != nil {
 		t.Fatalf("Down: %v", err)
 	}
 	want := []string{"p1", "p3", "own"}
@@ -102,7 +102,7 @@ func TestDownSkipsAMemberThatIsNotLive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Down(members, "", false); err != nil {
+	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
 	}
 	if !slices.Equal(port.closed, []string{"p1"}) {
@@ -124,7 +124,7 @@ func TestDownDryClosesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Down(members, "p1", true); err != nil {
+	if _, err := l.Down(members, "p1", true); err != nil {
 		t.Fatalf("Down: %v", err)
 	}
 	if len(port.closed) != 0 {
@@ -146,7 +146,7 @@ func TestDownWithNobodyLiveClosesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Down(members, "", false); err != nil {
+	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
 	}
 	if len(port.closed) != 0 {

@@ -403,10 +403,14 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	if opts.Dry {
 		printHeader(stdout, resolved, cfg, env)
-		if err := newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true); err != nil {
+		closed, err := newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true)
+		if err != nil {
 			return err
 		}
-		printNext(stdout, "down "+cfg.Team)
+		// A dry run that would close nothing has no next step to name.
+		if closed > 0 {
+			printNext(stdout, "down "+cfg.Team)
+		}
 		return nil
 	}
 	if err := requireHerdrPane(); err != nil {
@@ -414,7 +418,10 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
-	return runOperation(ctx, stderr, nil, func() error { return l.Down(members, selfPane, false) })
+	return runOperation(ctx, stderr, nil, func() error {
+		_, err := l.Down(members, selfPane, false)
+		return err
+	})
 }
 
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
