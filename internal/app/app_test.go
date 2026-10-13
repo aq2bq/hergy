@@ -41,11 +41,11 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
-  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"},{"name":"demo-worker","agent":"claude","agent_status":"idle","pane_id":"p2"}]}}' ;;
+  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"},{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2"}]}}' ;;
   "agent get")
     case "$3" in
       demo-lead)   echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"}}}' ;;
-      demo-worker) echo '{"result":{"agent":{"name":"demo-worker","agent":"claude","agent_status":"idle","pane_id":"p2"}}}' ;;
+      demo-builder) echo '{"result":{"agent":{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2"}}}' ;;
       *) echo '{"error":{"code":"agent_not_found"}}' ;;
     esac
     ;;
@@ -65,7 +65,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
-  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"},{"name":"demo-worker","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"},{"name":"demo-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}]}}' ;;
+  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"},{"name":"demo-builder","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"},{"name":"demo-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}]}}' ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -279,7 +279,7 @@ func TestNewShape(t *testing.T) {
 		"file: .hergy/teams/demo/team.yaml",
 		"file: .hergy/teams/demo/protocol.md",
 		"file: .hergy/teams/demo/roles/lead.md",
-		"file: .hergy/teams/demo/roles/worker.md",
+		"file: .hergy/teams/demo/roles/builder.md",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
 		"next: up demo --dry",
 	)
@@ -420,11 +420,11 @@ func TestShowShape(t *testing.T) {
 		"  cwd: .",
 		"  role file: .hergy/teams/demo/roles/lead.md",
 		"  reads: .hergy/teams/demo/protocol.md",
-		"member: demo-worker",
-		"  role: worker",
+		"member: demo-builder",
+		"  role: builder",
 		"  kind: claude",
 		"  cwd: .",
-		"  role file: .hergy/teams/demo/roles/worker.md",
+		"  role file: .hergy/teams/demo/roles/builder.md",
 		"  reads: .hergy/teams/demo/protocol.md",
 	)
 }
@@ -433,7 +433,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム: demo", "層: local", "担当: demo-lead", "  役割: lead", "  役割ファイル: .hergy/teams/demo/roles/lead.md"} {
+	for _, line := range []string{"チーム: demo", "層: local", "メンバー: demo-lead", "  役割: lead", "  役割ファイル: .hergy/teams/demo/roles/lead.md"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}
@@ -532,16 +532,16 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 	// refresh --dry reads the live agents to show the same refusal the real
 	// refresh would, so it needs a herdr that answers agent get.
 	f.herdr(t, liveHerdr)
-	// refresh points at the short seat name written in team.yaml, not the
+	// refresh points at the short member name written in team.yaml, not the
 	// herdr name hergy made from it.
 	if got := mustRun(t, "refresh", "lead", "--dry"); !strings.HasSuffix(got, "next: refresh lead\n") {
-		t.Fatalf("refresh <seat> --dry does not end with next:\n%s", got)
+		t.Fatalf("refresh <member> --dry does not end with next:\n%s", got)
 	}
 	if got := mustRun(t, "refresh", "--all", "--dry"); !strings.HasSuffix(got, "next: refresh --all\n") {
 		t.Fatalf("refresh --all --dry does not end with next:\n%s", got)
 	}
 	if got := mustRun(t, "reprompt", "lead", "--dry"); !strings.HasSuffix(got, "next: reprompt lead\n") {
-		t.Fatalf("reprompt <seat> --dry does not end with next:\n%s", got)
+		t.Fatalf("reprompt <member> --dry does not end with next:\n%s", got)
 	}
 	if got := mustRun(t, "reprompt", "--all", "--dry"); !strings.HasSuffix(got, "next: reprompt --all\n") {
 		t.Fatalf("reprompt --all --dry does not end with next:\n%s", got)
@@ -560,7 +560,7 @@ func TestDownDryShape(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
 		"demo-lead: would close (pane p1)",
-		"demo-worker: would close (pane p2)",
+		"demo-builder: would close (pane p2)",
 		"would close: 2",
 		"would skip: 0",
 		"next: down demo",
@@ -579,7 +579,7 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
 		"demo-lead: would skip (not present)",
-		"demo-worker: would skip (not present)",
+		"demo-builder: would skip (not present)",
 		"note: nothing to close (team \"demo\")",
 	)
 	if strings.Contains(got, "next:") {
@@ -601,7 +601,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
 		"submitted: demo-lead (pane p1)",
-		"submitted: demo-worker (pane p2)",
+		"submitted: demo-builder (pane p2)",
 		"booted: demo (tab t1)",
 		"prompts: submitted (document reading continues in each pane)",
 	)
@@ -626,7 +626,7 @@ func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
 		"demo-lead: closing (pane p1)",
-		"demo-worker: closing (pane p2)",
+		"demo-builder: closing (pane p2)",
 		"closed: 2",
 		"absent: 0",
 	)
@@ -706,12 +706,12 @@ func TestHomePathsUseTilde(t *testing.T) {
 }
 
 // TestNewWritesShortMemberNames: hergy new writes the member names as the short
-// seats, without quotes; hergy adds the team name when it boots them.
+// member names, without quotes; hergy adds the team name when it boots them.
 func TestNewWritesShortMemberNames(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	text := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
-	for _, want := range []string{"  - name: lead\n", "  - name: worker\n"} {
+	for _, want := range []string{"  - name: lead\n", "  - name: builder\n"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("team.yaml does not carry the short name %q:\n%s", want, text)
 		}
@@ -749,10 +749,10 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 		"team: alpha",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"member: alpha-lead",
-		"member: alpha-worker",
+		"member: alpha-builder",
 		"    You are alpha-lead (lead) on team alpha.",
 		"    - lead: alpha-lead (you)",
-		"    - worker: alpha-worker",
+		"    - builder: alpha-builder",
 	} {
 		if !strings.Contains(named, line+"\n") {
 			t.Fatalf("up demo --as alpha --dry is missing %q:\n%s", line, named)
@@ -763,19 +763,19 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 	}
 }
 
-// TestUpAsDev2PrefixesTheSeats: --as changes only the prefix; the seats stay
+// TestUpAsDev2PrefixesTheMemberNames: --as changes only the prefix; the member names stay
 // lead and worker, and the herdr names, roster and self-intro become dev2-*.
-func TestUpAsDev2PrefixesTheSeats(t *testing.T) {
+func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "dev", "--local")
 	got := mustRun(t, "up", "dev", "--as", "dev2", "--dry")
 	for _, line := range []string{
 		"team: dev2",
 		"member: dev2-lead",
-		"member: dev2-worker",
+		"member: dev2-builder",
 		"    You are dev2-lead (lead) on team dev2.",
 		"    - lead: dev2-lead (you)",
-		"    - worker: dev2-worker",
+		"    - builder: dev2-builder",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("up dev --as dev2 --dry is missing %q:\n%s", line, got)
@@ -786,10 +786,10 @@ func TestUpAsDev2PrefixesTheSeats(t *testing.T) {
 	}
 }
 
-// TestTwoTeamsWithTheSameSeatsDoNotCollide: two settings that both name a seat
+// TestTwoTeamsWithTheSameMemberNamesDoNotCollide: two settings that both name a member
 // "lead" boot side by side. hergy prefixes each with its own team name, so the
 // herdr names stay apart and the second boot does not collide.
-func TestTwoTeamsWithTheSameSeatsDoNotCollide(t *testing.T) {
+func TestTwoTeamsWithTheSameMemberNamesDoNotCollide(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev", "--local")
 	mustRun(t, "new", "discovery", "--local")
@@ -798,13 +798,13 @@ func TestTwoTeamsWithTheSameSeatsDoNotCollide(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "p9")
 
 	dev := mustRun(t, "up", "dev")
-	for _, line := range []string{"submitted: dev-lead (pane p1)", "submitted: dev-worker (pane p2)"} {
+	for _, line := range []string{"submitted: dev-lead (pane p1)", "submitted: dev-builder (pane p2)"} {
 		if !strings.Contains(dev, line+"\n") {
 			t.Fatalf("up dev is missing %q:\n%s", line, dev)
 		}
 	}
 	discovery := mustRun(t, "up", "discovery")
-	for _, line := range []string{"submitted: discovery-lead (pane p1)", "submitted: discovery-worker (pane p2)"} {
+	for _, line := range []string{"submitted: discovery-lead (pane p1)", "submitted: discovery-builder (pane p2)"} {
 		if !strings.Contains(discovery, line+"\n") {
 			t.Fatalf("up discovery is missing %q:\n%s", line, discovery)
 		}
@@ -920,7 +920,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 		"team: alpha",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"submitted: alpha-lead (pane p1)",
-		"submitted: alpha-worker (pane p2)",
+		"submitted: alpha-builder (pane p2)",
 		"booted: alpha (tab t1)",
 	} {
 		if !strings.Contains(alpha, line+"\n") {
@@ -932,7 +932,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 	for _, line := range []string{
 		"team: beta",
 		"submitted: beta-lead (pane p1)",
-		"submitted: beta-worker (pane p2)",
+		"submitted: beta-builder (pane p2)",
 		"booted: beta (tab t1)",
 	} {
 		if !strings.Contains(beta, line+"\n") {
@@ -964,7 +964,7 @@ func TestDownAsClosesOnlyThatTeamsMembers(t *testing.T) {
 	for _, line := range []string{
 		"team: alpha",
 		"alpha-lead: closing (pane p-alpha-lead)",
-		"alpha-worker: closing (pane p-alpha-worker)",
+		"alpha-builder: closing (pane p-alpha-builder)",
 		"closed: 2",
 		"absent: 0",
 	} {
@@ -977,10 +977,10 @@ func TestDownAsClosesOnlyThatTeamsMembers(t *testing.T) {
 	}
 
 	closes := readFile(t, log)
-	if !strings.Contains(closes, "pane close p-alpha-lead") || !strings.Contains(closes, "pane close p-alpha-worker") {
+	if !strings.Contains(closes, "pane close p-alpha-lead") || !strings.Contains(closes, "pane close p-alpha-builder") {
 		t.Fatalf("down demo --as alpha did not close alpha's panes:\n%s", closes)
 	}
-	if strings.Contains(closes, "pane close p-beta-lead") || strings.Contains(closes, "pane close p-beta-worker") {
+	if strings.Contains(closes, "pane close p-beta-lead") || strings.Contains(closes, "pane close p-beta-builder") {
 		t.Fatalf("down demo --as alpha closed a beta pane:\n%s", closes)
 	}
 }
@@ -1014,7 +1014,7 @@ func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 
 // TestHireCommandCarriesAs: the hire command written into a prompt names the
 // settings and adds --as only when the team name differs from it, and --from
-// carries the short seat name, not the herdr name.
+// carries the short member name, not the herdr name.
 func TestHireCommandCarriesAs(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
@@ -1029,7 +1029,7 @@ func TestHireCommandCarriesAs(t *testing.T) {
 		t.Fatalf("the hire command without --as is wrong:\n%s", plain)
 	}
 	if !strings.Contains(plain, "--from lead") {
-		t.Fatalf("the hire command does not take the short seat:\n%s", plain)
+		t.Fatalf("the hire command does not take the short member name:\n%s", plain)
 	}
 	if strings.Contains(plain, "--as") {
 		t.Fatalf("the hire command without --as carries one:\n%s", plain)
@@ -1040,7 +1040,7 @@ func TestHireCommandCarriesAs(t *testing.T) {
 		t.Fatalf("the hire command with --as is wrong:\n%s", named)
 	}
 	if !strings.Contains(named, "--from lead") {
-		t.Fatalf("the hire command with --as does not take the short seat:\n%s", named)
+		t.Fatalf("the hire command with --as does not take the short member name:\n%s", named)
 	}
 }
 
@@ -1058,9 +1058,9 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
 		"demo-lead: working",
-		"demo-worker: blocked",
+		"demo-builder: blocked",
 		"demo-w1: idle (worker)",
-		"waiting for a human: demo-worker",
+		"waiting for a human: demo-builder",
 	)
 }
 
@@ -1074,9 +1074,9 @@ func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 	for _, line := range []string{
 		"チーム: demo",
 		"demo-lead: working",
-		"demo-worker: blocked",
+		"demo-builder: blocked",
 		"demo-w1: idle（ワーカー）",
-		"人間待ち: demo-worker",
+		"人間の返事待ち: demo-builder",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese status is missing %q:\n%s", line, got)
@@ -1092,7 +1092,7 @@ func TestStatusNobodyWorking(t *testing.T) {
 	got := mustRun(t, "status", "demo")
 	for _, line := range []string{
 		"demo-lead: idle",
-		"demo-worker: idle",
+		"demo-builder: idle",
 		"nobody is working",
 	} {
 		if !strings.Contains(got, line+"\n") {
@@ -1108,7 +1108,7 @@ func TestStatusAbsentAndNoJudgement(t *testing.T) {
 	mustRun(t, "new", "demo", "--local")
 	f.herdr(t, absentHerdr)
 	got := mustRun(t, "status", "demo")
-	for _, line := range []string{"demo-lead: idle", "demo-worker: not present"} {
+	for _, line := range []string{"demo-lead: idle", "demo-builder: not present"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
@@ -1124,7 +1124,7 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	f.herdr(t, statusHerdr)
-	// demo-lead works and demo-worker is blocked here, so drop the blocked one by
+	// demo-lead works and demo-builder is blocked here, so drop the blocked one by
 	// selecting a team whose only member is working: rewrite team.yaml.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n")
@@ -1179,7 +1179,7 @@ func TestCheatPeopleLeadsWithTheFirstSteps(t *testing.T) {
 		steps []string
 	}{
 		{"en", []string{"hergy new myteam", "edit team.yaml", "hergy up myteam"}},
-		{"ja", []string{"hergy new myteam", "team.yaml を書き換える", "hergy up myteam"}},
+		{"ja", []string{"hergy new myteam", "team.yaml を編集", "hergy up myteam"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.lang, func(t *testing.T) {

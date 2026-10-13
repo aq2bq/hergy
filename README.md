@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes to ~/.config/hergy/teams/myteam/ (--local writes to the project's .hergy/)
 ```
 
-You get `team.yaml`, `protocol.md` (the team's agreements), `roles/lead.md` and `roles/worker.md`. Each rule is one line, with its "why" in an HTML comment right below it. HTML comments are not sent to the agents.
+You get `team.yaml`, `protocol.md` (the team's agreements), `roles/lead.md` and `roles/builder.md`. Each rule is one line, with its "why" in an HTML comment right below it. HTML comments are not sent to the agents.
 
 Run it in a herdr shell pane.
 
@@ -54,7 +54,7 @@ hergy up myteam --dry   # check each member's prompt and the files it reads, wit
 hergy up myteam         # start
 ```
 
-The members run in herdr as `myteam-lead` and `myteam-worker`: the team name is added to each seat name for you (see below).
+The members run in herdr as `myteam-lead` and `myteam-builder`: the team name is added to each member name for you (see below).
 
 Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the whole shape for an agent).
 
@@ -66,8 +66,8 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` | Close the live panes of the team's members and the workers the team hired. `--dry` prints what would close; a tab is never closed as a unit |
 | `hergy status [team]` | Print one line per member and per worker: the live `agent_status` (working/idle/done/blocked), or `not present` when the member is not live; a worker carries `(worker)`. Then who is waiting on the human (`blocked`), or that nobody is working. Reads herdr only |
-| `hergy refresh <seat>` / `--all` | Restart each member. A live member's agent is ended and started again in the same pane, so its conversation starts empty; a member that is not live is started again in the pane hergy named after it, when that pane is still at its shell (a pane that is gone or busy is an error, pointing at `down` then `up`). The settings are read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below). A member cannot refresh itself: run it from another pane, or as the human |
-| `hergy reprompt <seat>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
+| `hergy refresh <member>` / `--all` | Restart each member. A live member's agent is ended and started again in the same pane, so its conversation starts empty; a member that is not live is started again in the pane hergy named after it, when that pane is still at its shell (a pane that is gone or busy is an error, pointing at `down` then `up`). The settings are read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below). A member cannot refresh itself: run it from another pane, or as the human |
+| `hergy reprompt <member>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
@@ -101,7 +101,7 @@ docs: [protocol.md]     # documents for every member, joined in order; a directo
 roles: [roles]          # where to look for role files (defaults to roles/)
 prompt: "…"             # bootstrap prompt template (optional)
 members:
-  - name: lead            # the seat name (short); the herdr name becomes "<team>-lead"
+  - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
     role: lead          # reads roles/lead.md
     profile: opus       # or write kind / args / env directly
     may_spawn:          # purposes and profiles this member may hire for (written into the prompt, not enforced)
@@ -113,9 +113,9 @@ members:
 
 `--as <team>` boots the same settings under a different team name, so you can run two teams side by side from one `team.yaml`. Without `--as`, the team name is the settings name (the directory name under `teams/`).
 
-Write each `members[].name` as a short seat name (`lead`, `worker`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<seat>`: the `demo` settings give `demo-lead` and `demo-worker`, and `--as dev2` gives `dev2-lead` and `dev2-worker`. Because hergy adds the team name for you, two settings that both name a seat `lead` never collide in herdr. A seat that still contains `%{team}` is refused: that placeholder is no longer used in names.
+Write each `members[].name` as a short member name (`lead`, `builder`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<member>`: the `demo` settings give `demo-lead` and `demo-builder`, and `--as dev2` gives `dev2-lead` and `dev2-builder`. Because hergy adds the team name for you, two settings that both name a member `lead` never collide in herdr. A member name that still contains `%{team}` is refused: that placeholder is no longer used in names.
 
-The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<seat>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams, so `down`, `refresh`, `reprompt` and `hire` point at one the same way; the seats on the command line (`refresh <seat>`, `reprompt <seat>`, `hire --from <seat>`) are the short seat names:
+The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<member>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams, so `down`, `refresh`, `reprompt` and `hire` point at one the same way; the members on the command line (`refresh <member>`, `reprompt <member>`, `hire --from <member>`) are the short member names:
 
 ```sh
 hergy up demo --as alpha            # boot the demo settings as the team "alpha"
@@ -142,7 +142,7 @@ profiles:
 
 | Placeholder | Content |
 |---|---|
-| `%{team}` / `%{role}` / `%{name}` | Team name, role, herdr name (`"<team>-<seat>"`) |
+| `%{team}` / `%{role}` / `%{name}` | Team name, role, herdr name (`"<team>-<member>"`) |
 | `%{role_doc}` | The role file |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |

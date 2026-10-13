@@ -216,8 +216,8 @@ func TestParseUnknownProfileStops(t *testing.T) {
 	}
 }
 
-// TestMemberNameGetsTheTeamPrefix: the name written in team.yaml is the seat;
-// the member's herdr name is "<team>-<seat>".
+// TestMemberNameGetsTheTeamPrefix: the name written in team.yaml is the short member name;
+// the member's herdr name is "<team>-<member>".
 func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 	dir := t.TempDir()
 	cfg, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    kind: claude\n")
@@ -225,15 +225,15 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	member := cfg.Members[0]
-	if member.Seat != "lead" {
-		t.Errorf("Seat = %q, want %q", member.Seat, "lead")
+	if member.ShortName != "lead" {
+		t.Errorf("ShortName = %q, want %q", member.ShortName, "lead")
 	}
 	if member.Name != "t-lead" {
 		t.Errorf("Name = %q, want %q", member.Name, "t-lead")
 	}
 }
 
-// TestMemberNameTakesTheRunName: --as replaces the prefix, not the seat.
+// TestMemberNameTakesTheRunName: --as replaces the prefix, not the member name.
 func TestMemberNameTakesTheRunName(t *testing.T) {
 	dir := t.TempDir()
 	cfg, err := Parse(Input{
@@ -252,8 +252,8 @@ func TestMemberNameTakesTheRunName(t *testing.T) {
 	if cfg.Members[0].Name != "dev2-lead" {
 		t.Errorf("Name = %q, want %q", cfg.Members[0].Name, "dev2-lead")
 	}
-	if cfg.Members[0].Seat != "lead" {
-		t.Errorf("Seat = %q, want %q", cfg.Members[0].Seat, "lead")
+	if cfg.Members[0].ShortName != "lead" {
+		t.Errorf("ShortName = %q, want %q", cfg.Members[0].ShortName, "lead")
 	}
 }
 
@@ -269,7 +269,7 @@ func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
 	}
 }
 
-// TestMemberNameTooLongForHerdrStops: the team name and the seat are each within
+// TestMemberNameTooLongForHerdrStops: the team name and the member name are each within
 // their own pattern, but the combined herdr name is checked too.
 func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	_, err := Parse(Input{

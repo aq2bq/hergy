@@ -45,16 +45,16 @@ lead と worker の2人チームのひな形を書き出します。
 hergy new myteam        # ~/.config/hergy/teams/myteam/ に書き出す（--local でプロジェクトの .hergy/ に）
 ```
 
-`team.yaml`、`protocol.md`（チームの約束）、`roles/lead.md`、`roles/worker.md` ができます。決まりは1件1行で、すぐ下の HTML コメントに「なぜ」を書いています。HTML コメントはエージェントには送られません。
+`team.yaml`、`protocol.md`（チームの約束）、`roles/lead.md`、`roles/builder.md` ができます。決まりは1件1行で、すぐ下の HTML コメントに「なぜ」を書いています。HTML コメントはエージェントには送られません。
 
 herdr のシェルペインで実行します。
 
 ```sh
-hergy up myteam --dry   # 起動せず、担当ごとのプロンプトと読み込むファイルを確認
+hergy up myteam --dry   # 起動せず、メンバーごとのプロンプトと読み込むファイルを確認
 hergy up myteam         # 起動
 ```
 
-担当は herdr では `myteam-lead`、`myteam-worker` として動きます。担当名の前にチーム名が自動で付くためです（下記）。
+メンバーは herdr では `myteam-lead`、`myteam-builder` として動きます。メンバー名の前にチーム名が自動で付くためです（下記）。
 
 迷ったら `hergy cheat` が短いチートシートを出します（`hergy cheat --ai` はエージェント向けの全量を英語で出す）。
 
@@ -63,12 +63,12 @@ hergy up myteam         # 起動
 | コマンド | 内容 |
 |---|---|
 | `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
-| `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画（担当ごとのプロンプトをそのままの文）を出し、`--json` では計画を JSON で出す |
-| `hergy down [チーム]` | 生きている担当と、そのチームが払い出したワーカーのペインを閉じる。`--dry` で閉じる予定を出す。タブごとは閉じない |
-| `hergy status [チーム]` | 担当とワーカーを1行ずつ、生きている `agent_status`（working/idle/done/blocked）、生きていなければ `いない`、ワーカーには `（ワーカー）` を付けて出す。最後に人間待ち（`blocked`）の担当か、誰も動いていないかを出す。herdr を読むだけ |
-| `hergy refresh <担当名>` / `--all` | 担当を起動し直す。生きている担当はエージェントを終わらせて同じペインで起動し直すので、会話は空から始まる。生きていない担当は、hergy が名付けたペインがシェルのままであればそこで起動し直す（ペインが無いか別のものが動いていればエラーにし、`down` のあと `up` を促す）。設定を読み直すので、書き換えた profile・kind・args・prompt が効く（`env` は効かない。下記）。担当は自分自身を起動し直せない。別のペインか、人間が実行する |
-| `hergy reprompt <担当名>` / `--all` | 待機中の担当に初期プロンプトを送り直す。会話はそのまま |
-| `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブ（`worker:<チーム名>/<名前>`）に起動して仕事を頼む（主に担当が使う） |
+| `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画（メンバーごとのプロンプトをそのままの文）を出し、`--json` では計画を JSON で出す |
+| `hergy down [チーム]` | 生きているメンバーと、そのチームが追加したワーカーのペインを閉じる。`--dry` で閉じる予定を出す。タブごとは閉じない |
+| `hergy status [チーム]` | メンバーとワーカーを1行ずつ、生きている `agent_status`（working/idle/done/blocked）、生きていなければ `動いていない`、ワーカーには `（ワーカー）` を付けて出す。最後に人間の返事待ち（`blocked`）のメンバーか、誰も動いていないかを出す。herdr を読むだけ |
+| `hergy refresh <メンバー名>` / `--all` | メンバーを起動し直す。生きているメンバーはエージェントを終わらせて同じペインで起動し直すので、会話は空から始まる。生きていないメンバーは、hergy が名付けたペインがシェルのままであればそこで起動し直す（ペインが無いか別のものが動いていればエラーにし、`down` のあと `up` を促す）。設定を読み直すので、書き換えた profile・kind・args・prompt が効く（`env` は効かない。下記）。メンバーは自分自身を起動し直せない。別のペインか、人間が実行する |
+| `hergy reprompt <メンバー名>` / `--all` | 待機中のメンバーに初期プロンプトを送り直す。会話はそのまま |
+| `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブ（`worker:<チーム名>/<名前>`）に起動して仕事を頼む（主にメンバーが使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
 | `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
@@ -77,7 +77,7 @@ hergy up myteam         # 起動
 
 共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` / `reprompt` / `hire` は `--team` でチームを指定し、`refresh` は `--timeout` も取ります。`up` / `down` / `refresh` / `reprompt` / `hire` は `--as <チーム名>` で、同じ設定を違うチーム名で起動できます（下記）。
 
-担当に初期プロンプトを渡し直す方法は2つあります。`reprompt` は会話をそのままに送り直すので、担当が読む文書を直したあとはこちらです。`refresh` はエージェントを終わらせて起動し直すので、会話は空から始まり、書き換えた `kind` / `args` / `profile` / prompt が反映されます。すでに動いていない担当は、hergy が名付けたペインがシェルのままであればそこで起動し直します（ペインが無いか別のものが動いていれば何も変えず、`down` のあと `up` を促します）。`env` はペインを作ったときに決まるので、`env` を変えたあとは `hergy down` のあと `hergy up` です。`refresh` はペインと `env` をそのまま保ちます。また `refresh` は、hergy 自身が動いているペイン（`HERDR_PANE_ID`）の担当を断ります。止めると hergy が先に終わり、エージェントを起動し直せないためです。別のペインか、人間が実行してください。`refresh --dry` は同じ判定を出すため生きている担当を読みます。`reprompt --dry` は何も読みません。
+メンバーに初期プロンプトを渡し直す方法は2つあります。`reprompt` は会話をそのままに送り直すので、メンバーが読む文書を直したあとはこちらです。`refresh` はエージェントを終わらせて起動し直すので、会話は空から始まり、書き換えた `kind` / `args` / `profile` / prompt が反映されます。すでに動いていないメンバーは、hergy が名付けたペインがシェルのままであればそこで起動し直します（ペインが無いか別のものが動いていれば何も変えず、`down` のあと `up` を促します）。`env` はペインを作ったときに決まるので、`env` を変えたあとは `hergy down` のあと `hergy up` です。`refresh` はペインと `env` をそのまま保ちます。また `refresh` は、hergy 自身が動いているペイン（`HERDR_PANE_ID`）のメンバーを断ります。止めると hergy が先に終わり、エージェントを起動し直せないためです。別のペインか、人間が実行してください。`refresh --dry` は同じ判定を出すため生きているメンバーを読みます。`reprompt --dry` は何も読みません。
 
 ## 設定の置き場
 
@@ -89,7 +89,7 @@ hergy up myteam         # 起動
 - チームは `teams/<チーム名>/team.yaml` に置きます。同名ならローカルが優先です
 - `profiles.yaml` はどちらの層にも置けます。ローカルのチームはグローバルの上にローカルを重ねて読み（同名ならローカルが優先）、グローバルのチームはグローバルだけを読みます
 - グローバルの `config.yaml` に `version: 1` と `lang: ja` を書くと、`--lang` なしでも日本語になります。無ければ `hergy new` が（その実行の表示の言語で）作り、あればそのままにします
-- `hergy up <チーム> --dry` は、担当ごとのプロンプトと読み込むファイルを表示します
+- `hergy up <チーム> --dry` は、メンバーごとのプロンプトと読み込むファイルを表示します
 
 ## team.yaml
 
@@ -101,10 +101,10 @@ docs: [protocol.md]     # 全員に渡す文書。書いた順に連結。ディ
 roles: [roles]          # 役割ファイルを探す場所（省略時は roles/）
 prompt: "…"             # 初期プロンプトのテンプレート（任意）
 members:
-  - name: lead            # 担当名（短い名前）。herdr では「<チーム名>-lead」になる
+  - name: lead            # メンバー名（短い名前）。herdr では「<チーム名>-lead」になる
     role: lead          # roles/lead.md を読む
     profile: opus       # または kind / args / env を直接書く
-    may_spawn:          # 払い出してよい目的とプロファイル（プロンプトに書くだけで、強制しない）
+    may_spawn:          # 追加してよい目的とプロファイル（プロンプトに書くだけで、強制しない）
       purposes: [調査]
       profiles: [codex]
 ```
@@ -113,15 +113,15 @@ members:
 
 `--as <チーム名>` を付けると、同じ設定を違うチーム名で起動できます。1つの `team.yaml` から2つのチームを並べて動かせます。`--as` を付けなければ、チーム名は設定名（`teams/` の下のディレクトリ名）です。
 
-担当名（`members[].name`）は短い名前（`lead`、`worker`）で書きます。hergy が起動するときにチーム名を付けるので、herdr での名前は `<チーム名>-<担当名>` になります。`demo` の設定なら `demo-lead`、`demo-worker`、`--as dev2` なら `dev2-lead`、`dev2-worker` です。チーム名は自動で付くので、両方に `lead` がいても herdr で衝突しません。担当名に `%{team}` が残っていると止めます（この置換は名前では使わなくなりました）。
+メンバー名（`members[].name`）は短い名前（`lead`、`builder`）で書きます。hergy が起動するときにチーム名を付けるので、herdr での名前は `<チーム名>-<メンバー名>` になります。`demo` の設定なら `demo-lead`、`demo-builder`、`--as dev2` なら `dev2-lead`、`dev2-builder` です。チーム名は自動で付くので、両方に `lead` がいても herdr で衝突しません。メンバー名に `%{team}` が残っていると止めます（この置換は名前では使わなくなりました）。
 
-チーム名は `[a-z][a-z0-9_-]{0,24}` に、付けた後の `<チーム名>-<担当名>` は `[a-z][a-z0-9_-]{0,31}` に一致させてください。hergy は起動中のチームを記録しないので、`down` / `refresh` / `reprompt` / `hire` も同じように指します。コマンドで担当を指すとき（`refresh <担当名>`、`reprompt <担当名>`、`hire --from <担当名>`）は、書いた短い名前を使います:
+チーム名は `[a-z][a-z0-9_-]{0,24}` に、付けた後の `<チーム名>-<メンバー名>` は `[a-z][a-z0-9_-]{0,31}` に一致させてください。hergy は起動中のチームを記録しないので、`down` / `refresh` / `reprompt` / `hire` も同じように指します。コマンドでメンバーを指すとき（`refresh <メンバー名>`、`reprompt <メンバー名>`、`hire --from <メンバー名>`）は、書いた短い名前を使います:
 
 ```sh
 hergy up demo --as alpha            # demo の設定を alpha というチーム名で起動
 hergy up demo --as beta             # 同じ設定をもう一度 beta として起動
 hergy reprompt lead --team demo --as alpha   # alpha の lead に、会話を保ったまま送り直す
-hergy down demo --as alpha          # alpha の担当とワーカーだけを閉じる
+hergy down demo --as alpha          # alpha のメンバーとワーカーだけを閉じる
 ```
 
 ## profiles.yaml
@@ -142,19 +142,19 @@ profiles:
 
 | 置換 | 中身 |
 |---|---|
-| `%{team}` / `%{role}` / `%{name}` | チーム名、役割、担当の名前（herdr での名前 `<チーム名>-<担当名>`） |
+| `%{team}` / `%{role}` / `%{name}` | チーム名、役割、メンバーの名前（herdr での名前 `<チーム名>-<メンバー名>`） |
 | `%{role_doc}` | 役割ファイル |
 | `%{docs}` | `docs` の文書 |
 | `%{roster}` | 名簿 |
 | `%{herdr}` | herdr での連絡の仕方と、仲間の増やし方（`herdr agent start` ではなく `hergy hire`） |
-| `%{spawn}` | 払い出しの許可とコマンド（`may_spawn` がある担当のみ） |
+| `%{spawn}` | ワーカーを追加してよい目的と、そのコマンド（`may_spawn` があるメンバーのみ） |
 
 既定のテンプレートは仮のものです。
 
 ## これから
 
-- 手番を持っている担当の表示（`hergy turn`）
-- 担当どうしのやりとりの定型化と記録（`hergy pass`、`hergy log`）
+- 手番を持っているメンバーの表示（`hergy turn`）
+- メンバーどうしのやりとりの定型化と記録（`hergy pass`、`hergy log`）
 - 決まりの一覧と、外して比べる仕組み（`hergy rules`）
 - 人間への質問の受け取り、役割名での指示（`hergy ask`、`hergy tell`）
 - 設定の検査（`hergy validate`）

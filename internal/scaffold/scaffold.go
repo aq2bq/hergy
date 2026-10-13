@@ -17,11 +17,11 @@ var embedded embed.FS
 const Fallback = "en"
 
 // NamePattern is the team names hergy new accepts: short enough that
-// "<team>-worker" is still a valid member name.
+// "<team>-builder" is still a valid member name.
 var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 
 // Names are the files a starter team has, in the order hergy new writes them.
-var Names = []string{"team.yaml", "protocol.md", "roles/lead.md", "roles/worker.md"}
+var Names = []string{"team.yaml", "protocol.md", "roles/lead.md", "roles/builder.md"}
 
 // File is one file of a starter team: its path inside the team directory, and
 // its contents.
@@ -32,7 +32,7 @@ type File struct {
 
 // Team returns the starter files for a language, in the order they are written.
 // A language with no scaffold falls back to English. The files are written
-// unchanged; the member names in team.yaml are the short seats (lead, worker),
+// unchanged; the member names in team.yaml are the short member names (lead, builder),
 // and hergy adds the team name when it boots them.
 func Team(lang string) ([]File, error) {
 	root := "files/" + lang

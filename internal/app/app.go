@@ -669,7 +669,7 @@ func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env t
 	}
 }
 
-// printMember is one seat: what it runs, where it runs, and the files its
+// printMember is one member: what it runs, where it runs, and the files its
 // prompt was built from. With prompt, the expanded prompt is printed verbatim
 // after the fields, so up --dry shows exactly what the agent would receive.
 func printMember(w io.Writer, cfg *config.Config, member *config.Member, env team.Env, prompt bool) {

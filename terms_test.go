@@ -50,25 +50,28 @@ var glossary = []term{
 		meaning:  "the directory name under teams/ that holds team.yaml; the default team name",
 	},
 	{
-		id:       "seat",
-		english:  "seat",
-		japanese: "担当",
-		meaning:  "one member written in team.yaml's members[].name; a short name",
+		id:       "member",
+		english:  "member",
+		japanese: "メンバー",
+		meaning:  "one entry of team.yaml's members; its short name is the member name",
 		banned: []ban{
-			// The short name in a placeholder or after --from is a seat. The
-			// plain word "member" is left alone: it is the YAML key "members"
-			// and the ordinary sense of a person on the team.
-			{lang: "en", word: "<member>"},
-			{lang: "en", word: "--from member"},
-			// "member name" drifted in once the bans above were in place (d-5a13, drift 1).
-			{lang: "en", word: "member name"},
+			// "seat" and 担当 were a third and fourth word for the same thing
+			// (d-e425).
+			{lang: "en", word: "seat"},
+			{lang: "ja", word: "担当"},
 		},
+	},
+	{
+		id:       "member-name",
+		english:  "member name",
+		japanese: "メンバー名",
+		meaning:  "the short name written in members[].name (lead); hergy puts the team name in front of it",
 	},
 	{
 		id:       "herdr-name",
 		english:  "herdr name",
 		japanese: "herdr 名",
-		meaning:  "the name herdr and the agents see: <team>-<seat>",
+		meaning:  "the name herdr and the agents see: <team>-<member>",
 	},
 	{
 		id:       "worker",

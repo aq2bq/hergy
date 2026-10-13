@@ -360,10 +360,10 @@ func validate(o *Options) error {
 	switch o.Kind {
 	case Refresh, Reprompt:
 		if o.All && o.Member != "" {
-			return i18n.Errorf("error.seat_all_and_member", commandName(o.Kind))
+			return i18n.Errorf("error.member_and_all", commandName(o.Kind))
 		}
 		if !o.All && o.Member == "" {
-			return i18n.Errorf("error.needs_seat", commandName(o.Kind))
+			return i18n.Errorf("error.needs_member", commandName(o.Kind))
 		}
 	case Hire:
 		var missing []string

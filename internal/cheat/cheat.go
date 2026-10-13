@@ -25,16 +25,16 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
       Close the panes of the team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
   hergy status [team] [--as team] [--global|--local] [-C dir]
       Print one line per member and per worker of the team: its live agent_status (working/idle/done/blocked), or "not present" when the member is not live. A worker carries "(worker)". Last, a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. It only reads herdr, and runs outside a herdr-managed pane too.
-  hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
+  hergy refresh <member>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
       Restart each selected member. A live member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. A member that is not live: start it again in the pane hergy named after it, when that pane is still at its shell. Either way the conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
-      Both <seat> and --all is an error; neither is an error.
+      Both <member> and --all is an error; neither is an error.
       A member running in your own pane (HERDR_PANE_ID) cannot refresh itself: stopping it would stop hergy first. That is an error, and nothing is stopped.
       If any selected member is not idle or done, is your own pane, or (when not live) has no pane at its shell, nothing is changed and the whole command errors. A pane that is gone or busy points at hergy down then hergy up.
-  hergy reprompt <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
+  hergy reprompt <member>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
       Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
-      Both <seat> and --all is an error; neither is an error.
+      Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
-  hergy hire <name> --profile P --purpose X --task "..." [--from seat] [--team team] [--as team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
+  hergy hire <name> --profile P --purpose X --task "..." [--from member] [--team team] [--as team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
       Start one worker in a tab labelled worker:<team>/<name>. --profile, --purpose and --task are required.
   hergy ls [--global|--local] [-C dir]
       List the visible teams and the layer each came from.
@@ -61,7 +61,7 @@ Flags:
   --profile <name> The worker's named engine, from profiles.yaml. hire.
   --purpose <text> The worker's purpose. hire.
   --task <text>   The worker's task text. hire.
-  --from <seat>   The member hiring the worker; a short seat or a herdr name. hire.
+  --from <member> The member hiring the worker; a short member name or a herdr name. hire.
   --lang <en|ja>  The language for this run. The global config.yaml can set lang; --lang wins; default en.
   -C, --dir <dir> The project root to resolve against (default: the git root, else the current directory).
   -h, --help      Print the usage. --dry-run is an alias of --dry.
@@ -89,11 +89,11 @@ Team resolution:
   The project root is the git root (else the current directory); -C, --dir overrides it.
   With no name, one local team is used; --global uses one global team; with neither flag, a lone global team is not chosen; otherwise the candidates are listed and it stops.
 
-Team name and seat names:
-  members[].name is a short seat name (lead, worker). hergy prefixes the team name, so the herdr name is <team>-<seat>.
+Team name and member names:
+  members[].name is a short member name (lead, builder). hergy prefixes the team name, so the herdr name is <team>-<member>.
   --as <team> runs the same settings under another name: demo's lead is demo-lead, and dev2-lead with --as dev2.
-  refresh <seat>, reprompt <seat> and hire --from <seat> accept the short seat or the herdr name; the short name is preferred.
-  The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<seat> matches [a-z][a-z0-9_-]{0,31}.
+  refresh <member>, reprompt <member> and hire --from <member> accept the short member name or the herdr name; the short name is preferred.
+  The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<member> matches [a-z][a-z0-9_-]{0,31}.
 
 Settings files and their keys:
   Unknown keys are an error in every settings file. kind matches [a-z][a-z0-9_-]*; a profile name matches [a-z][a-z0-9_-]{0,31}.
@@ -110,7 +110,7 @@ Settings files and their keys:
     docs: [<path>...] list of strings, or one string; documents every member reads, joined in order; a directory means its *.md in name order; a path that is not there is an error.
     roles: [<dir>...] list of strings, or one string; where role files are looked for; default [roles]; <role>.md comes from the first directory that has it.
     members:          required, nonempty list.
-      name: <seat>       required, string; short seat name matching [a-z][a-z0-9_-]{0,31}.
+      name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
       role: <role>       required, string; reads <role>.md from a roles directory.
       profile: <name>    string; a named engine from profiles.yaml. Write this or kind/args/env inline, not both.
       kind: <kind>       string; herdr's agent kind (claude, codex, opencode, ...).
@@ -132,16 +132,16 @@ Settings files and their keys:
 
 hire (a member starting a worker):
   --profile must name a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
-  The worker's name must not match an existing seat or herdr name, and <team>-<worker> must match [a-z][a-z0-9_-]{0,31}.
+  The worker's name must not match an existing member name or herdr name, and <team>-<worker> must match [a-z][a-z0-9_-]{0,31}.
   With no --from, --from is required unless exactly one member has may_spawn.
   --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
 
 new:
-  It writes team.yaml, protocol.md, roles/lead.md and roles/worker.md, and the global config.yaml (version: 1, lang) when that file is missing.
+  It writes team.yaml, protocol.md, roles/lead.md and roles/builder.md, and the global config.yaml (version: 1, lang) when that file is missing.
   It never overwrites: an existing team directory stops it and nothing is written (exit 1).
 
 Bootstrap prompt placeholders:
-  %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<seat>)
+  %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
   %{role_doc}  the role file     %{docs}  the docs documents     %{roster}  the roster
   %{herdr}  how to reach others over herdr, and how to add a teammate     %{spawn}  what the member may hire, with the command (only when may_spawn is set)
 `

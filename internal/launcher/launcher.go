@@ -340,7 +340,7 @@ func (l *Launcher) Hire(worker *config.Member) error {
 	if err != nil {
 		return err
 	}
-	pane, err := l.createTab(workspace, worker, "worker:"+l.cfg.Team+"/"+worker.Seat)
+	pane, err := l.createTab(workspace, worker, "worker:"+l.cfg.Team+"/"+worker.ShortName)
 	if err != nil {
 		return err
 	}

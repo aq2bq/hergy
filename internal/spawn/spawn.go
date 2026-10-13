@@ -22,7 +22,7 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		return nil, nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
 	}
 	for i := range cfg.Members {
-		if cfg.Members[i].Seat == name || cfg.Members[i].Name == name {
+		if cfg.Members[i].ShortName == name || cfg.Members[i].Name == name {
 			return nil, nil, i18n.Errorf("error.worker_exists", name)
 		}
 	}
@@ -62,15 +62,15 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 	}
 
 	worker := &config.Member{
-		Name:    herdrName,
-		Seat:    name,
-		Role:    i18n.Tf("role.worker", purpose),
-		Kind:    chosen.Kind,
-		Args:    chosen.Args,
-		Env:     chosen.Env,
-		Cwd:     lead.Cwd,
-		Prompt:  text,
-		Profile: chosen.Name,
+		Name:      herdrName,
+		ShortName: name,
+		Role:      i18n.Tf("role.worker", purpose),
+		Kind:      chosen.Kind,
+		Args:      chosen.Args,
+		Env:       chosen.Env,
+		Cwd:       lead.Cwd,
+		Prompt:    text,
+		Profile:   chosen.Name,
 	}
 	return worker, notes(lead, chosen.Name, purpose), nil
 }

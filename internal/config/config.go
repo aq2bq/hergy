@@ -50,23 +50,23 @@ type MaySpawn struct {
 	Profiles []string
 }
 
-// Member is one seat in the roster, with its prompt already built.
+// Member is one member of the roster, with its prompt already built.
 //
-// Name is the name herdr sees: "<team>-<seat>", where team is the name the team
-// runs under (--as, else the settings name). Seat is the short name written in
-// team.yaml; the commands that take a member name (refresh, hire --from) take
-// the seat, not the herdr name.
+// Name is the name herdr sees: "<team>-<member>", where team is the name the team
+// runs under (--as, else the settings name). ShortName is the short name written in
+// team.yaml; the commands that take a member (refresh, reprompt, hire --from)
+// take the short name or the herdr name.
 type Member struct {
-	Name     string
-	Seat     string
-	Role     string
-	Kind     string
-	Args     []string
-	Env      map[string]string
-	Cwd      string
-	Prompt   string
-	Profile  string
-	MaySpawn *MaySpawn
+	Name      string
+	ShortName string
+	Role      string
+	Kind      string
+	Args      []string
+	Env       map[string]string
+	Cwd       string
+	Prompt    string
+	Profile   string
+	MaySpawn  *MaySpawn
 
 	// Provenance: the role file, and the documents this member's prompt read.
 	RoleSource    source.Doc
@@ -109,9 +109,9 @@ func (c *Config) UsesProfiles() bool {
 	return false
 }
 
-// Member returns the named member: by its herdr name first, then by its seat,
+// Member returns the named member: by its herdr name first, then by its short name,
 // so both the internal lookups (which use the herdr name) and the command-line
-// member names (the short seat) resolve.
+// member names (the short member name) resolve.
 func (c *Config) Member(name string) (*Member, error) {
 	for i := range c.Members {
 		if c.Members[i].Name == name {
@@ -119,7 +119,7 @@ func (c *Config) Member(name string) (*Member, error) {
 		}
 	}
 	for i := range c.Members {
-		if c.Members[i].Seat == name {
+		if c.Members[i].ShortName == name {
 			return &c.Members[i], nil
 		}
 	}
@@ -424,7 +424,7 @@ func resolveEntry(entry, base, layer string) (source.Doc, error) {
 	return source.EntryDoc(entry, base, layer), nil
 }
 
-// parseMembers builds every seat, then fills each prompt once the roster is known.
+// parseMembers builds every member, then fills each prompt once the roster is known.
 func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member, error) {
 	members := make([]Member, 0, len(raw.Members))
 	templates := make([]string, 0, len(raw.Members))
@@ -436,7 +436,7 @@ func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member,
 		if strings.Contains(rm.Name, teamPlaceholder) {
 			return nil, i18n.Errorf("error.name_team_placeholder", label)
 		}
-		member, err := parseSeat(rm, raw.Cwd, in, i)
+		member, err := parseMember(rm, raw.Cwd, in, i)
 		if err != nil {
 			return nil, err
 		}
@@ -485,13 +485,13 @@ func memberTemplate(rm rawMember, raw rawTeam, label string) (string, error) {
 	return prompt.MemberTemplate(), nil
 }
 
-func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error) {
+func parseMember(rm rawMember, teamCwd string, in Input, index int) (Member, error) {
 	label := fmt.Sprintf("members[%d]", index)
 	if !NamePattern.MatchString(rm.Name) {
 		return Member{}, i18n.Errorf("error.name_pattern", label)
 	}
-	// herdr sees the member as "<team>-<seat>". The team name is checked short
-	// enough for this to fit, but a long seat can still overflow the limit.
+	// herdr sees the member as "<team>-<member>". The team name is checked short
+	// enough for this to fit, but a long member name can still overflow the limit.
 	name := in.RunName + "-" + rm.Name
 	if !NamePattern.MatchString(name) {
 		return Member{}, i18n.Errorf("error.herdr_name_pattern", name)
@@ -521,15 +521,15 @@ func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error
 		}
 	}
 	return Member{
-		Name:     name,
-		Seat:     rm.Name,
-		Role:     rm.Role,
-		Kind:     kind,
-		Args:     args,
-		Env:      env,
-		Cwd:      cwd,
-		Profile:  profile,
-		MaySpawn: maySpawn,
+		Name:      name,
+		ShortName: rm.Name,
+		Role:      rm.Role,
+		Kind:      kind,
+		Args:      args,
+		Env:       env,
+		Cwd:       cwd,
+		Profile:   profile,
+		MaySpawn:  maySpawn,
 	}, nil
 }
 
@@ -660,7 +660,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 				kinds[name] = in.Profiles[name].Kind
 			}
 			return prompt.SpawnNote(member.Name, member.MaySpawn.Purposes, member.MaySpawn.Profiles, kinds,
-				hireCommand(in, member.Seat))
+				hireCommand(in, member.ShortName))
 		},
 	}
 	text, err := prompt.Expand(template, parts)
@@ -683,9 +683,9 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 // and project, so a hire works even when the member runs outside the project or
 // the same name exists in both layers. When the team runs under a name other
 // than the settings name, --as carries the team name along. The --from value is
-// the hiring member's seat: the command line takes the short name, and hergy
+// the hiring member.s short name: the command line takes the short name, and hergy
 // adds the team name to the herdr name itself.
-func hireCommand(in Input, seat string) string {
+func hireCommand(in Input, shortName string) string {
 	layerFlag := "--local"
 	if in.Layer == source.LayerGlobal {
 		layerFlag = "--global"
@@ -699,7 +699,7 @@ func hireCommand(in Input, seat string) string {
 		asFlag = " --as " + in.RunName
 	}
 	return i18n.Tf("hire.command",
-		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), seat)
+		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), shortName)
 }
 
 func shellQuote(s string) string {

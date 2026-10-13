@@ -186,11 +186,11 @@ func downLauncher(t *testing.T, port *fakePort, members ...string) (*Launcher, *
 // name the worker tabs are labelled with.
 func downLauncherFor(t *testing.T, port *fakePort, team string, members ...string) (*Launcher, *bytes.Buffer) {
 	t.Helper()
-	seats := make([]config.Member, len(members))
+	list := make([]config.Member, len(members))
 	for i, name := range members {
-		seats[i] = config.Member{Name: name, Seat: name, Role: "role", Kind: "claude"}
+		list[i] = config.Member{Name: name, ShortName: name, Role: "role", Kind: "claude"}
 	}
-	cfg := &config.Config{Team: team, Version: 1, Members: seats}
+	cfg := &config.Config{Team: team, Version: 1, Members: list}
 	out := &bytes.Buffer{}
 	return New(cfg, herdr.New(port), 30000, out), out
 }

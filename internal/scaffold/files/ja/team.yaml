@@ -4,6 +4,6 @@ members:
   - name: lead
     role: lead
     kind: claude
-  - name: worker
-    role: worker
+  - name: builder
+    role: builder
     kind: claude
