@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-10-13
 
 This release tells a team definition apart from a running team. A team
 definition is `teams/<name>/team.yaml`; a team is what `hergy up` starts from
