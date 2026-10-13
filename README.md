@@ -146,7 +146,7 @@ profiles:
 | `%{role_doc}` | The role file |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |
-| `%{herdr}` | How to reach others over herdr |
+| `%{herdr}` | How to reach others over herdr, and how to add a teammate (`hergy hire`, not `herdr agent start`) |
 | `%{spawn}` | What the member may hire, and the command (only for members with `may_spawn`) |
 
 The default template is provisional.

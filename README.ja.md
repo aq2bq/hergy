@@ -146,7 +146,7 @@ profiles:
 | `%{role_doc}` | 役割ファイル |
 | `%{docs}` | `docs` の文書 |
 | `%{roster}` | 名簿 |
-| `%{herdr}` | herdr での連絡の仕方 |
+| `%{herdr}` | herdr での連絡の仕方と、仲間の増やし方（`herdr agent start` ではなく `hergy hire`） |
 | `%{spawn}` | 払い出しの許可とコマンド（`may_spawn` がある担当のみ） |
 
 既定のテンプレートは仮のものです。

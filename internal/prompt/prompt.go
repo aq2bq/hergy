@@ -60,10 +60,18 @@ func Roster(members []RosterEntry, me string) string {
 	return strings.Join(lines, "\n")
 }
 
-// Herdr states how to reach the others with Herdr as it is; the launcher adds
-// no messaging of its own. intro is how the member introduces itself.
-func Herdr(intro string) string {
-	return i18n.Tf("herdr.guide", intro)
+// HerdrMember states how a member reaches the others with Herdr as it is; the
+// launcher adds no messaging of its own. intro is how the member introduces
+// itself. It also names the one way to add a teammate, so a member does not
+// start one with herdr directly and lose it from hergy's roster.
+func HerdrMember(intro string) string {
+	return i18n.Tf("herdr.guide_member", intro)
+}
+
+// HerdrWorker is the same contact guide for a hired worker, which adds no
+// teammates of its own.
+func HerdrWorker(intro string) string {
+	return i18n.Tf("herdr.guide_worker", intro)
 }
 
 // SpawnNote states what a member may spawn. It is written into the prompt and

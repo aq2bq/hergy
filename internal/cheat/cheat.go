@@ -142,5 +142,5 @@ new:
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<seat>)
   %{role_doc}  the role file     %{docs}  the docs documents     %{roster}  the roster
-  %{herdr}  how to reach others over herdr     %{spawn}  what the member may hire, with the command (only when may_spawn is set)
+  %{herdr}  how to reach others over herdr, and how to add a teammate     %{spawn}  what the member may hire, with the command (only when may_spawn is set)
 `

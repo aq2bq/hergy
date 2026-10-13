@@ -649,7 +649,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 		},
 		"roster": func() string { return prompt.Roster(roster, member.Name) },
 		"herdr": func() string {
-			return prompt.Herdr(i18n.Tf("prompt.self_intro_member", in.RunName, member.Role, member.Name))
+			return prompt.HerdrMember(i18n.Tf("prompt.self_intro_member", in.RunName, member.Role, member.Name))
 		},
 		"spawn": func() string {
 			if member.MaySpawn == nil {

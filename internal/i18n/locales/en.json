@@ -167,7 +167,8 @@
   "roster.mark": " (you)",
   "roster.line": "- %s: %s%s",
 
-  "herdr.guide": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.",
+  "herdr.guide_member": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.\n- To add a teammate, use `hergy hire`, not `herdr agent start`: a teammate herdr starts directly is invisible to hergy's roster, `hergy down` and `hergy status`.",
+  "herdr.guide_worker": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.\n- A worker adds no teammates: reach the others with `herdr agent prompt`, and ask the member that hired you if another worker is needed.",
 
   "spawn.note": "\n## Spawning workers\nWhen needed, you may spawn workers for these purposes: %s\nProfiles you may use: %s\nHow to spawn: `%s`\nThe worker starts in another tab; its herdr name is \"<team>-<worker>\". It reports back to you (%s) when done. Worker names are lower-case ASCII and must not collide with the roster.\n",
 

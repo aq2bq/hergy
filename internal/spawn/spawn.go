@@ -53,7 +53,7 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		"name":      func() string { return herdrName },
 		"task":      func() string { return task },
 		"herdr": func() string {
-			return prompt.Herdr(i18n.Tf("prompt.self_intro_worker", cfg.Team, purpose, herdrName))
+			return prompt.HerdrWorker(i18n.Tf("prompt.self_intro_worker", cfg.Team, purpose, herdrName))
 		},
 	}
 	text, err := prompt.Expand(prompt.WorkerTemplate(), parts)

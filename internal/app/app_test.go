@@ -732,6 +732,40 @@ func TestTwoTeamsWithTheSameSeatsDoNotCollide(t *testing.T) {
 	}
 }
 
+// TestUpDryPromptSendsHiringThroughHergy: the member's bootstrap prompt tells it
+// to add a teammate with hergy hire, not herdr agent start.
+func TestUpDryPromptSendsHiringThroughHergy(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	got := mustRun(t, "up", "demo", "--dry")
+	for _, want := range []string{"hergy hire", "herdr agent start"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("the member's prompt does not mention %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestHireDryWorkerPromptAddsNoTeammates: a worker's prompt says a worker adds
+// no teammates, rather than telling it to hire.
+func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+	got := mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+		"--task", "read the docs", "--team", "dev", "--dry")
+	if !strings.Contains(got, "A worker adds no teammates") {
+		t.Fatalf("the worker's prompt does not say it adds no teammates:\n%s", got)
+	}
+	if strings.Contains(got, "hergy hire") {
+		t.Fatalf("the worker's prompt tells it to hire:\n%s", got)
+	}
+}
+
 // TestHireNamesTheWorkerAfterTheTeam: hergy hire takes the short worker name and
 // gives the worker the herdr name "<team>-<name>", both in the plan and in the
 // prompt the worker receives.

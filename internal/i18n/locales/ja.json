@@ -167,7 +167,8 @@
   "roster.mark": "（あなた）",
   "roster.line": "- %s担当: %s%s",
 
-  "herdr.guide": "- 担当へ: `herdr agent prompt <名前> \"<本文>\"`。本文は「%s」で始める。\n- 人間へ: 自分のペインに書く。\n- ほかの使い方は `herdr agent --help`。",
+  "herdr.guide_member": "- 担当へ: `herdr agent prompt <名前> \"<本文>\"`。本文は「%s」で始める。\n- 人間へ: 自分のペインに書く。\n- ほかの使い方は `herdr agent --help`。\n- 仲間を増やすときは `herdr agent start` ではなく `hergy hire` を使う。herdr で直接起こした仲間は hergy の名簿、down、status から見えない。",
+  "herdr.guide_worker": "- 担当へ: `herdr agent prompt <名前> \"<本文>\"`。本文は「%s」で始める。\n- 人間へ: 自分のペインに書く。\n- ほかの使い方は `herdr agent --help`。\n- ワーカーは仲間を増やさない。他の担当へは `herdr agent prompt` で連絡し、ワーカーが要るなら払い出した担当に頼む。",
 
   "spawn.note": "\n## ワーカーの払い出し\n必要なときは、次の目的でワーカーを払い出してよい: %s\n使ってよいプロファイル: %s\n払い出し方: `%s`\nワーカーは別のタブで起動し、herdr の名前は <チーム名>-<ワーカー名> になる。終わったらあなた（%s）へ報告してくる。ワーカー名は名簿と重ならない英小文字にする。\n",
 
