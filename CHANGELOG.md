@@ -19,6 +19,10 @@ name, so two teams started from one definition can be handled one at a time.
 - **One word for the people in a team**: everyone written in `team.yaml` is a
   member, and everyone `hergy hire` adds is a worker. `seat` is gone from the
   output and the docs, and the commands that take one say `<member>`.
+- **`may_spawn` pairs each purpose with the profile to hire for it**: the
+  separate `purposes` and `profiles` lists are gone, and a `team.yaml` that
+  still has them is refused with the new form in the message. `hergy hire`
+  can leave out `--profile`; the profile paired with `--purpose` is used.
 - **The starter team's second member is `builder`**: `hergy new` writes
   `roles/builder.md` instead of `roles/worker.md`, so the member is not
   mistaken for a hired worker. Teams already written are not touched.
@@ -43,9 +47,27 @@ name, so two teams started from one definition can be handled one at a time.
    with `--as` under 0.2 cannot be traced back to its definition that way;
    run `hergy down <definition> --as <team>` with 0.2 before upgrading, or
    close its panes in herdr, then start it again with `hergy up`.
-3. Nothing to do for `team.yaml`, `profiles.yaml` or `config.yaml` because
-   of the words above; teams written by `hergy new` before keep their
-   `worker` member.
+3. Rewrite each `may_spawn` in `team.yaml` as pairs. Every purpose gets the
+   one profile its workers should run on:
+
+   ```yaml
+   # 0.2
+   may_spawn:
+     purposes: [research, build]
+     profiles: [seeker, developer]
+   # now
+   may_spawn:
+     workers:
+       - purpose: research
+         profile: seeker
+       - purpose: build
+         profile: developer
+   ```
+
+   `hergy validate` names every `team.yaml` that still has the old form.
+   `hergy hire` still takes `--profile`; leave it out to use the pair.
+4. Nothing else to do in `team.yaml`, `profiles.yaml` or `config.yaml`:
+   teams written by `hergy new` before keep their `worker` member.
 
 ### Added
 
