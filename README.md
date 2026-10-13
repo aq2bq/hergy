@@ -22,9 +22,20 @@ For now, hergy aims to make putting a team together easy, by managing and runnin
 
 ```sh
 go install github.com/aq2bq/hergy@latest
+
+# optional: install the hergy skill, so an AI agent can read it
+npx skills add aq2bq/hergy
 ```
 
 You also need [herdr](https://github.com/herdrdev/herdr) and the agent CLIs you use (`claude`, `codex`, `opencode` and so on).
+
+### Telling the AI about hergy
+
+Put a sentence like the following in a prompt or in AGENTS.md / CLAUDE.md so it gets across, and the AI agent reads the hergy skill before it starts or joins a team.
+
+```
+When you start or close a hergy team, write hergy settings, or work inside a team hergy started, read the hergy skill.
+```
 
 ## Getting started
 

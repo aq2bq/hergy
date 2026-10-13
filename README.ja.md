@@ -22,9 +22,20 @@ hergy では、ユーザー自身が設定したチームの役割、規律を�
 
 ```sh
 go install github.com/aq2bq/hergy@latest
+
+# 任意: AIエージェントが読む hergy スキルを入れる
+npx skills add aq2bq/hergy
 ```
 
 [herdr](https://github.com/herdrdev/herdr) と、使うエージェント CLI（`claude`、`codex`、`opencode` など）も必要です。
+
+### hergy について伝える
+
+以下のような文をプロンプトや AGENTS.md / CLAUDE.md へ書くなりして伝わるようにしておくと、AIエージェントは hergy のチームを起動・片付けるとき、設定を書くとき、hergy が起動したチームの中で働くときに hergy スキルを読みます。
+
+```
+hergy のチームを起動・片付けるとき、設定を書くとき、hergy が起動したチームの中で働くときは hergy スキルを読む。
+```
 
 ## はじめかた
 
@@ -45,7 +56,7 @@ hergy up myteam         # 起動
 
 担当は herdr では `myteam-lead`、`myteam-worker` として動きます。担当名の前にチーム名が自動で付くためです（下記）。
 
-迷ったら `hergy cheat` が短い早見を出します（`hergy cheat --ai` はエージェント向けの全量を英語で出す）。
+迷ったら `hergy cheat` が短いチートシートを出します（`hergy cheat --ai` はエージェント向けの全量を英語で出す）。
 
 ## コマンド
 
@@ -60,7 +71,7 @@ hergy up myteam         # 起動
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
 | `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
 | `hergy version` | 入っている hergy のコミットと日時を出す |
-| `hergy cheat` | 短い早見を出す。`--ai` はエージェント向けの全量を、設定を読まずに英語で出す |
+| `hergy cheat` | 短いチートシートを出す。`--ai` はエージェント向けの全量を、設定を読まずに英語で出す |
 
 共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）、`--json`（`--dry` と併用し、計画を文ではなく JSON で出す）。`refresh` と `hire` は `--team` でチームを指定します。`up` / `down` / `refresh` / `hire` は `--as <チーム名>` で、同じ設定を違うチーム名で起動できます（下記）。
 
