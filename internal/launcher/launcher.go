@@ -186,10 +186,10 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) err
 		return nil
 	}
 	if dry {
-		fmt.Fprint(l.out, i18n.Tf("down.dry_done", l.cfg.Team, closed, absent))
+		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, absent))
 		return nil
 	}
-	fmt.Fprint(l.out, i18n.Tf("down.done", l.cfg.Team, closed, absent))
+	fmt.Fprint(l.out, i18n.Tf("down.done", closed, absent))
 	return nil
 }
 

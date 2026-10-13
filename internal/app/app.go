@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/config"
@@ -40,7 +41,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	// Load the locales and check them before anything can print. The failures
 	// below happen before a language is in use, so they keep a plain prefix.
 	if err := i18n.Init(); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
 	// validate must still run when the global config.yaml is broken: it is one
@@ -48,7 +49,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	validating := options.ScanCommand(argv) == "validate"
 	configured, err := team.Lang()
 	if err != nil && !validating {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
 	explicit := options.ScanLang(argv)
@@ -58,13 +59,13 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		// validate, an unknown language in config.yaml is one of the breaks it
 		// reports: fall back to the default language and go on.
 		if !validating || explicit != "" {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 1
 		}
 		lang = i18n.Fallback
 	}
 	if err := i18n.Use(lang); err != nil {
-		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
 
@@ -154,43 +155,51 @@ func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *conf
 }
 
 func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
-	rows := env.List()
-	fmt.Fprintf(stdout, i18n.T("ls.header"), env.LocalDir, env.GlobalDir)
+	field(stdout, label("local"), env.Display(env.LocalDir))
+	field(stdout, label("global"), env.Display(env.GlobalDir))
 	shown := 0
-	for _, row := range rows {
-		var label, path, note string
+	for _, row := range env.List() {
+		var layer, path, other, note string
 		switch opts.Layer {
 		case "global":
 			if !row.Global {
 				continue
 			}
-			label, path = "global", row.GlobalPath
+			layer, path = source.LayerGlobal, row.GlobalPath
 			if row.Local {
-				note = i18n.T("ls.note.overridden")
+				note = i18n.T("value.overridden_local")
 			}
 		case "local":
 			if !row.Local {
 				continue
 			}
-			label, path = "local", row.LocalPath
+			layer, path = source.LayerLocal, row.LocalPath
 			if row.Global {
-				note = i18n.T("ls.note.also_global")
+				note = i18n.T("value.also_global")
 			}
 		default:
-			switch {
-			case row.Local && row.Global:
-				label, path = i18n.T("ls.label.both"), row.LocalPath
-			case row.Local:
-				label, path = "local", row.LocalPath
-			default:
-				label, path = "global", row.GlobalPath
+			if row.Local {
+				layer, path = source.LayerLocal, row.LocalPath
+				if row.Global {
+					other = row.GlobalPath
+				}
+			} else {
+				layer, path = source.LayerGlobal, row.GlobalPath
 			}
 		}
 		shown++
-		fmt.Fprintf(stdout, "  %-20s %-24s %s %s\n", row.Name, label, path, note)
+		field(stdout, label("team"), row.Name)
+		indentField(stdout, 1, label("layer"), layer)
+		indentField(stdout, 1, label("path"), env.Display(path))
+		if other != "" {
+			indentField(stdout, 1, label("global"), env.Display(other))
+		}
+		if note != "" {
+			indentField(stdout, 1, label("note"), note)
+		}
 	}
 	if shown == 0 {
-		fmt.Fprint(stdout, i18n.T("ls.empty"))
+		field(stdout, label("team"), i18n.T("value.none"))
 	}
 	return nil
 }
@@ -200,63 +209,15 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "team: %s\n", cfg.Team)
-	fmt.Fprintf(stdout, "version: %d\n", cfg.Version)
-	fmt.Fprintf(stdout, i18n.T("show.layer"), cfg.Layer)
-	fmt.Fprintf(stdout, "  team.yaml : %s\n", cfg.TeamYAML.Display())
-	if resolved.GlobalTeamYAML != "" && resolved.LocalTeamYAML != "" {
-		switch cfg.Layer {
-		case source.LayerLocal:
-			fmt.Fprintf(stdout, i18n.T("show.global_overridden"), resolved.GlobalTeamYAML)
-		case source.LayerGlobal:
-			fmt.Fprintf(stdout, i18n.T("show.local_used"), resolved.LocalTeamYAML)
-		}
-	}
-	if cfg.ProfilesYAML == "" {
-		fmt.Fprint(stdout, i18n.T("show.profiles_none"))
-	} else if cfg.UsesProfiles() {
-		fmt.Fprintf(stdout, "profiles: %s\n", cfg.ProfilesYAML)
-	} else {
-		fmt.Fprintf(stdout, i18n.T("show.profiles_unused"), cfg.ProfilesYAML)
-	}
-
-	fmt.Fprint(stdout, i18n.T("show.docs_header"))
+	printHeader(stdout, resolved, cfg, env)
 	if len(cfg.Docs) == 0 {
-		fmt.Fprint(stdout, i18n.T("show.docs_none"))
+		field(stdout, label("document"), i18n.T("value.none"))
 	}
-	for i, doc := range cfg.Docs {
-		fmt.Fprintf(stdout, "  %d. %s\n", i+1, doc.Display())
+	for _, doc := range cfg.Docs {
+		field(stdout, label("document"), env.Display(doc.Path))
 	}
-
-	fmt.Fprint(stdout, i18n.T("show.roster_header"))
 	for i := range cfg.Members {
-		member := &cfg.Members[i]
-		engineLabel := fmt.Sprintf("kind=%s", member.Kind)
-		if member.Profile != "" {
-			engineLabel = fmt.Sprintf("profile=%s (%s) kind=%s", member.Profile, cfg.Profiles[member.Profile].Path, member.Kind)
-		}
-		fmt.Fprintf(stdout, i18n.T("show.member_line"), member.Name, member.Role, engineLabel)
-		if len(member.Args) > 0 {
-			fmt.Fprintf(stdout, "      args=%s\n", strings.Join(member.Args, " "))
-		}
-		if len(member.Env) > 0 {
-			fmt.Fprintf(stdout, "      env=%s\n", envSummary(member.Env))
-		}
-		fmt.Fprintf(stdout, "      cwd=%s\n", member.Cwd)
-		if member.MaySpawn != nil {
-			fmt.Fprintf(stdout, "      may_spawn: purposes=[%s] profiles=[%s]\n",
-				strings.Join(member.MaySpawn.Purposes, ", "), strings.Join(member.MaySpawn.Profiles, ", "))
-		}
-		if member.HasRoleSource {
-			fmt.Fprintf(stdout, i18n.T("show.role_file"), member.RoleSource.Display())
-		} else {
-			fmt.Fprint(stdout, i18n.T("show.role_file_none"))
-		}
-		if len(member.DocsRead) > 0 {
-			fmt.Fprintf(stdout, i18n.T("show.docs_read"), displaysOf(member.DocsRead))
-		} else {
-			fmt.Fprint(stdout, i18n.T("show.docs_read_none"))
-		}
+		printMember(stdout, cfg, &cfg.Members[i], env, false)
 	}
 	return nil
 }
@@ -275,7 +236,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	dir := env.TeamDir(name, layer)
 	if _, err := os.Stat(dir); err == nil {
-		return i18n.Errorf("error.new_exists", name, dir)
+		return i18n.Errorf("error.new_exists", name, env.Display(dir))
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -286,11 +247,13 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err := writeScaffold(dir, files); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, i18n.T("new.created"), name, layer, dir)
+	field(stdout, label("team"), name)
+	field(stdout, label("layer"), layer)
+	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
-		fmt.Fprintf(stdout, i18n.T("new.file"), filepath.Join(dir, file.Path))
+		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
 	}
-	fmt.Fprint(stdout, i18n.Tf("new.next", name))
+	printNext(stdout, "up "+name+" --dry")
 	return nil
 }
 
@@ -315,20 +278,22 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	checked, problems := 0, 0
 	report := func(path string, err error) {
 		checked++
+		field(stdout, label("file"), env.Display(path))
 		if err == nil {
-			fmt.Fprint(stdout, i18n.Tf("validate.ok", path))
+			indentField(stdout, 1, label("result"), i18n.T("value.ok"))
 			return
 		}
 		problems++
-		msg := err.Error()
+		msg := strings.ReplaceAll(err.Error(), path, env.Display(path))
 		// Some team-file errors do not name the file; the file-level parser
 		// errors already do. Show the location once either way, and keep the
 		// whole reason on one line.
-		if !strings.Contains(msg, path) {
-			msg = fmt.Sprintf("%s: %s", path, msg)
+		if !strings.Contains(msg, env.Display(path)) {
+			msg = fmt.Sprintf("%s: %s", env.Display(path), msg)
 		}
 		msg = strings.Join(strings.Fields(msg), " ")
-		fmt.Fprint(stdout, i18n.Tf("validate.bad", msg))
+		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
+		indentField(stdout, 1, label("detail"), msg)
 	}
 
 	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {
@@ -359,7 +324,8 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		}
 	}
 
-	fmt.Fprint(stdout, i18n.Tf("validate.summary", checked, problems))
+	field(stdout, label("checked"), strconv.Itoa(checked))
+	field(stdout, label("problems"), strconv.Itoa(problems))
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
@@ -412,14 +378,12 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return err
 	}
 	if opts.Dry {
-		// --dry touches no Herdr: provenance to stderr, the plan alone on stdout.
-		printResolution(stderr, resolved, cfg)
-		return printPlan(stdout, "boot", cfg, cfg.Members, opts.Timeout)
+		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+cfg.Team)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printResolution(stdout, resolved, cfg)
+	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, l.Boot)
 }
@@ -438,13 +402,17 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	// The pane hergy runs in is the member that must be closed last.
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	if opts.Dry {
-		printResolution(stderr, resolved, cfg)
-		return newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true)
+		printHeader(stdout, resolved, cfg, env)
+		if err := newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true); err != nil {
+			return err
+		}
+		printNext(stdout, "down "+cfg.Team)
+		return nil
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printResolution(stdout, resolved, cfg)
+	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runOperation(ctx, stderr, nil, func() error { return l.Down(members, selfPane, false) })
 }
@@ -463,17 +431,20 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 		return err
 	}
 	if opts.Dry {
-		printResolution(stderr, resolved, cfg)
 		members := make([]config.Member, len(selected))
 		for i, member := range selected {
 			members[i] = *member
 		}
-		return printPlan(stdout, "reseed", cfg, members, opts.Timeout)
+		next := "refresh " + memberName
+		if opts.All {
+			next = "refresh --all"
+		}
+		return dryPlan(stdout, env, resolved, cfg, "reseed", members, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printResolution(stdout, resolved, cfg)
+	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected) })
 }
@@ -491,15 +462,30 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		fmt.Fprintf(stderr, i18n.T("note.spawn_outside"), note)
 	}
 	if opts.Dry {
-		printResolution(stderr, resolved, cfg)
-		return printPlan(stdout, "spawn", cfg, []config.Member{*worker}, opts.Timeout)
+		// A hire has no obvious next step: the worker is named by the member
+		// that hires it, so only the plan is shown.
+		return dryPlan(stdout, env, resolved, cfg, "spawn", []config.Member{*worker}, opts, "")
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printResolution(stdout, resolved, cfg)
+	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) })
+}
+
+// dryPlan is the --dry output: the same plan as JSON with --json, and a
+// readable form (the prompt verbatim) by default. next, when not empty, is the
+// command the plan moves on to, printed last and only in the readable form.
+func dryPlan(stdout io.Writer, env team.Env, resolved *team.Resolved, cfg *config.Config, mode string, members []config.Member, opts *options.Options, next string) error {
+	if opts.JSON {
+		return printPlanJSON(stdout, mode, cfg, members, opts.Timeout)
+	}
+	printPlanText(stdout, mode, resolved, cfg, members, opts.Timeout, env)
+	if next != "" {
+		printNext(stdout, next)
+	}
+	return nil
 }
 
 // runLaunch runs one Herdr operation, and on a failure prints the progress
@@ -532,49 +518,98 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 	}
 }
 
-// printResolution says which layer's which file each value and document came
-// from, per member. Only documents a member actually read are listed.
-func printResolution(w io.Writer, resolved *team.Resolved, cfg *config.Config) {
-	fmt.Fprintf(w, i18n.T("resolution.header"), cfg.Team, cfg.Layer)
-	fmt.Fprintf(w, "  team.yaml : %s\n", cfg.TeamYAML.Display())
+// printHeader is the short provenance every team command shows: the team, its
+// version, the layer in use, and the files the effective values came from. The
+// per-member list is left to show and the plan.
+func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env team.Env) {
+	field(w, label("team"), cfg.Team)
+	field(w, label("version"), strconv.Itoa(cfg.Version))
+	field(w, label("layer"), cfg.Layer)
+	field(w, label("team_file"), env.Display(cfg.TeamYAML.Path))
 	if resolved.GlobalTeamYAML != "" && resolved.LocalTeamYAML != "" {
 		switch cfg.Layer {
 		case source.LayerLocal:
-			fmt.Fprintf(w, i18n.T("resolution.global_overridden"), resolved.GlobalTeamYAML)
+			field(w, label("note"), i18n.Tf("note.local_overrides", env.Display(resolved.GlobalTeamYAML)))
 		case source.LayerGlobal:
-			fmt.Fprintf(w, i18n.T("resolution.local_used"), resolved.LocalTeamYAML)
+			field(w, label("note"), i18n.Tf("note.global_used", env.Display(resolved.LocalTeamYAML)))
 		}
 	}
 	switch {
 	case cfg.ProfilesYAML == "":
-		fmt.Fprint(w, i18n.T("resolution.profiles_none"))
+		field(w, label("profiles"), i18n.T("value.none"))
 	case cfg.UsesProfiles():
-		fmt.Fprintf(w, "  profiles  : %s\n", cfg.ProfilesYAML)
+		field(w, label("profiles"), displayPaths(cfg.ProfilesYAML, env))
 	default:
-		fmt.Fprintf(w, i18n.T("resolution.profiles_unused"), cfg.ProfilesYAML)
-	}
-	fmt.Fprint(w, i18n.T("resolution.members_header"))
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
-		fmt.Fprintf(w, i18n.T("resolution.member_line"), member.Name, member.Role)
-		if member.Profile != "" {
-			fmt.Fprintf(w, i18n.T("resolution.profile"), member.Profile, cfg.Profiles[member.Profile].Path)
-		}
-		if member.HasRoleSource {
-			fmt.Fprintf(w, i18n.T("resolution.role_file"), member.RoleSource.Display())
-		} else {
-			fmt.Fprint(w, i18n.T("resolution.role_file_none"))
-		}
-		if len(member.DocsRead) > 0 {
-			fmt.Fprintf(w, i18n.T("resolution.docs"), displaysOf(member.DocsRead))
-		} else {
-			fmt.Fprint(w, i18n.T("resolution.docs_none"))
-		}
+		field(w, label("profiles"), i18n.Tf("value.unused", displayPaths(cfg.ProfilesYAML, env)))
 	}
 }
 
-// printPlan is the --dry output: the expanded members as JSON.
-func printPlan(w io.Writer, mode string, cfg *config.Config, members []config.Member, timeout int) error {
+// printMember is one seat: what it runs, where it runs, and the files its
+// prompt was built from. With prompt, the expanded prompt is printed verbatim
+// after the fields, so up --dry shows exactly what the agent would receive.
+func printMember(w io.Writer, cfg *config.Config, member *config.Member, env team.Env, prompt bool) {
+	field(w, label("member"), member.Name)
+	indentField(w, 1, label("role"), member.Role)
+	indentField(w, 1, label("kind"), member.Kind)
+	if member.Profile != "" {
+		indentField(w, 1, label("profile"),
+			i18n.Tf("value.profile_with_path", member.Profile, env.Display(cfg.Profiles[member.Profile].Path)))
+	}
+	if len(member.Args) > 0 {
+		indentField(w, 1, label("args"), strings.Join(member.Args, " "))
+	}
+	if len(member.Env) > 0 {
+		indentField(w, 1, label("env"), envSummary(member.Env))
+	}
+	indentField(w, 1, label("cwd"), env.Display(member.Cwd))
+	if member.MaySpawn != nil {
+		separator := i18n.T("list.separator")
+		indentField(w, 1, label("may_spawn_purposes"), strings.Join(member.MaySpawn.Purposes, separator))
+		indentField(w, 1, label("may_spawn_profiles"), strings.Join(member.MaySpawn.Profiles, separator))
+	}
+	if member.HasRoleSource {
+		indentField(w, 1, label("role_file"), env.Display(member.RoleSource.Path))
+	} else {
+		indentField(w, 1, label("role_file"), i18n.T("value.none"))
+	}
+	if len(member.DocsRead) > 0 {
+		for _, doc := range member.DocsRead {
+			indentField(w, 1, label("reads"), env.Display(doc.Path))
+		}
+	} else {
+		indentField(w, 1, label("reads"), i18n.T("value.none"))
+	}
+	if prompt {
+		printPrompt(w, member.Prompt)
+	}
+}
+
+// printPrompt prints the expanded prompt unescaped, as a block under the
+// prompt field, indented one level past the member.
+func printPrompt(w io.Writer, prompt string) {
+	indentField(w, 1, label("prompt"), "|")
+	for _, line := range strings.Split(strings.TrimRight(prompt, "\n"), "\n") {
+		if line == "" {
+			fmt.Fprint(w, "\n")
+			continue
+		}
+		fmt.Fprintf(w, "    %s\n", line)
+	}
+}
+
+// printPlanText is the readable --dry plan. It is the same information as the
+// JSON, with each member's prompt shown as the text it is.
+func printPlanText(w io.Writer, mode string, resolved *team.Resolved, cfg *config.Config, members []config.Member, timeout int, env team.Env) {
+	field(w, label("mode"), mode)
+	printHeader(w, resolved, cfg, env)
+	field(w, label("timeout"), strconv.Itoa(timeout))
+	for i := range members {
+		printMember(w, cfg, &members[i], env, true)
+	}
+}
+
+// printPlanJSON is the --dry output with --json: the expanded members as JSON.
+func printPlanJSON(w io.Writer, mode string, cfg *config.Config, members []config.Member, timeout int) error {
 	plans := make([]map[string]any, len(members))
 	for i := range members {
 		plans[i] = members[i].ToPlan()
@@ -591,6 +626,32 @@ func printPlan(w io.Writer, mode string, cfg *config.Config, members []config.Me
 	return enc.Encode(plan)
 }
 
+// printNext names the command that moves on from what was just shown. The
+// wording is not translated: next: stays next: in every language.
+func printNext(w io.Writer, command string) {
+	fmt.Fprintln(w, i18n.Tf("next", command))
+}
+
+// field writes one "name: value" line. depth is how many two-space levels to
+// indent by.
+func field(w io.Writer, name, value string) { indentField(w, 0, name, value) }
+
+func indentField(w io.Writer, depth int, name, value string) {
+	fmt.Fprintf(w, "%s%s: %s\n", strings.Repeat("  ", depth), name, value)
+}
+
+// label is one output field name in the language in use.
+func label(key string) string { return i18n.T("label." + key) }
+
+// displayPaths shows a comma-joined list of paths, each in its short form.
+func displayPaths(joined string, env team.Env) string {
+	paths := strings.Split(joined, ", ")
+	for i := range paths {
+		paths[i] = env.Display(paths[i])
+	}
+	return strings.Join(paths, ", ")
+}
+
 func newLauncher(cfg *config.Config, timeout int, out io.Writer) *launcher.Launcher {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return launcher.New(cfg, herdr.New(port), timeout, out)
@@ -602,14 +663,6 @@ func requireHerdrPane() error {
 		return i18n.Errorf("error.not_under_herdr")
 	}
 	return nil
-}
-
-func displaysOf(docs []source.Doc) string {
-	displays := make([]string, len(docs))
-	for i, doc := range docs {
-		displays[i] = doc.Display()
-	}
-	return strings.Join(displays, ", ")
 }
 
 func envSummary(env map[string]string) string {

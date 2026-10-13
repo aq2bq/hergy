@@ -50,6 +50,40 @@ func globalDir() string {
 	return filepath.Join(home, ".config", "hergy")
 }
 
+// Display is how a path is shown to a person: relative to the project root when
+// it is inside, after ~/ when it is inside the home directory, and absolute
+// otherwise. The project wins over the home directory, so a project under the
+// home directory still shows its project-relative form.
+func (e Env) Display(path string) string {
+	if rel, ok := relativeUnder(e.ProjectRoot, path); ok {
+		return rel
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if rel, ok := relativeUnder(home, path); ok {
+			if rel == "." {
+				return "~"
+			}
+			return "~/" + rel
+		}
+	}
+	return path
+}
+
+// relativeUnder is path as seen from base, or false when it is not inside base.
+func relativeUnder(base, path string) (string, bool) {
+	if base == "" {
+		return "", false
+	}
+	rel, err := filepath.Rel(base, path)
+	if err != nil {
+		return "", false
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
+}
+
 // Lang is the language named in the global config.yaml under GlobalDir, or ""
 // when the file is absent or names none. i18n.Resolve applies the precedence
 // with --lang; this only reads what the file says. The file is held to the same
@@ -138,13 +172,13 @@ func (e Env) Resolve(name, force string) (*Resolved, error) {
 	switch force {
 	case "local":
 		if !hasLocal {
-			return nil, i18n.Errorf("error.team_not_local", name, local, e.LocalDir)
+			return nil, i18n.Errorf("error.team_not_local", name, e.Display(local), e.Display(e.LocalDir))
 		}
 		resolved.Layer = source.LayerLocal
 		resolved.TeamYAMLPath = local
 	case "global":
 		if !hasGlobal {
-			return nil, i18n.Errorf("error.team_not_global", name, global, e.GlobalDir)
+			return nil, i18n.Errorf("error.team_not_global", name, e.Display(global), e.Display(e.GlobalDir))
 		}
 		resolved.Layer = source.LayerGlobal
 		resolved.TeamYAMLPath = global
@@ -191,19 +225,35 @@ func (e Env) resolveDefault(force string) (*Resolved, error) {
 
 func (e Env) notFound(name, local, global string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, i18n.T("error.team_not_found"), name, local, global)
+	fmt.Fprintf(&b, i18n.T("error.team_not_found"), name)
+	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.local"), e.Display(local))
+	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.global"), e.Display(global))
 	if candidates := e.candidatesList(); len(candidates) > 0 {
-		fmt.Fprintf(&b, i18n.T("error.candidates"), strings.Join(candidates, ", "))
+		fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(candidates, i18n.T("list.separator")))
+		fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(candidates)))
 	}
 	return fmt.Errorf("%s", b.String())
+}
+
+// nextCommand is the command that moves a not-found error on: boot the one
+// candidate, or list the teams when the choice is not obvious.
+func nextCommand(candidates []string) string {
+	if len(candidates) == 1 {
+		return "up " + candidates[0]
+	}
+	return "ls"
 }
 
 func (e Env) candidates(head string) error {
 	list := e.candidatesList()
 	if len(list) == 0 {
-		return i18n.Errorf("error.no_candidates", head, e.GlobalDir, e.LocalDir)
+		return i18n.Errorf("error.no_candidates", head, e.Display(e.GlobalDir), e.Display(e.LocalDir))
 	}
-	return i18n.Errorf("error.candidates_head", head, strings.Join(list, ", "))
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s", head)
+	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(list, i18n.T("list.separator")))
+	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
+	return fmt.Errorf("%s", b.String())
 }
 
 // candidatesList is every team name visible in either layer.

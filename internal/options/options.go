@@ -50,6 +50,7 @@ type Options struct {
 	From    string
 
 	Dry     bool
+	JSON    bool   // --json: print the --dry plan as JSON instead of text
 	Layer   string // "", "global", "local"
 	Dir     string // -C: the project root to resolve against
 	Timeout int    // milliseconds
@@ -73,10 +74,10 @@ func Usage() string { return i18n.T("usage") }
 // allowed is the flags each command accepts. Anything else is an error, so a
 // flag that belongs to another command never gets silently ignored.
 var allowed = map[Kind]map[string]bool{
-	Up:       {"dry": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
+	Up:       {"dry": true, "json": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "help": true},
 	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "help": true},
-	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "dir": true, "lang": true, "help": true},
-	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "dir": true, "lang": true, "help": true},
+	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
+	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
 	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	New:      {"local": true, "lang": true, "dir": true, "help": true},
@@ -193,6 +194,9 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 		case "dry", "dry-run":
 			o.Dry = true
 			o.seen["dry"] = true
+		case "json":
+			o.JSON = true
+			o.seen["json"] = true
 		case "all":
 			o.All = true
 			o.seen["all"] = true
@@ -292,6 +296,9 @@ func validate(o *Options) error {
 	}
 	if o.Timeout < minTimeoutMS || o.Timeout > maxTimeoutMS {
 		return i18n.Errorf("error.timeout_range", minTimeoutMS, maxTimeoutMS)
+	}
+	if o.JSON && !o.Dry {
+		return i18n.Errorf("error.json_needs_dry")
 	}
 	switch o.Kind {
 	case Refresh:

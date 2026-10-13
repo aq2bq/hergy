@@ -48,7 +48,7 @@ hergy up myteam         # start
 | Command | What it does |
 |---|---|
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
-| `hergy up [team]` | Start a team. `--dry` prints the plan as JSON without touching herdr |
+| `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` | Close the live members' panes. `--dry` prints what would close; the team's tab is never closed as a unit |
 | `hergy refresh <member>` / `--all` | Re-send the bootstrap prompt to waiting members |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
@@ -57,7 +57,7 @@ hergy up myteam         # start
 | `hergy validate` | Check every settings file and show each broken one |
 | `hergy version` | Print the commit and time of the installed hergy |
 
-Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default). `refresh` and `hire` take `--team` to pick the team.
+Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh` and `hire` take `--team` to pick the team.
 
 ## Where settings live
 
@@ -69,7 +69,7 @@ Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the proj
 - A team lives in `teams/<team>/team.yaml`. When both layers have the same name, the local one wins
 - `profiles.yaml` can live in both layers. A local team reads the local one over the global one (local wins for the same name); a global team reads only the global one
 - Put `version: 1` and `lang: ja` in the global `config.yaml` to get Japanese without `--lang`
-- `hergy up` shows the files each member read
+- `hergy up <team> --dry` shows each member's prompt and the files it read
 
 ## team.yaml
 
