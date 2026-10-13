@@ -274,14 +274,14 @@ func (e Env) List() []Listing {
 	return rows
 }
 
-// BuildConfig reads the resolved team.yaml and the global profiles.yaml and
-// parses them into a Config.
+// BuildConfig reads the resolved team.yaml and the profiles.yaml files its layer
+// may use, and parses them into a Config.
 func (e Env) BuildConfig(resolved *Resolved, reader source.Reader) (*config.Config, error) {
 	text, err := os.ReadFile(resolved.TeamYAMLPath)
 	if err != nil {
 		return nil, err
 	}
-	profiles, profilesPath, err := e.LoadProfiles()
+	profiles, profilesPaths, err := e.LoadProfiles(resolved.Layer)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func (e Env) BuildConfig(resolved *Resolved, reader source.Reader) (*config.Conf
 		TeamYAMLPath:   resolved.TeamYAMLPath,
 		TeamDir:        resolved.TeamDir,
 		Profiles:       profiles,
-		ProfilesYAML:   profilesPath,
+		ProfilesYAML:   strings.Join(profilesPaths, ", "),
 		Base:           e.ProjectRoot,
 		Reader:         reader,
 		Executable:     executable,
@@ -305,22 +305,38 @@ func (e Env) BuildConfig(resolved *Resolved, reader source.Reader) (*config.Conf
 	})
 }
 
-// LoadProfiles reads the machine-global profiles.yaml. It is absent until one is
-// written, which is fine when every member spells its engine out inline.
-func (e Env) LoadProfiles() (map[string]config.Profile, string, error) {
-	path := filepath.Join(e.GlobalDir, "profiles.yaml")
-	if !isFile(path) {
-		return map[string]config.Profile{}, "", nil
+// LoadProfiles reads the profiles a team of the layer may name: the global
+// profiles.yaml, and for a local team the project's profiles.yaml over it, so
+// a project carries its own profiles and a local one wins over a global one of
+// the same name. A global team never reads the project's. Either file may be
+// absent, which is fine when every member spells its engine out inline. The
+// files read are returned local first.
+func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, error) {
+	dirs := []string{e.GlobalDir}
+	if layer == source.LayerLocal {
+		dirs = append(dirs, e.LocalDir)
 	}
-	text, err := os.ReadFile(path)
-	if err != nil {
-		return nil, "", err
+	profiles := map[string]config.Profile{}
+	var paths []string
+	for _, dir := range dirs {
+		path := filepath.Join(dir, "profiles.yaml")
+		if !isFile(path) {
+			continue
+		}
+		text, err := os.ReadFile(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		more, err := config.ParseProfiles(string(text), path)
+		if err != nil {
+			return nil, nil, err
+		}
+		for name, profile := range more {
+			profiles[name] = profile
+		}
+		paths = append([]string{path}, paths...)
 	}
-	profiles, err := config.ParseProfiles(string(text), path)
-	if err != nil {
-		return nil, "", err
-	}
-	return profiles, path, nil
+	return profiles, paths, nil
 }
 
 func isFile(path string) bool {

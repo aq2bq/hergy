@@ -228,7 +228,7 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 		member := &cfg.Members[i]
 		engineLabel := fmt.Sprintf("kind=%s", member.Kind)
 		if member.Profile != "" {
-			engineLabel = fmt.Sprintf("profile=%s kind=%s", member.Profile, member.Kind)
+			engineLabel = fmt.Sprintf("profile=%s (%s) kind=%s", member.Profile, cfg.Profiles[member.Profile].Path, member.Kind)
 		}
 		fmt.Fprintf(stdout, i18n.T("show.member_line"), member.Name, member.Role, engineLabel)
 		if len(member.Args) > 0 {
@@ -329,8 +329,10 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {
 		report(path, validateConfig(path))
 	}
-	if path := filepath.Join(env.GlobalDir, "profiles.yaml"); isFile(path) {
-		report(path, validateProfiles(path))
+	for _, dir := range []string{env.GlobalDir, env.LocalDir} {
+		if path := filepath.Join(dir, "profiles.yaml"); isFile(path) {
+			report(path, validateProfiles(path))
+		}
 	}
 	rows := env.List()
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
@@ -374,7 +376,7 @@ func validateConfig(path string) error {
 	return err
 }
 
-// validateProfiles reads the global profiles.yaml the way up does.
+// validateProfiles reads one profiles.yaml the way up does.
 func validateProfiles(path string) error {
 	text, err := os.ReadFile(path)
 	if err != nil {
@@ -550,6 +552,9 @@ func printResolution(w io.Writer, resolved *team.Resolved, cfg *config.Config) {
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
 		fmt.Fprintf(w, i18n.T("resolution.member_line"), member.Name, member.Role)
+		if member.Profile != "" {
+			fmt.Fprintf(w, i18n.T("resolution.profile"), member.Profile, cfg.Profiles[member.Profile].Path)
+		}
 		if member.HasRoleSource {
 			fmt.Fprintf(w, i18n.T("resolution.role_file"), member.RoleSource.Display())
 		} else {

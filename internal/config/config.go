@@ -30,12 +30,13 @@ var (
 	dangleRE    = regexp.MustCompile(`(?m)\s+into\s*$`)
 )
 
-// Profile is one engine choice, named, kept in the machine-global profiles.yaml.
+// Profile is one engine choice, named, kept in a profiles.yaml.
 type Profile struct {
 	Name string
 	Kind string
 	Args []string
 	Env  map[string]string
+	Path string // the profiles.yaml it came from
 }
 
 // MaySpawn is what a member may hire. It is stated in the prompt, never enforced.
@@ -71,7 +72,7 @@ type Config struct {
 
 	// Provenance: where the effective values came from.
 	TeamYAML     source.Doc
-	ProfilesYAML string // empty when no profiles.yaml was read
+	ProfilesYAML string // the profiles.yaml files read, local first; empty when none
 	Layer        string
 	Docs         []source.Doc // the documents the team lists, in order
 
@@ -206,7 +207,7 @@ type rawConfig struct {
 	Lang    string `yaml:"lang"`
 }
 
-// ParseProfiles reads the machine-global profiles.yaml, checking its version
+// ParseProfiles reads one profiles.yaml, checking its version
 // before anything else and then rejecting unknown keys.
 func ParseProfiles(text, path string) (map[string]Profile, error) {
 	if _, err := readVersion(text, "profiles.yaml", path); err != nil {
@@ -234,7 +235,7 @@ func ParseProfiles(text, path string) (map[string]Profile, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[name] = Profile{Name: name, Kind: kind, Args: args, Env: env}
+		out[name] = Profile{Name: name, Kind: kind, Args: args, Env: env, Path: path}
 	}
 	return out, nil
 }

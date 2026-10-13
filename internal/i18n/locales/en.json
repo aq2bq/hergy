@@ -65,7 +65,7 @@
   "error.env_not_string": "%s.%s must be a string (quote numbers)",
   "error.no_role_file_no_dirs": "no role file for %s (there is nowhere to look; put the role file in the team's roles/ or point roles at a directory)",
   "error.no_role_file_paths": "no role file for %s (looked in: %s)",
-  "error.profiles_moved": " (team.yaml no longer has profiles; profiles live in the global profiles.yaml)",
+  "error.profiles_moved": " (team.yaml no longer has profiles; profiles live in profiles.yaml)",
   "error.unknown_placeholder": "unknown prompt placeholder: %%{%s}",
 
   "error.worker_name_pattern": "worker name must match [a-z][a-z0-9_-]{0,31}",
@@ -128,6 +128,7 @@
   "resolution.profiles_unused": "  profiles  : %s (no member uses it)\n",
   "resolution.members_header": "Where each member came from:\n",
   "resolution.member_line": "  %s role=%s\n",
+  "resolution.profile": "    profile: %s (%s)\n",
   "resolution.role_file": "    role file: %s\n",
   "resolution.role_file_none": "    role file: none\n",
   "resolution.docs": "    documents: %s\n",
