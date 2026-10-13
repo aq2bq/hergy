@@ -214,6 +214,77 @@ func TestParseUnknownProfileStops(t *testing.T) {
 	}
 }
 
+// TestMemberNameGetsTheTeamPrefix: the name written in team.yaml is the seat;
+// the member's herdr name is "<team>-<seat>".
+func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    kind: claude\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := cfg.Members[0]
+	if member.Seat != "lead" {
+		t.Errorf("Seat = %q, want %q", member.Seat, "lead")
+	}
+	if member.Name != "t-lead" {
+		t.Errorf("Name = %q, want %q", member.Name, "t-lead")
+	}
+}
+
+// TestMemberNameTakesTheRunName: --as replaces the prefix, not the seat.
+func TestMemberNameTakesTheRunName(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Parse(Input{
+		YAML:         "version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    kind: claude\n",
+		TeamName:     "dev",
+		RunName:      "dev2",
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
+		TeamDir:      dir,
+		Base:         dir,
+		Reader:       source.Disk{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Members[0].Name != "dev2-lead" {
+		t.Errorf("Name = %q, want %q", cfg.Members[0].Name, "dev2-lead")
+	}
+	if cfg.Members[0].Seat != "lead" {
+		t.Errorf("Seat = %q, want %q", cfg.Members[0].Seat, "lead")
+	}
+}
+
+// TestMemberNameWithTeamPlaceholderStops: the team name is added for the writer,
+// so a literal %{team} left in a member name is refused.
+func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
+	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: \"%{team}-lead\"\n    role: r\n    kind: claude\n")
+	if err == nil {
+		t.Fatal("a member name with %{team} did not stop the parse")
+	}
+	if !strings.Contains(err.Error(), "%{team}") {
+		t.Errorf("error %q does not name the leftover placeholder", err)
+	}
+}
+
+// TestMemberNameTooLongForHerdrStops: the team name and the seat are each within
+// their own pattern, but the combined herdr name is checked too.
+func TestMemberNameTooLongForHerdrStops(t *testing.T) {
+	_, err := Parse(Input{
+		YAML:         "version: 1\nmembers:\n  - name: worker\n    role: r\n    kind: claude\n",
+		TeamName:     "abcdefghijklmnopqrstuvwxyz", // 26 chars, over the team-name limit
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: "team.yaml",
+		Reader:       source.Disk{},
+	})
+	if err == nil {
+		t.Fatal("an over-long herdr name did not stop the parse")
+	}
+	if !strings.Contains(err.Error(), "abcdefghijklmnopqrstuvwxyz-worker") {
+		t.Errorf("error %q does not name the combined name", err)
+	}
+}
+
 // TestConfigYAMLRoundTrips: the config.yaml hergy writes is one ParseConfig
 // reads back to the same language.
 func TestConfigYAMLRoundTrips(t *testing.T) {

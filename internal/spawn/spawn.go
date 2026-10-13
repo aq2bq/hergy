@@ -10,13 +10,19 @@ import (
 )
 
 // Plan returns the worker and notes on where the hire goes beyond the lead's
-// may_spawn. Notes never stop the hire: the permission is only stated.
+// may_spawn. Notes never stop the hire: the permission is only stated. name is
+// the short worker name; the herdr name is "<team>-<name>", like the team's own
+// members.
 func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*config.Member, []string, error) {
 	if !config.NamePattern.MatchString(name) {
 		return nil, nil, i18n.Errorf("error.worker_name_pattern")
 	}
+	herdrName := cfg.Team + "-" + name
+	if !config.NamePattern.MatchString(herdrName) {
+		return nil, nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
+	}
 	for i := range cfg.Members {
-		if cfg.Members[i].Name == name {
+		if cfg.Members[i].Seat == name || cfg.Members[i].Name == name {
 			return nil, nil, i18n.Errorf("error.worker_exists", name)
 		}
 	}
@@ -44,10 +50,10 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		"lead":      func() string { return lead.Name },
 		"lead_role": func() string { return lead.Role },
 		"purpose":   func() string { return purpose },
-		"name":      func() string { return name },
+		"name":      func() string { return herdrName },
 		"task":      func() string { return task },
 		"herdr": func() string {
-			return prompt.Herdr(i18n.Tf("prompt.self_intro_worker", cfg.Team, purpose, name))
+			return prompt.Herdr(i18n.Tf("prompt.self_intro_worker", cfg.Team, purpose, herdrName))
 		},
 	}
 	text, err := prompt.Expand(prompt.WorkerTemplate(), parts)
@@ -56,7 +62,8 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 	}
 
 	worker := &config.Member{
-		Name:    name,
+		Name:    herdrName,
+		Seat:    name,
 		Role:    i18n.Tf("role.worker", purpose),
 		Kind:    chosen.Kind,
 		Args:    chosen.Args,

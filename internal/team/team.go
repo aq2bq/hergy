@@ -347,9 +347,8 @@ func (e Env) List() []Listing {
 
 // BuildConfig reads the resolved team.yaml and the profiles.yaml files its layer
 // may use, and parses them into a Config. runName is the team name at run time
-// (--as); empty means the resolved name. asGiven says whether --as was given, so
-// a team without %{team} in its member names stops instead of colliding.
-func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName string, asGiven bool) (*config.Config, error) {
+// (--as); empty means the resolved name.
+func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName string) (*config.Config, error) {
 	text, err := os.ReadFile(resolved.TeamYAMLPath)
 	if err != nil {
 		return nil, err
@@ -366,7 +365,6 @@ func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName strin
 		YAML:           string(text),
 		TeamName:       resolved.Name,
 		RunName:        runName,
-		AsGiven:        asGiven,
 		Layer:          resolved.Layer,
 		TeamYAMLPath:   resolved.TeamYAMLPath,
 		TeamDir:        resolved.TeamDir,

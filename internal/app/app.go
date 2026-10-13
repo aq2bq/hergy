@@ -147,7 +147,7 @@ func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *conf
 	if err != nil {
 		return nil, nil, err
 	}
-	cfg, err := env.BuildConfig(resolved, source.Disk{}, opts.As, opts.As != "")
+	cfg, err := env.BuildConfig(resolved, source.Disk{}, opts.As)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -378,7 +378,7 @@ func validateTeam(env team.Env, name, layer string) error {
 	if err != nil {
 		return err
 	}
-	_, err = env.BuildConfig(resolved, source.Disk{}, "", false)
+	_, err = env.BuildConfig(resolved, source.Disk{}, "")
 	return err
 }
 

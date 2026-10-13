@@ -30,8 +30,9 @@ var (
 	dangleRE    = regexp.MustCompile(`(?m)\s+into\s*$`)
 )
 
-// teamPlaceholder is where the team name goes. In a member name the parser
-// replaces it at run time; in a prompt template prompt.Expand does it.
+// teamPlaceholder is a leftover from the form where a member name had to carry
+// the team name itself. The team name is now added automatically, so a member
+// name that still contains it is refused.
 const teamPlaceholder = "%{team}"
 
 // Profile is one engine choice, named, kept in a profiles.yaml.
@@ -50,8 +51,14 @@ type MaySpawn struct {
 }
 
 // Member is one seat in the roster, with its prompt already built.
+//
+// Name is the name herdr sees: "<team>-<seat>", where team is the name the team
+// runs under (--as, else the settings name). Seat is the short name written in
+// team.yaml; the commands that take a member name (refresh, hire --from) take
+// the seat, not the herdr name.
 type Member struct {
 	Name     string
+	Seat     string
 	Role     string
 	Kind     string
 	Args     []string
@@ -102,10 +109,17 @@ func (c *Config) UsesProfiles() bool {
 	return false
 }
 
-// Member returns the named member.
+// Member returns the named member: by its herdr name first, then by its seat,
+// so both the internal lookups (which use the herdr name) and the command-line
+// member names (the short seat) resolve.
 func (c *Config) Member(name string) (*Member, error) {
 	for i := range c.Members {
 		if c.Members[i].Name == name {
+			return &c.Members[i], nil
+		}
+	}
+	for i := range c.Members {
+		if c.Members[i].Seat == name {
 			return &c.Members[i], nil
 		}
 	}
@@ -133,7 +147,6 @@ type Input struct {
 	YAML         string
 	TeamName     string // the name the team was resolved by (its directory name)
 	RunName      string // the team name at run time: --as, else TeamName
-	AsGiven      bool   // whether --as was given (so a missing %{team} must stop)
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
@@ -415,30 +428,24 @@ func resolveEntry(entry, base, layer string) (source.Doc, error) {
 func parseMembers(raw rawTeam, in Input, docs, roleDirs []source.Doc) ([]Member, error) {
 	members := make([]Member, 0, len(raw.Members))
 	templates := make([]string, 0, len(raw.Members))
-	usedTeam := false
 	for i, rm := range raw.Members {
-		// %{team} in a member name is the team name at run time (--as), so the
-		// same settings can boot twice under different names without colliding.
+		label := fmt.Sprintf("members[%d]", i)
+		// The team name is added to every member name automatically, so a
+		// literal %{team} is a leftover that would only make the herdr name
+		// carry the team twice.
 		if strings.Contains(rm.Name, teamPlaceholder) {
-			rm.Name = strings.ReplaceAll(rm.Name, teamPlaceholder, in.RunName)
-			usedTeam = true
+			return nil, i18n.Errorf("error.name_team_placeholder", label)
 		}
 		member, err := parseSeat(rm, raw.Cwd, in, i)
 		if err != nil {
 			return nil, err
 		}
-		label := fmt.Sprintf("members[%d]", i)
 		template, err := memberTemplate(rm, raw, label)
 		if err != nil {
 			return nil, err
 		}
 		members = append(members, member)
 		templates = append(templates, template)
-	}
-	// A second team from the same settings would carry the same member names and
-	// collide in herdr, so --as needs %{team} somewhere in the member names.
-	if in.AsGiven && !usedTeam {
-		return nil, i18n.Errorf("error.as_needs_team_placeholder", in.TeamYAMLPath)
 	}
 	seen := map[string]bool{}
 	for _, member := range members {
@@ -483,6 +490,12 @@ func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error
 	if !NamePattern.MatchString(rm.Name) {
 		return Member{}, i18n.Errorf("error.name_pattern", label)
 	}
+	// herdr sees the member as "<team>-<seat>". The team name is checked short
+	// enough for this to fit, but a long seat can still overflow the limit.
+	name := in.RunName + "-" + rm.Name
+	if !NamePattern.MatchString(name) {
+		return Member{}, i18n.Errorf("error.herdr_name_pattern", name)
+	}
 	if strings.TrimSpace(rm.Role) == "" {
 		return Member{}, i18n.Errorf("error.role_empty", label)
 	}
@@ -508,7 +521,8 @@ func parseSeat(rm rawMember, teamCwd string, in Input, index int) (Member, error
 		}
 	}
 	return Member{
-		Name:     rm.Name,
+		Name:     name,
+		Seat:     rm.Name,
 		Role:     rm.Role,
 		Kind:     kind,
 		Args:     args,
@@ -646,7 +660,7 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 				kinds[name] = in.Profiles[name].Kind
 			}
 			return prompt.SpawnNote(member.Name, member.MaySpawn.Purposes, member.MaySpawn.Profiles, kinds,
-				hireCommand(in, member.Name))
+				hireCommand(in, member.Seat))
 		},
 	}
 	text, err := prompt.Expand(template, parts)
@@ -668,8 +682,10 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 // hireCommand is embedded in a member's prompt. It names the exact team, layer
 // and project, so a hire works even when the member runs outside the project or
 // the same name exists in both layers. When the team runs under a name other
-// than the settings name, --as carries the team name along.
-func hireCommand(in Input, memberName string) string {
+// than the settings name, --as carries the team name along. The --from value is
+// the hiring member's seat: the command line takes the short name, and hergy
+// adds the team name to the herdr name itself.
+func hireCommand(in Input, seat string) string {
 	layerFlag := "--local"
 	if in.Layer == source.LayerGlobal {
 		layerFlag = "--global"
@@ -683,7 +699,7 @@ func hireCommand(in Input, memberName string) string {
 		asFlag = " --as " + in.RunName
 	}
 	return i18n.Tf("hire.command",
-		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), memberName)
+		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), seat)
 }
 
 func shellQuote(s string) string {

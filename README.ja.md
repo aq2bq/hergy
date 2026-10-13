@@ -43,6 +43,8 @@ hergy up myteam --dry   # 起動せず、担当ごとのプロンプトと読み
 hergy up myteam         # 起動
 ```
 
+担当は herdr では `myteam-lead`、`myteam-worker` として動きます。担当名の前にチーム名が自動で付くためです（下記）。
+
 ## コマンド
 
 | コマンド | 内容 |
@@ -50,7 +52,7 @@ hergy up myteam         # 起動
 | `hergy new <チーム>` | lead と worker の2人チームのひな形を書き出す |
 | `hergy up [チーム]` | チームを起動する。`--dry` で herdr に触れず計画（担当ごとのプロンプトをそのままの文）を出し、`--json` では計画を JSON で出す |
 | `hergy down [チーム]` | 生きている担当のペインを閉じる。`--dry` で閉じる予定を出す。チームのタブごとは閉じない |
-| `hergy refresh <担当>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
+| `hergy refresh <担当名>` / `--all` | 待機中の担当に初期プロンプトを送り直す |
 | `hergy hire <名前> --profile P --purpose X --task "…"` | ワーカーを別タブに起動して仕事を頼む（主に担当が使う） |
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
@@ -81,7 +83,7 @@ docs: [protocol.md]     # 全員に渡す文書。書いた順に連結。ディ
 roles: [roles]          # 役割ファイルを探す場所（省略時は roles/）
 prompt: "…"             # 初期プロンプトのテンプレート（任意）
 members:
-  - name: "%{team}-lead"  # herdr での名前。%{team} はチーム名になる（下の --as 参照）
+  - name: lead            # 担当名（短い名前）。herdr では「<チーム名>-lead」になる
     role: lead          # roles/lead.md を読む
     profile: opus       # または kind / args / env を直接書く
     may_spawn:          # 払い出してよい目的とプロファイル（プロンプトに書くだけで、強制しない）
@@ -93,12 +95,15 @@ members:
 
 `--as <チーム名>` を付けると、同じ設定を違うチーム名で起動できます。1つの `team.yaml` から2つのチームを並べて動かせます。`--as` を付けなければ、チーム名は設定名（`teams/` の下のディレクトリ名）です。
 
-チーム名は `[a-z][a-z0-9_-]{0,24}` に一致させてください。担当名（`members[].name`）に含まれる `%{team}` がそのチーム名に置き換わるので、2つのチームで herdr の名前がぶつかりません。`--as` を付けるときは、担当名のどれかに `%{team}` が必要です。どれにも無ければ、同じ名前を2回起動しないよう hergy が止まります。hergy は起動中のチームを記録しないので、`down` / `refresh` / `hire` も同じように指します:
+担当名（`members[].name`）は短い名前（`lead`、`worker`）で書きます。hergy が起動するときにチーム名を付けるので、herdr での名前は `<チーム名>-<担当名>` になります。`demo` の設定なら `demo-lead`、`demo-worker`、`--as dev2` なら `dev2-lead`、`dev2-worker` です。チーム名は自動で付くので、両方に `lead` がいても herdr で衝突しません。担当名に `%{team}` が残っていると止めます（この置換は名前では使わなくなりました）。
+
+チーム名は `[a-z][a-z0-9_-]{0,24}` に、付けた後の `<チーム名>-<担当名>` は `[a-z][a-z0-9_-]{0,31}` に一致させてください。hergy は起動中のチームを記録しないので、`down` / `refresh` / `hire` も同じように指します。コマンドで担当を指すとき（`refresh <担当名>`、`hire --from <担当名>`）は、書いた短い名前を使います:
 
 ```sh
-hergy up demo --as alpha    # demo の設定を alpha というチーム名で起動
-hergy up demo --as beta     # 同じ設定をもう一度 beta として起動
-hergy down demo --as alpha  # alpha の担当だけを閉じる
+hergy up demo --as alpha            # demo の設定を alpha というチーム名で起動
+hergy up demo --as beta             # 同じ設定をもう一度 beta として起動
+hergy refresh lead --team demo --as alpha   # alpha の lead に送り直す
+hergy down demo --as alpha          # alpha の担当だけを閉じる
 ```
 
 ## profiles.yaml
@@ -119,7 +124,7 @@ profiles:
 
 | 置換 | 中身 |
 |---|---|
-| `%{team}` / `%{role}` / `%{name}` | チーム名、役割、担当の名前 |
+| `%{team}` / `%{role}` / `%{name}` | チーム名、役割、担当の名前（herdr での名前 `<チーム名>-<担当名>`） |
 | `%{role_doc}` | 役割ファイル |
 | `%{docs}` | `docs` の文書 |
 | `%{roster}` | 名簿 |

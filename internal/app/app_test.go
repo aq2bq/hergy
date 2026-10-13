@@ -405,8 +405,10 @@ func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 func TestRefreshDryEndsWithNext(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo", "--local")
-	if got := mustRun(t, "refresh", "demo-lead", "--dry"); !strings.HasSuffix(got, "next: refresh demo-lead\n") {
-		t.Fatalf("refresh <member> --dry does not end with next:\n%s", got)
+	// refresh points at the short seat name written in team.yaml, not the
+	// herdr name hergy made from it.
+	if got := mustRun(t, "refresh", "lead", "--dry"); !strings.HasSuffix(got, "next: refresh lead\n") {
+		t.Fatalf("refresh <seat> --dry does not end with next:\n%s", got)
 	}
 	if got := mustRun(t, "refresh", "--all", "--dry"); !strings.HasSuffix(got, "next: refresh --all\n") {
 		t.Fatalf("refresh --all --dry does not end with next:\n%s", got)
@@ -570,17 +572,21 @@ func TestHomePathsUseTilde(t *testing.T) {
 	}
 }
 
-// TestNewKeepsTheTeamPlaceholder: hergy new writes team.yaml unchanged, so
-// %{team} stays literal and the team name is chosen at up time.
-func TestNewKeepsTheTeamPlaceholder(t *testing.T) {
+// TestNewWritesShortMemberNames: hergy new writes the member names as the short
+// seats, without quotes; hergy adds the team name when it boots them.
+func TestNewWritesShortMemberNames(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	text := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
-	if !strings.Contains(text, `"%{team}-lead"`) {
-		t.Fatalf("team.yaml does not keep %%{team}:\n%s", text)
+	for _, want := range []string{"  - name: lead\n", "  - name: worker\n"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("team.yaml does not carry the short name %q:\n%s", want, text)
+		}
 	}
-	if strings.Contains(text, "demo-lead") {
-		t.Fatalf("team.yaml replaced %%{team} with the name:\n%s", text)
+	for _, unwanted := range []string{"%{team}", `"lead"`, "demo-lead"} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("team.yaml still carries %q:\n%s", unwanted, text)
+		}
 	}
 }
 
@@ -621,6 +627,83 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 	}
 	if !strings.HasSuffix(named, "next: up demo --as alpha\n") {
 		t.Fatalf("up demo --as alpha --dry does not end with next:\n%s", named)
+	}
+}
+
+// TestUpAsDev2PrefixesTheSeats: --as changes only the prefix; the seats stay
+// lead and worker, and the herdr names, roster and self-intro become dev2-*.
+func TestUpAsDev2PrefixesTheSeats(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	got := mustRun(t, "up", "dev", "--as", "dev2", "--dry")
+	for _, line := range []string{
+		"team: dev2",
+		"member: dev2-lead",
+		"member: dev2-worker",
+		"    You are dev2-lead (lead) on team dev2.",
+		"    - lead: dev2-lead (you)",
+		"    - worker: dev2-worker",
+	} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("up dev --as dev2 --dry is missing %q:\n%s", line, got)
+		}
+	}
+	if !strings.HasSuffix(got, "next: up dev --as dev2\n") {
+		t.Fatalf("up dev --as dev2 --dry does not end with next:\n%s", got)
+	}
+}
+
+// TestTwoTeamsWithTheSameSeatsDoNotCollide: two settings that both name a seat
+// "lead" boot side by side. hergy prefixes each with its own team name, so the
+// herdr names stay apart and the second boot does not collide.
+func TestTwoTeamsWithTheSameSeatsDoNotCollide(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "discovery", "--local")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	dev := mustRun(t, "up", "dev")
+	for _, line := range []string{"submitted: dev-lead (pane p1)", "submitted: dev-worker (pane p2)"} {
+		if !strings.Contains(dev, line+"\n") {
+			t.Fatalf("up dev is missing %q:\n%s", line, dev)
+		}
+	}
+	discovery := mustRun(t, "up", "discovery")
+	for _, line := range []string{"submitted: discovery-lead (pane p1)", "submitted: discovery-worker (pane p2)"} {
+		if !strings.Contains(discovery, line+"\n") {
+			t.Fatalf("up discovery is missing %q:\n%s", line, discovery)
+		}
+	}
+}
+
+// TestHireNamesTheWorkerAfterTheTeam: hergy hire takes the short worker name and
+// gives the worker the herdr name "<team>-<name>", both in the plan and in the
+// prompt the worker receives.
+func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev", "--local")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+
+	got := mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+		"--task", "read the docs", "--team", "dev", "--dry")
+	for _, line := range []string{
+		"mode: spawn",
+		"member: dev-researcher",
+		"    You are dev-researcher on team dev, a research worker hired by dev-lead.",
+	} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("hire --dry is missing %q:\n%s", line, got)
+		}
+	}
+	if !strings.Contains(got, "From dev-researcher:") {
+		t.Fatalf("the worker's contact intro is not its herdr name:\n%s", got)
 	}
 }
 
@@ -704,40 +787,41 @@ func TestDownAsClosesOnlyThatTeamsMembers(t *testing.T) {
 	}
 }
 
-// TestUpAsWithoutPlaceholderStops: a settings with no %{team} in its member names
-// cannot boot a second name, so --as stops it.
-func TestUpAsWithoutPlaceholderStops(t *testing.T) {
+// TestUpStopsOnTeamPlaceholderInMemberName: the team name is added to every
+// member name automatically, so a literal %{team} in a member name is refused
+// with a message that says not to write it, --as or not.
+func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: demo-lead\n    role: lead\n    kind: claude\n"+
-			"  - name: demo-worker\n    role: worker\n    kind: claude\n")
+			"  - name: \"%{team}-lead\"\n    role: lead\n    kind: claude\n")
 
-	// The literal names are fine without --as.
-	if got := mustRun(t, "up", "demo", "--dry"); !strings.Contains(got, "member: demo-lead\n") {
-		t.Fatalf("up demo --dry on literal names is missing the member:\n%s", got)
-	}
-
-	stdout, stderr, code := run("up", "demo", "--as", "alpha", "--dry")
-	if code == 0 {
-		t.Fatal("up demo --as alpha succeeded without %{team} in the member names")
-	}
-	if stdout != "" {
-		t.Fatalf("the failure wrote to stdout: %q", stdout)
-	}
-	if !strings.Contains(stderr, "%{team}") {
-		t.Fatalf("the failure does not ask for %%{team}:\n%s", stderr)
+	for _, argv := range [][]string{
+		{"up", "demo", "--dry"},
+		{"up", "demo", "--as", "alpha", "--dry"},
+	} {
+		stdout, stderr, code := run(argv...)
+		if code == 0 {
+			t.Fatalf("%v succeeded with %%{team} in a member name", argv)
+		}
+		if stdout != "" {
+			t.Fatalf("%v wrote to stdout: %q", argv, stdout)
+		}
+		if !strings.Contains(stderr, "%{team}") || !strings.Contains(stderr, "automatically") {
+			t.Fatalf("%v does not explain the %%{team} rule:\n%s", argv, stderr)
+		}
 	}
 }
 
 // TestHireCommandCarriesAs: the hire command written into a prompt names the
-// settings and adds --as only when the team name differs from it.
+// settings and adds --as only when the team name differs from it, and --from
+// carries the short seat name, not the herdr name.
 func TestHireCommandCarriesAs(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nprompt: \"%{name}\\n%{spawn}\"\nmembers:\n"+
-			"  - name: \"%{team}-lead\"\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    kind: claude\n"+
 			"    may_spawn:\n      purposes: [research]\n      profiles: [dev]\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
@@ -746,6 +830,9 @@ func TestHireCommandCarriesAs(t *testing.T) {
 	if !strings.Contains(plain, "--team demo --local --lang en") {
 		t.Fatalf("the hire command without --as is wrong:\n%s", plain)
 	}
+	if !strings.Contains(plain, "--from lead") {
+		t.Fatalf("the hire command does not take the short seat:\n%s", plain)
+	}
 	if strings.Contains(plain, "--as") {
 		t.Fatalf("the hire command without --as carries one:\n%s", plain)
 	}
@@ -753,5 +840,8 @@ func TestHireCommandCarriesAs(t *testing.T) {
 	named := mustRun(t, "up", "demo", "--as", "alpha", "--dry")
 	if !strings.Contains(named, "--team demo --as alpha --local --lang en") {
 		t.Fatalf("the hire command with --as is wrong:\n%s", named)
+	}
+	if !strings.Contains(named, "--from lead") {
+		t.Fatalf("the hire command with --as does not take the short seat:\n%s", named)
 	}
 }

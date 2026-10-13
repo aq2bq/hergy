@@ -43,6 +43,8 @@ hergy up myteam --dry   # check each member's prompt and the files it reads, wit
 hergy up myteam         # start
 ```
 
+The members run in herdr as `myteam-lead` and `myteam-worker`: the team name is added to each seat name for you (see below).
+
 ## Commands
 
 | Command | What it does |
@@ -50,7 +52,7 @@ hergy up myteam         # start
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` | Close the live members' panes. `--dry` prints what would close; the team's tab is never closed as a unit |
-| `hergy refresh <member>` / `--all` | Re-send the bootstrap prompt to waiting members |
+| `hergy refresh <seat>` / `--all` | Re-send the bootstrap prompt to waiting members |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
@@ -81,7 +83,7 @@ docs: [protocol.md]     # documents for every member, joined in order; a directo
 roles: [roles]          # where to look for role files (defaults to roles/)
 prompt: "…"             # bootstrap prompt template (optional)
 members:
-  - name: "%{team}-lead"  # the herdr name; %{team} becomes the team name (see --as below)
+  - name: lead            # the seat name (short); the herdr name becomes "<team>-lead"
     role: lead          # reads roles/lead.md
     profile: opus       # or write kind / args / env directly
     may_spawn:          # purposes and profiles this member may hire for (written into the prompt, not enforced)
@@ -93,12 +95,15 @@ members:
 
 `--as <team>` boots the same settings under a different team name, so you can run two teams side by side from one `team.yaml`. Without `--as`, the team name is the settings name (the directory name under `teams/`).
 
-The team name must match `[a-z][a-z0-9_-]{0,24}`. Every `members[].name` that contains `%{team}` gets that name, so the two teams get different herdr names and do not collide in herdr. `--as` needs at least one `%{team}` in the member names; if none has it, hergy stops rather than boot the same names twice. hergy keeps no record of running teams, so `down`, `refresh` and `hire` point at one the same way:
+Write each `members[].name` as a short seat name (`lead`, `worker`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<seat>`: the `demo` settings give `demo-lead` and `demo-worker`, and `--as dev2` gives `dev2-lead` and `dev2-worker`. Because hergy adds the team name for you, two settings that both name a seat `lead` never collide in herdr. A member name that still contains `%{team}` is refused: that placeholder is no longer used in names.
+
+The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<seat>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams, so `down`, `refresh` and `hire` point at one the same way; the member names on the command line (`refresh <seat>`, `hire --from <seat>`) are the short seat names:
 
 ```sh
-hergy up demo --as alpha    # boot the demo settings as the team "alpha"
-hergy up demo --as beta     # and once more as "beta"
-hergy down demo --as alpha  # close alpha's members only
+hergy up demo --as alpha            # boot the demo settings as the team "alpha"
+hergy up demo --as beta             # and once more as "beta"
+hergy refresh lead --team demo --as alpha   # re-seed alpha's lead
+hergy down demo --as alpha          # close alpha's members only
 ```
 
 ## profiles.yaml
@@ -119,7 +124,7 @@ profiles:
 
 | Placeholder | Content |
 |---|---|
-| `%{team}` / `%{role}` / `%{name}` | Team name, role, member name |
+| `%{team}` / `%{role}` / `%{name}` | Team name, role, member name (the herdr name, `"<team>-<seat>"`) |
 | `%{role_doc}` | The role file |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |

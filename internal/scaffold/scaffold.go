@@ -32,8 +32,8 @@ type File struct {
 
 // Team returns the starter files for a language, in the order they are written.
 // A language with no scaffold falls back to English. The files are written
-// unchanged: %{team} in team.yaml stays literal, so the same settings can boot
-// under different team names (`hergy up <settings> --as <team>`).
+// unchanged; the member names in team.yaml are the short seats (lead, worker),
+// and hergy adds the team name when it boots them.
 func Team(lang string) ([]File, error) {
 	root := "files/" + lang
 	if _, err := fs.Stat(embedded, root); err != nil {
