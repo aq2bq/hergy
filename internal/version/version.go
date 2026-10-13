@@ -32,7 +32,7 @@ func line(module string, settings []debug.BuildSetting) string {
 			if m[3] != "" {
 				commit += "+uncommitted"
 			}
-			return fmt.Sprintf("hergy %s (%s)", commit, when.Format("2006-01-02 15:04 UTC"))
+			return fmt.Sprintf("hergy %s (%s)", commit, when.Local().Format("2006-01-02 15:04 MST"))
 		}
 	}
 	if module != "" && module != "(devel)" {
@@ -62,7 +62,7 @@ func line(module string, settings []debug.BuildSetting) string {
 		out += "+uncommitted"
 	}
 	if when, err := time.Parse(time.RFC3339, at); err == nil {
-		out += fmt.Sprintf(" (%s)", when.UTC().Format("2006-01-02 15:04 UTC"))
+		out += fmt.Sprintf(" (%s)", when.Local().Format("2006-01-02 15:04 MST"))
 	}
 	return out
 }
