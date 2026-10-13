@@ -126,6 +126,7 @@
   "status.worker_suffix": "（ワーカー）",
   "status.human_waiting": "人間の返事待ち: %s",
   "status.nobody_working": "誰も動いていません",
+  "status.definition_elsewhere": "このプロジェクトにないチーム定義です。起動したプロジェクトで hergy status を打ってください",
   "progress.stage.preflight": "準備",
   "progress.stage.creating_panes": "ペインを作っています",
   "progress.stage.creating_tab": "タブを作っています",

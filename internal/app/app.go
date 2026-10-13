@@ -585,7 +585,12 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		}
 		_, cfg, err := buildRunning(env, opts.Layer, entry)
 		if err != nil {
-			return err
+			// A team booted from another project's definition is still listed,
+			// so one such team does not hide the rest.
+			field(stdout, label("team"), entry.Team)
+			indentField(stdout, 1, label("definition"), entry.Definition)
+			fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
+			continue
 		}
 		members, err := cfg.Select("")
 		if err != nil {

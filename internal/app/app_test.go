@@ -1509,6 +1509,30 @@ func TestStatusListsEveryRunningTeam(t *testing.T) {
 	)
 }
 
+// TestStatusListKeepsGoingPastAnotherProjectsTeam: a running team whose
+// definition is in another project is listed with a note, and the teams after
+// it are still listed.
+func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "qw", "--local")
+	tabs := `{"tab_id":"t0","label":"team:othersite"},{"tab_id":"t1","label":"team:qw@qw"}`
+	agents := `{"name":"othersite-lead","agent":"claude","agent_status":"idle","pane_id":"p0","tab_id":"t0"}` +
+		`,{"name":"qw-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`
+	f.runningHerdr(t, tabs, agents)
+	got := mustRun(t, "status")
+	wantLines(t, got,
+		"team: othersite",
+		"  team definition: othersite",
+		"  the team definition is not in this project; run hergy status from the project that booted it",
+		"",
+		"team: qw",
+		"  team definition: qw",
+		"  members: 2",
+		"  workers: 0",
+		"  nobody is working",
+	)
+}
+
 // TestStatusWithoutRunningTeams: status with no team name and nothing running
 // says so.
 func TestStatusWithoutRunningTeams(t *testing.T) {
