@@ -12,7 +12,8 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 ## Choose between hergy and herdr
 
 - Starting a team, adding a worker, closing a team: hergy.
-- Reaching a teammate, driving a pane, checking status: herdr.
+- Reaching a teammate, driving a pane: herdr.
+- Whether anyone is waiting on the human, or nobody is working: `hergy status`.
 
 ## Before you run one
 

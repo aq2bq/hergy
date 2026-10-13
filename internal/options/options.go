@@ -19,6 +19,8 @@ const (
 	Up Kind = iota
 	// Down closes the panes of a live team's members.
 	Down
+	// Status reports each member's and worker's live state, and who is stuck.
+	Status
 	// Refresh restarts a member: it ends the agent and starts it again.
 	Refresh
 	// Reprompt re-submits a bootstrap prompt, keeping the conversation.
@@ -84,6 +86,7 @@ func Usage() string { return i18n.T("usage") }
 var allowed = map[Kind]map[string]bool{
 	Up:       {"dry": true, "json": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
 	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "as": true, "help": true},
+	Status:   {"global": true, "local": true, "dir": true, "lang": true, "as": true, "help": true},
 	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
 	Reprompt: {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
 	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
@@ -97,7 +100,7 @@ var allowed = map[Kind]map[string]bool{
 // Kinds lists every command kind, Help aside, in the order the cheatsheet shows
 // them. It is the one place a new command is added for the cheatsheet tests to
 // pick up.
-var Kinds = []Kind{Up, Down, Refresh, Reprompt, Hire, Ls, Show, New, Validate, Version, Cheat}
+var Kinds = []Kind{Up, Down, Status, Refresh, Reprompt, Hire, Ls, Show, New, Validate, Version, Cheat}
 
 // Commands returns every command word, in the order Kinds lists them.
 func Commands() []string {
@@ -161,6 +164,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = Up
 	case "down":
 		o.Kind = Down
+	case "status":
+		o.Kind = Status
 	case "refresh":
 		o.Kind = Refresh
 	case "reprompt":
@@ -299,7 +304,7 @@ func IsHelp(err error) bool { return err == errHelp }
 
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
-	case Up, Down, Show, New:
+	case Up, Down, Status, Show, New:
 		if len(positionals) > 1 {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}
@@ -392,6 +397,8 @@ func commandName(kind Kind) string {
 		return "up"
 	case Down:
 		return "down"
+	case Status:
+		return "status"
 	case Refresh:
 		return "refresh"
 	case Reprompt:

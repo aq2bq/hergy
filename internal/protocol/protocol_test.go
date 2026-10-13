@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -75,6 +76,21 @@ func TestResult(t *testing.T) {
 				t.Fatalf("result pane_id = %q, %v; want p1", got, err)
 			}
 		})
+	}
+}
+
+// TestRequiredCommandsStatus: a status run reads the live agents and the live
+// tabs, and nothing else.
+func TestRequiredCommandsStatus(t *testing.T) {
+	var got []string
+	for _, group := range RequiredCommands(ModeStatus) {
+		for _, sub := range group.Subs {
+			got = append(got, group.Name+" "+sub)
+		}
+	}
+	want := []string{"agent list", "tab list"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("RequiredCommands(%s) needs %v, want %v", ModeStatus, got, want)
 	}
 }
 

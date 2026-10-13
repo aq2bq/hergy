@@ -107,6 +107,12 @@ var glossary = []term{
 		meaning:  "send the bootstrap prompt to a member again, keeping its conversation",
 	},
 	{
+		id:       "status",
+		english:  "status",
+		japanese: "状態",
+		meaning:  "hergy status: one line per member and worker with its live agent state, then who is waiting on the human",
+	},
+	{
 		id:       "cheatsheet",
 		english:  "cheatsheet",
 		japanese: "チートシート",

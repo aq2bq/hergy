@@ -95,6 +95,11 @@ var downGroups = []Group{
 	{Name: "tab", Subs: []string{"list"}},
 }
 
+var statusGroups = []Group{
+	{Name: "agent", Subs: []string{"list"}},
+	{Name: "tab", Subs: []string{"list"}},
+}
+
 // Mode is one hergy operation, which needs its own commands from Herdr.
 const (
 	// ModeBoot is a boot or a hire: it makes panes and starts agents.
@@ -105,6 +110,8 @@ const (
 	ModeReprompt = "reprompt"
 	// ModeDown closes live agents' panes; it starts nothing.
 	ModeDown = "down"
+	// ModeStatus reads the live agents and tabs; it starts and stops nothing.
+	ModeStatus = "status"
 )
 
 // RequiredCommands is the groups and subcommands needed for one operation.
@@ -117,6 +124,8 @@ func RequiredCommands(mode string) []Group {
 		return repromptGroups
 	case ModeDown:
 		return downGroups
+	case ModeStatus:
+		return statusGroups
 	default:
 		return bootGroups
 	}

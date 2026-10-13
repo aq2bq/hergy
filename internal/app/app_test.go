@@ -54,6 +54,39 @@ case "$g $s" in
 esac
 `
 
+// statusHerdr is a fake herdr that reports the demo team's two members and one
+// hired worker, with states a status run reports: one working, one blocked, and
+// the worker idle.
+const statusHerdr = `#!/bin/sh
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"},{"name":"demo-worker","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"},{"name":"demo-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`
+
+// absentHerdr is a fake herdr with only demo-lead live and idle, so the other
+// member reports as not present.
+const absentHerdr = `#!/bin/sh
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"}]}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`
+
 // fixture is one temporary project with a global config directory outside the
 // home directory, so paths inside the project go relative and paths under the
 // config directory stay absolute.
@@ -895,6 +928,112 @@ func TestHireCommandCarriesAs(t *testing.T) {
 	}
 	if !strings.Contains(named, "--from lead") {
 		t.Fatalf("the hire command with --as does not take the short seat:\n%s", named)
+	}
+}
+
+// TestStatusShapeWaitsOnTheHuman: status prints one line per member and per
+// worker, separates the worker, and ends with who is waiting on the human.
+func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, statusHerdr)
+	got := mustRun(t, "status", "demo")
+	wantLines(t, got,
+		"team: demo",
+		"version: 1",
+		"layer: local",
+		"team.yaml: .hergy/teams/demo/team.yaml",
+		"profiles: none",
+		"demo-lead: working",
+		"demo-worker: blocked",
+		"demo-w1: idle (worker)",
+		"waiting for a human: demo-worker",
+	)
+}
+
+// TestStatusLabelsFollowTheLanguage: the header and the judgement follow --lang;
+// the agent states are herdr's words, whatever the language.
+func TestStatusLabelsFollowTheLanguage(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, statusHerdr)
+	got := mustRun(t, "status", "demo", "--lang", "ja")
+	for _, line := range []string{
+		"チーム: demo",
+		"demo-lead: working",
+		"demo-worker: blocked",
+		"demo-w1: idle（ワーカー）",
+		"人間待ち: demo-worker",
+	} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("Japanese status is missing %q:\n%s", line, got)
+		}
+	}
+}
+
+// TestStatusNobodyWorking: when every member is idle, the judgement says so.
+func TestStatusNobodyWorking(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, liveHerdr)
+	got := mustRun(t, "status", "demo")
+	for _, line := range []string{
+		"demo-lead: idle",
+		"demo-worker: idle",
+		"nobody is working",
+	} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("status is missing %q:\n%s", line, got)
+		}
+	}
+}
+
+// TestStatusAbsentAndNoJudgement: a member that is not live reads "not present",
+// and one working member with nobody blocked has no judgement line.
+func TestStatusAbsentAndNoJudgement(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, absentHerdr)
+	got := mustRun(t, "status", "demo")
+	for _, line := range []string{"demo-lead: idle", "demo-worker: not present"} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("status is missing %q:\n%s", line, got)
+		}
+	}
+	if !strings.HasSuffix(got, "nobody is working\n") {
+		t.Fatalf("status's last line is not the judgement:\n%s", got)
+	}
+}
+
+// TestStatusWorkingHasNoJudgement: one working member and nobody blocked leaves
+// no judgement line at all.
+func TestStatusWorkingHasNoJudgement(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, statusHerdr)
+	// demo-lead works and demo-worker is blocked here, so drop the blocked one by
+	// selecting a team whose only member is working: rewrite team.yaml.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n")
+	got := mustRun(t, "status", "demo")
+	if !strings.Contains(got, "demo-lead: working\n") {
+		t.Fatalf("status does not report the working member:\n%s", got)
+	}
+	for _, unwanted := range []string{"nobody is working", "waiting for a human"} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("status printed the judgement %q with a working member:\n%s", unwanted, got)
+		}
+	}
+}
+
+// TestStatusDoesNotNeedAHerdrPane: status only reads, so it runs outside a
+// herdr-managed pane (the fixture leaves HERDR_ENV unset).
+func TestStatusDoesNotNeedAHerdrPane(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.herdr(t, statusHerdr)
+	if _, stderr, code := run("status", "demo"); code != 0 {
+		t.Fatalf("status outside herdr: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 

@@ -153,6 +153,53 @@ func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
 	return l.checkTargets(members, selfPane)
 }
 
+// StatusRow is one line of hergy status: a member or a worker of this team, the
+// state herdr reports for its agent, and whether the row is a hired worker. Live
+// is false for a member that has no agent, so the caller can print it as absent.
+type StatusRow struct {
+	Name   string
+	State  string
+	Live   bool
+	Worker bool
+}
+
+// Status reads the live agents and tabs and reports one row per selected member
+// and per worker this team hired. It starts and stops nothing, so it runs
+// outside a herdr-managed pane too.
+func (l *Launcher) Status(members []*config.Member) ([]StatusRow, error) {
+	if err := l.herdr.Verify(protocol.ModeStatus); err != nil {
+		return nil, err
+	}
+	agents, err := l.herdr.LiveAgents()
+	if err != nil {
+		return nil, err
+	}
+	states := make(map[string]string, len(agents))
+	for _, agent := range agents {
+		if agent.Name == "" {
+			continue
+		}
+		if _, ok := states[agent.Name]; !ok {
+			states[agent.Name] = agent.Status
+		}
+	}
+	rows := make([]StatusRow, 0, len(members))
+	for _, member := range members {
+		state, live := states[member.Name]
+		rows = append(rows, StatusRow{Name: member.Name, State: state, Live: live})
+	}
+	workers, err := l.workerAgents(agents)
+	if err != nil {
+		return nil, err
+	}
+	for _, worker := range workers {
+		rows = append(rows, StatusRow{
+			Name: worker.Name, State: states[worker.Name], Live: true, Worker: true,
+		})
+	}
+	return rows, nil
+}
+
 // checkTargets reads every selected member and refuses the whole command unless
 // each is live, idle or done, and not running in hergy's own pane. Nothing is
 // stopped until every member passes.
@@ -344,10 +391,9 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 	return closed, nil
 }
 
-// workerTargets finds the panes of the workers this team hired: a live agent
-// whose tab's label starts with "worker:<team>/". Tabs are never closed as a
-// unit; only the worker's own pane is.
-func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) {
+// workerAgents lists the live agents in this team's own worker tabs: a tab whose
+// label starts with "worker:<team>/". It leaves another team's workers alone.
+func (l *Launcher) workerAgents(agents []protocol.Agent) ([]protocol.Agent, error) {
 	tabs, err := l.herdr.Tabs()
 	if err != nil {
 		return nil, err
@@ -357,7 +403,7 @@ func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) 
 		labels[tab.ID] = tab.Label
 	}
 	prefix := "worker:" + l.cfg.Team + "/"
-	var targets []downTarget
+	var out []protocol.Agent
 	for _, agent := range agents {
 		if agent.Name == "" || agent.PaneID == "" || agent.TabID == "" {
 			continue
@@ -365,6 +411,21 @@ func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) 
 		if !strings.HasPrefix(labels[agent.TabID], prefix) {
 			continue
 		}
+		out = append(out, agent)
+	}
+	return out, nil
+}
+
+// workerTargets finds the panes of the workers this team hired: a live agent in
+// a tab labelled "worker:<team>/". Tabs are never closed as a unit; only the
+// worker's own pane is.
+func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) {
+	workers, err := l.workerAgents(agents)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]downTarget, 0, len(workers))
+	for _, agent := range workers {
 		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID, worker: true})
 	}
 	return targets, nil

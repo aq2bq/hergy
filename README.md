@@ -65,6 +65,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` | Close the live panes of the team's members and the workers the team hired. `--dry` prints what would close; a tab is never closed as a unit |
+| `hergy status [team]` | Print one line per member and per worker: the live `agent_status` (working/idle/done/blocked), or `not present` when the member is not live; a worker carries `(worker)`. Then who is waiting on the human (`blocked`), or that nobody is working. Reads herdr only |
 | `hergy refresh <seat>` / `--all` | End each member's agent and start it again in the same pane, so its conversation starts empty. The settings are read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below). A member cannot refresh itself: run it from another pane, or as the human |
 | `hergy reprompt <seat>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members) |

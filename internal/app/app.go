@@ -145,6 +145,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Down:
 		return runDown(ctx, env, opts, stdout, stderr)
+	case options.Status:
+		return runStatus(env, opts, stdout)
 	case options.Refresh:
 		return runRefresh(ctx, env, opts, stdout, stderr)
 	case options.Reprompt:
@@ -452,6 +454,53 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		_, err := l.Down(members, selfPane, false)
 		return err
 	})
+}
+
+// runStatus reports each member's and worker's live state, one "name: state"
+// line each, then the judgement: who is waiting on the human, or that nobody is
+// working. It only reads Herdr, so it runs outside a herdr-managed pane too.
+func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
+	resolved, cfg, err := resolveAndBuild(env, opts)
+	if err != nil {
+		return err
+	}
+	members, err := cfg.Select("")
+	if err != nil {
+		return err
+	}
+	printHeader(stdout, resolved, cfg, env)
+	rows, err := newLauncher(cfg, opts.Timeout, stdout).Status(members)
+	if err != nil {
+		return err
+	}
+	var blocked []string
+	working := 0
+	for _, row := range rows {
+		state := row.State
+		if !row.Live {
+			state = i18n.T("status.not_live")
+		}
+		if row.Worker {
+			state += i18n.T("status.worker_suffix")
+		}
+		field(stdout, row.Name, state)
+		if !row.Live {
+			continue
+		}
+		switch row.State {
+		case "working":
+			working++
+		case "blocked":
+			blocked = append(blocked, row.Name)
+		}
+	}
+	switch {
+	case len(blocked) > 0:
+		fmt.Fprintln(stdout, i18n.Tf("status.human_waiting", strings.Join(blocked, i18n.T("list.separator"))))
+	case working == 0:
+		fmt.Fprintln(stdout, i18n.T("status.nobody_working"))
+	}
+	return nil
 }
 
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

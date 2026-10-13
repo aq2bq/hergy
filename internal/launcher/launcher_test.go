@@ -420,6 +420,45 @@ func TestDownClosesAWorkersOwnPaneLast(t *testing.T) {
 	}
 }
 
+// TestStatusRowsMembersThenWorkers: status reports one row per member (live or
+// not) and then the team's hired workers, marking the workers.
+func TestStatusRowsMembersThenWorkers(t *testing.T) {
+	port := &fakePort{
+		live: []protocol.Agent{
+			{Name: "dev-lead", Kind: "claude", Status: "working", PaneID: "p-lead", TabID: "t-team"},
+			{Name: "dev-w1", Kind: "claude", Status: "blocked", PaneID: "p-w1", TabID: "t-w1"},
+		},
+		tabs: []protocol.Tab{
+			{ID: "t-team", Label: "team:dev"},
+			{ID: "t-w1", Label: "worker:dev/w1"},
+		},
+	}
+	l, _ := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := l.Status(members)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	want := []StatusRow{
+		{Name: "dev-lead", State: "working", Live: true},
+		{Name: "dev-worker", Live: false},
+		{Name: "dev-w1", State: "blocked", Live: true, Worker: true},
+	}
+	if !slices.Equal(rows, want) {
+		t.Fatalf("Status = %+v, want %+v", rows, want)
+	}
+	if !slices.Equal(port.verified, []string{protocol.ModeStatus}) {
+		t.Fatalf("Verify called with %v, want [%s]", port.verified, protocol.ModeStatus)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane close") {
+		t.Fatalf("status closed a pane:\n%v", port.calls)
+	}
+}
+
 // TestRefreshRestartsInPlaceInOrder: refresh stops the member's process group,
 // waits for herdr to forget the name, then starts the member again in the same
 // pane and submits the prompt, in that order.

@@ -23,6 +23,8 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
       Boot a team in a new tab. --dry prints the plan and submits nothing; --json, only with --dry, prints it as JSON.
   hergy down [team] [--as team] [--global|--local] [--dry] [-C dir]
       Close the panes of the team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
+  hergy status [team] [--as team] [--global|--local] [-C dir]
+      Print one line per member and per worker of the team: its live agent_status (working/idle/done/blocked), or "not present" when the member is not live. A worker carries "(worker)". Last, a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. It only reads herdr, and runs outside a herdr-managed pane too.
   hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
       Restart each selected member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. The conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
       Both <seat> and --all is an error; neither is an error.
