@@ -5,7 +5,7 @@ description: "Use when you start or close a team with hergy, write hergy setting
 
 # hergy
 
-`hergy` boots a team of AI agents onto herdr from YAML settings. It sits one level above herdr: it makes the team and its rules, and herdr runs the panes and carries the messages.
+`hergy` boots a team of AI agents onto herdr from YAML settings. It sits one level above herdr: it boots the team from your settings and hands each member its first prompt, while herdr runs the panes and carries the messages.
 
 The shape of every command and flag lives in `hergy cheat --ai`. Read that before you type one; this file holds only the judgement.
 
@@ -16,8 +16,8 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## Before you run one
 
-- Prove the plan with `--dry` before `up`, `down` or `hire`; each acts on live panes.
-- `down` closes the panes of the team you are in, your own pane included, and that pane last.
+- Prove the plan with `--dry` before `hergy up`, `hergy down` or `hergy hire`; each acts on live panes.
+- `hergy down` closes the panes of the team you are in, your own pane included, and that pane last.
 - To read output, add `--lang en`, or use `--dry --json`; the `next:` line names what to type next.
 
 ## While you are inside a team
@@ -27,5 +27,5 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you write settings from outside
 
-- Write with `new`, edit, `validate`, then show `up --dry` to the person before `up`.
+- Write with `hergy new`, edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
 - Start at the `--local` layer; ask the person before you change the global layer.

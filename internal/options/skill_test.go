@@ -9,10 +9,10 @@ import (
 )
 
 // hergyCommand finds a command mention. A command is written as "hergy <word>"
-// at the start of a line or after two or more spaces: that is where the
-// cheatsheet and a skill's code lines put one. Prose such as "hergy when unset"
-// stays out, so the test checks names, not English.
-var hergyCommand = regexp.MustCompile(`(?m)(?:^| {2,})hergy ([a-z][a-z0-9_-]*)`)
+// at the start of a line, after two or more spaces, or right after a backtick:
+// those are where the cheatsheet and a skill's code put one. Prose such as
+// "hergy when unset" stays out, so the test checks names, not English.
+var hergyCommand = regexp.MustCompile("(?m)(?:^| {2,}|`)hergy ([a-z][a-z0-9_-]*)")
 
 // hergyFlag finds a long flag. The short -C and -h are not written as "--x",
 // and the test treats --dir, --help and the --dry-run alias as existing.
