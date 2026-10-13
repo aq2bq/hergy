@@ -18,10 +18,11 @@ func (m Member) ToPlan() map[string]any {
 		out["env"] = m.Env
 	}
 	if m.MaySpawn != nil {
-		out["may_spawn"] = map[string]any{
-			"purposes": orEmpty(m.MaySpawn.Purposes),
-			"profiles": orEmpty(m.MaySpawn.Profiles),
+		workers := make([]map[string]any, len(m.MaySpawn.Workers))
+		for i, worker := range m.MaySpawn.Workers {
+			workers[i] = map[string]any{"purpose": worker.Purpose, "profile": worker.Profile}
 		}
+		out["may_spawn"] = map[string]any{"workers": workers}
 	}
 	if sources := m.sourceDisplays(); len(sources) > 0 {
 		out["sources"] = sources

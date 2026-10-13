@@ -92,6 +92,12 @@ var glossary = []term{
 		meaning:  "a named engine (kind, args, env) in profiles.yaml",
 	},
 	{
+		id:       "purpose",
+		english:  "purpose",
+		japanese: "目的",
+		meaning:  "what a worker is hired for; may_spawn pairs each purpose with a profile",
+	},
+	{
 		id:       "bootstrap-prompt",
 		english:  "bootstrap prompt",
 		japanese: "初期プロンプト",

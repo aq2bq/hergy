@@ -41,6 +41,9 @@ func TestParse(t *testing.T) {
 		{name: "cheat rejects --dry", argv: []string{"cheat", "--dry"}, wantErr: true},
 		{name: "cheat rejects --json", argv: []string{"cheat", "--json"}, wantErr: true},
 		{name: "cheat takes no positional arguments", argv: []string{"cheat", "extra"}, wantErr: true},
+		{name: "hire with a purpose, a task and no profile", argv: []string{"hire", "w", "--purpose", "x", "--task", "t"}, kind: Hire},
+		{name: "hire without a purpose", argv: []string{"hire", "w", "--task", "t"}, wantErr: true},
+		{name: "hire without a task", argv: []string{"hire", "w", "--purpose", "x"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

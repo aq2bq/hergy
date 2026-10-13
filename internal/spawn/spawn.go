@@ -3,6 +3,7 @@ package spawn
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -12,7 +13,7 @@ import (
 // Plan returns the worker and notes on where the hire goes beyond the lead's
 // may_spawn. Notes never stop the hire: the permission is only stated. name is
 // the short worker name; the herdr name is "<team>-<name>", like the team's own
-// members.
+// members. profile, when empty, is the one may_spawn pairs with purpose.
 func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*config.Member, []string, error) {
 	if !config.NamePattern.MatchString(name) {
 		return nil, nil, i18n.Errorf("error.worker_name_pattern")
@@ -25,10 +26,6 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		if cfg.Members[i].ShortName == name || cfg.Members[i].Name == name {
 			return nil, nil, i18n.Errorf("error.worker_exists", name)
 		}
-	}
-	chosen, ok := cfg.Profiles[profile]
-	if !ok {
-		return nil, nil, i18n.Errorf("error.no_profile_named", profile)
 	}
 	var lead *config.Member
 	if from != "" {
@@ -43,6 +40,22 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 			return nil, nil, err
 		}
 		lead = found
+	}
+
+	// With no --profile the purpose names the pair: its profile is the one to
+	// use. A purpose outside may_spawn then has no profile to fall back to.
+	chosen := profile
+	if chosen == "" {
+		paired, ok := lead.MaySpawn.ProfileFor(purpose)
+		if !ok {
+			return nil, nil, i18n.Errorf("error.purpose_needs_profile",
+				purpose, lead.Name, availablePurposes(lead.MaySpawn))
+		}
+		chosen = paired
+	}
+	profileValue, ok := cfg.Profiles[chosen]
+	if !ok {
+		return nil, nil, i18n.Errorf("error.no_profile_named", chosen)
 	}
 
 	var parts = map[string]func() string{
@@ -65,14 +78,14 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		Name:      herdrName,
 		ShortName: name,
 		Role:      i18n.Tf("role.worker", purpose),
-		Kind:      chosen.Kind,
-		Args:      chosen.Args,
-		Env:       chosen.Env,
+		Kind:      profileValue.Kind,
+		Args:      profileValue.Args,
+		Env:       profileValue.Env,
 		Cwd:       lead.Cwd,
 		Prompt:    text,
-		Profile:   chosen.Name,
+		Profile:   profileValue.Name,
 	}
-	return worker, notes(lead, chosen.Name, purpose), nil
+	return worker, notes(lead, chosen, purpose), nil
 }
 
 // defaultLead is the only member that may spawn; with none or several, --from is required.
@@ -95,25 +108,27 @@ func defaultLead(cfg *config.Config) (*config.Member, error) {
 	}
 }
 
+// notes says where the hire goes beyond the lead's may_spawn. Nothing here stops
+// the hire: the permission is only stated.
 func notes(lead *config.Member, profile, purpose string) []string {
 	if lead.MaySpawn == nil {
 		return []string{fmt.Sprintf(i18n.T("error.no_may_spawn"), lead.Name)}
 	}
-	var out []string
-	if !contains(lead.MaySpawn.Purposes, purpose) {
-		out = append(out, fmt.Sprintf(i18n.T("error.purpose_outside"), purpose, lead.Name))
+	paired, ok := lead.MaySpawn.ProfileFor(purpose)
+	if !ok {
+		return []string{fmt.Sprintf(i18n.T("error.purpose_outside"), purpose, lead.Name)}
 	}
-	if !contains(lead.MaySpawn.Profiles, profile) {
-		out = append(out, fmt.Sprintf(i18n.T("error.profile_outside"), profile, lead.Name))
+	if paired != profile {
+		return []string{fmt.Sprintf(i18n.T("error.profile_outside"), profile, purpose, lead.Name)}
 	}
-	return out
+	return nil
 }
 
-func contains(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
+// availablePurposes is what a "this purpose has no profile" error can offer.
+func availablePurposes(m *config.MaySpawn) string {
+	purposes := m.Purposes()
+	if len(purposes) == 0 {
+		return i18n.T("value.none")
 	}
-	return false
+	return strings.Join(purposes, i18n.T("list.separator"))
 }

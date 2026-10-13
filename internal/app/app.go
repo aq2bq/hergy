@@ -852,9 +852,7 @@ func printMember(w io.Writer, cfg *config.Config, member *config.Member, env tea
 	}
 	indentField(w, 1, label("cwd"), env.Display(member.Cwd))
 	if member.MaySpawn != nil {
-		separator := i18n.T("list.separator")
-		indentField(w, 1, label("may_spawn_purposes"), strings.Join(member.MaySpawn.Purposes, separator))
-		indentField(w, 1, label("may_spawn_profiles"), strings.Join(member.MaySpawn.Profiles, separator))
+		indentField(w, 1, label("may_spawn"), maySpawnText(member.MaySpawn.Workers))
 	}
 	if member.HasRoleSource {
 		indentField(w, 1, label("role_file"), env.Display(member.RoleSource.Path))
@@ -939,6 +937,16 @@ func displayPaths(joined string, env team.Env) string {
 		paths[i] = env.Display(paths[i])
 	}
 	return strings.Join(paths, ", ")
+}
+
+// maySpawnText is what show and up --dry print for may_spawn: the purpose and
+// profile of each worker pair, in the written order.
+func maySpawnText(workers []config.MaySpawnWorker) string {
+	parts := make([]string, len(workers))
+	for i, worker := range workers {
+		parts[i] = fmt.Sprintf(i18n.T("spawn.allowed_item"), worker.Purpose, worker.Profile)
+	}
+	return strings.Join(parts, i18n.T("list.separator"))
 }
 
 func newLauncher(cfg *config.Config, timeout int, out io.Writer) *launcher.Launcher {

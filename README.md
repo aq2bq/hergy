@@ -68,7 +68,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy status [team]` | With a team name: one line per member and per worker, the live `agent_status` (working/idle/done/blocked), or `not present` when the member is not live; a worker carries `(worker)`. Then who is waiting on the human (`blocked`), or that nobody is working. With no team name: every running team, with its team definition, its counts and the same judgement. Reads herdr only |
 | `hergy refresh <member>` / `--all` | Restart each member of a running team. A live member's agent is ended and started again in the same pane, so its conversation starts empty; a member that is not live is started again in the pane hergy named after it, when that pane is still at its shell (a pane that is gone or busy is an error, pointing at `down` then `up`). The team definition is read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below). A member cannot refresh itself: run it from another pane, or as the human |
 | `hergy reprompt <member>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
-| `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members) |
+| `hergy hire <name> --purpose X --task "…" [--profile P]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). Without `--profile` the profile may_spawn pairs with `--purpose` is used |
 | `hergy ls` | List the available team definitions and their layers, and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one |
@@ -104,9 +104,10 @@ members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
     role: lead          # reads roles/lead.md
     profile: opus       # or write kind / args / env directly
-    may_spawn:          # purposes and profiles this member may hire for (written into the prompt, not enforced)
-      purposes: [research]
-      profiles: [codex]
+    may_spawn:          # purpose-to-profile pairs this member may hire for (written into the prompt, not enforced)
+      workers:
+        - purpose: research
+          profile: opus
 ```
 
 ### Running one team definition as more than one team

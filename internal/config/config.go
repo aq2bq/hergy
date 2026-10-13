@@ -44,10 +44,41 @@ type Profile struct {
 	Path string // the profiles.yaml it came from
 }
 
+// MaySpawnWorker is one purpose-to-profile pair: what a member may hire a worker
+// for, and the profile that worker runs.
+type MaySpawnWorker struct {
+	Purpose string
+	Profile string
+}
+
 // MaySpawn is what a member may hire. It is stated in the prompt, never enforced.
 type MaySpawn struct {
-	Purposes []string
-	Profiles []string
+	Workers []MaySpawnWorker
+}
+
+// ProfileFor returns the profile may_spawn pairs with a purpose.
+func (m *MaySpawn) ProfileFor(purpose string) (string, bool) {
+	if m == nil {
+		return "", false
+	}
+	for _, worker := range m.Workers {
+		if worker.Purpose == purpose {
+			return worker.Profile, true
+		}
+	}
+	return "", false
+}
+
+// Purposes lists the purposes a member may hire for, in the written order.
+func (m *MaySpawn) Purposes() []string {
+	if m == nil {
+		return nil
+	}
+	out := make([]string, len(m.Workers))
+	for i, worker := range m.Workers {
+		out[i] = worker.Purpose
+	}
+	return out
 }
 
 // Member is one member of the roster, with its prompt already built.
@@ -103,7 +134,7 @@ func (c *Config) UsesProfiles() bool {
 		if c.Members[i].Profile != "" {
 			return true
 		}
-		if c.Members[i].MaySpawn != nil && len(c.Members[i].MaySpawn.Profiles) > 0 {
+		if c.Members[i].MaySpawn != nil {
 			return true
 		}
 	}
@@ -207,8 +238,12 @@ type rawMember struct {
 }
 
 type rawMaySpawn struct {
-	Purposes []any `yaml:"purposes"`
-	Profiles []any `yaml:"profiles"`
+	Workers []rawMaySpawnWorker `yaml:"workers"`
+}
+
+type rawMaySpawnWorker struct {
+	Purpose string `yaml:"purpose"`
+	Profile string `yaml:"profile"`
 }
 
 type rawProfiles struct {
@@ -565,6 +600,9 @@ func engine(rm rawMember, label string, profiles map[string]Profile) (string, []
 	return profile.Kind, profile.Args, profile.Env, profile.Name, nil
 }
 
+// parseMaySpawnNode reads may_spawn by hand: the node tells "absent" apart from
+// "null", and each worker's keys are checked because KnownFields does not descend
+// into a yaml.Node. The old purposes/profiles form is refused with the new one.
 func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile) (*MaySpawn, error) {
 	if node.Tag == "!!null" {
 		return nil, i18n.Errorf("error.must_be_mapping_not_null", label)
@@ -573,32 +611,66 @@ func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile
 		return nil, i18n.Errorf("error.must_be_mapping", label)
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		if key := node.Content[i].Value; key != "purposes" && key != "profiles" {
+		switch key := node.Content[i].Value; key {
+		case "workers":
+		case "purposes", "profiles":
+			return nil, i18n.Errorf("error.mayspawn_old_form", label)
+		default:
 			return nil, i18n.Errorf("error.unknown_keys", label, key)
 		}
 	}
-	var raw rawMaySpawn
-	if err := node.Decode(&raw); err != nil {
-		return nil, fmt.Errorf("%s: %s", label, cleanYAMLError(err))
+	workers := mappingValue(&node, "workers")
+	if workers == nil || workers.Tag == "!!null" {
+		return nil, i18n.Errorf("error.mayspawn_workers_empty", label)
 	}
-	return parseMaySpawn(raw, label, profiles)
+	if workers.Kind != yaml.SequenceNode {
+		return nil, i18n.Errorf("error.mayspawn_workers_list", label)
+	}
+	if len(workers.Content) == 0 {
+		return nil, i18n.Errorf("error.mayspawn_workers_empty", label)
+	}
+	out := &MaySpawn{}
+	seen := map[string]bool{}
+	for i, worker := range workers.Content {
+		item := fmt.Sprintf("%s.workers[%d]", label, i)
+		if worker.Kind != yaml.MappingNode {
+			return nil, i18n.Errorf("error.must_be_mapping", item)
+		}
+		for j := 0; j+1 < len(worker.Content); j += 2 {
+			if key := worker.Content[j].Value; key != "purpose" && key != "profile" {
+				return nil, i18n.Errorf("error.unknown_keys", item, key)
+			}
+		}
+		var raw rawMaySpawnWorker
+		if err := worker.Decode(&raw); err != nil {
+			return nil, fmt.Errorf("%s: %s", item, cleanYAMLError(err))
+		}
+		if strings.TrimSpace(raw.Purpose) == "" {
+			return nil, i18n.Errorf("error.mayspawn_purpose_empty", item)
+		}
+		if raw.Profile == "" {
+			return nil, i18n.Errorf("error.mayspawn_profile_empty", item)
+		}
+		if _, ok := profiles[raw.Profile]; !ok {
+			return nil, i18n.Errorf("error.mayspawn_no_profile", item, raw.Profile)
+		}
+		if seen[raw.Purpose] {
+			return nil, i18n.Errorf("error.mayspawn_duplicate_purpose", label, raw.Purpose)
+		}
+		seen[raw.Purpose] = true
+		out.Workers = append(out.Workers, MaySpawnWorker{Purpose: raw.Purpose, Profile: raw.Profile})
+	}
+	return out, nil
 }
 
-func parseMaySpawn(raw rawMaySpawn, label string, profiles map[string]Profile) (*MaySpawn, error) {
-	purposes, err := argsOf(raw.Purposes, label+".purposes")
-	if err != nil {
-		return nil, err
-	}
-	names, err := argsOf(raw.Profiles, label+".profiles")
-	if err != nil {
-		return nil, err
-	}
-	for _, name := range names {
-		if _, ok := profiles[name]; !ok {
-			return nil, i18n.Errorf("error.mayspawn_no_profile", label, name)
+// mappingValue returns the value node for a key in a mapping node, or nil.
+func mappingValue(node *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
 		}
 	}
-	return &MaySpawn{Purposes: purposes, Profiles: names}, nil
+	return nil
 }
 
 // buildPrompt expands one member's template and records what it read.
@@ -657,12 +729,11 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 			if member.MaySpawn == nil {
 				return ""
 			}
-			kinds := make(map[string]string, len(member.MaySpawn.Profiles))
-			for _, name := range member.MaySpawn.Profiles {
-				kinds[name] = in.Profiles[name].Kind
+			workers := make([]prompt.SpawnPair, len(member.MaySpawn.Workers))
+			for i, worker := range member.MaySpawn.Workers {
+				workers[i] = prompt.SpawnPair{Purpose: worker.Purpose, Profile: worker.Profile}
 			}
-			return prompt.SpawnNote(member.Name, member.MaySpawn.Purposes, member.MaySpawn.Profiles, kinds,
-				hireCommand(in, member.ShortName))
+			return prompt.SpawnNote(member.Name, workers, hireCommand(in, member.ShortName))
 		},
 	}
 	text, err := prompt.Expand(template, parts)
