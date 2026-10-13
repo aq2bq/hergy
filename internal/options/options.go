@@ -31,6 +31,8 @@ const (
 	Validate
 	// Help prints usage.
 	Help
+	// Version prints which hergy this is.
+	Version
 )
 
 // Options is a parsed command line.
@@ -136,6 +138,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = Validate
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
+	case "version", "--version":
+		return &Options{Kind: Version}, nil
 	default:
 		return nil, i18n.Errorf("error.unknown_command", cmd)
 	}
@@ -341,6 +345,8 @@ func commandName(kind Kind) string {
 		return "new"
 	case Validate:
 		return "validate"
+	case Version:
+		return "version"
 	default:
 		return "help"
 	}

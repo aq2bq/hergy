@@ -23,6 +23,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/spawn"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/version"
 )
 
 // reportedError marks a failure whose detail was already printed, and carries
@@ -81,6 +82,10 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	}
 	if opts.Kind == options.Help {
 		fmt.Fprint(stdout, opts.HelpText)
+		return 0
+	}
+	if opts.Kind == options.Version {
+		fmt.Fprintln(stdout, version.Line())
 		return 0
 	}
 

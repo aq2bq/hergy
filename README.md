@@ -55,6 +55,7 @@ hergy up myteam         # start
 | `hergy ls` | List the available teams and their layers |
 | `hergy show <team>` | Print the final settings and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one |
+| `hergy version` | Print the commit and time of the installed hergy |
 
 Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default). `refresh` and `hire` take `--team` to pick the team.
 

@@ -55,6 +55,7 @@ hergy up myteam         # 起動
 | `hergy ls` | 使えるチームと、その層を一覧する |
 | `hergy show <チーム>` | 最終的な設定と、各値がどのファイルから来たかを出す |
 | `hergy validate` | すべての設定ファイルを検査し、壊れているものを示す |
+| `hergy version` | 入っている hergy のコミットと日時を出す |
 
 共通のオプション: `--global` / `--local`（層の指定）、`-C <ディレクトリ>`（プロジェクトの指定）、`--lang ja`（日本語で表示。既定は英語）。`refresh` と `hire` は `--team` でチームを指定します。
 
