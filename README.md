@@ -68,7 +68,7 @@ Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the proj
 
 - A team lives in `teams/<team>/team.yaml`. When both layers have the same name, the local one wins
 - `profiles.yaml` can live in both layers. A local team reads the local one over the global one (local wins for the same name); a global team reads only the global one
-- Put `version: 1` and `lang: ja` in the global `config.yaml` to get Japanese without `--lang`
+- Put `version: 1` and `lang: ja` in the global `config.yaml` to get Japanese without `--lang`; `hergy new` writes it, with the language that run showed, when it is missing, and leaves it alone when it is there
 - `hergy up <team> --dry` shows each member's prompt and the files it read
 
 ## team.yaml

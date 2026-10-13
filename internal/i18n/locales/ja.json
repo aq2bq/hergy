@@ -183,6 +183,7 @@
   "label.checked": "検査",
   "label.problems": "問題",
   "label.dir": "場所",
+  "label.config": "設定",
   "label.candidates": "候補",
 
   "value.none": "なし",

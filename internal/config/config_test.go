@@ -213,3 +213,18 @@ func TestParseUnknownProfileStops(t *testing.T) {
 		t.Errorf("error %q does not name the missing profile", err)
 	}
 }
+
+// TestConfigYAMLRoundTrips: the config.yaml hergy writes is one ParseConfig
+// reads back to the same language.
+func TestConfigYAMLRoundTrips(t *testing.T) {
+	for _, lang := range []string{"en", "ja"} {
+		text := ConfigYAML(lang)
+		got, err := ParseConfig(text, "config.yaml")
+		if err != nil {
+			t.Fatalf("ParseConfig(%q) = %v", text, err)
+		}
+		if got != lang {
+			t.Errorf("ParseConfig(%q) lang = %q, want %q", text, got, lang)
+		}
+	}
+}

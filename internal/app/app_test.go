@@ -183,7 +183,7 @@ func wantLines(t *testing.T, got string, want ...string) {
 }
 
 func TestNewShape(t *testing.T) {
-	newFixture(t)
+	f := newFixture(t)
 	got := mustRun(t, "new", "demo", "--local")
 	wantLines(t, got,
 		"team: demo",
@@ -193,8 +193,81 @@ func TestNewShape(t *testing.T) {
 		"file: .hergy/teams/demo/protocol.md",
 		"file: .hergy/teams/demo/roles/lead.md",
 		"file: .hergy/teams/demo/roles/worker.md",
+		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
 		"next: up demo --dry",
 	)
+}
+
+// TestNewCreatesTheGlobalConfigWhenMissing: a first new writes the global
+// config.yaml (and the hergy/ directory) with version: 1 and the run's language,
+// and reports the file as one more output line.
+func TestNewCreatesTheGlobalConfigWhenMissing(t *testing.T) {
+	f := newFixture(t)
+	got := mustRun(t, "new", "demo", "--local")
+	path := filepath.Join(f.cfg, "hergy", "config.yaml")
+	wantLines(t, readFile(t, path), "version: 1", "lang: en")
+	if !strings.Contains(got, "config: "+path+"\n") {
+		t.Fatalf("new does not report the config.yaml it made:\n%s", got)
+	}
+}
+
+// TestNewConfigLanguageFollowsTheRun: --lang decides the lang the created
+// config.yaml names; without --lang the default, en, is used.
+func TestNewConfigLanguageFollowsTheRun(t *testing.T) {
+	t.Run("--lang ja", func(t *testing.T) {
+		f := newFixture(t)
+		mustRun(t, "new", "demo", "--local", "--lang", "ja")
+		wantLines(t, readFile(t, filepath.Join(f.cfg, "hergy", "config.yaml")), "version: 1", "lang: ja")
+	})
+	t.Run("no --lang", func(t *testing.T) {
+		f := newFixture(t)
+		mustRun(t, "new", "demo", "--local")
+		wantLines(t, readFile(t, filepath.Join(f.cfg, "hergy", "config.yaml")), "version: 1", "lang: en")
+	})
+}
+
+// TestNewLeavesAnExistingConfigAlone: when config.yaml is already there, new
+// neither rewrites it nor reports it, whatever --lang says.
+func TestNewLeavesAnExistingConfigAlone(t *testing.T) {
+	f := newFixture(t)
+	path := filepath.Join(f.cfg, "hergy", "config.yaml")
+	writeFile(t, path, "version: 1\nlang: ja\n")
+	got := mustRun(t, "new", "demo", "--local", "--lang", "en")
+	if after := readFile(t, path); after != "version: 1\nlang: ja\n" {
+		t.Fatalf("new rewrote an existing config.yaml:\n%s", after)
+	}
+	if strings.Contains(got, "config:") {
+		t.Fatalf("new reports a config.yaml it did not make:\n%s", got)
+	}
+}
+
+// TestLsAfterNewUsesTheCreatedLanguage: once new has written lang: ja, a later
+// command with no --lang reads Japanese.
+func TestLsAfterNewUsesTheCreatedLanguage(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo", "--local", "--lang", "ja")
+	got := mustRun(t, "ls")
+	if !strings.Contains(got, "チーム: demo\n") {
+		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
+	}
+	if !strings.Contains(got, "ローカル: .hergy\n") {
+		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
+	}
+}
+
+// TestValidateAcceptsTheCreatedConfig: the config.yaml new writes is one
+// validate reads without complaint.
+func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	path := filepath.Join(f.cfg, "hergy", "config.yaml")
+	got := mustRun(t, "validate")
+	if !strings.Contains(got, "file: "+path+"\n  result: ok\n") {
+		t.Fatalf("validate does not accept the created config.yaml:\n%s", got)
+	}
+	if !strings.Contains(got, "problems: 0\n") {
+		t.Fatalf("validate found a problem in the created config.yaml:\n%s", got)
+	}
 }
 
 func TestLsShape(t *testing.T) {
@@ -211,13 +284,15 @@ func TestLsShape(t *testing.T) {
 }
 
 func TestValidateShape(t *testing.T) {
-	newFixture(t)
+	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	got := mustRun(t, "validate")
 	wantLines(t, got,
+		"file: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
+		"  result: ok",
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
-		"checked: 1",
+		"checked: 2",
 		"problems: 0",
 	)
 }
@@ -236,7 +311,7 @@ func TestValidateShapeReportsABrokenFile(t *testing.T) {
 	if !strings.Contains(got, "file: .hergy/teams/demo/team.yaml\n  result: broken\n") {
 		t.Fatalf("validate does not report the break in the one shape:\n%s", got)
 	}
-	if !strings.Contains(got, "checked: 1\nproblems: 1\n") {
+	if !strings.Contains(got, "checked: 2\nproblems: 1\n") {
 		t.Fatalf("validate summary is not in the one shape:\n%s", got)
 	}
 }

@@ -6,6 +6,7 @@
 package team
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -98,6 +99,26 @@ func Lang() (string, error) {
 		return "", err
 	}
 	return config.ParseConfig(string(text), path)
+}
+
+// EnsureGlobalConfig writes the global config.yaml when it is missing, so a
+// first hergy new leaves the machine with a language it can read. It returns the
+// path and whether it created the file. An existing file is left untouched,
+// broken or not.
+func (e Env) EnsureGlobalConfig(lang string) (string, bool, error) {
+	path := filepath.Join(e.GlobalDir, "config.yaml")
+	if _, err := os.Stat(path); err == nil {
+		return path, false, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return path, false, err
+	}
+	if err := os.MkdirAll(e.GlobalDir, 0o755); err != nil {
+		return path, false, err
+	}
+	if err := os.WriteFile(path, []byte(config.ConfigYAML(lang)), 0o644); err != nil {
+		return path, false, err
+	}
+	return path, true, nil
 }
 
 // WithProject pins the project root, so a hire run from outside the project

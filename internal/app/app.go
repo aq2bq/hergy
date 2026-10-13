@@ -255,11 +255,18 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err := writeScaffold(dir, files); err != nil {
 		return err
 	}
+	configPath, madeConfig, err := env.EnsureGlobalConfig(i18n.Language())
+	if err != nil {
+		return err
+	}
 	field(stdout, label("team"), name)
 	field(stdout, label("layer"), layer)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
 		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
+	}
+	if madeConfig {
+		field(stdout, label("config"), env.Display(configPath))
 	}
 	printNext(stdout, "up "+name+" --dry")
 	return nil

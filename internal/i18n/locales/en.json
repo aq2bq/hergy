@@ -183,6 +183,7 @@
   "label.checked": "checked",
   "label.problems": "problems",
   "label.dir": "dir",
+  "label.config": "config",
   "label.candidates": "candidates",
 
   "value.none": "none",

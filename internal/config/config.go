@@ -260,6 +260,13 @@ func ParseConfig(text, path string) (string, error) {
 	return raw.Lang, nil
 }
 
+// ConfigYAML is the global config.yaml hergy new writes when the file is
+// missing: the version every settings file carries, and the language that run
+// displayed in. It holds exactly the two keys ParseConfig reads.
+func ConfigYAML(lang string) string {
+	return fmt.Sprintf("version: 1\nlang: %s\n", lang)
+}
+
 // readVersion decodes only the version, so a missing or wrong version is
 // reported before any unknown-key complaint.
 func readVersion(text, what, path string) (int, error) {
