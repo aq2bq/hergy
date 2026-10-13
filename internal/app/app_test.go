@@ -42,6 +42,13 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"},{"name":"demo-worker","agent":"claude","agent_status":"idle","pane_id":"p2"}]}}' ;;
+  "agent get")
+    case "$3" in
+      demo-lead)   echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"}}}' ;;
+      demo-worker) echo '{"result":{"agent":{"name":"demo-worker","agent":"claude","agent_status":"idle","pane_id":"p2"}}}' ;;
+      *) echo '{"error":{"code":"agent_not_found"}}' ;;
+    esac
+    ;;
   "tab list")   echo '{"result":{"tabs":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -408,8 +415,11 @@ func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 }
 
 func TestRefreshDryEndsWithNext(t *testing.T) {
-	newFixture(t)
+	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
+	// refresh --dry reads the live agents to show the same refusal the real
+	// refresh would, so it needs a herdr that answers agent get.
+	f.herdr(t, liveHerdr)
 	// refresh points at the short seat name written in team.yaml, not the
 	// herdr name hergy made from it.
 	if got := mustRun(t, "refresh", "lead", "--dry"); !strings.HasSuffix(got, "next: refresh lead\n") {

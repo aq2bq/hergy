@@ -472,6 +472,11 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 		for i, member := range selected {
 			members[i] = *member
 		}
+		// --dry stops nothing, but it shows the same refusal the real refresh
+		// would, so it reads the live agents too (like down --dry).
+		if err := newLauncher(cfg, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID")); err != nil {
+			return err
+		}
 		next := "refresh " + memberName
 		if opts.All {
 			next = "refresh --all"
@@ -484,7 +489,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	}
 	printHeader(stdout, resolved, cfg, env)
 	l := newLauncher(cfg, opts.Timeout, stdout)
-	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected) })
+	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) })
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

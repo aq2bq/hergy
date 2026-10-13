@@ -26,6 +26,7 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
   hergy refresh <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
       Restart each selected member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. The conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
       Both <seat> and --all is an error; neither is an error.
+      A member running in your own pane (HERDR_PANE_ID) cannot refresh itself: stopping it would stop hergy first. That is an error, and nothing is stopped.
       If any selected member is not idle or done, nothing is stopped and the whole command errors.
   hergy reprompt <seat>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
       Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
@@ -49,7 +50,7 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
 Flags:
   --ai            Cheat only: print the agent cheatsheet (always English).
   --as <team>     Run the settings under this team name instead of the settings name. up/down/refresh/reprompt/hire.
-  --dry           Print what would happen and change nothing. up/refresh/reprompt/hire never read herdr; down reads the live agents and tabs but closes none.
+  --dry           Print what would happen and change nothing. up/reprompt/hire never read herdr; down and refresh read the live agents (refresh also refuses your own pane) and change nothing.
   --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/reprompt/hire.
   --global        Use the global layer only.
   --local         Use the local layer only. --global and --local together is an error.
@@ -67,6 +68,7 @@ Running against herdr:
   up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
+  refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
   env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env.
 
 Reading the output:

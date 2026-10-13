@@ -65,7 +65,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy new <team>` | Write out a starter team of two, a lead and a worker |
 | `hergy up [team]` | Start a team. `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` | Close the live panes of the team's members and the workers the team hired. `--dry` prints what would close; a tab is never closed as a unit |
-| `hergy refresh <seat>` / `--all` | End each member's agent and start it again in the same pane, so its conversation starts empty. The settings are read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below) |
+| `hergy refresh <seat>` / `--all` | End each member's agent and start it again in the same pane, so its conversation starts empty. The settings are read again, so an edited profile, kind, args or prompt takes effect (`env` does not; see below). A member cannot refresh itself: run it from another pane, or as the human |
 | `hergy reprompt <seat>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
 | `hergy hire <name> --profile P --purpose X --task "…"` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members) |
 | `hergy ls` | List the available teams and their layers |
@@ -76,7 +76,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 
 Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh`, `reprompt` and `hire` take `--team` to pick the team, and `refresh` also takes `--timeout`. `up`, `down`, `refresh`, `reprompt` and `hire` take `--as <team>` to run the same settings under a different team name (see below).
 
-`refresh` and `reprompt` are the two ways to hand a member its prompt again. `reprompt` keeps the conversation, so it is what you want after editing a document the member reads. `refresh` ends the agent and starts it again, so the conversation starts empty and an edited `kind`, `args`, `profile` or prompt is picked up. `env` is fixed when the pane is made, so after editing `env` run `hergy down` then `hergy up`; `refresh` keeps the pane and its env.
+`refresh` and `reprompt` are the two ways to hand a member its prompt again. `reprompt` keeps the conversation, so it is what you want after editing a document the member reads. `refresh` ends the agent and starts it again, so the conversation starts empty and an edited `kind`, `args`, `profile` or prompt is picked up. `env` is fixed when the pane is made, so after editing `env` run `hergy down` then `hergy up`; `refresh` keeps the pane and its env. `refresh` refuses a member running in the pane hergy itself is in (`HERDR_PANE_ID`): stopping it would stop hergy before it could start the agent again. Run `refresh` from another pane, or as the human. `refresh --dry` reads the live agents so it shows the same refusal; `reprompt --dry` reads nothing.
 
 ## Where settings live
 

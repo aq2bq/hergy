@@ -126,12 +126,37 @@ func (l *Launcher) Reprompt(members []*config.Member) error {
 // waits for Herdr to forget the agent name, and starts the member again in the
 // same pane with the settings as they are now. The conversation starts empty.
 // It reads the settings again first, so an edited profile, kind or args takes
-// effect. It checks every selected member before it stops any, so one member
-// that is not idle or done stops the whole command with nothing stopped.
-func (l *Launcher) Refresh(members []*config.Member) error {
+// effect. selfPane is the pane hergy itself runs in: a member there cannot be
+// restarted, because stopping it would stop hergy before it could start the
+// agent again. It checks every selected member before it stops any, so one
+// member that is not idle or done, or that is hergy's own, stops the whole
+// command with nothing stopped.
+func (l *Launcher) Refresh(members []*config.Member, selfPane string) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
+	if err := l.checkTargets(members, selfPane); err != nil {
+		return err
+	}
+	for _, member := range members {
+		if err := l.restart(member); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(namesOf(members), ", "))
+	return nil
+}
+
+// RefreshDry checks the same targets a real refresh checks and stops nothing, so
+// --dry shows the same refusal. Like down --dry, it reads the live agents.
+func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
+	return l.checkTargets(members, selfPane)
+}
+
+// checkTargets reads every selected member and refuses the whole command unless
+// each is live, idle or done, and not running in hergy's own pane. Nothing is
+// stopped until every member passes.
+func (l *Launcher) checkTargets(members []*config.Member, selfPane string) error {
 	for _, member := range members {
 		l.stage(i18n.Tf("progress.stage.checking", member.Name))
 		agent, err := l.herdr.Agent(member.Name)
@@ -146,14 +171,11 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 		if agent.PaneID == "" {
 			return i18n.Errorf("error.missing_pane_id", member.Name)
 		}
+		if selfPane != "" && agent.PaneID == selfPane {
+			return i18n.Errorf("error.refresh_self", member.Name)
+		}
 		l.place(member.Name, agent.PaneID)
 	}
-	for _, member := range members {
-		if err := l.restart(member); err != nil {
-			return err
-		}
-	}
-	fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(namesOf(members), ", "))
 	return nil
 }
 
@@ -161,6 +183,17 @@ func (l *Launcher) Refresh(members []*config.Member) error {
 // and starts the member again in the same pane.
 func (l *Launcher) restart(member *config.Member) error {
 	pane := l.paneOf(member.Name)
+	// Check once more, right before stopping: time passed since the first check
+	// (with --all, the earlier members' restarts), and the member may have
+	// started working again. This is the same second look reprompt takes.
+	l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
+	agent, err := l.herdr.Agent(pane)
+	if err != nil {
+		return err
+	}
+	if err := agent.CheckLive(member.Name); err != nil {
+		return err
+	}
 	l.stage(i18n.Tf("progress.stage.stopping", member.Name))
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {

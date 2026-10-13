@@ -36,9 +36,12 @@ type fakePort struct {
 
 	// Refresh state. agents is the live set by herdr name; gone marks the names
 	// herdr has forgotten. process maps a pane to its {foreground group, shell}.
-	agents  map[string]protocol.Agent
-	gone    map[string]bool
-	process map[string][2]int
+	// onAgentGet, when set, runs before each agent get, so a test can change the
+	// live state between the first check and the one before the stop.
+	agents     map[string]protocol.Agent
+	gone       map[string]bool
+	process    map[string][2]int
+	onAgentGet func(target string)
 }
 
 func (p *fakePort) Verify(mode string) error {
@@ -106,6 +109,9 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{}, nil
 	case len(args) == 3 && args[0] == "agent" && args[1] == "get":
 		target := args[2]
+		if p.onAgentGet != nil {
+			p.onAgentGet(target)
+		}
 		agent, ok := p.findAgent(target)
 		if !ok || p.gone[agent.Name] {
 			return nil, notFound(args)
@@ -438,13 +444,13 @@ func TestRefreshRestartsInPlaceInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Refresh(members); err != nil {
+	if err := l.Refresh(members, ""); err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
 	if !slices.Equal(killed, []int{4242}) {
 		t.Fatalf("killed %v, want [4242]", killed)
 	}
-	want := []string{"agent get", "pane process-info", "agent get", "agent start", "agent prompt"}
+	want := []string{"agent get", "agent get", "pane process-info", "agent get", "agent start", "agent prompt"}
 	if got := commandTrail(port.calls); !slices.Equal(got, want) {
 		t.Fatalf("call order %v, want %v", got, want)
 	}
@@ -473,7 +479,7 @@ func TestRefreshStopsNothingWhenAMemberIsWorking(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Refresh(members); err == nil {
+	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh accepted a working member")
 	}
 	if len(killed) != 0 {
@@ -502,7 +508,7 @@ func TestRefreshAllStopsNothingWhenAnyIsWorking(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Refresh(members); err == nil {
+	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh --all accepted a working member")
 	}
 	if len(killed) != 0 {
@@ -530,7 +536,7 @@ func TestRefreshTimesOutWhenTheAgentNeverGoes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Refresh(members); err == nil {
+	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh did not time out")
 	}
 	if !slices.Equal(killed, []int{4242}) {
@@ -559,7 +565,7 @@ func TestRefreshDoesNotStopTheShell(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Refresh(members); err != nil {
+	if err := l.Refresh(members, ""); err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
 	if len(killed) != 0 {
@@ -601,5 +607,130 @@ func TestRepromptOnlyPrompts(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "reprompted: team-lead") {
 		t.Fatalf("reprompt does not report the reprompt:\n%s", out.String())
+	}
+}
+
+// TestRefreshRefusesItsOwnPane: a member in hergy's own pane cannot be
+// restarted, because stopping it would stop hergy first.
+func TestRefreshRefusesItsOwnPane(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{
+			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "own"},
+		},
+		gone:    map[string]bool{},
+		process: map[string][2]int{"own": {4242, 900}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	var killed []int
+	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, "own"); err == nil {
+		t.Fatal("Refresh accepted its own pane")
+	}
+	if len(killed) != 0 {
+		t.Fatalf("refresh stopped its own process group: %v", killed)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("refresh read process info for its own pane:\n%v", port.calls)
+	}
+}
+
+// TestRefreshAllRefusesWhenSelfIsIncluded: with --all, a self member stops the
+// whole command before any member is stopped.
+func TestRefreshAllRefusesWhenSelfIsIncluded(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{
+			"team-lead":   {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-worker": {Name: "team-worker", Kind: "claude", Status: "idle", PaneID: "own"},
+		},
+		gone: map[string]bool{},
+	}
+	l, _ := downLauncher(t, port, "team-lead", "team-worker")
+	var killed []int
+	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, "own"); err == nil {
+		t.Fatal("Refresh --all accepted its own pane")
+	}
+	if len(killed) != 0 {
+		t.Fatalf("refresh --all stopped a member before checking them all: %v", killed)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("refresh --all read process info before checking them all:\n%v", port.calls)
+	}
+}
+
+// TestRefreshDryShowsTheSameRefusal: --dry reads the live agents and shows the
+// self refusal, and still stops nothing.
+func TestRefreshDryShowsTheSameRefusal(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{
+			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "own"},
+		},
+		gone:    map[string]bool{},
+		process: map[string][2]int{"own": {4242, 900}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	l.kill = func(pgid int) error { t.Fatalf("dry refresh called kill(%d)", pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.RefreshDry(members, "own"); err == nil {
+		t.Fatal("RefreshDry accepted its own pane")
+	}
+	if len(port.verified) != 0 {
+		t.Fatalf("RefreshDry checked the herdr commands: %v", port.verified)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("dry refresh read process info:\n%v", port.calls)
+	}
+}
+
+// TestRefreshRechecksBeforeStopping: a member that starts working between the
+// first check and the stop is not stopped.
+func TestRefreshRechecksBeforeStopping(t *testing.T) {
+	port := &fakePort{
+		agents: map[string]protocol.Agent{
+			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+		},
+		gone:    map[string]bool{},
+		process: map[string][2]int{"p1": {4242, 900}},
+	}
+	// The first check (by name) sees idle; the check just before the stop (by
+	// pane) sees the member start working.
+	port.onAgentGet = func(target string) {
+		if target != "p1" {
+			return
+		}
+		agent := port.agents["team-lead"]
+		agent.Status = "working"
+		port.agents["team-lead"] = agent
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+	var killed []int
+	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
+	members, err := l.cfg.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Refresh(members, ""); err == nil {
+		t.Fatal("Refresh stopped a member that started working after the first check")
+	}
+	if len(killed) != 0 {
+		t.Fatalf("refresh stopped a working member's process group: %v", killed)
+	}
+	if slices.Contains(commandTrail(port.calls), "pane process-info") {
+		t.Fatalf("refresh read process info for a working member:\n%v", port.calls)
 	}
 }
