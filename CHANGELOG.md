@@ -23,6 +23,30 @@ name, so two teams started from one definition can be handled one at a time.
   `roles/builder.md` instead of `roles/worker.md`, so the member is not
   mistaken for a hired worker. Teams already written are not touched.
 
+### Moving from 0.2
+
+1. Name the running team, not its definition, on `status`, `down`,
+   `refresh`, `reprompt` and `hire`. For a team started without `--as` the
+   two names are the same, and nothing changes. For one started with `--as`:
+
+   ```sh
+   # 0.2
+   hergy down dev --as dev2
+   hergy refresh lead --team dev --as dev2
+   # now
+   hergy down dev2
+   hergy refresh lead --team dev2
+   ```
+
+2. Teams already running keep working: their tabs carry the older label, and
+   hergy reads the team name from it as the definition name. A team started
+   with `--as` under 0.2 cannot be traced back to its definition that way;
+   run `hergy down <definition> --as <team>` with 0.2 before upgrading, or
+   close its panes in herdr, then start it again with `hergy up`.
+3. Nothing to do for `team.yaml`, `profiles.yaml` or `config.yaml` because
+   of the words above; teams written by `hergy new` before keep their
+   `worker` member.
+
 ### Added
 
 - **`hergy status` with no name lists every running team**: each with its
@@ -52,6 +76,14 @@ name, so two teams started from one definition can be handled one at a time.
   effect. A member whose agent has stopped is started again in its pane. What
   `refresh` did before, sending the bootstrap prompt again and keeping the
   conversation, is now `hergy reprompt`.
+
+### Moving from 0.1
+
+- Where you typed `hergy refresh <member>` to resend the bootstrap prompt and
+  keep the conversation, type `hergy reprompt <member>`. Type
+  `hergy refresh <member>` only when the conversation should start over.
+- Workers hired with 0.1 are not closed by `hergy down`: their tabs carry the
+  older label. Close them in herdr once.
 
 ### Added
 
