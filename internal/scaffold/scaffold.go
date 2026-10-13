@@ -16,7 +16,7 @@ var embedded embed.FS
 // language fallback of the CLI.
 const Fallback = "en"
 
-// NamePattern is the team names hergy new accepts: short enough that
+// NamePattern is the team definition names hergy new accepts: short enough that
 // "<team>-builder" is still a valid member name.
 var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 

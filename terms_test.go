@@ -41,12 +41,12 @@ var glossary = []term{
 		id:       "team-name",
 		english:  "team name",
 		japanese: "チーム名",
-		meaning:  "the name a team runs under; --as changes it, and it is the first half of the herdr name",
+		meaning:  "the name a running team goes by; --as changes it, and it is the first half of the herdr name",
 	},
 	{
-		id:       "settings-name",
-		english:  "settings name",
-		japanese: "設定名",
+		id:       "team-definition-name",
+		english:  "team definition name",
+		japanese: "チーム定義名",
 		meaning:  "the directory name under teams/ that holds team.yaml; the default team name",
 	},
 	{

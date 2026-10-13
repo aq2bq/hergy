@@ -158,8 +158,9 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	}
 }
 
-// resolveAndBuild is the shared path: find the team, then parse it.
-func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *config.Config, error) {
+// resolveDefinition finds a team definition by name (up, show) and builds its
+// config. opts.As names the team at run time; empty means the definition name.
+func resolveDefinition(env team.Env, opts *options.Options) (*team.Resolved, *config.Config, error) {
 	resolved, err := env.Resolve(opts.Team, opts.Layer)
 	if err != nil {
 		return nil, nil, err
@@ -171,17 +172,98 @@ func resolveAndBuild(env team.Env, opts *options.Options) (*team.Resolved, *conf
 	return resolved, cfg, nil
 }
 
-// asSuffix is the --as part of a next command, empty when no --as was given.
-func asSuffix(opts *options.Options) string {
-	if opts.As == "" {
-		return ""
+// resolveTeam finds a running team by its team name (down, status, refresh,
+// reprompt, hire) and builds the team definition it was booted from. An empty
+// name picks the one running team, or stops and names the candidates.
+func resolveTeam(env team.Env, opts *options.Options) (*team.Resolved, *config.Config, error) {
+	running, err := runningTeams()
+	if err != nil {
+		return nil, nil, err
 	}
-	return " --as " + opts.As
+	chosen, err := pickTeam(running, opts.Team)
+	if err != nil {
+		return nil, nil, err
+	}
+	return buildRunning(env, opts.Layer, chosen)
+}
+
+// buildRunning resolves one running team's definition and builds the config
+// under the team's run name.
+func buildRunning(env team.Env, layer string, running team.Running) (*team.Resolved, *config.Config, error) {
+	resolved, err := env.Resolve(running.Definition, layer)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg, err := env.BuildConfig(resolved, source.Disk{}, running.Team)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resolved, cfg, nil
+}
+
+// runningTeams reads herdr's tab labels and returns the running teams.
+func runningTeams() ([]team.Running, error) {
+	labels, err := herdrTabs()
+	if err != nil {
+		return nil, err
+	}
+	return team.RunningTeams(labels), nil
+}
+
+// herdrTabs reads the tab labels herdr reports. It is how a team command finds
+// the team definition behind a running team name.
+func herdrTabs() ([]string, error) {
+	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
+	return herdr.New(port).TabLabels()
+}
+
+// pickTeam is the omitted-argument rule for a team command: the one running
+// team, or a stop that names the candidates.
+func pickTeam(running []team.Running, name string) (team.Running, error) {
+	if name != "" {
+		if chosen, ok := team.FindRunning(running, name); ok {
+			return chosen, nil
+		}
+		return team.Running{}, teamNotRunning(name)
+	}
+	switch len(running) {
+	case 1:
+		return running[0], nil
+	case 0:
+		return team.Running{}, i18n.Errorf("error.no_running_teams")
+	default:
+		return team.Running{}, runningCandidates(running)
+	}
+}
+
+// teamNotRunning is the error for a team name with no tab.
+func teamNotRunning(name string) error {
+	var b strings.Builder
+	fmt.Fprint(&b, i18n.Tf("error.team_not_running", name))
+	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", "status"))
+	return errors.New(b.String())
+}
+
+// runningCandidates lists the teams that are running and stops.
+func runningCandidates(running []team.Running) error {
+	names := team.RunningNames(running)
+	var b strings.Builder
+	fmt.Fprint(&b, i18n.Tf("error.need_running_team", strings.Join(names, i18n.T("list.separator"))))
+	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", "status"))
+	return errors.New(b.String())
 }
 
 func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 	field(stdout, label("local"), env.Display(env.LocalDir))
 	field(stdout, label("global"), env.Display(env.GlobalDir))
+	// The running teams, grouped by the team definition they were booted from.
+	// Outside herdr the tabs cannot be read; then only the definitions show.
+	running := map[string][]string{}
+	if labels, err := herdrTabs(); err == nil {
+		for _, team := range team.RunningTeams(labels) {
+			running[team.Definition] = append(running[team.Definition], team.Team)
+		}
+	}
 	shown := 0
 	for _, row := range env.List() {
 		var layer, path, other, note string
@@ -213,7 +295,7 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 			}
 		}
 		shown++
-		field(stdout, label("team"), row.Name)
+		field(stdout, label("definition"), row.Name)
 		indentField(stdout, 1, label("layer"), layer)
 		indentField(stdout, 1, label("path"), env.Display(path))
 		if other != "" {
@@ -222,19 +304,22 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 		if note != "" {
 			indentField(stdout, 1, label("note"), note)
 		}
+		if teams := running[row.Name]; len(teams) > 0 {
+			indentField(stdout, 1, label("running"), strings.Join(teams, i18n.T("list.separator")))
+		}
 	}
 	if shown == 0 {
-		field(stdout, label("team"), i18n.T("value.none"))
+		field(stdout, label("definition"), i18n.T("value.none"))
 	}
 	return nil
 }
 
 func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveDefinition(env, opts)
 	if err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, false)
 	if len(cfg.Docs) == 0 {
 		field(stdout, label("document"), i18n.T("value.none"))
 	}
@@ -276,7 +361,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	field(stdout, label("team"), name)
+	field(stdout, label("definition"), name)
 	field(stdout, label("layer"), layer)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
@@ -405,17 +490,17 @@ func isFile(path string) bool {
 }
 
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveDefinition(env, opts)
 	if err != nil {
 		return err
 	}
 	if opts.Dry {
-		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+resolved.Name+asSuffix(opts))
+		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "status "+cfg.Team)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, l.Boot)
 }
@@ -423,7 +508,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 // runDown closes the panes of a live team's members. --dry prints what would
 // close and reads the live agents, but sends no close and needs no Herdr pane.
 func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
 		return err
 	}
@@ -434,21 +519,21 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	// The pane hergy runs in is the member that must be closed last.
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	if opts.Dry {
-		printHeader(stdout, resolved, cfg, env)
+		printHeader(stdout, resolved, cfg, env, true)
 		closed, err := newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true)
 		if err != nil {
 			return err
 		}
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
-			printNext(stdout, "down "+resolved.Name+asSuffix(opts))
+			printNext(stdout, "down "+cfg.Team)
 		}
 		return nil
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runOperation(ctx, stderr, nil, func() error {
 		_, err := l.Down(members, selfPane, false)
@@ -459,8 +544,12 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 // runStatus reports each member's and worker's live state, one "name: state"
 // line each, then the judgement: who is waiting on the human, or that nobody is
 // working. It only reads Herdr, so it runs outside a herdr-managed pane too.
+// With no team name it lists every running team, one block each.
 func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	if opts.Team == "" {
+		return runStatusList(env, opts, stdout)
+	}
+	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
 		return err
 	}
@@ -468,22 +557,76 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	rows, err := newLauncher(cfg, opts.Timeout, stdout).Status(members)
 	if err != nil {
 		return err
 	}
+	for _, row := range rows {
+		field(stdout, row.Name, statusState(row))
+	}
+	return printStatusJudgement(stdout, rows, "")
+}
+
+// runStatusList is status with no team name: every running team, with its team
+// definition name, its counts, and the same judgement.
+func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error {
+	running, err := runningTeams()
+	if err != nil {
+		return err
+	}
+	if len(running) == 0 {
+		fmt.Fprintln(stdout, i18n.T("status.none"))
+		return nil
+	}
+	for i, entry := range running {
+		if i > 0 {
+			fmt.Fprintln(stdout)
+		}
+		_, cfg, err := buildRunning(env, opts.Layer, entry)
+		if err != nil {
+			return err
+		}
+		members, err := cfg.Select("")
+		if err != nil {
+			return err
+		}
+		field(stdout, label("team"), cfg.Team)
+		indentField(stdout, 1, label("definition"), cfg.Definition)
+		rows, err := newLauncher(cfg, opts.Timeout, stdout).Status(members)
+		if err != nil {
+			return err
+		}
+		membersCount, workers := countStatusRows(rows)
+		indentField(stdout, 1, label("members"), strconv.Itoa(membersCount))
+		indentField(stdout, 1, label("workers"), strconv.Itoa(workers))
+		if err := printStatusJudgement(stdout, rows, "  "); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// statusState is one row's text: the live state, "not present" when the member
+// is not live, and the worker mark when it is a hired worker.
+func statusState(row launcher.StatusRow) string {
+	state := row.State
+	if !row.Live {
+		state = i18n.T("status.not_live")
+	}
+	if row.Worker {
+		state += i18n.T("status.worker_suffix")
+	}
+	return state
+}
+
+// printStatusJudgement prints the judgement line for the rows: who is waiting on
+// the human, else that nobody is working. A working team with nobody blocked
+// gets no line. indent, when set, is written before the line.
+func printStatusJudgement(stdout io.Writer, rows []launcher.StatusRow, indent string) error {
 	var blocked []string
 	working := 0
 	for _, row := range rows {
-		state := row.State
-		if !row.Live {
-			state = i18n.T("status.not_live")
-		}
-		if row.Worker {
-			state += i18n.T("status.worker_suffix")
-		}
-		field(stdout, row.Name, state)
 		if !row.Live {
 			continue
 		}
@@ -496,15 +639,27 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	switch {
 	case len(blocked) > 0:
-		fmt.Fprintln(stdout, i18n.Tf("status.human_waiting", strings.Join(blocked, i18n.T("list.separator"))))
+		fmt.Fprintf(stdout, "%s%s\n", indent, i18n.Tf("status.human_waiting", strings.Join(blocked, i18n.T("list.separator"))))
 	case working == 0:
-		fmt.Fprintln(stdout, i18n.T("status.nobody_working"))
+		fmt.Fprintf(stdout, "%s%s\n", indent, i18n.T("status.nobody_working"))
 	}
 	return nil
 }
 
+// countStatusRows counts the members and the workers in the rows.
+func countStatusRows(rows []launcher.StatusRow) (members, workers int) {
+	for _, row := range rows {
+		if row.Worker {
+			workers++
+		} else {
+			members++
+		}
+	}
+	return members, workers
+}
+
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
 		return err
 	}
@@ -530,19 +685,19 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 		if opts.All {
 			next = "refresh --all"
 		}
-		next += asSuffix(opts)
+		next += " --team " + cfg.Team
 		return dryPlan(stdout, env, resolved, cfg, "restart", members, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) })
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
 		return err
 	}
@@ -563,19 +718,19 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 		if opts.All {
 			next = "reprompt --all"
 		}
-		next += asSuffix(opts)
+		next += " --team " + cfg.Team
 		return dryPlan(stdout, env, resolved, cfg, "reprompt", members, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) })
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveAndBuild(env, opts)
+	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
 		return err
 	}
@@ -594,7 +749,7 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env)
+	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) })
 }
@@ -643,11 +798,15 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 	}
 }
 
-// printHeader is the short provenance every team command shows: the team, its
-// version, the layer in use, and the files the effective values came from. The
-// per-member list is left to show and the plan.
-func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env team.Env) {
-	field(w, label("team"), cfg.Team)
+// printHeader is the short provenance every team command shows: the team
+// definition, the team it runs as, its version, the layer in use, and the files
+// the effective values came from. show prints the definition alone; a team
+// command also prints the team name.
+func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env team.Env, withTeam bool) {
+	field(w, label("definition"), cfg.Definition)
+	if withTeam {
+		field(w, label("team"), cfg.Team)
+	}
 	field(w, label("version"), strconv.Itoa(cfg.Version))
 	field(w, label("layer"), cfg.Layer)
 	field(w, label("team_file"), env.Display(cfg.TeamYAML.Path))
@@ -726,7 +885,7 @@ func printPrompt(w io.Writer, prompt string) {
 // JSON, with each member's prompt shown as the text it is.
 func printPlanText(w io.Writer, mode string, resolved *team.Resolved, cfg *config.Config, members []config.Member, timeout int, env team.Env) {
 	field(w, label("mode"), mode)
-	printHeader(w, resolved, cfg, env)
+	printHeader(w, resolved, cfg, env, true)
 	field(w, label("timeout"), strconv.Itoa(timeout))
 	for i := range members {
 		printMember(w, cfg, &members[i], env, true)

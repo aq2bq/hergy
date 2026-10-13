@@ -1,11 +1,11 @@
 ---
 name: hergy
-description: "Use when you start or close a team with hergy, write hergy settings, or work inside a team hergy started. The exact shape of every command and flag is in hergy cheat --ai; read it there."
+description: "Use when you start or close a team with hergy, write a hergy team definition, or work inside a team hergy started. The exact shape of every command and flag is in hergy cheat --ai; read it there."
 ---
 
 # hergy
 
-`hergy` boots a team of AI agents onto herdr from YAML settings. It sits one level above herdr: it boots the team from your settings and hands each member its first prompt, while herdr runs the panes and carries the messages.
+`hergy` boots a team of AI agents onto herdr from YAML team definitions. It sits one level above herdr: it boots the team from your team definition and hands each member its first prompt, while herdr runs the panes and carries the messages.
 
 The shape of every command and flag lives in `hergy cheat --ai`. Read that before you type one; this file holds only the judgement.
 
@@ -14,6 +14,12 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - Starting a team, adding a worker, closing a team: hergy.
 - Reaching a teammate, driving a pane: herdr.
 - Whether anyone is waiting on the human, or nobody is working: `hergy status`.
+
+## Team definitions and team names
+
+- A team definition is the directory `teams/<name>/` with its `team.yaml`; `hergy up`, `hergy new` and `hergy show` take a team definition name.
+- A team is a running team, named by `hergy up --as` or, without it, by the team definition name; `hergy down`, `hergy status`, `hergy refresh`, `hergy reprompt` and `hergy hire` take a team name and find the definition from the team's herdr tab.
+- `hergy status` with no team name lists every running team, with its team definition name.
 
 ## Before you run one
 

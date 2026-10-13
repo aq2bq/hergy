@@ -76,10 +76,11 @@ type Member struct {
 
 // Config is a resolved team.
 type Config struct {
-	Team     string
-	Version  int
-	Members  []Member
-	Profiles map[string]Profile
+	Team       string
+	Definition string // the team definition name: the teams/<name>/ directory
+	Version    int
+	Members    []Member
+	Profiles   map[string]Profile
 
 	// Provenance: where the effective values came from.
 	TeamYAML     source.Doc
@@ -352,6 +353,7 @@ func Parse(in Input) (*Config, error) {
 
 	return &Config{
 		Team:           in.RunName,
+		Definition:     in.TeamName,
 		Version:        version,
 		Members:        members,
 		Profiles:       in.Profiles,
@@ -681,9 +683,10 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 
 // hireCommand is embedded in a member's prompt. It names the exact team, layer
 // and project, so a hire works even when the member runs outside the project or
-// the same name exists in both layers. When the team runs under a name other
-// than the settings name, --as carries the team name along. The --from value is
-// the hiring member.s short name: the command line takes the short name, and hergy
+// the same name exists in both layers. --team carries the team name the member
+// runs under (hire takes a team name, not a team definition name), so the hire
+// finds the running team even when --as named it. The --from value is the
+// hiring member's short name: the command line takes the short name, and hergy
 // adds the team name to the herdr name itself.
 func hireCommand(in Input, shortName string) string {
 	layerFlag := "--local"
@@ -694,12 +697,8 @@ func hireCommand(in Input, shortName string) string {
 	if executable == "" {
 		executable = "hergy"
 	}
-	asFlag := ""
-	if in.RunName != in.TeamName {
-		asFlag = " --as " + in.RunName
-	}
 	return i18n.Tf("hire.command",
-		shellQuote(executable), in.TeamName, asFlag, layerFlag, i18n.Language(), shellQuote(in.Base), shortName)
+		shellQuote(executable), in.RunName, layerFlag, i18n.Language(), shellQuote(in.Base), shortName)
 }
 
 func shellQuote(s string) string {

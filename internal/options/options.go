@@ -47,11 +47,11 @@ const (
 type Options struct {
 	Kind Kind
 
-	Team   string // up/show positional, or refresh/reprompt/hire --team
+	Team   string // up/show/new: a team definition name; down/status/refresh/reprompt/hire: a team name
 	Member string // refresh/reprompt positional
 	All    bool   // refresh/reprompt --all
 	Name   string // hire positional
-	As     string // --as: the team name to boot under (defaults to the settings name)
+	As     string // up only: the team name to boot under (defaults to the team definition name)
 
 	Profile string
 	Purpose string
@@ -85,11 +85,11 @@ func Usage() string { return i18n.T("usage") }
 // flag that belongs to another command never gets silently ignored.
 var allowed = map[Kind]map[string]bool{
 	Up:       {"dry": true, "json": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
-	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "as": true, "help": true},
-	Status:   {"global": true, "local": true, "dir": true, "lang": true, "as": true, "help": true},
-	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
-	Reprompt: {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
-	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "as": true, "help": true},
+	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "help": true},
+	Status:   {"global": true, "local": true, "dir": true, "lang": true, "help": true},
+	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "timeout": true, "dir": true, "lang": true, "help": true},
+	Reprompt: {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
+	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
 	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	New:      {"local": true, "lang": true, "dir": true, "help": true},

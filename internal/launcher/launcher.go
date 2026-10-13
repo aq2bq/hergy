@@ -64,7 +64,7 @@ func (l *Launcher) Boot() error {
 	if err != nil {
 		return err
 	}
-	if _, err := l.createTab(workspace, members[0], "team:"+l.cfg.Team); err != nil {
+	if _, err := l.createTab(workspace, members[0], l.teamTabLabel()); err != nil {
 		return err
 	}
 	l.stage(i18n.T("progress.stage.creating_panes"))
@@ -81,6 +81,16 @@ func (l *Launcher) Boot() error {
 	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.cfg.Team, l.tabID())
 	fmt.Fprint(l.out, i18n.T("launcher.boot_submitted"))
 	return nil
+}
+
+// teamTabLabel is the label of the team's tab. It carries both the team name and
+// the team definition name, "team:<team>@<definition>", so a command that takes
+// a team name can find the definition the team was booted from.
+func (l *Launcher) teamTabLabel() string {
+	if l.cfg.Definition == "" {
+		return "team:" + l.cfg.Team
+	}
+	return "team:" + l.cfg.Team + "@" + l.cfg.Definition
 }
 
 // Reprompt re-submits the bootstrap prompt to idle agents, keeping each one's

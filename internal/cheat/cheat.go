@@ -18,32 +18,40 @@ func People() string { return i18n.T("cheat.people") }
 // not the one on this machine.
 const Machine = `hergy cheat --ai - the whole of hergy, for an agent that will not read anything else
 
+A team definition is a directory, <layer>/teams/<definition>/team.yaml. A running
+team has a team name: the team definition name by default, or another name given
+to hergy up --as. Commands that read or write a team definition take a team
+definition name (up, new, show); commands that act on a running team take a team
+name (down, status, refresh, reprompt, hire). A team command finds the definition
+from the team's herdr tab label, "team:<team>@<definition>" (an older tab,
+"team:<team>", means the definition name is the team name).
+
 Commands (every command but version prints --help; a bare -- ends the flags, and --flag=value is accepted):
-  hergy up [team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
-      Boot a team in a new tab. --dry prints the plan and submits nothing; --json, only with --dry, prints it as JSON.
-  hergy down [team] [--as team] [--global|--local] [--dry] [-C dir]
-      Close the panes of the team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
-  hergy status [team] [--as team] [--global|--local] [-C dir]
-      Print one line per member and per worker of the team: its live agent_status (working/idle/done/blocked), or "not present" when the member is not live. A worker carries "(worker)". Last, a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. It only reads herdr, and runs outside a herdr-managed pane too.
-  hergy refresh <member>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
+  hergy up [definition] [--as team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
+      Boot the team definition in a new tab. --as names the team; without it the team name is the definition name. --dry prints the plan and submits nothing; --json, only with --dry, prints it as JSON.
+  hergy down [team] [--global|--local] [--dry] [-C dir]
+      Close the panes of the running team's live members and of the workers it hired. --dry reads herdr's live agents and tabs, prints what would close, and closes nothing.
+  hergy status [team] [--global|--local] [-C dir]
+      With a team name: one line per member and per worker, its live agent_status (working/idle/done/blocked), or "not present" when the member is not live; a worker carries "(worker)". Then a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. With no team name: every running team, each with its team definition name, its member and worker counts, and the same judgement. It only reads herdr, and runs outside a herdr-managed pane too.
+  hergy refresh <member>|--all [--team team] [--global|--local] [--dry] [--json] [--timeout ms] [-C dir]
       Restart each selected member. A live member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. A member that is not live: start it again in the pane hergy named after it, when that pane is still at its shell. Either way the conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).
       Both <member> and --all is an error; neither is an error.
       A member running in your own pane (HERDR_PANE_ID) cannot refresh itself: stopping it would stop hergy first. That is an error, and nothing is stopped.
       If any selected member is not idle or done, is your own pane, or (when not live) has no pane at its shell, nothing is changed and the whole command errors. A pane that is gone or busy points at hergy down then hergy up.
-  hergy reprompt <member>|--all [--team team] [--as team] [--global|--local] [--dry] [--json] [-C dir]
+  hergy reprompt <member>|--all [--team team] [--global|--local] [--dry] [--json] [-C dir]
       Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
       Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
-  hergy hire <name> --profile P --purpose X --task "..." [--from member] [--team team] [--as team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
+  hergy hire <name> --profile P --purpose X --task "..." [--from member] [--team team] [--global|--local] [--timeout ms] [--dry] [--json] [-C dir]
       Start one worker in a tab labelled worker:<team>/<name>. --profile, --purpose and --task are required.
   hergy ls [--global|--local] [-C dir]
-      List the visible teams and the layer each came from.
-  hergy show <team> [--global|--local] [-C dir]
-      Print the effective settings and where each value and document came from.
-  hergy new <team> [--local] [-C dir]
-      Write a starter team's files (global by default; --local for the project).
+      List the visible team definitions and the layer each came from, and the running team names each one booted.
+  hergy show <definition> [--global|--local] [-C dir]
+      Print the effective team definition and where each value and document came from.
+  hergy new <definition> [--local] [-C dir]
+      Write a starter team definition (global by default; --local for the project).
   hergy validate [-C dir]
-      Check the global config.yaml, both layers' profiles.yaml, and every team in both layers. Exit 1 if any is broken.
+      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
   hergy version
       Print the commit and time of this hergy. It takes no other flags.
   hergy cheat [--ai] [--lang en|ja]
@@ -51,13 +59,13 @@ Commands (every command but version prints --help; a bare -- ends the flags, and
 
 Flags:
   --ai            Cheat only: print the agent cheatsheet (always English).
-  --as <team>     Run the settings under this team name instead of the settings name. up/down/refresh/reprompt/hire.
-  --dry           Print what would happen and change nothing. up/reprompt/hire never read herdr; down and refresh read the live agents (refresh also refuses your own pane) and change nothing.
+  --as <team>     up only: run the same team definition under this team name. The team name is the first half of the herdr name.
+  --dry           Print what would happen and change nothing. up/reprompt/hire never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane) and change nothing.
   --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/reprompt/hire.
   --global        Use the global layer only.
   --local         Use the local layer only. --global and --local together is an error.
   --timeout <ms>  Startup timeout, 3001..300000 (default 30000). up/refresh/hire.
-  --team <team>   The team to act on. refresh/reprompt/hire.
+  --team <team>   The team, by team name, to act on. refresh/reprompt/hire.
   --profile <name> The worker's named engine, from profiles.yaml. hire.
   --purpose <text> The worker's purpose. hire.
   --task <text>   The worker's task text. hire.
@@ -68,6 +76,7 @@ Flags:
 
 Running against herdr:
   up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
+  A team command (down, status, refresh, reprompt, hire) reads herdr's tabs to find the team definition behind the team name; a team name with no tab is an error. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status).
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
@@ -75,23 +84,24 @@ Running against herdr:
   env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env.
 
 Reading the output:
-  Most lines are "name: value" (for example "team: demo"). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
+  Most lines are "name: value" (for example "team: demo", or "team definition: demo" for a team definition). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
   The values, the JSON keys and the "next:" line are never translated.
-  A line "next: <command>" names the command to type next, with no leading hergy (for example "next: up demo --dry").
+  A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
   A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, may_spawn and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   To read the text form, add --lang en, or use --dry --json.
 
-Team resolution:
-  A team is <layer>/teams/<name>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
-  A name is looked up local first, then global; a name in both resolves to local. --global or --local looks at that layer only.
+Resolution:
+  A team definition is <layer>/teams/<definition>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
+  A definition name is looked up local first, then global; a name in both resolves to local. --global or --local looks at that layer only.
   The project root is the git root (else the current directory); -C, --dir overrides it.
-  With no name, one local team is used; --global uses one global team; with neither flag, a lone global team is not chosen; otherwise the candidates are listed and it stops.
+  up with no name uses one local team definition; --global uses one global one; with neither flag, a lone global definition is not chosen; otherwise the candidates are listed and it stops.
+  A team command with no team name uses the one running team; none or several stops with the running team names.
 
-Team name and member names:
+Team, definition and member names:
   members[].name is a short member name (lead, builder). hergy prefixes the team name, so the herdr name is <team>-<member>.
-  --as <team> runs the same settings under another name: demo's lead is demo-lead, and dev2-lead with --as dev2.
+  --as <team> runs the same team definition under another name: the demo definition's lead is demo-lead, and dev2-lead with --as dev2.
   refresh <member>, reprompt <member> and hire --from <member> accept the short member name or the herdr name; the short name is preferred.
   The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<member> matches [a-z][a-z0-9_-]{0,31}.
 
@@ -102,9 +112,9 @@ Settings files and their keys:
   Global config.yaml, at <global>/config.yaml:
     version: 1        required, int; must be 1.
     lang: en|ja       string; the language when --lang is not given; default en.
-  A team's team.yaml, at <layer>/teams/<team>/team.yaml. docs and roles paths are relative to this directory; cwd is relative to the project root:
+  A team definition's team.yaml, at <layer>/teams/<definition>/team.yaml. docs and roles paths are relative to this directory; cwd is relative to the project root:
     version: 1        required, int; must be 1.
-    team: <name>      string, optional; if written it must equal the settings name (the directory name).
+    team: <definition> string, optional; if written it must equal the team definition name (the directory name).
     cwd: <dir>        string; working directory, relative to the project root; default ".".
     prompt: "<text>"  string, optional; the bootstrap prompt template for every member.
     docs: [<path>...] list of strings, or one string; documents every member reads, joined in order; a directory means its *.md in name order; a path that is not there is an error.
@@ -128,7 +138,7 @@ Settings files and their keys:
         kind: <kind>       required, string; herdr's agent kind.
         args: [<arg>...]   list of strings; passed to the agent CLI as is.
         env: {NAME: value} mapping of string to string; environment for the pane.
-  A local team reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global team reads only the global one.
+  A local team definition reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global definition reads only the global one.
 
 hire (a member starting a worker):
   --profile must name a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
@@ -138,7 +148,7 @@ hire (a member starting a worker):
 
 new:
   It writes team.yaml, protocol.md, roles/lead.md and roles/builder.md, and the global config.yaml (version: 1, lang) when that file is missing.
-  It never overwrites: an existing team directory stops it and nothing is written (exit 1).
+  It never overwrites: an existing team definition directory stops it and nothing is written (exit 1).
 
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
