@@ -11,8 +11,9 @@ import (
 )
 
 // pseudoRE reads the time and commit out of a pseudo-version, which is what
-// `go install …@<branch or commit>` records for an untagged module.
-var pseudoRE = regexp.MustCompile(`^v\d+\.\d+\.\d+-(?:\S+\.)?(\d{14})-([0-9a-f]{12})$`)
+// `go install …@<branch or commit>` records for an untagged module, and what a
+// local build records for its checkout, with +dirty for uncommitted changes.
+var pseudoRE = regexp.MustCompile(`^v\d+\.\d+\.\d+-(?:\S+\.)?(\d{14})-([0-9a-f]{12})(\+dirty)?$`)
 
 // Line is the one line `hergy version` prints.
 func Line() string {
@@ -27,7 +28,11 @@ func line(module string, settings []debug.BuildSetting) string {
 	if m := pseudoRE.FindStringSubmatch(module); m != nil {
 		when, err := time.Parse("20060102150405", m[1])
 		if err == nil {
-			return fmt.Sprintf("hergy %s (%s)", m[2][:7], when.Format("2006-01-02 15:04 UTC"))
+			commit := m[2][:7]
+			if m[3] != "" {
+				commit += "+uncommitted"
+			}
+			return fmt.Sprintf("hergy %s (%s)", commit, when.Format("2006-01-02 15:04 UTC"))
 		}
 	}
 	if module != "" && module != "(devel)" {
