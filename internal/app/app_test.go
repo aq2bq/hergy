@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/options"
 )
 
 // passingHerdr is a fake herdr that answers every command the CLI may need, so
@@ -843,5 +845,121 @@ func TestHireCommandCarriesAs(t *testing.T) {
 	}
 	if !strings.Contains(named, "--from lead") {
 		t.Fatalf("the hire command with --as does not take the short seat:\n%s", named)
+	}
+}
+
+// TestCheatAIListsEveryCommandAndFlag reads the command and flag tables from
+// options and checks the agent cheatsheet names each one, so a command or flag
+// added later cannot be left out of the cheatsheet.
+func TestCheatAIListsEveryCommandAndFlag(t *testing.T) {
+	newFixture(t)
+	got := mustRun(t, "cheat", "--ai")
+	for _, command := range options.Commands() {
+		if !strings.Contains(got, "hergy "+command) {
+			t.Errorf("cheat --ai does not name the command %q", command)
+		}
+	}
+	for _, kind := range options.Kinds {
+		for _, flag := range options.Flags(kind) {
+			if !strings.Contains(got, "--"+flag) {
+				t.Errorf("cheat --ai does not name the flag --%s", flag)
+			}
+		}
+	}
+}
+
+// TestCheatPeopleLeadsWithTheFirstSteps checks the short cheatsheet opens with
+// the three steps a newcomer types, in order, and names every command.
+func TestCheatPeopleLeadsWithTheFirstSteps(t *testing.T) {
+	newFixture(t)
+	tests := []struct {
+		lang  string
+		steps []string
+	}{
+		{"en", []string{"hergy new myteam", "edit team.yaml, profiles.yaml", "hergy up myteam"}},
+		{"ja", []string{"hergy new myteam", "team.yaml を書き換える", "hergy up myteam"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.lang, func(t *testing.T) {
+			got := mustRun(t, "cheat", "--lang", tt.lang)
+			at := -1
+			for _, step := range tt.steps {
+				next := strings.Index(got, step)
+				if next < 0 {
+					t.Fatalf("cheat (%s) does not hold the step %q:\n%s", tt.lang, step, got)
+				}
+				if next < at {
+					t.Fatalf("cheat (%s) has the steps out of order at %q:\n%s", tt.lang, step, got)
+				}
+				at = next
+			}
+			for _, command := range options.Commands() {
+				if !strings.Contains(got, "hergy "+command) {
+					t.Errorf("cheat (%s) does not name the command %q", tt.lang, command)
+				}
+			}
+		})
+	}
+}
+
+// TestCheatNeedsNoSettingsOrHerdr: cheat reads no team settings and touches no
+// Herdr, so it prints and exits 0 with no config.yaml, with a broken one, and
+// with HERGY_HERDR pointed at a path that does not exist.
+func TestCheatNeedsNoSettingsOrHerdr(t *testing.T) {
+	f := newFixture(t)
+	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-such-herdr"))
+	configPath := filepath.Join(f.cfg, "hergy", "config.yaml")
+	if _, err := os.Stat(configPath); err == nil {
+		t.Fatal("the fixture unexpectedly already has a config.yaml")
+	}
+	for _, argv := range [][]string{{"cheat"}, {"cheat", "--ai"}} {
+		stdout, stderr, code := run(argv...)
+		if code != 0 {
+			t.Fatalf("%v: exit %d\nstderr:\n%s", argv, code, stderr)
+		}
+		if strings.TrimSpace(stdout) == "" {
+			t.Fatalf("%v printed nothing", argv)
+		}
+	}
+	// A broken config.yaml must not stop it either.
+	writeFile(t, configPath, "version: 2\n")
+	for _, argv := range [][]string{{"cheat"}, {"cheat", "--ai"}} {
+		if _, stderr, code := run(argv...); code != 0 {
+			t.Fatalf("%v with a broken config.yaml: exit %d\nstderr:\n%s", argv, code, stderr)
+		}
+	}
+}
+
+// TestCheatRejectsOtherFlags: cheat takes --ai and --lang only, so any other
+// flag is refused rather than ignored.
+func TestCheatRejectsOtherFlags(t *testing.T) {
+	newFixture(t)
+	for _, argv := range [][]string{
+		{"cheat", "--dry"},
+		{"cheat", "--ai", "--dry"},
+		{"cheat", "--ai", "--json"},
+		{"cheat", "--global"},
+		{"cheat", "extra"},
+	} {
+		_, stderr, code := run(argv...)
+		if code == 0 {
+			t.Fatalf("%v succeeded, want an error", argv)
+		}
+		if !strings.Contains(stderr, "error:") {
+			t.Fatalf("%v does not say why:\n%s", argv, stderr)
+		}
+	}
+}
+
+// TestCheatAIIsEnglishWhateverLang: --lang does not translate the agent
+// cheatsheet.
+func TestCheatAIIsEnglishWhateverLang(t *testing.T) {
+	newFixture(t)
+	got := mustRun(t, "cheat", "--ai", "--lang", "ja")
+	if strings.Contains(got, "短い早見") || strings.Contains(got, "はじめの3手") {
+		t.Fatalf("cheat --ai --lang ja is not English:\n%s", got)
+	}
+	if !strings.Contains(got, "hergy cheat --ai") {
+		t.Fatalf("cheat --ai --lang ja is not the agent cheatsheet:\n%s", got)
 	}
 }

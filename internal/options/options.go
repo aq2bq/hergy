@@ -3,6 +3,7 @@ package options
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,8 @@ const (
 	Help
 	// Version prints which hergy this is.
 	Version
+	// Cheat prints a cheatsheet: for people, or, with --ai, for an agent.
+	Cheat
 )
 
 // Options is a parsed command line.
@@ -53,6 +56,7 @@ type Options struct {
 
 	Dry     bool
 	JSON    bool   // --json: print the --dry plan as JSON instead of text
+	AI      bool   // --ai: cheat prints the agent cheatsheet
 	Layer   string // "", "global", "local"
 	Dir     string // -C: the project root to resolve against
 	Timeout int    // milliseconds
@@ -84,6 +88,33 @@ var allowed = map[Kind]map[string]bool{
 	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
 	New:      {"local": true, "lang": true, "dir": true, "help": true},
 	Validate: {"dir": true, "lang": true, "help": true},
+	Cheat:    {"ai": true, "lang": true, "help": true},
+}
+
+// Kinds lists every command kind, Help aside, in the order the cheatsheet shows
+// them. It is the one place a new command is added for the cheatsheet tests to
+// pick up.
+var Kinds = []Kind{Up, Down, Refresh, Hire, Ls, Show, New, Validate, Version, Cheat}
+
+// Commands returns every command word, in the order Kinds lists them.
+func Commands() []string {
+	names := make([]string, len(Kinds))
+	for i, kind := range Kinds {
+		names[i] = commandName(kind)
+	}
+	return names
+}
+
+// Flags returns the flags one command accepts, read from the table the parser
+// enforces, so a cheatsheet test can check it names every flag. The names are
+// the long spellings, without the leading dashes, sorted.
+func Flags(kind Kind) []string {
+	out := make([]string, 0, len(allowed[kind]))
+	for name := range allowed[kind] {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ScanLang finds --lang in argv before the full parse, so messages printed
@@ -139,6 +170,8 @@ func Parse(argv []string) (*Options, error) {
 		o.Kind = New
 	case "validate":
 		o.Kind = Validate
+	case "cheat":
+		o.Kind = Cheat
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	case "version", "--version":
@@ -199,6 +232,9 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 		case "json":
 			o.JSON = true
 			o.seen["json"] = true
+		case "ai":
+			o.AI = true
+			o.seen["ai"] = true
 		case "all":
 			o.All = true
 			o.seen["all"] = true
@@ -285,6 +321,10 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.validate_no_args", positionals)
 		}
+	case Cheat:
+		if len(positionals) != 0 {
+			return i18n.Errorf("error.cheat_no_args", positionals)
+		}
 	}
 	return nil
 }
@@ -361,6 +401,8 @@ func commandName(kind Kind) string {
 		return "validate"
 	case Version:
 		return "version"
+	case Cheat:
+		return "cheat"
 	default:
 		return "help"
 	}

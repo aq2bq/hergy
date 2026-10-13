@@ -45,6 +45,8 @@ hergy up myteam         # start
 
 The members run in herdr as `myteam-lead` and `myteam-worker`: the team name is added to each seat name for you (see below).
 
+Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the whole shape for an agent).
+
 ## Commands
 
 | Command | What it does |
@@ -58,6 +60,7 @@ The members run in herdr as `myteam-lead` and `myteam-worker`: the team name is 
 | `hergy show <team>` | Print the final settings and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one |
 | `hergy version` | Print the commit and time of the installed hergy |
+| `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 
 Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh` and `hire` take `--team` to pick the team. `up`, `down`, `refresh` and `hire` take `--as <team>` to run the same settings under a different team name (see below).
 

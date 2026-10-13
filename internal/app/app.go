@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
@@ -45,10 +46,12 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	// validate must still run when the global config.yaml is broken: it is one
-	// of the files validate reports. Every other command keeps stopping here.
-	validating := options.ScanCommand(argv) == "validate"
+	// of the files validate reports. cheat reads no team settings and must
+	// print even when the files are broken, so it too goes on. Every other
+	// command keeps stopping here.
+	tolerant := options.ScanCommand(argv) == "validate" || options.ScanCommand(argv) == "cheat"
 	configured, err := team.Lang()
-	if err != nil && !validating {
+	if err != nil && !tolerant {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
@@ -56,9 +59,9 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	lang, err := i18n.Resolve(explicit, configured)
 	if err != nil {
 		// An unknown --lang is a command-line mistake and always stops. For
-		// validate, an unknown language in config.yaml is one of the breaks it
-		// reports: fall back to the default language and go on.
-		if !validating || explicit != "" {
+		// validate and cheat, an unknown language in config.yaml is a break
+		// they tolerate: fall back to the default language and go on.
+		if !tolerant || explicit != "" {
 			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 1
 		}
@@ -87,6 +90,16 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	}
 	if opts.Kind == options.Version {
 		fmt.Fprintln(stdout, version.Line())
+		return 0
+	}
+	// cheat is answered before anything touches the environment: it reads no
+	// team settings and no Herdr, so it prints even when they are absent.
+	if opts.Kind == options.Cheat {
+		if opts.AI {
+			fmt.Fprint(stdout, cheat.Machine)
+		} else {
+			fmt.Fprint(stdout, cheat.People())
+		}
 		return 0
 	}
 

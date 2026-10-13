@@ -10,6 +10,7 @@ func TestParse(t *testing.T) {
 		argv    []string
 		kind    Kind
 		dry     bool
+		ai      bool
 		wantErr bool
 	}{
 		{name: "no arguments prints usage", kind: Help},
@@ -25,6 +26,12 @@ func TestParse(t *testing.T) {
 		{name: "down with --as", argv: []string{"down", "--as", "alpha"}, kind: Down},
 		{name: "--as must match the name pattern", argv: []string{"up", "--as", "Alpha"}, wantErr: true},
 		{name: "--as is not allowed on ls", argv: []string{"ls", "--as", "alpha"}, wantErr: true},
+		{name: "cheat", argv: []string{"cheat"}, kind: Cheat},
+		{name: "cheat --ai", argv: []string{"cheat", "--ai"}, kind: Cheat, ai: true},
+		{name: "cheat --lang", argv: []string{"cheat", "--lang", "ja"}, kind: Cheat},
+		{name: "cheat rejects --dry", argv: []string{"cheat", "--dry"}, wantErr: true},
+		{name: "cheat rejects --json", argv: []string{"cheat", "--json"}, wantErr: true},
+		{name: "cheat takes no positional arguments", argv: []string{"cheat", "extra"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -43,6 +50,9 @@ func TestParse(t *testing.T) {
 			}
 			if got.Dry != tt.dry {
 				t.Fatalf("Parse(%v).Dry = %v, want %v", tt.argv, got.Dry, tt.dry)
+			}
+			if got.AI != tt.ai {
+				t.Fatalf("Parse(%v).AI = %v, want %v", tt.argv, got.AI, tt.ai)
 			}
 		})
 	}
