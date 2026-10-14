@@ -62,6 +62,7 @@ Flags:
   --as <team>     up only: run the same team definition under this team name. The team name is the first half of the herdr name.
   --dry           Print what would happen and change nothing. up/reprompt/hire never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane) and change nothing.
   --json          With --dry, print the plan as JSON. --json without --dry is an error. up/refresh/reprompt/hire.
+  --all           Act on every member instead of one <member>; both together is an error. refresh/reprompt.
   --global        Use the global layer only.
   --local         Use the local layer only. --global and --local together is an error.
   --timeout <ms>  Startup timeout, 3001..300000 (default 30000). up/refresh/hire.
