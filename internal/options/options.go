@@ -167,7 +167,7 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 		}
 		f := lookupFlag(name)
 		if f == nil {
-			return nil, i18n.Errorf("error.unknown_option", arg)
+			return nil, i18n.Errorf("error.unknown_option", arg, commandName(o.Kind))
 		}
 		if f.Value != nil && !hasValue {
 			i++

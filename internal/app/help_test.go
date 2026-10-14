@@ -81,3 +81,26 @@ func TestHelpOfNoCommandIsTheFullListAndPointsAtCommandHelp(t *testing.T) {
 		}
 	}
 }
+
+// TestOptionErrorsPointAtTheCommandsHelpOnStderr: the errors that name a flag
+// the command does not have are still errors: exit 1, nothing on stdout, and one
+// line on stderr that points at the page of the command typed.
+func TestOptionErrorsPointAtTheCommandsHelpOnStderr(t *testing.T) {
+	newFixture(t)
+	tests := []struct {
+		argv []string
+		want string
+	}{
+		{[]string{"new", "--foo", "--lang", "en"}, "unknown option \"--foo\" (see `hergy new --help`)"},
+		{[]string{"new", "--foo", "--lang", "ja"}, "不明なオプションです: \"--foo\"（hergy new --help を見てください）"},
+		{[]string{"ls", "--as", "x", "--lang", "en"}, "--as cannot be used with hergy ls (see `hergy ls --help`)"},
+		{[]string{"ls", "--as", "x", "--lang", "ja"}, "--as は hergy ls では使えません（hergy ls --help を見てください）"},
+		{[]string{"frobnicate", "--lang", "en"}, "unknown command \"frobnicate\" (see `hergy help`)"},
+	}
+	for _, tt := range tests {
+		stdout, stderr, code := run(tt.argv...)
+		if code != 1 || stdout != "" || strings.Count(stderr, "\n") != 1 || !strings.Contains(stderr, tt.want) {
+			t.Errorf("%v: exit %d, stdout %q, stderr %q; want exit 1, no stdout, one line with %q", tt.argv, code, stdout, stderr, tt.want)
+		}
+	}
+}

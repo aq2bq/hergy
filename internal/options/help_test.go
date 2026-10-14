@@ -212,3 +212,41 @@ func TestSynopsis(t *testing.T) {
 		}
 	}
 }
+
+// TestOptionErrorsPointAtTheCommandsHelp: an unknown option, and a flag that
+// belongs to another command, are refused with a pointer to the page of the
+// command typed, hergy <command> --help, where that command's flags are listed.
+// An unknown command has no page to point at, so it still points at hergy help.
+func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
+	for _, lang := range i18n.Available {
+		useLanguage(t, lang)
+		for i := range specs {
+			s := &specs[i]
+			if s.Bare {
+				continue
+			}
+			want := "hergy " + s.Name + " --help"
+
+			_, err := Parse(append(argvOf(s, len(s.Args), nil), "--bogus"))
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("[%s] hergy %s --bogus: the error is %v, want it to point at %q", lang, s.Name, err, want)
+			}
+
+			for _, f := range allFlags {
+				if accepts(s, f) {
+					continue
+				}
+				_, err := Parse(append(argvOf(s, len(s.Args), nil), flagArgs(f)...))
+				if err == nil || !strings.Contains(err.Error(), "--"+f.Name) || !strings.Contains(err.Error(), want) {
+					t.Errorf("[%s] hergy %s --%s: the error is %v, want it to name the flag and point at %q", lang, s.Name, f.Name, err, want)
+				}
+			}
+		}
+
+		_, err := Parse([]string{"frobnicate"})
+		wantList := map[string]string{"en": "`hergy help`", "ja": "hergy --help"}[lang]
+		if err == nil || !strings.Contains(err.Error(), wantList) {
+			t.Errorf("[%s] hergy frobnicate: the error is %v, want it to point at %s", lang, err, wantList)
+		}
+	}
+}

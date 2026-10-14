@@ -23,6 +23,12 @@
   line of the Flags section ends with the commands that take the flag. The
   Flags section also lists `--all`, which it lacked. What hergy accepts does
   not change, so there is nothing to move.
+- **An unknown option, or a flag the command does not take, points at that
+  command's page**: ``unknown option "--foo" (see `hergy new --help`)`` and
+  ``--as cannot be used with hergy ls (see `hergy ls --help`)``. The first used
+  to point at `hergy help`, the second at nothing. An unknown command still
+  points at `hergy help`. When an error is raised, its exit code, and what
+  goes to stderr are as before.
 
 ## 0.3.0 - 2026-10-13
 

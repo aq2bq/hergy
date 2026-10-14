@@ -37,5 +37,5 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you write settings from outside
 
-- Write with `hergy new`, edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
+- Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
 - Start at the `--local` layer; ask the person before you change the global layer.
