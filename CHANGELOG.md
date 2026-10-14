@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`hergy <command> --help` prints that command's own page**: what it does,
+  how to type it, its arguments, and every flag it takes, each with what the
+  flag means for that command. `hergy new --help` says that `--local` is where
+  the starter team is written (the global layer without it), and that the
+  global `config.yaml` is written when it is missing. `-h` prints the same.
+  Before, every command's `--help` printed the one list of all commands, and
+  `--local` of `hergy new` was written only in the README and in
+  `hergy cheat --ai`.
+- **`hergy`, `hergy --help` and `hergy cheat` point at the new pages**: the
+  list of all commands is as it was, with one line added at its end, and the
+  last line of `hergy cheat` names `hergy <command> --help`.
+- **`hergy cheat --ai` is written from the same table as `--help`**: each
+  command's line, and the commands that take each flag, are read from it, so
+  they cannot fall behind what hergy accepts. The lines change shape: values
+  are `<team>` rather than `team`, `hire` shows `--purpose <purpose> --task
+  <task>`, `--lang` is no longer repeated on every command's line, and each
+  line of the Flags section ends with the commands that take the flag. The
+  Flags section also lists `--all`, which it lacked. What hergy accepts does
+  not change, so there is nothing to move.
+
 ## 0.3.0 - 2026-10-13
 
 This release tells a team definition apart from a running team. A team

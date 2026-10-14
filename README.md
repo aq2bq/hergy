@@ -56,7 +56,7 @@ hergy up myteam         # start
 
 The members run in herdr as `myteam-lead` and `myteam-builder`: the team name is added to each member name for you (see below).
 
-Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the whole shape for an agent).
+Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the whole shape for an agent). `hergy <command> --help` prints one command's flags, each with what it means for that command; `hergy new --help` says where `--local` writes.
 
 ## Commands
 
@@ -75,7 +75,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 
-Common options: `--global` / `--local` (pick a layer), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh`, `reprompt` and `hire` take `--team` to pick the team by team name, and `refresh` also takes `--timeout`. `up` takes `--as <team>` to run the same team definition under a different team name (see below).
+Common options: `--global` / `--local` (pick a layer; for `new`, `--local` picks where to write), `-C <dir>` (pick the project), `--lang ja` (show Japanese; English by default), `--json` (with `--dry`, print the plan as JSON instead of text). `refresh`, `reprompt` and `hire` take `--team` to pick the team by team name, and `refresh` also takes `--timeout`. `up` takes `--as <team>` to run the same team definition under a different team name (see below).
 
 `refresh` and `reprompt` are the two ways to hand a member its prompt again. `reprompt` keeps the conversation, so it is what you want after editing a document the member reads. `refresh` ends the agent and starts it again, so the conversation starts empty and an edited `kind`, `args`, `profile` or prompt is picked up; a member that is no longer running is started again in the pane hergy named after it, when that pane is still at its shell (if the pane is gone or busy, `refresh` changes nothing and points at `down` then `up`). `env` is fixed when the pane is made, so after editing `env` run `hergy down` then `hergy up`; `refresh` keeps the pane and its env. `refresh` refuses a member running in the pane hergy itself is in (`HERDR_PANE_ID`): stopping it would stop hergy before it could start the agent again. Run `refresh` from another pane, or as the human. `refresh --dry` reads the live agents so it shows the same refusal; `reprompt --dry` reads nothing.
 

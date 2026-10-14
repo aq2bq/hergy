@@ -117,15 +117,6 @@ func TestTableHasEveryDescription(t *testing.T) {
 	}
 }
 
-func has(s Spec, f *Flag) bool {
-	for _, u := range s.Flags {
-		if u.Flag == f {
-			return true
-		}
-	}
-	return false
-}
-
 // TestSummaryIsInTheFullList: a command's summary is the sentence of its row in
 // hergy --help, so the list and the command's own page do not say it two ways.
 func TestSummaryIsInTheFullList(t *testing.T) {

@@ -28,6 +28,15 @@ func withValue(flag string, f *Flag, lang string) string {
 	return flag + " " + f.Value[lang]
 }
 
+// flagLabel is how a table of flags writes one: -C, --dir <dir>.
+func flagLabel(f *Flag, lang string) string {
+	label := "--" + f.Name
+	if f.Short != "" {
+		label = "-" + f.Short + ", " + label
+	}
+	return withValue(label, f, lang)
+}
+
 // argWords writes the positional arguments of a command: [definition] when it
 // may be left out, <member>|--all when a flag can stand in for it.
 func argWords(s *Spec, lang string) []string {
@@ -137,11 +146,7 @@ func CommandHelp(kind Kind) string {
 	}
 	for _, list := range [][]Use{s.Flags, common} {
 		for _, u := range list {
-			label := "--" + u.Flag.Name
-			if u.Flag.Short != "" {
-				label = "-" + u.Flag.Short + ", " + label
-			}
-			flagRows = append(flagRows, row{withValue(label, u.Flag, lang), u.Desc[lang]})
+			flagRows = append(flagRows, row{flagLabel(u.Flag, lang), u.Desc[lang]})
 		}
 	}
 	col := 0
@@ -164,4 +169,39 @@ func CommandHelp(kind Kind) string {
 	fmt.Fprintf(&b, "\n%s\n", i18n.T("help.options"))
 	writeRows(&b, flagRows, col)
 	return b.String()
+}
+
+// FlagSummary is one flag as the cheatsheet for an agent lists it.
+type FlagSummary struct {
+	Name     string   // "dir"
+	Label    string   // "-C, --dir <dir>"
+	Commands []string // the commands that take it, in the cheatsheet's order; none for a flag every command takes
+}
+
+// FlagSummaries lists every flag, in the order the cheatsheet shows them, with
+// the commands that take each. --lang and --help, which every command takes,
+// carry no commands.
+func FlagSummaries() []FlagSummary {
+	out := make([]FlagSummary, 0, len(allFlags))
+	for _, f := range allFlags {
+		sum := FlagSummary{Name: f.Name, Label: flagLabel(f, "en")}
+		if f != flagLang && f != flagHelp {
+			for _, s := range specs {
+				if has(s, f) {
+					sum.Commands = append(sum.Commands, s.Name)
+				}
+			}
+		}
+		out = append(out, sum)
+	}
+	return out
+}
+
+func has(s Spec, f *Flag) bool {
+	for _, u := range s.Flags {
+		if u.Flag == f {
+			return true
+		}
+	}
+	return false
 }
