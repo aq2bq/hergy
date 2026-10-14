@@ -70,7 +70,7 @@ var specs = []Spec{
 			Name: text("definition", "チーム定義"), Optional: true,
 			Desc: text(
 				"The team definition to start\n(left out: the lone project one; with --global, the lone global one)",
-				"起動するチーム定義の名前\n（省くと、プロジェクトのチーム定義が1つならそれ。--global ならグローバルが1つならそれ）"),
+				"起動するチーム定義の名前\n（省くと、プロジェクトのチーム定義が1つならそれ。\n--global ならグローバルが1つならそれ）"),
 		}},
 		Flags: []Use{
 			use(flagAs, text(
@@ -110,7 +110,7 @@ var specs = []Spec{
 		Summary: text("Show how the members and workers are doing", "メンバーとワーカーの状態を見る"),
 		Detail: text(
 			"One line per member and worker with its live herdr state, then who is waiting for a human.",
-			"メンバーとワーカーごとに herdr の今の状態を1行ずつ出し、最後に、人の返事を待っている者がいるかを判定する。"),
+			"メンバーとワーカーごとに herdr の今の状態を1行ずつ出し、\n最後に、人の返事を待っている者がいるかを判定する。"),
 		Args: []Arg{{
 			Name: text("team", "チーム"), Optional: true,
 			Desc: text("The team name (left out: every running team)", "チーム名（省くと、動いているチームをすべて一覧する）"),
@@ -126,7 +126,7 @@ var specs = []Spec{
 		Summary: text("Restart a member; its conversation starts empty", "メンバーを起動し直す。会話は消える"),
 		Detail: text(
 			"End each selected member's agent and start it again in the same pane. Give a member or --all.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。メンバーか --all のどちらかを指定する。"),
+			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\nメンバーか --all のどちらかを指定する。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
@@ -139,7 +139,7 @@ var specs = []Spec{
 			use(flagGlobal, descGlobal),
 			use(flagLocal, descLocal),
 			use(flagDry, text(
-				"Print what would restart and change nothing\nIt reads herdr's live agents and tabs, and refuses your own pane as a real run does",
+				"Print what would restart and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
 				"起動し直す予定だけを表示し、何も変えない\nherdr の今の状態を読み、自分のペインは本番と同じく断る")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
@@ -150,8 +150,8 @@ var specs = []Spec{
 		Kind: Reprompt, Name: "reprompt",
 		Summary: text("Send the bootstrap prompt again; the conversation stays", "初期プロンプトを送り直す。会話は残る"),
 		Detail: text(
-			"Re-send the bootstrap prompt to members that are idle or done. It starts nothing. Give a member or --all.",
-			"待機中（idle か done）のメンバーに初期プロンプトを送り直す。何も起動しない。メンバーか --all のどちらかを指定する。"),
+			"Re-send the bootstrap prompt to members that are idle or done. It starts nothing.\nGive a member or --all.",
+			"待機中（idle か done）のメンバーに初期プロンプトを送り直す。何も起動しない。\nメンバーか --all のどちらかを指定する。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
@@ -208,7 +208,7 @@ var specs = []Spec{
 		Kind: Ls, Name: "ls",
 		Summary: text("List the team definitions", "チーム定義の一覧を見る"),
 		Detail: text(
-			"List the visible team definitions and the layer each came from, and the running team names each one booted.",
+			"List the visible team definitions and the layer each came from,\nand the running team names each one booted.",
 			"見えるチーム定義と、それがどの層のものか、そこから動いているチーム名を一覧する。"),
 		Flags: []Use{
 			use(flagGlobal, text("List only the global team definitions", "グローバルのチーム定義だけを一覧する")),
@@ -237,7 +237,7 @@ var specs = []Spec{
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
 			"Write team.yaml, protocol.md and roles/. An existing team definition is never overwritten.\n"+
-				"The global config.yaml (version and lang) is written too, only when it is missing, with --local as well.",
+				"If the global config.yaml (version and lang) is missing, it is written too,\nwith --local as well.",
 			"team.yaml・protocol.md・roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
 				"グローバルの config.yaml（version と lang）は、無いときだけ作る。--local のときも作る。"),
 		Args: []Arg{{
@@ -257,8 +257,8 @@ var specs = []Spec{
 		Kind: Validate, Name: "validate",
 		Summary: text("Check the settings files", "設定ファイルを検査する"),
 		Detail: text(
-			"Check the global config.yaml, both layers' profiles.yaml and every team definition. Exit 1 if any is broken.",
-			"グローバルの config.yaml、両方の層の profiles.yaml、すべてのチーム定義を検査する。壊れたものがあれば終了コード 1。"),
+			"Check the global config.yaml, both layers' profiles.yaml and every team definition.\nExit 1 if any is broken.",
+			"グローバルの config.yaml、両方の層の profiles.yaml、\nすべてのチーム定義を検査する。壊れたものがあれば終了コード 1。"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},

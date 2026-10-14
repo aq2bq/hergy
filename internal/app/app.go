@@ -77,10 +77,6 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 
 	opts, err := options.Parse(argv)
 	if err != nil {
-		if options.IsHelp(err) {
-			fmt.Fprint(stdout, options.Usage())
-			return 0
-		}
 		fail(stderr, err)
 		return 1
 	}

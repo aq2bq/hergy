@@ -130,6 +130,9 @@ func Parse(argv []string) (*Options, error) {
 	o.Kind = spec.Kind
 
 	positionals, err := parseFlags(argv[1:], o)
+	if err == errHelp {
+		return &Options{Kind: Help, HelpText: CommandHelp(o.Kind)}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -180,9 +183,6 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 	}
 	return positionals, nil
 }
-
-// IsHelp reports whether Parse returned a Help request via errHelp.
-func IsHelp(err error) bool { return err == errHelp }
 
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
