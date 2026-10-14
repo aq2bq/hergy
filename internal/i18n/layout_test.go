@@ -86,3 +86,16 @@ func checkColumns(t *testing.T, lang, key, text string, perSection bool) {
 		}
 	}
 }
+
+// TestWidthMatchesTheLayoutCheck: Width is what --help uses to pad a column,
+// and displayWidth is the rule the layout tests measure with. The two must agree.
+func TestWidthMatchesTheLayoutCheck(t *testing.T) {
+	for _, s := range []string{
+		"", "hergy new", "チーム定義", "<チーム定義>", "--timeout <ミリ秒>", "（全角のかっこ）",
+		"한글", "ｱｲｳ", "ＡＢＣ", "-C, --dir <ディレクトリ>", "￥", "mixed 日本語 and ASCII",
+	} {
+		if got, want := Width(s), displayWidth(s); got != want {
+			t.Errorf("Width(%q) = %d, the layout check counts %d", s, got, want)
+		}
+	}
+}
