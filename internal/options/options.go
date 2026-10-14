@@ -2,9 +2,6 @@
 package options
 
 import (
-	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -41,6 +38,9 @@ const (
 	Version
 	// Cheat prints a cheatsheet: for people, or, with --ai, for an agent.
 	Cheat
+
+	// kindEnd is not a command: it ends the list, so a test can count the kinds.
+	kindEnd
 )
 
 // Options is a parsed command line.
@@ -81,48 +81,6 @@ const (
 // Usage is the help text in the language in use.
 func Usage() string { return i18n.T("usage") }
 
-// allowed is the flags each command accepts. Anything else is an error, so a
-// flag that belongs to another command never gets silently ignored.
-var allowed = map[Kind]map[string]bool{
-	Up:       {"dry": true, "json": true, "global": true, "local": true, "timeout": true, "dir": true, "lang": true, "as": true, "help": true},
-	Down:     {"dry": true, "global": true, "local": true, "dir": true, "lang": true, "help": true},
-	Status:   {"global": true, "local": true, "dir": true, "lang": true, "help": true},
-	Refresh:  {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "timeout": true, "dir": true, "lang": true, "help": true},
-	Reprompt: {"all": true, "team": true, "global": true, "local": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
-	Hire:     {"profile": true, "purpose": true, "task": true, "from": true, "team": true, "global": true, "local": true, "timeout": true, "dry": true, "json": true, "dir": true, "lang": true, "help": true},
-	Ls:       {"global": true, "local": true, "dir": true, "lang": true, "help": true},
-	Show:     {"global": true, "local": true, "dir": true, "lang": true, "help": true},
-	New:      {"local": true, "lang": true, "dir": true, "help": true},
-	Validate: {"dir": true, "lang": true, "help": true},
-	Cheat:    {"ai": true, "lang": true, "help": true},
-}
-
-// Kinds lists every command kind, Help aside, in the order the cheatsheet shows
-// them. It is the one place a new command is added for the cheatsheet tests to
-// pick up.
-var Kinds = []Kind{Up, Down, Status, Refresh, Reprompt, Hire, Ls, Show, New, Validate, Version, Cheat}
-
-// Commands returns every command word, in the order Kinds lists them.
-func Commands() []string {
-	names := make([]string, len(Kinds))
-	for i, kind := range Kinds {
-		names[i] = commandName(kind)
-	}
-	return names
-}
-
-// Flags returns the flags one command accepts, read from the table the parser
-// enforces, so a cheatsheet test can check it names every flag. The names are
-// the long spellings, without the leading dashes, sorted.
-func Flags(kind Kind) []string {
-	out := make([]string, 0, len(allowed[kind]))
-	for name := range allowed[kind] {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
-}
-
 // ScanLang finds --lang in argv before the full parse, so messages printed
 // during the parse already use the chosen language. The full parse still
 // rejects a malformed --lang.
@@ -160,35 +118,16 @@ func Parse(argv []string) (*Options, error) {
 	cmd := argv[0]
 	o := &Options{Timeout: DefaultTimeoutMS, seen: map[string]bool{}}
 	switch cmd {
-	case "up":
-		o.Kind = Up
-	case "down":
-		o.Kind = Down
-	case "status":
-		o.Kind = Status
-	case "refresh":
-		o.Kind = Refresh
-	case "reprompt":
-		o.Kind = Reprompt
-	case "hire":
-		o.Kind = Hire
-	case "ls":
-		o.Kind = Ls
-	case "show":
-		o.Kind = Show
-	case "new":
-		o.Kind = New
-	case "validate":
-		o.Kind = Validate
-	case "cheat":
-		o.Kind = Cheat
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	case "version", "--version":
 		return &Options{Kind: Version}, nil
-	default:
+	}
+	spec := specNamed(cmd)
+	if spec == nil {
 		return nil, i18n.Errorf("error.unknown_command", cmd)
 	}
+	o.Kind = spec.Kind
 
 	positionals, err := parseFlags(argv[1:], o)
 	if err != nil {
@@ -223,81 +162,24 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 			name = name[:eq]
 			hasValue = true
 		}
-		takeValue := func(canonical string) (string, error) {
-			if hasValue {
-				return value, nil
-			}
-			i++
-			if i >= len(args) {
-				return "", i18n.Errorf("error.flag_needs_value", canonical)
-			}
-			return args[i], nil
-		}
-		switch name {
-		case "h", "help":
-			return nil, errHelp
-		case "dry", "dry-run":
-			o.Dry = true
-			o.seen["dry"] = true
-		case "json":
-			o.JSON = true
-			o.seen["json"] = true
-		case "ai":
-			o.AI = true
-			o.seen["ai"] = true
-		case "all":
-			o.All = true
-			o.seen["all"] = true
-		case "global":
-			o.Layer = "global"
-			o.seen["global"] = true
-		case "local":
-			o.Layer = "local"
-			o.seen["local"] = true
-		case "C", "dir":
-			v, err := takeValue("dir")
-			if err != nil {
-				return nil, err
-			}
-			o.Dir = v
-			o.seen["dir"] = true
-		case "team", "profile", "purpose", "task", "from", "timeout", "lang", "as":
-			v, err := takeValue(name)
-			if err != nil {
-				return nil, err
-			}
-			o.seen[name] = true
-			switch name {
-			case "team":
-				o.Team = v
-			case "profile":
-				o.Profile = v
-			case "purpose":
-				o.Purpose = v
-			case "task":
-				o.Task = v
-			case "from":
-				o.From = v
-			case "as":
-				o.As = v
-			case "lang":
-				o.Lang = v
-			case "timeout":
-				ms, err := strconv.Atoi(v)
-				if err != nil {
-					return nil, i18n.Errorf("error.timeout_not_int", v)
-				}
-				o.Timeout = ms
-			}
-		default:
+		f := lookupFlag(name)
+		if f == nil {
 			return nil, i18n.Errorf("error.unknown_option", arg)
 		}
+		if f.Value != nil && !hasValue {
+			i++
+			if i >= len(args) {
+				return nil, i18n.Errorf("error.flag_needs_value", f.Name)
+			}
+			value = args[i]
+		}
+		if err := f.Set(o, value); err != nil {
+			return nil, err
+		}
+		o.seen[f.Name] = true
 	}
 	return positionals, nil
 }
-
-// errHelp signals that --help was seen mid-line.
-var errHelp = fmt.Errorf("help")
 
 // IsHelp reports whether Parse returned a Help request via errHelp.
 func IsHelp(err error) bool { return err == errHelp }
@@ -386,35 +268,4 @@ func validate(o *Options) error {
 		}
 	}
 	return nil
-}
-
-func commandName(kind Kind) string {
-	switch kind {
-	case Up:
-		return "up"
-	case Down:
-		return "down"
-	case Status:
-		return "status"
-	case Refresh:
-		return "refresh"
-	case Reprompt:
-		return "reprompt"
-	case Hire:
-		return "hire"
-	case Ls:
-		return "ls"
-	case Show:
-		return "show"
-	case New:
-		return "new"
-	case Validate:
-		return "validate"
-	case Version:
-		return "version"
-	case Cheat:
-		return "cheat"
-	default:
-		return "help"
-	}
 }
