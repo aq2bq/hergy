@@ -370,7 +370,7 @@ func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 // reads back to the same language.
 func TestConfigYAMLRoundTrips(t *testing.T) {
 	for _, lang := range []string{"en", "ja"} {
-		text := ConfigYAML(lang)
+		text := GlobalYAML(lang)
 		got, err := ParseConfig(text, "config.yaml")
 		if err != nil {
 			t.Fatalf("ParseConfig(%q) = %v", text, err)
@@ -413,15 +413,16 @@ func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
 	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
 		collectYAMLKeys(keys, typ.Elem())
 	case reflect.Struct:
-		if typ.PkgPath() != reflect.TypeOf(rawTeam{}).PkgPath() {
+		if typ.PkgPath() != reflect.TypeFor[rawTeam]().PkgPath() {
 			return
 		}
-		for i := 0; i < typ.NumField(); i++ {
-			field := typ.Field(i)
+		for field := range typ.Fields() {
 			if tag, _, _ := strings.Cut(field.Tag.Get("yaml"), ","); tag != "" && tag != "-" {
 				keys[tag] = true
 			}
 			collectYAMLKeys(keys, field.Type)
 		}
+	default:
+		// scalars carry no yaml keys.
 	}
 }

@@ -162,6 +162,11 @@ profiles:
 - 設定の昇格・移行（`hergy promote`、`migrate`）
 - チームの入れ子、TUI
 
+## 変更を送るとき
+
+変更を送る前に `go run ./tools/check` を走らせてください。CI が走らせる品質ゲートを
+全部、同じ順で走らせます（一覧は `go run ./tools/check -h`）。
+
 ## ライセンス
 
 [MIT](LICENSE)

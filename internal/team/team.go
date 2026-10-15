@@ -8,8 +8,9 @@ package team
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
-	"os/exec"
+	"os/exec" //nolint:depguard // gitRoot asks git for the project root; it is not a herdr call (d-ddd2 D2)
 	"path/filepath"
 	"sort"
 	"strings"
@@ -115,7 +116,7 @@ func (e Env) EnsureGlobalConfig(lang string) (string, bool, error) {
 	if err := os.MkdirAll(e.GlobalDir, 0o755); err != nil {
 		return path, false, err
 	}
-	if err := os.WriteFile(path, []byte(config.ConfigYAML(lang)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(config.GlobalYAML(lang)), 0o644); err != nil {
 		return path, false, err
 	}
 	return path, true, nil
@@ -134,7 +135,7 @@ func (e Env) WithProject(dir string) (Env, error) {
 }
 
 func gitRoot(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel") //nolint:gosec // G204: dir is the cwd, the command is fixed
 	out, err := cmd.Output()
 	if err != nil {
 		return dir
@@ -404,9 +405,7 @@ func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, er
 		if err != nil {
 			return nil, nil, err
 		}
-		for name, profile := range more {
-			profiles[name] = profile
-		}
+		maps.Copy(profiles, more)
 		paths = append([]string{path}, paths...)
 	}
 	return profiles, paths, nil

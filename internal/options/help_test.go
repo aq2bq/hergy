@@ -56,7 +56,7 @@ func TestCommandHelpListsExactlyTheFlags(t *testing.T) {
 			}
 
 			var listed []string
-			for _, line := range strings.Split(long, "\n") {
+			for line := range strings.SplitSeq(long, "\n") {
 				m := flagRow.FindStringSubmatch(line)
 				if m == nil {
 					continue
@@ -122,7 +122,7 @@ func TestCommandHelpColumnsLineUp(t *testing.T) {
 				continue
 			}
 			want := -1
-			for _, line := range strings.Split(helpOf(t, s.Name, "--help"), "\n") {
+			for line := range strings.SplitSeq(helpOf(t, s.Name, "--help"), "\n") {
 				if w := i18n.Width(line); w > maxHelpWidth {
 					t.Errorf("[%s] hergy %s --help: a line is %d columns wide, over %d:\n%s", lang, s.Name, w, maxHelpWidth, line)
 				}

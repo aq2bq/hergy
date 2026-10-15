@@ -36,8 +36,8 @@ func RunningTeams(labels []string) []Running {
 // splitTeamLabel reads "<team>@<definition>" or the older "<team>". The older
 // form names the team definition after the team.
 func splitTeamLabel(rest string) (teamName, definition string, ok bool) {
-	if at := strings.IndexByte(rest, '@'); at >= 0 {
-		teamName, definition = rest[:at], rest[at+1:]
+	if before, after, ok0 := strings.Cut(rest, "@"); ok0 {
+		teamName, definition = before, after
 		if teamName == "" || definition == "" {
 			return "", "", false
 		}

@@ -46,7 +46,7 @@ func (c CLI) JSON(args ...string) (map[string]any, error) {
 }
 
 func (c CLI) capture(args ...string) (stdout, stderr string, status int, err error) {
-	cmd := exec.Command(c.Bin, args...)
+	cmd := exec.Command(c.Bin, args...) //nolint:gosec // G204: c.Bin is herdr and args are the subcommand hergy builds
 	var out, errBuf bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf

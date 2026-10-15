@@ -871,7 +871,7 @@ func printMember(w io.Writer, cfg *config.Config, member *config.Member, env tea
 // prompt field, indented one level past the member.
 func printPrompt(w io.Writer, prompt string) {
 	indentField(w, 1, label("prompt"), "|")
-	for _, line := range strings.Split(strings.TrimRight(prompt, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(prompt, "\n"), "\n") {
 		if line == "" {
 			fmt.Fprint(w, "\n")
 			continue

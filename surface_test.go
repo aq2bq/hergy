@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -75,12 +76,7 @@ func kindNamed(name string) (options.Kind, bool) {
 }
 
 func acceptsFlag(kind options.Kind, flag string) bool {
-	for _, name := range options.Flags(kind) {
-		if name == flag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(options.Flags(kind), flag)
 }
 
 // TestSurfacesPairACommandOnlyWithItsOwnFlags: wherever a line writes
@@ -145,7 +141,7 @@ func TestCheatAICommandLinesNameEveryFlag(t *testing.T) {
 	for _, command := range options.Commands() {
 		kind, _ := kindNamed(command)
 		line := ""
-		for _, l := range strings.Split(cheat.Machine, "\n") {
+		for l := range strings.SplitSeq(cheat.Machine, "\n") {
 			if l == "  hergy "+command || strings.HasPrefix(l, "  hergy "+command+" ") {
 				if line != "" {
 					t.Errorf("cheat --ai has two command lines for hergy %s", command)
@@ -172,7 +168,7 @@ func flagsSection(t *testing.T) []string {
 	t.Helper()
 	var lines []string
 	in := false
-	for _, line := range strings.Split(cheat.Machine, "\n") {
+	for line := range strings.SplitSeq(cheat.Machine, "\n") {
 		switch {
 		case line == "Flags:":
 			in = true

@@ -36,7 +36,7 @@ func wantText(t *testing.T, where string, tx Text) {
 // TestEveryKindHasARow: a command kind that is not in the table is a command
 // with no flags, no summary and no --help.
 func TestEveryKindHasARow(t *testing.T) {
-	for kind := Kind(0); kind < kindEnd; kind++ {
+	for kind := range kindEnd {
 		if kind == Help {
 			continue // not a command: it is what --help and no command turn into
 		}

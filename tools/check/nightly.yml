@@ -1,0 +1,34 @@
+# 定期実行（go run ./tools/check nightly）の対象としきい値。
+# 結果は GitHub Actions の Job Summary に出る: gh run list --workflow nightly.yml
+#
+# mutation: gremlins の test efficacy（KILLED / (KILLED + LIVED)、%）の下限。
+# Ratchet: 上げる向きにだけ動かしてよい。導入時（2026-10-15）の実測から
+# 5 ポイント下に置いた（変異の数が少ないパッケージで 1 件のぶれに落ちないため）。
+# internal/app は入れていない: テストに 11 秒かかり、変異ごとに走ると長すぎる。
+mutation:
+  timeout_coefficient: 10
+  packages:
+    internal/cheat: 70      # 実測 75.0
+    internal/config: 80     # 実測 83.2
+    internal/herdr: 95      # 実測 100
+    internal/herdrcli: 70   # 実測 75.0
+    internal/i18n: 90       # 実測 93.3
+    internal/launcher: 85   # 実測 89.8
+    internal/options: 85    # 実測 89.5
+    internal/protocol: 80   # 実測 86.7
+    internal/source: 75     # 実測 80.0
+    internal/team: 45       # 実測 50.0
+    internal/version: 95    # 実測 100
+
+# fuzz: go test -fuzz を 1 対象あたり fuzztime だけ回す。seed は普段の go test で走る。
+fuzz:
+  fuzztime: 2m
+  targets:
+    - package: internal/options
+      name: FuzzParse
+    - package: internal/config
+      name: FuzzParseTeam
+    - package: internal/config
+      name: FuzzParseProfiles
+    - package: internal/config
+      name: FuzzParseConfig

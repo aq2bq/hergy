@@ -309,10 +309,10 @@ func ParseConfig(text, path string) (string, error) {
 	return raw.Lang, nil
 }
 
-// ConfigYAML is the global config.yaml hergy new writes when the file is
+// GlobalYAML is the global config.yaml hergy new writes when the file is
 // missing: the version every settings file carries, and the language that run
 // displayed in. It holds exactly the two keys ParseConfig reads.
-func ConfigYAML(lang string) string {
+func GlobalYAML(lang string) string {
 	return fmt.Sprintf("version: 1\nlang: %s\n", lang)
 }
 
@@ -658,7 +658,7 @@ func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile
 			return nil, i18n.Errorf("error.mayspawn_duplicate_purpose", label, raw.Purpose)
 		}
 		seen[raw.Purpose] = true
-		out.Workers = append(out.Workers, MaySpawnWorker{Purpose: raw.Purpose, Profile: raw.Profile})
+		out.Workers = append(out.Workers, MaySpawnWorker(raw))
 	}
 	return out, nil
 }

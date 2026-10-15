@@ -2,6 +2,7 @@ package options
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -98,10 +99,8 @@ var allFlags = []*Flag{
 // lookupFlag finds the flag a spelling on the command line names, or nil.
 func lookupFlag(name string) *Flag {
 	for _, f := range allFlags {
-		for _, n := range f.names() {
-			if n == name {
-				return f
-			}
+		if slices.Contains(f.names(), name) {
+			return f
 		}
 	}
 	return nil

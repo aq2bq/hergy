@@ -1124,7 +1124,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 
 // maySpawnFixture writes a dev team whose lead may hire for 調査 (seeker) and
 // 実装 (developer), and points the fake herdr at the running team.
-func maySpawnFixture(t *testing.T) *fixture {
+func maySpawnFixture(t *testing.T) {
 	t.Helper()
 	f := newFixture(t)
 	mustRun(t, "new", "dev", "--local")
@@ -1137,7 +1137,6 @@ func maySpawnFixture(t *testing.T) *fixture {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
-	return f
 }
 
 // TestHireUsesTheProfilePairedWithThePurpose: with no --profile, hire takes the

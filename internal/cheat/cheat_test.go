@@ -19,7 +19,7 @@ func TestEveryCommandAndFlagHasItsWords(t *testing.T) {
 		if !ok || strings.TrimSpace(text) == "" {
 			t.Errorf("hergy %s has no description in behavior (internal/cheat/cheat.go)", options.Commands()[i])
 		}
-		for _, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(text, "\n"), "\n") {
 			if !strings.HasPrefix(line, "      ") {
 				t.Errorf("hergy %s: a line of its description does not start with six spaces: %q", options.Commands()[i], line)
 			}

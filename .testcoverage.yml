@@ -1,0 +1,11 @@
+# go-test-coverage の設定。走らせるのは go run ./tools/check（coverage ゲート）。
+# Ratchet: 合計のしきい値は上げる向きにだけ動かしてよい。
+# 導入時（2026-10-15）の実測 62.2% に対して 60（d-b28a 6）。
+# パッケージごとのしきい値は置かない（テストの無いパッケージが大改修で変わる）。
+profile: .bin/cover.out
+threshold:
+  total: 60
+exclude:
+  paths:
+    # ゲートの道具そのもの。テストで測る物ではない。
+    - ^tools/

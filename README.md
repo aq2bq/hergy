@@ -162,6 +162,11 @@ The default template is provisional.
 - Promote and migrate settings (`hergy promote`, `migrate`)
 - Nested teams, a TUI
 
+## Contributing
+
+Before you send a change, run `go run ./tools/check`. It runs every quality
+gate CI runs (`go run ./tools/check -h` lists them).
+
 ## License
 
 [MIT](LICENSE)

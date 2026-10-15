@@ -1,0 +1,30 @@
+name: nightly
+
+# Mutation testing (gremlins) and fuzzing (go test -fuzz), once a day and on
+# demand. Nobody is paged: whoever starts work reads the latest run first
+# (gh run list --workflow nightly.yml). The targets and thresholds are in
+# tools/check/nightly.yml; the result is in the run's Job Summary.
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 03:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go run ./tools/check nightly
+        run: go run ./tools/check nightly

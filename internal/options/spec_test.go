@@ -22,7 +22,7 @@ func flagArgs(f *Flag) []string {
 // required flag of the command except skip.
 func argvOf(s *Spec, n int, skip *Flag) []string {
 	argv := []string{s.Name}
-	for i := 0; i < n; i++ {
+	for range n {
 		argv = append(argv, "arg")
 	}
 	for _, u := range s.Flags {

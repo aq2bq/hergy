@@ -68,7 +68,7 @@ func TestHelpAndCheatColumnsLineUp(t *testing.T) {
 func checkColumns(t *testing.T, lang, key, text string, perSection bool) {
 	t.Helper()
 	want := -1
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if line == "" && perSection {
 			want = -1
 			continue

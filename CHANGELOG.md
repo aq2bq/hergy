@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **CI asks more of a change**: `go run ./tools/check` runs every gate CI runs
+  (formatting, `go mod tidy`, `go fix`, golangci-lint, the direction of
+  imports, `go test -race`, coverage, dead code, govulncheck), and a daily
+  workflow runs mutation testing and fuzzing. What hergy prints and accepts
+  does not change.
+
 ## 0.3.1 - 2026-10-15
 
 ### Changed

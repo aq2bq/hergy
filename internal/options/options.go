@@ -2,6 +2,7 @@
 package options
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -85,7 +86,7 @@ func Usage() string { return i18n.T("usage") }
 // during the parse already use the chosen language. The full parse still
 // rejects a malformed --lang.
 func ScanLang(argv []string) string {
-	for i := 0; i < len(argv); i++ {
+	for i := range argv {
 		arg := argv[i]
 		if arg == "--lang" {
 			if i+1 < len(argv) {
@@ -130,7 +131,7 @@ func Parse(argv []string) (*Options, error) {
 	o.Kind = spec.Kind
 
 	positionals, err := parseFlags(argv[1:], o)
-	if err == errHelp {
+	if errors.Is(err, errHelp) {
 		return &Options{Kind: Help, HelpText: CommandHelp(o.Kind)}, nil
 	}
 	if err != nil {
@@ -174,7 +175,7 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 			if i >= len(args) {
 				return nil, i18n.Errorf("error.flag_needs_value", f.Name)
 			}
-			value = args[i]
+			value = args[i] //nolint:gosec // G602: i < len(args) is checked just above
 		}
 		if err := f.Set(o, value); err != nil {
 			return nil, err
@@ -217,6 +218,8 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.cheat_no_args", positionals)
 		}
+	default:
+		// help and version take no positionals; they are handled before parsing.
 	}
 	return nil
 }
@@ -266,6 +269,8 @@ func validate(o *Options) error {
 		if o.Team == "" {
 			return i18n.Errorf("error.new_needs_name")
 		}
+	default:
+		// the other commands have nothing to check beyond the shared flags above.
 	}
 	return nil
 }

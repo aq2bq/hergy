@@ -1,0 +1,74 @@
+# golangci-lint の設定。走らせるのは go run ./tools/check（版もそこで固定）。
+# Hard / Ratchet の扱いは go run ./tools/check -h に出る。
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - errorlint
+    - gosec
+    - exhaustive
+    - misspell
+    - gocritic
+    - unparam
+    - nolintlint
+    - revive
+    - depguard
+    - gocognit
+    - cyclop
+  settings:
+    errcheck:
+      # 標準出力と標準エラーへの書き込みは、失敗しても知らせる先が無い（d-ddd2 D4）。
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    exhaustive:
+      default-signifies-exhaustive: true
+    gosec:
+      excludes:
+        # G304: hergy は利用者の設定（team.yaml、profiles.yaml、config.yaml）を
+        # 設定に書かれたパスで読む。パスが変数なのは設計そのもの。
+        - G304
+      config:
+        # hergy が書く設定ファイルとディレクトリは利用者が読む物。umask に任せる。
+        G301: "0755"
+        G306: "0644"
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    depguard:
+      rules:
+        exec:
+          # 子プロセスを起動してよいのは、herdr を呼ぶ herdrcli と、
+          # ゲートの道具を呼ぶ tools/check だけ（d-b28a 4）。
+          files:
+            - "!**/internal/herdrcli/**"
+            - "!**/tools/check/**"
+          deny:
+            - pkg: os/exec
+              desc: os/exec is for internal/herdrcli (herdr) and tools/check (the gates) only
+    # 複雑さは Ratchet。しきい値は導入時（2026-10-15）のテスト以外の最大値
+    # （gocognit 33 の runLs、cyclop 25 の validate）。下げる向きにだけ動かしてよい。
+    gocognit:
+      min-complexity: 33
+    cyclop:
+      max-complexity: 25
+  exclusions:
+    rules:
+      # テストは複雑さの対象外（表の検査は分岐が多いのが自然）。
+      # テストの一時ファイルの権限や読み込み先に gosec を当てる意味が無い（d-ddd2 D5）。
+      - path: _test\.go
+        linters:
+          - gocognit
+          - cyclop
+          - gosec
+      # テストは、偽の herdr を建てたり git init したりするために子プロセスを使う。
+      - path: _test\.go
+        linters:
+          - depguard
