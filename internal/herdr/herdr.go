@@ -61,6 +61,15 @@ func (h *Herdr) LiveAgents() ([]protocol.Agent, error) {
 	return live, nil
 }
 
+// Focus moves the focus to an agent: the name herdr knows it by, or the pane it
+// runs in. It is what the WebUI's "go to this member's pane" asks for, and the
+// only thing hergy does that moves a person's focus; herdr also marks the agent
+// seen, so its done mark clears.
+func (h *Herdr) Focus(target string) error {
+	_, err := h.port.JSON("agent", "focus", target)
+	return err
+}
+
 // LiveAgentNames lists the names already in use on the server.
 func (h *Herdr) LiveAgentNames() ([]string, error) {
 	agents, err := h.LiveAgents()

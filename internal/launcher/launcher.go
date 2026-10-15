@@ -180,27 +180,32 @@ func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	states := make(map[string]string, len(agents))
+	states := make(map[string]protocol.Agent, len(agents))
 	for _, agent := range agents {
 		if agent.Name == "" {
 			continue
 		}
 		if _, ok := states[agent.Name]; !ok {
-			states[agent.Name] = agent.Status
+			states[agent.Name] = agent
 		}
 	}
 	rows := make([]status.Row, 0, len(members))
 	for _, member := range members {
-		state, live := states[member.Name]
-		rows = append(rows, status.Row{Name: member.Name, State: state, Live: live})
+		agent, live := states[member.Name]
+		rows = append(rows, status.Row{
+			Name: member.Name, State: agent.Status, Live: live,
+			Title: agent.Title, PaneID: agent.PaneID,
+		})
 	}
 	workers, err := l.workerAgents(agents)
 	if err != nil {
 		return nil, err
 	}
 	for _, worker := range workers {
+		agent := states[worker.Name]
 		rows = append(rows, status.Row{
-			Name: worker.Name, State: states[worker.Name], Live: true, Worker: true,
+			Name: worker.Name, State: agent.Status, Live: true, Worker: true,
+			Title: agent.Title, PaneID: agent.PaneID,
 		})
 	}
 	return rows, nil

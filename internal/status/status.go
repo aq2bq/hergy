@@ -13,12 +13,16 @@ import (
 // Row is one member or worker of a team: the name herdr knows it by, the state
 // herdr reports for its agent, whether an agent is live under that name, and
 // whether the row is a hired worker. Live is false for a member that has no
-// agent, so the caller can print it as absent.
+// agent, so the caller can print it as absent. Title and PaneID are what hergy
+// status does not print but the WebUI's running-team screen shows: what the
+// agent's terminal says it is doing, and the pane it runs in.
 type Row struct {
 	Name   string
 	State  string
 	Live   bool
 	Worker bool
+	Title  string
+	PaneID string
 }
 
 // Text is one row's state, as hergy status prints it: the live state, "not

@@ -78,7 +78,7 @@ func agentObject(agent protocol.Agent) map[string]any {
 	return map[string]any{
 		"name": agent.Name, "agent": agent.Kind,
 		"agent_status": agent.Status, "pane_id": agent.PaneID,
-		"tab_id": agent.TabID,
+		"tab_id": agent.TabID, "terminal_title_stripped": agent.Title,
 	}
 }
 
@@ -433,8 +433,8 @@ func TestDownClosesAWorkersOwnPaneLast(t *testing.T) {
 func TestStatusRowsMembersThenWorkers(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-lead", Kind: "claude", Status: "working", PaneID: "p-lead", TabID: "t-team"},
-			{Name: "dev-w1", Kind: "claude", Status: "blocked", PaneID: "p-w1", TabID: "t-w1"},
+			{Name: "dev-lead", Kind: "claude", Status: "working", PaneID: "p-lead", TabID: "t-team", Title: "#42 の報告を待っている"},
+			{Name: "dev-w1", Kind: "claude", Status: "blocked", PaneID: "p-w1", TabID: "t-w1", Title: "依存の更新を入れてよいか聞いている"},
 		},
 		tabs: []protocol.Tab{
 			{ID: "t-team", Label: "team:dev"},
@@ -452,9 +452,9 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 		t.Fatalf("Status: %v", err)
 	}
 	want := []status.Row{
-		{Name: "dev-lead", State: "working", Live: true},
+		{Name: "dev-lead", State: "working", Live: true, PaneID: "p-lead", Title: "#42 の報告を待っている"},
 		{Name: "dev-worker", Live: false},
-		{Name: "dev-w1", State: "blocked", Live: true, Worker: true},
+		{Name: "dev-w1", State: "blocked", Live: true, Worker: true, PaneID: "p-w1", Title: "依存の更新を入れてよいか聞いている"},
 	}
 	if !slices.Equal(rows, want) {
 		t.Fatalf("Status = %+v, want %+v", rows, want)

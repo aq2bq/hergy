@@ -94,6 +94,51 @@ func TestRequiredCommandsStatus(t *testing.T) {
 	}
 }
 
+// TestAgentFromTitle: the terminal title is the stripped one when Herdr reports
+// it, and the raw one otherwise.
+func TestAgentFromTitle(t *testing.T) {
+	tests := []struct {
+		name   string
+		object map[string]any
+		want   string
+	}{
+		{
+			name: "the stripped title",
+			object: map[string]any{
+				"name": "dev-lead", "agent": "claude", "agent_status": "working",
+				"pane_id": "p1", "tab_id": "t1",
+				"terminal_title": "✳ 報告を待っている", "terminal_title_stripped": "報告を待っている",
+			},
+			want: "報告を待っている",
+		},
+		{
+			name: "only the raw title",
+			object: map[string]any{
+				"name": "dev-lead", "agent_status": "idle", "terminal_title": "OpenCode",
+			},
+			want: "OpenCode",
+		},
+		{
+			name: "no title",
+			object: map[string]any{
+				"name": "dev-lead", "agent_status": "idle",
+			},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := AgentFrom(tt.object)
+			if agent.Title != tt.want {
+				t.Fatalf("AgentFrom title = %q, want %q", agent.Title, tt.want)
+			}
+			if agent.PaneID != tt.object["pane_id"] && tt.object["pane_id"] != nil {
+				t.Fatalf("AgentFrom pane = %q, want %v", agent.PaneID, tt.object["pane_id"])
+			}
+		})
+	}
+}
+
 func TestCheckHelp(t *testing.T) {
 	const subs = "  herdr agent get\n  herdr agent prompt\n  herdr agent start\n  herdr agent list\n"
 	const full = "Usage: herdr agent <command>\n" + subs
