@@ -18,6 +18,20 @@
   `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
   with its license.
 
+- **`hergy serve` shows the rules, and changes them**: the Rules screen lists the
+  rule files the team definitions of the layer read, with the counts
+  `hergy validate` counts (rules, and how many carry an origin, a reason and a
+  check) and three filters: no origin, no reason, no check. A rule opens in the
+  right panel, split into what the prompt carries (its text, its reason) and what
+  is kept for maintenance (its note, its origin, its report field, its tests),
+  and the panel previews the section as a member reads it while a person types,
+  with the break `hergy validate` would name. Saving writes the file back in the
+  one format (below); a file that changed under the screen is refused, not
+  overwritten. A rule can be added at the end of a section with an id the
+  document does not hold, deleted after a second press, and a rule with no check
+  can be given a report field where the person already stands. Another screen
+  reaches a rule with `/rules?doc=<file>&rule=<id>`, which opens it in the panel.
+
 ### Changed
 
 - **Build with Go 1.26.9**: `go.mod` names the toolchain, so a build downloads
