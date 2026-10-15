@@ -4,6 +4,15 @@
 
 ### Added
 
+- **The rules screen finds a rule, shows what it is related to, and offers to
+  look into where it came from**: the rules list has a search box that keeps the
+  rules whose id, text, reason or note holds what you type (the same narrow as
+  the filter chips, and it works beside them). The right panel lists the rules
+  the open rule's text points at, the rules whose text points at it, and the
+  rules derived from it; pressing one opens it in the panel. The panel also
+  offers to copy a prompt that asks an AI to find out when and why the rule was
+  added, built from the rule's own id, text and reason, the file's path and the
+  layer's root.
 - **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
   8787; `0` lets the operating system pick a free one) serves the web UI on
   127.0.0.1 and prints the URL. The team list answers `/teams`: one row per

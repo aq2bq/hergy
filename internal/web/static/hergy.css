@@ -436,6 +436,13 @@ html,body{margin:0}
 .app a.linkbtn:hover,.app a.ref:hover{color:var(--ink)}
 .app a.linkbtn:focus-visible,.app a.ref:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .lkform{display:contents}
+
+/* 検索: 試作は input.search を toolbar の直の子にしている。本実装は、script が
+   無くても Enter で絞れるよう form で包む。form が toolbar の子のままだと
+   input.search の margin-left:auto が効かないので、form を layout から外す */
+.search-form{display:contents}
+/* 右のパネルの「関連する規則」: 試作は inline の style で並べていた */
+.related{display:grid;gap:2px;font-size:13px;color:var(--ink)}
 .linkbtn.big,.fs14{font-size:14px}
 .muted{color:var(--muted)}
 .fine-only{border:0;background:var(--surface);border-radius:var(--r);padding:2px 6px}

@@ -95,7 +95,7 @@ func sampleDoc(t *testing.T, layer string) Doc {
 
 func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
-	data := NewRules(doc, FilterAll)
+	data := NewRules(doc, FilterAll, "")
 	got, err := renderer(t).Rules(data)
 	if err != nil {
 		t.Fatalf("Rules: %v", err)
@@ -137,7 +137,7 @@ func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 
 func TestRulesFilterKeepsOnlyWhatItSays(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
-	data := NewRules(doc, FilterNoOrigin)
+	data := NewRules(doc, FilterNoOrigin, "")
 	got, err := renderer(t).Rules(data)
 	if err != nil {
 		t.Fatalf("Rules: %v", err)
@@ -160,7 +160,7 @@ func TestRulesFilterKeepsOnlyWhatItSays(t *testing.T) {
 func TestRulesSaysWhenTheFilterKeepsNothing(t *testing.T) {
 	everyRuleHasACheck := sampleDoc(t, LayerLocal)
 	addCheckToEveryRule(everyRuleHasACheck.Document)
-	data := NewRules(everyRuleHasACheck, FilterNoCheck)
+	data := NewRules(everyRuleHasACheck, FilterNoCheck, "")
 	if !data.NoMatch {
 		t.Errorf("a filter that keeps nothing is not reported: %+v", data.Sections)
 	}
@@ -172,7 +172,7 @@ func TestRulesSaysWhenTheFilterKeepsNothing(t *testing.T) {
 		t.Errorf("the emptied screen does not say so:\n%s", got)
 	}
 
-	empty := NewRules(Doc{Layer: LayerLocal}, FilterAll)
+	empty := NewRules(Doc{Layer: LayerLocal}, FilterAll, "")
 	if !empty.Empty {
 		t.Error("a document that could not be read is not reported as empty")
 	}

@@ -49,61 +49,77 @@
   {{- range .Filters}}
   <a class="chip{{if .On}} on{{end}}" href="{{.Href}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}<span class="n">{{.Count}}</span></a>
   {{- end}}
+  {{- /* The search box works with no script (the form's Enter) and, with HTMX,
+         swaps only the list, so the cursor stays in the box (試作 rulesTab). */}}
+  <form class="search-form" method="get" action="{{p "rules"}}">
+    <input type="hidden" name="layer" value="{{.Layer}}">
+    <input type="hidden" name="doc" value="{{.Doc.Path}}">
+    <input type="hidden" name="filter" value="{{.Filter}}">
+    <input class="search" type="search" name="q" value="{{.Query}}"
+           placeholder="{{t "web.rules.search.placeholder"}}" aria-label="{{t "web.rules.search"}}"
+           hx-get="{{.SearchHref}}" hx-trigger="input changed delay:400ms, search"
+           hx-include="closest form" hx-target="#rules-list" hx-swap="outerHTML">
+  </form>
 </div>
+{{template "rules-list" .}}
+{{end}}
 
-{{- range .Sections}}
-<section class="sec">
-  <div class="sec-h{{if .HeadingOnly}} only{{end}}">
-    {{- if .Heading}}
-    <span class="hash">{{.Hash}}</span><h2>{{.Heading}}</h2>
-    {{- else}}
-    <span class="cont">{{t "web.rules.section.no_heading"}}</span>
+{{define "rules-list"}}
+<div id="rules-list">
+  {{- range .Sections}}
+  <section class="sec">
+    <div class="sec-h{{if .HeadingOnly}} only{{end}}">
+      {{- if .Heading}}
+      <span class="hash">{{.Hash}}</span><h2>{{.Heading}}</h2>
+      {{- else}}
+      <span class="cont">{{t "web.rules.section.no_heading"}}</span>
+      {{- end}}
+      {{- if .HeadingOnly}}
+      <span class="tag">{{t "web.rules.section.heading_only"}}</span>
+      {{- else}}
+      <span class="tag">{{.StyleLabel}}</span>
+      {{- end}}
+    </div>
+    {{- if .Intro}}
+    <p class="intro">{{inline .Intro}}</p>
     {{- end}}
-    {{- if .HeadingOnly}}
-    <span class="tag">{{t "web.rules.section.heading_only"}}</span>
-    {{- else}}
-    <span class="tag">{{.StyleLabel}}</span>
-    {{- end}}
-  </div>
-  {{- if .Intro}}
-  <p class="intro">{{inline .Intro}}</p>
-  {{- end}}
-  {{- if .Rules}}
-  <ol class="rules">
-    {{- range .Rules}}
-    <li class="rule"{{if eq .ID $.Open}} aria-current="true"{{end}}>
-      <button class="rule-open" type="button" aria-label="{{t "web.rules.rule.open"}}"
-              hx-get="{{$.PanelPrefix}}&amp;section={{.Section}}&amp;i={{.Index}}"
-              hx-target="{{panelid}}" hx-swap="outerHTML">
-        <span class="rid mono">{{.ID}}</span>
-        <div class="rtext">{{inline .Text}}
-          {{- if .Why}}
-          <div class="rwhy">{{inline .Why}}{{if not .Send}} <span class="tag">{{t "web.rules.rule.unsent"}}</span>{{end}}</div>
-          {{- end}}
-          <div class="rtags">
-            <span class="evs">
-              <span class="ev o{{if .Badges.Origin}} on{{end}}">{{if .Badges.Origin}}{{t "web.rules.ev.origin.on"}}{{else}}{{t "web.rules.ev.origin.off"}}{{end}}</span>
-              <span class="ev r{{if .Badges.Reason}} on{{end}}">{{if .Badges.Reason}}{{t "web.rules.ev.reason.on"}}{{else}}{{t "web.rules.ev.reason.off"}}{{end}}</span>
-              <span class="ev v{{if .Badges.Check}} on{{end}}">{{if .Badges.Check}}{{t "web.rules.ev.check.on"}}{{else}}{{t "web.rules.ev.check.off"}}{{end}}</span>
-            </span>
-            {{- range .Tags}}
-            <span class="tag{{if eq .Kind "origin"}} t-o{{else if eq .Kind "check"}} t-v{{end}}">{{.Text}}</span>
+    {{- if .Rules}}
+    <ol class="rules">
+      {{- range .Rules}}
+      <li class="rule"{{if eq .ID $.Open}} aria-current="true"{{end}}>
+        <button class="rule-open" type="button" aria-label="{{t "web.rules.rule.open"}}"
+                hx-get="{{$.PanelPrefix}}&amp;section={{.Section}}&amp;i={{.Index}}"
+                hx-target="{{panelid}}" hx-swap="outerHTML">
+          <span class="rid mono">{{.ID}}</span>
+          <div class="rtext">{{inline .Text}}
+            {{- if .Why}}
+            <div class="rwhy">{{inline .Why}}{{if not .Send}} <span class="tag">{{t "web.rules.rule.unsent"}}</span>{{end}}</div>
             {{- end}}
+            <div class="rtags">
+              <span class="evs">
+                <span class="ev o{{if .Badges.Origin}} on{{end}}">{{if .Badges.Origin}}{{t "web.rules.ev.origin.on"}}{{else}}{{t "web.rules.ev.origin.off"}}{{end}}</span>
+                <span class="ev r{{if .Badges.Reason}} on{{end}}">{{if .Badges.Reason}}{{t "web.rules.ev.reason.on"}}{{else}}{{t "web.rules.ev.reason.off"}}{{end}}</span>
+                <span class="ev v{{if .Badges.Check}} on{{end}}">{{if .Badges.Check}}{{t "web.rules.ev.check.on"}}{{else}}{{t "web.rules.ev.check.off"}}{{end}}</span>
+              </span>
+              {{- range .Tags}}
+              <span class="tag{{if eq .Kind "origin"}} t-o{{else if eq .Kind "check"}} t-v{{end}}">{{.Text}}</span>
+              {{- end}}
+            </div>
           </div>
-        </div>
-      </button>
-    </li>
+        </button>
+      </li>
+      {{- end}}
+    </ol>
     {{- end}}
-  </ol>
+    {{- if and (eq $.Filter "all") (not $.Query) (not .HeadingOnly)}}
+    <button class="add-rule" type="button"
+            hx-get="{{$.PanelPrefix}}&amp;new=1&amp;sec={{.Index}}"
+            hx-target="{{panelid}}" hx-swap="outerHTML">{{t "web.rules.rule.add"}}</button>
+    {{- end}}
+  </section>
   {{- end}}
-  {{- if and (eq $.Filter "all") (not .HeadingOnly)}}
-  <button class="add-rule" type="button"
-          hx-get="{{$.PanelPrefix}}&amp;new=1&amp;sec={{.Index}}"
-          hx-target="{{panelid}}" hx-swap="outerHTML">{{t "web.rules.rule.add"}}</button>
+  {{- if .NoMatch}}
+  <div class="empty-note">{{t "web.rules.filter.empty"}}</div>
   {{- end}}
-</section>
-{{- end}}
-{{- if .NoMatch}}
-<div class="empty-note">{{t "web.rules.filter.empty"}}</div>
-{{- end}}
+</div>
 {{end}}

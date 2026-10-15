@@ -17,6 +17,7 @@ func (s *Screen) Name() string { return i18n.T("web.rules.title") }
 func (s *Screen) Routes() []web.Route {
 	return []web.Route{
 		{Path: PathRules, Handler: s.show},
+		{Path: PathRulesList, Handler: s.rulesList},
 		{Path: PathPanel, Handler: s.panel},
 		{Path: PathPanelEdit, Write: true, Handler: s.panelForm},
 		{Path: PathPreview, Write: true, Handler: s.preview},
@@ -38,6 +39,7 @@ func (s *Screen) show(r *http.Request) (web.View, error) {
 		Layer:   layer,
 		Path:    doc,
 		Filter:  query.Get("filter"),
+		Query:   query.Get("q"),
 		Tab:     query.Get("tab"),
 		Raw:     query.Get("raw") != "",
 		Overlay: query.Get("overlay") != "",
@@ -62,6 +64,23 @@ func (s *Screen) show(r *http.Request) (web.View, error) {
 	}
 	view.Body = web.HTML(body)
 	return view, nil
+}
+
+// rulesList answers the rules list alone: the fragment the search box swaps into
+// #rules-list while a person types, so only the list changes and the cursor
+// stays in the box. It is Bare, so no frame goes around it.
+func (s *Screen) rulesList(r *http.Request) (web.View, error) {
+	query := r.URL.Query()
+	body, err := s.RulesList(RulesQuery{
+		Layer:  web.LayerOf(r),
+		Path:   query.Get("doc"),
+		Filter: query.Get("filter"),
+		Query:  query.Get("q"),
+	})
+	if err != nil {
+		return web.View{}, err
+	}
+	return web.View{Title: s.Name(), Bare: true, Body: web.HTML(body)}, nil
 }
 
 // panel answers the edit panel, swapped into the right panel. The token of the

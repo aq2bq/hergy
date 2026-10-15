@@ -32,30 +32,39 @@ func New(port Port) (*Screen, error) {
 }
 
 // RulesQuery is what the rules screen draws from: the layer, the document, the
-// filter, and the sub-tab with the prompt tab's two switches.
+// filter, the search box, and the sub-tab with the prompt tab's two switches.
 type RulesQuery struct {
 	Layer   string
 	Path    string
 	Filter  string
+	Query   string
 	Tab     string
 	Raw     bool
 	Overlay bool
 }
 
 // RulesBody is the rules screen: the layer's rule files, the one asked for (the
-// first when none is named), the filter, and the tab that is open.
+// first when none is named), the filter, the search box, and the tab that is
+// open.
 func (s *Screen) RulesBody(q RulesQuery) (string, error) {
 	return s.render.Rules(s.rulesData(q))
+}
+
+// RulesList is the rules list alone, drawn again for the search box: the same
+// sections as RulesBody, without the frame, so typing in the box swaps the list
+// and leaves the cursor where it is.
+func (s *Screen) RulesList(q RulesQuery) (string, error) {
+	return s.render.RulesList(s.rulesData(q))
 }
 
 // rulesData is what the rules screen shows for one document and query.
 func (s *Screen) rulesData(q RulesQuery) Rules {
 	docs := s.docs(q.Layer)
 	shown := pick(q.Layer, docs, q.Path)
-	data := NewRules(shown, q.Filter)
+	data := NewRules(shown, q.Filter, q.Query)
 	data.Changes = s.port.Changes(q.Layer)
 	data.Tab = NormalizeTab(q.Tab)
-	data.Tabs = NewTabs(shown, data.Tab)
+	data.Tabs = NewTabs(shown, data.Tab, data.Query)
 	data.DocChanges = s.port.DocChanges(q.Layer, shown.Path)
 	if shown.Document != nil {
 		switch data.Tab {
@@ -251,9 +260,18 @@ func addReportField(doc *rules.Document, name, field, where, description string)
 // the person was looking at, so a file that changed under the screen (an AI
 // editing it through the hergy-rules skill, say) is refused rather than
 // overwritten. A refused write leaves the rule open with the reason on it.
+//
+// The body is drawn for the document the person was reading (view), not for the
+// one the panel edited: a rule opened from a related rule of another document
+// saves back into the document the body was showing, and the left list keeps
+// marking it, so the URL's ?doc= and the body stay in step.
 func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url.Values, edit EditRule) (Answer, error) {
+	view := values.Get("view")
+	if _, ok := findDoc(s.docs(layer), view); !ok {
+		view = shown.Path
+	}
 	refuse := func(reason string) (Answer, error) {
-		body, err := s.RulesBody(RulesQuery{Layer: layer, Path: shown.Path, Filter: values.Get("filter")})
+		body, err := s.RulesBody(RulesQuery{Layer: layer, Path: view, Filter: values.Get("filter")})
 		if err != nil {
 			return Answer{}, err
 		}
@@ -261,7 +279,7 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 		if err != nil {
 			return Answer{}, err
 		}
-		return Answer{Body: body, Doc: shown.Path, Panel: panel}, nil
+		return Answer{Body: body, Doc: view, Panel: panel}, nil
 	}
 	if err := guardWrite(shown, edit, values); err != nil {
 		return refuse(err.Error())
@@ -282,11 +300,11 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 	if err := s.port.WriteRule(shown.Path, text, values.Get("hash")); err != nil {
 		return refuse(err.Error())
 	}
-	body, err := s.RulesBody(RulesQuery{Layer: layer, Path: shown.Path, Filter: values.Get("filter")})
+	body, err := s.RulesBody(RulesQuery{Layer: layer, Path: view, Filter: values.Get("filter")})
 	if err != nil {
 		return Answer{}, err
 	}
-	return Answer{Body: body, Doc: shown.Path}, nil
+	return Answer{Body: body, Doc: view}, nil
 }
 
 // guardWrite is what a write must know before it touches a file: the form
@@ -342,13 +360,20 @@ func idToCarry(shown Doc, edit EditRule, values url.Values) string {
 }
 
 // panelData is one edit panel: the rule as the form holds it, the reports it may
-// point at, and the preview.
+// point at, the rules related to it, the prompt to copy, and the preview. view
+// is the document the body was showing, which every link and form of the panel
+// carries so a save comes back to that document and not the one the panel edits.
 func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule, notice string, asking bool) Panel {
 	docs := s.docs(layer)
 	shown := pick(layer, docs, path)
+	view := values.Get("view")
+	if view == "" {
+		view = shown.Path
+	}
 	data := Panel{
 		Layer:        layer,
 		Doc:          shown,
+		View:         view,
 		Edit:         edit,
 		New:          edit.Index < 0,
 		Global:       layer == LayerGlobal,
@@ -359,6 +384,8 @@ func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule,
 		OrigID:       idToCarry(shown, edit, values),
 	}
 	data.Reports = ReportOptions(s.scope(layer, docs, shown))
+	data.Related = s.relatedOf(layer, docs, shown, view, edit)
+	data.AskAI = askAI(s.port.LayerRoot(layer), shown, edit.Section, edit)
 	data.Preview = s.previewOf(layer, shown, edit)
 	data.Broken = data.Preview.Break != ""
 	data.SectionLabel = sectionLabel(shown.Document, edit.Section)

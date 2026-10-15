@@ -39,26 +39,31 @@ func NormalizeTab(tab string) string {
 }
 
 // NewTabs is the band: one tab per view, the open one marked. A layer with no
-// document to show has no band.
-func NewTabs(doc Doc, on string) []SubTab {
+// document to show has no band. query travels with every tab, so a search box
+// that is not empty is still there when the person comes back to the rules.
+func NewTabs(doc Doc, on, query string) []SubTab {
 	if doc.Document == nil {
 		return nil
 	}
 	on = NormalizeTab(on)
 	return []SubTab{
-		{Key: TabRules, Label: i18n.T("web.rules.tab.rules"), Href: tabHref(doc, TabRules), On: on == TabRules},
-		{Key: TabPrompt, Label: i18n.T("web.rules.tab.prompt"), Href: tabHref(doc, TabPrompt), On: on == TabPrompt},
-		{Key: TabChanges, Label: i18n.T("web.rules.tab.changes"), Href: tabHref(doc, TabChanges), On: on == TabChanges},
-		{Key: TabYAML, Label: i18n.T("web.rules.tab.yaml"), Href: tabHref(doc, TabYAML), On: on == TabYAML},
+		{Key: TabRules, Label: i18n.T("web.rules.tab.rules"), Href: tabHref(doc, TabRules, query), On: on == TabRules},
+		{Key: TabPrompt, Label: i18n.T("web.rules.tab.prompt"), Href: tabHref(doc, TabPrompt, query), On: on == TabPrompt},
+		{Key: TabChanges, Label: i18n.T("web.rules.tab.changes"), Href: tabHref(doc, TabChanges, query), On: on == TabChanges},
+		{Key: TabYAML, Label: i18n.T("web.rules.tab.yaml"), Href: tabHref(doc, TabYAML, query), On: on == TabYAML},
 	}
 }
 
-// tabHref is the rules screen at one document and tab. The rules tab is the
-// screen's own URL, so it carries no tab value.
-func tabHref(doc Doc, tab string) string {
+// tabHref is the rules screen at one document, tab and search box. The rules
+// tab is the screen's own URL, so it carries no tab value; the search box
+// carries through so switching a tab does not clear it.
+func tabHref(doc Doc, tab, query string) string {
 	href := PathRules + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
 	if tab != "" && tab != TabRules {
 		href += "&tab=" + tab
+	}
+	if query != "" {
+		href += "&q=" + url.QueryEscape(query)
 	}
 	return href
 }
@@ -140,7 +145,7 @@ func (s *Screen) promptOf(doc Doc, raw, overlay bool) Prompt {
 		out.Markdown = doc.Document.Markdown()
 		out.Chars = utf8.RuneCountInString(out.Markdown)
 		if !raw {
-			out.Blocks = promptBlocks(doc.Document, panelPrefix(doc), overlay)
+			out.Blocks = promptBlocks(doc.Document, panelPrefix(doc, doc.Path), overlay)
 		}
 	}
 	out.RawHref = promptHref(doc, !raw, overlay)

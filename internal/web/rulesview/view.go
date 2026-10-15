@@ -146,14 +146,20 @@ type Section struct {
 // Rules is what the rules screen draws: the one being shown, its sections with
 // the filter applied, and the numbers on top.
 type Rules struct {
-	Layer    string
-	Doc      Doc
-	Filter   string
-	Filters  []FilterChip
-	Sections []Section
-	Counts   Counts
-	// PanelPrefix is the panel's path with the layer and the document on it;
-	// a link adds section and i to it.
+	Layer  string
+	Doc    Doc
+	Filter string
+	// Query is what the search box holds: only rules whose id, text, reason or
+	// note contains it are kept, beside the filter (試作 passFilter).
+	Query   string
+	Filters []FilterChip
+	// SearchHref is the list alone, drawn again with the query and the filter in
+	// the search box: the fragment a search swaps in while a person types.
+	SearchHref string
+	Sections   []Section
+	Counts     Counts
+	// PanelPrefix is the panel's path with the layer and the document on it,
+	// and the document the body shows (view); a link adds section and i to it.
 	PanelPrefix string
 	Global      bool
 	// Broken is why the shown file cannot be read, empty when it reads. Empty
@@ -187,19 +193,22 @@ type Rules struct {
 	Open string
 }
 
-// NewRules fills the rules screen for one document and filter. filter may be
-// empty or unknown, which means all.
-func NewRules(doc Doc, filter string) Rules {
+// NewRules fills the rules screen for one document, filter and search. filter
+// may be empty or unknown, which means all; query is what the search box holds.
+func NewRules(doc Doc, filter, query string) Rules {
 	if !knownFilter(filter) {
 		filter = FilterAll
 	}
+	query = strings.TrimSpace(query)
 	data := Rules{
 		Layer:       doc.Layer,
 		Doc:         doc,
 		Filter:      filter,
+		Query:       query,
 		Global:      doc.Layer == LayerGlobal,
 		Broken:      doc.Broken,
-		PanelPrefix: panelPrefix(doc),
+		PanelPrefix: panelPrefix(doc, doc.Path),
+		SearchHref:  listHref(doc, filter, query),
 	}
 	if doc.Document == nil {
 		data.Empty = true
@@ -208,13 +217,14 @@ func NewRules(doc Doc, filter string) Rules {
 	data.Counts = CountRules(doc.Document)
 	data.Filters = FilterChips(data.Counts, filter)
 	for i := range data.Filters {
-		data.Filters[i].Href = docHref(doc, data.Filters[i].Key)
+		data.Filters[i].Href = docHref(doc, data.Filters[i].Key, query)
 	}
 	kept := 0
+	filtering := filter != FilterAll || query != ""
 	for i, section := range doc.Document.Sections {
-		view := NewSection(i, section, filter)
+		view := NewSection(i, section, filter, query)
 		kept += len(view.Rules)
-		if filter != FilterAll && len(view.Rules) == 0 {
+		if filtering && len(view.Rules) == 0 {
 			continue
 		}
 		data.Sections = append(data.Sections, view)
@@ -247,8 +257,9 @@ func CountRules(doc *rules.Document) Counts {
 	return c
 }
 
-// NewSection is one section of a document, with the filter applied.
-func NewSection(index int, section rules.Section, filter string) Section {
+// NewSection is one section of a document, with the filter and the search box
+// applied.
+func NewSection(index int, section rules.Section, filter, query string) Section {
 	view := Section{
 		Index:   index,
 		Heading: section.Heading,
@@ -260,7 +271,7 @@ func NewSection(index int, section rules.Section, filter string) Section {
 	view.StyleLabel = styleLabel(section.Style)
 	view.HeadingOnly = section.Heading != "" && len(section.Rules) == 0 && strings.TrimSpace(section.Intro) == ""
 	for i, rule := range section.Rules {
-		if !Keeps(rule, filter) {
+		if !Keeps(rule, filter, query) {
 			continue
 		}
 		view.Rules = append(view.Rules, NewRule(index, i, rule))
@@ -286,8 +297,15 @@ func NewRule(section, index int, rule rules.Rule) Rule {
 	}
 }
 
-// Keeps says whether one filter keeps one rule. An unknown filter keeps all.
-func Keeps(rule rules.Rule, filter string) bool {
+// Keeps says whether one filter and one search box keep one rule. An unknown
+// filter keeps all, and an empty search box keeps all (試作 passFilter).
+func Keeps(rule rules.Rule, filter, query string) bool {
+	return keepsFilter(rule, filter) && matchesQuery(rule, query)
+}
+
+// keepsFilter is the filter chip's half of Keeps: the three filters, and all
+// for anything else.
+func keepsFilter(rule rules.Rule, filter string) bool {
 	switch filter {
 	case FilterNoOrigin:
 		return !HasOrigin(rule)
@@ -297,6 +315,23 @@ func Keeps(rule rules.Rule, filter string) bool {
 		return !HasCheck(rule)
 	}
 	return true
+}
+
+// matchesQuery is the search box's half: a rule is kept when any of its id,
+// text, reason or note holds what was typed, without regard to case. The four
+// are looked at one at a time, so a query cannot match across two of them.
+func matchesQuery(rule rules.Rule, query string) bool {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return true
+	}
+	needle := strings.ToLower(query)
+	for _, field := range []string{rule.ID, rule.Text, rule.Why, rule.Note} {
+		if strings.Contains(strings.ToLower(field), needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasOrigin says whether a rule says where it came from.
@@ -366,19 +401,47 @@ func nonEmpty(values []string) []string {
 	return out
 }
 
-// docHref is the rules screen for one document and filter. The path is a query
-// value, so it is escaped rather than written into the URL as it stands.
-func docHref(doc Doc, filter string) string {
+// docHref is the rules screen for one document, filter and search box. The
+// path is a query value, so it is escaped rather than written into the URL as it
+// stands; the two carry through so a chip keeps the search, and the search keeps
+// the chip.
+func docHref(doc Doc, filter, query string) string {
 	href := PathRules + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
 	if filter != "" && filter != FilterAll {
 		href += "&filter=" + filter
 	}
+	if query != "" {
+		href += "&q=" + url.QueryEscape(query)
+	}
 	return href
 }
 
-// panelPrefix is the edit panel's path with the layer and the document on it. A
-// link adds section and i to it, and the prompt tab adds its own rule links to
-// it, so the two agree on one spelling.
-func panelPrefix(doc Doc) string {
-	return PathPanel + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
+// listHref is the rules list alone, drawn again with one filter and one search
+// box: what the search box swaps into #rules-list while a person types, so only
+// the list changes and the cursor stays where it is.
+func listHref(doc Doc, filter, query string) string {
+	href := PathRulesList + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
+	if filter != "" && filter != FilterAll {
+		href += "&filter=" + filter
+	}
+	if query != "" {
+		href += "&q=" + url.QueryEscape(query)
+	}
+	return href
+}
+
+// panelPrefix is the edit panel's path with the layer, the document the panel
+// edits, and the document the body shows (view). A link adds section and i to
+// it, and the prompt tab adds its own rule links to it, so the two agree on one
+// spelling.
+//
+// view travels with the panel so a rule opened from a related rule of another
+// document saves back into the document the body was showing, not the one the
+// panel came from (hergy-spec's finding).
+func panelPrefix(doc Doc, view string) string {
+	href := PathPanel + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
+	if view != "" {
+		href += "&view=" + url.QueryEscape(view)
+	}
+	return href
 }

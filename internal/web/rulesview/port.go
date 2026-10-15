@@ -47,6 +47,10 @@ type Port interface {
 	// launch that last read it: the same comparison the home screen draws
 	// (d-0a25). The changes tab and the document's own line count it.
 	DocChanges(layer, path string) DocChanges
+	// LayerRoot is where one layer's files live, as a person writes it (the
+	// path shown in the prompt the panel offers to copy). The app answers the
+	// same way for the frame's layer toggle.
+	LayerRoot(layer string) string
 	// Bump raises one document's version by one and answers what it wrote. It
 	// is the write the home screen's /bump makes: the app reads the document,
 	// raises the version it holds, and writes it back the way the rules screen

@@ -102,6 +102,13 @@ func (p *fakePort) Preview(_, _ string, _ int, _ string) (Preview, error) {
 	return p.preview, nil
 }
 
+func (p *fakePort) LayerRoot(layer string) string {
+	if layer == LayerGlobal {
+		return "~/.config/hergy"
+	}
+	return ".hergy"
+}
+
 func (p *fakePort) Changes(string) int { return p.changes }
 
 func (p *fakePort) DocChanges(string, string) DocChanges { return p.docChanges }
@@ -723,8 +730,9 @@ func TestThePromptTabDrawsTheDocumentAndOpensARule(t *testing.T) {
 		`class="r-rule"`,     // one rule
 		`class="gut"`,        // its id in the margin
 		`<span class="r-p">`,
-		// The rule opens the panel the same way the list does.
-		`hx-get="/rules/panel?layer=local&amp;doc=protocol.yaml&amp;section=0&amp;i=0"`,
+		// The rule opens the panel the same way the list does, carrying the
+		// document the body shows (view) so a save comes back to it.
+		`hx-get="/rules/panel?layer=local&amp;doc=protocol.yaml&amp;view=protocol.yaml&amp;section=0&amp;i=0"`,
 		`hx-target="#drawer" hx-swap="outerHTML"`,
 		i18n.T("web.rules.prompt.raw"),
 		i18n.T("web.rules.prompt.overlay"),
@@ -956,6 +964,182 @@ func TestTheYAMLTabShowsTheFileAndTheChecks(t *testing.T) {
 	}
 	if strings.Contains(body, `class="code check"`) {
 		t.Errorf("a sound document draws a break:\n%s", body)
+	}
+}
+
+// TestTheSearchBoxKeepsOnlyWhatItSays: the GET argument q narrows the list the
+// way the prototype's passFilter does — an id, the text, the reason or the note
+// that holds what was typed, without regard to case — and works beside the
+// filter chip, and the screen says so when the two keep nothing.
+func TestTheSearchBoxKeepsOnlyWhatItSays(t *testing.T) {
+	cases := []struct {
+		name  string
+		query string
+		keep  []string
+		drop  []string
+	}{
+		{"by id", "C2", []string{">C2<"}, []string{">C1<", ">C3<"}},
+		{"by text", "手番", []string{">C1<"}, []string{">C2<", ">C3<"}},
+		{"by reason", "完了を記録する", []string{">C1<"}, []string{">C2<", ">C3<"}},
+		{"by note", "保守のメモ", []string{">C1<"}, []string{">C2<", ">C3<"}},
+		{"case aside", "c2", []string{">C2<"}, []string{">C1<", ">C3<"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := newScreen(t, newFake()).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Filter: FilterAll, Query: tc.query})
+			if err != nil {
+				t.Fatalf("RulesBody: %v", err)
+			}
+			for _, want := range tc.keep {
+				if !strings.Contains(body, want) {
+					t.Errorf("the search %q dropped %q:\n%s", tc.query, want, body)
+				}
+			}
+			for _, unwanted := range tc.drop {
+				if strings.Contains(body, unwanted) {
+					t.Errorf("the search %q kept %q:\n%s", tc.query, unwanted, body)
+				}
+			}
+		})
+	}
+
+	// The chip and the box work together: the no-origin chip keeps C2 and C3,
+	// and the search narrows that to C3; C1 carries an origin, so it is gone
+	// either way.
+	both, err := newScreen(t, newFake()).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Filter: FilterNoOrigin, Query: "C3"})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(both, ">C3<") || strings.Contains(both, ">C2<") || strings.Contains(both, ">C1<") {
+		t.Errorf("the chip and the search do not work together:\n%s", both)
+	}
+
+	// A search that keeps nothing says so.
+	none, err := newScreen(t, newFake()).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Filter: FilterAll, Query: "存在しない語"})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(none, i18n.T("web.rules.filter.empty")) {
+		t.Errorf("a search that keeps nothing does not say so:\n%s", none)
+	}
+	if strings.Contains(none, ">C1<") {
+		t.Errorf("a search that keeps nothing still shows a rule:\n%s", none)
+	}
+}
+
+// TestTheSearchFormAndTheListFragment: the search box is a plain GET form, so
+// Enter narrows the list with no script, and it holds what was typed with the
+// hidden layer, document and filter; the list it swaps is one #rules-list
+// element, and /rules/list answers that element alone, with no frame.
+func TestTheSearchFormAndTheListFragment(t *testing.T) {
+	screen := newScreen(t, newFake())
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Filter: FilterAll, Query: "C2"})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	for _, want := range []string{
+		`<form class="search-form" method="get" action="/rules">`,
+		`<input type="hidden" name="layer" value="local">`,
+		`<input type="hidden" name="doc" value="protocol.yaml">`,
+		`<input type="hidden" name="filter" value="all">`,
+		`type="search" name="q" value="C2"`,
+		`hx-get="/rules/list?layer=local&amp;doc=protocol.yaml&amp;q=C2"`,
+		`hx-target="#rules-list" hx-swap="outerHTML"`,
+		i18n.T("web.rules.search.placeholder"),
+		i18n.T("web.rules.search"),
+		`<div id="rules-list">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the search form is missing %q:\n%s", want, body)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/rules/list?layer=local&doc=protocol.yaml&q=C2", nil)
+	view, err := screen.rulesList(req)
+	if err != nil {
+		t.Fatalf("rulesList: %v", err)
+	}
+	if !view.Bare {
+		t.Error("the list fragment is not Bare: the frame would go around it")
+	}
+	fragment := string(view.Body)
+	if !strings.Contains(fragment, `<div id="rules-list">`) || !strings.Contains(fragment, ">C2<") {
+		t.Errorf("the fragment does not hold the list:\n%s", fragment)
+	}
+	if strings.Contains(fragment, `class="toolbar"`) || strings.Contains(fragment, `<div class="wrap">`) {
+		t.Errorf("the fragment carries the frame's chrome:\n%s", fragment)
+	}
+}
+
+// TestThePanelOffersThePromptToCopy: the panel fills the copyable prompt with
+// the rule's id, the file's display path, its section, its text, its reason, the
+// layer's root, and the origin shape to answer in, and offers the Copy button; a
+// rule with no reason leaves the reason line out of the prompt.
+func TestThePanelOffersThePromptToCopy(t *testing.T) {
+	panel, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"0"}, "i": {"0"}, "token": {"tok"}})
+	if err != nil {
+		t.Fatalf("PanelBody: %v", err)
+	}
+	for _, want := range []string{
+		i18n.T("web.rules.ask_ai"),
+		i18n.T("web.rules.ask_ai.copy"),
+		`data-copy="#ai-prompt"`,
+		`data-copied="` + i18n.T("web.copy.done") + `"`,
+		`<pre id="ai-prompt" hidden>`,
+		"C1",                   // the rule's id
+		".hergy/protocol.yaml", // the file's display path
+		"通信",                   // the section's heading
+		"手番を渡す。",               // the text
+		"完了を記録する主体がいなくなる。", // the reason
+		"origin:", // the shape to answer in
+		"- kind:",
+		"YYYY-MM-DD",
+	} {
+		if !strings.Contains(panel, want) {
+			t.Errorf("the panel's prompt is missing %q:\n%s", want, panel)
+		}
+	}
+	if want := i18n.Tf("web.rules.ask_ai.prompt.why", "完了を記録する主体がいなくなる。"); !strings.Contains(panel, want) {
+		t.Errorf("a rule with a reason does not carry the reason line %q:\n%s", want, panel)
+	}
+
+	// C2 has no reason: the reason line is left out of the prompt.
+	bare, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"0"}, "i": {"1"}, "token": {"tok"}})
+	if err != nil {
+		t.Fatalf("PanelBody: %v", err)
+	}
+	if reasonLead := strings.Split(i18n.T("web.rules.ask_ai.prompt.why"), "%")[0]; strings.Contains(bare, reasonLead) {
+		t.Errorf("a rule with no reason still has the reason line %q:\n%s", reasonLead, bare)
+	}
+}
+
+// TestASaveFromARelatedRuleKeepsTheBodyDocument: a rule opened from a related
+// rule of another document saves into that document, but the body stays on the
+// document the person was reading (view), and the left list marks that one, so
+// the URL's ?doc= and the body do not part ways.
+func TestASaveFromARelatedRuleKeepsTheBodyDocument(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	form := url.Values{
+		"token": {"tok"}, "layer": {LayerLocal}, "doc": {"roles/lead.yaml"}, "view": {"protocol.yaml"},
+		"section": {"0"}, "i": {"0"}, "id": {"L1"}, "text": {"直した指示。"}, "send": {"1"},
+		"hash": {hashOf(roleSample)}, "orig_id": {"L1"},
+	}
+	answer, err := screen.SaveBody(LayerLocal, "roles/lead.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if answer.Doc != "protocol.yaml" {
+		t.Errorf("the left list marks %q, want the document the body shows (protocol.yaml)", answer.Doc)
+	}
+	if !strings.Contains(answer.Body, "TEAM PROTOCOL") {
+		t.Errorf("the body left the document the person was reading:\n%s", answer.Body)
+	}
+	if strings.Contains(answer.Body, ">L1<") {
+		t.Errorf("the body shows the document the panel edits, not the one being read:\n%s", answer.Body)
+	}
+	if len(port.wrote) != 1 || port.wrote[0].Path != "roles/lead.yaml" {
+		t.Fatalf("the write = %+v, want roles/lead.yaml", port.wrote)
 	}
 }
 

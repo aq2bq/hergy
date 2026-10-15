@@ -10,7 +10,10 @@ import (
 // and the links agree on one spelling; the templates ask for them by name with
 // the p function.
 const (
-	PathRules     = "/rules"
+	PathRules = "/rules"
+	// PathRulesList is the rules list alone, without the frame: what the search
+	// box swaps into #rules-list while a person types (試作 rulesTab の検索).
+	PathRulesList = "/rules/list"
 	PathPanel     = "/rules/panel"
 	PathPanelEdit = "/rules/panel/edit"
 	PathPreview   = "/rules/preview"
@@ -147,10 +150,20 @@ func ReportOptions(docs []Doc) []ReportOption {
 // added) carries the two as they were, so a file that changed under the screen
 // is refused rather than written into another rule's place (K1).
 type Panel struct {
-	Layer   string
-	Doc     Doc
+	Layer string
+	Doc   Doc
+	// View is the document the body was showing, which every link and form of
+	// the panel carries as ?view= so a save comes back to that document and not
+	// the one the panel edits (a related rule may stand in another document).
+	View    string
 	Edit    EditRule
 	Reports []ReportOption
+	// Related is the rules the panel lists beside the open one: what its text
+	// points at, what points at it, and what was derived from it.
+	Related Related
+	// AskAI is the prompt the panel offers to copy: what to ask an AI to find
+	// out where this rule came from.
+	AskAI   string
 	Preview Preview
 	Hash    string
 	OrigID  string

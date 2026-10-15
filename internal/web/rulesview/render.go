@@ -45,6 +45,7 @@ func NewRenderer(funcs template.FuncMap) (*Renderer, error) {
 // paths are the routes the templates ask for by name, so a path is written once.
 var paths = map[string]string{
 	"rules":     PathRules,
+	"ruleslist": PathRulesList,
 	"panel":     PathPanel,
 	"paneledit": PathPanelEdit,
 	"preview":   PathPreview,
@@ -58,6 +59,13 @@ var paths = map[string]string{
 // the rules.
 func (r *Renderer) Rules(data Rules) (string, error) {
 	return r.render("rules.html", data)
+}
+
+// RulesList draws the rules list alone, inside its #rules-list element: what the
+// search box swaps in while a person types, so the frame around it does not
+// change and the cursor stays where it is.
+func (r *Renderer) RulesList(data Rules) (string, error) {
+	return r.render("rules-list", data)
 }
 
 // Panel draws the edit panel's body: a fragment for the right panel.

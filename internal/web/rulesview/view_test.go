@@ -24,7 +24,7 @@ func TestNewRuleCarriesTheThreeMarks(t *testing.T) {
 
 func TestNewRulesDropsTheSectionsTheFilterEmpties(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
-	all := NewRules(doc, FilterAll)
+	all := NewRules(doc, FilterAll, "")
 	if len(all.Sections) != 2 {
 		t.Fatalf("sections = %d, want 2", len(all.Sections))
 	}
@@ -34,13 +34,13 @@ func TestNewRulesDropsTheSectionsTheFilterEmpties(t *testing.T) {
 	if all.Sections[1].Heading != "" {
 		t.Errorf("a section with no heading is not shown as a continuation: %+v", all.Sections[1])
 	}
-	if only := NewSection(0, rules.Section{Heading: "H"}, FilterAll); !only.HeadingOnly {
+	if only := NewSection(0, rules.Section{Heading: "H"}, FilterAll, ""); !only.HeadingOnly {
 		t.Errorf("a section with a heading and no rules is not marked heading-only: %+v", only)
 	}
-	if cont := NewSection(0, rules.Section{}, FilterAll); cont.HeadingOnly {
+	if cont := NewSection(0, rules.Section{}, FilterAll, ""); cont.HeadingOnly {
 		t.Errorf("a section with no heading and no rules is marked heading-only: %+v", cont)
 	}
-	noOrigin := NewRules(doc, FilterNoOrigin)
+	noOrigin := NewRules(doc, FilterNoOrigin, "")
 	if len(noOrigin.Sections) != 2 {
 		t.Fatalf("the no-origin filter kept %d sections, want 2", len(noOrigin.Sections))
 	}
@@ -54,7 +54,7 @@ func TestNewRulesDropsTheSectionsTheFilterEmpties(t *testing.T) {
 		t.Errorf("the panel prefix = %s", noOrigin.PanelPrefix)
 	}
 	// An unknown filter is all, not a filter that keeps nothing.
-	unknown := NewRules(doc, "nonsense")
+	unknown := NewRules(doc, "nonsense", "")
 	if unknown.Filter != FilterAll || unknown.NoMatch {
 		t.Errorf("an unknown filter was not read as all: %+v", unknown)
 	}
@@ -88,7 +88,7 @@ func TestKeepsReadsTheThreeFilters(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Keeps(tc.rule, tc.filter); got != tc.want {
+			if got := Keeps(tc.rule, tc.filter, ""); got != tc.want {
 				t.Errorf("Keeps(%+v, %q) = %v, want %v", tc.rule, tc.filter, got, tc.want)
 			}
 		})
