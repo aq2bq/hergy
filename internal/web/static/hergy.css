@@ -530,3 +530,8 @@ html,body{margin:0}
 /* HTMX の読み込み中の印 (試作には無い) */
 .htmx-indicator{opacity:0;transition:opacity 200ms ease-in}
 .htmx-request .htmx-indicator,.htmx-request.htmx-indicator{opacity:1}
+
+/* 層のトグルの副題: ホームの外を指す設定でも 1 段目を押し出さない
+   (試作は ~/.config/hergy と決め打ちなので、この規則は要らない。
+   2026-10-16 の見比べで hergy-lead が見つけた) */
+.layer-toggle a small{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

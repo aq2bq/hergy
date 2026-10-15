@@ -6,10 +6,11 @@
 </div>
 
 {{define "live-list"}}
-<div id="live" hx-get="/running/list?layer={{.Layer}}" hx-trigger="every 5s" hx-target="#live" hx-swap="outerHTML">
+<div id="live"{{if .Auto}} hx-get="/running/list?layer={{.Layer}}&amp;auto=1" hx-trigger="every 5s" hx-target="#live" hx-swap="outerHTML"{{end}}>
   <div class="livebar">
     {{- if .At}}<span>{{tf "web.teamview.running.read_at" .At}}</span>{{end}}
-    <button class="btn" type="button" hx-get="/running/list?layer={{.Layer}}" hx-target="#live" hx-swap="outerHTML">{{t "web.teamview.running.reload"}}</button>
+    <button class="btn" type="button" hx-get="/running/list?layer={{.Layer}}&amp;auto={{if .Auto}}1{{else}}0{{end}}" hx-target="#live" hx-swap="outerHTML">{{t "web.teamview.running.reload"}}</button>
+    <label class="toggle"><input type="checkbox"{{if .Auto}} checked{{end}} hx-get="/running/list?layer={{.Layer}}&amp;auto={{if .Auto}}0{{else}}1{{end}}" hx-trigger="change" hx-target="#live" hx-swap="outerHTML">{{t "web.teamview.running.auto"}}</label>
     <span class="fine htmx-indicator">{{t "web.teamview.running.reading"}}</span>
   </div>
   {{if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
@@ -37,7 +38,7 @@
           <span class="pill st-{{.State}}" title="{{.Meaning}}"><i></i>{{.Text}}</span>
           <span class="hn">{{.Name}}{{if .Worker}}<span class="wk">{{t "web.teamview.worker"}}</span>{{end}}</span>
           {{- if .PaneID}}
-          <form class="lkform" hx-post="/running/focus?layer={{$.Layer}}" hx-target="#live" hx-swap="outerHTML" method="post" action="/running/focus?layer={{$.Layer}}">
+          <form class="lkform" hx-post="/running/focus?layer={{$.Layer}}&amp;auto={{if $.Auto}}1{{else}}0{{end}}" hx-target="#live" hx-swap="outerHTML" method="post" action="/running/focus?layer={{$.Layer}}&amp;auto={{if $.Auto}}1{{else}}0{{end}}">
             <input type="hidden" name="token" value="{{$.Token}}">
             <input type="hidden" name="pane" value="{{.PaneID}}">
             <button class="linkbtn" type="submit">{{tf "web.teamview.running.focus_pane" .PaneID}}</button>

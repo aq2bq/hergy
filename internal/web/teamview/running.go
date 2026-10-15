@@ -13,9 +13,12 @@ import (
 // not (each member's terminal title and pane), and holds the one button of
 // these screens: moving Herdr's focus to a member's pane.
 //
-// The page reads Herdr again every five seconds (HTMX's every 5s), so hergy
-// holds no state of its own. A Herdr that is missing or unreadable is one line
-// on this screen; the other screens keep working.
+// The page reads Herdr again every five seconds (HTMX's every 5s) while the
+// box in its bar is ticked, which is how it starts; stopping that box stops the
+// reading, and "herdr から読み直す" then reads once. hergy holds no state of its
+// own either way: the box travels as the auto argument of this URL. A Herdr that
+// is missing or unreadable is one line on this screen; the other screens keep
+// working.
 type runningScreen struct{ base }
 
 // Name is what the navigation calls this screen.
@@ -61,6 +64,7 @@ func (s *runningScreen) data(r *http.Request, err error) runningData {
 	herdr, readErr := s.port.Running(layer)
 	data := runningData{
 		Layer:  layer,
+		Auto:   autoOf(r),
 		Token:  web.Token(r),
 		Legend: legend(),
 	}
@@ -78,9 +82,16 @@ func (s *runningScreen) data(r *http.Request, err error) runningData {
 	return data
 }
 
+// autoOf says whether the page reads Herdr again every five seconds. Reading
+// again is what happens by default, so only auto=0 turns it off: a link, a
+// bookmark, or the navigation entry keeps reading, and the one box that stops it
+// writes the zero.
+func autoOf(r *http.Request) bool { return r.URL.Query().Get("auto") != "0" }
+
 // runningData is what the running-team page is drawn from.
 type runningData struct {
 	Layer  string
+	Auto   bool   // read Herdr again every five seconds; off stops it
 	Token  string // the token every form of this run carries
 	At     string // when Herdr was read, as a person reads a clock
 	Notice string // one line: Herdr could not be read, or the focus failed

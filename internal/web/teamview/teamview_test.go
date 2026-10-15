@@ -394,6 +394,31 @@ func TestRunningScreenShowsWhatHerdrSays(t *testing.T) {
 	}
 }
 
+// TestRunningScreenReadsAgainEveryFiveSecondsUntilTheBoxIsStopped: the page
+// reads Herdr again by itself when it opens, and the one box in its bar stops
+// that. The box travels as the auto argument, so the server draws the reading
+// trigger or leaves it out; nothing of it is held in hergy.
+func TestRunningScreenReadsAgainEveryFiveSecondsUntilTheBoxIsStopped(t *testing.T) {
+	base := start(t, demoPort())
+
+	_, body := get(t, base, "/running?layer=local")
+	mustContain(t, "a page that just opened", body,
+		`hx-trigger="every 5s"`, `type="checkbox" checked`, shown("web.teamview.running.auto"))
+
+	_, body = get(t, base, "/running?layer=local&auto=0")
+	if strings.Contains(body, `hx-trigger="every 5s"`) {
+		t.Errorf("a page with auto=0 still reads Herdr again:\n%s", body)
+	}
+	mustContain(t, "a page with the box stopped", body,
+		// Pressing "read again" once still reads, and leaves the reading
+		// stopped; the box is empty, and pressing it starts the reading again.
+		`/running/list?layer=local&amp;auto=0" hx-target="#live"`,
+		`auto=1" hx-trigger="change"`)
+	if strings.Contains(body, `type="checkbox" checked`) {
+		t.Errorf("the box of a page with auto=0 is ticked")
+	}
+}
+
 // TestFocusMovesHerdrAndTheTokenGuardsIt: the one button of these screens posts
 // the pane with the token of the run, and a post without it moves nothing.
 func TestFocusMovesHerdrAndTheTokenGuardsIt(t *testing.T) {

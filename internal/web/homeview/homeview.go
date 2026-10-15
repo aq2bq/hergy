@@ -182,7 +182,7 @@ func New(port Port) (web.Screen, error) {
 }
 
 // Name is what the navigation calls the screen.
-func (s *homeScreen) Name() string { return i18n.T("web.home.title") }
+func (s *homeScreen) Name() string { return i18n.T("web.home.nav") }
 
 // Routes answers the root, and the root exactly: the home is the screen hergy
 // serve opens with, and the way into the daily flow. Every other path is another
