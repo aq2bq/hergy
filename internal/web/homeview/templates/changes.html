@@ -1,0 +1,19 @@
+{{define "changes"}}
+<ul class="changes">
+  {{- if .Whole}}
+  <li><span class="ck section">{{t "web.home.changes.whole"}}</span></li>
+  {{- end}}
+  {{- if .Missing}}
+  <li><span class="ck section">{{t "web.home.changes.missing"}}</span></li>
+  {{- end}}
+  {{- range .Added}}
+  <li><span class="ck added">{{tf "web.home.changes.added" ""}}</span><div><span class="mono">{{.ID}}</span><div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  {{- end}}
+  {{- range .Removed}}
+  <li><span class="ck removed">{{tf "web.home.changes.removed" ""}}</span><div><span class="mono">{{.ID}}</span></div></li>
+  {{- end}}
+  {{- range .Changed}}
+  <li><span class="ck changed">{{tf "web.home.changes.changed" ""}}</span><div><span class="mono">{{.ID}}</span><div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  {{- end}}
+</ul>
+{{end}}

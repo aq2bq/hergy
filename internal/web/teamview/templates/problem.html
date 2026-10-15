@@ -1,1 +1,7 @@
-<p class="problem">{{.}}</p>
+<aside class="drawer" id="drawer" aria-label="{{t "web.frame.drawer"}}">
+  <div class="dr-head">
+    <span class="dr-crumb">{{t "web.teamview.definition.title"}}</span>
+    <button class="x" hx-get="/panel/close?layer={{.Layer}}" hx-target="{{drawer}}" hx-swap="outerHTML" aria-label="{{t "web.rules.panel.close"}}">×</button>
+  </div>
+  <div class="dr-body"><p class="problem">{{.Reason}}</p></div>
+</aside>

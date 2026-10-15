@@ -162,4 +162,27 @@ type Panel struct {
 	Broken bool
 	// AskingDelete says the form is asking whether to delete the rule.
 	AskingDelete bool
+	// SectionLabel is the section the rule stands in, as the crumb names it:
+	// its heading, or that the section has none.
+	SectionLabel string
+	// Badges are the three marks above the form, for the rule as the form
+	// holds it.
+	Badges Badges
+}
+
+// Badges is the three marks above the edit form (the prototype's evBadges):
+// whether the rule as it stands carries an origin, a reason and a check.
+type Badges struct {
+	Origin bool
+	Reason bool
+	Check  bool
+}
+
+// BadgesOf reads the three marks off the form's rule.
+func BadgesOf(edit EditRule) Badges {
+	return Badges{
+		Origin: len(edit.Origins) > 0,
+		Reason: strings.TrimSpace(edit.Why) != "",
+		Check:  strings.TrimSpace(edit.Report) != "" || strings.TrimSpace(edit.Tests) != "",
+	}
 }

@@ -29,10 +29,11 @@ type Renderer struct {
 // forms and the links point at (p) and join, so the handlers and the templates
 // share one spelling of a route.
 func NewRenderer(funcs template.FuncMap) (*Renderer, error) {
-	merged := make(template.FuncMap, len(funcs)+2)
+	merged := make(template.FuncMap, len(funcs)+3)
 	maps.Copy(merged, funcs)
 	merged["p"] = func(name string) string { return paths[name] }
-	merged["panelid"] = func() string { return "#" + web.PanelID }
+	merged["panelid"] = func() string { return "#" + web.DrawerID }
+	merged["drawerid"] = func() string { return web.DrawerID }
 	merged["join"] = strings.Join
 	templates, err := template.New("rulesview").Funcs(merged).ParseFS(files, "templates/*.html")
 	if err != nil {
@@ -69,9 +70,10 @@ func (r *Renderer) Preview(data Panel) (string, error) {
 	return r.render("preview.html", data)
 }
 
-// Close draws the right panel with nothing open.
+// Close draws the right panel with nothing open: the drawer element as the
+// frame writes it, so a fragment can put it back the way it was.
 func (r *Renderer) Close() (string, error) {
-	return r.render("panel-empty.html", nil)
+	return r.render("drawer-empty.html", nil)
 }
 
 func (r *Renderer) render(name string, data any) (string, error) {

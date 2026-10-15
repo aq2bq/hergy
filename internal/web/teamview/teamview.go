@@ -14,23 +14,13 @@ import (
 	"github.com/aq2bq/hergy/internal/web"
 )
 
-// templates and stylesheet are embedded: hergy serve is one binary, and what a
-// screen shows comes from it.
+// templates are embedded: hergy serve is one binary, and what a screen shows
+// comes from it. These screens bring no stylesheet of their own (d-207f): the
+// frame carries the one stylesheet, and these screens draw with its classes, so
+// two screens cannot collide over a class name.
 //
 //go:embed templates/*.html
 var templateFiles embed.FS
-
-//go:embed teamview.css
-var stylesheet embed.FS
-
-// assets are the files these screens bring: one stylesheet, served under
-// /static/teamview/ and linked in the frame's head. The frame mounts a name
-// once, so one screen names it and the others use its classes.
-var assets = web.Assets{
-	Name:        "teamview",
-	Files:       stylesheet,
-	Stylesheets: []string{"teamview.css"},
-}
 
 // Screens builds the screens of this package, in the order the navigation shows
 // them. The templates are parsed here, so a broken one stops hergy serve at
@@ -53,16 +43,17 @@ func parse() (*template.Template, error) {
 }
 
 // funcs are the template functions these screens add to the frame's own: the
-// panel a link points at, the rules screen at one file and one rule, a figure
-// coordinate, a shortened label, a list, and one value escaped for a URL.
+// right panel a link or a form points at, the rules screen at one file and one
+// rule, a figure coordinate, a shortened label, a list, and one value escaped
+// for a URL.
 func funcs() template.FuncMap {
 	return template.FuncMap{
-		"panel": func() string { return "#" + web.PanelID },
-		"rules": rulesURL,
-		"num":   num,
-		"cut":   cut,
-		"join":  join,
-		"q":     url.QueryEscape,
+		"drawer": func() string { return "#" + web.DrawerID },
+		"rules":  rulesURL,
+		"num":    num,
+		"cut":    cut,
+		"join":   join,
+		"q":      url.QueryEscape,
 	}
 }
 
@@ -105,13 +96,8 @@ func (b base) bare(name string, data any) (web.View, error) {
 	return web.View{Body: web.HTML(rendered), Bare: true}, nil
 }
 
-// missing is the panel a person gets when what a link named is no longer there:
-// the reason, in the panel. It answers 200 with a fragment on purpose, so the
-// swap that asked for it shows why rather than nothing.
-func (b base) missing(line string) (web.View, error) {
-	return b.bare("problem.html", line)
-}
-
+// render writes one named template: what a body, a fragment or one part of a
+// panel is made of.
 func (b base) render(name string, data any) (string, error) {
 	var out bytes.Buffer
 	if err := b.templates.ExecuteTemplate(&out, name, data); err != nil {

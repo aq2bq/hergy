@@ -2,7 +2,6 @@ package web
 
 import (
 	"html/template"
-	"io/fs"
 	"net/http"
 )
 
@@ -31,31 +30,10 @@ type Screen interface {
 	Routes() []Route
 }
 
-// ScreenAssets is a Screen that brings files of its own: its stylesheet, its
-// script, or something it draws with (a screen's SVG). The files are served
-// under /static/<Assets.Name>/ and linked in the frame's head, so two screens
-// never have to share a file and a screen is added without touching this
-// package's own stylesheet. A screen that brings none has the frame's stylesheet
-// and HTMX.
-type ScreenAssets interface {
-	// Assets are the files of this screen.
-	Assets() Assets
-}
-
-// Assets is what one screen brings to the page.
-type Assets struct {
-	// Name is where the files are served: /static/<Name>/. It is a URL and not
-	// a word, so it is the same in every language, and it is given here rather
-	// than taken from Name (which is what the navigation shows, translated).
-	Name string
-	// Files holds the files, under the names they are served at.
-	Files fs.FS
-	// Stylesheets and Scripts are names in Files, in the order they load. Both
-	// are looked up when the server is built, so a name that is not there stops
-	// hergy serve instead of showing a page with a broken link.
-	Stylesheets []string
-	Scripts     []string
-}
+// A screen brings no file of its own: the frame carries the one stylesheet
+// (internal/web/static/hergy.css, the prototype's own CSS, d-207f) and HTMX,
+// and every screen draws with the classes of that stylesheet, so two screens
+// cannot collide over a class name.
 
 // Route is one path and how it is answered.
 type Route struct {
@@ -79,18 +57,27 @@ type View struct {
 	Title string
 	// Body is the screen's HTML, already rendered.
 	Body template.HTML
-	// Panel is what the right panel shows with this answer. Left empty, the
-	// panel shows the frame's guidance; filled, the page opens with what the
-	// screen puts here (the rule being edited, say). A fragment that is swapped
-	// into the panel alone (PanelID) is returned with Bare instead.
-	Panel template.HTML
+	// Drawer is what the right panel shows with this answer, as the whole
+	// element it is: the <aside class="drawer"> and what it holds (the rule
+	// being edited, say). Left empty, the frame writes the drawer with nothing
+	// in it and no width on the page. A fragment that replaces the drawer
+	// (DrawerID) renders the same element and is returned with Bare instead.
+	Drawer template.HTML
 	// Bare writes the body alone, with no frame around it.
 	Bare bool
 	// Status is the HTTP status; 0 means 200.
 	Status int
 }
 
-// PanelID is the id of the right panel. A screen points a link or a form at it
-// with hx-target ("#" + PanelID) to show what the person picked without leaving
-// the page.
-const PanelID = "panel"
+// NavScreen is a Screen that says whether the navigation lists it. A screen the
+// navigation does not list is opened from the left list instead: the team
+// definition is one (d-207f), and the frame would otherwise show it twice.
+type NavScreen interface {
+	// InNav reports whether this screen is a tab of the navigation.
+	InNav() bool
+}
+
+// DrawerID is the id of the right panel. A screen points a link or a form at it
+// with hx-target ("#" + DrawerID) to show what the person picked without
+// leaving the page.
+const DrawerID = "drawer"

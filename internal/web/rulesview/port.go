@@ -40,6 +40,9 @@ type Port interface {
 	// edited text is put over the file it stands for, so the rest of the
 	// document is the file on disk.
 	Preview(layer, path string, section int, text string) (Preview, error)
+	// Changes is how many rules moved in one layer's documents since the launch
+	// each of them was last read by: what the guide's last step counts (d-207f).
+	Changes(layer string) int
 }
 
 // Team is one team definition and the rule files its members read.
@@ -59,7 +62,14 @@ type Member struct {
 // File is one rule file a member reads.
 type File struct {
 	Path string
-	Role bool // a role file, not a document every member reads
+	// Display is the same file as a person writes it (".hergy/teams/…"), which
+	// is what the screen shows. Path stays the way the file is read and written.
+	Display string
+	Role    bool // a role file, not a document every member reads
+	// GroupLabel is what the left list calls this file's group, in the language
+	// in use ("共通の文書", "チームの文書", "役割ファイル"). The app names it, so
+	// the kicker and the left list cannot say different words for one group.
+	GroupLabel string
 }
 
 // Source is one rule file as it was read.

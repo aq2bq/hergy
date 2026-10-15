@@ -1,65 +1,41 @@
-<h1>{{t "web.home.title"}}</h1>
-<p class="lede">{{tf "web.home.lede" .LayerName}}</p>
-<ol class="guide" aria-label="{{t "web.home.steps.label"}}">
-  <li class="gstep cur" aria-current="step"><span class="gnum">1</span>{{t "web.home.step.changes"}}</li>
-  <li class="garrow" aria-hidden="true">→</li>
-  <li class="gstep"><span class="gnum">2</span>{{t "web.home.step.fix"}}</li>
-  <li class="garrow" aria-hidden="true">→</li>
-  <li class="gstep"><span class="gnum">3</span>{{t "web.home.step.diff"}}</li>
-  <li class="garrow" aria-hidden="true">→</li>
-  <li class="gstep"><span class="gnum">4</span>{{t "web.home.step.bump"}}</li>
-</ol>
-{{- if .Home.Problem}}
-<p class="problem">{{.Home.Problem}}</p>
-{{- end}}
-
-<section>
-  <h2>{{t "web.home.changes.title"}}</h2>
-  {{- $moved := false}}
-  {{- range .Home.Docs}}{{- if .Changes}}{{$moved = true}}
-  <article class="doc">
-    <h3>{{.Path}}</h3>
-    {{- if .Missing}}
-    <p class="note">{{t "web.home.changes.missing"}}</p>
-    {{- else if .Whole}}
-    <p class="note">{{t "web.home.changes.whole"}}</p>
-    {{- end}}
-    <ul class="marks">
-      {{- range .Added}}
-      <li class="plus">{{tf "web.home.changes.added" .}}</li>
-      {{- end}}
-      {{- range .Removed}}
-      <li class="minus">{{tf "web.home.changes.removed" .}}</li>
-      {{- end}}
-      {{- range .Changed}}
-      <li class="changed">{{tf "web.home.changes.changed" .}}</li>
-      {{- end}}
-    </ul>
-    {{- if .Bumped}}
-    <p class="bumped">{{tf "web.home.changes.bumped" .Version}}</p>
-    {{- end}}
-  </article>
-  {{- end}}{{- end}}
-  {{- if not $moved}}
-  <p class="empty">{{if .Home.Launched}}{{t "web.home.changes.none"}}{{else}}{{inline (t "web.home.changes.no_record")}}{{end}}</p>
+<div class="wrap">
+  {{guide 1 .Layer .ChangedRules}}
+  <div class="kicker"><span>{{t "web.home.steps.label"}} 1</span></div>
+  <h1>{{t "web.home.title"}}</h1>
+  <p class="lede">{{tf "web.home.lede" .LayerName}}</p>
+  {{- if .Home.Problem}}
+  <p class="banner danger">{{.Home.Problem}}</p>
   {{- end}}
-</section>
 
-<section>
-  <h2>{{t "web.home.nocheck.title"}}</h2>
-  {{- $quiet := true}}
-  {{- range .Home.Docs}}{{- if .Checked}}{{$quiet = false}}
-  <article class="doc">
-    <h3>{{.Path}}</h3>
-    <p class="count">{{tf "web.home.nocheck.count" (len .NoCheck) .Rules}}</p>
-    <ul class="rules">
-      {{- range .NoCheck}}
-      <li>{{if .Href}}<a href="{{.Href}}">{{.ID}}</a>{{else}}{{.ID}}{{end}}</li>
-      {{- end}}
-    </ul>
-  </article>
-  {{- end}}{{- end}}
-  {{- if $quiet}}
-  <p class="empty">{{t "web.home.nocheck.none"}}</p>
+  <h2 class="sect">{{t "web.home.changes.title"}}{{if .ChangedRules}}（{{tf "web.rules.tally.rules" .ChangedRules}}）{{end}}</h2>
+  {{- if not .Docs}}
+  <p class="lede">{{if .Home.Launched}}{{t "web.home.changes.none"}}{{else}}{{inline (t "web.home.changes.no_record")}}{{end}}</p>
   {{- end}}
-</section>
+
+  {{- range .Docs}}
+  <div class="panel">
+    <div class="copy-row">
+      <h3><span class="lay {{.Doc.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Doc.Layer))}}</span> {{.Doc.Path}}
+        {{- if .Doc.Definition}} <span class="fine">{{t "web.teams.column.name"}}: <span class="mono">{{.Doc.Definition}}</span></span>{{end}}</h3>
+      <a class="linkbtn" href="{{.Href}}">{{t "web.home.doc.open"}}</a>
+    </div>
+    {{- if .Doc.Bumped}}
+    <p class="saved">{{tf "web.home.changes.bumped" .Doc.Version}}</p>
+    {{- end}}
+    {{template "changes" .Changes}}
+  </div>
+  {{- end}}
+
+  <h2 class="sect">{{t "web.home.nocheck.title"}}</h2>
+  {{- if .NoCheck}}
+  {{- range .NoCheck}}
+  <p class="lede"><span class="mono">{{.Doc.Path}}</span> {{tf "web.home.nocheck.count" (len .Doc.NoCheck) .Doc.Rules}}{{range .Doc.NoCheck}} <a class="ref" href="{{.Href}}">{{.ID}}</a>{{end}}</p>
+  {{- end}}
+  {{- else}}
+  <p class="lede">{{t "web.home.nocheck.none"}}</p>
+  {{- end}}
+
+  <div class="row sect">
+    <a class="btn primary big" href="/diff?layer={{.Layer}}">{{t "web.home.step.diff"}}</a>
+  </div>
+</div>

@@ -35,22 +35,49 @@ func (p servePort) RuleTeams(layer string) []rulesview.Team {
 		if err != nil {
 			continue
 		}
-		out = append(out, ruleTeam(row.Name, cfg))
+		out = append(out, p.ruleTeam(layer, row.Name, cfg))
 	}
 	return out
 }
 
-// ruleTeam is one team definition as the rules screen reads it.
-func ruleTeam(name string, cfg *config.Config) rulesview.Team {
+// Changes counts how many rules moved in one layer's documents since the launch
+// each of them was last read by: the number the guide's last step names, counted
+// the way the left list counts a document (a document that moved but whose rules
+// could not be lined up counts once).
+func (p servePort) Changes(layer string) int {
+	total := 0
+	for _, change := range p.docChanges(layer) {
+		if change.whole {
+			total++
+			continue
+		}
+		total += change.count
+	}
+	return total
+}
+
+// ruleTeam is one team definition as the rules screen reads it. Each file
+// carries the group its row in the left list falls into, so the screen's kicker
+// and the left list say the same words for one group.
+func (p servePort) ruleTeam(layer, name string, cfg *config.Config) rulesview.Team {
+	root := p.layerDir(layer)
+	file := func(path string, role bool) rulesview.File {
+		return rulesview.File{
+			Path:       path,
+			Display:    p.env.Display(path),
+			Role:       role,
+			GroupLabel: groupLabel(groupOf(relIn(root, path))),
+		}
+	}
 	team := rulesview.Team{Name: name}
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
 		read := rulesview.Member{Name: member.Name}
 		if member.HasRoleSource {
-			read.Files = append(read.Files, rulesview.File{Path: member.RoleSource.Path, Role: true})
+			read.Files = append(read.Files, file(member.RoleSource.Path, true))
 		}
 		for _, doc := range member.DocsRead {
-			read.Files = append(read.Files, rulesview.File{Path: doc.Path})
+			read.Files = append(read.Files, file(doc.Path, false))
 		}
 		team.Members = append(team.Members, read)
 	}

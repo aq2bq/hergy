@@ -4,28 +4,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
 )
 
-func TestNewIndexGroupsAndCountsTheFiles(t *testing.T) {
-	doc := sampleDoc(t, LayerLocal)
-	role := Doc{Path: "roles/lead.yaml", Group: GroupRole, Layer: LayerLocal}
-	groups := NewIndex(doc.Path, []Doc{doc, role})
-	if len(groups) != 2 {
-		t.Fatalf("groups = %+v, want one for documents and one for role files", groups)
+func TestNewRuleCarriesTheThreeMarks(t *testing.T) {
+	full := NewRule(0, 0, rules.Rule{
+		ID: "C1", Text: "x", Why: "y",
+		Origin: []rules.Origin{{Kind: rules.KindIncident}},
+		Report: "R.f",
+	})
+	if !full.Badges.Origin || !full.Badges.Reason || !full.Badges.Check {
+		t.Errorf("the marks of a full rule = %+v, want all three", full.Badges)
 	}
-	if groups[0].Label != i18n.T("web.rules.group.doc") {
-		t.Errorf("the first group is %q", groups[0].Label)
-	}
-	if row := groups[0].Rows[0]; !row.Selected || row.Total != 3 || row.Origin != 1 {
-		t.Errorf("the document row = %+v", row)
-	}
-	if row := groups[1].Rows[0]; row.Selected || row.Label != "lead.yaml" {
-		t.Errorf("the role row = %+v", row)
-	}
-	if !strings.Contains(groups[1].Rows[0].Href, "roles%2Flead.yaml") {
-		t.Errorf("the role row's link does not escape the path: %s", groups[1].Rows[0].Href)
+	bare := NewRule(0, 0, rules.Rule{ID: "C2", Text: "x"})
+	if bare.Badges.Origin || bare.Badges.Reason || bare.Badges.Check {
+		t.Errorf("the marks of a bare rule = %+v, want none", bare.Badges)
 	}
 }
 

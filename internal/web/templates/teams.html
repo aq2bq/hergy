@@ -1,41 +1,31 @@
-<h1>{{t "web.teams.title"}}</h1>
-<p class="lede">{{tf "web.teams.lede" .LayerName}}</p>
-{{if .Teams}}
-<table class="teams">
-  <thead>
-    <tr>
-      <th scope="col">{{t "web.teams.column.name"}}</th>
-      <th scope="col" class="num">{{t "web.teams.column.members"}}</th>
-      <th scope="col" class="num">{{t "web.teams.column.no_check"}}</th>
-      <th scope="col">{{t "web.teams.column.launched"}}</th>
-    </tr>
-  </thead>
-  <tbody>
+<div class="wrap w1180">
+  <div class="kicker"><span class="lay {{.Layer}}">{{.LayerLabel}}</span><span class="mono">{{.Root}}/teams/</span></div>
+  <h1>{{t "web.teams.title"}}</h1>
+  <p class="lede">{{tf "web.teams.lede" .LayerName}}</p>
+  {{- if .Teams}}
+  <div class="tlist no-about">
+    <div class="thead">
+      <span>{{t "web.teams.column.name"}}</span>
+      <span>{{t "web.teams.column.members"}}</span>
+      <span>{{t "web.teams.column.launched"}}</span>
+      <span>{{t "web.teams.column.no_check"}}</span>
+      <span></span>
+    </div>
     {{- range .Teams}}
-    {{- if .Broken}}
-    <tr class="broken">
-      <th scope="row">{{.Name}}</th>
-      <td class="reason" colspan="3">{{.Broken}}</td>
-    </tr>
-    {{- else}}
-    <tr>
-      <th scope="row">{{.Name}}{{if .Running}}<i class="ldot" title="{{t "web.teams.running"}}"></i>{{end}}</th>
-      <td class="num">{{tf "web.teams.members" .Members}}</td>
-      <td class="num">{{tf "web.teams.no_check" .NoCheck .Rules}}</td>
-      <td class="launched">
-        {{- if .Launched}}
-        <span class="when">{{.Launched}}</span>
-        <span class="hash">{{.Hash}}</span>
-        {{- if not .Same}} <span class="moved">{{t "web.teams.moved"}}</span>{{end}}
-        {{- else}}
-        <span class="never">{{t "web.teams.never"}}</span>
-        {{- end}}
-      </td>
-    </tr>
+    <a class="tline" href="{{.Href}}">
+      <span><span class="tn">{{.Name}}</span>{{if .Running}}<span class="ts ok"><i class="ldot"></i> {{t "web.teams.running"}}</span>{{end}}{{if .Broken}}<span class="ts tw">{{.Broken}}</span>{{end}}</span>
+      {{- if .Broken}}
+      <span></span><span></span><span></span>
+      {{- else}}
+      <span class="num">{{tf "web.teams.members" .Members}}</span>
+      <span>{{if .Launched}}<span class="num">{{.Launched}}</span> <span class="ts">{{tf "web.teams.hash" .Hash}}</span>{{if not .Same}} <span class="ts tw">{{t "web.teams.moved"}}</span>{{end}}{{else}}<span class="ts">{{t "web.teams.never"}}</span>{{end}}</span>
+      <span class="num {{if .NoCheck}}warn{{else}}ok{{end}}">{{tf "web.teams.no_check" .NoCheck .Rules}}</span>
+      {{- end}}
+      <span class="tgo" aria-hidden="true">›</span>
+    </a>
     {{- end}}
-    {{- end}}
-  </tbody>
-</table>
-{{- else}}
-<p class="empty">{{t "web.teams.empty"}}</p>
-{{- end}}
+  </div>
+  {{- else}}
+  <p class="empty-note">{{t "web.teams.empty"}}</p>
+  {{- end}}
+</div>

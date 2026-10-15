@@ -102,6 +102,17 @@
 
 ### Changed
 
+- **`hergy serve` comes in one stylesheet, in the look the prototype settled
+  on**: every screen wears the same frame — the two-layer header with the layer
+  toggle, the navigation and the three meters (with an origin, with a reason,
+  with a check), the list of documents and team definitions down the left, and
+  the panel on the right — and the same colours in a light and a dark scheme,
+  chosen by what the operating system asks for, in fonts the machine already
+  has. The navigation reads Home, Running teams, Teams, Figure, Rules, Prompt
+  diff, Raise a version: the map and the triage have no entrance. A document in
+  the left list shows how many rules it holds and how many of them carry an
+  origin, and how many rules moved since the last launch of that layer.
+
 - **The screens have their own paths, and the home is the way in**: `hergy serve`
   opens on the home at `/`, and the team list answers `/teams`. The home is the
   first thing a person sees, because that is where the daily flow starts

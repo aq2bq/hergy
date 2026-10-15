@@ -36,6 +36,7 @@ type fakePort struct {
 	preview    Preview
 	previewErr error
 	writeErr   error
+	changes    int
 	wrote      []edit
 }
 
@@ -49,8 +50,8 @@ func newFake() *fakePort {
 			LayerLocal: {{
 				Name: "agile-dev",
 				Members: []Member{
-					{Name: "lead", Files: []File{{Path: "protocol.yaml"}, {Path: "roles/lead.yaml", Role: true}}},
-					{Name: "impl", Files: []File{{Path: "protocol.yaml"}, {Path: "roles/impl.yaml", Role: true}}},
+					{Name: "lead", Files: []File{{Path: "protocol.yaml", Display: ".hergy/protocol.yaml", GroupLabel: "COMMON"}, {Path: "roles/lead.yaml", Display: ".hergy/roles/lead.yaml", Role: true, GroupLabel: "ROLE"}}},
+					{Name: "impl", Files: []File{{Path: "protocol.yaml", Display: ".hergy/protocol.yaml", GroupLabel: "COMMON"}, {Path: "roles/impl.yaml", Display: ".hergy/roles/impl.yaml", Role: true, GroupLabel: "ROLE"}}},
 				},
 			}},
 		},
@@ -96,6 +97,8 @@ func (p *fakePort) Preview(_, _ string, _ int, _ string) (Preview, error) {
 	return p.preview, nil
 }
 
+func (p *fakePort) Changes(string) int { return p.changes }
+
 func newScreen(t *testing.T, port Port) *Screen {
 	t.Helper()
 	screen, err := New(port)
@@ -105,27 +108,27 @@ func newScreen(t *testing.T, port Port) *Screen {
 	return screen
 }
 
-func TestRulesBodyListsTheFilesAndShowsTheFirst(t *testing.T) {
+func TestRulesBodyShowsTheDocumentAndItsCounts(t *testing.T) {
 	screen := newScreen(t, newFake())
 	body, err := screen.RulesBody(LayerLocal, "", FilterAll)
 	if err != nil {
 		t.Fatalf("RulesBody: %v", err)
 	}
 	for _, want := range []string{
-		i18n.T("web.rules.group.doc"),
-		i18n.T("web.rules.group.role"),
-		"protocol.yaml", "lead.yaml", "impl.yaml",
-		"roles%2Flead.yaml", // the role file's link, with the path escaped
-		"TEAM PROTOCOL",     // the first document, shown by default
+		"COMMON",               // the group the file falls into, as the app names it
+		".hergy/protocol.yaml", // the file as a person writes it
+		"TEAM PROTOCOL",        // the first document, shown by default
+		// The panel links carry the layer and the document.
+		"/rules/panel?layer=local&amp;doc=protocol.yaml",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the rules body is missing %q:\n%s", want, body)
 		}
 	}
-	// The doc list is ordered by path, and the panel links carry the layer and
-	// the document.
-	if !strings.Contains(body, "/rules/panel?layer=local&amp;doc=protocol.yaml") {
-		t.Errorf("the panel links do not carry the layer and the document:\n%s", body)
+	// The files of the layer stand in the frame's left list now, not in the
+	// screen's own body: the rules screen shows one document.
+	if strings.Contains(body, "roles%2Flead.yaml") {
+		t.Errorf("the rules body still lists the other files:\n%s", body)
 	}
 }
 
@@ -170,8 +173,10 @@ func TestPanelBodyCloseAndAPlaceThatIsNotThere(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PanelBody close: %v", err)
 	}
-	if !strings.Contains(body, i18n.T("web.rules.panel.empty")) {
-		t.Errorf("the closed panel does not show the placeholder: %s", body)
+	// The closed panel is the drawer element itself, hidden, so a fragment can
+	// put the frame back the way it was.
+	if !strings.Contains(body, `id="drawer"`) || !strings.Contains(body, "hidden") {
+		t.Errorf("the closed panel is not the hidden drawer: %s", body)
 	}
 	if _, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"9"}, "i": {"0"}}); err == nil {
 		t.Error("a rule that is not there was not refused")
@@ -603,21 +608,21 @@ func TestShowOpensTheRuleNamedByTheLink(t *testing.T) {
 	if view.Bare {
 		t.Error("the page with a rule open is a fragment, not a page")
 	}
-	if !strings.Contains(string(view.Panel), "C2") {
-		t.Errorf("the panel does not carry the rule the link names:\n%s", view.Panel)
+	if !strings.Contains(string(view.Drawer), "C2") {
+		t.Errorf("the drawer does not carry the rule the link names:\n%s", view.Drawer)
 	}
 	if !strings.Contains(string(view.Body), "C2") {
 		t.Errorf("the body is not the rules screen:\n%s", view.Body)
 	}
-	// A link with no rule leaves the panel to the frame.
+	// A link with no rule leaves the drawer to the frame.
 	plain := httptest.NewRequest(http.MethodGet, "/rules?layer=local&doc=protocol.yaml", nil)
-	if view, err := screen.show(plain); err != nil || view.Panel != "" {
-		t.Errorf("a link with no rule = panel %q, err %v", view.Panel, err)
+	if view, err := screen.show(plain); err != nil || view.Drawer != "" {
+		t.Errorf("a link with no rule = drawer %q, err %v", view.Drawer, err)
 	}
 	// A link whose rule is not there still shows the document.
 	missing := httptest.NewRequest(http.MethodGet, "/rules?layer=local&doc=protocol.yaml&rule=NOPE", nil)
-	if view, err := screen.show(missing); err != nil || view.Panel != "" {
-		t.Errorf("a link with an unknown rule = panel %q, err %v", view.Panel, err)
+	if view, err := screen.show(missing); err != nil || view.Drawer != "" {
+		t.Errorf("a link with an unknown rule = drawer %q, err %v", view.Drawer, err)
 	}
 }
 

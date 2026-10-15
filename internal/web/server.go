@@ -8,13 +8,10 @@ import (
 	"embed"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
-	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,12 +39,6 @@ type Server struct {
 	screens []Screen
 	frame   *template.Template
 	handler http.Handler
-	// stylesheets and scripts are the files the screens bring, as URLs in the
-	// head; assetNames is what they are served under, so two screens cannot take
-	// one another's place.
-	stylesheets []string
-	scripts     []string
-	assetNames  []string
 	// addr is this server's own address, "127.0.0.1:8787"; it is set when the
 	// socket is open, and every request is checked against it.
 	addr string
@@ -80,9 +71,6 @@ func New(port Port, screens ...Screen) (*Server, error) {
 	for _, screen := range s.screens {
 		for _, route := range screen.Routes() {
 			mux.Handle(route.Path, s.route(screen, route))
-		}
-		if err := s.mountAssets(mux, screen); err != nil {
-			return nil, err
 		}
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
@@ -138,47 +126,6 @@ func (s *Server) URL() string {
 		return ""
 	}
 	return "http://" + s.addr
-}
-
-// assetNameRE is what an asset prefix may be: one path segment, lowercase, with
-// digits and dashes. The name goes into a URL that every browser asks for, so it
-// is not a translated word and not a path.
-var assetNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-
-// mountAssets puts a screen's own files under /static/<Assets.Name>/ and adds
-// the stylesheets and the scripts it names to the frame's head. A screen without
-// assets adds nothing. Everything a screen names is looked up here, when the
-// server is built, so a page never carries a link to a file that is not there.
-func (s *Server) mountAssets(mux *http.ServeMux, screen Screen) error {
-	withAssets, ok := screen.(ScreenAssets)
-	if !ok {
-		return nil
-	}
-	assets := withAssets.Assets()
-	if assets.Files == nil {
-		return fmt.Errorf("web: the screen %q brings no Files", screen.Name())
-	}
-	if !assetNameRE.MatchString(assets.Name) {
-		return fmt.Errorf("web: %q is not a name a screen's files can be served under", assets.Name)
-	}
-	if slices.Contains(s.assetNames, assets.Name) {
-		return fmt.Errorf("web: two screens serve their files under /static/%s/", assets.Name)
-	}
-	s.assetNames = append(s.assetNames, assets.Name)
-	prefix := "/static/" + assets.Name + "/"
-	for _, name := range append(append([]string{}, assets.Stylesheets...), assets.Scripts...) {
-		if _, err := fs.Stat(assets.Files, name); err != nil {
-			return fmt.Errorf("web: the screen %q names the file %q, which it does not bring: %w", screen.Name(), name, err)
-		}
-	}
-	mux.Handle("GET "+prefix, http.StripPrefix(prefix, http.FileServerFS(assets.Files)))
-	for _, name := range assets.Stylesheets {
-		s.stylesheets = append(s.stylesheets, prefix+name)
-	}
-	for _, name := range assets.Scripts {
-		s.scripts = append(s.scripts, prefix+name)
-	}
-	return nil
 }
 
 // guard holds the promises that stand in front of every request: the Host has
@@ -322,19 +269,40 @@ func (s *Server) problem(w http.ResponseWriter, r *http.Request, screen Screen, 
 	s.write(w, r, screen, view)
 }
 
-// page is what the frame template is given.
+// page is what the frame template is given: the navigation and the layer
+// toggle, the meters of the header, the left list, and the screen's own body
+// and right panel.
 type page struct {
-	Lang        string
-	Title       string
-	Nav         []link
-	Layers      []link
-	LayerRoot   string
-	Global      bool
-	Stylesheets []string
-	Scripts     []string
-	PanelID     string
-	Panel       template.HTML
-	Body        template.HTML
+	Lang string
+	// Title is the page title and the name of the tab.
+	Title string
+	// View is the screen's name as the stylesheet knows it ("home", "topo").
+	View string
+	// Nav is the screens the navigation lists, in their order.
+	Nav []link
+	// Layers is the two sides of the layer toggle.
+	Layers []layerLink
+	// Layer is the layer being shown ("local"), and LayerName what a person
+	// calls it on its own ("ローカル"), which is what the layer marker writes.
+	// LayerRoot is where its files live, and LayerNote the key of the line that
+	// says whose files they are ("(this project)").
+	Layer     string
+	LayerName string
+	LayerRoot string
+	LayerNote string
+	// Meters are the three counts of the header, over the layer's rules.
+	Meters []meter
+	// Index is the left list of the layer.
+	Index Index
+	// CurrentDoc and CurrentTeam are what the left list marks: the document
+	// the rules screen has open (?doc=), and the team definition the screens
+	// of one team have open (?name=).
+	CurrentDoc  string
+	CurrentTeam string
+	// DrawerID is the id of the right panel, and Drawer what it holds.
+	DrawerID string
+	Drawer   template.HTML
+	Body     template.HTML
 }
 
 // link is one path in the frame: what it is called, and whether it is the one
@@ -345,22 +313,50 @@ type link struct {
 	Active bool
 }
 
+// layerLink is one side of the layer toggle: what the layer is called, where
+// its files live, and where switching to it goes.
+type layerLink struct {
+	Name   string
+	Root   string
+	Href   string
+	Active bool
+}
+
+// meter is one count of the header: how many rules of the layer carry an
+// origin, a reason and a check.
+type meter struct {
+	Label string
+	N     int
+	Total int
+	// Max is what the bar fills against: 0 rules would leave it at 0.
+	Max   int
+	Class string
+}
+
 // frameData fills the frame: the screens as the navigation, the two layers as
-// the toggle, and the layer being shown.
+// the toggle, the layer being shown, the header's counts and the left list.
 func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 	layer := LayerOf(r)
 	data := page{
 		Lang:        i18n.Language(),
 		Title:       view.Title,
+		View:        viewOf(current),
+		Layer:       layer,
+		LayerName:   i18n.T("label." + layer),
 		LayerRoot:   s.port.LayerRoot(layer),
-		Global:      layer == LayerGlobal,
-		Stylesheets: s.stylesheets,
-		Scripts:     s.scripts,
-		PanelID:     PanelID,
-		Panel:       view.Panel,
+		LayerNote:   "web.frame.layer.note." + layer,
+		Meters:      metersOf(s.port.Meters(layer)),
+		Index:       s.port.Index(layer),
+		CurrentDoc:  r.URL.Query().Get("doc"),
+		CurrentTeam: r.URL.Query().Get("name"),
+		DrawerID:    DrawerID,
+		Drawer:      view.Drawer,
 		Body:        view.Body,
 	}
 	for _, screen := range s.screens {
+		if !inNav(screen) {
+			continue
+		}
 		if routes := screen.Routes(); len(routes) > 0 {
 			data.Nav = append(data.Nav, link{
 				Name:   screen.Name(),
@@ -370,13 +366,57 @@ func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 		}
 	}
 	for _, name := range Layers {
-		data.Layers = append(data.Layers, link{
+		data.Layers = append(data.Layers, layerLink{
 			Name:   i18n.T("label." + name),
+			Root:   s.port.LayerRoot(name),
 			Href:   r.URL.Path + "?layer=" + name,
 			Active: name == layer,
 		})
 	}
 	return data
+}
+
+// inNav reports whether the navigation lists a screen. A screen that says it
+// is not a tab (the team definition, d-207f) is opened from the left list, and
+// the navigation would otherwise show it twice.
+func inNav(screen Screen) bool {
+	nav, ok := screen.(NavScreen)
+	return !ok || nav.InNav()
+}
+
+// viewOf is the name the frame puts on the page, for a stylesheet that shapes
+// one screen differently. It is the screen's own path, with the prototype's
+// names for the three that were named otherwise (d-207f).
+func viewOf(screen Screen) string {
+	routes := screen.Routes()
+	if len(routes) == 0 {
+		return ""
+	}
+	name := strings.Trim(hrefOf(routes[0].Path), "/")
+	if alias, ok := viewAlias[name]; ok {
+		return alias
+	}
+	if name == "" {
+		return "home"
+	}
+	return name
+}
+
+// viewAlias maps a screen's path to the name its stylesheet knows it by.
+var viewAlias = map[string]string{"running": "live", "figure": "topo", "bump": "version"}
+
+// metersOf turns the layer's counts into the header's three meters, in the
+// order the prototype shows them: origin, reason, check.
+func metersOf(m Meters) []meter {
+	total := m.Rules
+	if total == 0 {
+		total = 1
+	}
+	return []meter{
+		{Label: i18n.T("web.frame.meter.origin"), N: m.Origin, Total: m.Rules, Max: total, Class: "o"},
+		{Label: i18n.T("web.frame.meter.reason"), N: m.Reason, Total: m.Rules, Max: total, Class: "r"},
+		{Label: i18n.T("web.frame.meter.check"), N: m.Check, Total: m.Rules, Max: total, Class: "v"},
+	}
 }
 
 // hrefOf writes a route's pattern the way a browser asks for it: the method

@@ -36,13 +36,21 @@ const (
 // read it. When the file cannot be read or parsed, Broken carries the reason
 // (the same words the reader names) and Document is nil.
 type Doc struct {
-	Path     string
-	Group    string
-	Layer    string
-	Document *rules.Document
-	Hash     string
-	Broken   string
-	UsedBy   []string
+	Path string
+	// Display is the same file as a person writes it (".hergy/teams/…"), which
+	// is what the kicker shows; Path is the way the file is named in links and
+	// written back.
+	Display string
+	Group   string
+	// GroupLabel is the group this file falls into as the frame's left list
+	// names it ("共通の文書", "チームの文書", "役割ファイル"). The app names it, so
+	// the kicker and the left list say the same words.
+	GroupLabel string
+	Layer      string
+	Document   *rules.Document
+	Hash       string
+	Broken     string
+	UsedBy     []string
 }
 
 // Label is what the file is called on the screen: its title, or its file name.
@@ -68,55 +76,6 @@ func (d Doc) Revision() int {
 		return *d.Document.Revision
 	}
 	return 0
-}
-
-// DocGroup is one group of the file list.
-type DocGroup struct {
-	Label string
-	Rows  []DocRow
-}
-
-// DocRow is one file in the list.
-type DocRow struct {
-	Path     string
-	Label    string
-	Total    int
-	Origin   int
-	Href     string // the rules screen showing this file
-	Selected bool
-	Broken   bool
-}
-
-// NewIndex lists the rule files of one layer, with the shown one marked. The
-// files whose document could not be read are not here.
-func NewIndex(shown string, docs []Doc) []DocGroup {
-	var out []DocGroup
-	groups := []struct{ key, label string }{
-		{GroupDoc, i18n.T("web.rules.group.doc")},
-		{GroupRole, i18n.T("web.rules.group.role")},
-	}
-	for _, group := range groups {
-		var rows []DocRow
-		for _, doc := range docs {
-			if doc.Group != group.key {
-				continue
-			}
-			tally := doc.Tally()
-			rows = append(rows, DocRow{
-				Path:     doc.Path,
-				Label:    doc.Label(),
-				Total:    tally.Total,
-				Origin:   tally.WithOrigin,
-				Href:     docHref(doc, FilterAll),
-				Selected: doc.Path == shown,
-				Broken:   doc.Broken != "",
-			})
-		}
-		if len(rows) > 0 {
-			out = append(out, DocGroup{Label: group.label, Rows: rows})
-		}
-	}
-	return out
 }
 
 // Counts are the numbers the screen shows above the rules, counted the way
@@ -167,6 +126,9 @@ type Rule struct {
 	Why     string
 	Send    bool
 	Tags    []Tag
+	// Badges are the three marks the row carries: whether the rule says where
+	// it came from, why it stands, and how it is checked.
+	Badges Badges
 }
 
 // Section is one section of a document, with the rules the filter keeps. A
@@ -181,11 +143,10 @@ type Section struct {
 	Rules       []Rule
 }
 
-// Rules is what the rules screen draws: the files to choose from, the one being
-// shown, its sections with the filter applied, and the numbers on top.
+// Rules is what the rules screen draws: the one being shown, its sections with
+// the filter applied, and the numbers on top.
 type Rules struct {
 	Layer    string
-	Groups   []DocGroup
 	Doc      Doc
 	Filter   string
 	Filters  []FilterChip
@@ -201,6 +162,12 @@ type Rules struct {
 	Broken  string
 	Empty   bool
 	NoMatch bool
+	// Changes is how many rules moved in the layer since the last launch: the
+	// number the guide's last step names.
+	Changes int
+	// Open is the id of the rule the right panel has open, empty when it has
+	// none. The list marks it.
+	Open string
 }
 
 // NewRules fills the rules screen for one document and filter. filter may be
@@ -294,6 +261,11 @@ func NewRule(section, index int, rule rules.Rule) Rule {
 		Why:     rule.Why,
 		Send:    rule.SendWhy == nil || *rule.SendWhy,
 		Tags:    tagsOf(rule),
+		Badges: Badges{
+			Origin: HasOrigin(rule),
+			Reason: strings.TrimSpace(rule.Why) != "",
+			Check:  HasCheck(rule),
+		},
 	}
 }
 

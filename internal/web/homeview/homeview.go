@@ -7,24 +7,26 @@
 // that package changing (d-3a80). What they compare is computed in the app, in
 // Go, with the same rules.Parse and config.Parse the commands use: the page
 // holds no comparison of its own.
+//
+// A screen's body carries no style and no script of its own: the answer sets
+// Content-Security-Policy: default-src 'self', so an inline style or script is
+// refused by the browser. What a screen looks like is the classes of
+// internal/web/static/hergy.css alone (the prototype's own CSS, d-207f).
 package homeview
 
 import (
 	"bytes"
 	"embed"
 	"html/template"
-	"io/fs"
 	"net/http"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
-// templates and static are embedded: the screens are part of the binary, and the
-// stylesheet is served under /static/homeview/, so no screen has to share
-// internal/web's own file (spec/13 の G1).
+// templates are embedded: the screens are part of the binary.
 //
-//go:embed templates/*.html static
+//go:embed templates/*.html
 var files embed.FS
 
 // Port is what the app hands these screens: the launch record read the way the
@@ -117,30 +119,66 @@ type Rule struct {
 	Href string
 }
 
+// changes is the rule ids that moved in one document, each with where the rules
+// screen opens it, and whether the two texts could not be lined up or the
+// record does not hold the old one. The home and the bump screen draw it the
+// same way (試作 changeHtml).
+type changes struct {
+	Added   []Rule
+	Removed []Rule
+	Changed []Rule
+	Whole   bool
+	Missing bool
+}
+
+// changesOf turns one document's moved rule ids into the rows the screen draws,
+// with a link into the rules screen for each.
+func changesOf(port Port, doc Doc) changes {
+	return changes{
+		Added:   rulesWithHref(port, doc, doc.Added),
+		Removed: rulesWithHref(port, doc, doc.Removed),
+		Changed: rulesWithHref(port, doc, doc.Changed),
+		Whole:   doc.Whole,
+		Missing: doc.Missing,
+	}
+}
+
+// rulesWithHref is a document's rule ids, each with where the rules screen opens
+// it.
+func rulesWithHref(port Port, doc Doc, ids []string) []Rule {
+	out := make([]Rule, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, Rule{ID: id, Href: port.RuleHref(doc.Layer, doc.File, id)})
+	}
+	return out
+}
+
+// changedRules is how many rules moved since the last launch, over the documents
+// of a layer: the count the guide's last step names.
+func changedRules(h Home) int {
+	n := 0
+	for _, doc := range h.Docs {
+		n += len(doc.Added) + len(doc.Removed) + len(doc.Changed)
+	}
+	return n
+}
+
 // homeScreen is the home: the step bar, the changes since the last launch, and
 // the rules with no check.
 type homeScreen struct {
 	port      Port
 	templates *template.Template
-	assets    web.Assets
 }
 
 // New builds the home screen. It parses the templates here, so a broken template
 // stops hergy serve at once instead of on the first request.
 func New(port Port) (web.Screen, error) {
-	templates, err := template.New("").Funcs(web.Funcs()).ParseFS(files, "templates/home.html")
+	templates, err := template.New("").Funcs(web.Funcs()).
+		ParseFS(files, "templates/home.html", "templates/changes.html")
 	if err != nil {
 		return nil, err
 	}
-	static, err := fs.Sub(files, "static")
-	if err != nil {
-		return nil, err
-	}
-	return &homeScreen{
-		port:      port,
-		templates: templates,
-		assets:    web.Assets{Name: "homeview", Files: static, Stylesheets: []string{"homeview.css"}},
-	}, nil
+	return &homeScreen{port: port, templates: templates}, nil
 }
 
 // Name is what the navigation calls the screen.
@@ -153,22 +191,44 @@ func (s *homeScreen) Routes() []web.Route {
 	return []web.Route{{Path: "/{$}", Handler: s.show}}
 }
 
-// Assets are this screen's stylesheet, for every screen of the record: it is
-// brought once, and the path it is served under is this package's name.
-func (s *homeScreen) Assets() web.Assets { return s.assets }
-
 func (s *homeScreen) show(r *http.Request) (web.View, error) {
 	layer := web.LayerOf(r)
+	home := s.port.Home(layer)
 	data := homeData{
 		LayerName: i18n.Tf("web.layer.name", i18n.T("label."+layer)),
-		Home:      s.port.Home(layer),
 		Layer:     layer,
+		Home:      home,
+	}
+	for _, doc := range home.Docs {
+		if doc.Changes() {
+			data.Docs = append(data.Docs, s.docView(doc))
+			data.ChangedRules += len(doc.Added) + len(doc.Removed) + len(doc.Changed)
+		}
+		if doc.Checked() {
+			data.NoCheck = append(data.NoCheck, s.docView(doc))
+		}
 	}
 	var buf bytes.Buffer
 	if err := s.templates.ExecuteTemplate(&buf, "home.html", data); err != nil {
 		return web.View{}, err
 	}
 	return web.View{Title: i18n.T("web.home.title"), Body: web.HTML(buf.String())}, nil
+}
+
+// docView is one document as the home screen draws it: the document itself,
+// where the rules screen opens it, and what moved in it.
+type docView struct {
+	Doc     Doc
+	Href    string
+	Changes changes
+}
+
+func (s *homeScreen) docView(doc Doc) docView {
+	return docView{
+		Doc:     doc,
+		Href:    s.port.RuleHref(doc.Layer, doc.File, ""),
+		Changes: changesOf(s.port, doc),
+	}
 }
 
 // homeData is what the home template is given.
@@ -179,4 +239,12 @@ type homeData struct {
 	Layer string
 	// Home is what the app read for this layer.
 	Home Home
+	// ChangedRules is how many rules moved since the last launch, over every
+	// document; the heading and the guide's last step name it.
+	ChangedRules int
+	// Docs is the documents that moved, one panel each, in the app's order.
+	Docs []docView
+	// NoCheck is the documents that carry a rule with no check, in the app's
+	// order.
+	NoCheck []docView
 }

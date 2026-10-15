@@ -1,7 +1,6 @@
 package homeview
 
 import (
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,19 +112,25 @@ func TestTheHomeShowsWhatMovedAndWhatHasNoCheck(t *testing.T) {
 	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body,
 		"protocol.yaml",
-		i18n.Tf("web.home.changes.added", "C9"),
-		i18n.Tf("web.home.changes.removed", "C2"),
-		i18n.Tf("web.home.changes.changed", "C6"),
+		i18n.Tf("web.home.changes.added", ""),
+		"<span class=\"mono\">C9</span>",
+		`class="ck added"`,
+		i18n.Tf("web.home.changes.removed", ""),
+		"<span class=\"mono\">C2</span>",
+		`class="ck removed"`,
+		i18n.Tf("web.home.changes.changed", ""),
+		"<span class=\"mono\">C6</span>",
+		`class="ck changed"`,
 		i18n.Tf("web.home.changes.bumped", 3),
 		i18n.Tf("web.home.nocheck.count", 1, 8),
-		`<a href="/rules?layer=local&amp;rule=C6">C6</a>`,
+		`<a class="ref" href="/rules?layer=local&amp;rule=C6">C6</a>`,
 	)
 	mustNotContain(t, "the home", body, i18n.T("web.home.changes.no_record"))
 }
 
 // TestTheHomeShowsTheStepBarWithTheCurrentStep: the home opens with the four
-// steps of the daily flow, numbered, and the step this screen stands on is
-// marked as the current one (試作 5 版).
+// steps of the daily flow, numbered, each a link into its screen, and the step
+// this screen stands on is marked as the current one (試作 5 版).
 func TestTheHomeShowsTheStepBarWithTheCurrentStep(t *testing.T) {
 	screen, err := New(fakePort{})
 	if err != nil {
@@ -134,11 +139,11 @@ func TestTheHomeShowsTheStepBarWithTheCurrentStep(t *testing.T) {
 
 	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body,
-		`aria-label="`+esc(i18n.T("web.home.steps.label"))+`"`,
-		`<li class="gstep cur" aria-current="step"><span class="gnum">1</span>`+esc(i18n.T("web.home.step.changes"))+`</li>`,
-		`<li class="gstep"><span class="gnum">2</span>`+esc(i18n.T("web.home.step.fix"))+`</li>`,
-		`<li class="gstep"><span class="gnum">3</span>`+esc(i18n.T("web.home.step.diff"))+`</li>`,
-		`<li class="gstep"><span class="gnum">4</span>`+esc(i18n.T("web.home.step.bump"))+`</li>`,
+		`aria-label="`+esc(i18n.T("web.guide.label"))+`"`,
+		`<a class="gstep cur" href="/?layer=local" aria-current="step"><span class="gnum">1</span>`+esc(i18n.T("web.guide.step.changes"))+`</a>`,
+		`<span class="gnum">2</span>`+esc(i18n.T("web.guide.step.fix")),
+		`<span class="gnum">3</span>`+esc(i18n.T("web.guide.step.diff")),
+		`<span class="gnum">4</span>`+esc(i18n.T("web.guide.step.bump")),
 	)
 	if want := strings.Count(body, `class="garrow"`); want != 3 {
 		t.Errorf("the step bar holds %d arrows, want one between each pair of steps", want)
@@ -209,14 +214,22 @@ func TestTheScreensReadTheLayerOfTheRequest(t *testing.T) {
 	render(t, home, "/?layer=global")
 	render(t, diff, "/diff?layer=global")
 
-	if len(asked) != 2 || asked[0] != web.LayerGlobal || asked[1] != web.LayerGlobal {
-		t.Errorf("the screens asked for %v, want both to read the global layer", asked)
+	// The home reads the layer once; the diff reads the diff and, for the step
+	// bar's count, the home of the layer too.
+	if len(asked) != 3 {
+		t.Fatalf("the screens asked for %v, want three reads of the layer", asked)
+	}
+	for i, layer := range asked {
+		if layer != web.LayerGlobal {
+			t.Errorf("read %d asked for %q, want the global layer", i, layer)
+		}
 	}
 }
 
-// TestTheDiffShowsEachMemberAndFoldsTheOnesThatDidNotChange: a member whose
-// prompt moved shows the lines, and a member that did not is folded away.
-func TestTheDiffShowsEachMemberAndFoldsTheOnesThatDidNotChange(t *testing.T) {
+// TestTheDiffShowsAMemberChipAndTheLinesThatMoved: every member gets a chip,
+// the member whose prompt moved is shown in the panel with its lines marked, and
+// the member whose prompt did not move is still reachable by its chip.
+func TestTheDiffShowsAMemberChipAndTheLinesThatMoved(t *testing.T) {
 	port := fakePort{diff: Diff{Definitions: []Definition{{
 		Name:     "demo",
 		Launched: true,
@@ -248,18 +261,47 @@ func TestTheDiffShowsEachMemberAndFoldsTheOnesThatDidNotChange(t *testing.T) {
 	body := render(t, screen, "/diff?layer=local")
 	mustContain(t, "the diff", body,
 		"demo-lead",
-		`class="line minus"`,
+		"demo-builder",
+		`class="dl del"`,
 		"old rule",
-		`class="line plus"`,
+		`class="dl add"`,
 		"new rule",
-		"<details",
-		i18n.Tf("web.diff.member_same", "demo-builder"),
 	)
-	if strings.Count(body, "<details") != 1 {
-		t.Errorf("the diff folds %d members, want only the one that did not change", strings.Count(body, "<details"))
+	if got := strings.Count(body, `class="chip"`); got != 2 {
+		t.Errorf("the diff draws %d member chips, want one per member", got)
 	}
-	if strings.Count(body, "<pre") != 2 {
-		t.Errorf("the diff shows %d prompts, want both members", strings.Count(body, "<pre"))
+
+	// The panel shows the member whose prompt moved; the member that did not
+	// change is still readable by asking for it.
+	picked := render(t, screen, "/diff?layer=local&member=demo%2Fdemo-builder")
+	mustContain(t, "the diff", picked, i18n.Tf("web.diff.member_same", "demo-builder"))
+	mustNotContain(t, "the diff", picked, `class="dl del"`)
+}
+
+// TestFoldFoldsLongRunsOfUnchangedLines: a run of unchanged lines longer than
+// four keeps its first two and its last two, with one row naming what it folded;
+// shorter runs and changed lines are drawn as they are (試作 diffHtml の flush).
+func TestFoldFoldsLongRunsOfUnchangedLines(t *testing.T) {
+	lines := []Line{{Kind: Plus, Text: "new"}}
+	for range 10 {
+		lines = append(lines, Line{Kind: Same, Text: "same"})
+	}
+	lines = append(lines, Line{Kind: Minus, Text: "gone"})
+
+	got := Fold(lines)
+	if len(got) != 7 {
+		t.Fatalf("the folded diff holds %d rows, want the two changed lines, four kept, and one fold: %+v", len(got), got)
+	}
+	if got[0].Kind != Plus || got[len(got)-1].Kind != Minus {
+		t.Errorf("the folded diff starts %v and ends %v, want the changed lines", got[0], got[len(got)-1])
+	}
+	if skip := got[3]; skip.Kind != Skip || skip.N != 6 {
+		t.Errorf("the folded run is %+v, want one row folding 6 unchanged lines", skip)
+	}
+	for _, i := range []int{1, 2, 4, 5} {
+		if got[i].Kind != Same {
+			t.Errorf("row %d is %v, want an unchanged line kept around the fold", i, got[i])
+		}
 	}
 }
 
@@ -278,7 +320,7 @@ func TestTheDiffSaysWhenAMemberWasNeverHandedAPrompt(t *testing.T) {
 
 	body := render(t, screen, "/diff?layer=local")
 	mustContain(t, "the diff", body, i18n.Tf("web.diff.member_never", "demo-lead"))
-	mustNotContain(t, "the diff", body, "<pre")
+	mustNotContain(t, "the diff", body, `class="code"`)
 }
 
 // TestTheDiffSaysWhenNothingWasLaunched: without a record there is no prompt to
@@ -292,45 +334,6 @@ func TestTheDiffSaysWhenNothingWasLaunched(t *testing.T) {
 
 	body := render(t, screen, "/diff?layer=local")
 	mustContain(t, "the diff", body, "hergy up &lt;name&gt;", "demo")
-}
-
-// TestTheHomeScreenBringsItsStylesheet: the record's screens draw with a file of
-// their own, so no other screen has to share it.
-func TestTheHomeScreenBringsItsStylesheet(t *testing.T) {
-	screen, err := New(fakePort{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	brought, ok := screen.(web.ScreenAssets)
-	if !ok {
-		t.Fatal("the home screen brings no files of its own")
-	}
-	assets := brought.Assets()
-	if assets.Name != "homeview" {
-		t.Errorf("the files are served under %q, want homeview", assets.Name)
-	}
-	if len(assets.Stylesheets) != 1 || assets.Stylesheets[0] != "homeview.css" {
-		t.Fatalf("the home screen brings %v, want homeview.css", assets.Stylesheets)
-	}
-	text, err := fs.ReadFile(assets.Files, assets.Stylesheets[0])
-	if err != nil {
-		t.Fatalf("the stylesheet is not in the screen's files: %v", err)
-	}
-	if !strings.Contains(string(text), ".guide") {
-		t.Errorf("the stylesheet does not carry the step bar:\n%s", text)
-	}
-}
-
-// TestTheDiffScreenBringsNoSecondCopyOfTheFiles: two screens under one name would
-// stop hergy serve, so the diff screen has none and the frame links the home's.
-func TestTheDiffScreenBringsNoSecondCopyOfTheFiles(t *testing.T) {
-	screen, err := NewDiff(fakePort{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := screen.(web.ScreenAssets); ok {
-		t.Error("the diff screen brings its own files; the home screen already brings them")
-	}
 }
 
 // TestDiffLinesMarksWhatOnlyOneSideHas: the diff of two prompts keeps the lines

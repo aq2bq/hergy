@@ -1,51 +1,63 @@
-<h1>{{t "web.teamview.running.title"}}</h1>
-<p class="lede">{{t "web.teamview.running.lede"}}</p>
-{{template "live-list" .}}
+<div class="wrap w1180">
+  <div class="kicker"><span class="mono">herdr agent list</span><span>+</span><span class="mono">herdr tab list</span></div>
+  <h1>{{t "web.teamview.running.title"}}</h1>
+  <p class="lede">{{t "web.teamview.running.lede"}}</p>
+  {{template "live-list" .}}
+</div>
 
 {{define "live-list"}}
 <div id="live" hx-get="/running/list?layer={{.Layer}}" hx-trigger="every 5s" hx-target="#live" hx-swap="outerHTML">
   <div class="livebar">
-    {{- if .At}}<span class="fine">{{tf "web.teamview.running.read_at" .At}}</span>{{end}}
-    <button class="linkbtn" type="button" hx-get="/running/list?layer={{.Layer}}" hx-target="#live" hx-swap="outerHTML">{{t "web.teamview.running.reload"}}</button>
+    {{- if .At}}<span>{{tf "web.teamview.running.read_at" .At}}</span>{{end}}
+    <button class="btn" type="button" hx-get="/running/list?layer={{.Layer}}" hx-target="#live" hx-swap="outerHTML">{{t "web.teamview.running.reload"}}</button>
     <span class="fine htmx-indicator">{{t "web.teamview.running.reading"}}</span>
   </div>
   {{if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
-  {{- range .Teams}}
-  <section class="card">
-    <h3>{{.Name}} <span class="fine">{{t "label.definition"}} {{.Definition}}</span>{{if .TabID}}<span class="fine mono">{{tf "web.teamview.running.tab" .TabID}}</span>{{end}}</h3>
-    {{- if not .Known}}
-    <p class="problem">{{t "status.definition_elsewhere"}}</p>
-    {{- else if .Broken}}
-    <p class="problem">{{.Broken}}</p>
-    {{- else}}
-    <p class="verdict{{if not .Verdict}} empty{{end}}">{{if .Verdict}}{{.Verdict}}{{else}}{{t "web.teamview.running.working"}}{{end}}</p>
-    <ul class="lrows">
-      {{- range .Rows}}
-      <li class="lrow">
-        <span class="pill st-{{.State}}">{{.Text}}</span>
-        <span class="lname">{{.Name}}{{if .Worker}} <span class="fine">{{t "web.teamview.worker"}}</span>{{end}}</span>
-        <span class="lsub fine">{{.Sentence}}</span>
-        {{- if .PaneID}}
-        <span class="lpane mono">{{tf "web.teamview.running.pane" .PaneID}}</span>
-        <form hx-post="/running/focus?layer={{$.Layer}}" hx-target="#live" hx-swap="outerHTML" method="post" action="/running/focus?layer={{$.Layer}}">
-          <input type="hidden" name="token" value="{{$.Token}}">
-          <input type="hidden" name="pane" value="{{.PaneID}}">
-          <button class="linkbtn" type="submit">{{t "web.teamview.running.focus"}}</button>
-        </form>
-        {{- end}}
-      </li>
-      {{- end}}
-    </ul>
-    <p class="fine"><a href="/figure?layer={{$.Layer}}&amp;name={{q .Definition}}">{{t "web.teamview.running.figure"}}</a> <span>{{t "web.teamview.running.same"}} <code class="mono">hergy status {{.Name}}</code></span></p>
-    {{- end}}
-  </section>
-  {{- else}}
-  <p class="empty">{{t "web.teamview.running.none"}}</p>
-  {{- end}}
   <ul class="legend">
     {{- range .Legend}}
-    <li><span class="pill st-{{.State}}">{{.Text}}</span> {{.Meaning}}</li>
+    <li><span class="pill st-{{.State}}" title="{{.Meaning}}"><i></i>{{.Text}}</span>{{.Meaning}}</li>
     {{- end}}
   </ul>
+  <div class="lgrid">
+    {{- range .Teams}}
+    <section class="lcard{{if .Blocked}} blocked{{end}}">
+      <div class="lhead">
+        <span class="tn">{{.Name}}</span>
+        <span class="ts">{{t "label.definition"}} {{if .Known}}<a class="linkbtn" href="/team?layer={{$.Layer}}&amp;name={{q .Definition}}">{{.Definition}}</a>（{{tf "web.layer.name" (t (printf "label.%s" $.Layer))}}）{{else}}{{.Definition}}{{end}}{{if .TabID}}{{t "web.teamview.separator"}}<span class="mono">{{tf "web.teamview.running.tab" .TabID}}</span>{{end}}</span>
+        <span class="verdict{{if .VerdictClass}} {{.VerdictClass}}{{end}}">{{.Verdict}}</span>
+      </div>
+      {{- if not .Known}}
+      <div class="lfoot"><span class="fine">{{t "status.definition_elsewhere"}}</span></div>
+      {{- else if .Broken}}
+      <div class="lfoot"><span class="problem">{{.Broken}}</span></div>
+      {{- else}}
+      <div>
+        {{- range .Rows}}
+        <div class="lrow">
+          <span class="pill st-{{.State}}" title="{{.Meaning}}"><i></i>{{.Text}}</span>
+          <span class="hn">{{.Name}}{{if .Worker}}<span class="wk">{{t "web.teamview.worker"}}</span>{{end}}</span>
+          {{- if .PaneID}}
+          <form class="lkform" hx-post="/running/focus?layer={{$.Layer}}" hx-target="#live" hx-swap="outerHTML" method="post" action="/running/focus?layer={{$.Layer}}">
+            <input type="hidden" name="token" value="{{$.Token}}">
+            <input type="hidden" name="pane" value="{{.PaneID}}">
+            <button class="linkbtn" type="submit">{{tf "web.teamview.running.focus_pane" .PaneID}}</button>
+          </form>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          <span class="sub">{{.Sentence}}</span>
+        </div>
+        {{- end}}
+      </div>
+      <div class="lfoot">
+        <a class="linkbtn" href="/figure?layer={{$.Layer}}&amp;name={{q .Definition}}">{{t "web.teamview.running.figure"}}</a>
+        <span class="fine">{{t "web.teamview.running.same"}} <code class="mono">hergy status {{.Name}}</code></span>
+      </div>
+      {{- end}}
+    </section>
+    {{- else}}
+    <div class="empty-note">{{t "web.teamview.running.none"}}</div>
+    {{- end}}
+  </div>
 </div>
 {{end}}

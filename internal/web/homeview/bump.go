@@ -85,7 +85,8 @@ type bumpScreen struct {
 // NewBump builds the screen that raises a version. It parses the template here,
 // so a broken one stops hergy serve at once instead of on the first request.
 func NewBump(port Port) (web.Screen, error) {
-	templates, err := template.New("").Funcs(web.Funcs()).ParseFS(files, "templates/bump.html")
+	templates, err := template.New("").Funcs(web.Funcs()).
+		ParseFS(files, "templates/bump.html", "templates/changes.html")
 	if err != nil {
 		return nil, err
 	}
@@ -133,14 +134,34 @@ func (s *bumpScreen) page(layer, token string, answer Answer) (web.View, error) 
 		Layer:     layer,
 		Token:     token,
 		Home:      home,
-		Bumps:     home.Bumps(),
 		Answer:    answer,
+		// What the guide's last step names, and what a bump hands over.
+		ChangedRules: changedRules(home),
+	}
+	byFile := make(map[string]Doc, len(home.Docs))
+	for _, doc := range home.Docs {
+		byFile[doc.File] = doc
+	}
+	for _, bump := range home.Bumps() {
+		panel := bumpPanel{Bump: bump}
+		if doc, ok := byFile[bump.File]; ok {
+			panel.Changes = changesOf(s.port, doc)
+		}
+		data.Panels = append(data.Panels, panel)
 	}
 	var buf bytes.Buffer
 	if err := s.templates.ExecuteTemplate(&buf, "bump.html", data); err != nil {
 		return web.View{}, err
 	}
 	return web.View{Title: i18n.T("web.bump.title"), Body: web.HTML(buf.String())}, nil
+}
+
+// bumpPanel is one document whose version can be raised: the bump itself, and
+// the change the label repeats, taken from the same document the home screen
+// shows.
+type bumpPanel struct {
+	Bump    Bump
+	Changes changes
 }
 
 // bumpData is what the bump template is given.
@@ -151,13 +172,16 @@ type bumpData struct {
 	Layer string
 	// Token is this run's token: every form carries it.
 	Token string
-	// Home is what the app read for this layer. The screen takes the documents
-	// that moved from it, and it is what says whether a launch has happened at
-	// all and why the record could not be read.
+	// Home is what the app read for this layer. It is what says whether a launch
+	// has happened at all and why the record could not be read.
 	Home Home
-	// Bumps is the documents whose content moved, and the version a bump writes.
-	Bumps []Bump
+	// Panels is the documents whose content moved, each with the version a bump
+	// writes and the change to show.
+	Panels []bumpPanel
 	// Answer is what the last write did, or why it did nothing. The zero value
 	// on the page that was not written to.
 	Answer Answer
+	// ChangedRules is how many rules moved since the last launch, over the
+	// documents of the layer; the guide's last step names it.
+	ChangedRules int
 }

@@ -18,6 +18,7 @@ func Funcs() template.FuncMap {
 		"tf":     i18n.Tf,
 		"inline": Inline,
 		"lang":   i18n.Language,
+		"guide":  Guide,
 	}
 }
 

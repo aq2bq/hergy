@@ -1,87 +1,103 @@
-<h1>{{t "web.teamview.definition.title"}}</h1>
-{{if .Name}}<p class="lede">{{tf "web.teamview.definition.lede" .Name}}</p>{{end}}
-{{if .Teams}}
-<nav class="pick" aria-label="{{t "web.teamview.pick"}}">
-  {{- range .Teams}}
-  <a class="chip{{if .Active}} on{{end}}" href="/team?layer={{$.Layer}}&amp;name={{.Name}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}{{if .Running}}<i class="ldot" title="{{t "web.teams.running"}}"></i>{{end}}</a>
-  {{- end}}
-</nav>
-{{end}}
+<div class="wrap w1080">
 {{if not .Name}}
-<p class="empty">{{t "web.teamview.no_definition"}}</p>
-{{else if .Broken}}
-<p class="problem">{{.Broken}}</p>
+  <h1>{{t "web.teamview.definition.title"}}</h1>
+  <p class="lede">{{t "web.teamview.no_definition"}} <a class="linkbtn fs14" href="/teams?layer={{.Layer}}">{{t "web.teams.title"}}</a></p>
 {{else}}
-<p class="fine mono">{{.Path}}</p>
-
-<h2>{{t "web.teamview.documents"}}</h2>
-<p class="explain">{{tf "web.teamview.documents.note" .LayerName}}</p>
-{{if .Docs}}
-<ol class="stack">
-  {{- range .Docs}}
-  <li><a href="{{rules .Layer .Key ""}}">{{.Label}}</a> <span class="fine mono">{{.Path}}</span>
-    {{- if .Broken}} <span class="problem">{{.Broken}}</span>
-    {{- else}} <span class="fine">{{tf "web.teamview.doc.rules" (len .Rules)}}</span>{{end}}
-  </li>
+  <div class="kicker"><a class="linkbtn" href="/teams?layer={{.Layer}}">{{t "web.teams.title"}}</a><span>›</span><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span><span class="mono">{{.Path}}</span></div>
+  <h1 class="mono">{{.Name}}</h1>
+  <p class="lede">{{tf "web.teamview.definition.lede" .Name}}</p>
+  {{- if .HasLaunch}}
+  <div class="panel">
+    <div class="copy-row">
+      {{- if .Launch.Launched}}
+      <span>{{t "web.teams.column.launched"}}: <span class="mono">{{.Launch.Launched}}</span>{{if .Launch.Hash}} <span class="mono">{{.Launch.Hash}}</span>{{end}}</span>
+      {{- if not .Launch.Same}}<span class="fine">{{t "web.teams.moved"}}</span>{{end}}
+      {{- else}}
+      <span>{{t "web.teams.never"}}</span>
+      {{- end}}
+    </div>
+  </div>
   {{- end}}
-</ol>
-{{else}}
-<p class="empty">{{t "web.teamview.documents.empty"}}</p>
-{{end}}
-
-<h2>{{t "web.teamview.members.what"}}</h2>
-<p class="explain">{{t "web.teamview.members.meaning"}}</p>
-{{if .Members}}
-<table class="teams">
-  <thead>
-    <tr>
-      <th scope="col">{{t "web.teamview.column.member"}}</th>
-      <th scope="col">{{t "label.role"}}</th>
-      <th scope="col">{{t "label.kind"}}</th>
-      <th scope="col">{{t "label.profile"}}</th>
-      <th scope="col"></th>
-    </tr>
-  </thead>
-  <tbody>
+  {{- if .Broken}}
+  <p class="problem">{{.Broken}}</p>
+  {{- else}}
+  <h2 class="sect-sm">{{t "label.members"}}</h2>
+  <div class="explain mw"><p><b>{{t "web.teamview.members.what"}}</b>{{t "web.teamview.members.meaning"}}</p></div>
+  {{- if .Members}}
+  <div class="mtable">
+    <div class="mhead">
+      <span>{{t "web.teamview.column.member"}}</span>
+      <span>{{t "label.role"}}</span>
+      <span>{{t "label.profile"}}</span>
+      <span>{{t "web.rules.panel.zone.send"}}</span>
+      <span></span>
+    </div>
     {{- range .Members}}
-    <tr>
-      <th scope="row">{{.Name}}</th>
-      <td>{{if .Role}}{{.Role}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
-      <td>{{if .Kind}}{{.Kind}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
-      <td>{{if .Profile}}{{.Profile}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
-      <td>
-        <button class="linkbtn" type="button" hx-get="/panel/member?layer={{$.Layer}}&amp;name={{$.Name}}&amp;member={{q .Name}}" hx-target="{{panel}}" hx-swap="innerHTML">{{t "web.teamview.member.open_prompt"}}</button>
-      </td>
-    </tr>
+    <div class="mgroup"{{if .Open}} aria-current="true"{{end}}>
+      <div class="mline">
+        <span class="mname">{{.Name}}</span>
+        <span>{{if .Role}}{{.Role}}{{else}}{{t "web.teamview.none"}}{{end}}</span>
+        <span>{{if .Profile}}{{.Profile}}{{else}}{{t "label.kind"}}: {{.Kind}}{{end}}</span>
+        <span class="mcount">{{tf "web.teamview.doc.rules" .Rules}}<br>{{t "web.teamview.panel.workers"}} {{tf "web.frame.index.count" .Workers}}</span>
+        <span class="row nowrap-gap"><a class="btn" href="/team?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;member={{q .Name}}"{{if .Open}} aria-current="true"{{end}} hx-get="/panel/member?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;member={{q .Name}}" hx-target="{{drawer}}" hx-swap="outerHTML">{{if .Open}}{{t "web.teamview.member.open_prompt_done"}}{{else}}{{t "web.teamview.member.open_prompt"}}{{end}}</a></span>
+      </div>
+    </div>
     {{- end}}
-  </tbody>
-</table>
-{{else}}
-<p class="empty">{{t "web.teamview.members.empty"}}</p>
-{{end}}
+  </div>
+  {{- else}}
+  <p class="empty-note">{{t "web.teamview.members.empty"}}</p>
+  {{- end}}
 
-<h2>{{t "web.teamview.workers.what"}}</h2>
-<p class="explain">{{t "web.teamview.workers.meaning"}}</p>
-{{if .Workers}}
-<table class="teams">
-  <thead>
-    <tr>
-      <th scope="col">{{t "web.teamview.column.calls"}}</th>
-      <th scope="col">{{t "web.teamview.column.purpose"}}</th>
-      <th scope="col">{{t "label.profile"}}</th>
-    </tr>
-  </thead>
-  <tbody>
+  <h2 class="sect">{{t "label.workers"}}</h2>
+  <div class="explain mw"><p><b>{{t "web.teamview.workers.what"}}</b>{{t "web.teamview.workers.meaning"}}</p></div>
+  {{- if .Workers}}
+  <div class="mtable">
+    <div class="whead">
+      <span>{{t "web.teamview.column.calls"}}</span>
+      <span>{{t "web.teamview.column.purpose"}}</span>
+      <span>{{t "label.profile"}}</span>
+      <span></span>
+    </div>
     {{- range .Workers}}
-    <tr>
-      <th scope="row">{{.Member}}</th>
-      <td>{{.Purpose}}</td>
-      <td>{{.Profile}}</td>
-    </tr>
+    <div class="wline">
+      <span class="wm">{{.Member}}</span>
+      <span>{{.Purpose}}</span>
+      <span>{{.Profile}}</span>
+      <span></span>
+    </div>
     {{- end}}
-  </tbody>
-</table>
-{{else}}
-<p class="empty">{{t "web.teamview.workers.empty"}}</p>
+  </div>
+  {{- else}}
+  <p class="empty-note">{{t "web.teamview.workers.empty"}}</p>
+  {{- end}}
+
+  <div class="two sect">
+    <div>
+      <h2 class="mb10">{{t "web.teamview.documents"}}</h2>
+      <p class="fine">{{tf "web.teamview.documents.note" .LayerName}}</p>
+      {{- if .Docs}}
+      <ol class="stack">
+        {{- range .Docs}}
+        <li>
+          <span class="sn">
+            <b><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span> <a href="{{rules .Layer .Key ""}}">{{.Label}}</a></b>
+            <small class="mono">{{.Path}}</small>
+            {{- if .Broken}}
+            <small class="problem">{{.Broken}}</small>
+            {{- else}}
+            <small>{{tf "web.teamview.doc.rules" (len .Rules)}}</small>
+            {{- end}}
+          </span>
+        </li>
+        {{- end}}
+      </ol>
+      {{- else}}
+      <p class="empty-note">{{t "web.teamview.documents.empty"}}</p>
+      {{- end}}
+    </div>
+  </div>
+
+  <p class="mt22"><a class="linkbtn fs14" href="/figure?layer={{.Layer}}&amp;name={{q .Name}}">{{t "web.teamview.running.figure"}}</a></p>
+  {{- end}}
 {{end}}
-{{end}}
+</div>

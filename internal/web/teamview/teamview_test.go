@@ -50,6 +50,11 @@ func (p *fakePort) Teams(layer string) []web.Team { return p.teams[layer] }
 
 func (p *fakePort) LayerRoot(layer string) string { return p.roots[layer] }
 
+// The frame asks for the left list and the header's counts; these screens draw
+// neither, so an empty one is enough to satisfy web.Port.
+func (p *fakePort) Index(string) web.Index   { return web.Index{} }
+func (p *fakePort) Meters(string) web.Meters { return web.Meters{} }
+
 func (p *fakePort) Definition(_, name string) (Definition, error) {
 	def, ok := p.defs[name]
 	if !ok {
@@ -276,7 +281,6 @@ func TestDefinitionScreenShowsWhatTheDefinitionHolds(t *testing.T) {
 		"lead", "dev", "リード", "実装", "heavy", "調べものを手伝う", "quick",
 		shown("web.teamview.members.meaning"), shown("web.teamview.workers.meaning"),
 		"/panel/member?layer=local", "member=lead\"",
-		`title="`+shown("web.teams.running")+`"`,
 	)
 }
 
@@ -304,9 +308,9 @@ func TestMemberPanelShowsThePromptAndTheLiveState(t *testing.T) {
 		t.Fatalf("GET /panel/member = %d, want 200", code)
 	}
 	mustContain(t, "the member panel", body,
-		"lead", "demo-lead", "リード", "claude", "heavy",
+		"lead", "demo-lead", "リード", "heavy",
 		"working", shown("web.teamview.state.working"), "設計を書いている",
-		`<span class="mono">p1</span>`,
+		shownf("web.teamview.running.pane", "p1"),
 		"<strong>役割</strong>", "<code>herdr agent status</code>",
 		shown("web.teamview.panel.no_role_file"),
 	)
@@ -368,11 +372,10 @@ func TestRunningScreenShowsWhatHerdrSays(t *testing.T) {
 	}
 	mustContain(t, "the running screen", body,
 		shown("web.teamview.running.title"),
-		"demo", shown("label.definition")+" demo", "t-demo",
+		"demo", shown("label.definition"), ">demo</a>", "t-demo",
 		"demo-lead", "working", "demo-dev", "blocked", "demo-helper", shown("web.teamview.worker"),
-		"設計を書いている", shownf("web.teamview.running.pane", "p2"),
+		"設計を書いている", shownf("web.teamview.running.focus_pane", "p2"),
 		shownf("status.human_waiting", "demo-dev"),
-		shown("web.teamview.running.focus"),
 		shown("web.teamview.state.working"), shown("status.not_live"),
 		// The team's figure is one press away, and the command that prints the
 		// same on the terminal is written out.
@@ -503,11 +506,8 @@ func TestOnlyTheFocusIsAWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Screens: %v", err)
 	}
-	writes, assets := 0, 0
+	writes := 0
 	for _, screen := range screens {
-		if _, ok := screen.(web.ScreenAssets); ok {
-			assets++
-		}
 		for _, route := range screen.Routes() {
 			if !route.Write {
 				continue
@@ -520,9 +520,6 @@ func TestOnlyTheFocusIsAWrite(t *testing.T) {
 	}
 	if writes != 1 {
 		t.Errorf("%d write routes, want 1", writes)
-	}
-	if assets != 1 {
-		t.Errorf("%d screens bring files, want 1 (the frame refuses two with one name)", assets)
 	}
 }
 

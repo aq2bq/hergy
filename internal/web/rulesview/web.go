@@ -1,18 +1,11 @@
 package rulesview
 
 import (
-	"embed"
 	"net/http"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 )
-
-// The screen's own stylesheet. The frame's stylesheet draws the frame; the rules
-// screen's classes are the screen's, so the two never have to know each other.
-//
-//go:embed *.css
-var assets embed.FS
 
 // Name is what the navigation calls this screen.
 func (s *Screen) Name() string { return i18n.T("web.rules.title") }
@@ -33,15 +26,6 @@ func (s *Screen) Routes() []web.Route {
 	}
 }
 
-// Assets is the stylesheet this screen brings, served under /static/rules/.
-func (s *Screen) Assets() web.Assets {
-	return web.Assets{
-		Name:        "rules",
-		Files:       assets,
-		Stylesheets: []string{"rules.css"},
-	}
-}
-
 // show answers the rules screen. A link may name one rule by its id, and then
 // the page opens with that rule in the right panel: that is how another screen
 // points at a rule (spec/10 の 7 節).
@@ -49,20 +33,23 @@ func (s *Screen) show(r *http.Request) (web.View, error) {
 	query := r.URL.Query()
 	layer := web.LayerOf(r)
 	doc := query.Get("doc")
-	body, err := s.RulesBody(layer, doc, query.Get("filter"))
-	if err != nil {
-		return web.View{}, err
-	}
-	view := web.View{Title: s.Name(), Body: web.HTML(body)}
+	data := s.rulesData(layer, doc, query.Get("filter"))
+	view := web.View{Title: s.Name()}
 	if id := query.Get("rule"); id != "" {
-		panel, ok, err := s.PanelFor(layer, doc, id, web.Token(r))
+		drawer, ok, err := s.PanelFor(layer, data.Doc.Path, id, web.Token(r))
 		if err != nil {
 			return web.View{}, err
 		}
 		if ok {
-			view.Panel = web.HTML(panel)
+			view.Drawer = web.HTML(drawer)
+			data.Open = id
 		}
 	}
+	body, err := s.render.Rules(data)
+	if err != nil {
+		return web.View{}, err
+	}
+	view.Body = web.HTML(body)
 	return view, nil
 }
 
@@ -117,7 +104,7 @@ func (s *Screen) answer(answer Answer, err error) (web.View, error) {
 	}
 	view := web.View{Title: s.Name(), Body: web.HTML(answer.Body)}
 	if answer.Panel != "" {
-		view.Panel = web.HTML(answer.Panel)
+		view.Drawer = web.HTML(answer.Panel)
 	}
 	return view, nil
 }

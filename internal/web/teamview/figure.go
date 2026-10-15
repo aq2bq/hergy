@@ -17,7 +17,7 @@ import (
 // The positions come from internal/topology; this screen writes them as SVG,
 // and every line of text in the figure is put together here. The figure carries
 // no style of its own (default-src 'self' refuses a style attribute), so every
-// colour and size is a class in this package's stylesheet. A member's box opens
+// colour and size is a class in the frame's stylesheet. A member's box opens
 // that member in the right panel; a document and a rule id open the rules screen.
 type figureScreen struct{ base }
 
@@ -37,6 +37,7 @@ func (s *figureScreen) show(r *http.Request) (web.View, error) {
 		Layer:  layer,
 		Name:   name,
 		Teams:  pickTeams(teams, name),
+		Shapes: figureShapes(),
 		Legend: figureLegend(),
 	}
 	// Nothing to draw when the layer has no team definition: the page says so.
@@ -53,7 +54,8 @@ func (s *figureScreen) show(r *http.Request) (web.View, error) {
 			data.View = figureOf(layout, def, live, states)
 			data.NoArrows = len(layout.Edges) == 0
 			if live != nil {
-				data.Banner = &banner{Team: live.Team, Verdict: status.Judge(live.Rows).Text()}
+				verdict := status.Judge(live.Rows)
+				data.Banner = &banner{Team: live.Team, Verdict: verdict.Text(), Danger: len(verdict.Waiting) > 0}
 			}
 		}
 	}
@@ -72,13 +74,31 @@ type figureData struct {
 	View     figure
 	Banner   *banner
 	NoArrows bool
-	Legend   []string
+	// Shapes is the short list under the figure: what each shape is; Legend is
+	// the longer explanation of how to read them.
+	Shapes []string
+	Legend []string
 }
 
 // banner is the line above the figure when Herdr says the definition runs.
 type banner struct {
 	Team    string
 	Verdict string
+	// Danger says somebody waits on the human: the banner is outlined in the
+	// danger colour.
+	Danger bool
+}
+
+// figureShapes is the short list under the figure: what each shape is, in the
+// order the figure draws them.
+func figureShapes() []string {
+	return []string{
+		i18n.T("web.teamview.figure.shared"),
+		i18n.T("label.role_file"),
+		i18n.T("label.member"),
+		i18n.T("web.teamview.worker"),
+		i18n.T("web.teamview.figure.human"),
+	}
 }
 
 // figureLegend is what the line under the figure says each shape is.
@@ -242,11 +262,13 @@ func figureOf(layout topology.Figure, def Definition, live *LiveTeam, states map
 		if !box.RoleFile.Has {
 			box.RoleFile.Name = i18n.T("web.teamview.figure.no_role_file")
 			box.RoleFile.Sub = ""
+			// One line, centred in the slot the role file would sit in.
+			box.RoleFile.NameY = member.RoleSlot.CY() + 4
 		}
 		for _, worker := range member.Workers {
 			box.Workers = append(box.Workers, workerBox{
 				labelBox: labelBox{
-					Box: worker.Box, Name: worker.Purpose, Sub: dot(i18n.T("label.worker"), worker.Profile),
+					Box: worker.Box, Name: worker.Purpose, Sub: dot(i18n.T("web.teamview.worker"), worker.Profile),
 					NameX: worker.X + 9, NameY: worker.Y + 15,
 					SubX: worker.X + 9, SubY: worker.Y + 30,
 				},

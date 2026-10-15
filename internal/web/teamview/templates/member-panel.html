@@ -1,32 +1,41 @@
-<h2>{{.Member.Name}}</h2>
-<dl class="meta">
-  <dt>{{t "label.role"}}</dt>
-  <dd>{{if .Member.Role}}{{.Member.Role}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
-  <dt>{{t "label.kind"}}</dt>
-  <dd>{{if .Member.Kind}}{{.Member.Kind}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
-  <dt>{{t "label.profile"}}</dt>
-  <dd>{{if .Member.Profile}}{{.Member.Profile}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
-  <dt>{{t "web.teamview.panel.herdr_name"}}</dt>
-  <dd class="mono">{{.Member.Herdr}}</dd>
-  <dt>{{t "web.teamview.panel.herdr_state"}}</dt>
-  <dd>
-    {{- if not .Live}}{{t "web.teamview.panel.not_running"}}
-    {{- else}}<span class="pill st-{{.State}}">{{.Text}}</span> <span class="fine">{{.Meaning}}{{if .Row.Title}} · {{.Row.Title}}{{end}}</span>
-    {{- end}}
-  </dd>
-  <dt>{{t "web.teamview.panel.pane"}}</dt>
-  <dd>{{if .Row.PaneID}}<span class="mono">{{.Row.PaneID}}</span>{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
-  <dt>{{t "label.role_file"}}</dt>
-  <dd>{{if .Member.RoleFile}}{{.Member.RoleFile.Label}} <span class="fine mono">{{.Member.RoleFile.Path}}</span>{{else}}<span class="fine">{{t "web.teamview.panel.no_role_file"}}</span>{{end}}</dd>
-  <dt>{{t "web.teamview.panel.workers"}}</dt>
-  <dd>{{if .Member.Workers}}
-    <ul class="plain">
-      {{- range .Member.Workers}}
-      <li>{{.Purpose}} <span class="fine">{{.Profile}}</span></li>
-      {{- end}}
-    </ul>
-    {{- else}}<span class="fine">{{t "web.teamview.panel.no_workers"}}</span>{{end}}</dd>
-</dl>
-<h2>{{t "label.prompt"}}</h2>
-<p class="explain">{{t "web.teamview.panel.prompt_note"}}</p>
-<pre class="prompt">{{inline .Member.Prompt}}</pre>
+<aside class="drawer" id="drawer" aria-label="{{t "web.frame.drawer"}}">
+  <div class="dr-head">
+    <span class="dr-crumb"><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span> {{t "label.definition"}} › <span class="mono">{{.Team}}</span> › {{t "web.teamview.column.member"}} <span class="mono">{{.Member.Name}}</span></span>
+    <button class="x" hx-get="/panel/close?layer={{.Layer}}" hx-target="{{drawer}}" hx-swap="outerHTML" aria-label="{{t "web.rules.panel.close"}}">×</button>
+  </div>
+  <div class="dr-body">
+    <div>
+      <div class="dr-id">
+        <span class="mono">{{.Member.Name}}</span>
+        {{- if .Live}}<span class="pill st-{{.State}}" title="{{.Meaning}}"><i></i>{{.Text}}</span>{{end}}
+      </div>
+      <dl class="kv">
+        <dt>{{t "label.role"}}</dt>
+        <dd>{{if .Member.Role}}{{.Member.Role}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
+        <dt>{{t "label.profile"}}</dt>
+        <dd>{{if .Member.Profile}}{{.Member.Profile}}{{else}}{{t "label.kind"}}: {{.Member.Kind}}{{end}}</dd>
+        <dt>{{t "web.teamview.panel.herdr_name"}}</dt>
+        <dd class="mono">{{.Member.Herdr}}</dd>
+        <dt>{{t "web.teamview.panel.herdr_state"}}</dt>
+        <dd>
+          {{- if not .Live}}{{t "web.teamview.panel.not_running"}}
+          {{- else}}<span class="pill st-{{.State}}" title="{{.Meaning}}"><i></i>{{.Text}}</span> <span class="fine">{{.Meaning}}{{if .Row.PaneID}} · <span class="mono">{{tf "web.teamview.running.pane" .Row.PaneID}}</span>{{end}}{{if .Row.Title}} · {{.Row.Title}}{{end}}</span>
+          {{- end}}
+        </dd>
+        <dt>{{t "label.role_file"}}</dt>
+        <dd>{{if .Member.RoleFile}}{{.Member.RoleFile.Label}} <span class="fine mono">{{.Member.RoleFile.Path}}</span>{{else}}<span class="fine">{{t "web.teamview.panel.no_role_file"}}</span>{{end}}</dd>
+        <dt>{{t "web.teamview.panel.workers"}}</dt>
+        <dd>{{if .Member.Workers}}{{range $i, $w := .Member.Workers}}{{if $i}}{{t "list.separator"}}{{end}}{{.Purpose}}（{{.Profile}}）{{end}}{{else}}<span class="fine">{{t "web.teamview.panel.no_workers"}}</span>{{end}}</dd>
+      </dl>
+    </div>
+    <div>
+      <h3>{{t "label.prompt"}}</h3>
+      <p class="fine">{{t "label.reads"}}: {{range $i, $d := .Docs}}{{if $i}} → {{end}}{{$d.Label}}{{end}}</p>
+      <p class="fine">{{t "web.teamview.panel.prompt_note"}}</p>
+      <div class="render">{{inline .Member.Prompt}}</div>
+    </div>
+    <div class="row rows-end">
+      <button class="btn" hx-get="/panel/close?layer={{.Layer}}" hx-target="{{drawer}}" hx-swap="outerHTML">{{t "web.rules.panel.close"}}</button>
+    </div>
+  </div>
+</aside>

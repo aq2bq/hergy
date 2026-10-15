@@ -6,44 +6,65 @@
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
 <title>{{tf "web.frame.title" .Title}}</title>
 <link rel="stylesheet" href="/static/hergy.css">
-{{- range .Stylesheets}}
-<link rel="stylesheet" href="{{.}}">
-{{- end}}
 <script src="/static/htmx-2.0.4.min.js" defer></script>
-{{- range .Scripts}}
-<script src="{{.}}" defer></script>
-{{- end}}
 </head>
 <body>
-<header class="top">
-  <span class="brand">hergy</span>
-  <nav class="screens" aria-label="{{t "web.frame.nav"}}">
-    {{- range .Nav}}
-    <a class="screen{{if .Active}} on{{end}}" href="{{.Href}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}</a>
-    {{- end}}
-  </nav>
-  <nav class="layers" aria-label="{{t "web.frame.layer"}}">
-    {{- range .Layers}}
-    <a class="layer{{if .Active}} on{{end}}" href="{{.Href}}"{{if .Active}} aria-current="true"{{end}}>{{.Name}}</a>
-    {{- end}}
-  </nav>
-  <span class="root">{{.LayerRoot}}</span>
-</header>
-{{if .Global}}
-<p class="global-note">{{t "web.frame.global_note"}}</p>
-{{end}}
-<main>
-  <section class="content">
+<div class="app" data-layer="{{.Layer}}" data-view="{{.View}}">
+  <header class="top">
+    <div class="brand"><b>hergy</b><span>{{t "web.frame.brand"}}</span></div>
+    <div class="layer-toggle" role="group" aria-label="{{t "web.frame.layer"}}">
+      {{- range .Layers}}
+      <a href="{{.Href}}"{{if .Active}} aria-current="true"{{end}}><b>{{.Name}}</b><small>{{.Root}}</small></a>
+      {{- end}}
+    </div>
+    <nav class="views" aria-label="{{t "web.frame.nav"}}">
+      {{- range .Nav}}
+      <a href="{{.Href}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}</a>
+      {{- end}}
+    </nav>
+    <div class="meters">
+      {{- range .Meters}}
+      <div class="meter"><span class="ml">{{.Label}}</span><span class="mv">{{.N}} / {{.Total}}</span><progress class="mb {{.Class}}" value="{{.N}}" max="{{.Max}}"></progress></div>
+      {{- end}}
+    </div>
+  </header>
+  <div class="body">
+    <aside class="index" id="index" aria-label="{{t "web.frame.index"}}">
+      <div class="ix-layer">
+        <div class="ix-layer-h"><span class="lay {{.Layer}}">{{.LayerName}}</span><small>{{.LayerRoot}}{{t .LayerNote}}</small></div>
+        {{- if .Index.Teams}}
+        <div class="ix-group">
+          <div class="ix-label">{{t "web.frame.index.group.teams"}}</div>
+          {{- range .Index.Teams}}
+          <a class="ix-item" href="{{.Href}}"{{if eq .Name $.CurrentTeam}} aria-current="true"{{end}}>
+            <span class="ix-row"><span class="ix-name mono">{{.Name}}</span><span class="ix-rev">{{tf "web.frame.index.people" .Members}}</span></span>
+            {{- if .Shadowed}}<span class="ix-rev">{{t "web.frame.index.shadowed"}}</span>{{end}}
+            {{- if .Broken}}<span class="ix-rev">{{.Broken}}</span>{{end}}
+          </a>
+          {{- end}}
+        </div>
+        {{- end}}
+        {{- range .Index.Groups}}
+        <div class="ix-group">
+          <div class="ix-label">{{.Label}}</div>
+          {{- range .Rows}}
+          <a class="ix-item" href="{{.Href}}"{{if eq .Path $.CurrentDoc}} aria-current="true"{{end}}>
+            <span class="ix-row"><span class="ix-name{{if .Mono}} mono{{end}}">{{.Name}}</span><span class="ix-rev">{{if .Changed}}<span class="dirty">{{tf "web.frame.index.changed" .Changed}}</span>{{else if .Whole}}<span class="dirty">{{t "web.frame.index.changed_any"}}</span>{{end}}</span></span>
+            <span class="ix-rev ix-sub">{{tf "web.frame.index.tally" .Rules .Origin}}</span>
+          </a>
+          {{- end}}
+        </div>
+        {{- end}}
+        <div class="ix-group">
+          <span class="ix-item"><span class="ix-row"><span class="ix-name">{{t "web.frame.index.group.profiles"}}</span><span class="ix-rev">{{tf "web.frame.index.count" .Index.Profiles}}</span></span></span>
+        </div>
+      </div>
+    </aside>
+    <main id="main">
 {{.Body}}
-  </section>
-  <aside class="panel" id="{{.PanelID}}">
-{{- if .Panel}}
-{{.Panel}}
-{{- else}}
-    <h2>{{t "web.frame.panel"}}</h2>
-    <p class="empty">{{t "web.frame.panel_empty"}}</p>
-{{- end}}
-  </aside>
-</main>
+    </main>
+    {{if .Drawer}}{{.Drawer}}{{else}}<aside class="drawer" id="{{.DrawerID}}" hidden aria-label="{{t "web.frame.drawer"}}"></aside>{{end}}
+  </div>
+</div>
 </body>
 </html>

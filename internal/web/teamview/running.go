@@ -97,7 +97,13 @@ type liveTeam struct {
 	Known      bool   // the layer has a team definition of this name
 	Broken     string // why that definition cannot be read
 	Rows       []liveRow
-	Verdict    string
+	// Blocked says somebody waits on the human: the card is outlined in the
+	// danger colour and the judgement is written in it.
+	Blocked bool
+	// Verdict is the judgement line, and VerdictClass the colour it is written
+	// in ("warn" while somebody waits, "calm" when nobody works, else empty).
+	Verdict      string
+	VerdictClass string
 }
 
 // liveRow is one member or worker of a running team.
@@ -105,31 +111,55 @@ type liveRow struct {
 	Name     string
 	State    string // the word the pill is coloured by
 	Text     string // what the pill writes: the state, or "not present"
+	Meaning  string // what that state means, on the pill and beside it
 	Sentence string // the role, the engine, and what the terminal says
 	PaneID   string
 	Worker   bool
 }
 
 func liveTeamOf(team LiveTeam) liveTeam {
+	verdict := status.Judge(team.Rows)
 	out := liveTeam{
-		Name:       team.Team,
-		Definition: team.Definition,
-		TabID:      team.TabID,
-		Known:      team.Known,
-		Broken:     team.Broken,
-		Verdict:    status.Judge(team.Rows).Text(),
+		Name:         team.Team,
+		Definition:   team.Definition,
+		TabID:        team.TabID,
+		Known:        team.Known,
+		Broken:       team.Broken,
+		Blocked:      len(verdict.Waiting) > 0,
+		Verdict:      verdict.Text(),
+		VerdictClass: verdictClass(verdict),
+	}
+	// The judgement is empty only when somebody is working and nobody waits:
+	// the line then says that, the way hergy status leaves it unsaid.
+	if out.Verdict == "" {
+		out.Verdict = i18n.T("web.teamview.running.working")
 	}
 	for _, row := range team.Rows {
+		word := stateWord(row)
 		out.Rows = append(out.Rows, liveRow{
 			Name:     row.Name,
-			State:    stateWord(row),
+			State:    word,
 			Text:     stateText(row),
+			Meaning:  stateMeaning(word),
 			Sentence: sentence(row),
 			PaneID:   row.PaneID,
 			Worker:   row.Worker,
 		})
 	}
 	return out
+}
+
+// verdictClass is the colour the judgement line is written in: warn while
+// somebody waits on the human, calm when nobody is working, and the plain
+// colour otherwise.
+func verdictClass(v status.Verdict) string {
+	switch {
+	case len(v.Waiting) > 0:
+		return "warn"
+	case v.Working == 0:
+		return "calm"
+	}
+	return ""
 }
 
 // stateText is what a row's pill writes: the state Herdr reports, or the word

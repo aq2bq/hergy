@@ -34,11 +34,16 @@ func New(port Port) (*Screen, error) {
 // RulesBody is the rules screen: the layer's rule files, the one asked for (the
 // first when none is named), and the filter.
 func (s *Screen) RulesBody(layer, path, filter string) (string, error) {
+	return s.render.Rules(s.rulesData(layer, path, filter))
+}
+
+// rulesData is what the rules screen shows for one document and filter.
+func (s *Screen) rulesData(layer, path, filter string) Rules {
 	docs := s.docs(layer)
 	shown := pick(layer, docs, path)
 	data := NewRules(shown, filter)
-	data.Groups = NewIndex(shown.Path, docs)
-	return s.render.Rules(data)
+	data.Changes = s.port.Changes(layer)
+	return data
 }
 
 // PanelBody is the edit panel, opened from a rule's place or for a new rule at
@@ -74,6 +79,13 @@ func (s *Screen) PanelFormBody(layer, path string, values url.Values) (string, e
 	case values.Get("remove_origin") != "":
 		if i := atoi(values.Get("remove_origin")); i >= 0 && i < len(edit.Origins) {
 			edit.Origins = append(edit.Origins[:i:i], edit.Origins[i+1:]...)
+		}
+	case values.Get("okind") != "":
+		// The kind of an origin is a row of buttons (the prototype's seg), so
+		// picking one redraws the panel with that kind: a date field appears or
+		// goes with it, and nothing is written.
+		if i := atoi(values.Get("okind")); i >= 0 && i < len(edit.Origins) {
+			edit.Origins[i].Kind = values.Get("okind_kind")
 		}
 	}
 	asking := values.Get("delete_ask") != ""
@@ -324,7 +336,20 @@ func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule,
 	data.Reports = ReportOptions(s.scope(layer, docs, shown))
 	data.Preview = s.previewOf(layer, shown, edit)
 	data.Broken = data.Preview.Break != ""
+	data.SectionLabel = sectionLabel(shown.Document, edit.Section)
+	data.Badges = BadgesOf(edit)
 	return data
+}
+
+// sectionLabel is the section a rule stands in, as the panel's crumb names it:
+// its heading, or that the section has none.
+func sectionLabel(doc *rules.Document, index int) string {
+	if doc != nil && index >= 0 && index < len(doc.Sections) {
+		if heading := doc.Sections[index].Heading; heading != "" {
+			return heading
+		}
+	}
+	return i18n.T("web.rules.section.no_heading")
 }
 
 // preview is the edited rule as a member would read it. The whole edited
@@ -361,7 +386,7 @@ func (s *Screen) docs(layer string) []Doc {
 			for _, file := range member.Files {
 				doc, ok := byPath[file.Path]
 				if !ok {
-					doc = &Doc{Path: file.Path, Layer: layer, Group: GroupDoc}
+					doc = &Doc{Path: file.Path, Display: file.Display, Layer: layer, Group: GroupDoc, GroupLabel: file.GroupLabel}
 					if file.Role {
 						doc.Group = GroupRole
 					}

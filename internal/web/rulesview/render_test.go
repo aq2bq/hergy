@@ -9,6 +9,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // The rules screen draws no goroutine work, so this TestMain only loads the
@@ -23,19 +24,16 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// funcs are the template functions a test renders with: the words from the
-// locales and escaping-only text. In hergy the last one is web.Inline, which
-// also draws **bold** and `code` (spec/10 の 4 節); the words and the paths are
-// the same either way.
+// funcs are the template functions a test renders with: the WebUI's own list
+// (so the guide bar and the paths are the ones hergy draws with), with escaping
+// only text in place of web.Inline, which also draws **bold** and `code`
+// (spec/10 の 4 節).
 func funcs() template.FuncMap {
-	return template.FuncMap{
-		"t":  i18n.T,
-		"tf": i18n.Tf,
-		"inline": func(text string) template.HTML {
-			return template.HTML(template.HTMLEscapeString(text))
-		},
-		"lang": i18n.Language,
+	merged := web.Funcs()
+	merged["inline"] = func(text string) template.HTML {
+		return template.HTML(template.HTMLEscapeString(text))
 	}
+	return merged
 }
 
 func renderer(t *testing.T) *Renderer {
@@ -92,21 +90,20 @@ func sampleDoc(t *testing.T, layer string) Doc {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	return Doc{Path: "protocol.yaml", Group: GroupDoc, Layer: layer, Document: document, UsedBy: []string{"agile-dev"}}
+	return Doc{Path: "protocol.yaml", Display: ".hergy/protocol.yaml", Group: GroupDoc, GroupLabel: "COMMON", Layer: layer, Document: document, UsedBy: []string{"agile-dev"}}
 }
 
 func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
 	data := NewRules(doc, FilterAll)
-	data.Groups = NewIndex(doc.Path, []Doc{doc})
 	got, err := renderer(t).Rules(data)
 	if err != nil {
 		t.Fatalf("Rules: %v", err)
 	}
 	for _, want := range []string{
-		"TEAM PROTOCOL",               // the title
-		i18n.T("web.rules.title"),     // the document list's label
-		i18n.T("web.rules.group.doc"), // the group it is in
+		"TEAM PROTOCOL",        // the title
+		"COMMON",               // the group the app names for the file
+		".hergy/protocol.yaml", // the file as a person writes it
 		i18n.Tf("web.rules.tally.rules", 3),
 		i18n.Tf("web.rules.tally.origin", 1),
 		i18n.Tf("web.rules.tally.reason", 1),
@@ -121,6 +118,8 @@ func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 		i18n.T("web.rules.style.ids"),
 		marked("web.rules.rule.add"),
 		i18n.Tf("web.rules.doc.used_by", "agile-dev"),
+		// The four steps stand above the screen (the guide bar).
+		i18n.T("web.guide.step.fix"),
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the rules body is missing %q:\n%s", want, got)
@@ -129,6 +128,10 @@ func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 	// The rule with a reason that is sent shows it in the list.
 	if !strings.Contains(got, "完了を記録する主体がいなくなる。") {
 		t.Errorf("the reason of a rule that sends it is not shown:\n%s", got)
+	}
+	// The row carries the three marks of a rule, and the open one is marked.
+	if !strings.Contains(got, `class="ev o on"`) || !strings.Contains(got, `class="ev v on"`) {
+		t.Errorf("the rule rows do not carry the origin and check marks:\n%s", got)
 	}
 }
 
@@ -230,7 +233,7 @@ func TestPanelRendersTheFieldsTheOriginAndThePreview(t *testing.T) {
 		"手番を渡す。",
 		"#6100", // the references of the origin, as they were read
 		`action="/rules/save"`,
-		`hx-target="#panel"`, // the right panel's id (web.PanelID)
+		`hx-target="#drawer"`, // the right panel's id (web.DrawerID)
 		`value="tok"`,
 	} {
 		if !strings.Contains(got, want) {

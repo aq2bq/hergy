@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -27,6 +26,26 @@ type fakePort struct {
 
 func (p fakePort) Teams(layer string) []Team     { return p.teams[layer] }
 func (p fakePort) LayerRoot(layer string) string { return p.roots[layer] }
+
+// Index is the left list the tests' frame draws: one row per definition of the
+// layer, and no documents (a test that needs documents writes them in the
+// screens it hands the server).
+func (p fakePort) Index(layer string) Index {
+	var out Index
+	for _, team := range p.teams[layer] {
+		out.Teams = append(out.Teams, IndexTeam{
+			Name:    team.Name,
+			Members: team.Members,
+			Broken:  team.Broken,
+			Href:    "/team?layer=" + layer + "&name=" + team.Name,
+		})
+	}
+	return out
+}
+
+// Meters counts nothing: the tests of the frame read the left list and the layer
+// toggle, not the header's numbers.
+func (p fakePort) Meters(string) Meters { return Meters{} }
 
 // demoPort is the port most tests use: one readable and one broken local
 // definition, and one global definition.
@@ -177,12 +196,12 @@ func TestLayerToggleShowsTheOtherLayer(t *testing.T) {
 	mustContain(t, "the global team list", global.Body.String(),
 		"shared",
 		"~/.config/hergy",
-		i18n.T("web.frame.global_note"),
+		i18n.T("web.frame.layer.note.global"),
 	)
 	mustNotContain(t, "the global team list", global.Body.String(), "demo", ".hergy/teams/broken")
 
 	local := get(t, s, "/teams")
-	mustNotContain(t, "the local team list", local.Body.String(), i18n.T("web.frame.global_note"))
+	mustNotContain(t, "the local team list", local.Body.String(), i18n.T("web.frame.layer.note.global"))
 	mustContain(t, "the local team list", local.Body.String(), ".hergy")
 }
 
@@ -263,7 +282,7 @@ func TestEveryAnswerCarriesThePolicy(t *testing.T) {
 func TestStaticFilesComeFromTheBinary(t *testing.T) {
 	s := newTestServer(t, demoPort())
 	for path, want := range map[string]string{
-		"/static/hergy.css":          "table.teams",
+		"/static/hergy.css":          ".tlist",
 		"/static/htmx-2.0.4.min.js":  "htmx",
 		"/static/htmx-2.0.4.LICENSE": "Zero-Clause BSD",
 	} {
@@ -479,7 +498,7 @@ func TestAScreenFailureShowsWhy(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("GET /boom = %d, want 500", w.Code)
 	}
-	mustContain(t, "the failure", w.Body.String(), "the file went away", i18n.T("web.frame.panel"))
+	mustContain(t, "the failure", w.Body.String(), "the file went away", `id="`+DrawerID+`"`)
 }
 
 // fragmentScreen is a screen that answers a fragment, the way a swap into the
@@ -676,104 +695,10 @@ func TestServeReportsAPortItCannotHave(t *testing.T) {
 	}
 }
 
-// assetScreen is a screen that may bring files of its own: its stylesheet, its
-// script, and something it draws with.
-type assetScreen struct {
-	path   string
-	assets Assets
-}
-
-func (s *assetScreen) Name() string { return s.path }
-
-func (s *assetScreen) Routes() []Route {
-	return []Route{{
-		Path: "/" + s.path,
-		Handler: func(*http.Request) (View, error) {
-			return View{Title: s.path, Body: HTML(`<p class="chart">chart</p>`)}, nil
-		},
-	}}
-}
-
-func (s *assetScreen) Assets() Assets { return s.assets }
-
-// assetFiles are the files a test screen brings: a stylesheet, a script, and a
-// file it draws with.
-func assetFiles() fstest.MapFS {
-	return fstest.MapFS{
-		"chart.css": {Data: []byte(".chart { color: teal; }\n")},
-		"chart.js":  {Data: []byte("// chart\n")},
-		"chart.svg": {Data: []byte("<svg></svg>\n")},
-	}
-}
-
-// TestAScreenBringsItsOwnFiles: a screen's stylesheet and script are in the
-// page's head and served from it, and the rest of what it brings is served too.
-// This is what keeps two screens from having to share one stylesheet, and the
-// only way a screen can bring a style at all: the policy refuses a style or a
-// script written into the page itself.
-func TestAScreenBringsItsOwnFiles(t *testing.T) {
-	screen := &assetScreen{
-		path:   "drawn",
-		assets: Assets{Name: "drawn", Files: assetFiles(), Stylesheets: []string{"chart.css"}, Scripts: []string{"chart.js"}},
-	}
-	s := newTestServer(t, demoPort(), screen)
-	page := get(t, s, "/drawn")
-	body := page.Body.String()
-	mustContain(t, "the frame", body,
-		`<link rel="stylesheet" href="/static/drawn/chart.css">`,
-		`<script src="/static/drawn/chart.js" defer></script>`)
-	if strings.Index(body, "/static/htmx-2.0.4.min.js") > strings.Index(body, "/static/drawn/chart.js") {
-		t.Errorf("the screen's script loads before HTMX, which it may use:\n%s", body)
-	}
-	if strings.Contains(body, "style=") {
-		t.Errorf("the page carries a style of its own, which the policy refuses:\n%s", body)
-	}
-
-	css := get(t, s, "/static/drawn/chart.css")
-	if css.Code != http.StatusOK || !strings.Contains(css.Body.String(), ".chart") {
-		t.Errorf("GET /static/drawn/chart.css = %d %q", css.Code, css.Body.String())
-	}
-	if got := css.Header().Get("Content-Security-Policy"); got != "default-src 'self'" {
-		t.Errorf("a screen's own file carries %q, want the policy", got)
-	}
-	svg := get(t, s, "/static/drawn/chart.svg")
-	if svg.Code != http.StatusOK || !strings.Contains(svg.Body.String(), "<svg>") {
-		t.Errorf("GET /static/drawn/chart.svg = %d %q", svg.Code, svg.Body.String())
-	}
-}
-
-// TestAScreenWithBrokenAssetsStopsTheServer: a file named but not brought, a
-// name that cannot go into a URL, and a screen that brings no files at all are
-// caught when the server is built, not by a person meeting a broken link.
-func TestAScreenWithBrokenAssetsStopsTheServer(t *testing.T) {
-	for what, assets := range map[string]Assets{
-		"a stylesheet that is not there": {Name: "drawn", Files: assetFiles(), Stylesheets: []string{"gone.css"}},
-		"a script that is not there":     {Name: "drawn", Files: assetFiles(), Scripts: []string{"gone.js"}},
-		"a name that is not one URL word": {Name: "drawn/here", Files: assetFiles(),
-			Stylesheets: []string{"chart.css"}},
-		"no files at all": {Name: "drawn"},
-	} {
-		screen := &assetScreen{path: "drawn", assets: assets}
-		if _, err := New(demoPort(), screen); err == nil {
-			t.Errorf("%s: New accepted it", what)
-		}
-	}
-}
-
-// TestTwoScreensCannotServeUnderOneName: the second screen that would take the
-// first one's paths is refused, rather than quietly displacing it.
-func TestTwoScreensCannotServeUnderOneName(t *testing.T) {
-	first := &assetScreen{path: "one", assets: Assets{Name: "drawn", Files: assetFiles()}}
-	second := &assetScreen{path: "two", assets: Assets{Name: "drawn", Files: assetFiles()}}
-	if _, err := New(demoPort(), first, second); err == nil {
-		t.Error("New let two screens serve their files under one name")
-	}
-}
-
 // panelScreen opens with something in the right panel, the way a screen opening
 // on a rule being edited does, and answers the panel on its own when something
 // is picked.
-type panelScreen struct{ panel template.HTML }
+type panelScreen struct{ drawer template.HTML }
 
 func (s *panelScreen) Name() string { return "picked" }
 
@@ -783,9 +708,9 @@ func (s *panelScreen) Routes() []Route {
 			Path: "/picked",
 			Handler: func(*http.Request) (View, error) {
 				return View{
-					Title: "picked",
-					Body:  HTML(`<a hx-target="#` + PanelID + `" href="/picked/one">one</a>`),
-					Panel: s.panel,
+					Title:  "picked",
+					Body:   HTML(`<a hx-target="#` + DrawerID + `" href="/picked/one">one</a>`),
+					Drawer: s.drawer,
 				}, nil
 			},
 		},
@@ -798,31 +723,32 @@ func (s *panelScreen) Routes() []Route {
 	}
 }
 
-// TestThePanelShowsWhatThePageOpensWith: the panel the constant names is where a
-// screen puts what its page opens with, and a screen that puts nothing there
-// leaves the frame's guidance. A panel swapped in on its own is a fragment, with
-// no frame around it.
-func TestThePanelShowsWhatThePageOpensWith(t *testing.T) {
-	s := newTestServer(t, demoPort(), &panelScreen{panel: HTML(`<h2 class="picked">the rule</h2>`)})
+// TestTheDrawerShowsWhatThePageOpensWith: the drawer the constant names is where
+// a screen puts what its page opens with, and a screen that puts nothing there
+// leaves the frame's empty drawer. A drawer swapped in on its own is a fragment,
+// with no frame around it.
+func TestTheDrawerShowsWhatThePageOpensWith(t *testing.T) {
+	opened := `<aside class="drawer" id="` + DrawerID + `"><h2 class="picked">the rule</h2></aside>`
+	s := newTestServer(t, demoPort(), &panelScreen{drawer: HTML(opened)})
 	body := get(t, s, "/picked").Body.String()
 	mustContain(t, "the page", body,
-		`id="`+PanelID+`"`,
-		`hx-target="#`+PanelID+`"`,
+		`id="`+DrawerID+`"`,
+		`hx-target="#`+DrawerID+`"`,
 		`<h2 class="picked">the rule</h2>`)
-	if strings.Contains(body, i18n.T("web.frame.panel_empty")) {
-		t.Errorf("a page that opens with something in the panel still shows the guidance:\n%s", body)
+	if strings.Contains(body, `id="`+DrawerID+`" hidden`) {
+		t.Errorf("a page that opens with something in the drawer still writes it empty:\n%s", body)
 	}
 
 	empty := newTestServer(t, demoPort(), &panelScreen{})
-	mustContain(t, "a page whose panel is empty", get(t, empty, "/picked").Body.String(),
-		i18n.T("web.frame.panel"), i18n.T("web.frame.panel_empty"))
+	mustContain(t, "a page whose drawer is empty", get(t, empty, "/picked").Body.String(),
+		`id="`+DrawerID+`" hidden`, i18n.T("web.frame.drawer"))
 
 	fragment := get(t, s, "/picked/one")
 	if fragment.Code != http.StatusOK {
 		t.Fatalf("GET /picked/one = %d, want 200", fragment.Code)
 	}
 	if strings.Contains(fragment.Body.String(), "<html") || !strings.Contains(fragment.Body.String(), "<h2>one</h2>") {
-		t.Errorf("the panel fragment is not a fragment: %q", fragment.Body.String())
+		t.Errorf("the drawer fragment is not a fragment: %q", fragment.Body.String())
 	}
 }
 

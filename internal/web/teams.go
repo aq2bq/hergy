@@ -49,8 +49,11 @@ func (t *teamList) Routes() []Route {
 func (t *teamList) show(r *http.Request) (View, error) {
 	layer := LayerOf(r)
 	data := teamsData{
-		LayerName: i18n.Tf("web.layer.name", i18n.T("label."+layer)),
-		Teams:     t.port.Teams(layer),
+		LayerName:  i18n.Tf("web.layer.name", i18n.T("label."+layer)),
+		LayerLabel: i18n.T("label." + layer),
+		Layer:      layer,
+		Root:       t.port.LayerRoot(layer),
+		Teams:      t.port.Teams(layer),
 	}
 	var buf bytes.Buffer
 	if err := t.templates.ExecuteTemplate(&buf, "teams.html", data); err != nil {
@@ -63,6 +66,11 @@ func (t *teamList) show(r *http.Request) (View, error) {
 type teamsData struct {
 	// LayerName is the layer being shown, as a person says it ("ローカル層").
 	LayerName string
+	// LayerLabel and Layer are the layer as the marker and the classes write it
+	// ("ローカル", "local"), and Root is where its files live (".hergy").
+	LayerLabel string
+	Layer      string
+	Root       string
 	// Teams is one row per team definition, by name.
 	Teams []Team
 }

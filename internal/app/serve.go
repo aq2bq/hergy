@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -58,6 +59,7 @@ func (p servePort) Teams(layer string) []web.Team {
 		if err != nil {
 			out = append(out, web.Team{
 				Name:    row.Name,
+				Href:    teamHref(layer, row.Name),
 				Running: running[row.Name],
 				Broken:  breakLine(p.env, listingPath(row, layer), err),
 			})
@@ -66,6 +68,7 @@ func (p servePort) Teams(layer string) []web.Team {
 		tally := ruleTally(cfg)
 		team := p.launchNote(records, cfg, row.Name, layer)
 		team.Name = row.Name
+		team.Href = teamHref(layer, row.Name)
 		team.Members = len(cfg.Members)
 		team.Rules = tally.Total
 		team.NoCheck = tally.Total - tally.WithCheck
@@ -316,13 +319,54 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 		return err
 	}
 	screens := append([]web.Screen{home, teams, rulesScreen, diff, bump}, teamScreens...)
-	server, err := web.New(port, screens...)
+	server, err := web.New(port, orderScreens(screens)...)
 	if err != nil {
 		return err
 	}
 	return server.Serve(ctx, opts.Port, func(url string) {
 		fmt.Fprintln(stdout, i18n.Tf("serve.url", url))
 	})
+}
+
+// orderScreens puts the screens in the order the navigation shows them (d-207f):
+// the home first, then the running teams, the team list, the figure, the rules,
+// the prompt diff and the version. The team definition screen is last: it is not
+// a tab (web.NavScreen), and it is opened from the left list. The order lives
+// here and not in the callers, so a screen added by another part lands in its
+// place in one edit.
+func orderScreens(screens []web.Screen) []web.Screen {
+	out := append([]web.Screen(nil), screens...)
+	sort.SliceStable(out, func(i, j int) bool { return navRank(out[i]) < navRank(out[j]) })
+	return out
+}
+
+// navRank is where a screen stands in the navigation, told from the path it
+// answers on. A path this list does not know comes last, so an unknown screen
+// never pushes a known one around.
+func navRank(screen web.Screen) int {
+	routes := screen.Routes()
+	if len(routes) == 0 {
+		return len(navOrder)
+	}
+	if rank, ok := navOrder[hrefOf(routes[0].Path)]; ok {
+		return rank
+	}
+	return len(navOrder)
+}
+
+// navOrder is the navigation's order, by the path of each screen's first route
+// (d-207f: the order the prototype shows, without the map and the triage).
+var navOrder = map[string]int{
+	"/": 0, "/running": 1, "/teams": 2, "/figure": 3, "/rules": 4, "/diff": 5, "/bump": 6, "/team": 7,
+}
+
+// hrefOf writes a route's pattern the way a browser asks for it: the method
+// dropped, and the exact root written as "/".
+func hrefOf(pattern string) string {
+	if i := strings.IndexByte(pattern, ' '); i >= 0 {
+		pattern = pattern[i+1:] // a "GET /x" pattern
+	}
+	return strings.Replace(pattern, "/{$}", "/", 1)
 }
 
 // ruleTally counts what one team's members read, the way hergy validate counts

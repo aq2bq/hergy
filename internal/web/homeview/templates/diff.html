@@ -1,34 +1,55 @@
-<h1>{{t "web.diff.title"}}</h1>
-<p class="lede">{{tf "web.diff.lede" .LayerName}}</p>
-{{- if .Diff.Problem}}
-<p class="problem">{{.Diff.Problem}}</p>
-{{- end}}
-{{- if .Diff.Definitions}}
-{{- range .Diff.Definitions}}
-<section class="definition">
-  <h2>{{.Name}}</h2>
-  {{- if not .Launched}}
-  <p class="empty">{{inline (t "web.diff.no_launch")}}</p>
+<div class="wrap w1080">
+  {{guide 3 .Layer .ChangedRules}}
+  <div class="kicker"><span>{{t "web.home.steps.label"}} 3</span></div>
+  <h1>{{t "web.diff.title"}}</h1>
+  <p class="lede">{{tf "web.diff.lede" .LayerName}}</p>
+  {{- if .Diff.Problem}}
+  <p class="banner danger">{{.Diff.Problem}}</p>
   {{- end}}
-  {{- range .Members}}
-  {{- if not .Launched}}
-  <p class="member empty">{{tf "web.diff.member_never" .Name}}</p>
-  {{- else if .Same}}
-  <details class="member">
-    <summary>{{tf "web.diff.member_same" .Name}}</summary>
-    <pre class="diff">{{range .Lines}}<span class="line {{.Kind}}">{{.Mark}} {{.Text}}</span>
-{{end}}</pre>
-  </details>
+  {{- range .NoLaunch}}
+  <p class="lede"><span class="mono">{{.}}</span>: {{inline (t "web.diff.no_launch")}}</p>
+  {{- end}}
+
+  {{- if .Rows}}
+  <div class="panel">
+    <h3>{{t "web.teams.column.members"}} {{tf "web.teams.members" (len .Rows)}}</h3>
+    <div class="row">
+      {{- range .Rows}}
+      <a class="chip" href="{{.Href}}"{{if .Selected}} aria-current="true"{{end}}><span class="mono">{{.Team}}</span> <span class="lay {{.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Layer))}}</span> <span class="mono">{{.Member}}</span> <span class="n">+{{.Add}} &minus;{{.Del}}</span></a>
+      {{- end}}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="copy-row">
+      <h3><span class="mono">{{.Selected.Team}}</span> <span class="lay {{.Selected.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Selected.Layer))}}</span> <span class="mono">{{.Selected.Member}}</span> {{t "label.prompt"}}</h3>
+      {{- if not .Selected.Never}}{{if not .Selected.Same}}
+      <span class="fine">+{{.Selected.Add}} &minus;{{.Selected.Del}}</span>
+      {{- end}}{{end}}
+    </div>
+    {{- if .Selected.Never}}
+    <p class="lede">{{tf "web.diff.member_never" .Selected.Member}}</p>
+    {{- else if .Selected.Same}}
+    <p class="lede">{{tf "web.diff.member_same" .Selected.Member}}</p>
+    {{- else}}
+    <div class="code">
+      <div class="difflines">
+        {{- range .Selected.Rows}}
+        {{- if eq .Kind "skip"}}
+        <div class="dl skip">… {{.N}} …</div>
+        {{- else}}
+        <div class="dl{{if eq .Kind "plus"}} add{{else if eq .Kind "minus"}} del{{end}}"><span class="dm">{{.Mark}}</span>{{if .Text}}{{.Text}}{{else}}&nbsp;{{end}}</div>
+        {{- end}}
+        {{- end}}
+      </div>
+    </div>
+    {{- end}}
+  </div>
+
+  <div class="row sect">
+    <a class="btn primary big" href="/bump?layer={{.Layer}}">{{t "web.bump.title"}}</a>
+  </div>
   {{- else}}
-  <article class="member">
-    <h3>{{.Name}}</h3>
-    <pre class="diff">{{range .Lines}}<span class="line {{.Kind}}">{{.Mark}} {{.Text}}</span>
-{{end}}</pre>
-  </article>
+  <p class="lede">{{t "web.home.changes.none"}}</p>
   {{- end}}
-  {{- end}}
-</section>
-{{- end}}
-{{- else}}
-<p class="empty">{{t "web.diff.empty"}}</p>
-{{- end}}
+</div>
