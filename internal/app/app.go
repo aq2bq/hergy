@@ -25,6 +25,7 @@ import (
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/spawn"
+	"github.com/aq2bq/hergy/internal/status"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/version"
 )
@@ -625,7 +626,7 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 		return err
 	}
 	for _, row := range rows {
-		field(stdout, row.Name, statusState(row))
+		field(stdout, row.Name, row.Text())
 	}
 	return printStatusJudgement(stdout, rows, "")
 }
@@ -664,7 +665,7 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		if err != nil {
 			return err
 		}
-		membersCount, workers := countStatusRows(rows)
+		membersCount, workers := status.Counts(rows)
 		indentField(stdout, 1, label("members"), strconv.Itoa(membersCount))
 		indentField(stdout, 1, label("workers"), strconv.Itoa(workers))
 		if err := printStatusJudgement(stdout, rows, "  "); err != nil {
@@ -674,55 +675,14 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 	return nil
 }
 
-// statusState is one row's text: the live state, "not present" when the member
-// is not live, and the worker mark when it is a hired worker.
-func statusState(row launcher.StatusRow) string {
-	state := row.State
-	if !row.Live {
-		state = i18n.T("status.not_live")
-	}
-	if row.Worker {
-		state += i18n.T("status.worker_suffix")
-	}
-	return state
-}
-
 // printStatusJudgement prints the judgement line for the rows: who is waiting on
 // the human, else that nobody is working. A working team with nobody blocked
 // gets no line. indent, when set, is written before the line.
-func printStatusJudgement(stdout io.Writer, rows []launcher.StatusRow, indent string) error {
-	var blocked []string
-	working := 0
-	for _, row := range rows {
-		if !row.Live {
-			continue
-		}
-		switch row.State {
-		case "working":
-			working++
-		case "blocked":
-			blocked = append(blocked, row.Name)
-		}
-	}
-	switch {
-	case len(blocked) > 0:
-		fmt.Fprintf(stdout, "%s%s\n", indent, i18n.Tf("status.human_waiting", strings.Join(blocked, i18n.T("list.separator"))))
-	case working == 0:
-		fmt.Fprintf(stdout, "%s%s\n", indent, i18n.T("status.nobody_working"))
+func printStatusJudgement(stdout io.Writer, rows []status.Row, indent string) error {
+	if line := status.Judge(rows).Text(); line != "" {
+		fmt.Fprintf(stdout, "%s%s\n", indent, line)
 	}
 	return nil
-}
-
-// countStatusRows counts the members and the workers in the rows.
-func countStatusRows(rows []launcher.StatusRow) (members, workers int) {
-	for _, row := range rows {
-		if row.Worker {
-			workers++
-		} else {
-			members++
-		}
-	}
-	return members, workers
 }
 
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

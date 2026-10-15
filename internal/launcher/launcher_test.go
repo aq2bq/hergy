@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/status"
 )
 
 // TestMain loads the messages, so the printed lines a test reads are the ones a
@@ -450,7 +451,7 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
-	want := []StatusRow{
+	want := []status.Row{
 		{Name: "dev-lead", State: "working", Live: true},
 		{Name: "dev-worker", Live: false},
 		{Name: "dev-w1", State: "blocked", Live: true, Worker: true},
