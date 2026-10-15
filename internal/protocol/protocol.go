@@ -18,6 +18,9 @@ type Agent struct {
 	Status string
 	PaneID string
 	TabID  string
+	// Title is what the agent's terminal says it is doing, with Herdr's own
+	// marks stripped. It is empty when Herdr reports none.
+	Title string
 }
 
 // Check verifies the live agent still is the member the config describes, and
@@ -51,6 +54,13 @@ func AgentFrom(object map[string]any) Agent {
 	agent.Status, _ = object["agent_status"].(string)
 	agent.PaneID, _ = object["pane_id"].(string)
 	agent.TabID, _ = object["tab_id"].(string)
+	// Herdr reports the terminal's title twice: as it stands, and with its own
+	// marks (the working mark, the pane's app) stripped. The stripped one is what
+	// a person reads as what the agent is doing.
+	agent.Title, _ = object["terminal_title_stripped"].(string)
+	if agent.Title == "" {
+		agent.Title, _ = object["terminal_title"].(string)
+	}
 	return agent
 }
 

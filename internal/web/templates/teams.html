@@ -19,7 +19,7 @@
     </tr>
     {{- else}}
     <tr>
-      <th scope="row">{{.Name}}</th>
+      <th scope="row">{{.Name}}{{if .Running}}<i class="ldot" title="{{t "web.teams.running"}}"></i>{{end}}</th>
       <td class="num">{{tf "web.teams.members" .Members}}</td>
       <td class="num">{{tf "web.teams.no_check" .NoCheck .Rules}}</td>
       <td class="launched">

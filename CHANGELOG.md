@@ -17,6 +17,12 @@
   POST that carries the token of the running process, and sets
   `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
   with its license.
+- **The rule files say how to write a turn direction**: `hergy cheat --ai` and
+  `skills/hergy-rules` now say that a rule's text can hand the turn between two
+  of the team as `<name> → <name>`, or `<name> ⇄ <name>` when it goes both ways.
+  The name is a member name, a role name, or the human (`人間` in a Japanese
+  file, `human` in an English one). A figure that draws a team reads the turn
+  directions out of the text.
 
 - **Every launch leaves a record**: `hergy up`, `hergy refresh` and `hergy
   reprompt` write one line per launch to
@@ -78,6 +84,21 @@
   document does not hold, deleted after a second press, and a rule with no check
   can be given a report field where the person already stands. Another screen
   reaches a rule with `/rules?doc=<file>&rule=<id>`, which opens it in the panel.
+- **`hergy serve` shows the team definition, the running teams, and the figure**:
+  a definition screen lists the documents every member reads, then the members
+  and the workers they may hire (each with its role, its engine and its profile),
+  and opens one member in the right panel with its Herdr name, its state, the
+  workers it may call and the prompt hergy hands it. A running screen reads Herdr
+  the way `hergy status` does, and adds what hergy status does not print: what
+  each member's terminal says it is doing, and the pane it runs in. The one
+  button on these screens moves Herdr's focus to that pane (`herdr agent focus`),
+  and it is the only thing they change. A figure screen draws one definition as
+  one SVG: the documents, the role files, the members coloured by role, the
+  workers as dotted boxes, the human, and one arrow for every turn direction a
+  rule writes — named on both ends, on one end (dotted, to the word the rule
+  wrote), or listed under the figure with the rule and the names that matched
+  nothing. Pressing a document or a rule id opens the Rules screen. The team list
+  marks the definitions Herdr reports a running team for.
 
 ### Changed
 

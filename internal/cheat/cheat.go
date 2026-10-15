@@ -227,7 +227,7 @@ Rule files (what docs and roles point at):
     style: paragraphs|bullets|numbered|ids   how the rules are laid out; default paragraphs.
     rules:          list; each rule is an entry:
       id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
-      text: <text>  required, string; what the member reads, in Markdown.
+      text: <text>  required, string; what the member reads, in Markdown. A rule may hand the turn between two of the team, written "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. The WebUI's figure reads these out of the text: a name that matches no member of the team is drawn dotted, to a box that holds the written word, and an arrow that matches no member on either side is listed under the figure.
       why: <text>   string, optional; one space and the reason follow the text, unless send_why is false.
       send_why: false   boolean, optional; keeps the reason in the file and out of the prompt.
       note: <text>  string, optional; for whoever maintains the file; never sent, and not a reason.

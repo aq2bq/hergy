@@ -18,6 +18,7 @@ import (
 	"github.com/aq2bq/hergy/internal/layout"
 	"github.com/aq2bq/hergy/internal/progress"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/status"
 )
 
 // Launcher runs one operation. The mutex protects the progress record, which an
@@ -168,20 +169,10 @@ func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
 	return err
 }
 
-// StatusRow is one line of hergy status: a member or a worker of this team, the
-// state herdr reports for its agent, and whether the row is a hired worker. Live
-// is false for a member that has no agent, so the caller can print it as absent.
-type StatusRow struct {
-	Name   string
-	State  string
-	Live   bool
-	Worker bool
-}
-
 // Status reads the live agents and tabs and reports one row per selected member
 // and per worker this team hired. It starts and stops nothing, so it runs
 // outside a herdr-managed pane too.
-func (l *Launcher) Status(members []*config.Member) ([]StatusRow, error) {
+func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
 	if err := l.herdr.Verify(protocol.ModeStatus); err != nil {
 		return nil, err
 	}
@@ -189,27 +180,39 @@ func (l *Launcher) Status(members []*config.Member) ([]StatusRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	states := make(map[string]string, len(agents))
+	states := make(map[string]protocol.Agent, len(agents))
 	for _, agent := range agents {
 		if agent.Name == "" {
 			continue
 		}
 		if _, ok := states[agent.Name]; !ok {
-			states[agent.Name] = agent.Status
+			states[agent.Name] = agent
 		}
 	}
-	rows := make([]StatusRow, 0, len(members))
+	rows := make([]status.Row, 0, len(members))
 	for _, member := range members {
-		state, live := states[member.Name]
-		rows = append(rows, StatusRow{Name: member.Name, State: state, Live: live})
+		agent, live := states[member.Name]
+		// A member with no live agent still carries the role it reads and the
+		// engine its settings name: the WebUI shows them while nothing runs.
+		kind := agent.Kind
+		if kind == "" {
+			kind = member.Kind
+		}
+		rows = append(rows, status.Row{
+			Name: member.Name, State: agent.Status, Live: live,
+			Title: agent.Title, PaneID: agent.PaneID,
+			Role: member.Role, Kind: kind,
+		})
 	}
 	workers, err := l.workerAgents(agents)
 	if err != nil {
 		return nil, err
 	}
 	for _, worker := range workers {
-		rows = append(rows, StatusRow{
-			Name: worker.Name, State: states[worker.Name], Live: true, Worker: true,
+		agent := states[worker.Name]
+		rows = append(rows, status.Row{
+			Name: worker.Name, State: agent.Status, Live: true, Worker: true,
+			Title: agent.Title, PaneID: agent.PaneID, Kind: agent.Kind,
 		})
 	}
 	return rows, nil

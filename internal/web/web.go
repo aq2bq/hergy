@@ -46,6 +46,9 @@ type Team struct {
 	Hash   string
 	Same   bool
 	Broken string // why the definition cannot be read, empty when it reads
+	// Running says Herdr reports a team booted from this definition right now.
+	// A Herdr that cannot be read leaves it false and the row renders as before.
+	Running bool
 }
 
 // Port is what the app hands the screens: the settings and the state, read the

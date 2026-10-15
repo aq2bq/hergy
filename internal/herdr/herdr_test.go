@@ -161,3 +161,24 @@ func TestPaneProcessInfoReadsTheGroupAndShell(t *testing.T) {
 		t.Fatal("PaneProcessInfo accepted a reply with no process_info")
 	}
 }
+
+// TestFocusSendsTheTarget: focus asks herdr to move to the target, and reports
+// herdr's own error when it refuses.
+func TestFocusSendsTheTarget(t *testing.T) {
+	port := &fakePort{}
+	port.reply = alwaysReply(nil)
+	if err := New(port).Focus("p-lead"); err != nil {
+		t.Fatalf("Focus: %v", err)
+	}
+	if want := []string{"agent", "focus", "p-lead"}; !slices.Equal(port.calls[0], want) {
+		t.Fatalf("Focus called %v, want %v", port.calls[0], want)
+	}
+
+	port.reply = func(int, []string) (map[string]any, error) {
+		return nil, herdrFailure("agent_not_found")
+	}
+	err := New(port).Focus("gone")
+	if protocol.ErrorCode(err) != "agent_not_found" {
+		t.Fatalf("Focus error = %v, want agent_not_found", err)
+	}
+}
