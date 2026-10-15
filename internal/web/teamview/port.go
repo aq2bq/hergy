@@ -51,9 +51,12 @@ type Definition struct {
 
 // Doc is one rule file the members read: a document every member reads (Role
 // empty) or one member's role file. Key is stable across the screens, so a link
-// can name one file.
+// can name one file; Layer is where that file lives (the local layer, or the
+// global one a local definition may also read), which is what a link to the
+// rules screen needs.
 type Doc struct {
 	Key    string
+	Layer  string
 	Label  string // the title the file gives itself, else its name
 	Path   string // as a person writes it
 	Role   string // the role whose file it is; empty for a shared document

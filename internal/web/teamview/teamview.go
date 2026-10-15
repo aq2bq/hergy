@@ -53,16 +53,29 @@ func parse() (*template.Template, error) {
 }
 
 // funcs are the template functions these screens add to the frame's own: the
-// panel a link points at, a figure coordinate, a shortened label, a list, and
-// one value escaped for a URL.
+// panel a link points at, the rules screen at one file and one rule, a figure
+// coordinate, a shortened label, a list, and one value escaped for a URL.
 func funcs() template.FuncMap {
 	return template.FuncMap{
 		"panel": func() string { return "#" + web.PanelID },
+		"rules": rulesURL,
 		"num":   num,
 		"cut":   cut,
 		"join":  join,
 		"q":     url.QueryEscape,
 	}
+}
+
+// rulesURL is where one rule file, and one rule in it, is read and changed: the
+// rules screen (internal/web/rulesview). A document of these screens and a rule
+// id in the figure both lead there, so the words and the editing live in one
+// screen and not in two (spec/10 の 8 節).
+func rulesURL(layer, key, id string) string {
+	out := "/rules?layer=" + url.QueryEscape(layer) + "&doc=" + url.QueryEscape(key)
+	if id != "" {
+		out += "&rule=" + url.QueryEscape(id)
+	}
+	return out
 }
 
 // base is what the three screens share: the port they read through and the

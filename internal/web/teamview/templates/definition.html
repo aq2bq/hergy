@@ -19,7 +19,7 @@
 {{if .Docs}}
 <ol class="stack">
   {{- range .Docs}}
-  <li><b>{{.Label}}</b> <span class="fine mono">{{.Path}}</span>
+  <li><a href="{{rules .Layer .Key ""}}">{{.Label}}</a> <span class="fine mono">{{.Path}}</span>
     {{- if .Broken}} <span class="problem">{{.Broken}}</span>
     {{- else}} <span class="fine">{{tf "web.teamview.doc.rules" (len .Rules)}}</span>{{end}}
   </li>
@@ -29,14 +29,15 @@
 <p class="empty">{{t "web.teamview.documents.empty"}}</p>
 {{end}}
 
-<h2>{{t "label.members"}}</h2>
-<p class="explain"><b>{{t "web.teamview.members.what"}}</b>{{t "web.teamview.members.meaning"}}</p>
+<h2>{{t "web.teamview.members.what"}}</h2>
+<p class="explain">{{t "web.teamview.members.meaning"}}</p>
 {{if .Members}}
 <table class="teams">
   <thead>
     <tr>
       <th scope="col">{{t "web.teamview.column.member"}}</th>
       <th scope="col">{{t "label.role"}}</th>
+      <th scope="col">{{t "label.kind"}}</th>
       <th scope="col">{{t "label.profile"}}</th>
       <th scope="col"></th>
     </tr>
@@ -46,7 +47,8 @@
     <tr>
       <th scope="row">{{.Name}}</th>
       <td>{{if .Role}}{{.Role}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
-      <td>{{if .FromKind}}<span class="fine">{{.Engine}}</span>{{else}}{{.Engine}}{{end}}</td>
+      <td>{{if .Kind}}{{.Kind}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
+      <td>{{if .Profile}}{{.Profile}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</td>
       <td>
         <button class="linkbtn" type="button" hx-get="/panel/member?layer={{$.Layer}}&amp;name={{$.Name}}&amp;member={{q .Name}}" hx-target="{{panel}}" hx-swap="innerHTML">{{t "web.teamview.member.open_prompt"}}</button>
       </td>
@@ -58,8 +60,8 @@
 <p class="empty">{{t "web.teamview.members.empty"}}</p>
 {{end}}
 
-<h2>{{t "label.workers"}}</h2>
-<p class="explain"><b>{{t "web.teamview.workers.what"}}</b>{{t "web.teamview.workers.meaning"}}</p>
+<h2>{{t "web.teamview.workers.what"}}</h2>
+<p class="explain">{{t "web.teamview.workers.meaning"}}</p>
 {{if .Workers}}
 <table class="teams">
   <thead>

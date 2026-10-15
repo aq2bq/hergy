@@ -287,7 +287,7 @@ func breakLine(env team.Env, path string, err error) string {
 // in flight. It reads the settings the way the other commands read them and
 // changes no file the screens do not write.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
-port := servePort{env: env, timeout: opts.Timeout}
+	port := servePort{env: env, timeout: opts.Timeout}
 	rulesScreen, err := rulesview.New(port)
 	if err != nil {
 		return err

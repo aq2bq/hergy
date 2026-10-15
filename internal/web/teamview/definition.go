@@ -16,15 +16,13 @@ type definitionScreen struct{ base }
 // Name is what the navigation calls this screen.
 func (s *definitionScreen) Name() string { return i18n.T("web.teamview.definition.title") }
 
-// Routes are the definition page and the fragments it opens in the right panel.
-// The figure's boxes and arrows point at the same fragments, so the panels of
-// this package live here.
+// Routes are the definition page and the panel it opens in the right column. The
+// figure's member boxes point at the same panel, so the panel of this package
+// lives here.
 func (s *definitionScreen) Routes() []web.Route {
 	return []web.Route{
 		{Path: "/team", Handler: s.show},
 		{Path: "/panel/member", Handler: s.memberPanel},
-		{Path: "/panel/doc", Handler: s.docPanel},
-		{Path: "/panel/rule", Handler: s.rulePanel},
 	}
 }
 
@@ -95,21 +93,18 @@ func pickTeams(teams []web.Team, current string) []pickTeam {
 	return out
 }
 
-// memberRow is one row of the member table. Engine is the profile the member
-// runs, or the engine its settings name when it has no profile.
+// memberRow is one row of the member table: the short name a rule writes, the
+// role, the engine (claude, opencode) the member runs, and the profile it takes
+// its settings from.
 type memberRow struct {
-	Name     string
-	Role     string
-	Engine   string
-	FromKind bool // the engine stood in for a profile
+	Name    string
+	Role    string
+	Kind    string
+	Profile string
 }
 
 func memberRowOf(member Member) memberRow {
-	row := memberRow{Name: member.Name, Role: member.Role, Engine: member.Profile}
-	if row.Engine == "" {
-		row.Engine, row.FromKind = member.Kind, true
-	}
-	return row
+	return memberRow{Name: member.Name, Role: member.Role, Kind: member.Kind, Profile: member.Profile}
 }
 
 // workerRow is one row of the worker table: a member, and a worker it may hire.

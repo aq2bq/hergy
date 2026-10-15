@@ -90,23 +90,16 @@ li.lrow {
 .lsub { min-width: 0; overflow-wrap: anywhere; }
 .lpane { white-space: nowrap; }
 
-/* A panel: the member, one rule file, or one rule. */
+/* The panel: one member, with what hergy hands it. */
 dl.meta { margin: 0 0 14px; }
 dl.meta dt { margin-top: 8px; font-size: 12px; color: var(--muted); }
 dl.meta dd { margin: 0; }
 
 ul.plain { margin: 0; padding-left: 18px; }
-ul.rules li { margin: 4px 0; }
 
-button.ref {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mark);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
+/* A rule's id, wherever this package writes it as something to press: the id
+   itself, in the mono face, in the frame's link colour. */
+.ref { color: var(--mark); font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 button.linkbtn {
   padding: 0;
@@ -117,6 +110,15 @@ button.linkbtn {
   text-decoration: underline;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* The turn directions hergy could not read: rules a person has to look at, so
+   the block stands out the way a broken file does. */
+.unread {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--problem);
+  background: #fdf6f4;
 }
 
 .banner {
@@ -161,6 +163,8 @@ button.linkbtn {
 .topo .tp-edge.any path { stroke-dasharray: 4 4; }
 .topo .tp-head { fill: #8b8b8b; stroke: none; }
 .topo .tp-lab rect { fill: #fff; stroke: var(--line); }
+.topo .tp-lab { cursor: pointer; }
+.topo .tp-lab:hover rect { stroke-width: 2; }
 .topo .tp-lab text { fill: var(--fg); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .topo .mid { text-anchor: middle; }
 

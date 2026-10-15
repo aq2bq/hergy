@@ -21,23 +21,19 @@ type runningScreen struct{ base }
 // Name is what the navigation calls this screen.
 func (s *runningScreen) Name() string { return i18n.T("web.teamview.running.title") }
 
-// Routes are the page, the list it reads again on its own, and the one write of
-// these screens.
+// Routes are the page, the part of it the page reads again on its own, and the
+// one write of these screens. Both reads answer the same way: the fragment HTMX
+// swaps in when HTMX asked, and the whole page when a person opens the path
+// themselves.
 func (s *runningScreen) Routes() []web.Route {
 	return []web.Route{
 		{Path: "/running", Handler: s.show},
-		{Path: "/running/list", Handler: s.list},
+		{Path: "/running/list", Handler: s.show},
 		{Path: "/running/focus", Write: true, Handler: s.focus},
 	}
 }
 
 func (s *runningScreen) show(r *http.Request) (web.View, error) {
-	return s.answer(r, s.data(r, nil))
-}
-
-// list answers the part of the page that is read again: HTMX asks for it every
-// five seconds and when the button is pressed.
-func (s *runningScreen) list(r *http.Request) (web.View, error) {
 	return s.answer(r, s.data(r, nil))
 }
 
@@ -64,10 +60,9 @@ func (s *runningScreen) data(r *http.Request, err error) runningData {
 	layer := web.LayerOf(r)
 	herdr, readErr := s.port.Running(layer)
 	data := runningData{
-		Layer:     layer,
-		LayerName: i18n.Tf("web.layer.name", i18n.T("label."+layer)),
-		Token:     web.Token(r),
-		Legend:    legend(),
+		Layer:  layer,
+		Token:  web.Token(r),
+		Legend: legend(),
 	}
 	if readErr != nil {
 		data.Notice = notice(readErr)
@@ -85,13 +80,12 @@ func (s *runningScreen) data(r *http.Request, err error) runningData {
 
 // runningData is what the running-team page is drawn from.
 type runningData struct {
-	Layer     string
-	LayerName string
-	Token     string // the token every form of this run carries
-	At        string // when Herdr was read, as a person reads a clock
-	Notice    string // one line: Herdr could not be read, or the focus failed
-	Teams     []liveTeam
-	Legend    []word
+	Layer  string
+	Token  string // the token every form of this run carries
+	At     string // when Herdr was read, as a person reads a clock
+	Notice string // one line: Herdr could not be read, or the focus failed
+	Teams  []liveTeam
+	Legend []word
 }
 
 // liveTeam is one running team as the page shows it: where it came from, its
@@ -100,7 +94,8 @@ type liveTeam struct {
 	Name       string
 	Definition string
 	TabID      string
-	Known      bool // the layer has a team definition of this name
+	Known      bool   // the layer has a team definition of this name
+	Broken     string // why that definition cannot be read
 	Rows       []liveRow
 	Verdict    string
 }
@@ -121,6 +116,7 @@ func liveTeamOf(team LiveTeam) liveTeam {
 		Definition: team.Definition,
 		TabID:      team.TabID,
 		Known:      team.Known,
+		Broken:     team.Broken,
 		Verdict:    status.Judge(team.Rows).Text(),
 	}
 	for _, row := range team.Rows {

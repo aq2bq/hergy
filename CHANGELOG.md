@@ -37,6 +37,21 @@
   document does not hold, deleted after a second press, and a rule with no check
   can be given a report field where the person already stands. Another screen
   reaches a rule with `/rules?doc=<file>&rule=<id>`, which opens it in the panel.
+- **`hergy serve` shows the team definition, the running teams, and the figure**:
+  a definition screen lists the documents every member reads, then the members
+  and the workers they may hire (each with its role, its engine and its profile),
+  and opens one member in the right panel with its Herdr name, its state, the
+  workers it may call and the prompt hergy hands it. A running screen reads Herdr
+  the way `hergy status` does, and adds what hergy status does not print: what
+  each member's terminal says it is doing, and the pane it runs in. The one
+  button on these screens moves Herdr's focus to that pane (`herdr agent focus`),
+  and it is the only thing they change. A figure screen draws one definition as
+  one SVG: the documents, the role files, the members coloured by role, the
+  workers as dotted boxes, the human, and one arrow for every turn direction a
+  rule writes — named on both ends, on one end (dotted, to the word the rule
+  wrote), or listed under the figure with the rule and the names that matched
+  nothing. Pressing a document or a rule id opens the Rules screen. The team list
+  marks the definitions Herdr reports a running team for.
 
 ### Changed
 

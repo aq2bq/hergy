@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -84,6 +85,7 @@ func demoDefinition() Definition {
 		Path:  ".hergy/teams/demo/team.yaml",
 		Docs: []Doc{{
 			Key:   sharedKey,
+			Layer: web.LayerLocal,
 			Label: "チームの約束",
 			Path:  ".hergy/docs/team.md",
 			Rules: []Rule{
@@ -109,6 +111,7 @@ func demoDefinition() Definition {
 				Workers: []Worker{{Purpose: "調べものを手伝う", Profile: "quick"}},
 				RoleFile: &Doc{
 					Key:   devRoleKey,
+					Layer: web.LayerLocal,
 					Label: "実装の役割",
 					Path:  ".hergy/roles/dev.md",
 					Role:  "実装",
@@ -227,6 +230,13 @@ func post(t *testing.T, base, path, body string) int {
 	return resp.StatusCode
 }
 
+// shown is one message as it reaches the page: a text node goes through
+// html/template's escaper, so a message with an apostrophe arrives escaped.
+func shown(key string) string { return html.EscapeString(i18n.T(key)) }
+
+// shownf is shown for a message with its values.
+func shownf(key string, args ...any) string { return html.EscapeString(i18n.Tf(key, args...)) }
+
 func mustContain(t *testing.T, what, body string, wants ...string) {
 	t.Helper()
 	for _, want := range wants {
@@ -256,12 +266,12 @@ func TestDefinitionScreenShowsWhatTheDefinitionHolds(t *testing.T) {
 		t.Fatalf("GET /team = %d, want 200", code)
 	}
 	mustContain(t, "the definition screen", body,
-		i18n.T("web.teamview.definition.title"),
-		"チームの約束", "規則 3 件",
+		shown("web.teamview.definition.title"),
+		"チームの約束", shownf("web.teamview.doc.rules", 3),
 		"lead", "dev", "リード", "実装", "heavy", "調べものを手伝う", "quick",
-		i18n.T("web.teamview.members.meaning"), i18n.T("web.teamview.workers.meaning"),
+		shown("web.teamview.members.meaning"), shown("web.teamview.workers.meaning"),
 		"/panel/member?layer=local", "member=lead\"",
-		`title="`+i18n.T("web.teams.running")+`"`,
+		`title="`+shown("web.teams.running")+`"`,
 	)
 }
 
@@ -274,8 +284,8 @@ func TestDefinitionScreenSaysWhenTheLayerIsEmpty(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET /team?layer=global = %d, want 200", code)
 	}
-	mustContain(t, "the empty definition screen", body, i18n.T("web.teamview.no_definition"))
-	mustNotContain(t, "the empty definition screen", body, i18n.T("label.members"))
+	mustContain(t, "the empty definition screen", body, shown("web.teamview.no_definition"))
+	mustNotContain(t, "the empty definition screen", body, shown("web.teamview.members.what"))
 }
 
 // TestMemberPanelShowsThePromptAndTheLiveState: the panel carries the settings,
@@ -290,9 +300,10 @@ func TestMemberPanelShowsThePromptAndTheLiveState(t *testing.T) {
 	}
 	mustContain(t, "the member panel", body,
 		"lead", "demo-lead", "リード", "claude", "heavy",
-		"working", i18n.T("web.teamview.state.working"), "設計を書いている", "ペイン p1",
+		"working", shown("web.teamview.state.working"), "設計を書いている",
+		`<span class="mono">p1</span>`,
 		"<strong>役割</strong>", "<code>herdr agent status</code>",
-		i18n.T("web.teamview.panel.no_role_file"),
+		shown("web.teamview.panel.no_role_file"),
 	)
 }
 
@@ -304,53 +315,40 @@ func TestMemberPanelShowsTheRoleFileAndTheWorkers(t *testing.T) {
 
 	mustContain(t, "the member panel", body,
 		"実装の役割", "調べものを手伝う", "quick",
-		"blocked", i18n.T("web.teamview.state.blocked"),
-		i18n.Tf("status.human_waiting", "demo-dev"),
+		"blocked", shown("web.teamview.state.blocked"),
 	)
 }
 
-// TestPanelSaysWhenALinkIsStale: a member or a rule that is not there any more
-// answers with the reason in the panel, so a swap shows why instead of nothing.
+// TestPanelSaysWhenALinkIsStale: a member that is not there any more answers
+// with the reason in the panel, so a swap shows why instead of nothing.
 func TestPanelSaysWhenALinkIsStale(t *testing.T) {
 	base := start(t, demoPort())
-	key := url.QueryEscape(sharedKey)
-	cases := []struct {
-		what string
-		path string
-		want string
-	}{
-		{"an unknown member", "/panel/member?layer=local&name=demo&member=nobody", i18n.Tf("web.teamview.panel.no_member", "nobody")},
-		{"an unknown document", "/panel/doc?layer=local&name=demo&key=nothing", i18n.Tf("web.teamview.panel.no_doc", "nothing")},
-		{"an unknown rule", "/panel/rule?layer=local&name=demo&doc=" + key + "&rule=X9", i18n.Tf("web.teamview.panel.no_rule", "X9")},
+	path := "/panel/member?layer=local&name=demo&member=nobody"
+
+	code, body := get(t, base, path)
+	if code != http.StatusOK {
+		t.Errorf("GET %s = %d, want 200", path, code)
 	}
-	for _, tc := range cases {
-		t.Run(tc.what, func(t *testing.T) {
-			code, body := get(t, base, tc.path)
-			if code != http.StatusOK {
-				t.Errorf("GET %s = %d, want 200", tc.path, code)
-			}
-			mustContain(t, tc.what, body, tc.want)
-			mustNotContain(t, tc.what, body, "<!doctype html>")
-		})
-	}
+	// The panel is HTML, so the reason goes through the escaper on its way
+	// there: what a person reads is the message itself.
+	mustContain(t, "the stale panel", body, html.EscapeString(i18n.Tf("web.teamview.panel.no_member", "nobody")))
+	mustNotContain(t, "the stale panel", body, "<!doctype html>")
 }
 
-// TestDocPanelListsTheRulesAndTheRulePanelShowsOne: the document panel lists the
-// rules of one file and a rule's id opens its text, which is where the figure's
-// arrows point.
-func TestDocPanelListsTheRulesAndTheRulePanelShowsOne(t *testing.T) {
+// TestDocumentsAndRulesLeadToTheRulesScreen: these screens keep no rule of their
+// own. A document of the definition and of the figure, and a rule id on an
+// arrow, lead to the rules screen, where a person reads and changes them
+// (spec/10 の 8 節).
+func TestDocumentsAndRulesLeadToTheRulesScreen(t *testing.T) {
 	base := start(t, demoPort())
-	key := url.QueryEscape(sharedKey)
+	doc := "/rules?layer=local&amp;doc=" + url.QueryEscape(sharedKey)
 
-	code, body := get(t, base, "/panel/doc?layer=local&name=demo&key="+key)
-	if code != http.StatusOK {
-		t.Fatalf("GET /panel/doc = %d, want 200", code)
-	}
-	mustContain(t, "the document panel", body,
-		"チームの約束", ".hergy/docs/team.md", "C1", "C2", "C3", "リードは、割り振りを決めます。")
+	_, body := get(t, base, "/team?layer=local")
+	mustContain(t, "the definition screen", body, `href="`+doc+`"`)
 
-	_, body = get(t, base, "/panel/rule?layer=local&name=demo&doc="+key+"&rule=C2")
-	mustContain(t, "the rule panel", body, "C2", "リード ⇄ 実装")
+	_, body = get(t, base, "/figure?layer=local&name=demo")
+	mustContain(t, "the figure", body, `href="`+doc+`"`, `href="`+doc+`&amp;rule=C2"`)
+	mustNotContain(t, "the figure", body, "/panel/doc", "/panel/rule")
 }
 
 // TestRunningScreenShowsWhatHerdrSays: one row per member and worker, with the
@@ -364,18 +362,23 @@ func TestRunningScreenShowsWhatHerdrSays(t *testing.T) {
 		t.Fatalf("GET /running = %d, want 200:\n%s", code, body)
 	}
 	mustContain(t, "the running screen", body,
-		i18n.T("web.teamview.running.title"),
-		"demo", i18n.T("label.definition")+" demo", "t-demo",
-		"demo-lead", "working", "demo-dev", "blocked", "demo-helper", i18n.T("web.teamview.worker"),
-		"設計を書いている", "ペイン p2",
-		i18n.Tf("status.human_waiting", "demo-dev"),
-		i18n.T("web.teamview.running.focus"),
-		i18n.T("web.teamview.state.working"), i18n.T("status.not_live"),
+		shown("web.teamview.running.title"),
+		"demo", shown("label.definition")+" demo", "t-demo",
+		"demo-lead", "working", "demo-dev", "blocked", "demo-helper", shown("web.teamview.worker"),
+		"設計を書いている", shownf("web.teamview.running.pane", "p2"),
+		shownf("status.human_waiting", "demo-dev"),
+		shown("web.teamview.running.focus"),
+		shown("web.teamview.state.working"), shown("status.not_live"),
+		// The team's figure is one press away, and the command that prints the
+		// same on the terminal is written out.
+		`href="/figure?layer=local&amp;name=demo"`, shown("web.teamview.running.same"),
+		`<code class="mono">hergy status demo</code>`,
 	)
 	// Every state a row can write is explained under the list.
 	for _, meaning := range []string{
-		i18n.T("web.teamview.state.working"), i18n.T("web.teamview.state.idle"),
-		i18n.T("web.teamview.state.blocked"), i18n.T("web.teamview.state.done"),
+		shown("web.teamview.state.working"), shown("web.teamview.state.idle"),
+		shown("web.teamview.state.blocked"), shown("web.teamview.state.done"),
+		shown("web.teamview.state.gone"),
 	} {
 		if !strings.Contains(body, meaning) {
 			t.Errorf("the legend does not explain %q", meaning)
@@ -434,8 +437,8 @@ func TestScreensSayWhenHerdrCannotBeRead(t *testing.T) {
 		t.Fatalf("GET /running = %d, want 200:\n%s", code, body)
 	}
 	mustContain(t, "the running screen", body,
-		i18n.Tf("web.teamview.herdr_failed", "herdr is not running"),
-		i18n.T("web.teamview.running.none"))
+		shownf("web.teamview.herdr_failed", "herdr is not running"),
+		shown("web.teamview.running.none"))
 	mustNotContain(t, "the running screen", body, "demo-lead")
 
 	code, body = get(t, base, "/team?layer=local")
@@ -458,20 +461,22 @@ func TestFigureDrawsTheTurnDirectionsItReads(t *testing.T) {
 	}
 	mustContain(t, "the figure", body,
 		"<svg", "チームの約束", "リード", "実装", "調べものを手伝う",
-		i18n.T("web.teamview.figure.human"), i18n.T("web.teamview.figure.no_role_file"),
+		shown("web.teamview.figure.human"), shown("web.teamview.figure.no_role_file"),
 		// The three directions that name a member: two solid, and the one
 		// whose far end is not in the team, which is dotted.
 		"C2", "C3", "D1", "tp-edge any", "依頼主",
 		// The two states Herdr reports, on the members.
 		"st-working", "st-blocked", "working", "blocked",
-		// A box opens a panel, and an arrow opens the rule it came from.
-		"/panel/member?layer=local", "member=lead\"", "/panel/rule?layer=local", "rule=C2\"",
+		// A member opens a panel, and a document and a rule id lead to the
+		// rules screen.
+		"/panel/member?layer=local", "member=lead\"",
+		"/rules?layer=local&amp;doc="+url.QueryEscape(sharedKey)+"&amp;rule=C2\"",
 		// A ⇄ is drawn with a head at both ends.
 		`marker-end="url(#tp-end)"`, `marker-start="url(#tp-start)"`,
 	)
 	mustContain(t, "the dropped directions", body,
-		i18n.T("web.teamview.figure.unread"), "D3", "経理", "総務")
-	mustNotContain(t, "the figure", body, i18n.T("web.teamview.figure.no_arrows"))
+		shown("web.teamview.figure.unread"), "D3", "経理", "総務")
+	mustNotContain(t, "the figure", body, shown("web.teamview.figure.no_arrows"))
 }
 
 // TestFigureSaysWhenTheDefinitionIsNotRunning: a definition no team is booted
@@ -482,7 +487,7 @@ func TestFigureSaysWhenTheDefinitionIsNotRunning(t *testing.T) {
 	base := start(t, port)
 	_, body := get(t, base, "/figure?layer=local&name=demo")
 
-	mustContain(t, "the figure", body, i18n.T("web.teamview.figure.not_running"), "C2")
+	mustContain(t, "the figure", body, shown("web.teamview.figure.not_running"), "C2")
 	mustNotContain(t, "the figure", body, "st-working")
 }
 

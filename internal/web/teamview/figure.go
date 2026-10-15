@@ -17,15 +17,15 @@ import (
 // The positions come from internal/topology; this screen writes them as SVG,
 // and every line of text in the figure is put together here. The figure carries
 // no style of its own (default-src 'self' refuses a style attribute), so every
-// colour and size is a class in this package's stylesheet, and every box and
-// arrow points at a panel of this package.
+// colour and size is a class in this package's stylesheet. A member's box opens
+// that member in the right panel; a document and a rule id open the rules screen.
 type figureScreen struct{ base }
 
 // Name is what the navigation calls this screen.
 func (s *figureScreen) Name() string { return i18n.T("web.teamview.figure.title") }
 
-// Routes is the figure page. A box or an arrow opens a panel, which the
-// definition screen answers (/panel/...).
+// Routes is the figure page. A member opens the panel the definition screen
+// answers (/panel/member); a document and a rule id lead to the rules screen.
 func (s *figureScreen) Routes() []web.Route {
 	return []web.Route{{Path: "/figure", Handler: s.show}}
 }
@@ -124,6 +124,7 @@ type labelBox struct {
 type docBox struct {
 	labelBox
 	Key   string
+	Layer string // the layer the file lives in, which its link needs
 	Rules int
 }
 
@@ -143,9 +144,10 @@ type memberBox struct {
 // one, and the empty place it would sit in when it does not.
 type roleBox struct {
 	labelBox
-	Has  bool
-	Key  string
-	Role string
+	Has   bool
+	Key   string
+	Layer string // the layer the role file lives in
+	Role  string
 }
 
 // workerBox is one worker under its member, with the line that ties it there.
@@ -158,6 +160,7 @@ type workerBox struct {
 // label on it.
 type arrow struct {
 	DocKey    string
+	Layer     string // the layer the rule's file lives in
 	RuleID    string
 	Path      string
 	Both      bool
@@ -174,6 +177,7 @@ type arrow struct {
 // writes it.
 type unread struct {
 	DocKey  string
+	Layer   string
 	RuleID  string
 	Text    string
 	Missing []string
@@ -202,7 +206,7 @@ func figureOf(layout topology.Figure, def Definition, live *LiveTeam, states map
 			sub = i18n.T("web.teamview.figure.doc_unread")
 		}
 		out.Docs = append(out.Docs, docBox{
-			Key: doc.Key, Rules: doc.Rules,
+			Key: doc.Key, Layer: docLayer(def, doc.Key), Rules: doc.Rules,
 			labelBox: labelBox{
 				Box: doc.Box, Name: doc.Label, Sub: sub,
 				NameX: doc.X + 10, NameY: doc.Y + 16,
@@ -226,9 +230,10 @@ func figureOf(layout topology.Figure, def Definition, live *LiveTeam, states map
 					NameX: member.RoleSlot.X + 10, NameY: member.RoleSlot.CY() - 3,
 					SubX: member.RoleSlot.X + 10, SubY: member.RoleSlot.CY() + 13,
 				},
-				Has:  member.RoleFile != nil,
-				Key:  member.RoleFileKey,
-				Role: member.Role,
+				Has:   member.RoleFile != nil,
+				Key:   member.RoleFileKey,
+				Layer: docLayer(def, member.RoleFileKey),
+				Role:  member.Role,
 			},
 		}
 		if box.RoleFile.Has && box.RoleFile.Name == "" {
@@ -267,11 +272,20 @@ func figureOf(layout topology.Figure, def Definition, live *LiveTeam, states map
 	out.Arrows = arrowsOf(layout, def)
 	for _, dropped := range layout.Unread {
 		out.Unread = append(out.Unread, unread{
-			DocKey: dropped.DocKey, RuleID: dropped.RuleID,
+			DocKey: dropped.DocKey, Layer: docLayer(def, dropped.DocKey), RuleID: dropped.RuleID,
 			Text: dropped.Text, Missing: dropped.Missing,
 		})
 	}
 	return out
+}
+
+// docLayer is the layer one rule file lives in: what its own document says, and
+// the definition's layer for a file the definition does not hold.
+func docLayer(def Definition, key string) string {
+	if doc, ok := def.Doc(key); ok {
+		return doc.Layer
+	}
+	return def.Layer
 }
 
 // memberSub is the line under a member's name in the figure: the role it reads,
@@ -307,7 +321,7 @@ func arrowsOf(layout topology.Figure, def Definition) []arrow {
 		// left for it.
 		width := float64(len(edge.RuleID))*7.4 + 14
 		out = append(out, arrow{
-			DocKey: edge.DocKey, RuleID: edge.RuleID,
+			DocKey: edge.DocKey, Layer: docLayer(def, edge.DocKey), RuleID: edge.RuleID,
 			Both: edge.Both, Dotted: edge.Dotted,
 			Path: "M" + num(x0) + " " + num(edge.FromY) +
 				" C" + num(bend) + " " + num(edge.FromY) +
@@ -327,15 +341,14 @@ func arrowsOf(layout topology.Figure, def Definition) []arrow {
 
 // sideLabel is one end of an arrow as a person reads it: the member's name, the
 // word a rule wrote for a party that is not in the team, or the word for the
-// human.
+// human. A member the definition does not have is written as the human: there is
+// nothing better to say about it.
 func sideLabel(def Definition, side topology.Side) string {
-	switch side.Kind {
-	case topology.SideMember:
-		if side.Member >= 0 && side.Member < len(def.Members) {
-			return def.Members[side.Member].Name
-		}
-	case topology.SideStranger:
+	if side.Kind == topology.SideStranger {
 		return side.Word
+	}
+	if side.Kind == topology.SideMember && side.Member >= 0 && side.Member < len(def.Members) {
+		return def.Members[side.Member].Name
 	}
 	return i18n.T("web.teamview.figure.human")
 }

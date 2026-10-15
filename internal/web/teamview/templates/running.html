@@ -36,7 +36,7 @@
       </li>
       {{- end}}
     </ul>
-    <p class="fine"><a href="/figure?layer={{$.Layer}}&amp;name={{q .Definition}}">{{t "web.teamview.running.figure"}}</a> <span class="mono">hergy status {{.Name}}</span></p>
+    <p class="fine"><a href="/figure?layer={{$.Layer}}&amp;name={{q .Definition}}">{{t "web.teamview.running.figure"}}</a> <span>{{t "web.teamview.running.same"}} <code class="mono">hergy status {{.Name}}</code></span></p>
     {{- end}}
   </section>
   {{- else}}
@@ -44,7 +44,7 @@
   {{- end}}
   <ul class="legend">
     {{- range .Legend}}
-    <li><span class="pill st-{{.State}}">{{.State}}</span> {{.Text}}</li>
+    <li><span class="pill st-{{.State}}">{{.Text}}</span> {{.Meaning}}</li>
     {{- end}}
   </ul>
 </div>
