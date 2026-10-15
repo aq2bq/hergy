@@ -8,10 +8,13 @@ import (
 	"embed"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +42,12 @@ type Server struct {
 	screens []Screen
 	frame   *template.Template
 	handler http.Handler
+	// stylesheets and scripts are the files the screens bring, as URLs in the
+	// head; assetNames is what they are served under, so two screens cannot take
+	// one another's place.
+	stylesheets []string
+	scripts     []string
+	assetNames  []string
 	// addr is this server's own address, "127.0.0.1:8787"; it is set when the
 	// socket is open, and every request is checked against it.
 	addr string
@@ -72,6 +81,9 @@ func New(port Port, screens ...Screen) (*Server, error) {
 	for _, screen := range s.screens {
 		for _, route := range screen.Routes() {
 			mux.Handle(route.Path, s.route(screen, route))
+		}
+		if err := s.mountAssets(mux, screen); err != nil {
+			return nil, err
 		}
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
@@ -127,6 +139,47 @@ func (s *Server) URL() string {
 		return ""
 	}
 	return "http://" + s.addr
+}
+
+// assetNameRE is what an asset prefix may be: one path segment, lowercase, with
+// digits and dashes. The name goes into a URL that every browser asks for, so it
+// is not a translated word and not a path.
+var assetNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+// mountAssets puts a screen's own files under /static/<Assets.Name>/ and adds
+// the stylesheets and the scripts it names to the frame's head. A screen without
+// assets adds nothing. Everything a screen names is looked up here, when the
+// server is built, so a page never carries a link to a file that is not there.
+func (s *Server) mountAssets(mux *http.ServeMux, screen Screen) error {
+	withAssets, ok := screen.(ScreenAssets)
+	if !ok {
+		return nil
+	}
+	assets := withAssets.Assets()
+	if assets.Files == nil {
+		return fmt.Errorf("web: the screen %q brings no Files", screen.Name())
+	}
+	if !assetNameRE.MatchString(assets.Name) {
+		return fmt.Errorf("web: %q is not a name a screen's files can be served under", assets.Name)
+	}
+	if slices.Contains(s.assetNames, assets.Name) {
+		return fmt.Errorf("web: two screens serve their files under /static/%s/", assets.Name)
+	}
+	s.assetNames = append(s.assetNames, assets.Name)
+	prefix := "/static/" + assets.Name + "/"
+	for _, name := range append(append([]string{}, assets.Stylesheets...), assets.Scripts...) {
+		if _, err := fs.Stat(assets.Files, name); err != nil {
+			return fmt.Errorf("web: the screen %q names the file %q, which it does not bring: %w", screen.Name(), name, err)
+		}
+	}
+	mux.Handle("GET "+prefix, http.StripPrefix(prefix, http.FileServerFS(assets.Files)))
+	for _, name := range assets.Stylesheets {
+		s.stylesheets = append(s.stylesheets, prefix+name)
+	}
+	for _, name := range assets.Scripts {
+		s.scripts = append(s.scripts, prefix+name)
+	}
+	return nil
 }
 
 // guard holds the promises that stand in front of every request: the Host has
@@ -272,13 +325,17 @@ func (s *Server) problem(w http.ResponseWriter, r *http.Request, screen Screen, 
 
 // page is what the frame template is given.
 type page struct {
-	Lang      string
-	Title     string
-	Nav       []link
-	Layers    []link
-	LayerRoot string
-	Global    bool
-	Body      template.HTML
+	Lang        string
+	Title       string
+	Nav         []link
+	Layers      []link
+	LayerRoot   string
+	Global      bool
+	Stylesheets []string
+	Scripts     []string
+	PanelID     string
+	Panel       template.HTML
+	Body        template.HTML
 }
 
 // link is one path in the frame: what it is called, and whether it is the one
@@ -294,11 +351,15 @@ type link struct {
 func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 	layer := LayerOf(r)
 	data := page{
-		Lang:      i18n.Language(),
-		Title:     view.Title,
-		LayerRoot: s.port.LayerRoot(layer),
-		Global:    layer == LayerGlobal,
-		Body:      view.Body,
+		Lang:        i18n.Language(),
+		Title:       view.Title,
+		LayerRoot:   s.port.LayerRoot(layer),
+		Global:      layer == LayerGlobal,
+		Stylesheets: s.stylesheets,
+		Scripts:     s.scripts,
+		PanelID:     PanelID,
+		Panel:       view.Panel,
+		Body:        view.Body,
 	}
 	for _, screen := range s.screens {
 		if routes := screen.Routes(); len(routes) > 0 {

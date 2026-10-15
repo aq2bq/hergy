@@ -3,9 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
 <title>{{tf "web.frame.title" .Title}}</title>
 <link rel="stylesheet" href="/static/hergy.css">
+{{- range .Stylesheets}}
+<link rel="stylesheet" href="{{.}}">
+{{- end}}
 <script src="/static/htmx-2.0.4.min.js" defer></script>
+{{- range .Scripts}}
+<script src="{{.}}" defer></script>
+{{- end}}
 </head>
 <body>
 <header class="top">
@@ -29,9 +36,13 @@
   <section class="content">
 {{.Body}}
   </section>
-  <aside class="panel">
+  <aside class="panel" id="{{.PanelID}}">
+{{- if .Panel}}
+{{.Panel}}
+{{- else}}
     <h2>{{t "web.frame.panel"}}</h2>
     <p class="empty">{{t "web.frame.panel_empty"}}</p>
+{{- end}}
   </aside>
 </main>
 </body>

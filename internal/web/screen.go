@@ -2,6 +2,7 @@ package web
 
 import (
 	"html/template"
+	"io/fs"
 	"net/http"
 )
 
@@ -14,11 +15,45 @@ import (
 // the words and the rendering rules are the same as this package's) and hands
 // the HTML back in a View. The team list is the first screen; the rules, the
 // records and the topology are added the same way.
+//
+// A screen's body carries no style and no script of its own: every answer sets
+// Content-Security-Policy: default-src 'self', so an inline <style>, <script> or
+// style="..." (in an SVG too) is refused by the browser. A screen says how it
+// looks with classes and with the files it brings itself (ScreenAssets).
 type Screen interface {
 	// Name is what the navigation calls this screen, in the language in use.
 	Name() string
-	// Routes are the paths this screen answers on.
+	// Routes are the paths this screen answers on. The first one is where the
+	// navigation points, so it is a page a person can open (not a write, and no
+	// "{id}" in it); a screen that only answers fragments puts its page first
+	// and its fragments after it.
 	Routes() []Route
+}
+
+// ScreenAssets is a Screen that brings files of its own: its stylesheet, its
+// script, or something it draws with (a screen's SVG). The files are served
+// under /static/<Assets.Name>/ and linked in the frame's head, so two screens
+// never have to share a file and a screen is added without touching this
+// package's own stylesheet. A screen that brings none has the frame's stylesheet
+// and HTMX.
+type ScreenAssets interface {
+	// Assets are the files of this screen.
+	Assets() Assets
+}
+
+// Assets is what one screen brings to the page.
+type Assets struct {
+	// Name is where the files are served: /static/<Name>/. It is a URL and not
+	// a word, so it is the same in every language, and it is given here rather
+	// than taken from Name (which is what the navigation shows, translated).
+	Name string
+	// Files holds the files, under the names they are served at.
+	Files fs.FS
+	// Stylesheets and Scripts are names in Files, in the order they load. Both
+	// are looked up when the server is built, so a name that is not there stops
+	// hergy serve instead of showing a page with a broken link.
+	Stylesheets []string
+	Scripts     []string
 }
 
 // Route is one path and how it is answered.
@@ -43,8 +78,18 @@ type View struct {
 	Title string
 	// Body is the screen's HTML, already rendered.
 	Body template.HTML
+	// Panel is what the right panel shows with this answer. Left empty, the
+	// panel shows the frame's guidance; filled, the page opens with what the
+	// screen puts here (the rule being edited, say). A fragment that is swapped
+	// into the panel alone (PanelID) is returned with Bare instead.
+	Panel template.HTML
 	// Bare writes the body alone, with no frame around it.
 	Bare bool
 	// Status is the HTTP status; 0 means 200.
 	Status int
 }
+
+// PanelID is the id of the right panel. A screen points a link or a form at it
+// with hx-target ("#" + PanelID) to show what the person picked without leaving
+// the page.
+const PanelID = "panel"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"html/template"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -636,4 +638,172 @@ func TestServeReportsAPortItCannotHave(t *testing.T) {
 	if !strings.HasPrefix(err.Error(), want) {
 		t.Errorf("Serve said %q, want it to start with %q", err.Error(), want)
 	}
+}
+
+// assetScreen is a screen that may bring files of its own: its stylesheet, its
+// script, and something it draws with.
+type assetScreen struct {
+	path   string
+	assets Assets
+}
+
+func (s *assetScreen) Name() string { return s.path }
+
+func (s *assetScreen) Routes() []Route {
+	return []Route{{
+		Path: "/" + s.path,
+		Handler: func(*http.Request) (View, error) {
+			return View{Title: s.path, Body: HTML(`<p class="chart">chart</p>`)}, nil
+		},
+	}}
+}
+
+func (s *assetScreen) Assets() Assets { return s.assets }
+
+// assetFiles are the files a test screen brings: a stylesheet, a script, and a
+// file it draws with.
+func assetFiles() fstest.MapFS {
+	return fstest.MapFS{
+		"chart.css": {Data: []byte(".chart { color: teal; }\n")},
+		"chart.js":  {Data: []byte("// chart\n")},
+		"chart.svg": {Data: []byte("<svg></svg>\n")},
+	}
+}
+
+// TestAScreenBringsItsOwnFiles: a screen's stylesheet and script are in the
+// page's head and served from it, and the rest of what it brings is served too.
+// This is what keeps two screens from having to share one stylesheet, and the
+// only way a screen can bring a style at all: the policy refuses a style or a
+// script written into the page itself.
+func TestAScreenBringsItsOwnFiles(t *testing.T) {
+	screen := &assetScreen{
+		path:   "drawn",
+		assets: Assets{Name: "drawn", Files: assetFiles(), Stylesheets: []string{"chart.css"}, Scripts: []string{"chart.js"}},
+	}
+	s := newTestServer(t, demoPort(), screen)
+	page := get(t, s, "/drawn")
+	body := page.Body.String()
+	mustContain(t, "the frame", body,
+		`<link rel="stylesheet" href="/static/drawn/chart.css">`,
+		`<script src="/static/drawn/chart.js" defer></script>`)
+	if strings.Index(body, "/static/htmx-2.0.4.min.js") > strings.Index(body, "/static/drawn/chart.js") {
+		t.Errorf("the screen's script loads before HTMX, which it may use:\n%s", body)
+	}
+	if strings.Contains(body, "style=") {
+		t.Errorf("the page carries a style of its own, which the policy refuses:\n%s", body)
+	}
+
+	css := get(t, s, "/static/drawn/chart.css")
+	if css.Code != http.StatusOK || !strings.Contains(css.Body.String(), ".chart") {
+		t.Errorf("GET /static/drawn/chart.css = %d %q", css.Code, css.Body.String())
+	}
+	if got := css.Header().Get("Content-Security-Policy"); got != "default-src 'self'" {
+		t.Errorf("a screen's own file carries %q, want the policy", got)
+	}
+	svg := get(t, s, "/static/drawn/chart.svg")
+	if svg.Code != http.StatusOK || !strings.Contains(svg.Body.String(), "<svg>") {
+		t.Errorf("GET /static/drawn/chart.svg = %d %q", svg.Code, svg.Body.String())
+	}
+}
+
+// TestAScreenWithBrokenAssetsStopsTheServer: a file named but not brought, a
+// name that cannot go into a URL, and a screen that brings no files at all are
+// caught when the server is built, not by a person meeting a broken link.
+func TestAScreenWithBrokenAssetsStopsTheServer(t *testing.T) {
+	for what, assets := range map[string]Assets{
+		"a stylesheet that is not there": {Name: "drawn", Files: assetFiles(), Stylesheets: []string{"gone.css"}},
+		"a script that is not there":     {Name: "drawn", Files: assetFiles(), Scripts: []string{"gone.js"}},
+		"a name that is not one URL word": {Name: "drawn/here", Files: assetFiles(),
+			Stylesheets: []string{"chart.css"}},
+		"no files at all": {Name: "drawn"},
+	} {
+		screen := &assetScreen{path: "drawn", assets: assets}
+		if _, err := New(demoPort(), screen); err == nil {
+			t.Errorf("%s: New accepted it", what)
+		}
+	}
+}
+
+// TestTwoScreensCannotServeUnderOneName: the second screen that would take the
+// first one's paths is refused, rather than quietly displacing it.
+func TestTwoScreensCannotServeUnderOneName(t *testing.T) {
+	first := &assetScreen{path: "one", assets: Assets{Name: "drawn", Files: assetFiles()}}
+	second := &assetScreen{path: "two", assets: Assets{Name: "drawn", Files: assetFiles()}}
+	if _, err := New(demoPort(), first, second); err == nil {
+		t.Error("New let two screens serve their files under one name")
+	}
+}
+
+// panelScreen opens with something in the right panel, the way a screen opening
+// on a rule being edited does, and answers the panel on its own when something
+// is picked.
+type panelScreen struct{ panel template.HTML }
+
+func (s *panelScreen) Name() string { return "picked" }
+
+func (s *panelScreen) Routes() []Route {
+	return []Route{
+		{
+			Path: "/picked",
+			Handler: func(*http.Request) (View, error) {
+				return View{
+					Title: "picked",
+					Body:  HTML(`<a hx-target="#` + PanelID + `" href="/picked/one">one</a>`),
+					Panel: s.panel,
+				}, nil
+			},
+		},
+		{
+			Path: "/picked/one",
+			Handler: func(*http.Request) (View, error) {
+				return View{Body: HTML("<h2>one</h2>"), Bare: true}, nil
+			},
+		},
+	}
+}
+
+// TestThePanelShowsWhatThePageOpensWith: the panel the constant names is where a
+// screen puts what its page opens with, and a screen that puts nothing there
+// leaves the frame's guidance. A panel swapped in on its own is a fragment, with
+// no frame around it.
+func TestThePanelShowsWhatThePageOpensWith(t *testing.T) {
+	s := newTestServer(t, demoPort(), &panelScreen{panel: HTML(`<h2 class="picked">the rule</h2>`)})
+	body := get(t, s, "/picked").Body.String()
+	mustContain(t, "the page", body,
+		`id="`+PanelID+`"`,
+		`hx-target="#`+PanelID+`"`,
+		`<h2 class="picked">the rule</h2>`)
+	if strings.Contains(body, i18n.T("web.frame.panel_empty")) {
+		t.Errorf("a page that opens with something in the panel still shows the guidance:\n%s", body)
+	}
+
+	empty := newTestServer(t, demoPort(), &panelScreen{})
+	mustContain(t, "a page whose panel is empty", get(t, empty, "/picked").Body.String(),
+		i18n.T("web.frame.panel"), i18n.T("web.frame.panel_empty"))
+
+	fragment := get(t, s, "/picked/one")
+	if fragment.Code != http.StatusOK {
+		t.Fatalf("GET /picked/one = %d, want 200", fragment.Code)
+	}
+	if strings.Contains(fragment.Body.String(), "<html") || !strings.Contains(fragment.Body.String(), "<h2>one</h2>") {
+		t.Errorf("the panel fragment is not a fragment: %q", fragment.Body.String())
+	}
+}
+
+// TestTheFrameTurnsOffWhatHTMXWouldWriteItself: HTMX writes a <style> for its
+// loading mark into the head by default, which the policy refuses (so the mark
+// would not show either). The frame turns that off, the mark's look lives in the
+// stylesheet the frame links, and inline evaluation is off too.
+func TestTheFrameTurnsOffWhatHTMXWouldWriteItself(t *testing.T) {
+	page := get(t, newTestServer(t, demoPort()), "/").Body.String()
+	mustContain(t, "the frame", page,
+		`<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>`)
+	if strings.Contains(page, "<style") {
+		t.Errorf("the page would carry a <style>:\n%s", page)
+	}
+	css, err := fs.ReadFile(files, "static/hergy.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "hergy.css", string(css), ".htmx-indicator", ".htmx-request .htmx-indicator")
 }

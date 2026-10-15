@@ -132,3 +132,10 @@ tr.broken .reason { color: var(--problem); font-size: 13px; }
 
 /* A rule's text and a prompt keep the lines they were written with. */
 pre, .prompt, .rule-text { white-space: pre-wrap; }
+
+/* HTMX's own indicator styles are turned off in the frame (a <style> the
+   browser would refuse under default-src 'self'), so the loading mark is here:
+   .htmx-indicator shows while its request runs. */
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator { opacity: 1; }
+.htmx-request.htmx-indicator { opacity: 1; }
