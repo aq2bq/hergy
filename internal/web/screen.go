@@ -65,6 +65,12 @@ type View struct {
 	Drawer template.HTML
 	// Bare writes the body alone, with no frame around it.
 	Bare bool
+	// Doc is the document this answer has open, as the left list names it. The
+	// frame marks that row. A screen that opens a document without the URL
+	// naming it (the rules screen with no ?doc= opens the first one) says so
+	// here, so the row is marked as the person sees it. Empty leaves the
+	// marking to the ?doc= of the URL.
+	Doc string
 	// Status is the HTTP status; 0 means 200.
 	Status int
 }

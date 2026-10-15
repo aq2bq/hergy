@@ -34,7 +34,7 @@ func (s *Screen) show(r *http.Request) (web.View, error) {
 	layer := web.LayerOf(r)
 	doc := query.Get("doc")
 	data := s.rulesData(layer, doc, query.Get("filter"))
-	view := web.View{Title: s.Name()}
+	view := web.View{Title: s.Name(), Doc: data.Doc.Path}
 	if id := query.Get("rule"); id != "" {
 		drawer, ok, err := s.PanelFor(layer, data.Doc.Path, id, web.Token(r))
 		if err != nil {
@@ -102,7 +102,9 @@ func (s *Screen) answer(answer Answer, err error) (web.View, error) {
 	if err != nil {
 		return web.View{}, err
 	}
-	view := web.View{Title: s.Name(), Body: web.HTML(answer.Body)}
+	// The document the write was about is the one the page shows, so the left
+	// list keeps marking its row: a POST carries no ?doc= of its own.
+	view := web.View{Title: s.Name(), Doc: answer.Doc, Body: web.HTML(answer.Body)}
 	if answer.Panel != "" {
 		view.Drawer = web.HTML(answer.Panel)
 	}

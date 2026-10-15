@@ -484,6 +484,12 @@ html,body{margin:0}
    試作は 2 つの section を dr-body の直下に置いている */
 .drawer .dr-body > form{display:contents}
 .drawer .dr-body > form > .dr-watch{display:contents}
+/* 格子に直接置いた中身にも、全幅の指定を当てる。当たるのは form と .dr-watch の
+   直下だけで、格子の外 (dr-body が縦 1 列のとき) では効かない (V2) */
+.drawer .dr-body > form > *,
+.drawer .dr-body > form > .dr-watch > *{grid-column:1/-1}
+.drawer .dr-body > form > .zone,
+.drawer .dr-body > form > .dr-watch > .zone{grid-column:auto}
 
 /* 断られたことの 1 行 (試作に無い。本実装の問題の文) */
 .problem,.banner.danger{color:var(--danger)}
@@ -535,3 +541,4 @@ html,body{margin:0}
    (試作は ~/.config/hergy と決め打ちなので、この規則は要らない。
    2026-10-16 の見比べで hergy-lead が見つけた) */
 .layer-toggle a small{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+

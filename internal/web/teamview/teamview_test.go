@@ -316,6 +316,19 @@ func TestMemberPanelShowsThePromptAndTheLiveState(t *testing.T) {
 	)
 }
 
+// TestMemberPanelKeepsThePromptLines: the prompt is a document a member reads,
+// so its line breaks are part of it. It goes in a pre, which is what keeps them
+// (the prototype's "Markdown のまま表示"). Without it the whole prompt reads as
+// one paragraph, with the first "##" in the middle of a line (hergy-spec's V1).
+func TestMemberPanelKeepsThePromptLines(t *testing.T) {
+	base := start(t, demoPort())
+	_, body := get(t, base, "/panel/member?layer=local&name=demo&member=lead")
+
+	if want := `<div class="render raw"><pre><strong>役割</strong>: リード。` + "\n" + `<code>herdr agent status</code>`; !strings.Contains(body, want) {
+		t.Errorf("the member panel does not keep the prompt's lines in a pre:\n%s", body)
+	}
+}
+
 // TestMemberPanelShowsTheRoleFileAndTheWorkers: a member that reads a role file
 // shows it, and a member that may hire a worker shows what for.
 func TestMemberPanelShowsTheRoleFileAndTheWorkers(t *testing.T) {

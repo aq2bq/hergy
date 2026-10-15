@@ -145,7 +145,10 @@ func placeOf(doc *rules.Document, id string) (section, index int, ok bool) {
 // middle of editing, so the rule stays open with the reason on it. A write that
 // went through leaves the panel empty, and the frame shows its own guidance.
 type Answer struct {
-	Body  string
+	Body string
+	// Doc is the document the write was about, as the rules screen names it.
+	// The frame marks its row in the left list.
+	Doc   string
 	Panel string
 }
 
@@ -236,7 +239,7 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 		if err != nil {
 			return Answer{}, err
 		}
-		return Answer{Body: body, Panel: panel}, nil
+		return Answer{Body: body, Doc: shown.Path, Panel: panel}, nil
 	}
 	if err := guardWrite(shown, edit, values); err != nil {
 		return refuse(err.Error())
@@ -261,7 +264,7 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 	if err != nil {
 		return Answer{}, err
 	}
-	return Answer{Body: body}, nil
+	return Answer{Body: body, Doc: shown.Path}, nil
 }
 
 // guardWrite is what a write must know before it touches a file: the form

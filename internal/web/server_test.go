@@ -216,6 +216,67 @@ func TestTheLayerTravelsInTheLinks(t *testing.T) {
 	)
 }
 
+// docScreen is a screen that opens one document of the layer without the URL
+// naming it, the way the rules screen opens the first document when no ?doc= is
+// given.
+type docScreen struct{ doc string }
+
+func (s *docScreen) Name() string { return "rules" }
+
+func (s *docScreen) Routes() []Route {
+	return []Route{{Path: "/rules", Handler: func(*http.Request) (View, error) {
+		return View{Title: "rules", Doc: s.doc, Body: HTML("<h1>rules</h1>")}, nil
+	}}}
+}
+
+// docPort is the port of that test: the left list of one layer, with two
+// documents in it.
+type docPort struct{ fakePort }
+
+func (p docPort) Index(layer string) Index {
+	out := p.fakePort.Index(layer)
+	out.Groups = []IndexGroup{{Label: "共通の文書", Rows: []IndexRow{
+		{
+			Name: "TEAM PROTOCOL", Path: "/p/common/00.yaml", Rules: 4, Origin: 2,
+			Href: "/rules?layer=" + layer + "&doc=/p/common/00.yaml",
+		},
+		{
+			Name: "protocol.yaml", Path: "/p/teams/demo/protocol.yaml", Rules: 2,
+			Href: "/rules?layer=" + layer + "&doc=/p/teams/demo/protocol.yaml",
+		},
+	}}}
+	return out
+}
+
+// TestTheLeftListMarksTheDocumentTheScreenOpened: the rules screen with no
+// ?doc= opens the first document of the layer, and the row of that document is
+// the one the list marks as open. Without the screen saying which document it
+// opened, the list compares the URL, which names none, and no row is marked
+// (hergy-spec's V4).
+func TestTheLeftListMarksTheDocumentTheScreenOpened(t *testing.T) {
+	port := docPort{fakePort: demoPort()}
+	s := newTestServer(t, port, &docScreen{doc: "/p/common/00.yaml"})
+
+	body := get(t, s, "/rules?layer=local").Body.String()
+	mustContain(t, "the left list", body,
+		`href="/rules?layer=local&amp;doc=/p/common/00.yaml" aria-current="true"`)
+	marked := regexp.MustCompile(`class="ix-item" href="[^"]*" aria-current="true"`).FindAllString(body, -1)
+	if len(marked) != 1 || !strings.Contains(marked[0], "/p/common/00.yaml") {
+		t.Errorf("the left list marks %v, want the one document the screen opened:\n%s", marked, body)
+	}
+
+	// A link that does name a document still opens it, and a screen that opens
+	// no document leaves the marking to the URL.
+	named := newTestServer(t, port, &docScreen{doc: "/p/teams/demo/protocol.yaml"})
+	mustContain(t, "the left list", get(t, named, "/rules?layer=local").Body.String(),
+		`href="/rules?layer=local&amp;doc=/p/teams/demo/protocol.yaml" aria-current="true"`)
+
+	none := newTestServer(t, port, &docScreen{})
+	if marked := regexp.MustCompile(`class="ix-item" href="[^"]*" aria-current="true"`).FindAllString(get(t, none, "/rules?layer=local").Body.String(), -1); len(marked) != 0 {
+		t.Errorf("a screen that opens no document marks %v", marked)
+	}
+}
+
 // TestUnknownPathIsNotFound: a path no screen claims is a 404, not the first
 // screen: a screen that answers a path it was not written for would hide a
 // mistake in a link.

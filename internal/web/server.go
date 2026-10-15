@@ -295,8 +295,10 @@ type page struct {
 	// Index is the left list of the layer.
 	Index Index
 	// CurrentDoc and CurrentTeam are what the left list marks: the document
-	// the rules screen has open (?doc=), and the team definition the screens
-	// of one team have open (?name=).
+	// the screen has open, and the team definition the screens of one team
+	// have open (?name=). A screen that says which document it opened
+	// (View.Doc) wins over the ?doc= of the URL, because the screen is what
+	// the person sees.
 	CurrentDoc  string
 	CurrentTeam string
 	// DrawerID is the id of the right panel, and Drawer what it holds.
@@ -347,7 +349,7 @@ func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 		LayerNote:   "web.frame.layer.note." + layer,
 		Meters:      metersOf(s.port.Meters(layer)),
 		Index:       s.port.Index(layer),
-		CurrentDoc:  r.URL.Query().Get("doc"),
+		CurrentDoc:  currentDoc(r, view),
 		CurrentTeam: r.URL.Query().Get("name"),
 		DrawerID:    DrawerID,
 		Drawer:      view.Drawer,
@@ -374,6 +376,18 @@ func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 		})
 	}
 	return data
+}
+
+// currentDoc is the document the left list marks as open: the one the screen
+// says it has open, and otherwise the one the URL names. The screen is asked
+// first because a screen that opens a document of its own (the rules screen
+// with no ?doc= opens the first of the layer) would otherwise leave the list
+// with no row marked (hergy-spec's V4).
+func currentDoc(r *http.Request, view View) string {
+	if view.Doc != "" {
+		return view.Doc
+	}
+	return r.URL.Query().Get("doc")
 }
 
 // inNav reports whether the navigation lists a screen. A screen that says it

@@ -331,6 +331,23 @@ func TestPreviewBodyCarriesTheBreak(t *testing.T) {
 	}
 }
 
+// TestThePreviewKeepsItsLines: the preview is a document as a member reads it,
+// so its line breaks are part of it. The section goes in a pre, which is what
+// keeps them (the prototype's "Markdown のまま表示"). Without it the whole
+// document reads as one paragraph (hergy-spec's V1).
+func TestThePreviewKeepsItsLines(t *testing.T) {
+	port := newFake()
+	port.preview = Preview{Section: "## 通信\n\n口を開ける前に、相手の様子を見る。"}
+	screen := newScreen(t, port)
+	body, err := screen.PreviewBody(LayerLocal, "protocol.yaml", url.Values{"section": {"0"}, "i": {"0"}})
+	if err != nil {
+		t.Fatalf("PreviewBody: %v", err)
+	}
+	if want := `<div class="render raw"><pre>## 通信` + "\n\n" + `口を開ける前に、相手の様子を見る。</pre></div>`; !strings.Contains(body, want) {
+		t.Errorf("the preview does not keep its lines in a pre:\n%s", body)
+	}
+}
+
 // TestSaveBodyRefusesAWriteWithNoHash: the promise "the file has not changed"
 // cannot be kept without the version that was read, so a form that carries none
 // is refused rather than saved on the newest read (K1).

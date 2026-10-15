@@ -32,7 +32,7 @@
       <h3>{{t "label.prompt"}}</h3>
       <p class="fine">{{t "label.reads"}}: {{range $i, $d := .Docs}}{{if $i}} → {{end}}{{$d.Label}}{{end}}</p>
       <p class="fine">{{t "web.teamview.panel.prompt_note"}}</p>
-      <div class="render">{{inline .Member.Prompt}}</div>
+      <div class="render raw"><pre>{{inline .Member.Prompt}}</pre></div>
     </div>
     <div class="row rows-end">
       <button class="btn" hx-get="/panel/close?layer={{.Layer}}" hx-target="{{drawer}}" hx-swap="outerHTML">{{t "web.rules.panel.close"}}</button>
