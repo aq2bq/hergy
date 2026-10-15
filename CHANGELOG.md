@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- **A skill for the rules of a team**: `skills/hergy-rules`, installed by
+  `npx skills add aq2bq/hergy` next to the hergy skill. It asks one thing at a
+  time and writes the YAML for the person: a new team, an existing team, and
+  moving rules out of Markdown. It does not ask anyone to remember an origin:
+  moving rules leaves the origins empty, and later the skill builds a candidate
+  for each from the git history and the gy ledger and asks only whether that
+  candidate is right.
+
 ### Changed
 
 - **`hergy validate` ends with a count of what the rules carry**: after the
