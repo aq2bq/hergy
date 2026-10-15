@@ -6,9 +6,11 @@
 //
 // A turn direction is written in a rule's text as "<name> → <name>" or
 // "<name> ⇄ <name>" (d-0f08, d-23bf). The names are matched against the names
-// the team knows — the member names, the role names, and the human — and never
-// split out as words, because a name runs on into the sentence around it
-// ("人間 → 要求定義である").
+// the team knows — the member names, the role names, and the human — at the
+// text that abuts the arrow, and the text is never cut into words first,
+// because a name runs on into the sentence around it ("人間 → 要求定義である").
+// Cutting at separators is only how the word a person reads is made, when no
+// name matches.
 package topology
 
 import (
@@ -116,29 +118,29 @@ func Read(members []Member, docs []Doc) Reading {
 func readRule(r *Reading, members []Member, doc Doc, rule Rule, seen map[string]bool) {
 	text := strings.ReplaceAll(rule.Text, "**", "")
 	for _, spot := range arrows(text) {
-		left := tokenBefore(text, spot.pos)
-		right := tokenAfter(text, spot.after)
+		left := before(text, spot.pos)
+		right := after(text, spot.after)
 		// An arrow with nothing on one side names no party there.
-		if left == "" || right == "" {
+		if left.word == "" || right.word == "" {
 			r.Unread = append(r.Unread, Unread{
-				RuleID: rule.ID, DocKey: doc.Key, Missing: missing(left, right),
-				Text: arrowText(left, spot.arrow, right),
+				RuleID: rule.ID, DocKey: doc.Key, Missing: missing(left.word, right.word),
+				Text: arrowText(left.word, spot.arrow, right.word),
 			})
 			continue
 		}
-		from := match(members, text, left, true)
-		to := match(members, text, right, false)
+		from := match(members, text, left.run, true)
+		to := match(members, text, right.run, false)
 		switch {
 		case from != nil && to != nil:
 			addEdges(r, seen, doc, rule, spot, from, to)
 		case from != nil:
-			addEdges(r, seen, doc, rule, spot, from, []Side{{Kind: SideStranger, Word: right}})
+			addEdges(r, seen, doc, rule, spot, from, []Side{{Kind: SideStranger, Word: right.word}})
 		case to != nil:
-			addEdges(r, seen, doc, rule, spot, []Side{{Kind: SideStranger, Word: left}}, to)
+			addEdges(r, seen, doc, rule, spot, []Side{{Kind: SideStranger, Word: left.word}}, to)
 		default:
 			r.Unread = append(r.Unread, Unread{
-				RuleID: rule.ID, DocKey: doc.Key, Missing: missing(left, right),
-				Text: arrowText(left, spot.arrow, right),
+				RuleID: rule.ID, DocKey: doc.Key, Missing: missing(left.word, right.word),
+				Text: arrowText(left.word, spot.arrow, right.word),
 			})
 		}
 	}
@@ -175,17 +177,17 @@ func missing(from, to string) []string {
 	return out
 }
 
-// match is the sides a token names: the longest known name the token ends with
+// match is the sides a run names: the longest known name the run ends with
 // (left) or starts with (right), and the sides that name stands for. A role
 // stands for every member that reads it. Nothing matching gives nil, and the
 // caller falls back to the written word.
-func match(members []Member, text, token string, left bool) []Side {
-	if token == "" {
+func match(members []Member, text, run string, left bool) []Side {
+	if run == "" {
 		return nil
 	}
 	var best *name
 	for _, candidate := range known(members, text) {
-		if !candidate.hit(token, left) {
+		if !candidate.hit(run, left) {
 			continue
 		}
 		if best == nil || len(candidate.text) > len(best.text) {
@@ -205,12 +207,13 @@ type name struct {
 	sides []Side
 }
 
-// hit reports whether this name ends (left) or starts (right) the token.
-func (n name) hit(token string, left bool) bool {
+// hit reports whether this name ends (left) or starts (right) the run it is
+// matched against.
+func (n name) hit(run string, left bool) bool {
 	if left {
-		return strings.HasSuffix(token, n.text)
+		return strings.HasSuffix(run, n.text)
 	}
-	return strings.HasPrefix(token, n.text)
+	return strings.HasPrefix(run, n.text)
 }
 
 // known is the names the team knows, in the order they are tried: the member
@@ -290,10 +293,18 @@ func arrows(text string) []arrowSpot {
 	return out
 }
 
-// tokenBefore is the run just before the arrow: the whitespace next to the
-// arrow is ignored, then the characters up to the first punctuation or symbol,
-// so the word next to the arrow, not the whole sentence.
-func tokenBefore(text string, stop int) string {
+// sideText is what one side of an arrow holds. run is the text that abuts the
+// arrow, with the whitespace between them taken off: that is what a name is
+// matched against, because a name runs on into the sentence around it (d-0f08).
+// word is the run cut at the first separator: the word a person reads when no
+// name matches.
+type sideText struct {
+	run  string
+	word string
+}
+
+// before is the side before the arrow.
+func before(text string, stop int) sideText {
 	end := stop
 	for end > 0 {
 		r, size := utf8.DecodeLastRuneInString(text[:end])
@@ -310,11 +321,11 @@ func tokenBefore(text string, stop int) string {
 		}
 		start -= size
 	}
-	return text[start:end]
+	return sideText{run: text[:end], word: text[start:end]}
 }
 
-// tokenAfter is the run just after the arrow, by the same cut.
-func tokenAfter(text string, start int) string {
+// after is the side after the arrow, by the same cut.
+func after(text string, start int) sideText {
 	begin := start
 	for begin < len(text) {
 		r, size := utf8.DecodeRuneInString(text[begin:])
@@ -323,15 +334,15 @@ func tokenAfter(text string, start int) string {
 		}
 		begin += size
 	}
-	end := begin
-	for end < len(text) {
-		r, size := utf8.DecodeRuneInString(text[end:])
+	stop := begin
+	for stop < len(text) {
+		r, size := utf8.DecodeRuneInString(text[stop:])
 		if separator(r) {
 			break
 		}
-		end += size
+		stop += size
 	}
-	return text[begin:end]
+	return sideText{run: text[begin:], word: text[begin:stop]}
 }
 
 // separator ends a word: whitespace, punctuation, or a symbol (the arrows are

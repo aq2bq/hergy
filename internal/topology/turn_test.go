@@ -30,8 +30,8 @@ func unreadLines(unread []Unread) []string {
 }
 
 // TestReadNames: the two ends are matched against the names the team knows —
-// the member names, the role names and the human — as the longest name the
-// token next to the arrow ends or starts with.
+// the member names, the role names and the human — as the longest name the run
+// next to the arrow ends or starts with.
 func TestReadNames(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -87,6 +87,24 @@ func TestReadNames(t *testing.T) {
 			members: []Member{{Name: "a", Role: "実装"}},
 			text:    "実装の話 → 人間",
 			edges:   []string{"C1 s:実装の話 → human"},
+		},
+		{
+			name:    "a hyphen in a member name",
+			members: []Member{{Name: "dev-lead", Role: "実装"}},
+			text:    "dev-lead → human",
+			edges:   []string{"C1 m:0 → human"},
+		},
+		{
+			name:    "a hyphen in the member name on the right",
+			members: []Member{{Name: "dev-lead", Role: "実装"}},
+			text:    "human → dev-lead",
+			edges:   []string{"C1 human → m:0"},
+		},
+		{
+			name:    "an underscore in a role name, both ways",
+			members: []Member{{Name: "dev-lead", Role: "role_a"}, {Name: "planner", Role: "role_a"}},
+			text:    "role_a ⇄ dev-lead",
+			edges:   []string{"C1 m:1 ⇄ m:0"},
 		},
 	}
 	for _, c := range cases {
@@ -238,22 +256,23 @@ func TestSideKey(t *testing.T) {
 	}
 }
 
-// TestTokenCuts: the word next to an arrow stops at whitespace, punctuation and
-// symbols, and never crosses another arrow.
-func TestTokenCuts(t *testing.T) {
+// TestSideCuts: the run next to an arrow is the text that abuts it — that is
+// what a name is matched against — while the word a person reads stops at
+// whitespace, punctuation and symbols.
+func TestSideCuts(t *testing.T) {
 	text := "まず 要求定義 → 実装、次に A ⇄ B"
 	at := strings.IndexRune(text, arrowRight)
-	after := at + len(string(arrowRight))
-	if got, want := tokenBefore(text, at), "要求定義"; got != want {
-		t.Fatalf("tokenBefore = %q, want %q", got, want)
+	past := at + len(string(arrowRight))
+	if got, want := before(text, at), (sideText{run: "まず 要求定義", word: "要求定義"}); got != want {
+		t.Fatalf("before = %+v, want %+v", got, want)
 	}
-	if got, want := tokenAfter(text, after), "実装"; got != want {
-		t.Fatalf("tokenAfter = %q, want %q", got, want)
+	if got, want := after(text, past), (sideText{run: "実装、次に A ⇄ B", word: "実装"}); got != want {
+		t.Fatalf("after = %+v, want %+v", got, want)
 	}
-	// The token before the second arrow does not run back over the first one.
+	// The word before the second arrow does not run back over the first one.
 	second := strings.LastIndex(text, string(arrowBoth))
-	if got, want := tokenBefore(text, second), "A"; got != want {
-		t.Fatalf("tokenBefore the second arrow = %q, want %q", got, want)
+	if got, want := before(text, second), (sideText{run: "まず 要求定義 → 実装、次に A", word: "A"}); got != want {
+		t.Fatalf("before the second arrow = %+v, want %+v", got, want)
 	}
 }
 
