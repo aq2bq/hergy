@@ -1,0 +1,169 @@
+/* The team screens: the definition, the running teams, and the figure. The frame
+   (the navigation, the layer toggle and the right panel) is internal/web's own
+   stylesheet; these are the classes the three screens add to it.
+
+   A screen brings its own file (web.ScreenAssets), so this is served under
+   /static/teamview/ and two screens never share it. Every answer carries
+   Content-Security-Policy: default-src 'self', so nothing here is written
+   inline in a page. */
+
+.fine { color: var(--muted); font-size: 13px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.explain { margin: 0 0 8px; color: var(--muted); }
+.explain b { color: var(--fg); margin-right: 6px; }
+
+h2 { margin: 22px 0 6px; font-size: 15px; }
+h3 { margin: 0 0 6px; font-size: 15px; }
+
+/* The picker: one chip per team definition of the layer being shown. */
+.pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+
+.chip {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.chip:hover { background: var(--soft); }
+.chip.on { background: var(--mark); border-color: var(--mark); color: #fff; }
+
+/* The state of a member or a worker, in the page and in the figure. The colour
+   of a state is set once here and used by both. */
+.st-working { --pill-bg: #e5f2e8; --pill-line: #a9c9ae; --pill-dot: #2e7d43; }
+.st-idle    { --pill-bg: #f1f1f0; --pill-line: #cfcfcd; --pill-dot: #8a8a88; }
+.st-blocked { --pill-bg: #fdeeea; --pill-line: #e2b3a6; --pill-dot: #a1260d; }
+.st-done    { --pill-bg: #eef2f7; --pill-line: #b9c6d6; --pill-dot: #14507f; }
+.st-gone    { --pill-bg: #f4f4f3; --pill-line: #d9d9d9; --pill-dot: #c4c4c2; }
+
+.pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--pill-line, var(--line));
+  border-radius: 9px;
+  background: var(--pill-bg, #f1f1f0);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.legend { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.legend li { margin: 2px 0; }
+
+/* The team definition screen. */
+.stack { margin: 0 0 16px; padding-left: 20px; }
+.stack li { margin: 2px 0; }
+
+/* The running teams screen. */
+.livebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.card {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.card h3 { display: flex; align-items: baseline; gap: 8px; }
+.verdict { margin: 0 0 4px; font-weight: 600; }
+.verdict.empty { font-weight: 400; color: var(--muted); }
+
+ul.lrows { margin: 6px 0 6px; padding: 0; list-style: none; }
+
+li.lrow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+
+.lname { font-weight: 600; }
+.lsub { min-width: 0; overflow-wrap: anywhere; }
+.lpane { white-space: nowrap; }
+
+/* A panel: the member, one rule file, or one rule. */
+dl.meta { margin: 0 0 14px; }
+dl.meta dt { margin-top: 8px; font-size: 12px; color: var(--muted); }
+dl.meta dd { margin: 0; }
+
+ul.plain { margin: 0; padding-left: 18px; }
+ul.rules li { margin: 4px 0; }
+
+button.ref {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mark);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+button.linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mark);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.banner {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--verify);
+  background: #f2f8f3;
+}
+
+/* The figure: one hand-built SVG. Nothing in it is styled inline (the CSP
+   refuses a style attribute), so every box, line and pill is a class here. */
+.topo-scroll { margin: 0 0 12px; overflow: auto; }
+.topo { display: block; max-width: 100%; height: auto; }
+.topo .tp-node { cursor: pointer; }
+.topo .tp-node:hover > rect { stroke-width: 2; }
+
+.topo .tp-band { fill: #fbfbfa; stroke: var(--line); stroke-dasharray: 6 4; }
+.topo .tp-cap { fill: var(--muted); font-size: 11px; letter-spacing: .06em; }
+.topo .tp-doc { fill: var(--soft); stroke: var(--line); }
+.topo .tp-doc-name { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.topo .tp-role { fill: #fff; stroke: var(--line); }
+.topo .tp-role.none { fill: #fcfcfc; stroke-dasharray: 4 3; }
+.topo .tp-human { fill: #fffaf0; stroke: #dcc79a; }
+.topo .tp-worker { fill: #fff; stroke: var(--line); stroke-dasharray: 4 3; }
+.topo .tp-stranger { fill: #f7f7f6; stroke: var(--line); stroke-dasharray: 4 3; }
+
+.topo .tp-name { fill: var(--fg); font-size: 14px; font-weight: 600; }
+.topo .tp-sub { fill: var(--muted); font-size: 12px; }
+
+.topo .tp-mem { fill: #fff; stroke: var(--line); }
+.topo .tp-mem.c0 { fill: #eef4fb; stroke: #9db8d4; }
+.topo .tp-mem.c1 { fill: #fdf1e7; stroke: #e0bb96; }
+.topo .tp-mem.c2 { fill: #eef7ef; stroke: #a9c9ae; }
+.topo .tp-mem.c3 { fill: #f4eefa; stroke: #bda8d6; }
+.topo .tp-mem.st-working { stroke: #2e7d43; stroke-width: 2; }
+.topo .tp-mem.st-blocked { stroke: #a1260d; stroke-width: 2; }
+
+.topo .tp-feed { stroke: var(--line); stroke-width: 1.4; }
+.topo .tp-hire { stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 3 3; }
+
+.topo .tp-edge path { fill: none; stroke: #8b8b8b; stroke-width: 1.6; }
+.topo .tp-edge.any path { stroke-dasharray: 4 4; }
+.topo .tp-head { fill: #8b8b8b; stroke: none; }
+.topo .tp-lab rect { fill: #fff; stroke: var(--line); }
+.topo .tp-lab text { fill: var(--fg); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.topo .mid { text-anchor: middle; }
+
+.topo .tp-pill rect { fill: var(--pill-bg, #f1f1f0); stroke: var(--pill-line, var(--line)); }
+.topo .tp-pill circle { fill: var(--pill-dot, #8a8a88); }
+.topo .tp-pill text { fill: var(--fg); font-size: 11px; }

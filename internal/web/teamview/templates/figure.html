@@ -1,0 +1,118 @@
+<h1>{{t "web.teamview.figure.title"}}</h1>
+{{if .Name}}<p class="lede">{{tf "web.teamview.figure.lede" .Name}}</p>{{end}}
+{{if .Teams}}
+<nav class="pick" aria-label="{{t "web.teamview.pick"}}">
+  {{- range .Teams}}
+  <a class="chip{{if .Active}} on{{end}}" href="/figure?layer={{$.Layer}}&amp;name={{.Name}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}{{if .Running}}<i class="ldot" title="{{t "web.teams.running"}}"></i>{{end}}</a>
+  {{- end}}
+</nav>
+{{end}}
+{{if not .Name}}
+<p class="empty">{{t "web.teamview.no_definition"}}</p>
+{{else if .Broken}}
+<p class="problem">{{.Broken}}</p>
+{{else}}
+{{if .Banner}}
+<p class="banner">{{tf "web.teamview.figure.running" .Banner.Team}}{{if .Banner.Verdict}} <b>{{.Banner.Verdict}}</b>{{end}}</p>
+{{else}}
+<p class="fine">{{t "web.teamview.figure.not_running"}}</p>
+{{end}}
+<div class="topo-scroll">
+<svg class="topo" width="{{num .View.Width}}" height="{{num .View.Height}}" viewBox="0 0 {{num .View.Width}} {{num .View.Height}}" role="img" aria-label="{{tf "web.teamview.figure.alt" .Name}}">
+  <defs>
+    <marker id="tp-end" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="tp-head" d="M0 0 L10 5 L0 10 Z"/></marker>
+    <marker id="tp-start" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="tp-head" d="M10 0 L0 5 L10 10 Z"/></marker>
+  </defs>
+
+  <rect class="tp-band" x="{{num .View.Band.X}}" y="{{num .View.Band.Y}}" width="{{num .View.Band.W}}" height="{{num .View.Band.H}}" rx="10"/>
+  <text class="tp-cap" x="{{num .View.CaptionX}}" y="{{num .View.CaptionY}}">{{t "web.teamview.figure.shared"}}</text>
+  {{- range .View.Docs}}
+  <g class="tp-node" hx-get="/panel/doc?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;key={{q .Key}}" hx-target="{{panel}}" hx-swap="innerHTML" role="button" tabindex="0">
+    <title>{{.Name}}</title>
+    <rect class="tp-doc" x="{{num .Box.X}}" y="{{num .Box.Y}}" width="{{num .Box.W}}" height="{{num .Box.H}}" rx="6"/>
+    <text class="tp-doc-name" x="{{num .NameX}}" y="{{num .NameY}}">{{cut .Name 16}}</text>
+    <text class="tp-cap" x="{{num .SubX}}" y="{{num .SubY}}">{{.Sub}}</text>
+  </g>
+  {{- end}}
+
+  <rect class="tp-human" x="{{num .View.Human.Box.X}}" y="{{num .View.Human.Box.Y}}" width="{{num .View.Human.Box.W}}" height="{{num .View.Human.Box.H}}" rx="10"/>
+  <text class="tp-name" x="{{num .View.Human.NameX}}" y="{{num .View.Human.NameY}}">{{.View.Human.Name}}</text>
+  <text class="tp-sub" x="{{num .View.Human.SubX}}" y="{{num .View.Human.SubY}}">{{.View.Human.Sub}}</text>
+
+  {{- range $i, $m := .View.Members}}
+  <line class="tp-feed" x1="{{num $.View.FeedX1}}" y1="{{num $m.FeedY}}" x2="{{num $m.Box.X}}" y2="{{num $m.FeedY}}"/>
+  <g class="{{if $m.RoleFile.Has}}tp-node{{else}}tp-box{{end}}"{{if $m.RoleFile.Has}} hx-get="/panel/doc?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;key={{q $m.RoleFile.Key}}" hx-target="{{panel}}" hx-swap="innerHTML" role="button" tabindex="0"{{end}}>
+    {{- if $m.RoleFile.Has}}<title>{{$m.RoleFile.Name}}</title>{{end}}
+    <rect class="tp-role{{if not $m.RoleFile.Has}} none{{end}}" x="{{num $m.RoleFile.Box.X}}" y="{{num $m.RoleFile.Box.Y}}" width="{{num $m.RoleFile.Box.W}}" height="{{num $m.RoleFile.Box.H}}" rx="6"/>
+    <text class="tp-name" x="{{num $m.RoleFile.NameX}}" y="{{num $m.RoleFile.NameY}}">{{cut $m.RoleFile.Name 14}}</text>
+    {{- if $m.RoleFile.Has}}<text class="tp-sub" x="{{num $m.RoleFile.SubX}}" y="{{num $m.RoleFile.SubY}}">{{$m.RoleFile.Sub}}</text>{{end}}
+  </g>
+  <g class="tp-node" hx-get="/panel/member?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;member={{q $m.Name}}" hx-target="{{panel}}" hx-swap="innerHTML" role="button" tabindex="0">
+    <title>{{$m.Name}}</title>
+    <rect class="tp-mem {{$m.Class}}{{if $m.State}} st-{{$m.State}}{{end}}" x="{{num $m.Box.X}}" y="{{num $m.Box.Y}}" width="{{num $m.Box.W}}" height="{{num $m.Box.H}}" rx="12"/>
+    <text class="tp-name" x="{{num $m.NameX}}" y="{{num $m.NameY}}">{{cut $m.Name 20}}</text>
+    <text class="tp-sub" x="{{num $m.SubX}}" y="{{num $m.SubY}}">{{cut $m.Sub 46}}</text>
+    {{- if $m.State}}
+    <g class="tp-pill st-{{$m.State}}">
+      <title>{{$m.Pill.Title}}</title>
+      <rect x="{{num $m.Pill.X}}" y="{{num $m.Pill.Y}}" width="{{num $m.Pill.W}}" height="{{num $m.Pill.H}}" rx="11"/>
+      <circle cx="{{num $m.Pill.DotX}}" cy="{{num $m.Pill.DotY}}" r="4"/>
+      <text x="{{num $m.Pill.TextX}}" y="{{num $m.Pill.TextY}}">{{$m.Pill.Text}}</text>
+    </g>
+    {{- end}}
+  </g>
+  {{- range $m.Workers}}
+  <line class="tp-hire" x1="{{num .HireX}}" y1="{{num .HireTop}}" x2="{{num .HireX}}" y2="{{num .HireBottom}}"/>
+  <g class="tp-node" hx-get="/panel/member?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;member={{q $m.Name}}" hx-target="{{panel}}" hx-swap="innerHTML" role="button" tabindex="0">
+    <title>{{.Name}}</title>
+    <rect class="tp-worker" x="{{num .Box.X}}" y="{{num .Box.Y}}" width="{{num .Box.W}}" height="{{num .Box.H}}" rx="8"/>
+    <text class="tp-sub" x="{{num .NameX}}" y="{{num .NameY}}">{{cut .Name 14}}</text>
+    <text class="tp-cap" x="{{num .SubX}}" y="{{num .SubY}}">{{cut .Sub 16}}</text>
+  </g>
+  {{- end}}
+  {{- end}}
+
+  {{- range .View.Strangers}}
+  <rect class="tp-stranger" x="{{num .Box.X}}" y="{{num .Box.Y}}" width="{{num .Box.W}}" height="{{num .Box.H}}" rx="12"/>
+  <text class="tp-name" x="{{num .NameX}}" y="{{num .NameY}}">{{cut .Name 22}}</text>
+  <text class="tp-sub" x="{{num .SubX}}" y="{{num .SubY}}">{{.Sub}}</text>
+  {{- end}}
+
+  {{- range .View.Arrows}}
+  <g class="tp-edge{{if .Dotted}} any{{end}}">
+    <title>{{.Title}}</title>
+    <path d="{{.Path}}" marker-end="url(#tp-end)"{{if .Both}} marker-start="url(#tp-start)"{{end}}/>
+  </g>
+  {{- end}}
+  {{- range .View.Arrows}}
+  <g class="tp-lab" hx-get="/panel/rule?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;doc={{q .DocKey}}&amp;rule={{q .RuleID}}" hx-target="{{panel}}" hx-swap="innerHTML" role="button" tabindex="0">
+    <title>{{.Title}}</title>
+    <rect x="{{num .LabelX}}" y="{{num .LabelTop}}" width="{{num .LabelW}}" height="20" rx="10"/>
+    <text class="mid" x="{{num .LabelMid}}" y="{{num .LabelBase}}">{{.RuleID}}</text>
+  </g>
+  {{- end}}
+</svg>
+</div>
+{{if .NoArrows}}<p class="fine">{{t "web.teamview.figure.no_arrows"}}</p>{{end}}
+{{if .View.Unread}}
+<div class="unread">
+  <h2>{{t "web.teamview.figure.unread"}}</h2>
+  <p class="explain">{{t "web.teamview.figure.unread.note"}}</p>
+  <ul class="plain">
+    {{- range .View.Unread}}
+    <li>
+      <button class="ref" type="button" hx-get="/panel/rule?layer={{$.Layer}}&amp;name={{q $.Name}}&amp;doc={{q .DocKey}}&amp;rule={{q .RuleID}}" hx-target="{{panel}}" hx-swap="innerHTML">{{.RuleID}}</button>
+      <span class="rule-text">{{inline .Text}}</span>
+      <span class="fine">{{tf "web.teamview.figure.unread.missing" (join .Missing)}}</span>
+    </li>
+    {{- end}}
+  </ul>
+</div>
+{{end}}
+<h2>{{t "web.teamview.figure.legend.title"}}</h2>
+<ul class="legend">
+  {{- range .Legend}}
+  <li>{{.}}</li>
+  {{- end}}
+</ul>
+{{end}}

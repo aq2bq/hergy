@@ -1,0 +1,32 @@
+<h2>{{.Member.Name}}</h2>
+<dl class="meta">
+  <dt>{{t "label.role"}}</dt>
+  <dd>{{if .Member.Role}}{{.Member.Role}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
+  <dt>{{t "label.kind"}}</dt>
+  <dd>{{if .Member.Kind}}{{.Member.Kind}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
+  <dt>{{t "label.profile"}}</dt>
+  <dd>{{if .Member.Profile}}{{.Member.Profile}}{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
+  <dt>{{t "web.teamview.panel.herdr_name"}}</dt>
+  <dd class="mono">{{.Member.Herdr}}</dd>
+  <dt>{{t "web.teamview.panel.herdr_state"}}</dt>
+  <dd>
+    {{- if not .Live}}{{t "web.teamview.panel.not_running"}}
+    {{- else}}<span class="pill st-{{.State}}">{{.Text}}</span> <span class="fine">{{.Meaning}}{{if .Row.Title}} · {{.Row.Title}}{{end}}</span>
+    {{- end}}
+  </dd>
+  <dt>{{t "web.teamview.panel.pane"}}</dt>
+  <dd>{{if .Row.PaneID}}<span class="mono">{{.Row.PaneID}}</span>{{else}}<span class="fine">{{t "web.teamview.none"}}</span>{{end}}</dd>
+  <dt>{{t "label.role_file"}}</dt>
+  <dd>{{if .Member.RoleFile}}{{.Member.RoleFile.Label}} <span class="fine mono">{{.Member.RoleFile.Path}}</span>{{else}}<span class="fine">{{t "web.teamview.panel.no_role_file"}}</span>{{end}}</dd>
+  <dt>{{t "web.teamview.panel.workers"}}</dt>
+  <dd>{{if .Member.Workers}}
+    <ul class="plain">
+      {{- range .Member.Workers}}
+      <li>{{.Purpose}} <span class="fine">{{.Profile}}</span></li>
+      {{- end}}
+    </ul>
+    {{- else}}<span class="fine">{{t "web.teamview.panel.no_workers"}}</span>{{end}}</dd>
+</dl>
+<h2>{{t "label.prompt"}}</h2>
+<p class="explain">{{t "web.teamview.panel.prompt_note"}}</p>
+<pre class="prompt">{{inline .Member.Prompt}}</pre>

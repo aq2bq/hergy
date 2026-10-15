@@ -76,7 +76,11 @@ type MemberBox struct {
 	Role        string
 	RoleFile    *Box
 	RoleFileKey string
-	Workers     []WorkerBox
+	// RoleSlot is where a role file box sits on this member's row, whether or
+	// not the member reads one: a screen draws an empty box there to say the
+	// member reads no role file.
+	RoleSlot Box
+	Workers  []WorkerBox
 }
 
 // StrangerBox is a party no team name matched, drawn with the written word.
@@ -107,6 +111,10 @@ type Figure struct {
 	Strangers     []StrangerBox
 	Edges         []Arrow
 	Unread        []Unread
+	// MemberRight is the x where the member column ends: the edge the turn
+	// arrows leave from and come back to. The screen draws the curves; this is
+	// where they start.
+	MemberRight float64
 }
 
 // Layout lays out one team definition: the boxes, the arrows read from its rule
@@ -123,6 +131,9 @@ func Layout(members []Member, docs []Doc) Figure {
 		Human:   Box{X: memberX, Y: rows[0].Y, W: memberW, H: humanH},
 		Unread:  reading.Unread,
 		Members: make([]MemberBox, len(members)),
+		// The arrows leave the member column: its right edge is fixed, so the
+		// screen can draw the curves without knowing the sizes.
+		MemberRight: memberX + memberW,
 	}
 	for i := range members {
 		f.Members[i] = placeMember(members[i], i, rows[1+i], docs)
@@ -207,9 +218,10 @@ func placeDocs(docs []Doc, top float64) []DocBox {
 // the y the member's box starts at.
 func placeMember(member Member, index int, row row, docs []Doc) MemberBox {
 	box := Box{X: memberX, Y: row.Y, W: memberW, H: memberH}
-	out := MemberBox{Box: box, Index: index, Name: member.Name, Role: member.Role}
+	slot := Box{X: roleX, Y: box.CY() - roleH/2, W: roleW, H: roleH}
+	out := MemberBox{Box: box, Index: index, Name: member.Name, Role: member.Role, RoleSlot: slot}
 	if doc, ok := roleFile(member.Role, docs); ok {
-		file := Box{X: roleX, Y: box.CY() - roleH/2, W: roleW, H: roleH}
+		file := slot
 		out.RoleFile = &file
 		out.RoleFileKey = doc.Key
 	}

@@ -1,0 +1,17 @@
+<h2>{{.Doc.Label}}</h2>
+<p class="fine mono">{{.Doc.Path}}</p>
+{{if .Doc.Role}}<p class="fine">{{tf "web.teamview.panel.role_file_of" .Doc.Role}}</p>{{end}}
+{{if .Doc.Broken}}
+<p class="problem">{{.Doc.Broken}}</p>
+{{else if .Doc.Rules}}
+<ol class="plain rules">
+  {{- range .Doc.Rules}}
+  <li>
+    <button class="ref" type="button" hx-get="/panel/rule?layer={{$.Layer}}&amp;name={{q $.Def.Name}}&amp;doc={{q $.Doc.Key}}&amp;rule={{q .ID}}" hx-target="{{panel}}" hx-swap="innerHTML">{{.ID}}</button>
+    <span class="rule-text">{{inline .Text}}</span>
+  </li>
+  {{- end}}
+</ol>
+{{else}}
+<p class="empty">{{t "web.teamview.panel.no_rules"}}</p>
+{{end}}

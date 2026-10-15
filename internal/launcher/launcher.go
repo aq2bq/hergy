@@ -192,9 +192,16 @@ func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
 	rows := make([]status.Row, 0, len(members))
 	for _, member := range members {
 		agent, live := states[member.Name]
+		// A member with no live agent still carries the role it reads and the
+		// engine its settings name: the WebUI shows them while nothing runs.
+		kind := agent.Kind
+		if kind == "" {
+			kind = member.Kind
+		}
 		rows = append(rows, status.Row{
 			Name: member.Name, State: agent.Status, Live: live,
 			Title: agent.Title, PaneID: agent.PaneID,
+			Role: member.Role, Kind: kind,
 		})
 	}
 	workers, err := l.workerAgents(agents)
@@ -205,7 +212,7 @@ func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
 		agent := states[worker.Name]
 		rows = append(rows, status.Row{
 			Name: worker.Name, State: agent.Status, Live: true, Worker: true,
-			Title: agent.Title, PaneID: agent.PaneID,
+			Title: agent.Title, PaneID: agent.PaneID, Kind: agent.Kind,
 		})
 	}
 	return rows, nil

@@ -452,9 +452,9 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 		t.Fatalf("Status: %v", err)
 	}
 	want := []status.Row{
-		{Name: "dev-lead", State: "working", Live: true, PaneID: "p-lead", Title: "#42 の報告を待っている"},
-		{Name: "dev-worker", Live: false},
-		{Name: "dev-w1", State: "blocked", Live: true, Worker: true, PaneID: "p-w1", Title: "依存の更新を入れてよいか聞いている"},
+		{Name: "dev-lead", State: "working", Live: true, PaneID: "p-lead", Title: "#42 の報告を待っている", Role: "role", Kind: "claude"},
+		{Name: "dev-worker", Live: false, Role: "role", Kind: "claude"},
+		{Name: "dev-w1", State: "blocked", Live: true, Worker: true, PaneID: "p-w1", Title: "依存の更新を入れてよいか聞いている", Kind: "claude"},
 	}
 	if !slices.Equal(rows, want) {
 		t.Fatalf("Status = %+v, want %+v", rows, want)

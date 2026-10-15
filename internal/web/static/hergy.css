@@ -128,6 +128,16 @@ table.teams .num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.broken th[scope="row"] { border-left: 3px solid var(--problem); }
 tr.broken .reason { color: var(--problem); font-size: 13px; }
 
+/* The running mark: a team Herdr reports a live agent for right now. */
+.ldot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--verify);
+}
+
 .problem { color: var(--problem); }
 
 /* A rule's text and a prompt keep the lines they were written with. */

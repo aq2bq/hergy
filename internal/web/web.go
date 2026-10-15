@@ -39,6 +39,9 @@ type Team struct {
 	Rules   int    // the rules those members read
 	NoCheck int    // of those rules, the ones with no check
 	Broken  string // why the definition cannot be read, empty when it reads
+	// Running says Herdr reports a team booted from this definition right now.
+	// A Herdr that cannot be read leaves it false and the row renders as before.
+	Running bool
 }
 
 // Port is what the app hands the screens: the settings and the state, read the
