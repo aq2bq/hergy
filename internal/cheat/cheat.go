@@ -102,6 +102,7 @@ var behavior = map[options.Kind]string{
 	options.New: `      Write a starter team definition: into the global layer by default, into the project's .hergy/ with --local. The global config.yaml is written too when it is missing, with --local as well.
 `,
 	options.Validate: `      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
+      It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file. That count is not a break: only a broken file makes the exit 1.
 `,
 	options.Version: `      Print the commit and time of this hergy. It takes no other flags.
 `,
@@ -147,6 +148,7 @@ Reading the output:
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
   A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, may_spawn and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
+  validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin). That count never changes the exit code.
   To read the text form, add --lang en, or use --dry --json.
 
 Resolution:
@@ -197,6 +199,34 @@ Settings files and their keys:
         args: [<arg>...]   list of strings; passed to the agent CLI as is.
         env: {NAME: value} mapping of string to string; environment for the pane.
   A local team definition reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global definition reads only the global one.
+
+Rule files (what docs and roles point at):
+  Every document a member reads is one rule file: a team's agreements (protocol.yaml) and a role file (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a .md file, a directory with only .md, or a role with only <role>.md stops with the way to move it over.
+  version: 1        required, int; must be 1.
+  title: <text>     string, optional; rendered as "# <text>".
+  revision: <int>   string, optional; for the people reading the file; never sent.
+  sections:         required, nonempty list; sent in the written order.
+    heading: <text> string, optional; a section with no heading continues the one before it.
+    level: 2..4     int, optional; how deep the heading is; not allowed without a heading; default 2.
+    intro: <text>   string, optional; a paragraph before the rules; not a rule.
+    style: paragraphs|bullets|numbered|ids   how the rules are laid out; default paragraphs.
+    rules:          list; each rule is an entry:
+      id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
+      text: <text>  required, string; what the member reads, in Markdown.
+      why: <text>   string, optional; one space and the reason follow the text, unless send_why is false.
+      send_why: false   boolean, optional; keeps the reason in the file and out of the prompt.
+      note: <text>  string, optional; for whoever maintains the file; never sent, and not a reason.
+      origin:       list, optional; where the rule came from:
+        kind: incident|instruction|derived   required; derived needs refs, the rule ids it came from.
+        date: YYYY-MM-DD   string, optional; quoted or not.
+        refs: [<ref>...]   optional; for incident and instruction an outside reference (an issue, a ledger id, a URL).
+        note: <text>  string, optional.
+      report: <name>.<field>   string, optional; the report field that shows the rule was kept; never sent.
+      tests: [<id>...]   list, optional; the tests that check the rule; never sent.
+  reports:          mapping, optional; the shape of a report, rendered at the end:
+    <name>:
+      where: <text>    string, optional; where the report is written.
+      fields:          mapping of field name to what it holds.
 
 hire (a member starting a worker):
   --profile names a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.

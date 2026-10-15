@@ -4,6 +4,17 @@
 
 ### Changed
 
+- **`hergy validate` ends with a count of what the rules carry**: after the
+  per-file lines, it counts the rules of every file the members of the team
+  definitions read (a file two definitions share counts once): the rule count,
+  how many say where they came from (incident, instruction or derived) and how
+  many do not, how many carry a reason (whether or not the file sends it) and
+  how many do not, and how many have a report field or a test and how many do
+  not. Then it lists the id of every rule that says where it came from nowhere,
+  by file. That count is not a break: only a broken file makes the exit 1. It is
+  where a team sees which of its rules came from nothing, before they harden
+  into something nobody dares to touch.
+
 - **A team's agreements and role files are YAML, not Markdown**: `protocol.md`
   becomes `protocol.yaml`, and `roles/<role>.md` becomes `roles/<role>.yaml`.
   A rule file holds `sections`, each with the rules under it, and each rule has
@@ -35,7 +46,7 @@
           send_why: false
   ```
 
-  Move a team over with the team-building skill (r-a510): the reasons, the
+  Move a team over with the team-building skill: the reasons, the
   origin and the way each rule is checked cannot be read out of the Markdown,
   so the move is a conversation, not a conversion.
 

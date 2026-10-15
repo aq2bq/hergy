@@ -21,6 +21,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/spawn"
@@ -386,9 +387,14 @@ func writeScaffold(dir string, files []scaffold.File) error {
 }
 
 // runValidate reads every settings file the way up does, shows one line per
-// file, and fails when any of them is broken. It never touches Herdr.
+// file, and fails when any of them is broken. It never touches Herdr. After the
+// files, it counts what the rules carry: where they came from, why they are
+// there, and whether anything shows they were kept. That count is not a break:
+// it changes no exit code.
 func runValidate(env team.Env, stdout io.Writer) error {
 	checked, problems := 0, 0
+	tally := &rules.Tally{}
+	seenFiles := map[string]bool{}
 	report := func(path string, err error) {
 		checked++
 		field(stdout, label("file"), env.Display(path))
@@ -433,16 +439,77 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				}
 				path = row.LocalPath
 			}
-			report(path, validateTeam(env, row.Name, layer))
+			cfg, err := validateTeam(env, row.Name, layer)
+			report(path, err)
+			if err == nil {
+				collectRules(tally, seenFiles, cfg)
+			}
 		}
 	}
 
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
+	printTally(stdout, env, tally)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
 	return nil
+}
+
+// collectRules adds the rule files the members of one team read to the tally.
+// seen is shared across every team, so a file that two team definitions read is
+// counted once. Within one team, a member's role file comes first, then the
+// documents it reads.
+func collectRules(tally *rules.Tally, seen map[string]bool, cfg *config.Config) {
+	for i := range cfg.Members {
+		member := &cfg.Members[i]
+		if member.HasRoleSource {
+			countRules(tally, seen, member.RoleSource)
+		}
+		for _, doc := range member.DocsRead {
+			countRules(tally, seen, doc)
+		}
+	}
+}
+
+// countRules reads and counts one rule file, once. A read that fails here is
+// left out: the team this file belongs to was built a moment ago with the same
+// reading, so the failure was already reported as a break.
+func countRules(tally *rules.Tally, seen map[string]bool, doc source.Doc) {
+	if seen[doc.Path] {
+		return
+	}
+	seen[doc.Path] = true
+	text, err := os.ReadFile(doc.Path)
+	if err != nil {
+		return
+	}
+	parsed, err := rules.Parse(string(text), doc.Path)
+	if err != nil {
+		return
+	}
+	tally.Add(parsed)
+}
+
+// printTally is the count of what the rules carry, after the per-file lines. It
+// prints nothing when no rule file was read (no team definition, or every one
+// broken). The words are the locales'; the numbers, the ids and the paths are
+// not translated.
+func printTally(w io.Writer, env team.Env, tally *rules.Tally) {
+	if tally.Files == 0 {
+		return
+	}
+	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
+	line(i18n.Tf("validate.rules_total", tally.Total, tally.Files))
+	line(i18n.Tf("validate.rules_origin", tally.WithOrigin,
+		tally.Incident, tally.Instruction, tally.Derived, tally.Total-tally.WithOrigin))
+	line(i18n.Tf("validate.rules_reason", tally.WithWhy, tally.Total-tally.WithWhy))
+	line(i18n.Tf("validate.rules_check", tally.WithCheck,
+		tally.Report, tally.Tests, tally.Total-tally.WithCheck))
+	for _, missing := range tally.Missing {
+		line(i18n.Tf("validate.rules_missing_origin",
+			env.Display(missing.Path), strings.Join(missing.IDs, i18n.T("list.separator"))))
+	}
 }
 
 // validateConfig reads the global config.yaml the way up does, and holds its
@@ -471,13 +538,12 @@ func validateProfiles(path string) error {
 }
 
 // validateTeam builds one team from one layer the way up does.
-func validateTeam(env team.Env, name, layer string) error {
+func validateTeam(env team.Env, name, layer string) (*config.Config, error) {
 	resolved, err := env.Resolve(name, layer)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = env.BuildConfig(resolved, source.Disk{}, "")
-	return err
+	return env.BuildConfig(resolved, source.Disk{}, "")
 }
 
 func isFile(path string) bool {

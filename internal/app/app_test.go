@@ -434,7 +434,82 @@ func TestValidateShape(t *testing.T) {
 		"  result: ok",
 		"checked: 2",
 		"problems: 0",
+		"rules 6 in 3 files",
+		"  with an origin 0 (incident 0 / instruction 0 / derived 0)  with no origin 6",
+		"  with a reason 6  with no reason 0",
+		"  with a check 0 (report 0 / test 0)  with no check 6",
+		"no origin: .hergy/teams/demo/roles/lead.yaml: L1, L2",
+		"no origin: .hergy/teams/demo/protocol.yaml: C1, C2",
+		"no origin: .hergy/teams/demo/roles/builder.yaml: B1, B2",
 	)
+}
+
+// TestValidateCountsWhatTheRulesCarry: the tally after the per-file lines counts
+// the origin, the reason and the check of every rule a member reads. A file two
+// team definitions share is counted once; a reason that is not sent is still a
+// reason; a note is not; and a rule with no origin is listed by id.
+func TestValidateCountsWhatTheRulesCarry(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: en\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "common", "shared.yaml"), `version: 1
+sections:
+  - rules:
+      - id: A1
+        text: one
+        why: because
+        report: audit.scope
+        origin:
+          - kind: incident
+      - id: A2
+        text: two
+        note: a note is not a reason
+        tests: [T-1]
+reports:
+  audit:
+    where: the ledger
+    fields:
+      scope: the changed files
+`)
+	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "lead.yaml"), `version: 1
+sections:
+  - rules:
+      - id: L1
+        text: three
+        why: a reason that is not sent
+        send_why: false
+      - id: L2
+        text: four
+        origin:
+          - kind: derived
+            refs: [A1]
+`)
+	for _, name := range []string{"demo", "other"} {
+		body := "version: 1\ndocs:\n  - ../../common/\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n"
+		if name == "demo" {
+			body = "version: 1\ndocs:\n  - ../../common/\n  - protocol.yaml\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n"
+			writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "protocol.yaml"),
+				"version: 1\nsections:\n  - rules:\n      - id: P1\n        text: five\n        tests: [T-2]\n")
+		}
+		writeFile(t, filepath.Join(f.cfg, "hergy", "teams", name, "team.yaml"), body)
+	}
+
+	got, _, code := run("validate")
+	if code != 0 {
+		t.Fatalf("a tally with missing origins is a break?\n%s", got)
+	}
+	for _, want := range []string{
+		"rules 5 in 3 files",
+		"  with an origin 2 (incident 1 / instruction 0 / derived 1)  with no origin 3",
+		"  with a reason 2  with no reason 3",
+		"  with a check 3 (report 1 / test 2)  with no check 2",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "roles", "lead.yaml") + ": L1",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "common", "shared.yaml") + ": A2",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "teams", "demo", "protocol.yaml") + ": P1",
+	} {
+		if !strings.Contains(got, want+"\n") {
+			t.Errorf("validate is missing %q:\n%s", want, got)
+		}
+	}
 }
 
 func TestValidateShapeReportsABrokenFile(t *testing.T) {
