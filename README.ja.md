@@ -45,7 +45,7 @@ lead と worker の2人チームのひな形を書き出します。
 hergy new myteam        # ~/.config/hergy/teams/myteam/ に書き出す（--local でプロジェクトの .hergy/ に）
 ```
 
-`team.yaml`、`protocol.yaml`（チームの約束）、`roles/lead.yaml`、`roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・確かめ方（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
+`team.yaml`、`protocol.yaml`（チームの約束）、`roles/lead.yaml`、`roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・検証方法（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
 
 herdr のシェルペインで実行します。
 

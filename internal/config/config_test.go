@@ -108,7 +108,7 @@ sections:
         tests: [T-1]
         origin:
           - kind: incident
-            note: 事故の覚え書き
+            note: 覚え書き
 reports:
   監査:
     where: 担当する Issue
@@ -129,7 +129,7 @@ reports:
 			t.Errorf("prompt is missing %q:\n%s", want, prompt)
 		}
 	}
-	for _, unwanted := range []string{"revision", "保守する人のメモ", "事故の覚え書き", "T-1", "監査.scope"} {
+	for _, unwanted := range []string{"revision", "保守する人のメモ", "覚え書き", "T-1", "監査.scope"} {
 		if strings.Contains(prompt, unwanted) {
 			t.Errorf("prompt still contains %q:\n%s", unwanted, prompt)
 		}
@@ -189,7 +189,7 @@ func TestParseStopsOnMarkdownInPlaceOfYAML(t *testing.T) {
 // name are unique among the documents that go into one member's prompt, and a
 // report and a derived rule point at something those documents hold.
 func TestParseStopsOnBreaksAcrossTheDocumentsOneMemberReads(t *testing.T) {
-	audit := "reports:\n  監査:\n    where: 台帳\n    fields:\n      scope: 範囲\n"
+	audit := "reports:\n  監査:\n    where: 記録\n    fields:\n      scope: 範囲\n"
 	cases := []struct {
 		name string
 		docs map[string]string

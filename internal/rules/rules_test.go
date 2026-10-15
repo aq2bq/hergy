@@ -55,12 +55,12 @@ sections:
           - kind: incident
             date: 2026-09-25
             refs: ["#6100", "#6081"]
-            note: 事故の覚え書き
+            note: 覚え書き
           - kind: derived
             refs: [I7]
 reports:
   監査:
-    where: 台帳のコメント
+    where: 記録のコメント
     fields:
       scope: 変更の範囲
       who: 書いた人
@@ -99,7 +99,7 @@ reports:
 	if derived := rule.Origin[1]; derived.Kind != KindDerived || strings.Join(derived.Refs, ",") != "I7" {
 		t.Errorf("derived = %+v", derived)
 	}
-	if len(doc.Reports) != 1 || doc.Reports[0].Name != "監査" || doc.Reports[0].Where != "台帳のコメント" {
+	if len(doc.Reports) != 1 || doc.Reports[0].Name != "監査" || doc.Reports[0].Where != "記録のコメント" {
 		t.Fatalf("reports = %+v", doc.Reports)
 	}
 	if fields := doc.Reports[0].Fields; len(fields) != 2 || fields[0].Name != "scope" || fields[1].Description != "書いた人" {

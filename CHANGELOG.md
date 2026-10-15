@@ -13,7 +13,8 @@
   not. Then it lists the id of every rule that says where it came from nowhere,
   by file. That count is not a break: only a broken file makes the exit 1. It is
   where a team sees which of its rules came from nothing, before they harden
-  into something nobody dares to touch.
+  into something nobody dares to touch. The Japanese output uses the words the
+  master chose for it: インシデント for an incident, and 検証方法 for a check.
 
 - **A team's agreements and role files are YAML, not Markdown**: `protocol.md`
   becomes `protocol.yaml`, and `roles/<role>.md` becomes `roles/<role>.yaml`.

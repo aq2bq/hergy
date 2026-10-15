@@ -23,6 +23,10 @@ import (
 type ban struct {
 	lang string
 	word string
+	// instead is the word to write, when it is not a glossary term. The master
+	// rules the wording; a ban with no instead says the word is out and leaves
+	// the way to say it to whoever rewrites the sentence.
+	instead string
 }
 
 // term is one thing hergy names, in both languages.
@@ -139,6 +143,60 @@ var glossary = []term{
 			{lang: "ja", word: "旗"},
 		},
 	},
+	{
+		id:       "rule",
+		english:  "rule",
+		japanese: "規則",
+		meaning:  "one rule of a team's agreement or role file: its id, its text, and, when the file gives them, its origin, its reason and its check",
+	},
+	{
+		id:       "origin",
+		english:  "origin",
+		japanese: "由来",
+		meaning:  "where a rule came from: an incident, an instruction, or another rule it was derived from",
+	},
+	{
+		id:       "reason",
+		english:  "reason",
+		japanese: "理由",
+		meaning:  "why a rule is there; written as why, and sent unless send_why is false",
+	},
+	{
+		id:       "check",
+		english:  "check",
+		japanese: "検証方法",
+		meaning:  "how a rule is shown to have been kept: a report field or a test",
+		banned: []ban{
+			{lang: "ja", word: "確かめる手段"},
+			{lang: "ja", word: "確かめ方"},
+		},
+	},
+	{
+		id:       "report-shape",
+		english:  "report shape",
+		japanese: "報告の形",
+		meaning:  "the fields of one report, written under reports",
+	},
+	{
+		id:       "incident",
+		english:  "incident",
+		japanese: "インシデント",
+		meaning:  "something that went wrong and put a rule there; one kind of origin",
+		banned: []ban{
+			{lang: "ja", word: "事故"},
+		},
+	},
+}
+
+// bannedWords are words hergy does not use for anything, ruled out by the
+// master. They stand for no term of their own, so they live away from the
+// table: instead, when set, is the word to write, and without it the sentence
+// is written another way.
+var bannedWords = []ban{
+	{lang: "ja", word: "台帳"},
+	{lang: "ja", word: "つながり"},
+	{lang: "ja", word: "棚卸し"},
+	{lang: "ja", word: "版", instead: "バージョン"},
 }
 
 // TestGlossaryIsConsistent fails when the table contradicts itself: one name on
@@ -168,7 +226,7 @@ func TestGlossaryIsConsistent(t *testing.T) {
 	}
 
 	for _, tm := range glossary {
-		for _, b := range tm.banned {
+		for _, b := range append(append([]ban{}, tm.banned...), bannedWords...) {
 			var names map[string]string
 			switch b.lang {
 			case "en":
@@ -193,23 +251,34 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	type hit struct {
 		where string
 		word  string
-		term  term
-		want  string
+		term  string // the term it stands for, empty when it stands for none
+		want  string // the word to write; empty when the sentence is written another way
 	}
 	var hits []hit
 
+	add := func(where, lang, text, termID, termName string, b ban) {
+		if b.lang != lang || !strings.Contains(text, b.word) {
+			return
+		}
+		want := b.instead
+		if want == "" {
+			want = termName
+		}
+		hits = append(hits, hit{where: where, word: b.word, term: termID, want: want})
+	}
+
 	check := func(where, lang, text string) {
 		for _, tm := range glossary {
-			for _, b := range tm.banned {
-				if b.lang != lang || !strings.Contains(text, b.word) {
-					continue
-				}
-				want := tm.english
-				if b.lang == "ja" {
-					want = tm.japanese
-				}
-				hits = append(hits, hit{where: where, word: b.word, term: tm, want: want})
+			name := tm.english
+			if lang == "ja" {
+				name = tm.japanese
 			}
+			for _, b := range tm.banned {
+				add(where, lang, text, tm.id, name, b)
+			}
+		}
+		for _, b := range bannedWords {
+			add(where, lang, text, "", "", b)
 		}
 	}
 
@@ -261,7 +330,14 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d banned word(s) found:\n", len(hits))
 	for _, h := range hits {
-		fmt.Fprintf(&b, "  %s: %q is banned for the term %q; write %q\n", h.where, h.word, h.term.id, h.want)
+		switch {
+		case h.want == "":
+			fmt.Fprintf(&b, "  %s: %q is a banned word; write it another way\n", h.where, h.word)
+		case h.term == "":
+			fmt.Fprintf(&b, "  %s: %q is a banned word; write %q\n", h.where, h.word, h.want)
+		default:
+			fmt.Fprintf(&b, "  %s: %q is banned for the term %q; write %q\n", h.where, h.word, h.term, h.want)
+		}
 	}
 	t.Fatal(b.String())
 }

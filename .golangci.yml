@@ -1,4 +1,4 @@
-# golangci-lint の設定。走らせるのは go run ./tools/check（版もそこで固定）。
+# golangci-lint の設定。走らせるのは go run ./tools/check（バージョンもそこで固定）。
 # Hard / Ratchet の扱いは go run ./tools/check -h に出る。
 version: "2"
 
