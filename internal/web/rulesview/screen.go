@@ -230,6 +230,15 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 	if err != nil {
 		return refuse(err.Error())
 	}
+	// A rule the reader would refuse is not saved: the break the preview finds
+	// (the id shape, a duplicate, a report that is not there) stops the write,
+	// and the panel says what the reader did not like.
+	if preview, err := s.port.Preview(layer, shown.Path, edit.Section, text); err != nil || preview.Break != "" {
+		if err != nil {
+			return refuse(err.Error())
+		}
+		return refuse(preview.Break)
+	}
 	hash := values.Get("hash")
 	if hash == "" {
 		hash = shown.Hash // a form from before the hash was carried: the read is the newest

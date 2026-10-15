@@ -387,6 +387,26 @@ func TestFormOfReadsThePanelForm(t *testing.T) {
 	}
 }
 
+func TestSaveBodyRefusesARuleTheReaderWouldBreak(t *testing.T) {
+	port := newFake()
+	port.preview = Preview{Break: "protocol.yaml: rule id C2 is already in protocol.yaml"}
+	screen := newScreen(t, port)
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"1"}, "id": {"C2"},
+		"text": {"x"}, "send": {"1"}, "hash": {hashOf(sample)},
+	}
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if len(port.wrote) != 0 {
+		t.Errorf("a broken rule was written: %+v", port.wrote)
+	}
+	if !strings.Contains(answer.Panel, "is already in") {
+		t.Errorf("the panel does not carry the break back:\n%s", answer.Panel)
+	}
+}
+
 func TestSaveBodyCarriesTheHashThePanelWasDrawnWith(t *testing.T) {
 	port := newFake()
 	screen := newScreen(t, port)

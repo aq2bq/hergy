@@ -100,7 +100,6 @@ func (p servePort) Preview(layer, path string, section int, text string) (rulesv
 		out.Section, _ = document.SectionMarkdown(section)
 	}
 	reader := editing{base: source.Disk{}, path: path, text: text}
-	fallback := ""
 	for _, row := range p.env.List() {
 		if !inLayer(row, layer) {
 			continue
@@ -109,20 +108,35 @@ func (p servePort) Preview(layer, path string, section int, text string) (rulesv
 		if err != nil {
 			continue
 		}
+		// Only a team definition that reads this file can be affected by the
+		// edit, and one that is broken on disk already says so elsewhere: the
+		// preview speaks about this edit and nothing else.
+		onDisk, err := p.env.BuildConfig(resolved, source.Disk{}, "")
+		if err != nil || !readsPath(onDisk, path) {
+			continue
+		}
 		if _, err := p.env.BuildConfig(resolved, reader, ""); err != nil {
-			// A break that names the file being edited is this edit's; one that
-			// does not is kept only in case nothing names it.
-			if strings.Contains(err.Error(), path) {
-				out.Break = breakLine(p.env, path, err)
-				return out, nil
-			}
-			if fallback == "" {
-				fallback = breakLine(p.env, path, err)
+			out.Break = breakLine(p.env, path, err)
+			return out, nil
+		}
+	}
+	return out, nil
+}
+
+// readsPath reports whether a member of a built team reads one rule file.
+func readsPath(cfg *config.Config, path string) bool {
+	for i := range cfg.Members {
+		member := &cfg.Members[i]
+		if member.HasRoleSource && member.RoleSource.Path == path {
+			return true
+		}
+		for _, doc := range member.DocsRead {
+			if doc.Path == path {
+				return true
 			}
 		}
 	}
-	out.Break = fallback
-	return out, nil
+	return false
 }
 
 // editing is a reader with one file replaced: the file being edited answers
