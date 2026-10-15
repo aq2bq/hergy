@@ -158,11 +158,14 @@ Web UI:
   The command for the screens is hergy serve: it answers on 127.0.0.1 and prints the URL; --port picks the port (default 8787, 0 lets the operating system pick a free one). It runs in the foreground until Ctrl-C, then waits for the requests in flight before it stops.
   It answers only a request whose Host is 127.0.0.1 or localhost. A write is a POST that must carry the token of this run and come from a page the same server rendered; that page holds it in its forms, so an agent driving the UI reads the token from a page first.
   The screens, one line each:
-    /       the home: what moved since the last launch, and the rules with no check, each rule opening in the rules screen
-    /teams  the team list: each definition's members, the rules with no check, and the last launch with its hash
-    /rules  the rules screen: the rule files the team definitions of a layer read, one rule at a time in the edit panel
-    /diff   the prompt diff: per definition and member, the prompt the last launch handed over against the prompt the files build now, line by line
-    /bump   the version screen: the documents whose content moved since the last launch, each with the version it holds, the version a bump writes (n → n+1), and the command that hands the change over
+    /         the home: what moved since the last launch, and the rules with no check, each rule opening in the rules screen
+    /teams    the team list: each definition's members, the rules with no check, and the last launch with its hash
+    /rules    the rules screen: the rule files the team definitions of a layer read, one rule at a time in the edit panel
+    /diff     the prompt diff: per definition and member, the prompt the last launch handed over against the prompt the files build now, line by line
+    /bump     the version screen: the documents whose content moved since the last launch, each with the version it holds, the version a bump writes (n → n+1), and the command that hands the change over
+    /team     the team definition: the documents every member reads, the members, and the workers each member may call, with the prompt a member is handed
+    /running  the running teams: the teams herdr reports running, read the way hergy status reads them, with each member's terminal title and pane; the button moves herdr's focus to that pane, and the screen reads herdr again every 5 seconds
+    /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role files, the members, the workers, the human, and the turn directions read out of the rules, with herdr's state on a team that is running
   Opening the URL lands on the home, which is the way into the daily flow; every screen reads the same files the commands read.
 
 Resolution:
