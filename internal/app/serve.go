@@ -19,6 +19,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
+	"github.com/aq2bq/hergy/internal/web/rulesview"
 	"github.com/aq2bq/hergy/internal/web/teamview"
 )
 
@@ -203,12 +204,14 @@ func (p servePort) LayerRoot(layer string) string {
 	return p.env.Display(p.env.LocalDir)
 }
 
-// readDoc reads one rule file for the screens: what it calls itself, the rules
-// in it, and why it cannot be read when it cannot. A file that does not read is
-// still a file the screens show; the reason travels with it.
+// readDoc reads one rule file for the screens: what it calls itself, which layer
+// it lives in, the rules in it, and why it cannot be read when it cannot. A file
+// that does not read is still a file the screens show; the reason travels with
+// it.
 func (p servePort) readDoc(doc source.Doc, role string) teamview.Doc {
 	out := teamview.Doc{
 		Key:   doc.Path,
+		Layer: doc.Layer,
 		Label: filepath.Base(doc.Path),
 		Path:  p.env.Display(doc.Path),
 		Role:  role,
@@ -284,12 +287,16 @@ func breakLine(env team.Env, path string, err error) string {
 // in flight. It reads the settings the way the other commands read them and
 // changes no file the screens do not write.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
-	port := servePort{env: env, timeout: opts.Timeout}
-	screens, err := teamview.Screens(port)
+port := servePort{env: env, timeout: opts.Timeout}
+	rulesScreen, err := rulesview.New(port)
 	if err != nil {
 		return err
 	}
-	server, err := web.New(port, screens...)
+	teamScreens, err := teamview.Screens(port)
+	if err != nil {
+		return err
+	}
+	server, err := web.New(port, append([]web.Screen{rulesScreen}, teamScreens...)...)
 	if err != nil {
 		return err
 	}
