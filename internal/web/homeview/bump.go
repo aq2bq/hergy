@@ -27,6 +27,12 @@ type Bump struct {
 	// Definition is the team definition to run after the bump, empty when no
 	// definition of the layer reads the document.
 	Definition string
+	// Launched is when that definition was last launched, as a person reads it,
+	// and Hash is the head of the hash it wrote: the panel's heading names both,
+	// so a reader sees which launch the change is against (試作 homeView). Both
+	// are empty when no launch of the layer read the document.
+	Launched string
+	Hash     string
 	// Already is set when the version is already ahead of the one the launch that
 	// read the document read: it has been raised since, so the screen offers no
 	// button and says so.
@@ -68,6 +74,8 @@ func (h Home) Bumps() []Bump {
 			From:       doc.Version,
 			To:         doc.Version + 1,
 			Definition: doc.Definition,
+			Launched:   doc.Launched,
+			Hash:       doc.Hash,
 			Already:    doc.Bumped,
 		})
 	}

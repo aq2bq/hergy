@@ -24,9 +24,11 @@ func bumpedDoc() Doc {
 		File:       "/proj/.hergy/teams/demo/protocol.yaml",
 		Layer:      web.LayerLocal,
 		Rules:      8,
-		Added:      []string{"C9"},
+		Added:      []Rule{{ID: "C9", Diffs: []Part{{After: "足した本文"}}}},
 		Version:    2,
 		Definition: "demo",
+		Launched:   "2026-10-15 14:03",
+		Hash:       "abc1234",
 	}
 }
 
@@ -54,8 +56,9 @@ func writeHandler(t *testing.T, screen web.Screen, path string) func(*http.Reque
 }
 
 // TestTheBumpScreenListsWhatMovedAndWhatABumpWrites: the screen names each
-// document that moved, the version it holds and the one a bump writes, and the
-// form that writes it carries the document's path on disk and this run's token.
+// document that moved, the version it holds and the one a bump writes, the
+// change with the launch it is against, and the form that writes it carries the
+// document's path on disk and this run's token.
 func TestTheBumpScreenListsWhatMovedAndWhatABumpWrites(t *testing.T) {
 	port := fakePort{home: Home{Launched: true, Docs: []Doc{bumpedDoc()}}}
 	body := render(t, newBump(t, port), "/bump?layer=local")
@@ -64,6 +67,10 @@ func TestTheBumpScreenListsWhatMovedAndWhatABumpWrites(t *testing.T) {
 		".hergy/teams/demo/protocol.yaml",
 		esc(i18n.Tf("web.bump.version", 2, 3)),
 		esc(i18n.T("web.bump.raise")),
+		// The change is shown against the launch it moved from, which the home
+		// names too (試作 homeView).
+		esc(i18n.T("web.home.changes.launched"))+": demo · 2026-10-15 14:03 · <span class=\"mono\">abc1234</span>",
+		`<div class="diff"><ins>足した本文</ins></div>`,
 		`action="/bump/save?layer=local"`,
 		`name="token"`,
 		`name="doc" value="/proj/.hergy/teams/demo/protocol.yaml"`,
@@ -179,8 +186,8 @@ func TestTheBumpScreenReadsTheLayerOfTheRequest(t *testing.T) {
 // writes, and the definition to run after it.
 func TestBumpsCarryTheVersionAndTheDefinition(t *testing.T) {
 	home := Home{Docs: []Doc{
-		{Path: "a.yaml", File: "/p/a.yaml", Layer: web.LayerLocal, Version: 2, Added: []string{"A9"}, Definition: "demo"},
-		{Path: "b.yaml", File: "/p/b.yaml", Layer: web.LayerLocal, Version: 0, Changed: []string{"B1"}},
+		{Path: "a.yaml", File: "/p/a.yaml", Layer: web.LayerLocal, Version: 2, Added: []Rule{{ID: "A9"}}, Definition: "demo"},
+		{Path: "b.yaml", File: "/p/b.yaml", Layer: web.LayerLocal, Version: 0, Changed: []Rule{{ID: "B1"}}},
 		{Path: "c.yaml", File: "/p/c.yaml", Layer: web.LayerLocal, Version: 4},
 		{Path: "d.yaml", File: "/p/d.yaml", Layer: web.LayerLocal, Version: 4, Missing: true},
 	}}
@@ -203,7 +210,7 @@ func TestBumpsCarryTheVersionAndTheDefinition(t *testing.T) {
 func TestADocumentRaisedSinceTheLaunchIsMarkedAndStillListed(t *testing.T) {
 	home := Home{Docs: []Doc{{
 		Path: "a.yaml", File: "/p/a.yaml", Layer: web.LayerLocal,
-		Version: 3, Added: []string{"A9"}, Bumped: true,
+		Version: 3, Added: []Rule{{ID: "A9"}}, Bumped: true,
 	}}}
 	bumps := home.Bumps()
 	if len(bumps) != 1 || !bumps[0].Already {

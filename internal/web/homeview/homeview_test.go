@@ -84,23 +84,39 @@ func mustNotContain(t *testing.T, what, body string, unwanted ...string) {
 	}
 }
 
-// TestTheHomeShowsWhatMovedAndWhatHasNoCheck: one document carries the ids that
-// changed since the last launch, and the rules with no check are links into the
-// rules screen.
+// TestTheHomeShowsWhatMovedAndWhatHasNoCheck: one document carries the rules
+// that changed since the last launch, each with the parts that moved and their
+// text before and after, and the rules with no check are links into the rules
+// screen.
 func TestTheHomeShowsWhatMovedAndWhatHasNoCheck(t *testing.T) {
 	port := fakePort{home: Home{
 		Launched: true,
 		Docs: []Doc{
 			{
 				Path:    ".hergy/teams/demo/protocol.yaml",
+				File:    "/proj/.hergy/teams/demo/protocol.yaml",
 				Layer:   web.LayerLocal,
 				Rules:   8,
 				NoCheck: []Rule{{ID: "C6", Href: "/rules?layer=local&rule=C6"}},
-				Added:   []string{"C9"},
-				Removed: []string{"C2"},
-				Changed: []string{"C6"},
-				Bumped:  true,
-				Version: 3,
+				Added: []Rule{
+					{ID: "C9", Section: "報告", Diffs: []Part{{After: "足した本文"}}},
+				},
+				Removed: []Rule{
+					{ID: "C2", Diffs: []Part{{Before: "消した本文"}}},
+				},
+				Changed: []Rule{
+					{
+						ID:      "C6",
+						Section: "基本",
+						Fields:  []string{"text"},
+						Diffs:   []Part{{Before: "前の本文", After: "後の本文"}},
+					},
+				},
+				Bumped:     true,
+				Version:    3,
+				Definition: "demo",
+				Launched:   "2026-10-15 14:03",
+				Hash:       "abc1234",
 			},
 		},
 	}}
@@ -112,15 +128,24 @@ func TestTheHomeShowsWhatMovedAndWhatHasNoCheck(t *testing.T) {
 	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body,
 		"protocol.yaml",
-		i18n.Tf("web.home.changes.added", ""),
+		i18n.T("web.home.changes.added"),
 		"<span class=\"mono\">C9</span>",
 		`class="ck added"`,
-		i18n.Tf("web.home.changes.removed", ""),
+		i18n.T("web.home.changes.removed"),
 		"<span class=\"mono\">C2</span>",
 		`class="ck removed"`,
-		i18n.Tf("web.home.changes.changed", ""),
+		i18n.T("web.home.changes.changed"),
 		"<span class=\"mono\">C6</span>",
 		`class="ck changed"`,
+		// The section a rule stands in, and the parts that moved.
+		`<span class="tag">報告</span>`,
+		i18n.T("web.home.changes.fields.text"),
+		// What each rule read before and after.
+		`<div class="diff"><ins>足した本文</ins></div>`,
+		`<div class="diff"><del>消した本文</del></div>`,
+		`<div class="diff"><del>前の本文</del><ins>後の本文</ins></div>`,
+		// Which launch the changes are against.
+		i18n.T("web.home.changes.launched")+`: demo · 2026-10-15 14:03 · <span class="mono">abc1234</span>`,
 		i18n.Tf("web.home.changes.bumped", 3),
 		i18n.Tf("web.home.nocheck.count", 1, 8),
 		`<a class="ref" href="/rules?layer=local&amp;rule=C6">C6</a>`,
@@ -150,6 +175,30 @@ func TestTheHomeShowsTheStepBarWithTheCurrentStep(t *testing.T) {
 	}
 	if got := strings.Count(body, `aria-current="step"`); got != 1 {
 		t.Errorf("the step bar marks %d steps as the current one, want 1", got)
+	}
+}
+
+// TestTheHomeShowsTheOccasionalWork: the home ends with one card for the work a
+// person does now and then: a link to the team list and a link to the profiles.
+// The map row and the "getting started" card are not shown (試作 homeView の
+// div.two を 1 枚にしたもの).
+func TestTheHomeShowsTheOccasionalWork(t *testing.T) {
+	screen, err := New(fakePort{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := render(t, screen, "/?layer=local")
+	mustContain(t, "the home", body,
+		`<div class="two">`,
+		i18n.T("web.home.aside.title"),
+		`href="/teams?layer=local"`,
+		i18n.T("web.home.aside.teams"),
+		`href="/profiles?layer=local"`,
+		i18n.T("web.home.aside.profiles"),
+	)
+	if got := strings.Count(body, "<li>"); got != 2 {
+		t.Errorf("the occasional work card holds %d rows, want the team list and the profiles", got)
 	}
 }
 

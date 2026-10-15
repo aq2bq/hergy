@@ -25,7 +25,8 @@
   {{- range .Panels}}
   <div class="panel">
     <div class="copy-row">
-      <h3><span class="lay {{.Bump.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Bump.Layer))}}</span> <span class="mono">{{.Bump.Path}}</span></h3>
+      <h3><span class="lay {{.Bump.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Bump.Layer))}}</span> <span class="mono">{{.Bump.Path}}</span>
+        {{- if .Bump.Launched}} <span class="fine">{{t "web.home.changes.launched"}}: {{.Bump.Definition}} · {{.Bump.Launched}} · <span class="mono">{{.Bump.Hash}}</span></span>{{end}}</h3>
       {{- if not .Bump.Already}}
       <form method="post" action="/bump/save?layer={{$.Layer}}">
         <input type="hidden" name="token" value="{{$.Token}}">

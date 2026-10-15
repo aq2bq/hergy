@@ -99,6 +99,14 @@
   wrote), or listed under the figure with the rule and the names that matched
   nothing. Pressing a document or a rule id opens the Rules screen. The team list
   marks the definitions Herdr reports a running team for.
+- **The home shows how a rule changed, against which launch**: a document's
+  panel on the home and the version screen names the launch the changes are
+  against (`前回の起動: <team definition> · <when> · <hash>`, from the launch
+  record), and each rule that moved shows what moved — 追加, 削除 or 変更, the
+  section it stands in, the parts that moved, and the text before and after (the
+  text, the reason and the origin). The home also ends with a card for the work
+  a person does now and then, with a link to the team list and one to the
+  profiles.
 
 ### Changed
 

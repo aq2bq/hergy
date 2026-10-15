@@ -157,6 +157,11 @@ func documentsOf(defs []layerDef) []source.Doc {
 type launchedDoc struct {
 	// Definition is the team definition that launch started.
 	Definition string
+	// Launched is when that launch ran, as a person reads it, and Hash is the
+	// head of the hash it wrote: the home names both beside the document, so a
+	// reader sees which launch the changes are against (試作 homeView).
+	Launched string
+	Hash     string
 	// Doc is what that launch wrote down about the document.
 	Doc launchlog.Doc
 }
@@ -178,7 +183,12 @@ func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc
 		for _, doc := range rec.Docs {
 			if wanted[doc.Path] {
 				// a later record overwrites an earlier one
-				out[doc.Path] = launchedDoc{Definition: def.name, Doc: doc}
+				out[doc.Path] = launchedDoc{
+					Definition: def.name,
+					Launched:   timeOf(rec.Time),
+					Hash:       shortHash(rec.Hash),
+					Doc:        doc,
+				}
 			}
 		}
 	}
@@ -215,6 +225,8 @@ func (p servePort) homeDoc(log launchlog.Log, doc source.Doc, launched map[strin
 	}
 	if was, ok := launched[doc.Path]; ok {
 		entry.Definition = was.Definition
+		entry.Launched = was.Launched
+		entry.Hash = was.Hash
 		p.changesSince(log, doc, text, was.Doc, &entry)
 	}
 	return entry
@@ -371,34 +383,55 @@ func recordReads(rec launchlog.Record, path string) bool {
 	return false
 }
 
-// ruleLine is one rule of one text: its id, and what it carries.
+// ruleLine is one rule of one text: its id, the heading of the section it is
+// written under, and the rule itself, so two readings of one document can be
+// lined up by id and what each rule carries can be compared (試作 ruleMap).
 type ruleLine struct {
 	id      string
-	content string
+	section string
+	rule    rules.Rule
 }
 
-// ruleLines reads one text as its rules, in the written order. ok is false when
-// the text does not read as a rule file, which is when two texts cannot be lined
-// up by rule.
+// ruleLines reads one text as its rules, in the written order, each with the
+// heading of the section it is written under. ok is false when the text does not
+// read as a rule file, which is when two texts cannot be lined up by rule.
 func ruleLines(text, path string) (lines []ruleLine, ok bool) {
 	doc, err := rules.Parse(text, path)
 	if err != nil {
 		return nil, false
 	}
-	for _, rule := range doc.Rules() {
-		lines = append(lines, ruleLine{id: rule.ID, content: ruleContent(rule)})
+	for _, section := range doc.Sections {
+		for _, rule := range section.Rules {
+			lines = append(lines, ruleLine{id: rule.ID, section: section.Heading, rule: rule})
+		}
 	}
 	return lines, true
 }
 
-// ruleContent is one rule as the file writes it, without its id: the two texts
-// are lined up by id, and a rule counts as changed when anything it carries
-// differs.
-func ruleContent(rule rules.Rule) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "text=%s\nwhy=%s\nsend_why=%s\nnote=%s\nreport=%s\ntests=%s\norigin=%v",
-		rule.Text, rule.Why, sendWhy(rule), rule.Note, rule.Report, rule.Tests, rule.Origin)
-	return b.String()
+// ruleFields is the parts of a rule the file writes, in the order the change
+// row names them (試作 RF). The section a rule stands in is named after these.
+var ruleFields = []string{"text", "why", "send_why", "note", "origin", "report", "tests"}
+
+// ruleField is one part of a rule as a comparable value: the two readings are
+// lined up by id, and a rule counts as changed when anything it carries differs.
+func ruleField(rule rules.Rule, key string) string {
+	switch key {
+	case "text":
+		return rule.Text
+	case "why":
+		return rule.Why
+	case "send_why":
+		return sendWhy(rule)
+	case "note":
+		return rule.Note
+	case "origin":
+		return fmt.Sprint(rule.Origin)
+	case "report":
+		return rule.Report
+	case "tests":
+		return fmt.Sprint(rule.Tests)
+	}
+	return ""
 }
 
 // sendWhy is a rule's send_why as written, with a missing one listed as true.
@@ -409,31 +442,124 @@ func sendWhy(rule rules.Rule) string {
 	return strconv.FormatBool(*rule.SendWhy)
 }
 
-// ruleChanges lines up two readings of one document by rule id: the ids the
-// newer text added, the ids it dropped, and the ids whose rule changed. The
-// added and changed ids keep the order the document writes them in.
-func ruleChanges(before, after []ruleLine) (added, removed, changed []string) {
-	was := make(map[string]string, len(before))
+// ruleChanges lines up two readings of one document by rule id: the rules the
+// newer text added, the ones it dropped, and the ones whose parts moved. The
+// added and changed rules keep the order the document writes them in (試作
+// pending), and each carries what the change row draws: the parts that moved,
+// and their text before and after (試作 changeHtml).
+func ruleChanges(before, after []ruleLine) (added, removed, changed []homeview.Rule) {
+	was := make(map[string]ruleLine, len(before))
 	for _, line := range before {
-		was[line.id] = line.content
+		was[line.id] = line
 	}
 	now := make(map[string]bool, len(after))
 	for _, line := range after {
 		now[line.id] = true
-		content, ok := was[line.id]
-		switch {
-		case !ok:
-			added = append(added, line.id)
-		case content != line.content:
-			changed = append(changed, line.id)
+		old, ok := was[line.id]
+		if !ok {
+			added = append(added, homeview.Rule{
+				ID:      line.id,
+				Section: line.section,
+				Diffs:   []homeview.Part{{After: line.rule.Text}},
+			})
+			continue
+		}
+		if fields := changedFields(old, line); len(fields) > 0 {
+			changed = append(changed, homeview.Rule{
+				ID:      line.id,
+				Section: line.section,
+				Fields:  fields,
+				Diffs:   changeDiffs(old, line, fields),
+			})
 		}
 	}
 	for _, line := range before {
 		if !now[line.id] {
-			removed = append(removed, line.id)
+			removed = append(removed, homeview.Rule{
+				ID:      line.id,
+				Section: line.section,
+				Diffs:   []homeview.Part{{Before: line.rule.Text}},
+			})
 		}
 	}
 	return added, removed, changed
+}
+
+// changedFields is the parts of a rule that differ between two readings, in the
+// order the file writes them, with the section named last when the rule moved
+// to another one (試作 pending).
+func changedFields(before, after ruleLine) []string {
+	var fields []string
+	for _, key := range ruleFields {
+		if ruleField(before.rule, key) != ruleField(after.rule, key) {
+			fields = append(fields, key)
+		}
+	}
+	if before.section != after.section {
+		fields = append(fields, "section")
+	}
+	return fields
+}
+
+// changeDiffs is what moved between two readings of one rule, each part with its
+// text before and after: the text, the reason and the origin, which are the
+// parts the change row shows as a diff (試作 changeHtml). A part the row names
+// but does not draw (send_why, note, report, tests) is left out.
+func changeDiffs(before, after ruleLine, fields []string) []homeview.Part {
+	var out []homeview.Part
+	for _, key := range fields {
+		switch key {
+		case "text":
+			out = append(out, homeview.Part{Before: before.rule.Text, After: after.rule.Text})
+		case "why":
+			out = append(out, homeview.Part{Before: before.rule.Why, After: after.rule.Why})
+		case "origin":
+			out = append(out, homeview.Part{
+				Before: originText(before.rule.Origin),
+				After:  originText(after.rule.Origin),
+			})
+		}
+	}
+	return out
+}
+
+// originText is a rule's origins as the change row reads them, one per origin,
+// joined by " / ", with no origin said in words (試作 originLabel).
+func originText(origins []rules.Origin) string {
+	if len(origins) == 0 {
+		return i18n.T("web.home.changes.origin_none")
+	}
+	parts := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		parts = append(parts, originLabel(origin))
+	}
+	return strings.Join(parts, " / ")
+}
+
+// originLabel is one origin as the change row reads it: its kind, and then when
+// it happened and what it points at (試作 originLabel).
+func originLabel(origin rules.Origin) string {
+	var label string
+	switch origin.Kind {
+	case rules.KindIncident:
+		label = i18n.T("web.rules.origin.kind.incident")
+	case rules.KindInstruction:
+		label = i18n.T("web.rules.origin.kind.instruction")
+	case rules.KindDerived:
+		label = i18n.T("web.rules.origin.kind.derived")
+	default:
+		label = origin.Kind
+	}
+	if origin.Kind == rules.KindDerived {
+		return label + " ← " + strings.Join(origin.Refs, " ")
+	}
+	if origin.Date != "" {
+		label += " " + origin.Date
+	}
+	if len(origin.Refs) > 0 {
+		label += " " + strings.Join(origin.Refs, " ")
+	}
+	return label
 }
 
 // Diff reads one layer for the prompt diff screen: for each member of each team

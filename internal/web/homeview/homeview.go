@@ -78,11 +78,13 @@ type Doc struct {
 	Rules int
 	// NoCheck is the rules with no check, in the written order.
 	NoCheck []Rule
-	// Added, Removed and Changed are the rule ids that differ from the text the
-	// last launch read, in the written order of the document now.
-	Added   []string
-	Removed []string
-	Changed []string
+	// Added, Removed and Changed are the rules that differ from the text the
+	// last launch read, in the written order of the document now. Each carries
+	// the parts that moved and the text before and after, so the change row can
+	// draw them (試作 pending).
+	Added   []Rule
+	Removed []Rule
+	Changed []Rule
 	// Whole is set when the texts differ but their rules could not be lined up
 	// (one side does not read as a rule file), so the screen says the document
 	// changed without naming ids.
@@ -100,6 +102,12 @@ type Doc struct {
 	// that read it now. Empty when no launch of the layer read it. It is what
 	// the bump screen names as the command that hands the change over.
 	Definition string
+	// Launched is when that same launch ran, as a person reads it, and Hash is
+	// the head of the hash it wrote: the document's heading names both, so a
+	// reader sees which launch the changes are against (試作 homeView). Both are
+	// empty when no launch of the layer read the document.
+	Launched string
+	Hash     string
 }
 
 // Changes reports whether anything moved in the document since the last launch.
@@ -110,13 +118,33 @@ func (d Doc) Changes() bool {
 // Checked reports whether the document has a rule with no check to show.
 func (d Doc) Checked() bool { return len(d.NoCheck) > 0 }
 
-// Rule is one rule of one document, as the home screen lists it.
+// Rule is one rule of one document, as the home screen lists it: where it is,
+// where the rules screen opens it, and what moved in it (試作 changeHtml).
 type Rule struct {
 	// ID is the rule's id (C1, P-TURN-1).
 	ID string
 	// Href is where the rules screen opens this rule in its edit panel, empty
 	// when there is nowhere to open it.
 	Href string
+	// Section is the heading of the section the rule is written under, shown as
+	// the small tag beside the id; empty when the document writes none.
+	Section string
+	// Fields names the parts of the rule that moved (本文, 理由, …), in the
+	// order the file writes them, drawn as one line under the id; empty for a
+	// rule that was added or dropped.
+	Fields []string
+	// Diffs is the parts the screen draws as a diff, each with what it read
+	// before and after. An added rule holds only the side after, a dropped one
+	// only the side before; a changed rule may hold one entry per moved part.
+	Diffs []Part
+}
+
+// Part is one part of a rule as it moved: what it read before and after. An
+// added rule has an empty Before, a dropped one an empty After (試作 changeHtml
+// の .diff).
+type Part struct {
+	Before string
+	After  string
 }
 
 // changes is the rule ids that moved in one document, each with where the rules
@@ -131,7 +159,7 @@ type changes struct {
 	Missing bool
 }
 
-// changesOf turns one document's moved rule ids into the rows the screen draws,
+// changesOf turns one document's moved rules into the rows the screen draws,
 // with a link into the rules screen for each.
 func changesOf(port Port, doc Doc) changes {
 	return changes{
@@ -143,12 +171,13 @@ func changesOf(port Port, doc Doc) changes {
 	}
 }
 
-// rulesWithHref is a document's rule ids, each with where the rules screen opens
-// it.
-func rulesWithHref(port Port, doc Doc, ids []string) []Rule {
-	out := make([]Rule, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, Rule{ID: id, Href: port.RuleHref(doc.Layer, doc.File, id)})
+// rulesWithHref is a document's moved rules, each with where the rules screen
+// opens it.
+func rulesWithHref(port Port, doc Doc, rules []Rule) []Rule {
+	out := make([]Rule, 0, len(rules))
+	for _, rule := range rules {
+		rule.Href = port.RuleHref(doc.Layer, doc.File, rule.ID)
+		out = append(out, rule)
 	}
 	return out
 }

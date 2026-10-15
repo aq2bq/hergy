@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/homeview"
@@ -91,9 +93,27 @@ func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 		t.Fatalf("the home read the record as broken: %s", home.Problem)
 	}
 	doc := docAt(t, home, protocol)
-	if !equalIDs(doc.Added, "P3") || !equalIDs(doc.Removed, "P2") || !equalIDs(doc.Changed, "P1") {
+	if !equalIDs(idsOf(doc.Added), "P3") || !equalIDs(idsOf(doc.Removed), "P2") || !equalIDs(idsOf(doc.Changed), "P1") {
 		t.Errorf("added/removed/changed = %v/%v/%v, want [P3]/[P2]/[P1]",
 			doc.Added, doc.Removed, doc.Changed)
+	}
+	// The change rows carry what the screen draws: the parts that moved, and
+	// the text before and after (試作 changeHtml).
+	if got := doc.Changed[0]; !equalIDs(got.Fields, "text") || len(got.Diffs) != 1 ||
+		got.Diffs[0].Before != "one" || got.Diffs[0].After != "one changed" {
+		t.Errorf("the changed rule is %+v, want its text before and after", got)
+	}
+	if got := doc.Added[0]; len(got.Diffs) != 1 || got.Diffs[0].After != "three" || got.Diffs[0].Before != "" {
+		t.Errorf("the added rule is %+v, want its text after only", got)
+	}
+	if got := doc.Removed[0]; len(got.Diffs) != 1 || got.Diffs[0].Before != "two" || got.Diffs[0].After != "" {
+		t.Errorf("the removed rule is %+v, want its text before only", got)
+	}
+	// The document's heading names the launch the changes are against: when it
+	// ran and the head of the hash it wrote.
+	if doc.Launched == "" || len(doc.Hash) != 7 || doc.Definition != "demo" {
+		t.Errorf("the document names launch %q, hash %q, definition %q, want both and demo",
+			doc.Launched, doc.Hash, doc.Definition)
 	}
 	if !equalIDs(idsOf(doc.NoCheck), "P1", "P3") {
 		t.Errorf("the document lists %v with no check, want [P1 P3]", idsOf(doc.NoCheck))
@@ -357,5 +377,41 @@ func TestATimeIsWrittenForReading(t *testing.T) {
 	}
 	if got := timeOf("whenever"); got != "whenever" {
 		t.Errorf("a time that does not read came back as %q, want it as written", got)
+	}
+}
+
+// TestTheChangeRowNamesWhatMoved: a changed rule names the parts that moved and
+// draws each one, the origin among them, with what it read before and after
+// (試作 pending と changeHtml)。
+func TestTheChangeRowNamesWhatMoved(t *testing.T) {
+	before := ruleLine{id: "C1", section: "基本", rule: rules.Rule{
+		Text:   "one",
+		Why:    "because",
+		Origin: []rules.Origin{{Kind: rules.KindIncident, Date: "2026-10-01"}},
+	}}
+	after := ruleLine{id: "C1", section: "基本", rule: rules.Rule{
+		Text:   "two",
+		Why:    "because",
+		Origin: []rules.Origin{{Kind: rules.KindDerived, Refs: []string{"C2"}}},
+	}}
+
+	fields := changedFields(before, after)
+	if !equalIDs(fields, "text", "origin") {
+		t.Fatalf("the change names %v, want the text and the origin", fields)
+	}
+	diffs := changeDiffs(before, after, fields)
+	if len(diffs) != 2 {
+		t.Fatalf("the change draws %d diffs, want the text and the origin", len(diffs))
+	}
+	if diffs[0].Before != "one" || diffs[0].After != "two" {
+		t.Errorf("the text reads %+v, want one → two", diffs[0])
+	}
+	incident := i18n.T("web.rules.origin.kind.incident") + " 2026-10-01"
+	derived := i18n.T("web.rules.origin.kind.derived") + " ← C2"
+	if diffs[1].Before != incident || diffs[1].After != derived {
+		t.Errorf("the origin reads %+v, want %q → %q", diffs[1], incident, derived)
+	}
+	if got := originText(nil); got != i18n.T("web.home.changes.origin_none") {
+		t.Errorf("a rule with no origin reads %q, want it said so", got)
 	}
 }

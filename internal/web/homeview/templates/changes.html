@@ -1,3 +1,5 @@
+{{define "change-head"}}<span class="mono">{{.ID}}</span>{{if .Section}} <span class="tag">{{.Section}}</span>{{end}}{{- if .Fields}} <span class="fine">{{range $i, $f := .Fields}}{{if $i}}・{{end}}{{t (printf "web.home.changes.fields.%s" $f)}}{{end}}</span>{{end}}{{end}}
+
 {{define "changes"}}
 <ul class="changes">
   {{- if .Whole}}
@@ -7,13 +9,13 @@
   <li><span class="ck section">{{t "web.home.changes.missing"}}</span></li>
   {{- end}}
   {{- range .Added}}
-  <li><span class="ck added">{{tf "web.home.changes.added" ""}}</span><div><span class="mono">{{.ID}}</span><div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  <li><span class="ck added">{{t "web.home.changes.added"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><ins>{{if .After}}{{inline .After}}{{else}}{{t "web.home.changes.diff_no_text"}}{{end}}</ins></div>{{end}}<div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
   {{- end}}
   {{- range .Removed}}
-  <li><span class="ck removed">{{tf "web.home.changes.removed" ""}}</span><div><span class="mono">{{.ID}}</span></div></li>
+  <li><span class="ck removed">{{t "web.home.changes.removed"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><del>{{inline .Before}}</del></div>{{end}}</div></li>
   {{- end}}
   {{- range .Changed}}
-  <li><span class="ck changed">{{tf "web.home.changes.changed" ""}}</span><div><span class="mono">{{.ID}}</span><div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  <li><span class="ck changed">{{t "web.home.changes.changed"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><del>{{if .Before}}{{inline .Before}}{{else}}{{t "web.home.changes.diff_none"}}{{end}}</del><ins>{{if .After}}{{inline .After}}{{else}}{{t "web.home.changes.diff_none"}}{{end}}</ins></div>{{end}}<div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
   {{- end}}
 </ul>
 {{end}}

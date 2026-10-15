@@ -542,3 +542,9 @@ html,body{margin:0}
    2026-10-16 の見比べで hergy-lead が見つけた) */
 .layer-toggle a small{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* ホームの文書の見出し: 「前回の起動: …」は h3 の中で太字にしない
+   (試作は style="font-weight:400" を直に書いている) */
+.copy-row h3 .fine{font-weight:400}
+
+/* ホームの「たまにする作業」: 試作は ul に style="margin:0;padding-left:20px" を直に書いている */
+.lede-list{margin:0;padding-left:20px}

@@ -16,7 +16,7 @@
   <div class="panel">
     <div class="copy-row">
       <h3><span class="lay {{.Doc.Layer}}">{{tf "web.layer.name" (t (printf "label.%s" .Doc.Layer))}}</span> {{.Doc.Path}}
-        {{- if .Doc.Definition}} <span class="fine">{{t "web.teams.column.name"}}: <span class="mono">{{.Doc.Definition}}</span></span>{{end}}</h3>
+        {{- if .Doc.Launched}} <span class="fine">{{t "web.home.changes.launched"}}: {{.Doc.Definition}} · {{.Doc.Launched}} · <span class="mono">{{.Doc.Hash}}</span></span>{{end}}</h3>
       <a class="linkbtn" href="{{.Href}}">{{t "web.home.doc.open"}}</a>
     </div>
     {{- if .Doc.Bumped}}
@@ -37,5 +37,15 @@
 
   <div class="row sect">
     <a class="btn primary big" href="/diff?layer={{.Layer}}">{{t "web.home.step.diff"}}</a>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <h3>{{t "web.home.aside.title"}}</h3>
+      <ul class="lede lede-list">
+        <li><a class="linkbtn fs14" href="/teams?layer={{.Layer}}">{{t "web.home.aside.teams"}}</a>: {{t "web.home.aside.teams.note"}}</li>
+        <li><a class="linkbtn fs14" href="/profiles?layer={{.Layer}}">{{t "web.home.aside.profiles"}}</a>: {{tf "web.home.aside.profiles.note" .LayerName}}</li>
+      </ul>
+    </div>
   </div>
 </div>
