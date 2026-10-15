@@ -33,6 +33,8 @@ const (
 	New
 	// Validate checks every settings file and reports each broken one.
 	Validate
+	// Serve opens the web UI: a small server on 127.0.0.1 for this machine.
+	Serve
 	// Help prints usage.
 	Help
 	// Version prints which hergy this is.
@@ -66,6 +68,7 @@ type Options struct {
 	Dir     string // -C: the project root to resolve against
 	Timeout int    // milliseconds
 	Lang    string // --lang: the language for this run
+	Port    int    // serve: the port to listen on (0: the operating system picks one)
 
 	HelpText string
 
@@ -75,8 +78,11 @@ type Options struct {
 const (
 	// DefaultTimeoutMS is the startup timeout when --timeout is not given.
 	DefaultTimeoutMS = 30000
-	minTimeoutMS     = 3001
-	maxTimeoutMS     = 300000
+	// DefaultPort is where hergy serve listens when --port is not given.
+	DefaultPort  = 8787
+	minTimeoutMS = 3001
+	maxTimeoutMS = 300000
+	maxPort      = 65535
 )
 
 // Usage is the help text in the language in use.
@@ -117,7 +123,7 @@ func Parse(argv []string) (*Options, error) {
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	}
 	cmd := argv[0]
-	o := &Options{Timeout: DefaultTimeoutMS, seen: map[string]bool{}}
+	o := &Options{Timeout: DefaultTimeoutMS, Port: DefaultPort, seen: map[string]bool{}}
 	switch cmd {
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil
@@ -214,6 +220,10 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.validate_no_args", positionals)
 		}
+	case Serve:
+		if len(positionals) != 0 {
+			return i18n.Errorf("error.serve_no_args", positionals)
+		}
 	case Cheat:
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.cheat_no_args", positionals)
@@ -225,6 +235,15 @@ func assignPositionals(o *Options, positionals []string) error {
 }
 
 func validate(o *Options) error {
+	if err := validateValues(o); err != nil {
+		return err
+	}
+	return validateKind(o)
+}
+
+// validateValues checks what every command's flags must hold, whatever the
+// command is.
+func validateValues(o *Options) error {
 	if o.seen["global"] && o.seen["local"] {
 		return i18n.Errorf("error.global_local_conflict")
 	}
@@ -236,31 +255,31 @@ func validate(o *Options) error {
 	if o.Timeout < minTimeoutMS || o.Timeout > maxTimeoutMS {
 		return i18n.Errorf("error.timeout_range", minTimeoutMS, maxTimeoutMS)
 	}
+	if o.Port < 0 || o.Port > maxPort {
+		return i18n.Errorf("error.port_range", maxPort)
+	}
 	if o.JSON && !o.Dry {
 		return i18n.Errorf("error.json_needs_dry")
 	}
 	if o.As != "" && !scaffold.NamePattern.MatchString(o.As) {
 		return i18n.Errorf("error.as_name_pattern", o.As)
 	}
+	return nil
+}
+
+// validateKind checks what only some commands need: the member a refresh or a
+// reprompt acts on, the flags hire needs, and the name a show or a new needs.
+func validateKind(o *Options) error {
 	switch o.Kind {
 	case Refresh, Reprompt:
-		if o.All && o.Member != "" {
+		switch {
+		case o.All && o.Member != "":
 			return i18n.Errorf("error.member_and_all", commandName(o.Kind))
-		}
-		if !o.All && o.Member == "" {
+		case !o.All && o.Member == "":
 			return i18n.Errorf("error.needs_member", commandName(o.Kind))
 		}
 	case Hire:
-		var missing []string
-		if o.Purpose == "" {
-			missing = append(missing, "--purpose")
-		}
-		if o.Task == "" {
-			missing = append(missing, "--task")
-		}
-		if len(missing) > 0 {
-			return i18n.Errorf("error.hire_needs_flags", strings.Join(missing, ", "))
-		}
+		return validateHire(o)
 	case Show:
 		if o.Team == "" {
 			return i18n.Errorf("error.show_needs_team")
@@ -271,6 +290,21 @@ func validate(o *Options) error {
 		}
 	default:
 		// the other commands have nothing to check beyond the shared flags above.
+	}
+	return nil
+}
+
+// validateHire checks the two flags hire cannot work without.
+func validateHire(o *Options) error {
+	var missing []string
+	if o.Purpose == "" {
+		missing = append(missing, "--purpose")
+	}
+	if o.Task == "" {
+		missing = append(missing, "--task")
+	}
+	if len(missing) > 0 {
+		return i18n.Errorf("error.hire_needs_flags", strings.Join(missing, ", "))
 	}
 	return nil
 }

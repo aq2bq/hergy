@@ -1,7 +1,6 @@
 package rulesview
 
 import (
-	"html/template"
 	"net/url"
 	"regexp"
 	"sort"
@@ -10,20 +9,22 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // Screen is the rules screen: the Port it reads and writes through, and how it
-// draws (spec/10 の 6 節). The HTTP routes that call it live beside it, and the
-// app hands it the Port and the WebUI's template functions.
+// draws (spec/10 の 6 節). It is a web.Screen, so internal/app hands it to
+// web.New beside the other screens.
 type Screen struct {
 	port   Port
 	render *Renderer
 }
 
-// New builds the screen for one run. funcs are the WebUI's template functions
-// (web.Funcs).
-func New(port Port, funcs template.FuncMap) (*Screen, error) {
-	render, err := NewRenderer(funcs)
+// New builds the screen for one run, parsing its templates with the WebUI's
+// functions (web.Funcs), so the words and the one inline rule are the same here
+// as everywhere else.
+func New(port Port) (*Screen, error) {
+	render, err := NewRenderer(web.Funcs())
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +64,8 @@ func (s *Screen) PanelBody(layer, path string, values url.Values) (string, error
 }
 
 // PanelFormBody is the edit panel again, redrawn from the submitted form: a
-// person adding or removing an origin, or opening or closing the delete ask.
-// Nothing is written here; it only moves the form along.
+// person adding or removing an origin, or opening the delete ask. Nothing is
+// written here; it only moves the form along.
 func (s *Screen) PanelFormBody(layer, path string, values url.Values) (string, error) {
 	edit := formOf(values)
 	switch {
@@ -86,41 +87,83 @@ func (s *Screen) PreviewBody(layer, path string, values url.Values) (string, err
 	shown := pick(layer, docs, path)
 	data := Panel{Layer: layer, Doc: shown}
 	if shown.Document != nil {
-		data.Preview = s.preview(layer, shown, formOf(values))
+		data.Preview = s.previewOf(layer, shown, formOf(values))
 		data.Broken = data.Preview.Break != ""
 	}
 	return s.render.Preview(data)
 }
 
-// SaveBody writes one rule back: the rule at its place, or a new one at the end
-// of its section. When the write is refused (the file moved under the screen,
-// or the path is not one of the layer's rule files), the panel comes back with
-// the reason on it and nothing is written.
-func (s *Screen) SaveBody(layer, path string, values url.Values) (string, error) {
+// PanelFor is the edit panel for one rule of one document, named by its id: how
+// another screen opens a rule in the right panel on the page it links to
+// (spec/10 の 7 節: the home screen's list of rules with no check points at
+// one). ok is false when the document or the id is not there, and then the
+// panel stays closed.
+func (s *Screen) PanelFor(layer, path, id, token string) (panel string, ok bool, err error) {
 	docs := s.docs(layer)
-	shown := pick(layer, docs, path)
-	if shown.Document == nil {
-		return "", i18n.Errorf("web.rules.error.no_document", path)
+	shown, found := findDoc(docs, path)
+	if !found || shown.Document == nil {
+		return "", false, nil
+	}
+	section, index, exists := placeOf(shown.Document, id)
+	if !exists {
+		return "", false, nil
+	}
+	edit := NewEditRule(section, index, shown.Document.Sections[section].Rules[index])
+	panel, err = s.render.Panel(s.panelData(layer, shown.Path, url.Values{"token": {token}}, edit, "", false))
+	if err != nil {
+		return "", false, err
+	}
+	return panel, true, nil
+}
+
+// placeOf is where one rule stands in a document, by its id.
+func placeOf(doc *rules.Document, id string) (section, index int, ok bool) {
+	for i := range doc.Sections {
+		for j, rule := range doc.Sections[i].Rules {
+			if rule.ID == id {
+				return i, j, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+// Answer is what one write answers with: the rules screen, and the panel to show
+// beside it. Panel is set only when the write was refused: the person is in the
+// middle of editing, so the rule stays open with the reason on it. A write that
+// went through leaves the panel empty, and the frame shows its own guidance.
+type Answer struct {
+	Body  string
+	Panel string
+}
+
+// SaveBody writes one rule back: the rule at its place, or a new one at the end
+// of its section.
+func (s *Screen) SaveBody(layer, path string, values url.Values) (Answer, error) {
+	docs := s.docs(layer)
+	shown, found := findDoc(docs, path)
+	if !found || shown.Document == nil {
+		return Answer{}, i18n.Errorf("web.rules.error.no_document", path)
 	}
 	edit := formOf(values)
 	next, err := withEdit(shown.Document, edit)
 	if err != nil {
-		return "", err
+		return Answer{}, err
 	}
 	return s.write(layer, shown, next, values, edit)
 }
 
 // DeleteBody takes one rule out and writes the file back.
-func (s *Screen) DeleteBody(layer, path string, values url.Values) (string, error) {
+func (s *Screen) DeleteBody(layer, path string, values url.Values) (Answer, error) {
 	docs := s.docs(layer)
-	shown := pick(layer, docs, path)
-	if shown.Document == nil {
-		return "", i18n.Errorf("web.rules.error.no_document", path)
+	shown, found := findDoc(docs, path)
+	if !found || shown.Document == nil {
+		return Answer{}, i18n.Errorf("web.rules.error.no_document", path)
 	}
 	edit := formOf(values)
 	next := clone(shown.Document)
 	if err := next.DeleteRule(edit.Section, edit.Index); err != nil {
-		return "", err
+		return Answer{}, err
 	}
 	return s.write(layer, shown, next, values, edit)
 }
@@ -128,25 +171,25 @@ func (s *Screen) DeleteBody(layer, path string, values url.Values) (string, erro
 // ReportBody makes a report shape (or adds a field to one that is there) in the
 // document, points the rule at it, and writes the file back. This is how a rule
 // with no check gets one where the person already is (findings F2).
-func (s *Screen) ReportBody(layer, path string, values url.Values) (string, error) {
+func (s *Screen) ReportBody(layer, path string, values url.Values) (Answer, error) {
 	docs := s.docs(layer)
-	shown := pick(layer, docs, path)
-	if shown.Document == nil {
-		return "", i18n.Errorf("web.rules.error.no_document", path)
+	shown, found := findDoc(docs, path)
+	if !found || shown.Document == nil {
+		return Answer{}, i18n.Errorf("web.rules.error.no_document", path)
 	}
 	name := strings.TrimSpace(values.Get("report_name"))
 	field := strings.TrimSpace(values.Get("field_name"))
 	if name == "" || field == "" {
-		return "", i18n.Errorf("web.rules.error.report_needs_name_field")
+		return Answer{}, i18n.Errorf("web.rules.error.report_needs_name_field")
 	}
 	edit := formOf(values)
 	edit.Report = name + "." + field
 	next, err := withEdit(shown.Document, edit)
 	if err != nil {
-		return "", err
+		return Answer{}, err
 	}
 	if err := addReportField(next, name, field, values.Get("report_where"), values.Get("field_description")); err != nil {
-		return "", err
+		return Answer{}, err
 	}
 	return s.write(layer, shown, next, values, edit)
 }
@@ -166,23 +209,39 @@ func addReportField(doc *rules.Document, name, field, where, description string)
 	})
 }
 
-// write emits the edited document and hands it to the Port. A refused write
-// comes back as the panel with the reason, not as an error page: the person is
-// in the middle of editing, and the screen can say what to do about it.
-func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url.Values, edit EditRule) (string, error) {
+// write emits the edited document and hands it to the Port. The hash comes from
+// the form, where it was put when the panel was drawn: it is the version the
+// person was looking at, so a file that changed under the screen (an AI editing
+// it through the hergy-rules skill, say) is refused rather than overwritten.
+// A refused write leaves the rule open with the reason on it.
+func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url.Values, edit EditRule) (Answer, error) {
+	refuse := func(reason string) (Answer, error) {
+		body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
+		if err != nil {
+			return Answer{}, err
+		}
+		panel, err := s.render.Panel(s.panelData(layer, shown.Path, values, edit, reason, false))
+		if err != nil {
+			return Answer{}, err
+		}
+		return Answer{Body: body, Panel: panel}, nil
+	}
 	text, err := rules.Emit(next)
 	if err != nil {
-		return s.refused(layer, shown, values, edit, err.Error())
+		return refuse(err.Error())
 	}
-	if err := s.port.WriteRule(shown.Path, text, shown.Hash); err != nil {
-		return s.refused(layer, shown, values, edit, err.Error())
+	hash := values.Get("hash")
+	if hash == "" {
+		hash = shown.Hash // a form from before the hash was carried: the read is the newest
 	}
-	return s.RulesBody(layer, shown.Path, values.Get("filter"))
-}
-
-// refused draws the panel again with the reason on it.
-func (s *Screen) refused(layer string, shown Doc, values url.Values, edit EditRule, reason string) (string, error) {
-	return s.render.Panel(s.panelData(layer, shown.Path, values, edit, reason, false))
+	if err := s.port.WriteRule(shown.Path, text, hash); err != nil {
+		return refuse(err.Error())
+	}
+	body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
+	if err != nil {
+		return Answer{}, err
+	}
+	return Answer{Body: body}, nil
 }
 
 // panelData is one edit panel: the rule as the form holds it, the reports it may
@@ -201,7 +260,7 @@ func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule,
 		Token:        values.Get("token"),
 	}
 	data.Reports = ReportOptions(s.scope(layer, docs, shown))
-	data.Preview = s.preview(layer, shown, edit)
+	data.Preview = s.previewOf(layer, shown, edit)
 	data.Broken = data.Preview.Break != ""
 	return data
 }
@@ -209,7 +268,7 @@ func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule,
 // preview is the edited rule as a member would read it. The whole edited
 // document is written out and handed to the Port, so the overlay and the checks
 // are the code hergy up runs (spec/10 の 3 節).
-func (s *Screen) preview(layer string, shown Doc, edit EditRule) Preview {
+func (s *Screen) previewOf(layer string, shown Doc, edit EditRule) Preview {
 	if shown.Document == nil {
 		return Preview{}
 	}
@@ -308,15 +367,24 @@ func (s *Screen) scope(layer string, docs []Doc, shown Doc) []Doc {
 
 // pick is the document asked for, or the first one when none is named.
 func pick(layer string, docs []Doc, path string) Doc {
-	for _, doc := range docs {
-		if doc.Path == path {
-			return doc
-		}
+	if doc, ok := findDoc(docs, path); ok {
+		return doc
 	}
 	if len(docs) > 0 {
 		return docs[0]
 	}
 	return Doc{Layer: layer}
+}
+
+// findDoc is the document with one path, exactly: a link that names a document
+// must reach that document or nothing, not whichever one comes first.
+func findDoc(docs []Doc, path string) (Doc, bool) {
+	for _, doc := range docs {
+		if doc.Path == path {
+			return doc, true
+		}
+	}
+	return Doc{}, false
 }
 
 // ruleAt is one rule of a document, named by its place.

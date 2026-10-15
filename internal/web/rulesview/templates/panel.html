@@ -2,7 +2,7 @@
 <div class="panel-head">
   <span class="crumb">{{if .New}}{{t "web.rules.panel.title"}}{{else}}{{.Doc.Label}}{{end}}</span>
   <button class="x" type="button" aria-label="{{t "web.rules.panel.close"}}"
-          hx-get="{{p "panel"}}?close=1" hx-target=".panel" hx-swap="innerHTML">×</button>
+          hx-get="{{p "panel"}}?close=1" hx-target="{{p "panelid"}}" hx-swap="innerHTML">×</button>
 </div>
 {{- if .Notice}}
 <p class="notice">{{.Notice}}</p>
@@ -16,6 +16,7 @@
   <input type="hidden" name="doc" value="{{.Doc.Path}}">
   <input type="hidden" name="section" value="{{.Edit.Section}}">
   <input type="hidden" name="i" value="{{.Edit.Index}}">
+  <input type="hidden" name="hash" value="{{.Doc.Hash}}">
 
   <div class="fld">
     <label for="f-id">{{t "web.rules.field.id"}}</label>
@@ -80,13 +81,13 @@
         <button class="btn linkbtn" type="button"
                 hx-post="{{p "paneledit"}}" hx-include="closest form"
                 hx-vals='{"remove_origin": "{{$i}}"}'
-                hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.origin.remove"}}</button>
+                hx-target="{{p "panelid"}}" hx-swap="innerHTML">{{t "web.rules.origin.remove"}}</button>
       </fieldset>
       {{- end}}
       <button class="btn linkbtn" type="button"
               hx-post="{{p "paneledit"}}" hx-include="closest form"
               hx-vals='{"add_origin": "1"}'
-              hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.origin.add"}}</button>
+              hx-target="{{p "panelid"}}" hx-swap="innerHTML">{{t "web.rules.origin.add"}}</button>
 
       <div class="fld">
         <label for="f-note">{{t "web.rules.field.note"}}</label>
@@ -128,11 +129,11 @@
     <button class="btn danger" type="submit" formaction="{{p "delete"}}" formmethod="post">{{t "web.rules.panel.delete_confirm"}}</button>
     <button class="btn" type="button"
             hx-post="{{p "paneledit"}}" hx-include="closest form" hx-vals='{"delete_cancel": "1"}'
-            hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.panel.delete_cancel"}}</button>
+            hx-target="{{p "panelid"}}" hx-swap="innerHTML">{{t "web.rules.panel.delete_cancel"}}</button>
     {{- else if not .New}}
     <button class="btn danger" type="button"
             hx-post="{{p "paneledit"}}" hx-include="closest form" hx-vals='{"delete_ask": "1"}'
-            hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.panel.delete"}}</button>
+            hx-target="{{p "panelid"}}" hx-swap="innerHTML">{{t "web.rules.panel.delete"}}</button>
     {{- end}}
   </div>
 </form>
@@ -145,6 +146,7 @@
     <input type="hidden" name="doc" value="{{.Doc.Path}}">
     <input type="hidden" name="section" value="{{.Edit.Section}}">
     <input type="hidden" name="i" value="{{.Edit.Index}}">
+    <input type="hidden" name="hash" value="{{.Doc.Hash}}">
     <div class="fld">
       <label for="r-name">{{t "web.rules.report.name"}}</label>
       <input class="input" id="r-name" name="report_name">

@@ -6,7 +6,7 @@ import "testing"
 // "does the command take this flag" without tripping on the value.
 var validValue = map[string]string{
 	"as": "alpha", "dir": ".", "team": "t", "profile": "p", "purpose": "x",
-	"task": "t", "from": "m", "lang": "en", "timeout": "5000",
+	"task": "t", "from": "m", "lang": "en", "timeout": "5000", "port": "8787",
 }
 
 // flagArgs writes a flag the way the command line does: the switch alone, or

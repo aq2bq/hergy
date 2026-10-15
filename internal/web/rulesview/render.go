@@ -6,6 +6,8 @@ import (
 	"html/template"
 	"maps"
 	"strings"
+
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // The templates are embedded: hergy serve is one binary, and the rules screen
@@ -30,6 +32,7 @@ func NewRenderer(funcs template.FuncMap) (*Renderer, error) {
 	merged := make(template.FuncMap, len(funcs)+2)
 	maps.Copy(merged, funcs)
 	merged["p"] = func(name string) string { return paths[name] }
+	merged["panelid"] = func() string { return "#" + web.PanelID }
 	merged["join"] = strings.Join
 	templates, err := template.New("rulesview").Funcs(merged).ParseFS(files, "templates/*.html")
 	if err != nil {

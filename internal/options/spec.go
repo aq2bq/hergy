@@ -264,6 +264,19 @@ var specs = []Spec{
 		},
 	},
 	{
+		Kind: Serve, Name: "serve",
+		Summary: text("Open the web UI in a browser", "ブラウザで WebUI を開く"),
+		Detail: text(
+			"Serve the screens on 127.0.0.1, in the foreground, and print the URL. Nothing but this\nmachine can reach it, and no write leaves the settings of the layers it shows.",
+			"127.0.0.1 で画面を配り、URL を 1 行表示して、前景で動き続ける。\nこの機械の外からは届かず、書き込みは表示する層の設定の外へ出ない。"),
+		Flags: []Use{
+			use(flagPort, text(
+				"The port to listen on (default 8787; 0 lets the operating system pick a free one)",
+				"待ち受けるポート（既定は 8787。0 は空きポートを OS が選ぶ）")),
+			use(flagDir, descDir),
+		},
+	},
+	{
 		Kind: Version, Name: "version", Bare: true,
 		Summary: text("Show the version", "バージョンを見る"),
 	},

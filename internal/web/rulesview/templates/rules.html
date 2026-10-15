@@ -41,7 +41,7 @@
       <li class="rule">
         <button class="rule-open" type="button"
                 hx-get="{{$.PanelPrefix}}&amp;sec={{.Section}}&amp;i={{.Index}}"
-                hx-target=".panel" hx-swap="innerHTML"
+                hx-target="{{p "panelid"}}" hx-swap="innerHTML"
                 aria-label="{{t "web.rules.rule.open"}}">
           <span class="rid mono">{{.ID}}</span>
           <span class="rtext">{{inline .Text}}{{if and .Why .Send}} <span class="rwhy">{{inline .Why}}</span>{{end}}</span>
@@ -56,7 +56,7 @@
     {{- end}}
     <button class="btn add-rule" type="button"
             hx-get="{{$.PanelPrefix}}&amp;new=1&amp;sec={{.Index}}"
-            hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.rule.add"}}</button>
+            hx-target="{{p "panelid"}}" hx-swap="innerHTML">{{t "web.rules.rule.add"}}</button>
   </section>
   {{- end}}
   {{- if .NoMatch}}

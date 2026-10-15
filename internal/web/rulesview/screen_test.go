@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -96,7 +98,7 @@ func (p *fakePort) Preview(_, _ string, _ int, _ string) (Preview, error) {
 
 func newScreen(t *testing.T, port Port) *Screen {
 	t.Helper()
-	screen, err := New(port, funcs())
+	screen, err := New(port)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -187,10 +189,11 @@ func TestSaveBodyWritesTheEditedRule(t *testing.T) {
 		"section": {"0"}, "i": {"1"}, "id": {"C2"}, "text": {"直した本文。"},
 		"send": {"1"}, "why": {"理由。"},
 	}
-	body, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
 		t.Fatalf("SaveBody: %v", err)
 	}
+	body := answer.Body
 	if len(port.wrote) != 1 {
 		t.Fatalf("wrote %d files, want 1", len(port.wrote))
 	}
@@ -234,15 +237,18 @@ func TestSaveBodyComesBackToThePanelWhenTheWriteIsRefused(t *testing.T) {
 	port.writeErr = fmt.Errorf("the file changed on disk")
 	screen := newScreen(t, port)
 	form := url.Values{"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"}, "send": {"1"}}
-	body, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
 		t.Fatalf("SaveBody: %v", err)
 	}
 	if len(port.wrote) != 0 {
 		t.Errorf("a refused save wrote %d files", len(port.wrote))
 	}
-	if !strings.Contains(body, "the file changed on disk") {
-		t.Errorf("the panel does not carry the reason back:\n%s", body)
+	if !strings.Contains(answer.Panel, "the file changed on disk") {
+		t.Errorf("the panel does not carry the reason back:\n%s", answer.Panel)
+	}
+	if answer.Body == "" {
+		t.Error("a refused save does not show the rules screen beside the panel")
 	}
 }
 
@@ -381,6 +387,27 @@ func TestFormOfReadsThePanelForm(t *testing.T) {
 	}
 }
 
+func TestSaveBodyCarriesTheHashThePanelWasDrawnWith(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	// The hash in the form is the one the panel was drawn with. A file that
+	// changed since then is refused, even though this request read it fresh.
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"},
+		"text": {"x"}, "send": {"1"}, "hash": {hashOf("not what is on disk")},
+	}
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if len(port.wrote) != 0 {
+		t.Errorf("a save with a stale hash wrote %d files", len(port.wrote))
+	}
+	if !strings.Contains(answer.Panel, "the file changed on disk") {
+		t.Errorf("the panel does not carry the refusal back:\n%s", answer.Panel)
+	}
+}
+
 func TestSuggestIDRaisesAndStepsPastTakenIDs(t *testing.T) {
 	document, err := rules.Parse(sample, "protocol.yaml")
 	if err != nil {
@@ -399,6 +426,53 @@ func TestSuggestIDRaisesAndStepsPastTakenIDs(t *testing.T) {
 	}
 	if got := bump("C"); got != "C-2" {
 		t.Errorf("bump(C) = %q, want C-2", got)
+	}
+}
+
+func TestPanelForOpensARuleByItsID(t *testing.T) {
+	screen := newScreen(t, newFake())
+	panel, ok, err := screen.PanelFor(LayerLocal, "protocol.yaml", "C2", "tok")
+	if err != nil {
+		t.Fatalf("PanelFor: %v", err)
+	}
+	if !ok || !strings.Contains(panel, "C2") || !strings.Contains(panel, "返事を待つ。") {
+		t.Errorf("PanelFor did not open C2 (ok=%v):\n%s", ok, panel)
+	}
+	if _, ok, err := screen.PanelFor(LayerLocal, "protocol.yaml", "NOPE", "tok"); err != nil || ok {
+		t.Errorf("PanelFor of a rule that is not there = ok %v, err %v, want false, nil", ok, err)
+	}
+	if _, ok, err := screen.PanelFor(LayerLocal, "no/such.yaml", "C1", "tok"); err != nil || ok {
+		t.Errorf("PanelFor of a document that is not there = ok %v, err %v, want false, nil", ok, err)
+	}
+}
+
+// TestShowOpensTheRuleNamedByTheLink: /rules?doc=..&rule=<id> is the URL another
+// screen links to, and the rule comes open in the right panel (spec/10 の 7 節).
+func TestShowOpensTheRuleNamedByTheLink(t *testing.T) {
+	screen := newScreen(t, newFake())
+	req := httptest.NewRequest(http.MethodGet, "/rules?layer=local&doc=protocol.yaml&rule=C2", nil)
+	view, err := screen.show(req)
+	if err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	if view.Bare {
+		t.Error("the page with a rule open is a fragment, not a page")
+	}
+	if !strings.Contains(string(view.Panel), "C2") {
+		t.Errorf("the panel does not carry the rule the link names:\n%s", view.Panel)
+	}
+	if !strings.Contains(string(view.Body), "C2") {
+		t.Errorf("the body is not the rules screen:\n%s", view.Body)
+	}
+	// A link with no rule leaves the panel to the frame.
+	plain := httptest.NewRequest(http.MethodGet, "/rules?layer=local&doc=protocol.yaml", nil)
+	if view, err := screen.show(plain); err != nil || view.Panel != "" {
+		t.Errorf("a link with no rule = panel %q, err %v", view.Panel, err)
+	}
+	// A link whose rule is not there still shows the document.
+	missing := httptest.NewRequest(http.MethodGet, "/rules?layer=local&doc=protocol.yaml&rule=NOPE", nil)
+	if view, err := screen.show(missing); err != nil || view.Panel != "" {
+		t.Errorf("a link with an unknown rule = panel %q, err %v", view.Panel, err)
 	}
 }
 

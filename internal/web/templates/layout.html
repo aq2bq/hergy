@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
+<title>{{tf "web.frame.title" .Title}}</title>
+<link rel="stylesheet" href="/static/hergy.css">
+{{- range .Stylesheets}}
+<link rel="stylesheet" href="{{.}}">
+{{- end}}
+<script src="/static/htmx-2.0.4.min.js" defer></script>
+{{- range .Scripts}}
+<script src="{{.}}" defer></script>
+{{- end}}
+</head>
+<body>
+<header class="top">
+  <span class="brand">hergy</span>
+  <nav class="screens" aria-label="{{t "web.frame.nav"}}">
+    {{- range .Nav}}
+    <a class="screen{{if .Active}} on{{end}}" href="{{.Href}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}</a>
+    {{- end}}
+  </nav>
+  <nav class="layers" aria-label="{{t "web.frame.layer"}}">
+    {{- range .Layers}}
+    <a class="layer{{if .Active}} on{{end}}" href="{{.Href}}"{{if .Active}} aria-current="true"{{end}}>{{.Name}}</a>
+    {{- end}}
+  </nav>
+  <span class="root">{{.LayerRoot}}</span>
+</header>
+{{if .Global}}
+<p class="global-note">{{t "web.frame.global_note"}}</p>
+{{end}}
+<main>
+  <section class="content">
+{{.Body}}
+  </section>
+  <aside class="panel" id="{{.PanelID}}">
+{{- if .Panel}}
+{{.Panel}}
+{{- else}}
+    <h2>{{t "web.frame.panel"}}</h2>
+    <p class="empty">{{t "web.frame.panel_empty"}}</p>
+{{- end}}
+  </aside>
+</main>
+</body>
+</html>
