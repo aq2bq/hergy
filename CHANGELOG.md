@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **The rule files say how to write a turn direction**: `hergy cheat --ai` and
+  `skills/hergy-rules` now say that a rule's text can hand the turn between two
+  of the team as `<name> → <name>`, or `<name> ⇄ <name>` when it goes both ways.
+  The name is a member name, a role name, or the human (`人間` in a Japanese
+  file, `human` in an English one). A figure that draws a team reads the turn
+  directions out of the text.
+
 ## 0.4.0 - 2026-10-15
 
 ### Added
