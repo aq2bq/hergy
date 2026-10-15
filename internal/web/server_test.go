@@ -346,6 +346,7 @@ func TestStaticFilesComeFromTheBinary(t *testing.T) {
 		"/static/hergy.css":          ".tlist",
 		"/static/htmx-2.0.4.min.js":  "htmx",
 		"/static/htmx-2.0.4.LICENSE": "Zero-Clause BSD",
+		"/static/copy.js":            "data-copy",
 	} {
 		w := get(t, s, path)
 		if w.Code != http.StatusOK {
@@ -820,7 +821,8 @@ func TestTheDrawerShowsWhatThePageOpensWith(t *testing.T) {
 func TestTheFrameTurnsOffWhatHTMXWouldWriteItself(t *testing.T) {
 	page := get(t, newTestServer(t, demoPort()), "/teams").Body.String()
 	mustContain(t, "the frame", page,
-		`<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>`)
+		`<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>`,
+		`<script src="/static/copy.js" defer></script>`)
 	if strings.Contains(page, "<style") {
 		t.Errorf("the page would carry a <style>:\n%s", page)
 	}

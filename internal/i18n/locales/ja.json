@@ -260,6 +260,8 @@
   "label.members": "メンバー",
   "label.workers": "ワーカー",
   "status.none": "動いているチームはありません",
+  "web.copy": "コピー",
+  "web.copy.done": "コピーしました",
   "web.frame.index.people": "%d 人",
   "web.home.aside.profiles": "プロファイル",
   "web.home.aside.profiles.note": "%sのプロファイルの定義を見ます",

@@ -107,6 +107,10 @@
   text, the reason and the origin). The home also ends with a card for the work
   a person does now and then, with a link to the team list and one to the
   profiles.
+- **A Copy button**: the panels that hand a person text to carry somewhere (the
+  YAML of a document, the prompt that asks an AI to look into a rule's origin)
+  put it on the clipboard with one press. The script is one file of the binary,
+  so a page still carries none of its own.
 
 ### Changed
 

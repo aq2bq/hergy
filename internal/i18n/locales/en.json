@@ -260,6 +260,8 @@
   "label.members": "members",
   "label.workers": "workers",
   "status.none": "no teams are running",
+  "web.copy": "Copy",
+  "web.copy.done": "Copied",
   "web.frame.index.people": "%d",
   "web.home.aside.profiles": "Profiles",
   "web.home.aside.profiles.note": "The profiles the %s defines",

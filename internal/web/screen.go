@@ -19,7 +19,9 @@ import (
 // A screen's body carries no style and no script of its own: every answer sets
 // Content-Security-Policy: default-src 'self', so an inline <style>, <script> or
 // style="..." (in an SVG too) is refused by the browser. A screen says how it
-// looks with classes and with the files it brings itself (ScreenAssets).
+// looks with the classes of the one stylesheet the frame brings
+// (internal/web/static/hergy.css), and what it does with HTMX and with the one
+// script beside it (static/copy.js, the Copy button of the panels).
 type Screen interface {
 	// Name is what the navigation calls this screen, in the language in use.
 	Name() string
