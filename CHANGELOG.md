@@ -57,7 +57,7 @@
           send_why: false
   ```
 
-  Move a team over with the team-building skill: the reasons, the
+  Move a team over with the hergy-rules skill: the reasons, the
   origin and the way each rule is checked cannot be read out of the Markdown,
   so the move is a conversation, not a conversion.
 

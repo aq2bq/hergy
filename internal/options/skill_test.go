@@ -18,6 +18,26 @@ var hergyCommand = regexp.MustCompile("(?m)(?:^| {2,}|`)hergy ([a-z][a-z0-9_-]*)
 // and the test treats --dir, --help and the --dry-run alias as existing.
 var hergyFlag = regexp.MustCompile(`--[a-z][a-z0-9-]*`)
 
+// withoutOtherTools drops the backticked command lines that belong to another
+// tool, so a skill may show `git log -S "..."` or `gy list --type decision`
+// without those flags being read as hergy's. A backticked span that starts with
+// "hergy" is kept, with its backticks, so a hergy command line is still read
+// where it stands.
+func withoutOtherTools(line string) string {
+	var b strings.Builder
+	for i, part := range strings.Split(line, "`") {
+		switch {
+		case i%2 == 0:
+			b.WriteString(part)
+		case strings.HasPrefix(part, "hergy"):
+			b.WriteString("`" + part + "`")
+		default:
+			// a command line of another tool: not hergy's surface.
+		}
+	}
+	return b.String()
+}
+
 // TestSkillAndCheatNamesExist walks the names the bundled skill and the
 // people's cheat put in front of a person or an agent. A name hergy does not
 // have is a promise it cannot keep, so the test prints the name and fails.
@@ -60,14 +80,17 @@ func TestSkillAndCheatNamesExist(t *testing.T) {
 	flags["dry-run"] = true // an alias of --dry
 
 	for name, text := range sources {
-		for _, m := range hergyCommand.FindAllStringSubmatch(text, -1) {
-			if !commands[m[1]] {
-				t.Errorf("%s names the command %q, which hergy does not have", name, m[1])
+		for line := range strings.SplitSeq(text, "\n") {
+			line = withoutOtherTools(line)
+			for _, m := range hergyCommand.FindAllStringSubmatch(line, -1) {
+				if !commands[m[1]] {
+					t.Errorf("%s names the command %q, which hergy does not have", name, m[1])
+				}
 			}
-		}
-		for _, f := range hergyFlag.FindAllString(text, -1) {
-			if !flags[strings.TrimPrefix(f, "--")] {
-				t.Errorf("%s names the flag %q, which hergy does not have", name, f)
+			for _, f := range hergyFlag.FindAllString(line, -1) {
+				if !flags[strings.TrimPrefix(f, "--")] {
+					t.Errorf("%s names the flag %q, which hergy does not have", name, f)
+				}
 			}
 		}
 	}
