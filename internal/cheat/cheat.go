@@ -204,7 +204,7 @@ Rule files (what docs and roles point at):
   Every document a member reads is one rule file: a team's agreements (protocol.yaml) and a role file (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a .md file, a directory with only .md, or a role with only <role>.md stops with the way to move it over.
   version: 1        required, int; must be 1.
   title: <text>     string, optional; rendered as "# <text>".
-  revision: <int>   string, optional; for the people reading the file; never sent.
+  revision: <int>   int, optional; for the people reading the file; never sent.
   sections:         required, nonempty list; sent in the written order.
     heading: <text> string, optional; a section with no heading continues the one before it.
     level: 2..4     int, optional; how deep the heading is; not allowed without a heading; default 2.
@@ -221,7 +221,7 @@ Rule files (what docs and roles point at):
         date: YYYY-MM-DD   string, optional; quoted or not.
         refs: [<ref>...]   optional; for incident and instruction an outside reference (an issue, a ledger id, a URL).
         note: <text>  string, optional.
-      report: <name>.<field>   string, optional; the report field that shows the rule was kept; never sent.
+      report: <name>.<field>   string, optional; the report field that shows the rule was kept; never sent. The report may be written in another document the same member reads.
       tests: [<id>...]   list, optional; the tests that check the rule; never sent.
   reports:          mapping, optional; the shape of a report, rendered at the end:
     <name>:

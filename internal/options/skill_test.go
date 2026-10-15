@@ -24,11 +24,13 @@ var hergyFlag = regexp.MustCompile(`--[a-z][a-z0-9-]*`)
 func TestSkillAndCheatNamesExist(t *testing.T) {
 	sources := map[string]string{}
 
-	skill, err := os.ReadFile("../../skills/hergy/SKILL.md")
-	if err != nil {
-		t.Fatalf("read the bundled skill: %v", err)
+	for _, path := range []string{"../../skills/hergy/SKILL.md", "../../skills/hergy-rules/SKILL.md"} {
+		skill, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read the bundled skill: %v", err)
+		}
+		sources[strings.TrimPrefix(path, "../../")] = string(skill)
 	}
-	sources["skills/hergy/SKILL.md"] = string(skill)
 
 	for _, lang := range []string{"en", "ja"} {
 		raw, err := os.ReadFile("../../internal/i18n/locales/" + lang + ".json")

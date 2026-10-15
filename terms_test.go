@@ -234,11 +234,12 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 	}
 
-	// The prose and the bundled skill, line by line so a hit has a line number.
+	// The prose and the bundled skills, line by line so a hit has a line number.
 	for _, src := range []struct{ path, lang string }{
 		{"README.md", "en"},
 		{"README.ja.md", "ja"},
 		{"skills/hergy/SKILL.md", "en"},
+		{"skills/hergy-rules/SKILL.md", "en"},
 	} {
 		raw, err := os.ReadFile(src.path)
 		if err != nil {

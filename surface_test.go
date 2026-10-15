@@ -44,7 +44,7 @@ func surfaces(t *testing.T) []surface {
 			surface{"hergy cheat (" + lang + ")", messages["cheat.people"]},
 			surface{"hergy --help (" + lang + ")", messages["usage"]})
 	}
-	for _, path := range []string{"README.md", "README.ja.md", "skills/hergy/SKILL.md"} {
+	for _, path := range []string{"README.md", "README.ja.md", "skills/hergy/SKILL.md", "skills/hergy-rules/SKILL.md"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)

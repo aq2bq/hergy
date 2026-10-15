@@ -37,5 +37,6 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you write settings from outside
 
-- Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`. `hergy validate` ends with a count of what the rules carry: how many say where they came from, how many carry a reason, how many have a check, and the id of every rule with no origin, by file. Bring those rules to the person, one at a time: a rule whose origin nobody remembers is the one to ask about.
+- Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
+- To write, change or move a team's rules, read the `hergy-rules` skill first: it asks the person the questions one at a time, so they answer and never write YAML.
 - Start at the `--local` layer; ask the person before you change the global layer.
