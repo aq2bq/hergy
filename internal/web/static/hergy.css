@@ -1,0 +1,141 @@
+/* hergy serve: the frame and the team list. The page never scrolls; the content
+   and the panel scroll inside it, and the panel widens with the window. */
+
+:root {
+  --fg: #1b1b1b;
+  --muted: #6b6b6b;
+  --line: #d9d9d9;
+  --soft: #f5f5f4;
+  --mark: #14507f;
+  --problem: #a1260d;
+  --verify: #1d7a3f;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; overflow: hidden; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  color: var(--fg);
+  background: var(--bg, #fff);
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { font-weight: 700; letter-spacing: .04em; }
+
+.screens { display: flex; gap: 4px; }
+
+.screen {
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.screen:hover { background: var(--soft); }
+.screen.on { background: var(--mark); color: #fff; }
+
+.layers {
+  display: flex;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.layer { padding: 4px 12px; color: var(--fg); text-decoration: none; }
+.layer.on { background: var(--soft); font-weight: 700; }
+
+.root {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.global-note {
+  flex: none;
+  margin: 0;
+  padding: 6px 16px;
+  background: #fff7e6;
+  border-bottom: 1px solid var(--line);
+  color: #6b4a00;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 38%);
+}
+
+.content { min-width: 0; overflow: auto; padding: 16px 20px; }
+
+.panel {
+  min-width: 0;
+  overflow: auto;
+  padding: 16px 20px;
+  border-left: 1px solid var(--line);
+  background: var(--soft);
+}
+
+h1 { margin: 0 0 4px; font-size: 20px; }
+
+.panel h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.lede { margin: 0 0 16px; color: var(--muted); }
+.empty { color: var(--muted); margin: 0; }
+
+table.teams {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.teams th, table.teams td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+table.teams thead th {
+  border-bottom: 2px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+
+table.teams th[scope="row"] { text-align: left; font-weight: 600; }
+table.teams .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+tr.broken th[scope="row"] { border-left: 3px solid var(--problem); }
+tr.broken .reason { color: var(--problem); font-size: 13px; }
+
+.problem { color: var(--problem); }
+
+/* A rule's text and a prompt keep the lines they were written with. */
+pre, .prompt, .rule-text { white-space: pre-wrap; }
+
+/* HTMX's own indicator styles are turned off in the frame (a <style> the
+   browser would refuse under default-src 'self'), so the loading mark is here:
+   .htmx-indicator shows while its request runs. */
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator { opacity: 1; }
+.htmx-request.htmx-indicator { opacity: 1; }

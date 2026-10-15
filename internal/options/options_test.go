@@ -44,6 +44,15 @@ func TestParse(t *testing.T) {
 		{name: "hire with a purpose, a task and no profile", argv: []string{"hire", "w", "--purpose", "x", "--task", "t"}, kind: Hire},
 		{name: "hire without a purpose", argv: []string{"hire", "w", "--task", "t"}, wantErr: true},
 		{name: "hire without a task", argv: []string{"hire", "w", "--purpose", "x"}, wantErr: true},
+		{name: "serve", argv: []string{"serve"}, kind: Serve},
+		{name: "serve takes no positional arguments", argv: []string{"serve", "demo"}, wantErr: true},
+		{name: "serve rejects --dry", argv: []string{"serve", "--dry"}, wantErr: true},
+		{name: "serve rejects --global", argv: []string{"serve", "--global"}, wantErr: true},
+		{name: "serve --port", argv: []string{"serve", "--port", "9000"}, kind: Serve},
+		{name: "--port is not allowed on up", argv: []string{"up", "--port", "9000"}, wantErr: true},
+		{name: "serve --port must be a number", argv: []string{"serve", "--port", "nine"}, wantErr: true},
+		{name: "serve --port is at most 65535", argv: []string{"serve", "--port", "65536"}, wantErr: true},
+		{name: "serve --port is at least 0", argv: []string{"serve", "--port", "-1"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -67,6 +76,25 @@ func TestParse(t *testing.T) {
 				t.Fatalf("Parse(%v).AI = %v, want %v", tt.argv, got.AI, tt.ai)
 			}
 		})
+	}
+}
+
+// TestServePortDefaults: without --port hergy serve listens on DefaultPort, and
+// 0 is the way to ask the operating system for a free one.
+func TestServePortDefaults(t *testing.T) {
+	got, err := Parse([]string{"serve"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Port != DefaultPort {
+		t.Errorf("hergy serve defaults to port %d, want %d", got.Port, DefaultPort)
+	}
+	got, err = Parse([]string{"serve", "--port", "0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Port != 0 {
+		t.Errorf("hergy serve --port 0 gives port %d, want 0", got.Port)
 	}
 }
 

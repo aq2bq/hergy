@@ -24,7 +24,7 @@ const modulePath = "github.com/aq2bq/hergy"
 var leaves = []string{"i18n", "layout", "scaffold", "source", "version"}
 
 // topLayer is imported by internal/app only.
-var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team"}
+var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web"}
 
 // importsOf maps each non-test Go file to the module packages it imports,
 // as package names under internal/ ("app", "i18n", …); main.go is "main".

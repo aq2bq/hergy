@@ -86,13 +86,22 @@ var (
 			o.Timeout = ms
 			return nil
 		}}
+	flagPort = &Flag{Name: "port", Value: text("<port>", "<ポート>"),
+		Set: func(o *Options, v string) error {
+			port, err := strconv.Atoi(v)
+			if err != nil {
+				return i18n.Errorf("error.port_not_int", v)
+			}
+			o.Port = port
+			return nil
+		}}
 
 	flagHelp = &Flag{Name: "help", Short: "h", Set: func(*Options, string) error { return errHelp }}
 )
 
 // allFlags is every flag hergy reads, in the order the cheatsheet lists them.
 var allFlags = []*Flag{
-	flagAI, flagAs, flagDry, flagJSON, flagAll, flagGlobal, flagLocal, flagTimeout,
+	flagAI, flagAs, flagDry, flagJSON, flagAll, flagGlobal, flagLocal, flagTimeout, flagPort,
 	flagTeam, flagProfile, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
 }
 

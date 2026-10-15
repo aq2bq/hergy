@@ -4,12 +4,33 @@
 
 ### Added
 
+- **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
+  8787; `0` lets the operating system pick a free one) serves the web UI on
+  127.0.0.1 and prints the URL. This first round shows the team list: one row per
+  team definition in the layer you pick (local or global, one toggle in the top
+  bar), with the number of members `team.yaml` writes and how many of the rules
+  those members read have no check. A definition that cannot be read keeps its
+  row and carries why, in the one line `hergy validate` writes; the other
+  definitions keep rendering. The frame marks the global layer, and the right
+  panel widens to the window without scrolling the page. It answers 127.0.0.1
+  only, refuses a request whose `Host` is not its own, takes a write only as a
+  POST that carries the token of the running process, and sets
+  `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
+  with its license.
 - **The rule files say how to write a turn direction**: `hergy cheat --ai` and
   `skills/hergy-rules` now say that a rule's text can hand the turn between two
   of the team as `<name> → <name>`, or `<name> ⇄ <name>` when it goes both ways.
   The name is a member name, a role name, or the human (`人間` in a Japanese
   file, `human` in an English one). A figure that draws a team reads the turn
   directions out of the text.
+
+### Changed
+
+- **Build with Go 1.26.9**: `go.mod` names the toolchain, so a build downloads
+  and uses it. The toolchain this repository was built with before it (1.26.7)
+  carries fixed vulnerabilities in `net/http` and `html/template`, which
+  `govulncheck` reports as soon as hergy serves or renders anything: a machine
+  whose Go is older now gets 1.26.9 on the first `go build`.
 
 ## 0.4.0 - 2026-10-15
 
