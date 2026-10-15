@@ -183,6 +183,7 @@ func TestParseRefusesBreaks(t *testing.T) {
 		{"a report that is not a mapping", "version: 1\nsections:\n  - rules: []\nreports:\n  A: one\n", "mapping"},
 		{"an unknown key in a report", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    place: there\n", "place"},
 		{"fields not a mapping", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    fields: [one]\n", "mapping"},
+		{"a field name twice", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    fields:\n      scope: d\n      scope: e\n", "scope"},
 		{"a field description that is not a string", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    fields:\n      scope: 5\n", "string"},
 		{"a report name twice", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    where: x\n  A:\n    where: y\n", "A"},
 	}

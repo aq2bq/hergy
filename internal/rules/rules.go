@@ -418,8 +418,13 @@ func parseFields(value *yaml.Node, path, label string) ([]ReportField, error) {
 		return nil, i18n.Errorf("error.rules_not_mapping", path, label)
 	}
 	out := make([]ReportField, 0, len(value.Content)/2)
+	seen := make(map[string]bool, len(value.Content)/2)
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		name := value.Content[i].Value
+		if seen[name] {
+			return nil, i18n.Errorf("error.rules_duplicate_key", path, label, name)
+		}
+		seen[name] = true
 		description, err := scalarString(value.Content[i+1], path, label+"."+name)
 		if err != nil {
 			return nil, err
