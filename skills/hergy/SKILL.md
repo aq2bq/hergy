@@ -40,3 +40,9 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
 - To write, change or move a team's rules, read the `hergy-rules` skill first: it asks the person the questions one at a time, so they answer and never write YAML.
 - Start at the `--local` layer; ask the person before you change the global layer.
+
+## The web UI
+
+- `hergy serve` serves the screens on 127.0.0.1 and prints the URL; it holds the foreground until you stop it. Hand the URL to the person rather than leaving it running behind a member.
+- It answers this machine only. A write is a POST from a page it rendered, carrying that page's token, so driving it with curl means reading the token out of a form first. Do not work around it.
+- The screens read and write the same files the commands do. `hergy validate` still decides whether the settings hold.

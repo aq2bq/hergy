@@ -1,0 +1,31 @@
+<h1>{{t "web.teams.title"}}</h1>
+<p class="lede">{{tf "web.teams.lede" .LayerName}}</p>
+{{if .Teams}}
+<table class="teams">
+  <thead>
+    <tr>
+      <th scope="col">{{t "web.teams.column.name"}}</th>
+      <th scope="col" class="num">{{t "web.teams.column.members"}}</th>
+      <th scope="col" class="num">{{t "web.teams.column.no_check"}}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{- range .Teams}}
+    {{- if .Broken}}
+    <tr class="broken">
+      <th scope="row">{{.Name}}</th>
+      <td class="reason" colspan="2">{{.Broken}}</td>
+    </tr>
+    {{- else}}
+    <tr>
+      <th scope="row">{{.Name}}</th>
+      <td class="num">{{tf "web.teams.members" .Members}}</td>
+      <td class="num">{{tf "web.teams.no_check" .NoCheck .Rules}}</td>
+    </tr>
+    {{- end}}
+    {{- end}}
+  </tbody>
+</table>
+{{- else}}
+<p class="empty">{{t "web.teams.empty"}}</p>
+{{- end}}

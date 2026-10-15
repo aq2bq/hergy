@@ -138,6 +138,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runNew(env, opts, stdout)
 	case options.Validate:
 		return runValidate(env, stdout)
+	case options.Serve:
+		return runServe(ctx, env, opts, stdout)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Down:
@@ -403,16 +405,8 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			return
 		}
 		problems++
-		msg := strings.ReplaceAll(err.Error(), path, env.Display(path))
-		// Some team-file errors do not name the file; the file-level parser
-		// errors already do. Show the location once either way, and keep the
-		// whole reason on one line.
-		if !strings.Contains(msg, env.Display(path)) {
-			msg = fmt.Sprintf("%s: %s", env.Display(path), msg)
-		}
-		msg = strings.Join(strings.Fields(msg), " ")
 		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
-		indentField(stdout, 1, label("detail"), msg)
+		indentField(stdout, 1, label("detail"), breakLine(env, path, err))
 	}
 
 	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {

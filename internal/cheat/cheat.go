@@ -104,6 +104,8 @@ var behavior = map[options.Kind]string{
 	options.Validate: `      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
       It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file. That count is not a break: only a broken file makes the exit 1.
 `,
+	options.Serve: `      Serve the screens over HTTP on 127.0.0.1 and print the URL, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one). It reads the settings and herdr's state the way the commands do; it changes nothing but the files the screens edit.
+`,
 	options.Version: `      Print the commit and time of this hergy. It takes no other flags.
 `,
 	options.Cheat: `      Print a cheatsheet. --ai prints this text. It reads only config.yaml, for the language, and prints even when that file is broken.
@@ -121,6 +123,7 @@ var flagMeaning = map[string]string{
 	"global":  "Use the global layer only.",
 	"local":   "Use the local layer only; --global and --local together is an error. For new, the layer to write: --local writes to the project, and without it new writes to the global layer.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
+	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
 	"team":    "The team, by team name, to act on.",
 	"profile": "The worker's named engine, from profiles.yaml. Optional: without it, the profile may_spawn pairs with --purpose is used.",
 	"purpose": "The worker's purpose.",
@@ -150,6 +153,10 @@ Reading the output:
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin). That count never changes the exit code.
   To read the text form, add --lang en, or use --dry --json.
+
+Web UI:
+  The command for the screens is hergy serve: it answers on 127.0.0.1 and prints the URL; --port picks the port (default 8787, 0 lets the operating system pick a free one). It runs in the foreground until Ctrl-C, then waits for the requests in flight before it stops.
+  It answers only a request whose Host is 127.0.0.1 or localhost. A write is a POST that must carry the token of this run and come from a page the same server rendered; that page holds it in its forms, so an agent driving the UI reads the token from a page first.
 
 Resolution:
   A team definition is <layer>/teams/<definition>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
