@@ -164,6 +164,7 @@ Resolution:
   The project root is the git root (else the current directory); -C, --dir overrides it.
   up with no name uses one local team definition; --global uses one global one; with neither flag, a lone global definition is not chosen; otherwise the candidates are listed and it stops.
   A team command with no team name uses the one running team; none or several stops with the running team names.
+  hergy's own state is $XDG_STATE_HOME/hergy (or ~/.local/state/hergy when unset): launches/log.jsonl is one line per launch (up, refresh or reprompt, written after it succeeds), and launches/blobs/<sha256> is the prompt texts and rule file contents that line points at. A launch that cannot be recorded still runs, with one line on stderr.
 
 Team, definition and member names:
   members[].name is a short member name (lead, builder). hergy prefixes the team name, so the herdr name is <team>-<member>.

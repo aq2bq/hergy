@@ -138,6 +138,7 @@
   "error.kill_failed": "%s: エージェントを止められません: %v",
   "error.agent_not_gone": "%s: %d ミリ秒待っても、herdr からエージェントの名前が消えません。起動し直していません",
   "note.spawn_outside": "注意: %s（そのまま続けます）\n",
+  "launch.not_recorded": "起動の記録を残せませんでした: %v",
   "launcher.boot_complete": "起動しました: %s（タブ %s）\n",
   "launcher.boot_submitted": "初期プロンプト: 送りました（文書の読み込みは各ペインで続きます）\n",
   "launcher.refresh_restarted": "起動し直しました: %s\n",

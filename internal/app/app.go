@@ -20,6 +20,7 @@ import (
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
+	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
@@ -558,7 +559,11 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	}
 	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
-	return runLaunch(ctx, stderr, l, l.Boot)
+	if err := runLaunch(ctx, stderr, l, l.Boot); err != nil {
+		return err
+	}
+	recordLaunch(stderr, env, cfg, launchlog.CommandUp, definitionMembers(cfg))
+	return nil
 }
 
 // runDown closes the panes of a live team's members. --dry prints what would
@@ -754,7 +759,11 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	}
 	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
-	return runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) })
+	if err := runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) }); err != nil {
+		return err
+	}
+	recordLaunch(stderr, env, cfg, launchlog.CommandRefresh, selected)
+	return nil
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
@@ -787,7 +796,11 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	}
 	printHeader(stdout, resolved, cfg, env, true)
 	l := newLauncher(cfg, opts.Timeout, stdout)
-	return runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) })
+	if err := runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) }); err != nil {
+		return err
+	}
+	recordLaunch(stderr, env, cfg, launchlog.CommandReprompt, selected)
+	return nil
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

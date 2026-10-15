@@ -109,8 +109,9 @@ esac
 // home directory, so paths inside the project go relative and paths under the
 // config directory stay absolute.
 type fixture struct {
-	proj string
-	cfg  string
+	proj  string
+	cfg   string
+	state string
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -120,6 +121,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	f := &fixture{proj: filepath.Join(root, "proj"), cfg: filepath.Join(root, "cfg")}
+	f.state = filepath.Join(root, "state")
 	for _, dir := range []string{f.proj, f.cfg} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -130,6 +132,9 @@ func newFixture(t *testing.T) *fixture {
 	}
 	t.Chdir(f.proj)
 	t.Setenv("XDG_CONFIG_HOME", f.cfg)
+	// The launch record is state: it is kept out of the config directory, and a
+	// test writes it inside the temporary root like everything else.
+	t.Setenv("XDG_STATE_HOME", f.state)
 	t.Setenv("HOME", filepath.Join(root, "home"))
 	t.Setenv("HERDR_ENV", "")
 	t.Setenv("HERDR_PANE_ID", "")
@@ -193,6 +198,17 @@ case "$g $s" in
     fi
     printf '%s\n' "$name" >> "$state"
     echo '{"result":{}}'
+    ;;
+  "agent get")
+    name="$3"
+    case "$3" in
+      p-*) name="${3#p-}" ;;
+    esac
+    if grep -qx "$name" "$state"; then
+      printf '{"result":{"agent":{"name":"%s","agent":"claude","agent_status":"idle","pane_id":"p-%s","tab_id":"t1"}}}\n' "$name" "$name"
+    else
+      echo '{"error":{"code":"agent_not_found"}}'
+    fi
     ;;
   "tab list")
     printf '{"result":{"tabs":['

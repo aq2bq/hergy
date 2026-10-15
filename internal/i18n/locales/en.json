@@ -138,6 +138,7 @@
   "error.kill_failed": "%s: cannot stop the running process group: %v",
   "error.agent_not_gone": "%s: herdr still knows the agent after %d ms; it was not restarted",
   "note.spawn_outside": "note: %s (spawning anyway)\n",
+  "launch.not_recorded": "the launch was not recorded: %v",
   "launcher.boot_complete": "booted: %s (tab %s)\n",
   "launcher.boot_submitted": "prompts: submitted (document reading continues in each pane)\n",
   "launcher.refresh_restarted": "restarted: %s\n",

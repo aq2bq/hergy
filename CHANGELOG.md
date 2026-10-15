@@ -18,6 +18,23 @@
   `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
   with its license.
 
+- **Every launch leaves a record**: `hergy up`, `hergy refresh` and `hergy
+  reprompt` write one line per launch to
+  `$XDG_STATE_HOME/hergy/launches/log.jsonl` (or
+  `~/.local/state/hergy/launches` when unset): when it ran, which hergy ran it,
+  the project, the layer, the team definition, the team name, the hash of the
+  team as it was launched, the members that were handed a prompt, and the rule
+  files those prompts were built from. The texts themselves — each prompt, and
+  each rule file — go to `launches/blobs/<sha256>`, one file per text, so a
+  launch that changes one document adds one file. No environment value is
+  written, in the record or in a blob: the values count toward the team's hash
+  only. The hash covers the whole team definition as it was launched, so it does
+  not change when a profile no member reads changes, and does change when a
+  profile a member reads changes. A `--dry` run and a launch that fails record
+  nothing, `hire` records nothing (a worker is not a member of the team
+  definition), and a record that cannot be written prints one line on stderr and
+  leaves the command a success.
+
 ### Changed
 
 - **Build with Go 1.26.9**: `go.mod` names the toolchain, so a build downloads
