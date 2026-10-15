@@ -1,0 +1,18 @@
+{{define "index.html"}}
+{{- if .Groups}}
+<nav class="docs" aria-label="{{t "web.rules.title"}}">
+{{- range .Groups}}
+  <section class="doc-group">
+    <h2>{{.Label}}</h2>
+    <ul class="doc-list">
+    {{- range .Rows}}
+      <li><a class="doc{{if .Selected}} on{{end}}" href="{{.Href}}"{{if .Selected}} aria-current="true"{{end}}>{{.Label}}<span class="doc-sum">{{tf "web.rules.doc.summary" .Total .Origin}}</span></a></li>
+    {{- end}}
+    </ul>
+  </section>
+{{- end}}
+</nav>
+{{- else}}
+<p class="empty">{{t "web.rules.empty"}}</p>
+{{- end}}
+{{end}}

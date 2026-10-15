@@ -1,0 +1,167 @@
+{{define "panel.html"}}
+<div class="panel-head">
+  <span class="crumb">{{if .New}}{{t "web.rules.panel.title"}}{{else}}{{.Doc.Label}}{{end}}</span>
+  <button class="x" type="button" aria-label="{{t "web.rules.panel.close"}}"
+          hx-get="{{p "panel"}}?close=1" hx-target=".panel" hx-swap="innerHTML">×</button>
+</div>
+{{- if .Notice}}
+<p class="notice">{{.Notice}}</p>
+{{- end}}
+{{- if .New}}
+<p class="note">{{t "web.rules.panel.new_note"}}</p>
+{{- end}}
+<form class="panel-form" method="post" action="{{p "save"}}">
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="layer" value="{{.Layer}}">
+  <input type="hidden" name="doc" value="{{.Doc.Path}}">
+  <input type="hidden" name="section" value="{{.Edit.Section}}">
+  <input type="hidden" name="i" value="{{.Edit.Index}}">
+
+  <div class="fld">
+    <label for="f-id">{{t "web.rules.field.id"}}</label>
+    <input class="input mono" id="f-id" name="id" value="{{.Edit.ID}}" spellcheck="false">
+  </div>
+
+  {{- if .Global}}
+  <p class="banner">{{t "web.rules.panel.global"}}</p>
+  {{- end}}
+
+  <div class="fields"
+       hx-post="{{p "preview"}}" hx-trigger="input changed delay:400ms"
+       hx-include="closest form" hx-target="#preview" hx-swap="innerHTML">
+    <section class="zone send">
+      <h4>{{t "web.rules.panel.zone.send"}}</h4>
+      <div class="fld">
+        <label for="f-text">{{t "web.rules.field.text"}}</label>
+        <textarea class="input" id="f-text" name="text" rows="6">{{.Edit.Text}}</textarea>
+      </div>
+      <div class="fld">
+        <label for="f-why">{{t "web.rules.field.why"}}</label>
+        <textarea class="input" id="f-why" name="why" rows="3">{{.Edit.Why}}</textarea>
+      </div>
+      <div class="toggle">
+        <label><input type="checkbox" name="send" value="1"{{if .Edit.Send}} checked{{end}}> {{t "web.rules.field.send_why"}}</label>
+      </div>
+    </section>
+
+    <section class="zone keep">
+      <h4>{{t "web.rules.panel.zone.keep"}} <span>{{t "web.rules.panel.zone.keep_note"}}</span></h4>
+      <div class="fld">
+        <span class="lbl">{{t "web.rules.field.origin"}}</span>
+        <p class="explain">{{t "web.rules.origin.what"}}{{if not .Edit.Origins}} {{t "web.rules.origin.why"}}{{end}}</p>
+      </div>
+      {{- range $i, $o := .Edit.Origins}}
+      <fieldset class="origin">
+        <div class="fld">
+          <label for="ok-{{$i}}">{{t "web.rules.field.origin"}}</label>
+          <select class="input" id="ok-{{$i}}" name="origin_kind">
+            <option value="">{{t "web.rules.origin.choose"}}</option>
+            <option value="incident"{{if eq $o.Kind "incident"}} selected{{end}}>{{t "web.rules.origin.kind.incident"}}</option>
+            <option value="instruction"{{if eq $o.Kind "instruction"}} selected{{end}}>{{t "web.rules.origin.kind.instruction"}}</option>
+            <option value="derived"{{if eq $o.Kind "derived"}} selected{{end}}>{{t "web.rules.origin.kind.derived"}}</option>
+          </select>
+        </div>
+        {{- if not $o.Derived}}
+        <div class="fld">
+          <label for="od-{{$i}}">{{t "web.rules.origin.date"}}</label>
+          <input class="input" id="od-{{$i}}" type="date" name="origin_date" value="{{$o.Date}}">
+        </div>
+        {{- else}}
+        <input type="hidden" name="origin_date" value="">
+        {{- end}}
+        <div class="fld">
+          <label for="or-{{$i}}">{{if $o.Derived}}{{t "web.rules.origin.refs.derived"}}{{else}}{{t "web.rules.origin.refs"}}{{end}}</label>
+          <input class="input" id="or-{{$i}}" name="origin_refs" value="{{$o.Refs}}">
+        </div>
+        <div class="fld">
+          <label for="on-{{$i}}">{{if $o.Derived}}{{t "web.rules.origin.note.derived"}}{{else if eq $o.Kind "instruction"}}{{t "web.rules.origin.note.instruction"}}{{else}}{{t "web.rules.origin.note.incident"}}{{end}}</label>
+          <input class="input" id="on-{{$i}}" name="origin_note" value="{{$o.Note}}">
+        </div>
+        <button class="btn linkbtn" type="button"
+                hx-post="{{p "paneledit"}}" hx-include="closest form"
+                hx-vals='{"remove_origin": "{{$i}}"}'
+                hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.origin.remove"}}</button>
+      </fieldset>
+      {{- end}}
+      <button class="btn linkbtn" type="button"
+              hx-post="{{p "paneledit"}}" hx-include="closest form"
+              hx-vals='{"add_origin": "1"}'
+              hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.origin.add"}}</button>
+
+      <div class="fld">
+        <label for="f-note">{{t "web.rules.field.note"}}</label>
+        <textarea class="input" id="f-note" name="note" rows="2">{{.Edit.Note}}</textarea>
+      </div>
+      <div class="fld">
+        <label for="f-report">{{t "web.rules.field.report"}}</label>
+        <select class="input" id="f-report" name="report">
+          <option value="">{{t "web.rules.field.report.none"}}</option>
+          {{- range .Reports}}
+          <option value="{{.Ref}}"{{if eq .Ref $.Edit.Report}} selected{{end}}>{{.Label}}</option>
+          {{- end}}
+          <option value="__new">{{t "web.rules.field.report.new"}}</option>
+        </select>
+        {{- if not .Reports}}
+        <span class="faint">{{t "web.rules.field.report.none"}}</span>
+        {{- end}}
+      </div>
+      <div class="fld">
+        <label for="f-tests">{{t "web.rules.field.tests"}}</label>
+        <input class="input mono" id="f-tests" name="tests" value="{{.Edit.Tests}}">
+      </div>
+    </section>
+
+    <section class="zone preview">
+      <h4>{{t "web.rules.panel.preview"}}</h4>
+      <div id="preview">{{template "preview.html" .}}</div>
+    </section>
+  </div>
+
+  <div class="row actions">
+    {{- if .New}}
+    <button class="btn primary" type="submit">{{t "web.rules.panel.add"}}</button>
+    {{- else}}
+    <button class="btn primary" type="submit">{{t "web.rules.panel.save"}}</button>
+    {{- end}}
+    {{- if .AskingDelete}}
+    <span class="ask">{{t "web.rules.panel.delete_ask"}}</span>
+    <button class="btn danger" type="submit" formaction="{{p "delete"}}" formmethod="post">{{t "web.rules.panel.delete_confirm"}}</button>
+    <button class="btn" type="button"
+            hx-post="{{p "paneledit"}}" hx-include="closest form" hx-vals='{"delete_cancel": "1"}'
+            hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.panel.delete_cancel"}}</button>
+    {{- else if not .New}}
+    <button class="btn danger" type="button"
+            hx-post="{{p "paneledit"}}" hx-include="closest form" hx-vals='{"delete_ask": "1"}'
+            hx-target=".panel" hx-swap="innerHTML">{{t "web.rules.panel.delete"}}</button>
+    {{- end}}
+  </div>
+</form>
+
+<details class="new-report">
+  <summary>{{t "web.rules.field.report.new"}}</summary>
+  <form method="post" action="{{p "report"}}">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <input type="hidden" name="layer" value="{{.Layer}}">
+    <input type="hidden" name="doc" value="{{.Doc.Path}}">
+    <input type="hidden" name="section" value="{{.Edit.Section}}">
+    <input type="hidden" name="i" value="{{.Edit.Index}}">
+    <div class="fld">
+      <label for="r-name">{{t "web.rules.report.name"}}</label>
+      <input class="input" id="r-name" name="report_name">
+    </div>
+    <div class="fld">
+      <label for="r-where">{{t "web.rules.report.where"}}</label>
+      <input class="input" id="r-where" name="report_where">
+    </div>
+    <div class="fld">
+      <label for="r-field">{{t "web.rules.report.field"}}</label>
+      <input class="input mono" id="r-field" name="field_name">
+    </div>
+    <div class="fld">
+      <label for="r-desc">{{t "web.rules.report.description"}}</label>
+      <input class="input" id="r-desc" name="field_description">
+    </div>
+    <button class="btn" type="submit">{{t "web.rules.report.make"}}</button>
+  </form>
+</details>
+{{end}}
