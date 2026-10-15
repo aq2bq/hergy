@@ -85,9 +85,17 @@ func breakLine(env team.Env, path string, err error) string {
 // is open. It runs in the foreground until Ctrl-C, then waits for the requests
 // in flight. It reads the settings the way the other commands read them and
 // changes no file the screens do not write.
+//
+// The order here is the order of the navigation: the home first, because opening
+// hergy serve lands on it (d-ff49), then the team list, then the record's other
+// screens. A screen of another part is added on this line, in its place.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
 	port := servePort{env: env}
 	home, err := homeview.New(port)
+	if err != nil {
+		return err
+	}
+	teams, err := web.NewTeamList(port)
 	if err != nil {
 		return err
 	}
@@ -95,7 +103,7 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
-	server, err := web.New(port, home, diff)
+	server, err := web.New(port, home, teams, diff)
 	if err != nil {
 		return err
 	}

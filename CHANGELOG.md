@@ -6,7 +6,7 @@
 
 - **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
   8787; `0` lets the operating system pick a free one) serves the web UI on
-  127.0.0.1 and prints the URL. This first round shows the team list: one row per
+  127.0.0.1 and prints the URL. The team list answers `/teams`: one row per
   team definition in the layer you pick (local or global, one toggle in the top
   bar), with the number of members `team.yaml` writes and how many of the rules
   those members read have no check. A definition that cannot be read keeps its
@@ -36,23 +36,30 @@
   leaves the command a success.
 
 - **The launch record's screens, and the team list's last-launch column**: `hergy
-  serve` now opens a Home screen — the steps of the daily flow, then what moved
-  since the last launch (per document, the rules it added, dropped and changed by
-  id, and whether its version has moved past the one the launch read, which means
-  the next `hergy up` hands the change over) and the rules with no check, each of
-  which opens in the rules screen's edit panel. It also opens a Prompt diff
-  screen: per team definition and member, the prompt the last launch handed over
-  against the prompt the files build now, as a line diff (members whose prompt did
-  not change are folded away). Both screens read the record and the files through
-  the app, so no comparison happens in the page. The team list carries one more
-  column: when the definition was last launched from this machine, the head of
-  the hash that launch wrote, and a mark when the files build a different hash
-  now. On a machine that has never launched a team, the home and the diff say so
-  and name the command instead; the rules with no check still show, because they
-  are read from the files. A record that cannot be read is one line on the screen,
-  and the rest of it still renders.
+  serve` now opens a Home screen, at `/` (the team list moved to `/teams`) — the
+  steps of the daily flow, then what moved since the last launch (per document,
+  the rules it added, dropped and changed by id, and whether its version has
+  moved past the one the launch read, which means the next `hergy up` hands the
+  change over) and the rules with no check, each of which opens in the rules
+  screen's edit panel. It also opens a Prompt diff screen, at `/diff`: per team
+  definition and member, the prompt the last launch handed over against the
+  prompt the files build now, as a line diff (members whose prompt did not change
+  are folded away). Both screens read the record and the files through the app,
+  so no comparison happens in the page. The team list carries one more column:
+  when the definition was last launched from this machine, the head of the hash
+  that launch wrote, and a mark when the files build a different hash now. On a
+  machine that has never launched a team, the home and the diff say so and name
+  the command instead; the rules with no check still show, because they are read
+  from the files. A record that cannot be read is one line on the screen, and the
+  rest of it still renders.
 
 ### Changed
+
+- **The screens have their own paths, and the home is the way in**: `hergy serve`
+  opens on the home at `/`, and the team list answers `/teams`. The home is the
+  first thing a person sees, because that is where the daily flow starts
+  (d-ff49). A link from the old address (`/` for the team list) now lands on the
+  home.
 
 - **Build with Go 1.26.9**: `go.mod` names the toolchain, so a build downloads
   and uses it. The toolchain this repository was built with before it (1.26.7)

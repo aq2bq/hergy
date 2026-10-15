@@ -130,9 +130,11 @@ func New(port Port) (web.Screen, error) {
 // Name is what the navigation calls the screen.
 func (s *homeScreen) Name() string { return i18n.T("web.home.title") }
 
-// Routes answers the home path.
+// Routes answers the root, and the root exactly: the home is the screen hergy
+// serve opens with, and the way into the daily flow. Every other path is another
+// screen's.
 func (s *homeScreen) Routes() []web.Route {
-	return []web.Route{{Path: "/home", Handler: s.show}}
+	return []web.Route{{Path: "/{$}", Handler: s.show}}
 }
 
 // Assets are this screen's stylesheet, for every screen of the record: it is

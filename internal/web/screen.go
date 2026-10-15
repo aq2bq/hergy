@@ -13,8 +13,9 @@ import (
 //
 // A screen renders its own body with its own templates (parsed with Funcs, so
 // the words and the rendering rules are the same as this package's) and hands
-// the HTML back in a View. The team list is the first screen; the rules, the
-// records and the topology are added the same way.
+// the HTML back in a View. The home, the rules, the records and the topology are
+// all added the same way; the caller passes them in the order the navigation
+// shows, and the screen it passes first is the one hergy serve opens with.
 //
 // A screen's body carries no style and no script of its own: every answer sets
 // Content-Security-Policy: default-src 'self', so an inline <style>, <script> or

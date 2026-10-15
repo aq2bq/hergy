@@ -93,7 +93,7 @@ func TestTheHomeShowsWhatMovedAndWhatHasNoCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := render(t, screen, "/home?layer=local")
+	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body,
 		"protocol.yaml",
 		i18n.Tf("web.home.changes.added", "C9"),
@@ -121,7 +121,7 @@ func TestTheHomeSaysWhenNothingWasLaunched(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := render(t, screen, "/home?layer=local")
+	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body,
 		"hergy up &lt;name&gt;",
 		i18n.Tf("web.home.nocheck.count", 1, 2),
@@ -146,7 +146,7 @@ func TestTheHomeShowsAProblemWithTheRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := render(t, screen, "/home?layer=local")
+	body := render(t, screen, "/?layer=local")
 	mustContain(t, "the home", body, "line 3: not a JSON line", "protocol.yaml", "C1")
 }
 
@@ -164,7 +164,7 @@ func TestTheScreensReadTheLayerOfTheRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	render(t, home, "/home?layer=global")
+	render(t, home, "/?layer=global")
 	render(t, diff, "/diff?layer=global")
 
 	if len(asked) != 2 || asked[0] != web.LayerGlobal || asked[1] != web.LayerGlobal {

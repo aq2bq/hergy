@@ -55,9 +55,9 @@ type Server struct {
 
 // New builds the server for one run. It parses the templates here, so a broken
 // template stops hergy serve at once instead of on the first request, and it
-// puts the team list in front of the screens the caller adds. The token is made
-// here too, fresh for every run: every form carries it, and a write without it
-// is refused.
+// takes the screens in the order the navigation shows them: the home first,
+// which is the screen hergy serve opens with. The token is made here too, fresh
+// for every run: every form carries it, and a write without it is refused.
 func New(port Port, screens ...Screen) (*Server, error) {
 	if port == nil {
 		return nil, errors.New("web: New needs a Port")
@@ -74,8 +74,7 @@ func New(port Port, screens ...Screen) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{port: port, token: token, frame: frame}
-	s.screens = append([]Screen{&teamList{port: port, templates: frame}}, screens...)
+	s := &Server{port: port, token: token, frame: frame, screens: screens}
 
 	mux := http.NewServeMux()
 	for _, screen := range s.screens {

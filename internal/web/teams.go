@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"errors"
 	"html/template"
 	"net/http"
 
@@ -21,13 +22,28 @@ type teamList struct {
 	templates *template.Template
 }
 
+// NewTeamList builds the team list screen. It is this package's own screen, but
+// the caller places it in the navigation like any other: the screen hergy serve
+// opens with is the home, so the frame cannot hold a fixed first screen. The
+// caller that builds it also passes it to New, in the order the navigation shows.
+func NewTeamList(port Port) (Screen, error) {
+	if port == nil {
+		return nil, errors.New("web: NewTeamList needs a Port")
+	}
+	templates, err := template.New("").Funcs(Funcs()).ParseFS(files, "templates/teams.html")
+	if err != nil {
+		return nil, err
+	}
+	return &teamList{port: port, templates: templates}, nil
+}
+
 // Name is what the navigation calls the screen.
 func (t *teamList) Name() string { return i18n.T("web.teams.title") }
 
-// Routes answers the root, and the root exactly: every other path is another
-// screen's, and an unclaimed one is not found rather than this list.
+// Routes answers /teams. The root belongs to the home, which is the screen
+// hergy serve opens with and the way into the daily flow (d-ff49).
 func (t *teamList) Routes() []Route {
-	return []Route{{Path: "/{$}", Handler: t.show}}
+	return []Route{{Path: "/teams", Handler: t.show}}
 }
 
 func (t *teamList) show(r *http.Request) (View, error) {

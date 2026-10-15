@@ -44,11 +44,16 @@ func demoPort() fakePort {
 }
 
 // newTestServer builds a server with an address of its own, so the Host check
-// has something to compare with. Nothing is listening: these tests call the
-// handler directly, and the Serve tests open a real socket.
+// has something to compare with. The team list is the first screen, the way the
+// app passes it, and the screens of the test follow it. Nothing is listening:
+// these tests call the handler directly, and the Serve tests open a real socket.
 func newTestServer(t *testing.T, port Port, screens ...Screen) *Server {
 	t.Helper()
-	s, err := New(port, screens...)
+	teams, err := NewTeamList(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(port, append([]Screen{teams}, screens...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,18 +106,18 @@ func mustNotContain(t *testing.T, what, body string, unwanted ...string) {
 	}
 }
 
-// TestTeamListShowsOneRowPerDefinition: the team list is the root screen. Each
-// row carries the name, the members and the count of rules with no check, and a
-// definition that cannot be read keeps its row and shows why.
+// TestTeamListShowsOneRowPerDefinition: the team list is its own screen at
+// /teams. Each row carries the name, the members and the count of rules with no
+// check, and a definition that cannot be read keeps its row and shows why.
 func TestTeamListShowsOneRowPerDefinition(t *testing.T) {
 	s := newTestServer(t, demoPort())
-	w := get(t, s, "/")
+	w := get(t, s, "/teams")
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("GET / = %d, want 200", w.Code)
+		t.Fatalf("GET /teams = %d, want 200", w.Code)
 	}
 	if got := w.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
-		t.Errorf("GET / Content-Type = %q, want text/html", got)
+		t.Errorf("GET /teams Content-Type = %q, want text/html", got)
 	}
 	mustContain(t, "the team list", w.Body.String(),
 		i18n.T("web.teams.title"),
@@ -141,7 +146,7 @@ func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
 		},
 	}}
 	s := newTestServer(t, port)
-	body := get(t, s, "/").Body.String()
+	body := get(t, s, "/teams").Body.String()
 
 	mustContain(t, "the team list", body,
 		i18n.T("web.teams.column.launched"),
@@ -165,9 +170,9 @@ func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
 func TestLayerToggleShowsTheOtherLayer(t *testing.T) {
 	s := newTestServer(t, demoPort())
 
-	global := get(t, s, "/?layer=global")
+	global := get(t, s, "/teams?layer=global")
 	if global.Code != http.StatusOK {
-		t.Fatalf("GET /?layer=global = %d, want 200", global.Code)
+		t.Fatalf("GET /teams?layer=global = %d, want 200", global.Code)
 	}
 	mustContain(t, "the global team list", global.Body.String(),
 		"shared",
@@ -176,7 +181,7 @@ func TestLayerToggleShowsTheOtherLayer(t *testing.T) {
 	)
 	mustNotContain(t, "the global team list", global.Body.String(), "demo", ".hergy/teams/broken")
 
-	local := get(t, s, "/")
+	local := get(t, s, "/teams")
 	mustNotContain(t, "the local team list", local.Body.String(), i18n.T("web.frame.global_note"))
 	mustContain(t, "the local team list", local.Body.String(), ".hergy")
 }
@@ -185,10 +190,10 @@ func TestLayerToggleShowsTheOtherLayer(t *testing.T) {
 // shown, so pressing it does not silently go back to the local layer.
 func TestTheLayerTravelsInTheLinks(t *testing.T) {
 	s := newTestServer(t, demoPort())
-	w := get(t, s, "/?layer=global")
+	w := get(t, s, "/teams?layer=global")
 	mustContain(t, "the frame", w.Body.String(),
-		`href="/?layer=global"`,
-		`href="/?layer=local"`,
+		`href="/teams?layer=global"`,
+		`href="/teams?layer=local"`,
 	)
 }
 
@@ -225,7 +230,7 @@ func TestHostMustBeThisServer(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.host, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r := httptest.NewRequest(http.MethodGet, "/teams", nil)
 			r.Host = tc.host
 			w := do(t, s, r)
 			if w.Code != tc.want {
@@ -245,7 +250,7 @@ func TestHostMustBeThisServer(t *testing.T) {
 // anywhere but this server.
 func TestEveryAnswerCarriesThePolicy(t *testing.T) {
 	s := newTestServer(t, demoPort())
-	for _, path := range []string{"/", "/static/hergy.css", "/nope"} {
+	for _, path := range []string{"/teams", "/static/hergy.css", "/nope"} {
 		w := get(t, s, path)
 		if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'self'" {
 			t.Errorf("GET %s: Content-Security-Policy = %q, want default-src 'self'", path, got)
@@ -527,10 +532,10 @@ func (s namedScreen) Routes() []Route {
 func TestTheNavigationShowsEveryScreen(t *testing.T) {
 	s := newTestServer(t, demoPort(), namedScreen{name: "rules", path: "/rules"})
 
-	list := get(t, s, "/")
+	list := get(t, s, "/teams")
 	mustContain(t, "the navigation", list.Body.String(),
 		i18n.T("web.teams.title"),
-		`href="/?layer=local"`,
+		`href="/teams?layer=local"`,
 		"rules",
 		`href="/rules?layer=local"`,
 		`aria-current="page"`,
@@ -618,13 +623,13 @@ func TestServeAnswersOnTheBoundAddress(t *testing.T) {
 	}
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
-	resp, err := client.Get(url + "/")
+	resp, err := client.Get(url + "/teams")
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET %s = %d, want 200", url, resp.StatusCode)
+		t.Fatalf("GET %s/teams = %d, want 200", url, resp.StatusCode)
 	}
 	if got := resp.Header.Get("Content-Security-Policy"); got != "default-src 'self'" {
 		t.Errorf("a real answer carries %q, want default-src 'self'", got)
@@ -826,7 +831,7 @@ func TestThePanelShowsWhatThePageOpensWith(t *testing.T) {
 // would not show either). The frame turns that off, the mark's look lives in the
 // stylesheet the frame links, and inline evaluation is off too.
 func TestTheFrameTurnsOffWhatHTMXWouldWriteItself(t *testing.T) {
-	page := get(t, newTestServer(t, demoPort()), "/").Body.String()
+	page := get(t, newTestServer(t, demoPort()), "/teams").Body.String()
 	mustContain(t, "the frame", page,
 		`<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>`)
 	if strings.Contains(page, "<style") {
