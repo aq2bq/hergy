@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
@@ -64,17 +65,32 @@ func readRecords() []launchlog.Record {
 	return records
 }
 
-// latestRecord is the newest record of one definition of one layer, from a set
-// read oldest first.
-func latestRecord(records []launchlog.Record, layer, definition string) (launchlog.Record, bool) {
+// latestRecord is the newest record of one team definition, from a set read
+// oldest first. A definition is named by the team.yaml its launches read: the
+// record holds every project's launches, and two projects can hold a definition
+// of the same name, so the layer and the name alone would pick up another
+// project's launch (M1).
+func latestRecord(records []launchlog.Record, teamYAML string) (launchlog.Record, bool) {
 	var out launchlog.Record
 	found := false
 	for _, rec := range records {
-		if rec.Layer == layer && rec.Definition == definition {
+		if rec.TeamYAML == teamYAML {
 			out, found = rec, true
 		}
 	}
 	return out, found
+}
+
+// definitionOf is the definition of one layer a record belongs to, matched by the
+// team.yaml its launch read. ok is false for a record of another layer, and for
+// one of another project whose team.yaml no definition of this layer stands at.
+func definitionOf(rec launchlog.Record, defs []layerDef) (layerDef, bool) {
+	for _, def := range defs {
+		if def.cfg.TeamYAML.Path == rec.TeamYAML {
+			return def, true
+		}
+	}
+	return layerDef{}, false
 }
 
 // recordLine writes why the launch record could not be read as one line, the way
@@ -108,12 +124,8 @@ func (p servePort) Home(layer string) homeview.Home {
 // anyLaunched reports whether any of the definitions has a record: without one
 // there is nothing to differ from.
 func anyLaunched(records []launchlog.Record, defs []layerDef) bool {
-	reading := map[string]bool{}
-	for _, def := range defs {
-		reading[def.cfg.Layer+"\x00"+def.name] = true
-	}
 	for _, rec := range records {
-		if reading[rec.Layer+"\x00"+rec.Definition] {
+		if _, ok := definitionOf(rec, defs); ok {
 			return true
 		}
 	}
@@ -149,25 +161,24 @@ type launchedDoc struct {
 	Doc launchlog.Doc
 }
 
-// launchedDocs is what the record holds for each document, by path.
+// launchedDocs is what the record holds for each document, by path. Only the
+// records of the layer's own team definitions are read, told apart by the
+// team.yaml their launches read (M1).
 func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc) map[string]launchedDoc {
-	reading := map[string]bool{}
-	for _, def := range defs {
-		reading[def.cfg.Layer+"\x00"+def.name] = true
-	}
 	wanted := map[string]bool{}
 	for _, doc := range docs {
 		wanted[doc.Path] = true
 	}
 	out := map[string]launchedDoc{}
 	for _, rec := range records {
-		if !reading[rec.Layer+"\x00"+rec.Definition] {
+		def, ok := definitionOf(rec, defs)
+		if !ok {
 			continue
 		}
 		for _, doc := range rec.Docs {
 			if wanted[doc.Path] {
 				// a later record overwrites an earlier one
-				out[doc.Path] = launchedDoc{Definition: rec.Definition, Doc: doc}
+				out[doc.Path] = launchedDoc{Definition: def.name, Doc: doc}
 			}
 		}
 	}
@@ -245,38 +256,75 @@ func versionOf(doc *rules.Document) int {
 // document is read, its version is raised (a file that writes none is at 0), and
 // the document is written with rules.Emit, never by hand (H5).
 //
+// Only a document the launch record holds, whose content has moved since the
+// launch that read it, and whose version has not been raised since that launch,
+// is written: a page left open, a resend, or a double press writes nothing and
+// the answer says why (M3).
+//
 // The write goes through the writer the rules screen uses, so a path no member of
 // the layer reads is refused and a file that moved under the screen is not
 // overwritten. What comes back is what the screen shows after it: the version it
 // moved from and to, and the team definition whose next launch hands the change
 // over.
-func (p servePort) Bump(layer, path string) (homeview.Bump, error) {
+func (p servePort) Bump(layer, path string) (homeview.Answer, error) {
+	// A path no member of this layer reads is refused the way the rules screen
+	// refuses it, before the record is asked about the document.
+	if !p.reads(p.layerOf(path), path) {
+		return homeview.Answer{}, i18n.Errorf("error.rules_not_writable", p.env.Display(path))
+	}
 	read, err := p.ReadRule(path)
 	if err != nil {
-		return homeview.Bump{}, err
+		return homeview.Answer{}, err
 	}
 	document, err := rules.Parse(read.Text, path)
 	if err != nil {
-		return homeview.Bump{}, err
+		return homeview.Answer{}, err
+	}
+	// The record says whether this document can be raised at all: only the text
+	// the launch that read it wrote down can tell that it moved.
+	log, err := launchlog.Open()
+	if err != nil {
+		return homeview.Answer{}, err
+	}
+	records, err := log.Read()
+	if err != nil {
+		return homeview.Answer{}, err
+	}
+	launched, recorded := launchedDocs(records, layerDefinitions(p.env, layer), []source.Doc{{Path: path}})[path]
+	display := p.env.Display(path)
+	if !recorded {
+		return homeview.Answer{Why: i18n.Tf("error.bump_not_recorded", display)}, nil
+	}
+	before, err := log.Text(launched.Doc.SHA256)
+	if err != nil {
+		// The launch read the document and its text is not in the record, so the
+		// two cannot be compared: the screen cannot say it moved either.
+		return homeview.Answer{Why: i18n.Tf("error.bump_not_recorded", display)}, nil
+	}
+	if string(before) == read.Text {
+		return homeview.Answer{Why: i18n.Tf("error.bump_unchanged", display)}, nil
 	}
 	from := versionOf(document)
+	if from > launched.Doc.Revision {
+		return homeview.Answer{Why: i18n.Tf("error.bump_already_raised", display)}, nil
+	}
 	to := from + 1
 	document.Revision = &to
 	text, err := rules.Emit(document)
 	if err != nil {
-		return homeview.Bump{}, err
+		return homeview.Answer{}, err
 	}
 	if err := p.WriteRule(path, text, read.Hash); err != nil {
-		return homeview.Bump{}, err
+		return homeview.Answer{}, err
 	}
-	return homeview.Bump{
-		Path:       p.env.Display(path),
+	return homeview.Answer{Written: true, Raised: homeview.Bump{
+		Path:       display,
 		File:       path,
 		Layer:      p.layerOf(path),
 		From:       from,
 		To:         to,
 		Definition: p.definitionToRun(layer, path),
-	}, nil
+	}}, nil
 }
 
 // definitionToRun is the team definition whose next launch hands a document's
@@ -284,8 +332,9 @@ func (p servePort) Bump(layer, path string) (homeview.Bump, error) {
 // that definition still reads it, and otherwise the first definition of the
 // layer that reads it now. Empty when no definition of the layer reads it.
 func (p servePort) definitionToRun(layer, path string) string {
+	defs := layerDefinitions(p.env, layer)
 	var reading []layerDef
-	for _, def := range layerDefinitions(p.env, layer) {
+	for _, def := range defs {
 		if readsPath(def.cfg, path) {
 			reading = append(reading, def)
 		}
@@ -293,15 +342,16 @@ func (p servePort) definitionToRun(layer, path string) string {
 	if len(reading) == 0 {
 		return ""
 	}
+	// Only the layer's own records are read, so a launch of another project's
+	// definition of the same name is not what names the command (M1).
 	records := readRecords()
 	for i := len(records) - 1; i >= 0; i-- {
-		if !recordReads(records[i], path) {
+		def, mine := definitionOf(records[i], defs)
+		if !mine || !recordReads(records[i], path) {
 			continue
 		}
-		for _, def := range reading {
-			if def.name == records[i].Definition {
-				return def.name
-			}
+		if readsPath(def.cfg, path) {
+			return def.name
 		}
 		// The newest launch that read it belongs to a definition that no longer
 		// reads it; another definition that reads it now is named instead.
@@ -397,30 +447,28 @@ func (p servePort) Diff(layer string) homeview.Diff {
 	}
 	var out homeview.Diff
 	for _, def := range layerDefinitions(p.env, layer) {
-		rec, found := latestRecord(records, def.cfg.Layer, def.name)
+		_, found := latestRecord(records, def.cfg.TeamYAML.Path)
 		item := homeview.Definition{Name: def.name, Launched: found}
 		for i := range def.cfg.Members {
-			item.Members = append(item.Members, p.memberDiff(log, &def.cfg.Members[i], rec, found))
+			item.Members = append(item.Members, p.memberDiff(log, records, def, &def.cfg.Members[i]))
 		}
 		out.Definitions = append(out.Definitions, item)
 	}
 	return out
 }
 
-// memberDiff is one member's prompt against the one the record holds for it. A
-// member's short name is what lines the two up: a launch under another team name
-// is the same member, and its prompt differs where the name does.
-func (p servePort) memberDiff(log launchlog.Log, member *config.Member, rec launchlog.Record, found bool) homeview.Member {
+// memberDiff is one member's prompt against the one the newest launch of its team
+// definition that handed this member a prompt wrote down. A member's short name is
+// what lines the two up: a launch under another team name is the same member, and
+// its prompt differs where the name does.
+//
+// A launch that handed prompts to one member only (refresh, reprompt) says what
+// that member got and nothing about the others, so each member is compared with
+// the launch that last handed it one (M2).
+func (p servePort) memberDiff(log launchlog.Log, records []launchlog.Record, def layerDef, member *config.Member) homeview.Member {
 	diff := homeview.Member{Name: member.Name}
-	if !found {
-		return diff
-	}
-	was, ok := recordedMember(rec, member.ShortName)
+	text, ok := recordedPrompt(log, records, def.cfg.TeamYAML.Path, member.ShortName)
 	if !ok {
-		return diff
-	}
-	text, err := log.Text(was.Prompt)
-	if err != nil {
 		return diff
 	}
 	diff.Launched = true
@@ -430,6 +478,28 @@ func (p servePort) memberDiff(log launchlog.Log, member *config.Member, rec laun
 	}
 	diff.Lines = homeview.DiffLines(splitLines(string(text)), splitLines(member.Prompt))
 	return diff
+}
+
+// recordedPrompt is the prompt one member was last handed by a launch of one team
+// definition: the definition's records (matched by the team.yaml the launch read,
+// M1) are walked newest first, and the first that holds this member answers. A
+// launch of another project, or one that handed this member nothing, is skipped.
+func recordedPrompt(log launchlog.Log, records []launchlog.Record, teamYAML, short string) ([]byte, bool) {
+	for i := len(records) - 1; i >= 0; i-- {
+		if records[i].TeamYAML != teamYAML {
+			continue
+		}
+		member, ok := recordedMember(records[i], short)
+		if !ok {
+			continue
+		}
+		text, err := log.Text(member.Prompt)
+		if err != nil {
+			continue
+		}
+		return text, true
+	}
+	return nil, false
 }
 
 // recordedMember is what the record holds for one member of a definition, matched
@@ -470,9 +540,11 @@ func (p servePort) RuleHref(layer, path, id string) string {
 }
 
 // launchNote is what the team list shows about the last launch of a definition:
-// when it ran, the hash it wrote, and whether the files build that hash now.
-func (p servePort) launchNote(records []launchlog.Record, name, layer string) web.Team {
-	rec, ok := latestRecord(records, layer, name)
+// when it ran, the hash it wrote, and whether the files build that hash now. The
+// definition's team.yaml is what picks the record out of the machine's log, so
+// another project's launch of a definition of the same name is not it (M1).
+func (p servePort) launchNote(records []launchlog.Record, cfg *config.Config, name, layer string) web.Team {
+	rec, ok := latestRecord(records, cfg.TeamYAML.Path)
 	if !ok {
 		return web.Team{}
 	}

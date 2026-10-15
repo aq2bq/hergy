@@ -37,7 +37,8 @@
 
 - **The launch record's screens, and the team list's last-launch column**: `hergy
   serve` now opens a Home screen, at `/` (the team list moved to `/teams`) — the
-  steps of the daily flow, then what moved since the last launch (per document,
+  four steps of the daily flow, numbered, with the step this screen stands on
+  marked, then what moved since the last launch (per document,
   the rules it added, dropped and changed by id, and whether its version has
   moved past the one the launch read, which means the next `hergy up` hands the
   change over) and the rules with no check, each of which opens in the rules
@@ -52,6 +53,10 @@
   back with `rules.Emit`, through the same writer the rules screen uses, so a file
   that changed under the screen is refused and a document keeps its rules; the
   screen then names the command that hands the change over (`hergy up <name>`).
+  A write is refused unless the document moved since the launch that read it and
+  its version has not been raised since that launch, so a page left open, a
+  resend or a double press raises nothing. `hergy cheat` and `hergy cheat --ai`
+  name the screens, one line each.
   The team list carries one more column:
   when the definition was last launched from this machine, the head of the hash
   that launch wrote, and a mark when the files build a different hash now. On a

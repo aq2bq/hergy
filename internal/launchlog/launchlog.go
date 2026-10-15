@@ -262,16 +262,21 @@ func (l Log) Read() ([]Record, error) {
 	return out, nil
 }
 
-// Latest is the newest launch of one team definition in one layer, and whether
-// there is one. A launch of a team running under another name (--as) belongs to
-// the definition it was launched from.
-func (l Log) Latest(layer, definition string) (Record, bool, error) {
+// Latest is the newest launch of one team definition, and whether there is one. A
+// launch of a team running under another name (--as) belongs to the definition it
+// was launched from.
+//
+// The definition is named by the team.yaml its launch read: this machine's record
+// holds every project's launches, and two projects can hold a definition of the
+// same name, so the layer and the name alone would hand back another project's
+// launch (M1).
+func (l Log) Latest(teamYAML string) (Record, bool, error) {
 	records, err := l.Read()
 	if err != nil {
 		return Record{}, false, err
 	}
 	for i := len(records) - 1; i >= 0; i-- {
-		if records[i].Layer == layer && records[i].Definition == definition {
+		if records[i].TeamYAML == teamYAML {
 			return records[i], true, nil
 		}
 	}

@@ -4,25 +4,46 @@
    frame's variables (--fg, --muted, --line, --soft, --mark, --problem) come
    from there. */
 
-.steps {
+/* The step bar of the home (d-ff49, 試作 5 版): the four steps of the daily flow,
+   numbered, with the step this screen stands on marked. The bar says where the
+   flow is; the frame's navigation is what moves between the screens. */
+.guide {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 0 0 20px;
-  padding: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 8px;
   list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--soft);
   color: var(--muted);
   font-size: 13px;
-  counter-reset: step;
 }
 
-.steps li { counter-increment: step; }
-
-.steps li::before {
-  content: counter(step) ". ";
-  color: var(--mark);
-  font-weight: 700;
+.gstep {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
 }
+
+.gstep.cur { background: var(--mark); color: #fff; }
+
+.gnum {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+}
+
+.garrow { color: var(--muted); }
 
 section { margin: 0 0 24px; }
 

@@ -116,14 +116,14 @@ func TestTheBumpScreenRaisesTheDocumentTheFormNames(t *testing.T) {
 	port := fakePort{
 		home:   Home{Launched: true, Docs: []Doc{bumpedDoc()}},
 		bumped: &asked,
-		bump: Bump{
+		bump: Answer{Written: true, Raised: Bump{
 			Path:       ".hergy/teams/demo/protocol.yaml",
 			File:       "/proj/.hergy/teams/demo/protocol.yaml",
 			Layer:      web.LayerLocal,
 			From:       2,
 			To:         3,
 			Definition: "demo",
-		},
+		}},
 	}
 	screen := newBump(t, port)
 
@@ -206,7 +206,33 @@ func TestADocumentRaisedSinceTheLaunchIsMarkedAndStillListed(t *testing.T) {
 		Version: 3, Added: []string{"A9"}, Bumped: true,
 	}}}
 	bumps := home.Bumps()
-	if len(bumps) != 1 || !bumps[0].Raised {
+	if len(bumps) != 1 || !bumps[0].Already {
 		t.Fatalf("the screen would list %+v, want the raised document marked", bumps)
 	}
+}
+
+// TestTheBumpScreenSaysWhyItWroteNothing: a write the server refused (the record
+// does not hold the document, it has not moved, or its version was raised since
+// the launch that read it) shows the reason instead of a version that was raised.
+func TestTheBumpScreenSaysWhyItWroteNothing(t *testing.T) {
+	why := i18n.Tf("error.bump_unchanged", ".hergy/teams/demo/protocol.yaml")
+	port := fakePort{
+		home:   Home{Launched: true, Docs: []Doc{bumpedDoc()}},
+		bumped: &[]string{},
+		bump:   Answer{Why: why},
+	}
+	screen := newBump(t, port)
+
+	form := url.Values{"doc": {"/proj/.hergy/teams/demo/protocol.yaml"}, "token": {"t"}}
+	req := httptest.NewRequest(http.MethodPost, "/bump/save?layer=local", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	view, err := writeHandler(t, screen, "/bump/save")(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := string(view.Body)
+	mustContain(t, "the bump screen after a refused write", body, esc(why))
+	mustNotContain(t, "the bump screen after a refused write", body,
+		esc(i18n.Tf("web.bump.raised", ".hergy/teams/demo/protocol.yaml", 2, 3)))
 }

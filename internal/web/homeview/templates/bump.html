@@ -3,13 +3,15 @@
 {{- if .Home.Problem}}
 <p class="problem">{{.Home.Problem}}</p>
 {{- end}}
-{{- if .Raised}}
+{{- if .Answer.Written}}
 <section class="done">
-  <p class="raised">{{tf "web.bump.raised" .Raised.Path .Raised.From .Raised.To}}</p>
-  {{- if .Raised.Definition}}
-  <p class="next">{{inline (tf "web.bump.next" .Raised.Definition)}}</p>
+  <p class="raised">{{tf "web.bump.raised" .Answer.Raised.Path .Answer.Raised.From .Answer.Raised.To}}</p>
+  {{- if .Answer.Raised.Definition}}
+  <p class="next">{{inline (tf "web.bump.next" .Answer.Raised.Definition)}}</p>
   {{- end}}
 </section>
+{{- else if .Answer.Why}}
+<p class="problem">{{.Answer.Why}}</p>
 {{- end}}
 {{- if not .Home.Launched}}
 <p class="empty">{{inline (t "web.bump.no_record")}}</p>
@@ -24,7 +26,7 @@
     {{- if eq .Layer "global"}}
     <p class="caveat">{{t "web.bump.global"}}</p>
     {{- end}}
-    {{- if .Raised}}
+    {{- if .Already}}
     <p class="raised">{{t "web.bump.already"}}</p>
     {{- else}}
     <form method="post" action="/bump/save?layer={{$.Layer}}">

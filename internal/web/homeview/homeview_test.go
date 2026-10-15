@@ -18,7 +18,7 @@ type fakePort struct {
 	diff Diff
 	// bump is what a write answers with, and bumped records what the screen
 	// asked to raise (layer and path), so a test can see the form reach the app.
-	bump   Bump
+	bump   Answer
 	bumped *[]string
 	// bumpErr is what a write answers with instead, when a test asks for a
 	// refused write.
@@ -46,12 +46,12 @@ func (p fakePort) RuleHref(_, path, id string) string {
 	return "/rules?layer=" + path + "&rule=" + id
 }
 
-func (p fakePort) Bump(layer, path string) (Bump, error) {
+func (p fakePort) Bump(layer, path string) (Answer, error) {
 	if p.bumped != nil {
 		*p.bumped = append(*p.bumped, layer+" "+path)
 	}
 	if p.bumpErr != nil {
-		return Bump{}, p.bumpErr
+		return Answer{}, p.bumpErr
 	}
 	return p.bump, nil
 }
@@ -121,6 +121,31 @@ func TestTheHomeShowsWhatMovedAndWhatHasNoCheck(t *testing.T) {
 		`<a href="/rules?layer=local&amp;rule=C6">C6</a>`,
 	)
 	mustNotContain(t, "the home", body, i18n.T("web.home.changes.no_record"))
+}
+
+// TestTheHomeShowsTheStepBarWithTheCurrentStep: the home opens with the four
+// steps of the daily flow, numbered, and the step this screen stands on is
+// marked as the current one (試作 5 版).
+func TestTheHomeShowsTheStepBarWithTheCurrentStep(t *testing.T) {
+	screen, err := New(fakePort{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := render(t, screen, "/?layer=local")
+	mustContain(t, "the home", body,
+		`aria-label="`+esc(i18n.T("web.home.steps.label"))+`"`,
+		`<li class="gstep cur" aria-current="step"><span class="gnum">1</span>`+esc(i18n.T("web.home.step.changes"))+`</li>`,
+		`<li class="gstep"><span class="gnum">2</span>`+esc(i18n.T("web.home.step.fix"))+`</li>`,
+		`<li class="gstep"><span class="gnum">3</span>`+esc(i18n.T("web.home.step.diff"))+`</li>`,
+		`<li class="gstep"><span class="gnum">4</span>`+esc(i18n.T("web.home.step.bump"))+`</li>`,
+	)
+	if want := strings.Count(body, `class="garrow"`); want != 3 {
+		t.Errorf("the step bar holds %d arrows, want one between each pair of steps", want)
+	}
+	if got := strings.Count(body, `aria-current="step"`); got != 1 {
+		t.Errorf("the step bar marks %d steps as the current one, want 1", got)
+	}
 }
 
 // TestTheHomeSaysWhenNothingWasLaunched: with no record there is nothing to
@@ -291,7 +316,7 @@ func TestTheHomeScreenBringsItsStylesheet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the stylesheet is not in the screen's files: %v", err)
 	}
-	if !strings.Contains(string(text), ".steps") {
+	if !strings.Contains(string(text), ".guide") {
 		t.Errorf("the stylesheet does not carry the step bar:\n%s", text)
 	}
 }

@@ -1,10 +1,13 @@
 <h1>{{t "web.home.title"}}</h1>
 <p class="lede">{{tf "web.home.lede" .LayerName}}</p>
-<ol class="steps">
-  <li>{{t "web.home.step.changes"}}</li>
-  <li>{{t "web.home.step.fix"}}</li>
-  <li>{{t "web.home.step.diff"}}</li>
-  <li>{{t "web.home.step.bump"}}</li>
+<ol class="guide" aria-label="{{t "web.home.steps.label"}}">
+  <li class="gstep cur" aria-current="step"><span class="gnum">1</span>{{t "web.home.step.changes"}}</li>
+  <li class="garrow" aria-hidden="true">→</li>
+  <li class="gstep"><span class="gnum">2</span>{{t "web.home.step.fix"}}</li>
+  <li class="garrow" aria-hidden="true">→</li>
+  <li class="gstep"><span class="gnum">3</span>{{t "web.home.step.diff"}}</li>
+  <li class="garrow" aria-hidden="true">→</li>
+  <li class="gstep"><span class="gnum">4</span>{{t "web.home.step.bump"}}</li>
 </ol>
 {{- if .Home.Problem}}
 <p class="problem">{{.Home.Problem}}</p>

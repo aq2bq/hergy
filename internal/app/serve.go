@@ -43,7 +43,7 @@ func (p servePort) Teams(layer string) []web.Team {
 			continue
 		}
 		tally := ruleTally(cfg)
-		team := p.launchNote(records, row.Name, layer)
+		team := p.launchNote(records, cfg, row.Name, layer)
 		team.Name = row.Name
 		team.Members = len(cfg.Members)
 		team.Rules = tally.Total

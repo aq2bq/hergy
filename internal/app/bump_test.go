@@ -21,12 +21,19 @@ func TestBumpRaisesTheVersionAndKeepsTheDocument(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	mustRun(t, "up", "demo")
+	// The document moves after the launch, which is what a version is raised for.
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
+		"      - id: P1\n        text: one changed\n")
 
 	port := recordPort(t)
-	bumped, err := port.Bump(web.LayerLocal, protocol)
+	answer, err := port.Bump(web.LayerLocal, protocol)
 	if err != nil {
 		t.Fatalf("raising the version: %v", err)
 	}
+	if !answer.Written {
+		t.Fatalf("the bump wrote nothing: %+v", answer)
+	}
+	bumped := answer.Raised
 	if bumped.From != 1 || bumped.To != 2 {
 		t.Errorf("the bump went %d → %d, want 1 → 2", bumped.From, bumped.To)
 	}
@@ -65,13 +72,21 @@ func TestBumpWritesTheFirstVersion(t *testing.T) {
 	mustRun(t, "new", "demo", "--local")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+	writeFile(t, protocol, "version: 1\nsections:\n  - rules:\n      - id: P1\n        text: two\n")
 
-	bumped, err := recordPort(t).Bump(web.LayerLocal, protocol)
+	answer, err := recordPort(t).Bump(web.LayerLocal, protocol)
 	if err != nil {
 		t.Fatalf("raising the version: %v", err)
 	}
-	if bumped.From != 0 || bumped.To != 1 {
-		t.Errorf("the bump went %d → %d, want 0 → 1", bumped.From, bumped.To)
+	if !answer.Written {
+		t.Fatalf("the bump wrote nothing: %+v", answer)
+	}
+	if answer.Raised.From != 0 || answer.Raised.To != 1 {
+		t.Errorf("the bump went %d → %d, want 0 → 1", answer.Raised.From, answer.Raised.To)
 	}
 	raised, err := rules.Parse(readRule(t, protocol), protocol)
 	if err != nil {
@@ -79,6 +94,111 @@ func TestBumpWritesTheFirstVersion(t *testing.T) {
 	}
 	if raised.Revision == nil || *raised.Revision != 1 {
 		t.Errorf("the file writes revision %v, want 1", raised.Revision)
+	}
+}
+
+// TestBumpRefusesADocumentThatHasNotMoved: the screen lists the documents whose
+// content moved since the last launch, and a POST cannot raise one that did not:
+// the two texts are the same, so there is no change to hand over.
+func TestBumpRefusesADocumentThatHasNotMoved(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+	before := readRule(t, protocol)
+
+	answer, err := recordPort(t).Bump(web.LayerLocal, protocol)
+	if err != nil {
+		t.Fatalf("raising the version: %v", err)
+	}
+	if answer.Written || answer.Why == "" {
+		t.Fatalf("the bump wrote %+v, want a refusal with a reason", answer)
+	}
+	if after := readRule(t, protocol); after != before {
+		t.Errorf("the refused bump changed the file:\n%s", after)
+	}
+}
+
+// TestBumpRefusesASecondRaiseFromAStalePage: the page the person still has open
+// carries the version the document held before the first write. Posting it again
+// (a resend, a second press, the browser's back button) raises nothing: the
+// version is ahead of the one the launch that read the document read.
+func TestBumpRefusesASecondRaiseFromAStalePage(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one changed\n")
+
+	port := recordPort(t)
+	if answer, err := port.Bump(web.LayerLocal, protocol); err != nil || !answer.Written {
+		t.Fatalf("the first bump wrote %+v (%v), want the version raised", answer, err)
+	}
+	afterFirst := readRule(t, protocol)
+
+	answer, err := port.Bump(web.LayerLocal, protocol)
+	if err != nil {
+		t.Fatalf("raising the version again: %v", err)
+	}
+	if answer.Written || answer.Why == "" {
+		t.Fatalf("the second bump wrote %+v, want a refusal with a reason", answer)
+	}
+	if after := readRule(t, protocol); after != afterFirst {
+		t.Errorf("the refused second bump changed the file:\n%s", after)
+	}
+	// The screen says the document's version is already raised, and offers no
+	// button for it.
+	bumps := port.Home(web.LayerLocal).Bumps()
+	if len(bumps) != 1 || !bumps[0].Already {
+		t.Errorf("the screen offers %+v, want the document marked as already raised", bumps)
+	}
+}
+
+// TestBumpRefusesADocumentTheRecordDoesNotHold: a document a member reads now but
+// no launch of the layer ever read cannot be compared, so no version is raised in
+// it: the record is the only thing that says a document moved.
+func TestBumpRefusesADocumentTheRecordDoesNotHold(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	dir := filepath.Join(f.proj, ".hergy", "teams", "demo")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+
+	// The definition gains a document after the launch: the launch read nothing
+	// of it.
+	added := filepath.Join(dir, "added.yaml")
+	writeFile(t, added, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: A1\n        text: one\n")
+	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
+docs: [protocol.yaml, added.yaml]
+members:
+  - name: lead
+    role: lead
+    kind: claude
+  - name: builder
+    role: builder
+    kind: claude
+`)
+	before := readRule(t, added)
+
+	answer, err := recordPort(t).Bump(web.LayerLocal, added)
+	if err != nil {
+		t.Fatalf("raising the version: %v", err)
+	}
+	if answer.Written || answer.Why == "" {
+		t.Fatalf("the bump wrote %+v, want a refusal with a reason", answer)
+	}
+	if after := readRule(t, added); after != before {
+		t.Errorf("the refused bump changed the file:\n%s", after)
 	}
 }
 

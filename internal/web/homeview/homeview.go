@@ -44,8 +44,10 @@ type Port interface {
 	// app reads the document, raises the version it holds (a document with no
 	// version is at 0), and writes the document back the way the rules screen
 	// writes one: a path no member of the layer reads is refused, and a file
-	// that moved under the screen is not overwritten.
-	Bump(layer, path string) (Bump, error)
+	// that moved under the screen is not overwritten. A document the launch
+	// record does not hold, one that has not moved since that launch, and one
+	// whose version was raised since are refused too, and the answer says which.
+	Bump(layer, path string) (Answer, error)
 }
 
 // Home is the home screen's data.

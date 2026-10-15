@@ -2,6 +2,8 @@ package app
 
 import (
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -199,6 +201,108 @@ func TestTheDiffWithoutARecord(t *testing.T) {
 	for _, member := range diff.Definitions[0].Members {
 		if member.Launched || len(member.Lines) != 0 {
 			t.Errorf("%s shows a prompt that was never handed over: %v", member.Name, member.Lines)
+		}
+	}
+}
+
+// TestTheDiffKeepsThePromptOfTheLaunchBeforeAReprompt: reprompt hands a prompt to
+// one member, and the record of it holds that member alone. Every other member is
+// still compared with the launch that last handed it a prompt, so its diff does
+// not disappear (M2).
+func TestTheDiffKeepsThePromptOfTheLaunchBeforeAReprompt(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+	mustRun(t, "reprompt", "lead", "--team", "demo")
+
+	diff := recordPort(t).Diff(web.LayerLocal)
+	if len(diff.Definitions) != 1 || len(diff.Definitions[0].Members) != 2 {
+		t.Fatalf("the diff holds %+v, want the demo definition with both members", diff.Definitions)
+	}
+	for _, member := range diff.Definitions[0].Members {
+		if !member.Launched {
+			t.Errorf("%s says no prompt was handed over, although up handed it one", member.Name)
+		}
+		if !member.Same() {
+			t.Errorf("%s differs from the prompt up handed it:\n%v", member.Name, member.Lines)
+		}
+	}
+}
+
+// TestTheScreensCompareWithThisProjectsLaunch: the machine's record holds every
+// project's launches, and two projects can hold a local team definition of the
+// same name. The screens of one project compare with that project's launch: the
+// team.yaml a launch read is what tells the definitions apart (M1).
+func TestTheScreensCompareWithThisProjectsLaunch(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+
+	// Another project with a local definition of the same name, whose documents
+	// differ, launched last: its record is the newest one in the log.
+	other := filepath.Join(filepath.Dir(f.proj), "other")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", other, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	dir := filepath.Join(other, ".hergy", "teams", "demo")
+	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
+docs: [protocol.yaml]
+members:
+  - name: lead
+    role: lead
+    kind: claude
+`)
+	writeFile(t, filepath.Join(dir, "protocol.yaml"), "version: 1\nrevision: 4\nsections:\n  - rules:\n      - id: Q1\n        text: from the other project\n")
+	writeFile(t, filepath.Join(dir, "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: the role of the other project\n")
+	// The fake herdr remembers the agents it started; the other project starts
+	// the same names.
+	for _, name := range []string{"agents.txt", "tabs.txt"} {
+		if err := os.WriteFile(filepath.Join(f.cfg, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(other)
+	mustRun(t, "up", "demo")
+	t.Chdir(f.proj)
+
+	port := recordPort(t)
+	rows := port.Teams(web.LayerLocal)
+	if len(rows) != 1 {
+		t.Fatalf("the team list holds %d rows, want the demo definition", len(rows))
+	}
+	if !rows[0].Same {
+		t.Error("the team list compares this project's files with another project's launch")
+	}
+
+	diff := port.Diff(web.LayerLocal)
+	if len(diff.Definitions) != 1 {
+		t.Fatalf("the diff holds %+v, want the demo definition", diff.Definitions)
+	}
+	for _, member := range diff.Definitions[0].Members {
+		if !member.Launched || !member.Same() {
+			t.Errorf("%s is compared with another project's prompt:\n%v", member.Name, member.Lines)
+		}
+	}
+
+	home := port.Home(web.LayerLocal)
+	if !home.Launched {
+		t.Error("the home does not see this project's launch")
+	}
+	for _, doc := range home.Docs {
+		if doc.Changes() {
+			t.Errorf("the home compares %s with another project's launch: %v/%v/%v",
+				doc.Path, doc.Added, doc.Removed, doc.Changed)
 		}
 	}
 }

@@ -27,10 +27,25 @@ type Bump struct {
 	// Definition is the team definition to run after the bump, empty when no
 	// definition of the layer reads the document.
 	Definition string
-	// Raised is set when the version is already ahead of the one the last launch
-	// read: the document has been raised since, so the screen offers no button
-	// and says so.
-	Raised bool
+	// Already is set when the version is already ahead of the one the launch that
+	// read the document read: it has been raised since, so the screen offers no
+	// button and says so.
+	Already bool
+}
+
+// Answer is what a write answers with: the version it raised, or why it wrote
+// nothing. A page left open, a resend or a double press raises nothing, so the
+// screen shows the reason instead of a second bump (M3).
+type Answer struct {
+	// Written is set when a version was raised.
+	Written bool
+	// Raised is the document whose version was raised, with the version it moved
+	// from and to; the zero value when nothing was written.
+	Raised Bump
+	// Why is why nothing was written, as one line for the screen: the launch
+	// record does not hold the document, its content has not moved since the
+	// launch that read it, or its version has been raised since that launch.
+	Why string
 }
 
 // Bumps are the documents whose content moved since the last launch: what the
@@ -53,7 +68,7 @@ func (h Home) Bumps() []Bump {
 			From:       doc.Version,
 			To:         doc.Version + 1,
 			Definition: doc.Definition,
-			Raised:     doc.Bumped,
+			Already:    doc.Bumped,
 		})
 	}
 	return out
@@ -91,25 +106,27 @@ func (s *bumpScreen) Routes() []web.Route {
 }
 
 func (s *bumpScreen) show(r *http.Request) (web.View, error) {
-	return s.page(web.LayerOf(r), web.Token(r), nil)
+	return s.page(web.LayerOf(r), web.Token(r), Answer{})
 }
 
 // raise writes one document's version and answers the page with the line that
-// says what hands the change over. A write that is refused (a file that moved
-// under the screen, a path no member reads) is an error, which the frame shows
-// with its reason.
+// says what hands the change over. A write the server refuses because the
+// document cannot be raised (the record does not hold it, it has not moved, or
+// its version was already raised) answers the page with the reason, and a write
+// the writer refuses (a file that moved under the screen, a path no member
+// reads) is an error, which the frame shows with its reason.
 func (s *bumpScreen) raise(r *http.Request) (web.View, error) {
 	layer := web.LayerOf(r)
-	bumped, err := s.port.Bump(layer, r.PostFormValue("doc"))
+	answer, err := s.port.Bump(layer, r.PostFormValue("doc"))
 	if err != nil {
 		return web.View{}, err
 	}
-	return s.page(layer, web.Token(r), &bumped)
+	return s.page(layer, web.Token(r), answer)
 }
 
 // page renders the screen: what moved, what a bump writes, and, after a write,
 // what the bump did.
-func (s *bumpScreen) page(layer, token string, raised *Bump) (web.View, error) {
+func (s *bumpScreen) page(layer, token string, answer Answer) (web.View, error) {
 	home := s.port.Home(layer)
 	data := bumpData{
 		LayerName: i18n.Tf("web.layer.name", i18n.T("label."+layer)),
@@ -117,7 +134,7 @@ func (s *bumpScreen) page(layer, token string, raised *Bump) (web.View, error) {
 		Token:     token,
 		Home:      home,
 		Bumps:     home.Bumps(),
-		Raised:    raised,
+		Answer:    answer,
 	}
 	var buf bytes.Buffer
 	if err := s.templates.ExecuteTemplate(&buf, "bump.html", data); err != nil {
@@ -140,6 +157,7 @@ type bumpData struct {
 	Home Home
 	// Bumps is the documents whose content moved, and the version a bump writes.
 	Bumps []Bump
-	// Raised is the document this answer raised, when the write landed.
-	Raised *Bump
+	// Answer is what the last write did, or why it did nothing. The zero value
+	// on the page that was not written to.
+	Answer Answer
 }

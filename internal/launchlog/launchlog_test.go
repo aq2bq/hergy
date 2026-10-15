@@ -139,7 +139,7 @@ func TestReadWithoutALog(t *testing.T) {
 	if len(records) != 0 {
 		t.Errorf("Read() returned %d records, want none", len(records))
 	}
-	if _, ok, err := log.Latest("local", "demo"); err != nil || ok {
+	if _, ok, err := log.Latest("/p/.hergy/teams/demo/team.yaml"); err != nil || ok {
 		t.Errorf("Latest() = %v, %v, want none and no failure", ok, err)
 	}
 }
@@ -164,29 +164,37 @@ func TestReadNamesABrokenLine(t *testing.T) {
 }
 
 // TestLatestPicksTheNewestOfOneDefinition: the last launch of a team definition
-// wins, whatever command it was, and a launch of another definition or another
-// layer is not it.
+// wins, whatever command it was, and a launch of another definition — including a
+// definition of the same name in another project — is not it.
 func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 	log := testLog(t)
+	const (
+		demo   = "/proj/.hergy/teams/demo/team.yaml"
+		other  = "/proj/.hergy/teams/other/team.yaml"
+		global = "/cfg/hergy/teams/demo/team.yaml"
+	)
 	for _, rec := range []Record{
-		{Command: CommandUp, Layer: "local", Definition: "demo", Hash: "first"},
-		{Command: CommandUp, Layer: "global", Definition: "demo", Hash: "global"},
-		{Command: CommandUp, Layer: "local", Definition: "other", Hash: "other"},
-		{Command: CommandReprompt, Layer: "local", Definition: "demo", Hash: "last"},
+		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: demo, Hash: "first"},
+		{Command: CommandUp, Layer: "global", Definition: "demo", TeamYAML: global, Hash: "global"},
+		{Command: CommandUp, Layer: "local", Definition: "other", TeamYAML: other, Hash: "other"},
+		// The same definition name in another project: the team.yaml tells them
+		// apart, so this one is not the launch of the definition above (M1).
+		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: "/elsewhere/.hergy/teams/demo/team.yaml", Hash: "elsewhere"},
+		{Command: CommandReprompt, Layer: "local", Definition: "demo", TeamYAML: demo, Hash: "last"},
 	} {
 		if err := log.Append(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, ok, err := log.Latest("local", "demo")
+	got, ok, err := log.Latest(demo)
 	if err != nil || !ok {
 		t.Fatalf("Latest() = %v, %v", ok, err)
 	}
 	if got.Hash != "last" || got.Command != CommandReprompt {
-		t.Errorf("Latest(local, demo) = %+v, want the last launch of it", got)
+		t.Errorf("Latest(%s) = %+v, want the last launch of it", demo, got)
 	}
-	if _, ok, err := log.Latest("global", "other"); err != nil || ok {
-		t.Errorf("Latest(global, other) found a record: %v, %v", ok, err)
+	if _, ok, err := log.Latest("/nowhere/.hergy/teams/demo/team.yaml"); err != nil || ok {
+		t.Errorf("Latest() found a record for a definition no launch read: %v, %v", ok, err)
 	}
 }
 
