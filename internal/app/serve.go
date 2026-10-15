@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/homeview"
+	"github.com/aq2bq/hergy/internal/web/rulesview"
 )
 
 // servePort is what the app hands the screens: the same layers, the same team
@@ -86,9 +87,10 @@ func breakLine(env team.Env, path string, err error) string {
 // in flight. It reads the settings the way the other commands read them and
 // changes no file the screens do not write.
 //
-// The order here is the order of the navigation: the home first, because opening
-// hergy serve lands on it (d-ff49), then the team list, then the record's other
-// screens. A screen of another part is added on this line, in its place.
+// The order here is the order of the navigation, and it follows the daily flow:
+// the home first, because opening hergy serve lands on it (d-ff49), then the team
+// list, then the rules screen, then the record's other screens. A screen of
+// another part is added on this line, in its place.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
 	port := servePort{env: env}
 	home, err := homeview.New(port)
@@ -99,11 +101,15 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
+	rulesScreen, err := rulesview.New(port)
+	if err != nil {
+		return err
+	}
 	diff, err := homeview.NewDiff(port)
 	if err != nil {
 		return err
 	}
-	server, err := web.New(port, home, teams, diff)
+	server, err := web.New(port, home, teams, rulesScreen, diff)
 	if err != nil {
 		return err
 	}

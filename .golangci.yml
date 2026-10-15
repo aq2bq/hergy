@@ -37,7 +37,9 @@ linters:
         - G304
       config:
         # hergy が書く設定ファイルとディレクトリは利用者が読む物。umask に任せる。
+        # G302: 書き戻しは一時ファイルに 0644 で書いてから rename する。
         G301: "0755"
+        G302: "0644"
         G306: "0644"
     nolintlint:
       require-explanation: true

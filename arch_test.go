@@ -23,8 +23,10 @@ const modulePath = "github.com/aq2bq/hergy"
 // leaves import no package of this module.
 var leaves = []string{"i18n", "layout", "scaffold", "source", "version"}
 
-// topLayer is imported by internal/app only.
-var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web"}
+// topLayer is imported by internal/app only. A package nested under one of
+// these (internal/web/rulesview) is a part of it and may import its parent; the
+// nested package itself is listed too, so nothing but app reaches it.
+var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web", "web/rulesview"}
 
 // importsOf maps each non-test Go file to the module packages it imports,
 // as package names under internal/ ("app", "i18n", …); main.go is "main".
@@ -69,12 +71,14 @@ type fakeEntry struct{ fs.DirEntry }
 
 func (fakeEntry) IsDir() bool { return false }
 
-// packageOf is the package name a file under internal/ belongs to.
+// packageOf is the package a file under internal/ belongs to, as the path under
+// internal/ writes it: a package nested under another (internal/web/rulesview)
+// is told apart from its parent, because it is a package of its own.
 func packageOf(file string) string {
 	if file == "main.go" {
 		return "main"
 	}
-	return strings.Split(strings.TrimPrefix(file, "internal/"), "/")[0]
+	return strings.TrimPrefix(path.Dir(file), "internal/")
 }
 
 func TestImportDirection(t *testing.T) {
@@ -115,11 +119,12 @@ func TestImportDirection(t *testing.T) {
 				if !slices.Contains(topLayer, imp) {
 					continue
 				}
-				// A package nested inside a top-layer package (internal/web/homeview,
-				// the screens a person opens) is part of that layer, not a lower one
-				// reaching up: it renders through internal/web's frame, and app is
-				// still the one importer of the layer.
-				if pkg == imp {
+				// A package nested inside a top-layer package
+				// (internal/web/homeview, internal/web/rulesview) is part of
+				// that layer, not a lower one reaching up: it renders through
+				// internal/web's frame, and app is still the one importer of
+				// the layer.
+				if strings.HasPrefix(pkg, imp+"/") {
 					continue
 				}
 				t.Errorf("%s: internal/%s is imported by app only, not by %s", f, imp, pkg)

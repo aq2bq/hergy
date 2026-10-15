@@ -49,14 +49,6 @@ func layerDefinitions(env team.Env, layer string) []layerDef {
 	return out
 }
 
-// inLayer reports whether a row of the listing belongs to the layer being shown.
-func inLayer(row team.Listing, layer string) bool {
-	if layer == web.LayerGlobal {
-		return row.Global
-	}
-	return row.Local
-}
-
 // readRecords is this machine's launch record, oldest first, when it can be read.
 // The team list shows what it has without one: a record that cannot be read is
 // not a broken definition.

@@ -9,6 +9,8 @@ A hergy team's rules are files: a team's agreements in `protocol.yaml`, and one 
 
 This skill is for the person's side of that: writing a new team's rules, changing an existing team's rules, moving rules out of Markdown, and filling in the origins later. The shape of every key is in `hergy cheat --ai`; the format and the checks are what this skill walks through.
 
+The rules can also be changed on the screen: `hergy serve` shows the rule files of a layer, the counts, the three filters, and a panel for one rule, and it saves the file. Send the person there for a small fix they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, or an origin to fill in).
+
 ## What you keep to
 
 1. **The person writes no YAML and no long prose.** You ask one thing at a time, with the choices and your recommendation: for the text of a rule you offer a draft, and they choose or correct it. **The origin of a rule that is already there is never asked for from memory.** You build a candidate from the records — the git history and the gy ledger — and they answer yes, different, or I do not know, one rule at a time. The origin of a rule you are writing now is different: nobody has to remember anything, because the person is telling you why it is needed as they ask for it, and that answer is the rule's first record. You ask that one once, and it stops being asked about.
