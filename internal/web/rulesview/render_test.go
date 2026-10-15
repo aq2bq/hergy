@@ -230,6 +230,7 @@ func TestPanelRendersTheFieldsTheOriginAndThePreview(t *testing.T) {
 		"手番を渡す。",
 		"#6100", // the references of the origin, as they were read
 		`action="/rules/save"`,
+		`hx-target="#panel"`, // the right panel's id (web.PanelID)
 		`value="tok"`,
 	} {
 		if !strings.Contains(got, want) {

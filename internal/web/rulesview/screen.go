@@ -210,10 +210,10 @@ func addReportField(doc *rules.Document, name, field, where, description string)
 }
 
 // write emits the edited document and hands it to the Port. The hash comes from
-// the form, where it was put when the panel was drawn: it is the version the
-// person was looking at, so a file that changed under the screen (an AI editing
-// it through the hergy-rules skill, say) is refused rather than overwritten.
-// A refused write leaves the rule open with the reason on it.
+// the form, where it was put when the panel was first drawn: it is the version
+// the person was looking at, so a file that changed under the screen (an AI
+// editing it through the hergy-rules skill, say) is refused rather than
+// overwritten. A refused write leaves the rule open with the reason on it.
 func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url.Values, edit EditRule) (Answer, error) {
 	refuse := func(reason string) (Answer, error) {
 		body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
@@ -225,6 +225,9 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 			return Answer{}, err
 		}
 		return Answer{Body: body, Panel: panel}, nil
+	}
+	if err := guardWrite(shown, edit, values); err != nil {
+		return refuse(err.Error())
 	}
 	text, err := rules.Emit(next)
 	if err != nil {
@@ -239,11 +242,7 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 		}
 		return refuse(preview.Break)
 	}
-	hash := values.Get("hash")
-	if hash == "" {
-		hash = shown.Hash // a form from before the hash was carried: the read is the newest
-	}
-	if err := s.port.WriteRule(shown.Path, text, hash); err != nil {
+	if err := s.port.WriteRule(shown.Path, text, values.Get("hash")); err != nil {
 		return refuse(err.Error())
 	}
 	body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
@@ -251,6 +250,58 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 		return Answer{}, err
 	}
 	return Answer{Body: body}, nil
+}
+
+// guardWrite is what a write must know before it touches a file: the form
+// carried the hash of the version that was read, and the rule at that place is
+// still the one the panel was drawn for. Without the second check a file that
+// grew a rule before this one would take the edit into the wrong rule's place.
+func guardWrite(shown Doc, edit EditRule, values url.Values) error {
+	if values.Get("hash") == "" {
+		return i18n.Errorf("web.rules.error.no_hash")
+	}
+	if edit.Index < 0 {
+		return nil // a new rule goes at the end of its section: no place to have moved
+	}
+	origID := values.Get("orig_id")
+	if origID == "" || shown.Document == nil {
+		return i18n.Errorf("web.rules.error.moved")
+	}
+	if edit.Section < 0 || edit.Section >= len(shown.Document.Sections) {
+		return i18n.Errorf("web.rules.error.moved")
+	}
+	list := shown.Document.Sections[edit.Section].Rules
+	if edit.Index >= len(list) || list[edit.Index].ID != origID {
+		return i18n.Errorf("web.rules.error.moved")
+	}
+	return nil
+}
+
+// hashToCarry is the hash the form hands back at save time. A panel drawn again
+// from the form carries the hash it came with; only the first draw, which has
+// none, takes the hash of the file it just read. Redrawing must not refresh the
+// hash, or a file changed under the screen would pass the check (K1).
+func hashToCarry(shown Doc, values url.Values) string {
+	if hash := values.Get("hash"); hash != "" {
+		return hash
+	}
+	return shown.Hash
+}
+
+// idToCarry is the id the rule at this place had when the panel was first drawn,
+// carried the same way as the hash.
+func idToCarry(shown Doc, edit EditRule, values url.Values) string {
+	if id := values.Get("orig_id"); id != "" {
+		return id
+	}
+	if edit.Index < 0 || shown.Document == nil || edit.Section < 0 || edit.Section >= len(shown.Document.Sections) {
+		return ""
+	}
+	list := shown.Document.Sections[edit.Section].Rules
+	if edit.Index >= len(list) {
+		return ""
+	}
+	return list[edit.Index].ID
 }
 
 // panelData is one edit panel: the rule as the form holds it, the reports it may
@@ -267,6 +318,8 @@ func (s *Screen) panelData(layer, path string, values url.Values, edit EditRule,
 		Notice:       notice,
 		AskingDelete: asking,
 		Token:        values.Get("token"),
+		Hash:         hashToCarry(shown, values),
+		OrigID:       idToCarry(shown, edit, values),
 	}
 	data.Reports = ReportOptions(s.scope(layer, docs, shown))
 	data.Preview = s.previewOf(layer, shown, edit)

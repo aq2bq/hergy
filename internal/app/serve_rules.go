@@ -222,13 +222,23 @@ func hashText(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// writeFileBeside writes text to a file in the same directory and renames it
-// over path, so the file is either the old one or the new one, never half of
-// either. The temp file is 0644 like the file it replaces: hergy's files are
-// read by the person who runs it.
+// writeFileBeside writes text to a file beside the target and renames it over,
+// so a reader sees either the old file or the new one, never half of either.
+//
+// The target may be a link: a dotfiles setup keeps the files under
+// ~/.config/hergy as links, so the link is followed and the file it points at is
+// what is written. The link stays a link, and the mode stays the one the file
+// already had rather than a fresh 0644.
 func writeFileBeside(path, text string) error {
-	dir := filepath.Dir(path)
-	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	}
+	temp, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+".*")
 	if err != nil {
 		return err
 	}
@@ -247,10 +257,10 @@ func writeFileBeside(path, text string) error {
 	if err := temp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(name, 0o644); err != nil {
+	if err := os.Chmod(name, mode); err != nil {
 		return err
 	}
-	if err := os.Rename(name, path); err != nil {
+	if err := os.Rename(name, target); err != nil {
 		return err
 	}
 	name = "" // renamed: there is nothing left to remove

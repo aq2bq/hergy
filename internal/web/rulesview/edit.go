@@ -139,12 +139,20 @@ func ReportOptions(docs []Doc) []ReportOption {
 // Panel is the right panel with one rule open for editing, or with a new one
 // (New). Preview is the same rule as a member would read it, which the screen
 // refreshes while a person types.
+//
+// Hash and OrigID travel with the form and are handed back at save time: Hash is
+// the version of the file the panel was drawn from, and OrigID is the id the
+// rule at that place had then. A panel drawn again from the form (an origin
+// added) carries the two as they were, so a file that changed under the screen
+// is refused rather than written into another rule's place (K1).
 type Panel struct {
 	Layer   string
 	Doc     Doc
 	Edit    EditRule
 	Reports []ReportOption
 	Preview Preview
+	Hash    string
+	OrigID  string
 	Global  bool
 	New     bool
 	Token   string

@@ -187,7 +187,7 @@ func TestSaveBodyWritesTheEditedRule(t *testing.T) {
 	form := url.Values{
 		"token": {"tok"}, "layer": {LayerLocal}, "doc": {"protocol.yaml"},
 		"section": {"0"}, "i": {"1"}, "id": {"C2"}, "text": {"直した本文。"},
-		"send": {"1"}, "why": {"理由。"},
+		"send": {"1"}, "why": {"理由。"}, "hash": {hashOf(sample)}, "orig_id": {"C2"},
 	}
 	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
@@ -219,6 +219,7 @@ func TestSaveBodyAddsARuleAtTheEndOfItsSection(t *testing.T) {
 	screen := newScreen(t, port)
 	form := url.Values{
 		"token": {"tok"}, "section": {"0"}, "i": {"-1"}, "id": {"C7"}, "text": {"足した規則。"}, "send": {"1"},
+		"hash": {hashOf(sample)},
 	}
 	if _, err := screen.SaveBody(LayerLocal, "protocol.yaml", form); err != nil {
 		t.Fatalf("SaveBody: %v", err)
@@ -236,7 +237,8 @@ func TestSaveBodyComesBackToThePanelWhenTheWriteIsRefused(t *testing.T) {
 	port := newFake()
 	port.writeErr = fmt.Errorf("the file changed on disk")
 	screen := newScreen(t, port)
-	form := url.Values{"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"}, "send": {"1"}}
+	form := url.Values{"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"}, "send": {"1"},
+		"hash": {hashOf(sample)}, "orig_id": {"C1"}}
 	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
 		t.Fatalf("SaveBody: %v", err)
@@ -255,7 +257,8 @@ func TestSaveBodyComesBackToThePanelWhenTheWriteIsRefused(t *testing.T) {
 func TestDeleteBodyTakesTheRuleOut(t *testing.T) {
 	port := newFake()
 	screen := newScreen(t, port)
-	form := url.Values{"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"}}
+	form := url.Values{"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"},
+		"hash": {hashOf(sample)}, "orig_id": {"C1"}}
 	if _, err := screen.DeleteBody(LayerLocal, "protocol.yaml", form); err != nil {
 		t.Fatalf("DeleteBody: %v", err)
 	}
@@ -273,6 +276,7 @@ func TestReportBodyMakesTheShapeAndPointsTheRuleAtIt(t *testing.T) {
 	screen := newScreen(t, port)
 	form := url.Values{
 		"token": {"tok"}, "section": {"1"}, "i": {"0"}, "id": {"C3"}, "text": {"続きの節である。"}, "send": {"1"},
+		"hash": {hashOf(sample)}, "orig_id": {"C3"},
 		"report_name": {"完了報告"}, "report_where": {"Issue のコメント"},
 		"field_name": {"next_turn"}, "field_description": {"次に手番を持つ人"},
 	}
@@ -320,6 +324,127 @@ func TestPreviewBodyCarriesTheBreak(t *testing.T) {
 			t.Errorf("the preview is missing %q:\n%s", want, body)
 		}
 	}
+}
+
+// TestSaveBodyRefusesAWriteWithNoHash: the promise "the file has not changed"
+// cannot be kept without the version that was read, so a form that carries none
+// is refused rather than saved on the newest read (K1).
+func TestSaveBodyRefusesAWriteWithNoHash(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"x"}, "send": {"1"},
+	}
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if len(port.wrote) != 0 {
+		t.Errorf("a write with no hash wrote %d files", len(port.wrote))
+	}
+	if !strings.Contains(answer.Panel, i18n.T("web.rules.error.no_hash")) {
+		t.Errorf("the panel does not say why:\n%s", answer.Panel)
+	}
+}
+
+// TestSaveBodyRefusesWhenThePlaceIsNotTheRuleThatWasOpened: the edit points by
+// place, so a rule added before it (by an AI through the hergy-rules skill) would
+// make the edit land on another rule. The id the panel was drawn for is what
+// stops that (K1).
+func TestSaveBodyRefusesWhenThePlaceIsNotTheRuleThatWasOpened(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"1"}, "id": {"C9"}, "text": {"x"}, "send": {"1"},
+		"hash": {hashOf(sample)}, "orig_id": {"C9"},
+	}
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if len(port.wrote) != 0 {
+		t.Errorf("a write at a place that moved wrote %d files", len(port.wrote))
+	}
+	if !strings.Contains(answer.Panel, i18n.T("web.rules.error.moved")) {
+		t.Errorf("the panel does not say why:\n%s", answer.Panel)
+	}
+}
+
+// TestPanelFormCarriesTheHashItCameWith: drawing the panel again (an origin
+// added, the delete ask) must not refresh the hash from disk, or a file changed
+// under the screen would pass the check (K1).
+func TestPanelFormCarriesTheHashItCameWith(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"手番を渡す。"}, "send": {"1"},
+		"hash": {"the-hash-the-panel-was-drawn-with"}, "orig_id": {"C1"},
+		"origin_kind": {"incident"}, "origin_date": {"2026-09-25"}, "origin_refs": {"#6100"}, "origin_note": {"x"},
+		"add_origin": {"1"},
+	}
+	body, err := screen.PanelFormBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("PanelFormBody: %v", err)
+	}
+	if !strings.Contains(body, `name="hash" value="the-hash-the-panel-was-drawn-with"`) {
+		t.Errorf("the redrawn panel lost the hash it came with:\n%s", body)
+	}
+	if !strings.Contains(body, `name="orig_id" value="C1"`) {
+		t.Errorf("the redrawn panel lost the id it came with:\n%s", body)
+	}
+}
+
+// TestARedrawDoesNotLetAChangedFileThrough is the chain K1 describes: the panel
+// is opened, the file changes under it (an AI through the hergy-rules skill),
+// the person adds an origin, and the save is refused. The hash the redraw carries
+// is the one the panel was first drawn with, not the new file's.
+func TestARedrawDoesNotLetAChangedFileThrough(t *testing.T) {
+	port := newFake()
+	screen := newScreen(t, port)
+	first := hashOf(sample)
+	form := url.Values{
+		"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"}, "text": {"手番を渡す。"}, "send": {"1"},
+		"hash": {first}, "orig_id": {"C1"},
+		"origin_kind": {"incident"}, "origin_date": {"2026-09-25"}, "origin_refs": {"#6100"}, "origin_note": {"x"},
+		"add_origin": {"1"},
+	}
+	body, err := screen.PanelFormBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("PanelFormBody: %v", err)
+	}
+	hash, ok := hiddenValue(body, "hash")
+	if !ok || hash != first {
+		t.Fatalf("the redrawn panel carries hash %q, want the one it was drawn with", hash)
+	}
+
+	// The file changes under the screen.
+	port.files["protocol.yaml"] = sample + "\n# changed by someone else\n"
+	form.Set("hash", hash)
+	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if len(port.wrote) != 0 {
+		t.Errorf("a save over a file changed under the screen wrote %d files", len(port.wrote))
+	}
+	if !strings.Contains(answer.Panel, "the file changed on disk") {
+		t.Errorf("the panel does not carry the refusal back:\n%s", answer.Panel)
+	}
+}
+
+// hiddenValue is the value of one hidden field of a rendered panel.
+func hiddenValue(body, name string) (string, bool) {
+	marker := `name="` + name + `" value="`
+	_, after, ok := strings.Cut(body, marker)
+	if !ok {
+		return "", false
+	}
+	rest := after
+	before, _, ok := strings.Cut(rest, "\"")
+	if !ok {
+		return "", false
+	}
+	return before, true
 }
 
 func TestPanelFormBodyAddsAndRemovesAnOrigin(t *testing.T) {
@@ -393,7 +518,7 @@ func TestSaveBodyRefusesARuleTheReaderWouldBreak(t *testing.T) {
 	screen := newScreen(t, port)
 	form := url.Values{
 		"token": {"tok"}, "section": {"0"}, "i": {"1"}, "id": {"C2"},
-		"text": {"x"}, "send": {"1"}, "hash": {hashOf(sample)},
+		"text": {"x"}, "send": {"1"}, "hash": {hashOf(sample)}, "orig_id": {"C2"},
 	}
 	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
@@ -414,7 +539,7 @@ func TestSaveBodyCarriesTheHashThePanelWasDrawnWith(t *testing.T) {
 	// changed since then is refused, even though this request read it fresh.
 	form := url.Values{
 		"token": {"tok"}, "section": {"0"}, "i": {"0"}, "id": {"C1"},
-		"text": {"x"}, "send": {"1"}, "hash": {hashOf("not what is on disk")},
+		"text": {"x"}, "send": {"1"}, "hash": {hashOf("not what is on disk")}, "orig_id": {"C1"},
 	}
 	answer, err := screen.SaveBody(LayerLocal, "protocol.yaml", form)
 	if err != nil {
