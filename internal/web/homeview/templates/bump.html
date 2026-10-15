@@ -1,0 +1,39 @@
+<h1>{{t "web.bump.title"}}</h1>
+<p class="lede">{{inline (tf "web.bump.lede" .LayerName)}}</p>
+{{- if .Home.Problem}}
+<p class="problem">{{.Home.Problem}}</p>
+{{- end}}
+{{- if .Raised}}
+<section class="done">
+  <p class="raised">{{tf "web.bump.raised" .Raised.Path .Raised.From .Raised.To}}</p>
+  {{- if .Raised.Definition}}
+  <p class="next">{{inline (tf "web.bump.next" .Raised.Definition)}}</p>
+  {{- end}}
+</section>
+{{- end}}
+{{- if not .Home.Launched}}
+<p class="empty">{{inline (t "web.bump.no_record")}}</p>
+{{- else if not .Bumps}}
+<p class="empty">{{t "web.bump.none"}}</p>
+{{- else}}
+<ul class="bumps">
+  {{- range .Bumps}}
+  <li class="bump">
+    <h3>{{.Path}}</h3>
+    <p class="version">{{tf "web.bump.version" .From .To}}</p>
+    {{- if eq .Layer "global"}}
+    <p class="caveat">{{t "web.bump.global"}}</p>
+    {{- end}}
+    {{- if .Raised}}
+    <p class="raised">{{t "web.bump.already"}}</p>
+    {{- else}}
+    <form method="post" action="/bump/save?layer={{$.Layer}}">
+      <input type="hidden" name="token" value="{{$.Token}}">
+      <input type="hidden" name="doc" value="{{.File}}">
+      <button class="raise" type="submit">{{t "web.bump.raise"}}</button>
+    </form>
+    {{- end}}
+  </li>
+  {{- end}}
+</ul>
+{{- end}}

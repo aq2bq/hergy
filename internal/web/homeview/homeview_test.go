@@ -16,6 +16,13 @@ import (
 type fakePort struct {
 	home Home
 	diff Diff
+	// bump is what a write answers with, and bumped records what the screen
+	// asked to raise (layer and path), so a test can see the form reach the app.
+	bump   Bump
+	bumped *[]string
+	// bumpErr is what a write answers with instead, when a test asks for a
+	// refused write.
+	bumpErr error
 	// layers records what the screens asked for, so a test can see that the
 	// layer of the request reached the port.
 	layers *[]string
@@ -37,6 +44,16 @@ func (p fakePort) Diff(layer string) Diff {
 
 func (p fakePort) RuleHref(_, path, id string) string {
 	return "/rules?layer=" + path + "&rule=" + id
+}
+
+func (p fakePort) Bump(layer, path string) (Bump, error) {
+	if p.bumped != nil {
+		*p.bumped = append(*p.bumped, layer+" "+path)
+	}
+	if p.bumpErr != nil {
+		return Bump{}, p.bumpErr
+	}
+	return p.bump, nil
 }
 
 // render runs one screen's page with the query given and returns its body.

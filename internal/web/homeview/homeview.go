@@ -40,6 +40,12 @@ type Port interface {
 	// links into it; the path belongs to that screen, and this is the one place
 	// that knows it.
 	RuleHref(layer, path, id string) string
+	// Bump raises one document's version by one and answers what it wrote. The
+	// app reads the document, raises the version it holds (a document with no
+	// version is at 0), and writes the document back the way the rules screen
+	// writes one: a path no member of the layer reads is refused, and a file
+	// that moved under the screen is not overwritten.
+	Bump(layer, path string) (Bump, error)
 }
 
 // Home is the home screen's data.
@@ -59,6 +65,9 @@ type Home struct {
 type Doc struct {
 	// Path is where the document is, as a person writes it.
 	Path string
+	// File is where the document is on disk: what the bump form sends back, so
+	// a write names the file rather than the way it is shown.
+	File string
 	// Layer is which layer supplied it (web.LayerLocal, web.LayerGlobal).
 	Layer string
 	// Rules is how many rules the document holds now.
@@ -82,6 +91,11 @@ type Doc struct {
 	Bumped bool
 	// Version is the document's own version now; 0 when the file has none.
 	Version int
+	// Definition is the team definition whose launch this document is compared
+	// with: the newest launch that read it, among the definitions of the layer
+	// that read it now. Empty when no launch of the layer read it. It is what
+	// the bump screen names as the command that hands the change over.
+	Definition string
 }
 
 // Changes reports whether anything moved in the document since the last launch.

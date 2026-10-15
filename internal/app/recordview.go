@@ -140,9 +140,17 @@ func documentsOf(defs []layerDef) []source.Doc {
 	return out
 }
 
-// launchedDocs is what the record holds for each document: the entry of the
-// newest launch, among the definitions that read the document now, that read it.
-func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc) map[string]launchlog.Doc {
+// launchedDoc is what the record holds for one document: the newest launch,
+// among the definitions of the layer that read it now, that read it.
+type launchedDoc struct {
+	// Definition is the team definition that launch started.
+	Definition string
+	// Doc is what that launch wrote down about the document.
+	Doc launchlog.Doc
+}
+
+// launchedDocs is what the record holds for each document, by path.
+func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc) map[string]launchedDoc {
 	reading := map[string]bool{}
 	for _, def := range defs {
 		reading[def.cfg.Layer+"\x00"+def.name] = true
@@ -151,14 +159,15 @@ func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc
 	for _, doc := range docs {
 		wanted[doc.Path] = true
 	}
-	out := map[string]launchlog.Doc{}
+	out := map[string]launchedDoc{}
 	for _, rec := range records {
 		if !reading[rec.Layer+"\x00"+rec.Definition] {
 			continue
 		}
 		for _, doc := range rec.Docs {
 			if wanted[doc.Path] {
-				out[doc.Path] = doc // a later record overwrites an earlier one
+				// a later record overwrites an earlier one
+				out[doc.Path] = launchedDoc{Definition: rec.Definition, Doc: doc}
 			}
 		}
 	}
@@ -167,19 +176,20 @@ func launchedDocs(records []launchlog.Record, defs []layerDef, docs []source.Doc
 
 // homeDoc is one document of the layer: what it holds now, how that differs from
 // the last launch's text, and whether it has been given a new version since.
-func (p servePort) homeDoc(log launchlog.Log, doc source.Doc, launched map[string]launchlog.Doc) homeview.Doc {
+func (p servePort) homeDoc(log launchlog.Log, doc source.Doc, launched map[string]launchedDoc) homeview.Doc {
 	text, err := os.ReadFile(doc.Path)
 	if err != nil {
-		return homeview.Doc{Path: p.env.Display(doc.Path), Layer: doc.Layer}
+		return homeview.Doc{Path: p.env.Display(doc.Path), File: doc.Path, Layer: doc.Layer}
 	}
 	parsed, err := rules.Parse(string(text), doc.Path)
 	if err != nil {
 		// The definition that read it parsed it a moment ago; a file that broke
 		// since has nothing to show here.
-		return homeview.Doc{Path: p.env.Display(doc.Path), Layer: doc.Layer}
+		return homeview.Doc{Path: p.env.Display(doc.Path), File: doc.Path, Layer: doc.Layer}
 	}
 	entry := homeview.Doc{
 		Path:    p.env.Display(doc.Path),
+		File:    doc.Path,
 		Layer:   doc.Layer,
 		Rules:   len(parsed.Rules()),
 		Version: versionOf(parsed),
@@ -193,7 +203,8 @@ func (p servePort) homeDoc(log launchlog.Log, doc source.Doc, launched map[strin
 		}
 	}
 	if was, ok := launched[doc.Path]; ok {
-		p.changesSince(log, doc, text, was, &entry)
+		entry.Definition = was.Definition
+		p.changesSince(log, doc, text, was.Doc, &entry)
 	}
 	return entry
 }
@@ -227,6 +238,87 @@ func versionOf(doc *rules.Document) int {
 		return 0
 	}
 	return *doc.Revision
+}
+
+// Bump raises one document's version by one and writes the document back
+// (spec/10 の 7 節). The version is the only thing about it that changes: the
+// document is read, its version is raised (a file that writes none is at 0), and
+// the document is written with rules.Emit, never by hand (H5).
+//
+// The write goes through the writer the rules screen uses, so a path no member of
+// the layer reads is refused and a file that moved under the screen is not
+// overwritten. What comes back is what the screen shows after it: the version it
+// moved from and to, and the team definition whose next launch hands the change
+// over.
+func (p servePort) Bump(layer, path string) (homeview.Bump, error) {
+	read, err := p.ReadRule(path)
+	if err != nil {
+		return homeview.Bump{}, err
+	}
+	document, err := rules.Parse(read.Text, path)
+	if err != nil {
+		return homeview.Bump{}, err
+	}
+	from := versionOf(document)
+	to := from + 1
+	document.Revision = &to
+	text, err := rules.Emit(document)
+	if err != nil {
+		return homeview.Bump{}, err
+	}
+	if err := p.WriteRule(path, text, read.Hash); err != nil {
+		return homeview.Bump{}, err
+	}
+	return homeview.Bump{
+		Path:       p.env.Display(path),
+		File:       path,
+		Layer:      p.layerOf(path),
+		From:       from,
+		To:         to,
+		Definition: p.definitionToRun(layer, path),
+	}, nil
+}
+
+// definitionToRun is the team definition whose next launch hands a document's
+// change over: the definition of the newest launch that read the document, when
+// that definition still reads it, and otherwise the first definition of the
+// layer that reads it now. Empty when no definition of the layer reads it.
+func (p servePort) definitionToRun(layer, path string) string {
+	var reading []layerDef
+	for _, def := range layerDefinitions(p.env, layer) {
+		if readsPath(def.cfg, path) {
+			reading = append(reading, def)
+		}
+	}
+	if len(reading) == 0 {
+		return ""
+	}
+	records := readRecords()
+	for i := len(records) - 1; i >= 0; i-- {
+		if !recordReads(records[i], path) {
+			continue
+		}
+		for _, def := range reading {
+			if def.name == records[i].Definition {
+				return def.name
+			}
+		}
+		// The newest launch that read it belongs to a definition that no longer
+		// reads it; another definition that reads it now is named instead.
+		break
+	}
+	return reading[0].name
+}
+
+// recordReads reports whether one record holds a document, which is how a record
+// says that launch read it.
+func recordReads(rec launchlog.Record, path string) bool {
+	for _, doc := range rec.Docs {
+		if doc.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 // ruleLine is one rule of one text: its id, and what it carries.

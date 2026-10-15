@@ -89,8 +89,9 @@ func breakLine(env team.Env, path string, err error) string {
 //
 // The order here is the order of the navigation, and it follows the daily flow:
 // the home first, because opening hergy serve lands on it (d-ff49), then the team
-// list, then the rules screen, then the record's other screens. A screen of
-// another part is added on this line, in its place.
+// list, then the rules screen, then the record's other screens: the prompt diff,
+// then the version screen. A screen of another part is added on this line, in its
+// place.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
 	port := servePort{env: env}
 	home, err := homeview.New(port)
@@ -109,7 +110,11 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
-	server, err := web.New(port, home, teams, rulesScreen, diff)
+	bump, err := homeview.NewBump(port)
+	if err != nil {
+		return err
+	}
+	server, err := web.New(port, home, teams, rulesScreen, diff, bump)
 	if err != nil {
 		return err
 	}

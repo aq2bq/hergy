@@ -44,8 +44,15 @@
   screen's edit panel. It also opens a Prompt diff screen, at `/diff`: per team
   definition and member, the prompt the last launch handed over against the
   prompt the files build now, as a line diff (members whose prompt did not change
-  are folded away). Both screens read the record and the files through the app,
-  so no comparison happens in the page. The team list carries one more column:
+  are folded away). These screens read the record and the files through the app,
+  so no comparison happens in the page. It also opens a Version screen, at
+  `/bump`: the documents whose content moved since the last launch, each with the
+  version it holds and the one a bump writes (`n → n+1`; a document that writes
+  no version is at 0, so the first bump writes 1). Raising one writes the document
+  back with `rules.Emit`, through the same writer the rules screen uses, so a file
+  that changed under the screen is refused and a document keeps its rules; the
+  screen then names the command that hands the change over (`hergy up <name>`).
+  The team list carries one more column:
   when the definition was last launched from this machine, the head of the hash
   that launch wrote, and a mark when the files build a different hash now. On a
   machine that has never launched a team, the home and the diff say so and name

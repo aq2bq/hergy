@@ -104,3 +104,59 @@ pre.diff {
 pre.diff .line { display: block; white-space: pre-wrap; }
 pre.diff .plus { background: #e8f6ec; color: #14532d; }
 pre.diff .minus { background: #fdecea; color: #7a1c0e; }
+
+/* The version screen: the documents whose content moved since the last launch,
+   each with the version a bump writes, and the line that says what to run
+   after it. */
+.bumps { margin: 0; padding: 0; list-style: none; }
+
+.bump {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.bump h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.version {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.caveat {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  background: #fff7e6;
+  border-radius: 4px;
+  color: #6b4a00;
+  font-size: 13px;
+}
+
+.raised { margin: 0 0 6px; color: var(--verify); font-size: 13px; }
+
+.done {
+  border-left: 3px solid var(--verify);
+  padding-left: 10px;
+}
+
+.done p { margin: 0 0 4px; }
+.done .raised { font-weight: 600; }
+
+button.raise {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+button.raise:hover { border-color: var(--muted); }
