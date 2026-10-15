@@ -23,6 +23,7 @@ func (s *Screen) Routes() []web.Route {
 		{Path: PathSave, Write: true, Handler: s.save},
 		{Path: PathDelete, Write: true, Handler: s.delete},
 		{Path: PathReport, Write: true, Handler: s.report},
+		{Path: PathBump, Write: true, Handler: s.bump},
 	}
 }
 
@@ -33,7 +34,17 @@ func (s *Screen) show(r *http.Request) (web.View, error) {
 	query := r.URL.Query()
 	layer := web.LayerOf(r)
 	doc := query.Get("doc")
-	data := s.rulesData(layer, doc, query.Get("filter"))
+	data := s.rulesData(RulesQuery{
+		Layer:   layer,
+		Path:    doc,
+		Filter:  query.Get("filter"),
+		Tab:     query.Get("tab"),
+		Raw:     query.Get("raw") != "",
+		Overlay: query.Get("overlay") != "",
+	})
+	// The changes tab raises a version through a form, and every write names the
+	// token of this run (web.checkWrite).
+	data.Token = web.Token(r)
 	view := web.View{Title: s.Name(), Doc: data.Doc.Path}
 	if id := query.Get("rule"); id != "" {
 		drawer, ok, err := s.PanelFor(layer, data.Doc.Path, id, web.Token(r))
@@ -94,6 +105,26 @@ func (s *Screen) delete(r *http.Request) (web.View, error) {
 
 func (s *Screen) report(r *http.Request) (web.View, error) {
 	return s.answer(s.ReportBody(web.LayerOf(r), r.PostForm.Get("doc"), r.PostForm))
+}
+
+// bump raises one document's version from the changes tab (spec/10 の 7 節) and
+// draws that tab again: what the version moved to, or why nothing was written.
+// It is the write the home screen's /bump makes, through the same checks.
+func (s *Screen) bump(r *http.Request) (web.View, error) {
+	layer := web.LayerOf(r)
+	path := r.PostForm.Get("doc")
+	answer, err := s.port.Bump(layer, path)
+	if err != nil {
+		return web.View{}, err
+	}
+	data := s.rulesData(RulesQuery{Layer: layer, Path: path, Tab: TabChanges})
+	data.Bump = answer
+	data.Token = web.Token(r)
+	body, err := s.render.Rules(data)
+	if err != nil {
+		return web.View{}, err
+	}
+	return web.View{Title: s.Name(), Doc: path, Body: web.HTML(body)}, nil
 }
 
 // answer turns one write into the page: the rules screen, with the rule that

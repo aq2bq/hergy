@@ -302,7 +302,7 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
-	rulesScreen, err := rulesview.New(port)
+	rulesScreen, err := rulesview.New(rulesPort{port})
 	if err != nil {
 		return err
 	}

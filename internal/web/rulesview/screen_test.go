@@ -4,11 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
@@ -37,6 +39,9 @@ type fakePort struct {
 	previewErr error
 	writeErr   error
 	changes    int
+	docChanges DocChanges
+	bump       BumpAnswer
+	bumpErr    error
 	wrote      []edit
 }
 
@@ -99,6 +104,22 @@ func (p *fakePort) Preview(_, _ string, _ int, _ string) (Preview, error) {
 
 func (p *fakePort) Changes(string) int { return p.changes }
 
+func (p *fakePort) DocChanges(string, string) DocChanges { return p.docChanges }
+
+func (p *fakePort) Bump(string, string) (BumpAnswer, error) {
+	if p.bumpErr != nil {
+		return BumpAnswer{}, p.bumpErr
+	}
+	if p.bump.Written {
+		// The version the write raised is what the next read sees, the way the
+		// app reads the file back: the document is now at the new version and
+		// ahead of the launch that read it.
+		p.docChanges.Version = p.bump.To
+		p.docChanges.Bumped = true
+	}
+	return p.bump, nil
+}
+
 func newScreen(t *testing.T, port Port) *Screen {
 	t.Helper()
 	screen, err := New(port)
@@ -110,7 +131,7 @@ func newScreen(t *testing.T, port Port) *Screen {
 
 func TestRulesBodyShowsTheDocumentAndItsCounts(t *testing.T) {
 	screen := newScreen(t, newFake())
-	body, err := screen.RulesBody(LayerLocal, "", FilterAll)
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Filter: FilterAll})
 	if err != nil {
 		t.Fatalf("RulesBody: %v", err)
 	}
@@ -181,7 +202,7 @@ func TestPanelBodyCloseAndAPlaceThatIsNotThere(t *testing.T) {
 	if _, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"9"}, "i": {"0"}}); err == nil {
 		t.Error("a rule that is not there was not refused")
 	}
-	if _, err := screen.RulesBody(LayerGlobal, "", FilterAll); err != nil {
+	if _, err := screen.RulesBody(RulesQuery{Layer: LayerGlobal, Filter: FilterAll}); err != nil {
 		t.Errorf("a layer with no team definition: %v", err)
 	}
 }
@@ -657,4 +678,306 @@ func cloneValues(values url.Values) url.Values {
 		out[key] = append([]string(nil), list...)
 	}
 	return out
+}
+
+// TestTheRulesScreenHasFourTabs: the band draws the four views of one document,
+// the one ?tab= names is marked, and every tab is a link, so the tabs work with
+// no script.
+func TestTheRulesScreenHasFourTabs(t *testing.T) {
+	screen := newScreen(t, newFake())
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	for _, key := range []string{"web.rules.tab.rules", "web.rules.tab.prompt", "web.rules.tab.changes", "web.rules.tab.yaml"} {
+		if !strings.Contains(body, i18n.T(key)) {
+			t.Errorf("the tab band is missing %q:\n%s", key, body)
+		}
+	}
+	// The open tab is the marked link; the rules tab is the screen's own URL, so
+	// it carries no tab value.
+	for _, want := range []string{
+		`href="/rules?layer=local&amp;doc=protocol.yaml&amp;tab=prompt" aria-current="true"`,
+		`href="/rules?layer=local&amp;doc=protocol.yaml"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the tab band is missing %q:\n%s", want, body)
+		}
+	}
+}
+
+// TestThePromptTabDrawsTheDocumentAndOpensARule: the prompt tab draws the
+// document the way a member reads it, and each rule opens the right panel at the
+// same place the rules list opens it.
+func TestThePromptTabDrawsTheDocumentAndOpensARule(t *testing.T) {
+	screen := newScreen(t, newFake())
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	chars := utf8.RuneCountInString(sampleDoc(t, LayerLocal).Document.Markdown())
+	for _, want := range []string{
+		i18n.Tf("web.rules.prompt.lede", chars),
+		`class="r-h r-h2"`,   // the section heading, at level 2
+		`class="r-list ids"`, // the section says ids
+		`class="r-rule"`,     // one rule
+		`class="gut"`,        // its id in the margin
+		`<span class="r-p">`,
+		// The rule opens the panel the same way the list does.
+		`hx-get="/rules/panel?layer=local&amp;doc=protocol.yaml&amp;section=0&amp;i=0"`,
+		`hx-target="#drawer" hx-swap="outerHTML"`,
+		i18n.T("web.rules.prompt.raw"),
+		i18n.T("web.rules.prompt.overlay"),
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the prompt tab is missing %q:\n%s", want, body)
+		}
+	}
+	// With the overlay off, nothing the prompt leaves out is drawn, and the
+	// rules tab's own list is not drawn beside the prompt.
+	if strings.Contains(body, `class="unsent"`) {
+		t.Errorf("the overlay is off but the prompt tab draws what it leaves out:\n%s", body)
+	}
+	if strings.Contains(body, `class="rules"`) {
+		t.Errorf("the prompt tab draws the rules list as well:\n%s", body)
+	}
+}
+
+// TestThePromptTabShowsTheMarkdownAsItIs: the raw switch shows the Markdown hergy
+// hands over, with its lines kept, and the overlay cannot be turned on while it
+// is shown.
+func TestThePromptTabShowsTheMarkdownAsItIs(t *testing.T) {
+	screen := newScreen(t, newFake())
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Raw: true, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	md := sampleDoc(t, LayerLocal).Document.Markdown()
+	if want := `<div class="render raw"><pre>` + template.HTMLEscapeString(md) + `</pre></div>`; !strings.Contains(body, want) {
+		t.Errorf("the raw view does not show the Markdown as it is:\n%s", body)
+	}
+	if strings.Contains(body, `class="r-rule"`) {
+		t.Errorf("the raw view also draws the rules:\n%s", body)
+	}
+	// The Markdown keeps its lines: the heading is followed by a blank line.
+	if !strings.Contains(body, "\n\n") {
+		t.Errorf("the raw view lost the Markdown's blank lines:\n%s", body)
+	}
+	// The overlay switch is disabled while the Markdown is shown.
+	if !strings.Contains(body, `aria-disabled="true"`) {
+		t.Errorf("the overlay switch is not disabled while the Markdown is shown:\n%s", body)
+	}
+}
+
+// unsentSample is a document whose rule carries everything the prompt leaves out:
+// an origin, a reason send_why keeps out, and a note.
+const unsentSample = `version: 1
+sections:
+  - style: bullets
+    rules:
+      - id: C1
+        text: 送る本文。
+        why: 送らない理由。
+        send_why: false
+        note: メモである。
+        origin:
+          - kind: incident
+            date: 2026-09-25
+            refs: ["#6100"]
+`
+
+// TestThePromptTabShowsWhatThePromptLeavesOut: the overlay draws the pieces the
+// prompt leaves out under each rule — where it came from, a reason send_why keeps
+// out, and the note — and says when a rule leaves nothing out.
+func TestThePromptTabShowsWhatThePromptLeavesOut(t *testing.T) {
+	port := newFake()
+	port.files["protocol.yaml"] = unsentSample
+	body, err := newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Overlay: true, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	for _, want := range []string{
+		`class="unsent"`,
+		i18n.T("web.rules.prompt.unsent.origin"),
+		i18n.T("web.rules.prompt.unsent.why"),
+		"送らない理由。",
+		i18n.T("web.rules.prompt.unsent.note"),
+		"メモである。",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the overlay is missing %q:\n%s", want, body)
+		}
+	}
+
+	// A rule that leaves nothing out says so, and the switch is off by default.
+	plain, err := newScreen(t, newFake()).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Overlay: true, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(plain, i18n.T("web.rules.prompt.unsent.none")) {
+		t.Errorf("a rule that leaves nothing out is not said so:\n%s", plain)
+	}
+	off, err := newScreen(t, newFake()).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabPrompt, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if strings.Contains(off, `class="unsent"`) {
+		t.Errorf("the overlay is off but what the prompt leaves out is drawn:\n%s", off)
+	}
+}
+
+// TestTheChangesTabDrawsWhatMovedAndOffersTheBump: the changes tab draws the same
+// rows the home screen draws, and offers to raise the version by the same write
+// the home screen's /bump makes. Nothing here puts a change back.
+func TestTheChangesTabDrawsWhatMovedAndOffersTheBump(t *testing.T) {
+	port := newFake()
+	port.docChanges = DocChanges{
+		Recorded: true,
+		Version:  3,
+		Added:    []ChangeRule{{ID: "C7", Section: "通信", Href: "/rules?layer=local&doc=protocol.yaml&rule=C7", Diffs: []ChangePart{{After: "足した。"}}}},
+		Removed:  []ChangeRule{{ID: "C8", Diffs: []ChangePart{{Before: "消した。"}}}},
+		Changed:  []ChangeRule{{ID: "C1", Fields: []string{"text"}, Diffs: []ChangePart{{Before: "前。", After: "後。"}}}},
+	}
+	body, err := newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabChanges, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	for _, want := range []string{
+		`class="ck added"`,
+		`class="ck removed"`,
+		`class="ck changed"`,
+		"<ins>",
+		"<del>",
+		// An added or changed rule opens in the rules screen.
+		`<a class="linkbtn" href="/rules?layer=local&amp;doc=protocol.yaml&amp;rule=C7">`,
+		`action="/rules/bump?layer=local"`,
+		template.HTMLEscapeString(i18n.T("web.bump.raise")),
+		i18n.Tf("web.bump.version", 3, 4),
+		`name="doc" value="protocol.yaml"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the changes tab is missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "元に戻す") {
+		t.Errorf("the changes tab offers to put a change back:\n%s", body)
+	}
+}
+
+// TestTheChangesTabSaysWhenThereIsNoRecordOrTheVersionWasRaised: a document no
+// launch read says so, and a document whose version was already raised offers no
+// button and says the version is ahead.
+func TestTheChangesTabSaysWhenThereIsNoRecordOrTheVersionWasRaised(t *testing.T) {
+	port := newFake()
+	port.docChanges = DocChanges{Recorded: true, Version: 3, Bumped: true, Changed: []ChangeRule{{ID: "C1", Diffs: []ChangePart{{Before: "前。", After: "後。"}}}}}
+	body, err := newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabChanges, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(body, `<p class="saved">`+i18n.Tf("web.home.changes.bumped", 3)) {
+		t.Errorf("a version that was already raised is not said:\n%s", body)
+	}
+	if strings.Contains(body, `action="/rules/bump`) {
+		t.Errorf("a version that was already raised still offers the button:\n%s", body)
+	}
+
+	port.docChanges = DocChanges{}
+	body, err = newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabChanges, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(body, noRecordLead(i18n.T("web.home.changes.no_record"))) {
+		t.Errorf("a document with no record does not say so:\n%s", body)
+	}
+}
+
+// noRecordLead is the head of a message up to its first `code` span: the words
+// the screen shows before the command it names, so a test can find it whatever
+// the inline rule does with the part after it.
+func noRecordLead(text string) string {
+	lead, _, _ := strings.Cut(text, "`")
+	return strings.TrimSpace(lead)
+}
+
+// TestTheChangesTabBumpRaisesTheVersion: the form the changes tab writes is the
+// write of the home screen's /bump, and the page comes back saying what rose.
+func TestTheChangesTabBumpRaisesTheVersion(t *testing.T) {
+	port := newFake()
+	port.docChanges = DocChanges{Recorded: true, Version: 3, Added: []ChangeRule{{ID: "C7", Diffs: []ChangePart{{After: "足した。"}}}}}
+	port.bump = BumpAnswer{Written: true, From: 3, To: 4}
+	req := httptest.NewRequest(http.MethodPost, "/rules/bump?layer=local", strings.NewReader("doc=protocol.yaml&token=tok"))
+	if err := req.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	view, err := newScreen(t, port).bump(req)
+	if err != nil {
+		t.Fatalf("bump: %v", err)
+	}
+	body := string(view.Body)
+	if want := i18n.Tf("web.bump.raised", ".hergy/protocol.yaml", 3, 4); !strings.Contains(body, want) {
+		t.Errorf("the bump page does not say what rose (%q):\n%s", want, body)
+	}
+	// The version the write raised was handed to the answer, so the button is
+	// gone and the tab shows the version ahead.
+	if want := i18n.Tf("web.home.changes.bumped", 4); !strings.Contains(body, template.HTMLEscapeString(want)) {
+		t.Errorf("the bumped document is not said:\n%s", body)
+	}
+}
+
+// TestTheYAMLTabShowsTheFileAndTheChecks: the YAML tab shows the file as it is on
+// disk, with a button that copies it, and the break the reader names, or that
+// there is none.
+func TestTheYAMLTabShowsTheFileAndTheChecks(t *testing.T) {
+	port := newFake()
+	port.preview = Preview{Break: "protocol.yaml: C2: text is blank"}
+	body, err := newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabYAML, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	for _, want := range []string{
+		`<pre id="yaml-src">` + template.HTMLEscapeString(sample) + `</pre>`,
+		`data-copy="#yaml-src"`,
+		`data-copied="` + i18n.T("web.copy.done") + `"`,
+		`<div class="code check"><pre>protocol.yaml: C2: text is blank</pre></div>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the YAML tab is missing %q:\n%s", want, body)
+		}
+	}
+
+	// A document the reader found sound says so instead of drawing a break.
+	port.preview = Preview{}
+	body, err = newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabYAML, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(body, i18n.T("web.rules.yaml.ok")) {
+		t.Errorf("a sound document does not say so:\n%s", body)
+	}
+	if strings.Contains(body, `class="code check"`) {
+		t.Errorf("a sound document draws a break:\n%s", body)
+	}
+}
+
+// TestTheDocumentLineCountsTheChanges: the document's own line says how many
+// rules moved in it since the last launch, and marks the version dirty.
+func TestTheDocumentLineCountsTheChanges(t *testing.T) {
+	port := newFake()
+	port.docChanges = DocChanges{
+		Recorded: true,
+		Version:  3,
+		Added:    []ChangeRule{{ID: "C7"}},
+		Removed:  []ChangeRule{{ID: "C8"}},
+		Changed:  []ChangeRule{{ID: "C1"}},
+	}
+	body, err := newScreen(t, port).RulesBody(RulesQuery{Layer: LayerLocal, Path: "protocol.yaml", Tab: TabRules, Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	if !strings.Contains(body, `<span class="rev dirty">`) {
+		t.Errorf("the document line is not marked dirty:\n%s", body)
+	}
+	if want := i18n.Tf("web.rules.doc.since", 3); !strings.Contains(body, want) {
+		t.Errorf("the document line does not count the changes (%q):\n%s", want, body)
+	}
 }

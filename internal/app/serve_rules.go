@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
+	"github.com/aq2bq/hergy/internal/web/homeview"
 	"github.com/aq2bq/hergy/internal/web/rulesview"
 )
 
@@ -54,6 +55,76 @@ func (p servePort) Changes(layer string) int {
 		total += change.count
 	}
 	return total
+}
+
+// rulesPort is the rules screen's port: the app behind every screen (servePort),
+// with the two reads the rules screen makes in its own words. Everything else is
+// the same read the other screens make, so the rules screen and the home screen
+// cannot disagree about a document.
+type rulesPort struct{ servePort }
+
+// DocChanges is what the launch record says moved in one document since the
+// launch that last read it, in the words the rules screen draws. It is the home
+// screen's own comparison (p.Home), mapped: the two cannot disagree (d-0a25).
+func (p rulesPort) DocChanges(layer, path string) rulesview.DocChanges {
+	for _, doc := range p.Home(layer).Docs {
+		if doc.File != path {
+			continue
+		}
+		return rulesview.DocChanges{
+			// A launch read the document when it carries the time and the
+			// definition that launch wrote, the same way the home screen tells.
+			Recorded: doc.Launched != "",
+			Version:  doc.Version,
+			Bumped:   doc.Bumped,
+			Added:    changeRules(p, layer, doc.File, doc.Added),
+			Removed:  changeRules(p, layer, doc.File, doc.Removed),
+			Changed:  changeRules(p, layer, doc.File, doc.Changed),
+			Whole:    doc.Whole,
+			Missing:  doc.Missing,
+		}
+	}
+	return rulesview.DocChanges{}
+}
+
+// changeRules maps one document's moved rules into the words the rules screen
+// draws, each with where its own panel opens the rule.
+func changeRules(p rulesPort, layer, path string, rules []homeview.Rule) []rulesview.ChangeRule {
+	out := make([]rulesview.ChangeRule, 0, len(rules))
+	for _, rule := range rules {
+		out = append(out, rulesview.ChangeRule{
+			ID:      rule.ID,
+			Section: rule.Section,
+			Fields:  rule.Fields,
+			Diffs:   changeParts(rule.Diffs),
+			Href:    p.RuleHref(layer, path, rule.ID),
+		})
+	}
+	return out
+}
+
+// changeParts is one moved rule's parts in the words the rules screen draws.
+func changeParts(parts []homeview.Part) []rulesview.ChangePart {
+	out := make([]rulesview.ChangePart, 0, len(parts))
+	for _, part := range parts {
+		out = append(out, rulesview.ChangePart{Before: part.Before, After: part.After})
+	}
+	return out
+}
+
+// Bump raises one document's version from the changes tab. It is the write the
+// home screen's /bump makes, through the same checks (spec/10 の 7 節), answered
+// in the words the rules screen draws: the version it moved from and to, or why
+// nothing was written.
+func (p rulesPort) Bump(layer, path string) (rulesview.BumpAnswer, error) {
+	answer, err := p.servePort.Bump(layer, path)
+	if err != nil {
+		return rulesview.BumpAnswer{}, err
+	}
+	if !answer.Written {
+		return rulesview.BumpAnswer{Why: answer.Why}, nil
+	}
+	return rulesview.BumpAnswer{Written: true, From: answer.Raised.From, To: answer.Raised.To}, nil
 }
 
 // ruleTeam is one team definition as the rules screen reads it. Each file

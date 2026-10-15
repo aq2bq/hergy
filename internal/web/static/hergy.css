@@ -67,8 +67,8 @@ h2{font-size:17px;margin:0;text-wrap:balance}
 .rev{font-family:var(--font-mono);font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--ink);background:var(--surface)}
 .rev.dirty{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
 .subtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
-.subtabs button{border:0;background:none;padding:8px 0;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.subtabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.subtabs a{border:0;background:none;padding:8px 0;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.subtabs a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
 
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 11px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
@@ -500,8 +500,8 @@ html,body{margin:0}
 /* 規則の行: 試作は li.rule の中に (ID | 本文) の 2 列を持つ。
    この実装は開くボタンの中に入れているので、ボタンを grid の入れ物にする */
 /* 規則の一覧の 1 行は押すと右のパネルに開く。試作は li そのものが押せる (button を介さない) ので、
-   本実装の button は箱を作らず、活字だけ親から借りる */
-.rule > .rule-open{display:contents;font:inherit;color:inherit;text-align:left}
+   本実装の button は箱を作らず、活字だけ親から借りる。プロンプトのタブの .r-rule も同じ */
+.rule > .rule-open,.r-rule > .rule-open{display:contents;font:inherit;color:inherit;text-align:left}
 
 /* チーム一覧: team.yaml に目的の欄が無いので 5 列 (試作は 6 列) */
 .tlist.no-about .thead,.tlist.no-about .tline{grid-template-columns:minmax(120px,180px) 84px minmax(170px,240px) minmax(150px,1fr) 16px}
@@ -548,3 +548,10 @@ html,body{margin:0}
 
 /* ホームの「たまにする作業」: 試作は ul に style="margin:0;padding-left:20px" を直に書いている */
 .lede-list{margin:0;padding-left:20px}
+
+/* プロンプトのタブの切り替え: 試作は checkbox を JS が読み、
+   本実装は script の無いリンクなので、押されていることを aria-pressed で示す (r-bb9c) */
+.toggle[aria-pressed]::before{font-family:var(--font-mono)}
+.toggle[aria-pressed="true"]::before{content:"\2611 "}
+.toggle[aria-pressed="false"]::before{content:"\2610 "}
+.toggle[aria-disabled="true"]{color:var(--faint);cursor:default}

@@ -31,18 +31,40 @@ func New(port Port) (*Screen, error) {
 	return &Screen{port: port, render: render}, nil
 }
 
-// RulesBody is the rules screen: the layer's rule files, the one asked for (the
-// first when none is named), and the filter.
-func (s *Screen) RulesBody(layer, path, filter string) (string, error) {
-	return s.render.Rules(s.rulesData(layer, path, filter))
+// RulesQuery is what the rules screen draws from: the layer, the document, the
+// filter, and the sub-tab with the prompt tab's two switches.
+type RulesQuery struct {
+	Layer   string
+	Path    string
+	Filter  string
+	Tab     string
+	Raw     bool
+	Overlay bool
 }
 
-// rulesData is what the rules screen shows for one document and filter.
-func (s *Screen) rulesData(layer, path, filter string) Rules {
-	docs := s.docs(layer)
-	shown := pick(layer, docs, path)
-	data := NewRules(shown, filter)
-	data.Changes = s.port.Changes(layer)
+// RulesBody is the rules screen: the layer's rule files, the one asked for (the
+// first when none is named), the filter, and the tab that is open.
+func (s *Screen) RulesBody(q RulesQuery) (string, error) {
+	return s.render.Rules(s.rulesData(q))
+}
+
+// rulesData is what the rules screen shows for one document and query.
+func (s *Screen) rulesData(q RulesQuery) Rules {
+	docs := s.docs(q.Layer)
+	shown := pick(q.Layer, docs, q.Path)
+	data := NewRules(shown, q.Filter)
+	data.Changes = s.port.Changes(q.Layer)
+	data.Tab = NormalizeTab(q.Tab)
+	data.Tabs = NewTabs(shown, data.Tab)
+	data.DocChanges = s.port.DocChanges(q.Layer, shown.Path)
+	if shown.Document != nil {
+		switch data.Tab {
+		case TabPrompt:
+			data.Prompt = s.promptOf(shown, q.Raw, q.Overlay)
+		case TabYAML:
+			data.YAML = s.yamlOf(q.Layer, shown)
+		}
+	}
 	return data
 }
 
@@ -231,7 +253,7 @@ func addReportField(doc *rules.Document, name, field, where, description string)
 // overwritten. A refused write leaves the rule open with the reason on it.
 func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url.Values, edit EditRule) (Answer, error) {
 	refuse := func(reason string) (Answer, error) {
-		body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
+		body, err := s.RulesBody(RulesQuery{Layer: layer, Path: shown.Path, Filter: values.Get("filter")})
 		if err != nil {
 			return Answer{}, err
 		}
@@ -260,7 +282,7 @@ func (s *Screen) write(layer string, shown Doc, next *rules.Document, values url
 	if err := s.port.WriteRule(shown.Path, text, values.Get("hash")); err != nil {
 		return refuse(err.Error())
 	}
-	body, err := s.RulesBody(layer, shown.Path, values.Get("filter"))
+	body, err := s.RulesBody(RulesQuery{Layer: layer, Path: shown.Path, Filter: values.Get("filter")})
 	if err != nil {
 		return Answer{}, err
 	}

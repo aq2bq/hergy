@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -12,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/homeview"
+	"github.com/aq2bq/hergy/internal/web/rulesview"
 )
 
 // recordPort is what the screens of the launch record see for the fixture's
@@ -356,6 +358,85 @@ func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: moved\n")
 	if again := recordPort(t).Teams(web.LayerLocal)[0]; again.Same {
 		t.Error("the row says the files build the launched hash after a rule moved")
+	}
+}
+
+// changeIDs is a []rulesview.ChangeRule as the ids alone, for comparing.
+func changeIDs(rules []rulesview.ChangeRule) []string {
+	out := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		out = append(out, rule.ID)
+	}
+	return out
+}
+
+// TestTheRulesScreenComparesAndBumpsLikeTheHome: the rules screen's reads are
+// the home screen's own comparison, mapped, so the two cannot disagree about a
+// document; and a bump from the changes tab is the write the home screen's /bump
+// makes, through the same checks.
+func TestTheRulesScreenComparesAndBumpsLikeTheHome(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
+		"      - id: P1\n        text: one\n"+
+		"      - id: P2\n        text: two\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+
+	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
+		"      - id: P1\n        text: one changed\n"+
+		"      - id: P3\n        text: three\n")
+
+	port := rulesPort{recordPort(t)}
+	homeDoc := docAt(t, port.Home(web.LayerLocal), protocol)
+	changes := port.DocChanges(web.LayerLocal, protocol)
+	if !changes.Recorded || changes.Version != homeDoc.Version || changes.Bumped != homeDoc.Bumped {
+		t.Errorf("the rules screen reads %+v, the home reads version %d (bumped %v)",
+			changes, homeDoc.Version, homeDoc.Bumped)
+	}
+	if !equalIDs(changeIDs(changes.Added), idsOf(homeDoc.Added)...) ||
+		!equalIDs(changeIDs(changes.Removed), idsOf(homeDoc.Removed)...) ||
+		!equalIDs(changeIDs(changes.Changed), idsOf(homeDoc.Changed)...) {
+		t.Errorf("the rules screen moved %v/%v/%v, the home moved %v/%v/%v",
+			changeIDs(changes.Added), changeIDs(changes.Removed), changeIDs(changes.Changed),
+			idsOf(homeDoc.Added), idsOf(homeDoc.Removed), idsOf(homeDoc.Changed))
+	}
+	// The diff a changed rule carries is the home's own.
+	if got := changes.Changed[0].Diffs; len(got) != 1 || got[0].Before != "one" || got[0].After != "one changed" {
+		t.Errorf("the changed rule draws %+v, want the home's before and after", got)
+	}
+	// Every rule the change names opens in the rules screen.
+	for _, rule := range changes.Changed {
+		if !strings.Contains(rule.Href, "rule="+rule.ID) || !strings.Contains(rule.Href, urlEscape(protocol)) {
+			t.Errorf("the rule opens at %q, want a link into the rules screen for %s", rule.Href, rule.ID)
+		}
+	}
+	if !changes.CanBump() {
+		t.Fatalf("the rules screen does not offer the bump: %+v", changes)
+	}
+
+	// The bump is the same write the home screen's /bump makes.
+	answer, err := port.Bump(web.LayerLocal, protocol)
+	if err != nil {
+		t.Fatalf("Bump: %v", err)
+	}
+	if !answer.Written || answer.From != 1 || answer.To != 2 {
+		t.Fatalf("the bump answered %+v, want version 1 → 2", answer)
+	}
+	after := port.DocChanges(web.LayerLocal, protocol)
+	if after.Version != 2 || !after.Bumped || after.CanBump() {
+		t.Errorf("after the bump the document reads %+v, want version 2 and already raised", after)
+	}
+	// A second bump writes nothing and says why.
+	again, err := port.Bump(web.LayerLocal, protocol)
+	if err != nil {
+		t.Fatalf("Bump again: %v", err)
+	}
+	if again.Written || again.Why == "" {
+		t.Errorf("a second bump answered %+v, want nothing written and a reason", again)
 	}
 }
 

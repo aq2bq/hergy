@@ -1,0 +1,49 @@
+{{define "change-head"}}<span class="mono">{{.ID}}</span>{{if .Section}} <span class="tag">{{.Section}}</span>{{end}}{{- if .Fields}} <span class="fine">{{range $i, $f := .Fields}}{{if $i}}・{{end}}{{t (printf "web.home.changes.fields.%s" $f)}}{{end}}</span>{{end}}{{end}}
+
+{{define "changes"}}
+<ul class="changes">
+  {{- if .Whole}}
+  <li><span class="ck section">{{t "web.home.changes.whole"}}</span></li>
+  {{- end}}
+  {{- if .Missing}}
+  <li><span class="ck section">{{t "web.home.changes.missing"}}</span></li>
+  {{- end}}
+  {{- range .Added}}
+  <li><span class="ck added">{{t "web.home.changes.added"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><ins>{{if .After}}{{inline .After}}{{else}}{{t "web.home.changes.diff_no_text"}}{{end}}</ins></div>{{end}}<div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  {{- end}}
+  {{- range .Removed}}
+  <li><span class="ck removed">{{t "web.home.changes.removed"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><del>{{inline .Before}}</del></div>{{end}}</div></li>
+  {{- end}}
+  {{- range .Changed}}
+  <li><span class="ck changed">{{t "web.home.changes.changed"}}</span><div>{{template "change-head" .}}{{range .Diffs}}<div class="diff"><del>{{if .Before}}{{inline .Before}}{{else}}{{t "web.home.changes.diff_none"}}{{end}}</del><ins>{{if .After}}{{inline .After}}{{else}}{{t "web.home.changes.diff_none"}}{{end}}</ins></div>{{end}}<div class="row"><a class="linkbtn" href="{{.Href}}">{{t "web.rules.rule.open"}}</a></div></div></li>
+  {{- end}}
+</ul>
+{{end}}
+
+{{define "changes-tab"}}
+<div class="panel">
+  <h3>{{t "web.home.changes.title"}}{{if .DocChanges.Count}}（{{tf "web.rules.tally.rules" .DocChanges.Count}}）{{end}}</h3>
+  {{- if not .DocChanges.Recorded}}
+  <p class="lede">{{inline (t "web.home.changes.no_record")}}</p>
+  {{- else if not .DocChanges.Changes}}
+  <p class="lede">{{t "web.home.changes.none"}}</p>
+  {{- else}}
+  {{- if .Bump.Written}}
+  <p class="saved">{{tf "web.bump.raised" .Doc.Display .Bump.From .Bump.To}}</p>
+  {{- else if .Bump.Why}}
+  <p class="problem">{{.Bump.Why}}</p>
+  {{- end}}
+  {{- if .DocChanges.Bumped}}
+  <p class="saved">{{tf "web.home.changes.bumped" .DocChanges.Version}}</p>
+  {{- end}}
+  {{template "changes" .DocChanges}}
+  {{- if .DocChanges.CanBump}}
+  <form class="row" method="post" action="{{p "bump"}}?layer={{.Layer}}">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <input type="hidden" name="doc" value="{{.Doc.Path}}">
+    <button class="btn primary" type="submit">{{t "web.bump.raise"}}（{{tf "web.bump.version" .DocChanges.Version .DocChanges.Next}}）</button>
+  </form>
+  {{- end}}
+  {{- end}}
+</div>
+{{end}}

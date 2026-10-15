@@ -1,0 +1,45 @@
+{{define "prompt-tab"}}
+<div class="render-bar">
+  <span>{{tf "web.rules.prompt.lede" .Prompt.Chars}}</span>
+  <a class="toggle" href="{{.Prompt.RawHref}}" aria-pressed="{{if .Prompt.Raw}}true{{else}}false{{end}}">{{t "web.rules.prompt.raw"}}</a>
+  {{- if .Prompt.Raw}}
+  <span class="toggle" aria-disabled="true">{{t "web.rules.prompt.overlay"}}</span>
+  {{- else}}
+  <a class="toggle" href="{{.Prompt.OverlayHref}}" aria-pressed="{{if .Prompt.Overlay}}true{{else}}false{{end}}">{{t "web.rules.prompt.overlay"}}</a>
+  {{- end}}
+</div>
+{{- if .Prompt.Raw}}
+<div class="render raw"><pre>{{.Prompt.Markdown}}</pre></div>
+{{- else}}
+<div class="render">
+  {{- range .Prompt.Blocks}}{{template "prompt-block" .}}{{end}}
+</div>
+{{- end}}
+{{end}}
+
+{{define "prompt-block"}}
+{{- if eq .Kind "h"}}
+<div class="r-h r-h{{.Level}}"><span class="hash">{{.Hash}}</span><span>{{inline .Text}}</span></div>
+{{- else if eq .Kind "intro"}}
+<p class="r-p r-intro">{{inline .Text}}</p>
+{{- else if eq .Kind "p"}}
+<div class="r-rule"><span class="gut">{{.Rule.ID}}</span><button class="rule-open" type="button" hx-get="{{.Rule.Href}}" hx-target="{{panelid}}" hx-swap="outerHTML"><span class="r-p">{{inline .Rule.Text}}</span></button>{{if .Rule.ShowUnsent}}{{template "prompt-unsent" .Rule}}{{end}}</div>
+{{- else if eq .Kind "list"}}
+{{- if eq .Style "numbered"}}
+<ol class="r-list numbered">{{range .Items}}<li class="r-rule"><span class="gut">{{.ID}}</span><button class="rule-open" type="button" hx-get="{{.Href}}" hx-target="{{panelid}}" hx-swap="outerHTML">{{if .ShowID}}<strong>{{.ID}}</strong> {{end}}{{inline .Text}}</button>{{if .ShowUnsent}}{{template "prompt-unsent" .}}{{end}}</li>{{end}}</ol>
+{{- else}}
+<ul class="r-list {{.Style}}">{{range .Items}}<li class="r-rule"><span class="gut">{{.ID}}</span><button class="rule-open" type="button" hx-get="{{.Href}}" hx-target="{{panelid}}" hx-swap="outerHTML">{{if .ShowID}}<strong>{{.ID}}</strong> {{end}}{{inline .Text}}</button>{{if .ShowUnsent}}{{template "prompt-unsent" .}}{{end}}</li>{{end}}</ul>
+{{- end}}
+{{- else if eq .Kind "report"}}
+<p class="r-p"><strong>{{.Name}}</strong> ({{.Where}}) {{t "web.rules.prompt.report"}}</p>
+<ul class="r-list bullets">{{range .Fields}}<li><code>{{.Name}}</code>: {{inline .Description}}</li>{{end}}</ul>
+{{- end}}
+{{end}}
+
+{{define "prompt-unsent"}}
+{{- if .Unsent}}
+<span class="unsent">{{range $i, $u := .Unsent}}{{if $i}}<br>{{end}}<b>{{$u.Label}}</b>{{inline $u.Text}}{{end}}</span>
+{{- else}}
+<span class="unsent">{{t "web.rules.prompt.unsent.none"}}</span>
+{{- end}}
+{{end}}

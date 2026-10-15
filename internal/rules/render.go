@@ -62,7 +62,7 @@ func (s Section) rulesBlock() string {
 	if s.Style == "" || s.Style == StyleParagraphs {
 		blocks := make([]string, 0, len(s.Rules))
 		for _, rule := range s.Rules {
-			blocks = append(blocks, rule.sent())
+			blocks = append(blocks, rule.Sent())
 		}
 		return strings.Join(blocks, "\n\n")
 	}
@@ -75,7 +75,7 @@ func (s Section) rulesBlock() string {
 
 // item is one rule as a list item, with a multi-line body kept inside it.
 func (s Section) item(rule Rule, number int) string {
-	body := strings.ReplaceAll(rule.sent(), "\n", "\n   ")
+	body := strings.ReplaceAll(rule.Sent(), "\n", "\n   ")
 	switch s.Style {
 	case StyleBullets:
 		return "- " + body
@@ -86,9 +86,9 @@ func (s Section) item(rule Rule, number int) string {
 	}
 }
 
-// sent is the rule as a member reads it: its text, and its reason after one
+// Sent is the rule as a member reads it: its text, and its reason after one
 // space, unless send_why says not to.
-func (r Rule) sent() string {
+func (r Rule) Sent() string {
 	text := strings.TrimSpace(r.Text)
 	if r.Why == "" || (r.SendWhy != nil && !*r.SendWhy) {
 		return text

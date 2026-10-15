@@ -165,6 +165,23 @@ type Rules struct {
 	// Changes is how many rules moved in the layer since the last launch: the
 	// number the guide's last step names.
 	Changes int
+	// Tab is the sub-tab open (TabRules, TabPrompt, TabChanges, TabYAML), and
+	// Tabs is the band, empty when there is no document to show.
+	Tab  string
+	Tabs []SubTab
+	// Prompt is the prompt tab's data.
+	Prompt Prompt
+	// DocChanges is what the launch record says about this document: the
+	// changes tab draws it, and the document's own line counts it.
+	DocChanges DocChanges
+	// YAML is the YAML and checks tab's data.
+	YAML YAML
+	// Bump is what the last raise of this document's version answered with, or
+	// why it wrote nothing; the zero value on a page that was not written to.
+	Bump BumpAnswer
+	// Token is this run's write token, which the changes tab's raise button
+	// carries: every write names it (web.checkWrite).
+	Token string
 	// Open is the id of the rule the right panel has open, empty when it has
 	// none. The list marks it.
 	Open string
@@ -182,7 +199,7 @@ func NewRules(doc Doc, filter string) Rules {
 		Filter:      filter,
 		Global:      doc.Layer == LayerGlobal,
 		Broken:      doc.Broken,
-		PanelPrefix: PathPanel + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path),
+		PanelPrefix: panelPrefix(doc),
 	}
 	if doc.Document == nil {
 		data.Empty = true
@@ -357,4 +374,11 @@ func docHref(doc Doc, filter string) string {
 		href += "&filter=" + filter
 	}
 	return href
+}
+
+// panelPrefix is the edit panel's path with the layer and the document on it. A
+// link adds section and i to it, and the prompt tab adds its own rule links to
+// it, so the two agree on one spelling.
+func panelPrefix(doc Doc) string {
+	return PathPanel + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
 }

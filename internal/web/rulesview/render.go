@@ -51,6 +51,7 @@ var paths = map[string]string{
 	"save":      PathSave,
 	"delete":    PathDelete,
 	"report":    PathReport,
+	"bump":      PathBump,
 }
 
 // Rules draws the rules screen's body: the files, the numbers, the filters and

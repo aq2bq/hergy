@@ -43,6 +43,17 @@ type Port interface {
 	// Changes is how many rules moved in one layer's documents since the launch
 	// each of them was last read by: what the guide's last step counts (d-207f).
 	Changes(layer string) int
+	// DocChanges is what the launch record says moved in one document since the
+	// launch that last read it: the same comparison the home screen draws
+	// (d-0a25). The changes tab and the document's own line count it.
+	DocChanges(layer, path string) DocChanges
+	// Bump raises one document's version by one and answers what it wrote. It
+	// is the write the home screen's /bump makes: the app reads the document,
+	// raises the version it holds, and writes it back the way the rules screen
+	// writes one, refusing a path no member of the layer reads and a document
+	// the record does not hold, has not moved, or whose version was already
+	// raised.
+	Bump(layer, path string) (BumpAnswer, error)
 }
 
 // Team is one team definition and the rule files its members read.

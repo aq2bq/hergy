@@ -111,6 +111,18 @@
   YAML of a document, the prompt that asks an AI to look into a rule's origin)
   put it on the clipboard with one press. The script is one file of the binary,
   so a page still carries none of its own.
+- **The rules screen has four tabs**: one document opens as 規則, プロンプト,
+  前回の起動からの変更, or YAML・検査, chosen with `?tab=prompt` (and the other
+  tabs) on the screen's own URL, so the tabs work with no script. プロンプト
+  draws the document the way a member reads it, counts the characters hergy
+  hands over, can show the Markdown as it is (`&raw=1`) and can draw what the
+  prompt leaves out under each rule (`&overlay=1`); pressing a rule opens it in
+  the right panel, the same way the rules list does. 前回の起動からの変更 draws
+  what moved since the launch that last read the document — the same rows the
+  home shows — and raises the version with the write `/bump` makes. YAML・検査
+  shows the file as it stands on disk, with a Copy button, and the break `hergy
+  validate` names for the whole document. A rule file that moved since its
+  launch also says so on the document's own line, as `前回の起動から変更 n 件`.
 
 ### Changed
 

@@ -8,7 +8,7 @@
   <h1>{{.Doc.Label}}</h1>
   <div class="doc-meta">
     {{- if .Doc.Revision}}
-    <span class="rev">{{tf "web.rules.version" .Doc.Revision}}</span>
+    <span class="rev{{if .DocChanges.Count}} dirty{{end}}">{{tf "web.rules.version" .Doc.Revision}}{{if .DocChanges.Count}} · {{tf "web.rules.doc.since" .DocChanges.Count}}{{end}}</span>
     {{- end}}
     <span>{{tf "web.rules.tally.rules" .Counts.Rules}}</span>
     <span class="o">{{tf "web.rules.tally.origin" .Counts.Origin}}</span>
@@ -24,69 +24,86 @@
   {{- if .Broken}}
   <p class="banner danger">{{.Broken}}</p>
   {{- else}}
-
-  <div class="toolbar">
-    {{- range .Filters}}
-    <a class="chip{{if .On}} on{{end}}" href="{{.Href}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}<span class="n">{{.Count}}</span></a>
-    {{- end}}
-  </div>
-
-  {{- range .Sections}}
-  <section class="sec">
-    <div class="sec-h{{if .HeadingOnly}} only{{end}}">
-      {{- if .Heading}}
-      <span class="hash">{{.Hash}}</span><h2>{{.Heading}}</h2>
-      {{- else}}
-      <span class="cont">{{t "web.rules.section.no_heading"}}</span>
-      {{- end}}
-      {{- if .HeadingOnly}}
-      <span class="tag">{{t "web.rules.section.heading_only"}}</span>
-      {{- else}}
-      <span class="tag">{{.StyleLabel}}</span>
-      {{- end}}
-    </div>
-    {{- if .Intro}}
-    <p class="intro">{{inline .Intro}}</p>
-    {{- end}}
-    {{- if .Rules}}
-    <ol class="rules">
-      {{- range .Rules}}
-      <li class="rule"{{if eq .ID $.Open}} aria-current="true"{{end}}>
-        <button class="rule-open" type="button" aria-label="{{t "web.rules.rule.open"}}"
-                hx-get="{{$.PanelPrefix}}&amp;section={{.Section}}&amp;i={{.Index}}"
-                hx-target="{{panelid}}" hx-swap="outerHTML">
-          <span class="rid mono">{{.ID}}</span>
-          <div class="rtext">{{inline .Text}}
-            {{- if .Why}}
-            <div class="rwhy">{{inline .Why}}{{if not .Send}} <span class="tag">{{t "web.rules.rule.unsent"}}</span>{{end}}</div>
-            {{- end}}
-            <div class="rtags">
-              <span class="evs">
-                <span class="ev o{{if .Badges.Origin}} on{{end}}">{{if .Badges.Origin}}{{t "web.rules.ev.origin.on"}}{{else}}{{t "web.rules.ev.origin.off"}}{{end}}</span>
-                <span class="ev r{{if .Badges.Reason}} on{{end}}">{{if .Badges.Reason}}{{t "web.rules.ev.reason.on"}}{{else}}{{t "web.rules.ev.reason.off"}}{{end}}</span>
-                <span class="ev v{{if .Badges.Check}} on{{end}}">{{if .Badges.Check}}{{t "web.rules.ev.check.on"}}{{else}}{{t "web.rules.ev.check.off"}}{{end}}</span>
-              </span>
-              {{- range .Tags}}
-              <span class="tag{{if eq .Kind "origin"}} t-o{{else if eq .Kind "check"}} t-v{{end}}">{{.Text}}</span>
-              {{- end}}
-            </div>
-          </div>
-        </button>
-      </li>
-      {{- end}}
-    </ol>
-    {{- end}}
-    {{- if and (eq $.Filter "all") (not .HeadingOnly)}}
-    <button class="add-rule" type="button"
-            hx-get="{{$.PanelPrefix}}&amp;new=1&amp;sec={{.Index}}"
-            hx-target="{{panelid}}" hx-swap="outerHTML">{{t "web.rules.rule.add"}}</button>
-    {{- end}}
-  </section>
-  {{- end}}
-  {{- if .NoMatch}}
-  <div class="empty-note">{{t "web.rules.filter.empty"}}</div>
-  {{- end}}
+  {{template "subtabs" .}}
+  {{- if eq .Tab "prompt"}}{{template "prompt-tab" .}}
+  {{- else if eq .Tab "changes"}}{{template "changes-tab" .}}
+  {{- else if eq .Tab "yaml"}}{{template "yaml-tab" .}}
+  {{- else}}{{template "rules-tab" .}}{{end}}
   {{- end}}
   {{- end}}
 </div>
+{{end}}
+
+{{define "subtabs"}}
+{{- if .Tabs}}
+<div class="subtabs" role="tablist">
+  {{- range .Tabs}}
+  <a role="tab" href="{{.Href}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}</a>
+  {{- end}}
+</div>
+{{- end}}
+{{end}}
+
+{{define "rules-tab"}}
+<div class="toolbar">
+  {{- range .Filters}}
+  <a class="chip{{if .On}} on{{end}}" href="{{.Href}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}<span class="n">{{.Count}}</span></a>
+  {{- end}}
+</div>
+
+{{- range .Sections}}
+<section class="sec">
+  <div class="sec-h{{if .HeadingOnly}} only{{end}}">
+    {{- if .Heading}}
+    <span class="hash">{{.Hash}}</span><h2>{{.Heading}}</h2>
+    {{- else}}
+    <span class="cont">{{t "web.rules.section.no_heading"}}</span>
+    {{- end}}
+    {{- if .HeadingOnly}}
+    <span class="tag">{{t "web.rules.section.heading_only"}}</span>
+    {{- else}}
+    <span class="tag">{{.StyleLabel}}</span>
+    {{- end}}
+  </div>
+  {{- if .Intro}}
+  <p class="intro">{{inline .Intro}}</p>
+  {{- end}}
+  {{- if .Rules}}
+  <ol class="rules">
+    {{- range .Rules}}
+    <li class="rule"{{if eq .ID $.Open}} aria-current="true"{{end}}>
+      <button class="rule-open" type="button" aria-label="{{t "web.rules.rule.open"}}"
+              hx-get="{{$.PanelPrefix}}&amp;section={{.Section}}&amp;i={{.Index}}"
+              hx-target="{{panelid}}" hx-swap="outerHTML">
+        <span class="rid mono">{{.ID}}</span>
+        <div class="rtext">{{inline .Text}}
+          {{- if .Why}}
+          <div class="rwhy">{{inline .Why}}{{if not .Send}} <span class="tag">{{t "web.rules.rule.unsent"}}</span>{{end}}</div>
+          {{- end}}
+          <div class="rtags">
+            <span class="evs">
+              <span class="ev o{{if .Badges.Origin}} on{{end}}">{{if .Badges.Origin}}{{t "web.rules.ev.origin.on"}}{{else}}{{t "web.rules.ev.origin.off"}}{{end}}</span>
+              <span class="ev r{{if .Badges.Reason}} on{{end}}">{{if .Badges.Reason}}{{t "web.rules.ev.reason.on"}}{{else}}{{t "web.rules.ev.reason.off"}}{{end}}</span>
+              <span class="ev v{{if .Badges.Check}} on{{end}}">{{if .Badges.Check}}{{t "web.rules.ev.check.on"}}{{else}}{{t "web.rules.ev.check.off"}}{{end}}</span>
+            </span>
+            {{- range .Tags}}
+            <span class="tag{{if eq .Kind "origin"}} t-o{{else if eq .Kind "check"}} t-v{{end}}">{{.Text}}</span>
+            {{- end}}
+          </div>
+        </div>
+      </button>
+    </li>
+    {{- end}}
+  </ol>
+  {{- end}}
+  {{- if and (eq $.Filter "all") (not .HeadingOnly)}}
+  <button class="add-rule" type="button"
+          hx-get="{{$.PanelPrefix}}&amp;new=1&amp;sec={{.Index}}"
+          hx-target="{{panelid}}" hx-swap="outerHTML">{{t "web.rules.rule.add"}}</button>
+  {{- end}}
+</section>
+{{- end}}
+{{- if .NoMatch}}
+<div class="empty-note">{{t "web.rules.filter.empty"}}</div>
+{{- end}}
 {{end}}

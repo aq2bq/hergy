@@ -17,6 +17,7 @@ const (
 	PathSave      = "/rules/save"
 	PathDelete    = "/rules/delete"
 	PathReport    = "/rules/report"
+	PathBump      = "/rules/bump"
 )
 
 // EditRule is one rule as the edit panel's form holds it: the values a person
