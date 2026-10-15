@@ -14,18 +14,23 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/status"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
-// TestMain loads the locales, so the screens render the words a person reads.
+// TestMain loads the locales, so the screens render the words a person reads,
+// and then fails when a test leaves a goroutine behind: these screens run on the
+// server in internal/web, which starts one for every connection, and a test that
+// stops the server must not leave one running (d-b28a).
 func TestMain(m *testing.M) {
 	if err := i18n.Init(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m)
 }
 
 // fakePort answers the screens from tables a test fills in: no project on disk,
