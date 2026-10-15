@@ -1,0 +1,62 @@
+<h1>{{t "web.home.title"}}</h1>
+<p class="lede">{{tf "web.home.lede" .LayerName}}</p>
+<ol class="steps">
+  <li>{{t "web.home.step.changes"}}</li>
+  <li>{{t "web.home.step.fix"}}</li>
+  <li>{{t "web.home.step.diff"}}</li>
+  <li>{{t "web.home.step.bump"}}</li>
+</ol>
+{{- if .Home.Problem}}
+<p class="problem">{{.Home.Problem}}</p>
+{{- end}}
+
+<section>
+  <h2>{{t "web.home.changes.title"}}</h2>
+  {{- $moved := false}}
+  {{- range .Home.Docs}}{{- if .Changes}}{{$moved = true}}
+  <article class="doc">
+    <h3>{{.Path}}</h3>
+    {{- if .Missing}}
+    <p class="note">{{t "web.home.changes.missing"}}</p>
+    {{- else if .Whole}}
+    <p class="note">{{t "web.home.changes.whole"}}</p>
+    {{- end}}
+    <ul class="marks">
+      {{- range .Added}}
+      <li class="plus">{{tf "web.home.changes.added" .}}</li>
+      {{- end}}
+      {{- range .Removed}}
+      <li class="minus">{{tf "web.home.changes.removed" .}}</li>
+      {{- end}}
+      {{- range .Changed}}
+      <li class="changed">{{tf "web.home.changes.changed" .}}</li>
+      {{- end}}
+    </ul>
+    {{- if .Bumped}}
+    <p class="bumped">{{tf "web.home.changes.bumped" .Version}}</p>
+    {{- end}}
+  </article>
+  {{- end}}{{- end}}
+  {{- if not $moved}}
+  <p class="empty">{{if .Home.Launched}}{{t "web.home.changes.none"}}{{else}}{{inline (t "web.home.changes.no_record")}}{{end}}</p>
+  {{- end}}
+</section>
+
+<section>
+  <h2>{{t "web.home.nocheck.title"}}</h2>
+  {{- $quiet := true}}
+  {{- range .Home.Docs}}{{- if .Checked}}{{$quiet = false}}
+  <article class="doc">
+    <h3>{{.Path}}</h3>
+    <p class="count">{{tf "web.home.nocheck.count" (len .NoCheck) .Rules}}</p>
+    <ul class="rules">
+      {{- range .NoCheck}}
+      <li>{{if .Href}}<a href="{{.Href}}">{{.ID}}</a>{{else}}{{.ID}}{{end}}</li>
+      {{- end}}
+    </ul>
+  </article>
+  {{- end}}{{- end}}
+  {{- if $quiet}}
+  <p class="empty">{{t "web.home.nocheck.none"}}</p>
+  {{- end}}
+</section>

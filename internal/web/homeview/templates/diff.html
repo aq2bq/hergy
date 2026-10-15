@@ -1,0 +1,34 @@
+<h1>{{t "web.diff.title"}}</h1>
+<p class="lede">{{tf "web.diff.lede" .LayerName}}</p>
+{{- if .Diff.Problem}}
+<p class="problem">{{.Diff.Problem}}</p>
+{{- end}}
+{{- if .Diff.Definitions}}
+{{- range .Diff.Definitions}}
+<section class="definition">
+  <h2>{{.Name}}</h2>
+  {{- if not .Launched}}
+  <p class="empty">{{inline (t "web.diff.no_launch")}}</p>
+  {{- end}}
+  {{- range .Members}}
+  {{- if not .Launched}}
+  <p class="member empty">{{tf "web.diff.member_never" .Name}}</p>
+  {{- else if .Same}}
+  <details class="member">
+    <summary>{{tf "web.diff.member_same" .Name}}</summary>
+    <pre class="diff">{{range .Lines}}<span class="line {{.Kind}}">{{.Mark}} {{.Text}}</span>
+{{end}}</pre>
+  </details>
+  {{- else}}
+  <article class="member">
+    <h3>{{.Name}}</h3>
+    <pre class="diff">{{range .Lines}}<span class="line {{.Kind}}">{{.Mark}} {{.Text}}</span>
+{{end}}</pre>
+  </article>
+  {{- end}}
+  {{- end}}
+</section>
+{{- end}}
+{{- else}}
+<p class="empty">{{t "web.diff.empty"}}</p>
+{{- end}}

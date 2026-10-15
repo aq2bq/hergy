@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
+	"github.com/aq2bq/hergy/internal/web/homeview"
 )
 
 // servePort is what the app hands the screens: the same layers, the same team
@@ -21,21 +22,16 @@ import (
 type servePort struct{ env team.Env }
 
 // Teams lists one layer's team definitions with what the team list shows: how
-// many members team.yaml writes, how many rules those members read, and how many
-// of those rules have no check. A definition that cannot be read keeps its row
-// and carries why, written the way hergy validate writes a broken file.
+// many members team.yaml writes, how many rules those members read, how many of
+// those rules have no check, and when the definition was last launched here with
+// the hash that launch wrote. A definition that cannot be read keeps its row and
+// carries why, written the way hergy validate writes a broken file.
 func (p servePort) Teams(layer string) []web.Team {
+	records := readRecords()
 	var out []web.Team
 	for _, row := range p.env.List() {
-		switch layer {
-		case web.LayerGlobal:
-			if !row.Global {
-				continue
-			}
-		default:
-			if !row.Local {
-				continue
-			}
+		if !inLayer(row, layer) {
+			continue
 		}
 		cfg, err := validateTeam(p.env, row.Name, layer)
 		if err != nil {
@@ -46,12 +42,12 @@ func (p servePort) Teams(layer string) []web.Team {
 			continue
 		}
 		tally := ruleTally(cfg)
-		out = append(out, web.Team{
-			Name:    row.Name,
-			Members: len(cfg.Members),
-			Rules:   tally.Total,
-			NoCheck: tally.Total - tally.WithCheck,
-		})
+		team := p.launchNote(records, row.Name, layer)
+		team.Name = row.Name
+		team.Members = len(cfg.Members)
+		team.Rules = tally.Total
+		team.NoCheck = tally.Total - tally.WithCheck
+		out = append(out, team)
 	}
 	return out
 }
@@ -90,7 +86,16 @@ func breakLine(env team.Env, path string, err error) string {
 // in flight. It reads the settings the way the other commands read them and
 // changes no file the screens do not write.
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
-	server, err := web.New(servePort{env: env})
+	port := servePort{env: env}
+	home, err := homeview.New(port)
+	if err != nil {
+		return err
+	}
+	diff, err := homeview.NewDiff(port)
+	if err != nil {
+		return err
+	}
+	server, err := web.New(port, home, diff)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,106 @@
+/* The screens of the launch record: the home and the prompt diff. Their own
+   file, served under /static/homeview/, so these screens bring what they need
+   and do not reach into internal/web's own hergy.css (spec/13 の G1). The
+   frame's variables (--fg, --muted, --line, --soft, --mark, --problem) come
+   from there. */
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+  counter-reset: step;
+}
+
+.steps li { counter-increment: step; }
+
+.steps li::before {
+  content: counter(step) ". ";
+  color: var(--mark);
+  font-weight: 700;
+}
+
+section { margin: 0 0 24px; }
+
+section h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.doc {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.doc h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.doc .note, .doc .bumped, .doc .count { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
+
+.doc .bumped { color: var(--verify); }
+
+.marks, .rules { margin: 0; padding: 0; list-style: none; }
+
+.marks li, .rules li {
+  padding: 1px 0 1px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.marks .plus::before { content: "+ "; color: var(--verify); }
+.marks .minus::before { content: "- "; color: var(--problem); }
+.marks .changed::before { content: "~ "; color: var(--mark); }
+
+.rules li a { color: var(--mark); }
+
+.definition {
+  margin: 0 0 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.definition h2 { color: var(--fg); font-size: 15px; letter-spacing: 0; }
+
+.member { margin: 0 0 8px; }
+
+.member h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.member.empty { color: var(--muted); font-size: 13px; margin: 0 0 6px; }
+
+details.member summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+pre.diff {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+pre.diff .line { display: block; white-space: pre-wrap; }
+pre.diff .plus { background: #e8f6ec; color: #14532d; }
+pre.diff .minus { background: #fdecea; color: #7a1c0e; }

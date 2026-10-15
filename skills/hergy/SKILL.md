@@ -46,3 +46,4 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - `hergy serve` serves the screens on 127.0.0.1 and prints the URL; it holds the foreground until you stop it. Hand the URL to the person rather than leaving it running behind a member.
 - It answers this machine only. A write is a POST from a page it rendered, carrying that page's token, so driving it with curl means reading the token out of a form first. Do not work around it.
 - The screens read and write the same files the commands do. `hergy validate` still decides whether the settings hold.
+- The home shows what moved since the last launch and the rules with no check, and opens each rule in the rules screen. The prompt diff shows, member by member, the prompt the last launch handed over against the prompt the files build now. Point the person there before the next `hergy up`.

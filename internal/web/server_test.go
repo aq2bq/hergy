@@ -128,6 +128,37 @@ func TestTeamListShowsOneRowPerDefinition(t *testing.T) {
 	mustNotContain(t, "the local team list", w.Body.String(), "shared")
 }
 
+// TestTheTeamListCarriesTheLastLaunch: the row carries when the definition was
+// last launched from this machine and the head of the hash that launch wrote,
+// and says when the files have moved since. A definition launched here never is
+// shown as such rather than left blank.
+func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
+	port := fakePort{teams: map[string][]Team{
+		LayerLocal: {
+			{Name: "demo", Members: 2, Rules: 5, NoCheck: 1, Launched: "2026-10-15 14:03", Hash: "3f9a1c2", Same: true},
+			{Name: "moved", Members: 1, Rules: 2, Launched: "2026-10-14 09:20", Hash: "aaaaaaa"},
+			{Name: "fresh", Members: 1, Rules: 2},
+		},
+	}}
+	s := newTestServer(t, port)
+	body := get(t, s, "/").Body.String()
+
+	mustContain(t, "the team list", body,
+		i18n.T("web.teams.column.launched"),
+		"2026-10-15 14:03",
+		"3f9a1c2",
+		"2026-10-14 09:20",
+		i18n.T("web.teams.moved"),
+		i18n.T("web.teams.never"),
+	)
+	// The definition whose launch wrote the hash the files still build carries
+	// no mark that it moved.
+	if strings.Count(body, i18n.T("web.teams.moved")) != 1 {
+		t.Errorf("the team list marks %d rows as moved, want the one whose files did",
+			strings.Count(body, i18n.T("web.teams.moved")))
+	}
+}
+
 // TestLayerToggleShowsTheOtherLayer: ?layer=global shows the global layer's
 // definitions, its root, and the mark that says this layer reaches other
 // projects. The local layer carries no such mark.

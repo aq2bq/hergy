@@ -7,6 +7,7 @@
       <th scope="col">{{t "web.teams.column.name"}}</th>
       <th scope="col" class="num">{{t "web.teams.column.members"}}</th>
       <th scope="col" class="num">{{t "web.teams.column.no_check"}}</th>
+      <th scope="col">{{t "web.teams.column.launched"}}</th>
     </tr>
   </thead>
   <tbody>
@@ -14,13 +15,22 @@
     {{- if .Broken}}
     <tr class="broken">
       <th scope="row">{{.Name}}</th>
-      <td class="reason" colspan="2">{{.Broken}}</td>
+      <td class="reason" colspan="3">{{.Broken}}</td>
     </tr>
     {{- else}}
     <tr>
       <th scope="row">{{.Name}}</th>
       <td class="num">{{tf "web.teams.members" .Members}}</td>
       <td class="num">{{tf "web.teams.no_check" .NoCheck .Rules}}</td>
+      <td class="launched">
+        {{- if .Launched}}
+        <span class="when">{{.Launched}}</span>
+        <span class="hash">{{.Hash}}</span>
+        {{- if not .Same}} <span class="moved">{{t "web.teams.moved"}}</span>{{end}}
+        {{- else}}
+        <span class="never">{{t "web.teams.never"}}</span>
+        {{- end}}
+      </td>
     </tr>
     {{- end}}
     {{- end}}

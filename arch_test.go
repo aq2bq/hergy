@@ -112,9 +112,17 @@ func TestImportDirection(t *testing.T) {
 				continue
 			}
 			for _, imp := range imports[f] {
-				if slices.Contains(topLayer, imp) {
-					t.Errorf("%s: internal/%s is imported by app only, not by %s", f, imp, pkg)
+				if !slices.Contains(topLayer, imp) {
+					continue
 				}
+				// A package nested inside a top-layer package (internal/web/homeview,
+				// the screens a person opens) is part of that layer, not a lower one
+				// reaching up: it renders through internal/web's frame, and app is
+				// still the one importer of the layer.
+				if pkg == imp {
+					continue
+				}
+				t.Errorf("%s: internal/%s is imported by app only, not by %s", f, imp, pkg)
 			}
 		}
 	})

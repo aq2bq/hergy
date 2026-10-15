@@ -157,6 +157,7 @@ Reading the output:
 Web UI:
   The command for the screens is hergy serve: it answers on 127.0.0.1 and prints the URL; --port picks the port (default 8787, 0 lets the operating system pick a free one). It runs in the foreground until Ctrl-C, then waits for the requests in flight before it stops.
   It answers only a request whose Host is 127.0.0.1 or localhost. A write is a POST that must carry the token of this run and come from a page the same server rendered; that page holds it in its forms, so an agent driving the UI reads the token from a page first.
+  The screens are the team list (each definition's members, the rules with no check, and the last launch with its hash), the home (what moved since the last launch, and the rules with no check, each rule opening in the rules screen), and the prompt diff (per definition and member, the prompt the last launch handed over against the prompt the files build now, line by line). Every screen reads the same files the commands read.
 
 Resolution:
   A team definition is <layer>/teams/<definition>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).

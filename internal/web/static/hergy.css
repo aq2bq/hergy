@@ -125,6 +125,10 @@ table.teams thead th {
 table.teams th[scope="row"] { text-align: left; font-weight: 600; }
 table.teams .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+td.launched { font-size: 13px; color: var(--muted); }
+td.launched .hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+td.launched .moved { color: var(--problem); }
+
 tr.broken th[scope="row"] { border-left: 3px solid var(--problem); }
 tr.broken .reason { color: var(--problem); font-size: 13px; }
 

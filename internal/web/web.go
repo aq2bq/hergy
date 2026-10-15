@@ -38,7 +38,14 @@ type Team struct {
 	Members int    // the members team.yaml lists
 	Rules   int    // the rules those members read
 	NoCheck int    // of those rules, the ones with no check
-	Broken  string // why the definition cannot be read, empty when it reads
+	// Launched is when the definition was last launched from this machine, as a
+	// person reads it; empty when it has not been launched here.
+	Launched string
+	// Hash is the head of the hash that launch wrote, and Same says whether the
+	// files on disk build that same hash now.
+	Hash   string
+	Same   bool
+	Broken string // why the definition cannot be read, empty when it reads
 }
 
 // Port is what the app hands the screens: the settings and the state, read the
