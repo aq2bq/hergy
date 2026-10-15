@@ -98,7 +98,6 @@ func sampleDoc(t *testing.T, layer string) Doc {
 func TestRulesRendersTheCountsFiltersAndSections(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
 	data := NewRules(doc, FilterAll)
-	data.Token = "tok"
 	data.Groups = NewIndex(doc.Path, []Doc{doc})
 	got, err := renderer(t).Rules(data)
 	if err != nil {

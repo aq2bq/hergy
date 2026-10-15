@@ -1,6 +1,8 @@
 {{define "rules.html"}}
 {{template "index.html" .}}
-{{- if not .Empty}}
+{{- if .Broken}}
+<p class="broken">{{.Broken}}</p>
+{{- else if not .Empty}}
 <article class="doc">
   <h1>{{.Doc.Label}}</h1>
   <p class="path mono">{{.Doc.Path}}</p>

@@ -265,6 +265,7 @@
   "web.rules.group.role": "Role files",
   "web.rules.doc.summary": "%[1]d rules, with an origin %[2]d",
   "web.rules.doc.used_by": "read by: %s",
+  "web.rules.doc.broken": "cannot be read",
   "web.rules.tally.rules": "rules %d",
   "web.rules.tally.origin": "with an origin %d",
   "web.rules.tally.reason": "with a reason %d",
@@ -340,5 +341,8 @@
   "web.rules.save.conflict": "This document changed on disk since it was read. Read it again, then save it.",
   "web.rules.save.global": "This document is in the global layer. Saving it affects the teams of every project that reads this document.",
   "web.rules.error.method": "this screen answers POST only here",
-  "web.rules.error.form": "this screen could not read the form: %s"
+  "web.rules.error.form": "this screen could not read the form: %s",
+  "web.rules.error.no_document": "%s: there is no such rule file in this layer",
+  "web.rules.error.no_rule": "%s: there is no rule at section %d, place %d",
+  "web.rules.error.report_needs_name_field": "a new report shape needs both a name and a field name"
 }

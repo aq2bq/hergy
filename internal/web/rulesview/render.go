@@ -66,6 +66,11 @@ func (r *Renderer) Preview(data Panel) (string, error) {
 	return r.render("preview.html", data)
 }
 
+// Close draws the right panel with nothing open.
+func (r *Renderer) Close() (string, error) {
+	return r.render("panel-empty.html", nil)
+}
+
 func (r *Renderer) render(name string, data any) (string, error) {
 	var buf bytes.Buffer
 	if err := r.templates.ExecuteTemplate(&buf, name, data); err != nil {

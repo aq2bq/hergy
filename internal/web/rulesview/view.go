@@ -32,12 +32,16 @@ const (
 )
 
 // Doc is one rule file the screen shows: where it is, which layer it came from,
-// the parsed document, and the team definitions that read it.
+// the parsed document, the hash of what was read, and the team definitions that
+// read it. When the file cannot be read or parsed, Broken carries the reason
+// (the same words the reader names) and Document is nil.
 type Doc struct {
 	Path     string
 	Group    string
 	Layer    string
 	Document *rules.Document
+	Hash     string
+	Broken   string
 	UsedBy   []string
 }
 
@@ -80,6 +84,7 @@ type DocRow struct {
 	Origin   int
 	Href     string // the rules screen showing this file
 	Selected bool
+	Broken   bool
 }
 
 // NewIndex lists the rule files of one layer, with the shown one marked. The
@@ -104,6 +109,7 @@ func NewIndex(shown string, docs []Doc) []DocGroup {
 				Origin:   tally.WithOrigin,
 				Href:     docHref(doc, FilterAll),
 				Selected: doc.Path == shown,
+				Broken:   doc.Broken != "",
 			})
 		}
 		if len(rows) > 0 {
@@ -185,13 +191,14 @@ type Rules struct {
 	Filters  []FilterChip
 	Sections []Section
 	Counts   Counts
-	Token    string
 	// PanelPrefix is the panel's path with the layer and the document on it;
 	// a link adds section and i to it.
 	PanelPrefix string
 	Global      bool
-	// Empty says the layer has no rule file at all; NoMatch says the filter
-	// kept none of this document's rules.
+	// Broken is why the shown file cannot be read, empty when it reads. Empty
+	// says the layer has no rule file at all; NoMatch says the filter kept none
+	// of this document's rules.
+	Broken  string
 	Empty   bool
 	NoMatch bool
 }
@@ -207,6 +214,7 @@ func NewRules(doc Doc, filter string) Rules {
 		Doc:         doc,
 		Filter:      filter,
 		Global:      doc.Layer == LayerGlobal,
+		Broken:      doc.Broken,
 		PanelPrefix: PathPanel + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path),
 	}
 	if doc.Document == nil {
