@@ -147,6 +147,7 @@ func TestParseRefusesBreaks(t *testing.T) {
 	}{
 		{"an empty file", "", "empty"},
 		{"a file that is not a mapping", "- one\n- two\n", "mapping"},
+		{"a file YAML cannot read", "version: 1\nsections: [\n", "yaml"},
 		{"an unknown key at the top", "version: 1\nsections: [{rules: []}]\nkind: role\n", "kind"},
 		{"a key twice at the top", "version: 1\ntitle: a\ntitle: b\nsections: [{rules: []}]\n", "title"},
 		{"no version", "sections:\n  - rules:\n      - id: R1\n        text: x\n", "version"},
