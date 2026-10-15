@@ -236,9 +236,9 @@ var specs = []Spec{
 		Kind: New, Name: "new",
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
-			"Write team.yaml, protocol.md and roles/. An existing team definition is never overwritten.\n"+
+			"Write team.yaml, protocol.yaml and roles/. An existing team definition is never overwritten.\n"+
 				"If the global config.yaml (version and lang) is missing, it is written too,\nwith --local as well.",
-			"team.yaml・protocol.md・roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
+			"team.yaml・protocol.yaml・roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
 				"グローバルの config.yaml（version と lang）は、無いときだけ作る。--local のときも作る。"),
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"),

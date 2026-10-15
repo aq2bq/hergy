@@ -21,7 +21,7 @@ const Fallback = "en"
 var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 
 // Names are the files a starter team has, in the order hergy new writes them.
-var Names = []string{"team.yaml", "protocol.md", "roles/lead.md", "roles/builder.md"}
+var Names = []string{"team.yaml", "protocol.yaml", "roles/lead.yaml", "roles/builder.yaml"}
 
 // File is one file of a starter team: its path inside the team directory, and
 // its contents.

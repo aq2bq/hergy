@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -52,16 +53,22 @@ func parseTeam(t *testing.T, dir, text string) (*Config, error) {
 	})
 }
 
+// oneRule is a rule file with one section (no heading) and one rule, so a test
+// can put a known sentence into a member's prompt.
+func oneRule(id, text string) string {
+	return "version: 1\nsections:\n  - rules:\n      - id: " + id + "\n        text: |-\n          " + text + "\n"
+}
+
 func TestParseConcatenatesDocsInOrder(t *testing.T) {
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, "z.md"), "Z doc\n")
-	write(t, filepath.Join(dir, "a.md"), "A doc\n")
-	write(t, filepath.Join(dir, "guide", "m.md"), "M doc\n")
-	write(t, filepath.Join(dir, "guide", "n.md"), "N doc\n")
-	write(t, filepath.Join(dir, "guide", "skip.txt"), "not markdown\n")
-	write(t, filepath.Join(dir, "guide", "deeper", "x.md"), "not directly inside\n")
+	write(t, filepath.Join(dir, "z.yaml"), oneRule("Z1", "Z doc"))
+	write(t, filepath.Join(dir, "a.yaml"), oneRule("A1", "A doc"))
+	write(t, filepath.Join(dir, "guide", "m.yaml"), oneRule("M1", "M doc"))
+	write(t, filepath.Join(dir, "guide", "n.yaml"), oneRule("N1", "N doc"))
+	write(t, filepath.Join(dir, "guide", "skip.txt"), "not a rule file\n")
+	write(t, filepath.Join(dir, "guide", "deeper", "x.yaml"), oneRule("X1", "not directly inside"))
 
-	cfg, err := parseTeam(t, dir, teamText(`["z.md", "a.md", "guide"]`))
+	cfg, err := parseTeam(t, dir, teamText(`["z.yaml", "a.yaml", "guide"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,39 +81,182 @@ func TestParseConcatenatesDocsInOrder(t *testing.T) {
 	for _, doc := range cfg.Docs {
 		read = append(read, filepath.Base(doc.Path))
 	}
-	if wantDocs := []string{"z.md", "a.md", "m.md", "n.md"}; strings.Join(read, ",") != strings.Join(wantDocs, ",") {
+	if wantDocs := []string{"z.yaml", "a.yaml", "m.yaml", "n.yaml"}; strings.Join(read, ",") != strings.Join(wantDocs, ",") {
 		t.Errorf("Docs = %v, want %v", read, wantDocs)
 	}
 }
 
-func TestParseStripsHTMLCommentsFromDocs(t *testing.T) {
+// TestParseRendersWhatIsSent: a rule file is rendered to Markdown, and only what
+// a member reads reaches the prompt: the title, the headings, the intro, the
+// text, the reason and the report shapes. The revision, the note, the origin,
+// the report pointer and the tests stay in the file.
+func TestParseRendersWhatIsSent(t *testing.T) {
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, "note.md"), "Keep this\n<!-- a note for humans -->\nAnd this\n")
+	write(t, filepath.Join(dir, "note.yaml"), `version: 1
+title: TEAM PROTOCOL
+revision: 3
+sections:
+  - heading: 基本
+    intro: 前置きである。
+    style: ids
+    rules:
+      - id: R1
+        text: 本文である。
+        why: 理由である。
+        note: 保守する人のメモ
+        report: 監査.scope
+        tests: [T-1]
+        origin:
+          - kind: incident
+            note: 事故の覚え書き
+reports:
+  監査:
+    where: 担当する Issue
+    fields:
+      scope: 変更の範囲
+`)
 
-	cfg, err := parseTeam(t, dir, teamText(`["note.md"]`))
+	cfg, err := parseTeam(t, dir, teamText(`["note.yaml"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	prompt := cfg.Members[0].Prompt
-	for _, unwanted := range []string{"<!--", "a note for humans"} {
-		if strings.Contains(prompt, unwanted) {
-			t.Errorf("prompt %q still contains %q", prompt, unwanted)
+	for _, want := range []string{
+		"# TEAM PROTOCOL", "## 基本", "前置きである。", "- **R1** 本文である。 理由である。",
+		"## " + i18n.T("rules.reports_heading"), "**監査** (担当する Issue)", "- `scope`: 変更の範囲",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt is missing %q:\n%s", want, prompt)
 		}
 	}
-	for _, wanted := range []string{"Keep this", "And this"} {
-		if !strings.Contains(prompt, wanted) {
-			t.Errorf("prompt %q is missing %q", prompt, wanted)
+	for _, unwanted := range []string{"revision", "保守する人のメモ", "事故の覚え書き", "T-1", "監査.scope"} {
+		if strings.Contains(prompt, unwanted) {
+			t.Errorf("prompt still contains %q:\n%s", unwanted, prompt)
 		}
+	}
+}
+
+// TestParseStopsOnMarkdownInPlaceOfYAML: a docs entry that is still Markdown, a
+// directory that holds only Markdown, and a role whose file is still Markdown
+// each stop with the way to move over.
+func TestParseStopsOnMarkdownInPlaceOfYAML(t *testing.T) {
+	roleTeam := "version: 1\nteam: t\nprompt: \"%{role_doc}\"\nmembers:\n  - name: a\n    role: r\n    kind: claude\n"
+	cases := []struct {
+		name string
+		file string
+		text string
+		team string
+		want string
+	}{
+		{
+			name: "a docs entry that is Markdown",
+			file: "old.md",
+			text: "- R1: old\n",
+			team: teamText(`["old.md"]`),
+			want: "old.md",
+		},
+		{
+			name: "a directory that holds only Markdown",
+			file: filepath.Join("docs", "old.md"),
+			text: "- R1: old\n",
+			team: teamText(`["docs"]`),
+			want: "docs",
+		},
+		{
+			name: "a role whose file is still Markdown",
+			file: filepath.Join("roles", "r.md"),
+			text: "- R1: old\n",
+			team: roleTeam,
+			want: "r.md",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			write(t, filepath.Join(dir, tc.file), tc.text)
+			_, err := parseTeam(t, dir, tc.team)
+			if err == nil {
+				t.Fatal("Markdown in place of YAML did not stop the parse")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not name %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseStopsOnBreaksAcrossTheDocumentsOneMemberReads: a rule id and a report
+// name are unique among the documents that go into one member's prompt, and a
+// report and a derived rule point at something those documents hold.
+func TestParseStopsOnBreaksAcrossTheDocumentsOneMemberReads(t *testing.T) {
+	audit := "reports:\n  監査:\n    where: 台帳\n    fields:\n      scope: 範囲\n"
+	cases := []struct {
+		name string
+		docs map[string]string
+		want string
+	}{
+		{
+			name: "a rule id that stands twice",
+			docs: map[string]string{
+				"a.yaml": oneRule("R1", "one"),
+				"b.yaml": oneRule("R1", "two"),
+			},
+			want: "R1",
+		},
+		{
+			name: "a report name that stands twice",
+			docs: map[string]string{
+				"a.yaml": "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n" + audit,
+				"b.yaml": "version: 1\nsections:\n  - rules:\n      - id: B1\n        text: y\n" + audit,
+			},
+			want: "監査",
+		},
+		{
+			name: "a report that is not there",
+			docs: map[string]string{
+				"a.yaml": "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n        report: 監査.absent\n" + audit,
+			},
+			want: "監査.absent",
+		},
+		{
+			name: "a derived rule that is not there",
+			docs: map[string]string{
+				"a.yaml": "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n        origin:\n          - kind: derived\n            refs: [B9]\n",
+			},
+			want: "B9",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			entries := make([]string, 0, len(tc.docs))
+			for name, text := range tc.docs {
+				write(t, filepath.Join(dir, name), text)
+				entries = append(entries, name)
+			}
+			sort.Strings(entries)
+			quoted := make([]string, len(entries))
+			for i, name := range entries {
+				quoted[i] = `"` + name + `"`
+			}
+			_, err := parseTeam(t, dir, teamText("["+strings.Join(quoted, ", ")+"]"))
+			if err == nil {
+				t.Fatal("a break across the documents did not stop the parse")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not name %q", err, tc.want)
+			}
+		})
 	}
 }
 
 func TestParseErrorsOnMissingDocs(t *testing.T) {
 	dir := t.TempDir()
-	_, err := parseTeam(t, dir, teamText(`["nope.md"]`))
+	_, err := parseTeam(t, dir, teamText(`["nope.yaml"]`))
 	if err == nil {
 		t.Fatal("a docs entry that does not exist did not stop the parse")
 	}
-	if !strings.Contains(err.Error(), "nope.md") {
+	if !strings.Contains(err.Error(), "nope.yaml") {
 		t.Errorf("error %q does not name the missing entry", err)
 	}
 }

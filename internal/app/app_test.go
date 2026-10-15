@@ -330,9 +330,9 @@ func TestNewShape(t *testing.T) {
 		"layer: local",
 		"dir: .hergy/teams/demo",
 		"file: .hergy/teams/demo/team.yaml",
-		"file: .hergy/teams/demo/protocol.md",
-		"file: .hergy/teams/demo/roles/lead.md",
-		"file: .hergy/teams/demo/roles/builder.md",
+		"file: .hergy/teams/demo/protocol.yaml",
+		"file: .hergy/teams/demo/roles/lead.yaml",
+		"file: .hergy/teams/demo/roles/builder.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
 		"next: up demo --dry",
 	)
@@ -466,19 +466,19 @@ func TestShowShape(t *testing.T) {
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: none",
-		"document: .hergy/teams/demo/protocol.md",
+		"document: .hergy/teams/demo/protocol.yaml",
 		"member: demo-lead",
 		"  role: lead",
 		"  kind: claude",
 		"  cwd: .",
-		"  role file: .hergy/teams/demo/roles/lead.md",
-		"  reads: .hergy/teams/demo/protocol.md",
+		"  role file: .hergy/teams/demo/roles/lead.yaml",
+		"  reads: .hergy/teams/demo/protocol.yaml",
 		"member: demo-builder",
 		"  role: builder",
 		"  kind: claude",
 		"  cwd: .",
-		"  role file: .hergy/teams/demo/roles/builder.md",
-		"  reads: .hergy/teams/demo/protocol.md",
+		"  role file: .hergy/teams/demo/roles/builder.yaml",
+		"  reads: .hergy/teams/demo/protocol.yaml",
 	)
 }
 
@@ -486,7 +486,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  役割: lead", "  役割ファイル: .hergy/teams/demo/roles/lead.md"} {
+	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  役割: lead", "  役割ファイル: .hergy/teams/demo/roles/lead.yaml"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}
@@ -507,8 +507,8 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"timeout: 30000",
 		"member: demo-lead",
 		"  role: lead",
-		"  role file: .hergy/teams/demo/roles/lead.md",
-		"  reads: .hergy/teams/demo/protocol.md",
+		"  role file: .hergy/teams/demo/roles/lead.yaml",
+		"  reads: .hergy/teams/demo/protocol.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
 		"next: up demo",

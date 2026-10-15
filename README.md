@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes to ~/.config/hergy/teams/myteam/ (--local writes to the project's .hergy/)
 ```
 
-You get `team.yaml`, `protocol.md` (the team's agreements), `roles/lead.md` and `roles/builder.md`. Each rule is one line, with its "why" in an HTML comment right below it. HTML comments are not sent to the agents.
+You get `team.yaml`, `protocol.yaml` (the team's agreements), `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
 
 Run it in a herdr shell pane.
 
@@ -97,12 +97,12 @@ Common options: `--global` / `--local` (pick a layer; for `new`, `--local` picks
 version: 1              # required
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
-docs: [protocol.md]     # documents for every member, joined in order; a directory means its *.md in name order
+docs: [protocol.yaml]   # documents for every member, joined in order; a directory means its *.yaml in name order
 roles: [roles]          # where to look for role files (defaults to roles/)
 prompt: "…"             # bootstrap prompt template (optional)
 members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
-    role: lead          # reads roles/lead.md
+    role: lead          # reads roles/lead.yaml
     profile: opus       # or write kind / args / env directly
     may_spawn:          # purpose-to-profile pairs this member may hire for (written into the prompt, not enforced)
       workers:

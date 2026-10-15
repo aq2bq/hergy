@@ -41,6 +41,29 @@ func TestEntryDoc(t *testing.T) {
 	}
 }
 
+func TestYAMLInReadsTopLevelByName(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "b.yaml"), "b")
+	write(t, filepath.Join(dir, "a.yaml"), "a")
+	write(t, filepath.Join(dir, "note.md"), "not read")
+	write(t, filepath.Join(dir, "team.yaml.bak"), "not a .yaml file")
+	write(t, filepath.Join(dir, "sub", "d.yaml"), "deeper")
+
+	got, err := Disk{}.YAMLIn(Doc{Path: dir, Layer: LayerLocal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(dir, "a.yaml"), filepath.Join(dir, "b.yaml")}
+	if len(got) != len(want) {
+		t.Fatalf("YAMLIn returned %v, want %v", got, want)
+	}
+	for i, doc := range got {
+		if doc.Path != want[i] || doc.Layer != LayerLocal {
+			t.Errorf("doc %d = %+v, want path %q in %q", i, doc, want[i], LayerLocal)
+		}
+	}
+}
+
 func TestMarkdownInReadsTopLevelByName(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "b.md"), "b")

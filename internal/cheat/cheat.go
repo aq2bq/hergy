@@ -174,11 +174,11 @@ Settings files and their keys:
     team: <definition> string, optional; if written it must equal the team definition name (the directory name).
     cwd: <dir>        string; working directory, relative to the project root; default ".".
     prompt: "<text>"  string, optional; the bootstrap prompt template for every member.
-    docs: [<path>...] list of strings, or one string; documents every member reads, joined in order; a directory means its *.md in name order; a path that is not there is an error.
-    roles: [<dir>...] list of strings, or one string; where role files are looked for; default [roles]; <role>.md comes from the first directory that has it.
+    docs: [<path>...] list of strings, or one string; documents every member reads, joined in order; a directory means its *.yaml in name order; a path that is not there is an error. A rule file is YAML (see below).
+    roles: [<dir>...] list of strings, or one string; where role files are looked for; default [roles]; <role>.yaml comes from the first directory that has it.
     members:          required, nonempty list.
       name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
-      role: <role>       required, string; reads <role>.md from a roles directory.
+      role: <role>       required, string; reads <role>.yaml from a roles directory.
       profile: <name>    string; a named engine from profiles.yaml. Write this or kind/args/env inline, not both.
       kind: <kind>       string; herdr's agent kind (claude, codex, opencode, ...).
       args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
@@ -206,7 +206,7 @@ hire (a member starting a worker):
   A --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
 
 new:
-  It writes team.yaml, protocol.md, roles/lead.md and roles/builder.md, and the global config.yaml (version: 1, lang) when that file is missing.
+  It writes team.yaml, protocol.yaml, roles/lead.yaml and roles/builder.yaml, and the global config.yaml (version: 1, lang) when that file is missing.
   It never overwrites: an existing team definition directory stops it and nothing is written (exit 1).
 
 Bootstrap prompt placeholders:

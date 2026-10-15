@@ -45,7 +45,7 @@ lead と worker の2人チームのひな形を書き出します。
 hergy new myteam        # ~/.config/hergy/teams/myteam/ に書き出す（--local でプロジェクトの .hergy/ に）
 ```
 
-`team.yaml`、`protocol.md`（チームの約束）、`roles/lead.md`、`roles/builder.md` ができます。決まりは1件1行で、すぐ下の HTML コメントに「なぜ」を書いています。HTML コメントはエージェントには送られません。
+`team.yaml`、`protocol.yaml`（チームの約束）、`roles/lead.yaml`、`roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・確かめ方（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
 
 herdr のシェルペインで実行します。
 
@@ -97,12 +97,12 @@ hergy up myteam         # 起動
 version: 1              # 必須
 team: myteam            # 任意。書くならチーム定義名（teams/<チーム定義名>/）と一致させる
 cwd: .                  # 作業場所（プロジェクトの直下が基準）
-docs: [protocol.md]     # 全員に渡す文書。書いた順に連結。ディレクトリなら *.md を名前順に
+docs: [protocol.yaml]   # 全員に渡す文書。書いた順に連結。ディレクトリなら *.yaml を名前順に
 roles: [roles]          # 役割ファイルを探す場所（省略時は roles/）
 prompt: "…"             # 初期プロンプトのテンプレート（任意）
 members:
   - name: lead            # メンバー名（短い名前）。herdr では「<チーム名>-lead」になる
-    role: lead          # roles/lead.md を読む
+    role: lead          # roles/lead.yaml を読む
     profile: opus       # または kind / args / env を直接書く
     may_spawn:          # 追加してよい「目的 → プロファイル」の組（プロンプトに書くだけで、強制しない）
       workers:

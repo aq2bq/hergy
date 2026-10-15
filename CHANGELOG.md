@@ -4,6 +4,41 @@
 
 ### Changed
 
+- **A team's agreements and role files are YAML, not Markdown**: `protocol.md`
+  becomes `protocol.yaml`, and `roles/<role>.md` becomes `roles/<role>.yaml`.
+  A rule file holds `sections`, each with the rules under it, and each rule has
+  an `id`, its `text`, and, when the file gives them, `why` (whether it is sent
+  is chosen per rule with `send_why`), `origin` (`incident`, `instruction` or
+  `derived`), `note`, `report` and `tests`. A document may also write the shape
+  of a report under `reports`. `hergy up` renders each file to Markdown and
+  puts it where `%{role_doc}` and `%{docs}` were; `hergy new` writes the
+  starter team in the new form. Markdown is no longer read: a `docs` entry
+  that points at a `.md` file, a directory that holds only `.md`, or a role
+  that has only `<role>.md` stops with the way to move it over. Before:
+
+  ```markdown
+  - C1: Work along the gy-loop skill, so that work can resume from gy when a conversation ends.
+  <!-- why: Sessions end. An agreement that lives only in a conversation is lost. -->
+  ```
+
+  After:
+
+  ```yaml
+  version: 1
+  sections:
+    - heading: Team agreements
+      style: ids
+      rules:
+        - id: C1
+          text: Work along the gy-loop skill, so that work can resume from gy when a conversation ends.
+          why: Sessions end. An agreement that lives only in a conversation is lost.
+          send_why: false
+  ```
+
+  Move a team over with the team-building skill (r-a510): the reasons, the
+  origin and the way each rule is checked cannot be read out of the Markdown,
+  so the move is a conversation, not a conversion.
+
 - **CI asks more of a change**: `go run ./tools/check` runs every gate CI runs
   (formatting, `go mod tidy`, `go fix`, golangci-lint, the direction of
   imports, `go test -race`, coverage, dead code, govulncheck), and a daily

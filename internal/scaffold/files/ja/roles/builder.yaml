@@ -1,0 +1,12 @@
+version: 1
+sections:
+  - style: ids
+    rules:
+      - id: B1
+        text: 依頼された範囲だけをする。範囲の外が要るときは依頼者に聞く。
+        why: 範囲の外の変更は、依頼者が確かめられない。
+        send_why: false
+      - id: B2
+        text: 終わったら依頼者に報告する。したこと・確かめ方・自分で決めたこと・確かめていないことを書く。
+        why: 依頼者が確かめ直す場所を絞れる。
+        send_why: false

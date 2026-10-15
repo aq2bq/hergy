@@ -1,0 +1,12 @@
+version: 1
+sections:
+  - style: ids
+    rules:
+      - id: B1
+        text: Do only what you were asked. If you need to go beyond it, ask whoever asked you.
+        why: Changes outside the request are ones the requester cannot check.
+        send_why: false
+      - id: B2
+        text: "When you are done, report to whoever asked you: what you did, how you checked it, what you decided yourself, and what you did not check."
+        why: It lets the requester narrow down where to check again.
+        send_why: false

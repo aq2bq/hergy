@@ -1,0 +1,13 @@
+version: 1
+sections:
+  - heading: Team agreements
+    style: ids
+    rules:
+      - id: C1
+        text: Work along the gy-loop skill, so that work can resume from gy when a conversation ends.
+        why: Sessions end. An agreement that lives only in a conversation is lost.
+        send_why: false
+      - id: C2
+        text: Hand the turn to whoever acts next, along with what you need from them.
+        why: When nobody holds the turn, the team stops. Without knowing what is needed, the receiver does not know what to do.
+        send_why: false

@@ -16,6 +16,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
 )
@@ -25,7 +26,6 @@ var (
 	NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 	kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	envPattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	commentRE   = regexp.MustCompile(`(?s)<!--.*?-->\s*`)
 	typeNameRE  = regexp.MustCompile(` in type \S+|\s*(?:\[\])?config\.raw\w+|\s*into\s+(?:map\[string\]interface \{\}|(?:\[\])?interface \{\}|\[\](?:string|int|bool|any|float64))`)
 	dangleRE    = regexp.MustCompile(`(?m)\s+into\s*$`)
 )
@@ -402,8 +402,10 @@ func Parse(in Input) (*Config, error) {
 }
 
 // expandDocs: with no docs key, no documents go in. With a docs key, exactly
-// what it lists goes in, in order. hergy has no built-in layer, so a "builtin:"
-// entry is an error.
+// what it lists goes in, in order. A file entry is a rule file; a directory
+// entry is the *.yaml files directly inside it, by name. hergy has no built-in
+// layer, so a "builtin:" entry is an error, and a document left as Markdown
+// stops here with the way to move it over.
 func expandDocs(entries *stringList, in Input) ([]source.Doc, error) {
 	if entries == nil {
 		return nil, nil
@@ -416,18 +418,41 @@ func expandDocs(entries *stringList, in Input) ([]source.Doc, error) {
 		}
 		switch {
 		case in.Reader.IsDir(doc):
-			more, err := in.Reader.MarkdownIn(doc)
+			more, err := docsIn(in.Reader, doc, entry)
 			if err != nil {
 				return nil, err
 			}
 			docs = append(docs, more...)
 		case in.Reader.IsFile(doc):
+			if isMarkdown(doc.Path) {
+				return nil, i18n.Errorf("error.docs_markdown", entry)
+			}
 			docs = append(docs, doc)
 		default:
 			return nil, i18n.Errorf("error.docs_missing", entry)
 		}
 	}
 	return docs, nil
+}
+
+// docsIn expands one directory entry: its *.yaml files, or the error that says
+// the directory is still Markdown.
+func docsIn(reader source.Reader, dir source.Doc, entry string) ([]source.Doc, error) {
+	more, err := reader.YAMLIn(dir)
+	if err != nil {
+		return nil, err
+	}
+	if len(more) > 0 {
+		return more, nil
+	}
+	if markdown, err := reader.MarkdownIn(dir); err == nil && len(markdown) > 0 {
+		return nil, i18n.Errorf("error.docs_dir_markdown", entry)
+	}
+	return nil, nil
+}
+
+func isMarkdown(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".md")
 }
 
 // expandRoleDirs is the directories a team lists in roles; there is no built-in
@@ -673,21 +698,26 @@ func mappingValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// buildPrompt expands one member's template and records what it read.
+// buildPrompt expands one member's template and records what it read. The rule
+// files that go in are parsed and rendered to Markdown, and the set they form is
+// checked as a whole: a rule id, a report name and a reference are held to the
+// documents this member actually reads.
 func buildPrompt(member *Member, template string, in Input, docs, roleDirs []source.Doc, roster []prompt.RosterEntry) error {
 	var buildErr error
 	var roleSource *source.Doc
 	var docsRead []source.Doc
+	var readDocs []*rules.Document
 
 	readDoc := func(doc source.Doc) string {
-		text, err := in.Reader.Read(doc)
+		parsed, err := readRuleFile(in.Reader, doc)
 		if err != nil {
 			if buildErr == nil {
 				buildErr = err
 			}
 			return ""
 		}
-		return stripComments(text)
+		readDocs = append(readDocs, parsed)
+		return strings.TrimRight(parsed.Markdown(), "\n")
 	}
 
 	parts := map[string]func() string{
@@ -743,6 +773,9 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 	if buildErr != nil {
 		return buildErr
 	}
+	if err := rules.Check(readDocs); err != nil {
+		return err
+	}
 	member.Prompt = text
 	member.DocsRead = docsRead
 	if roleSource != nil {
@@ -750,6 +783,16 @@ func buildPrompt(member *Member, template string, in Input, docs, roleDirs []sou
 		member.HasRoleSource = true
 	}
 	return nil
+}
+
+// readRuleFile reads one rule file and renders it to the Markdown a member's
+// prompt carries.
+func readRuleFile(reader source.Reader, doc source.Doc) (*rules.Document, error) {
+	text, err := reader.Read(doc)
+	if err != nil {
+		return nil, err
+	}
+	return rules.Parse(text, doc.Path)
 }
 
 // hireCommand is embedded in a member's prompt. It names the exact team, layer
@@ -782,23 +825,31 @@ func shellQuote(s string) string {
 // roleFile is the first role directory that has the file; files are never merged.
 func roleFile(role string, dirs []source.Doc, reader source.Reader) (source.Doc, error) {
 	for _, dir := range dirs {
-		doc := source.Doc{Layer: dir.Layer, Path: joinPath(dir.Path, role+".md")}
+		doc := source.Doc{Layer: dir.Layer, Path: joinPath(dir.Path, role+".yaml")}
 		if reader.IsFile(doc) {
 			return doc, nil
 		}
 	}
+	return source.Doc{}, missingRole(role, dirs, reader)
+}
+
+// missingRole says which it is: a role file that is still Markdown, or no role
+// file at all.
+func missingRole(role string, dirs []source.Doc, reader source.Reader) error {
+	for _, dir := range dirs {
+		doc := source.Doc{Layer: dir.Layer, Path: joinPath(dir.Path, role+".md")}
+		if reader.IsFile(doc) {
+			return i18n.Errorf("error.role_markdown", role, doc.Path)
+		}
+	}
 	if len(dirs) == 0 {
-		return source.Doc{}, i18n.Errorf("error.no_role_file_no_dirs", role)
+		return i18n.Errorf("error.no_role_file_no_dirs", role)
 	}
 	paths := make([]string, len(dirs))
 	for i, dir := range dirs {
 		paths[i] = dir.Path
 	}
-	return source.Doc{}, i18n.Errorf("error.no_role_file_paths", role, strings.Join(paths, ", "))
-}
-
-func stripComments(text string) string {
-	return strings.TrimSpace(commentRE.ReplaceAllString(text, ""))
+	return i18n.Errorf("error.no_role_file_paths", role, strings.Join(paths, ", "))
 }
 
 func isAbs(p string) bool         { return filepath.IsAbs(p) }

@@ -41,6 +41,7 @@ type Reader interface {
 	Read(d Doc) (string, error)
 	IsFile(d Doc) bool
 	IsDir(d Doc) bool
+	YAMLIn(d Doc) ([]Doc, error)
 	MarkdownIn(d Doc) ([]Doc, error)
 }
 
@@ -65,15 +66,26 @@ func (Disk) IsDir(d Doc) bool {
 	return err == nil && info.IsDir()
 }
 
-// MarkdownIn lists the *.md files directly inside a directory, by name.
+// YAMLIn lists the *.yaml files directly inside a directory, by name. It is how
+// a docs entry that names a directory is expanded.
+func (Disk) YAMLIn(d Doc) ([]Doc, error) {
+	return filesIn(d, ".yaml")
+}
+
+// MarkdownIn lists the *.md files directly inside a directory, by name. hergy no
+// longer reads them; it is here so a directory left as Markdown can say so.
 func (Disk) MarkdownIn(d Doc) ([]Doc, error) {
+	return filesIn(d, ".md")
+}
+
+func filesIn(d Doc, ext string) ([]Doc, error) {
 	entries, err := os.ReadDir(d.Path)
 	if err != nil {
 		return nil, err
 	}
 	var out []Doc
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ext) {
 			continue
 		}
 		out = append(out, Doc{Layer: d.Layer, Path: filepath.Join(d.Path, entry.Name())})
