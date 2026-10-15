@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **A rule file hergy writes back is written in one format**: `hergy` writes a
+  document with the keys in the order the format lists them, leaves out a value
+  that is only the default (`send_why: true`) and an empty value, and writes a
+  value of more than one line as a block. What is written is read back as the
+  same document, and the Markdown a member reads does not change. Two things a
+  file may hold are not carried over: a comment, and a default spelled out by
+  hand. The first time hergy saves a file it rewrites the whole file, so `git`
+  shows one large diff.
+
 ## 0.4.0 - 2026-10-15
 
 ### Added

@@ -34,3 +34,6 @@ fuzz:
       name: FuzzParseProfiles
     - package: internal/config
       name: FuzzParseConfig
+    # 規則の書き戻し（Emit）: 読み直して同じ Document・同じ render になること（d-cbac）。
+    - package: internal/rules
+      name: FuzzEmit
