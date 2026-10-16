@@ -4,12 +4,11 @@
 
 ### Added
 
-- **A team can say what it is for, in one line**: a `team.yaml` may write
+- **A team says what it is for, in one line**: a `team.yaml` writes
   `mission:`. The commands that handle a team print it at the top of their
   header, and the web UI's team list and team definition screen show it too.
-  `hergy validate` warns when a definition writes none, or writes one over
-  more than one line. Writing a mission is optional, so every existing team
-  definition keeps working as it is.
+  It is required: see "`mission:` is now required" under Changed for what a
+  definition without one gets, and how to add one.
 
 ### Changed
 
