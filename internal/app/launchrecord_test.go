@@ -245,7 +245,7 @@ func TestTheHashFollowsTheProfilesTheMembersRead(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: fast\n"+
-			"  - name: builder\n    role: builder\n    kind: claude\n")
+			"  - name: builder\n    role: builder\n    profile: fast\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), profilesYAML("--fast", "--slow"))
 
 	before := recordDev(t, f).Hash

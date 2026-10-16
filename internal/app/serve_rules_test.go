@@ -81,8 +81,9 @@ roles: [roles]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
 `)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "borrow", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: L1\n        text: two\n")
 	p := servePort{env: serveEnv(t)}
 
@@ -191,7 +192,7 @@ roles: [roles]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
 `)
 		writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "torn", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - text: no id here\n")
 		got, err := p.Preview(web.LayerLocal, doc, 0, readRule(t, doc))

@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -421,17 +423,73 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	profilePath, err := ensureScaffoldProfile(env, layer)
+	if err != nil {
+		return err
+	}
 	field(stdout, label("definition"), name)
 	field(stdout, label("layer"), layer)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
 		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
 	}
+	if profilePath != "" {
+		field(stdout, label("profile"), scaffold.ProfileName)
+		field(stdout, label("file"), env.Display(profilePath))
+	}
 	if madeConfig {
 		field(stdout, label("config"), env.Display(configPath))
 	}
 	printNext(stdout, "up "+name+" --dry")
 	return nil
+}
+
+// ensureScaffoldProfile makes sure the layer a starter team is written to can
+// resolve the profile its members name (I7). The name is looked up the way a
+// team of that layer resolves it: when it is already there, in the layer's own
+// profiles.yaml or in a global one a local team reads, nothing is written and
+// the path is "". A layer that cannot resolve the name gets it added to its own
+// profiles.yaml, which is made when the layer has none yet. An existing file the
+// layer cannot read is an error rather than something to write over.
+func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
+	profiles, _, err := env.LoadProfiles(layer)
+	if err != nil {
+		return "", err
+	}
+	if _, ok := profiles[scaffold.ProfileName]; ok {
+		return "", nil
+	}
+	dir := env.GlobalDir
+	if layer == source.LayerLocal {
+		dir = env.LocalDir
+	}
+	path := filepath.Join(dir, "profiles.yaml")
+	all := map[string]config.Profile{}
+	switch text, err := os.ReadFile(path); {
+	case err == nil:
+		if all, err = config.ParseProfiles(string(text), path); err != nil {
+			return "", err
+		}
+	case errors.Is(err, os.ErrNotExist):
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return "", err
+		}
+	default:
+		return "", err
+	}
+	all[scaffold.ProfileName] = config.Profile{
+		Name: scaffold.ProfileName,
+		Kind: scaffold.ProfileKind,
+		Path: path,
+	}
+	text, err := config.EmitProfiles(all)
+	if err != nil {
+		return "", err
+	}
+	if err := writeFileBeside(path, text); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // writeScaffold writes the starter files under dir, creating the directories
@@ -476,7 +534,11 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	}
 	for _, dir := range []string{env.GlobalDir, env.LocalDir} {
 		if path := filepath.Join(dir, "profiles.yaml"); isFile(path) {
-			report(path, validateProfiles(path))
+			profiles, err := validateProfiles(path)
+			report(path, err)
+			if err == nil {
+				reportProfileNames(stdout, profiles)
+			}
 		}
 	}
 	rows := env.List()
@@ -515,6 +577,19 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
 	return nil
+}
+
+// reportProfileNames is the one warning a profiles.yaml gets: a profile whose
+// name is its kind (d-a477). A name that is the kind makes a profile look like a
+// choice of kind, where I7 makes it a choice of engine settings; the name should
+// say the model or the settings instead. It stands under the file's own result
+// line, and moves no exit code: such a profile runs the same.
+func reportProfileNames(w io.Writer, profiles map[string]config.Profile) {
+	for _, name := range slices.Sorted(maps.Keys(profiles)) {
+		if profiles[name].Kind == name {
+			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
+		}
+	}
 }
 
 // reportMission is the one warning a team definition gets about its mission: no
@@ -705,14 +780,14 @@ func validateConfig(path string) error {
 	return err
 }
 
-// validateProfiles reads one profiles.yaml the way up does.
-func validateProfiles(path string) error {
+// validateProfiles reads one profiles.yaml the way up does, and returns the
+// profiles it holds for the name warning (d-a477).
+func validateProfiles(path string) (map[string]config.Profile, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = config.ParseProfiles(string(text), path)
-	return err
+	return config.ParseProfiles(string(text), path)
 }
 
 // validateTeam builds one team from one layer the way up does.

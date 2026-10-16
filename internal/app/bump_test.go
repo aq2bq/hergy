@@ -183,10 +183,10 @@ docs: [protocol.yaml, added.yaml]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
   - name: builder
     role: builder
-    kind: claude
+    profile: claude-default
 `)
 	before := readRule(t, added)
 

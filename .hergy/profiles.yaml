@@ -1,8 +1,8 @@
 version: 1
 profiles:
-  claude:
-    kind: claude
-  codex:
-    kind: codex
-  opencode:
+  deepseek:
     kind: opencode
+  gpt5:
+    kind: codex
+  opus:
+    kind: claude

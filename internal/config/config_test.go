@@ -32,11 +32,19 @@ func write(t *testing.T, path, text string) {
 	}
 }
 
+// testProfiles is the one profile a test team names: kind is the profile's, so a
+// team.yaml body names it rather than writing the kind itself (I7).
+func testProfiles(dir string) map[string]Profile {
+	return map[string]Profile{
+		"claude-default": {Name: "claude-default", Kind: "claude", Path: filepath.Join(dir, "profiles.yaml")},
+	}
+}
+
 // teamText is a team.yaml body whose prompt is only the documents, so the
 // tests read the concatenation without any other prompt part in the way.
 func teamText(docs string) string {
 	return "version: 1\nteam: t\nprompt: \"%{docs}\"\ndocs: " + docs + "\n" +
-		"members:\n  - name: a\n    role: r\n    kind: claude\n"
+		"members:\n  - name: a\n    role: r\n    profile: claude-default\n"
 }
 
 func parseTeam(t *testing.T, dir, text string) (*Config, error) {
@@ -47,6 +55,8 @@ func parseTeam(t *testing.T, dir, text string) (*Config, error) {
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
 		TeamDir:      dir,
+		Profiles:     testProfiles(dir),
+		ProfilesYAML: filepath.Join(dir, "profiles.yaml"),
 		Base:         dir,
 		Reader:       source.Disk{},
 		Executable:   "hergy",
@@ -140,7 +150,7 @@ reports:
 // directory that holds only Markdown, and a role whose file is still Markdown
 // each stop with the way to move over.
 func TestParseStopsOnMarkdownInPlaceOfYAML(t *testing.T) {
-	roleTeam := "version: 1\nteam: t\nprompt: \"%{role_doc}\"\nmembers:\n  - name: a\n    role: r\n    kind: claude\n"
+	roleTeam := "version: 1\nteam: t\nprompt: \"%{role_doc}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
 	cases := []struct {
 		name string
 		file string
@@ -269,14 +279,14 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 		{
 			name: "team.yaml without a version",
 			parse: func() error {
-				_, err := parseTeam(t, t.TempDir(), "team: t\nmembers:\n  - name: a\n    role: r\n    kind: claude\n")
+				_, err := parseTeam(t, t.TempDir(), "team: t\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
 				return err
 			},
 		},
 		{
 			name: "team.yaml with an unknown key",
 			parse: func() error {
-				_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nunknown_key: 1\nmembers:\n  - name: a\n    role: r\n    kind: claude\n")
+				_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nunknown_key: 1\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
 				return err
 			},
 		},
@@ -362,7 +372,7 @@ func parseMaySpawnTeam(t *testing.T, maySpawn string) (*Config, error) {
 	}
 	return Parse(Input{
 		YAML: "version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n" +
-			"  - name: lead\n    role: r\n    kind: claude\n" +
+			"  - name: lead\n    role: r\n    profile: seeker\n" +
 			"    may_spawn:\n" + maySpawn,
 		TeamName:     "t",
 		Layer:        source.LayerLocal,
@@ -445,11 +455,51 @@ func TestParseUnknownProfileStops(t *testing.T) {
 	}
 }
 
+// TestMemberCannotWriteItsOwnEngine: kind, args and env are the profile's, so a
+// member that writes one of them is stopped with the sentence that says where it
+// goes (I7). The three are refused the same way, so a file that reads a member
+// with one of them is fixed before the team boots.
+func TestMemberCannotWriteItsOwnEngine(t *testing.T) {
+	cases := []struct{ name, member, want string }{
+		{"kind", "    kind: claude\n", "kind"},
+		{"args", "    args: [--model, opus]\n", "args"},
+		{"env", "    env: {ANTHROPIC_MODEL: opus}\n", "env"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseTeam(t, t.TempDir(),
+				"version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n"+tc.member)
+			if err == nil {
+				t.Fatalf("a member writing %s did not stop the parse", tc.name)
+			}
+			for _, want := range []string{"lead", tc.want, "profiles.yaml"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not name %q", err, want)
+				}
+			}
+		})
+	}
+}
+
+// TestMemberNeedsAProfile: a member with no profile has no engine at all, and is
+// stopped with the way to give it one.
+func TestMemberNeedsAProfile(t *testing.T) {
+	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n")
+	if err == nil {
+		t.Fatal("a member with no profile did not stop the parse")
+	}
+	for _, want := range []string{"lead", "profile", "profiles.yaml"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %q", err, want)
+		}
+	}
+}
+
 // TestMemberNameGetsTheTeamPrefix: the name written in team.yaml is the short member name;
 // the member's herdr name is "<team>-<member>".
 func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 	dir := t.TempDir()
-	cfg, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    kind: claude\n")
+	cfg, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,12 +516,13 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 func TestMemberNameTakesTheRunName(t *testing.T) {
 	dir := t.TempDir()
 	cfg, err := Parse(Input{
-		YAML:         "version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    kind: claude\n",
+		YAML:         "version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n",
 		TeamName:     "dev",
 		RunName:      "dev2",
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
 		TeamDir:      dir,
+		Profiles:     testProfiles(dir),
 		Base:         dir,
 		Reader:       source.Disk{},
 	})
@@ -489,7 +540,7 @@ func TestMemberNameTakesTheRunName(t *testing.T) {
 // TestMemberNameWithTeamPlaceholderStops: the team name is added for the writer,
 // so a literal %{team} left in a member name is refused.
 func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
-	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: \"%{team}-lead\"\n    role: r\n    kind: claude\n")
+	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: \"%{team}-lead\"\n    role: r\n    profile: claude-default\n")
 	if err == nil {
 		t.Fatal("a member name with %{team} did not stop the parse")
 	}
@@ -502,7 +553,7 @@ func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
 // their own pattern, but the combined herdr name is checked too.
 func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	_, err := Parse(Input{
-		YAML:         "version: 1\nmembers:\n  - name: worker\n    role: r\n    kind: claude\n",
+		YAML:         "version: 1\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
 		TeamName:     "abcdefghijklmnopqrstuvwxyz", // 26 chars, over the team-name limit
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: "team.yaml",
@@ -566,7 +617,7 @@ func TestParseReadsTheMission(t *testing.T) {
 	// line (empty for none), so each case writes only what it is about.
 	teamWith := func(mission string) string {
 		return "version: 1\n" + mission +
-			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    kind: claude\n"
+			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
 	}
 	for _, tc := range []struct {
 		name    string

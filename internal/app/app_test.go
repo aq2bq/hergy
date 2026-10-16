@@ -352,6 +352,8 @@ func TestNewShape(t *testing.T) {
 		"file: .hergy/teams/demo/protocol.yaml",
 		"file: .hergy/teams/demo/roles/lead.yaml",
 		"file: .hergy/teams/demo/roles/builder.yaml",
+		"profile: claude-default",
+		"file: .hergy/profiles.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
 		"next: up demo --dry",
 	)
@@ -429,6 +431,58 @@ func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
 	}
 }
 
+// TestNewWritesTheProfileTheStarterTeamNames: the starter team's members name a
+// profile, so new writes that profile into the layer's profiles.yaml when the
+// layer cannot already resolve it (I7). The name says what it picks rather than
+// the kind it runs, so validate's name warning has nothing to say about it.
+func TestNewWritesTheProfileTheStarterTeamNames(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	wantLines(t, readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")),
+		"version: 1", "profiles:", "  claude-default:", "    kind: claude")
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")); !strings.Contains(got, "profile: claude-default") {
+		t.Errorf("the starter team.yaml does not name the profile:\n%s", got)
+	}
+	if got := mustRun(t, "validate"); !strings.Contains(got, "problems: 0\n") {
+		t.Fatalf("validate found a problem in the definition new wrote:\n%s", got)
+	}
+}
+
+// TestNewKeepsAnExistingProfile: a layer that already resolves the name keeps its
+// own profiles.yaml as it is, so a starter team is not a reason to write over a
+// file that holds more than the starter profile.
+func TestNewKeepsAnExistingProfile(t *testing.T) {
+	f := newFixture(t)
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	writeFile(t, path, "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    args: [--model, opus]\n")
+	mustRun(t, "new", "demo", "--local")
+	if got := readFile(t, path); !strings.Contains(got, "--model") {
+		t.Errorf("new rewrote a profiles.yaml that already names the profile:\n%s", got)
+	}
+}
+
+// TestValidateWarnsAboutAProfileNamedAfterItsKind: a profile named after its
+// kind looks like a choice of kind, where it is a choice of what the engine runs
+// (I7), so validate says so under the file that holds the profile (d-a477). It
+// is a warning: validate still finds no problem.
+func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo", "--local")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  claude:\n    kind: claude\n")
+	got := mustRun(t, "validate")
+	warning := "  warning: " + i18n.Tf("validate.profile_named_after_kind", "claude") + "\n"
+	if want := "file: .hergy/profiles.yaml\n  result: ok\n" + warning; !strings.Contains(got, want) {
+		t.Fatalf("validate does not warn under the profiles.yaml:\n%s", got)
+	}
+	if strings.Contains(got, i18n.Tf("validate.profile_named_after_kind", "claude-default")) {
+		t.Errorf("validate warns about a name that is not its kind:\n%s", got)
+	}
+	if !strings.Contains(got, "problems: 0\n") {
+		t.Errorf("the warning moved the exit code:\n%s", got)
+	}
+}
+
 func TestLsShape(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo", "--local")
@@ -449,10 +503,12 @@ func TestValidateShape(t *testing.T) {
 	wantLines(t, got,
 		"file: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
 		"  result: ok",
+		"file: .hergy/profiles.yaml",
+		"  result: ok",
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
 		"  warning: "+i18n.T("validate.mission_missing"),
-		"checked: 2",
+		"checked: 3",
 		"problems: 0",
 		"rules 6 in 3 files",
 		"  with an origin 0 (incident 0 / instruction 0 / derived 0)  with no origin 6",
@@ -474,6 +530,7 @@ func TestValidateShape(t *testing.T) {
 func TestValidateCountsWhatTheRulesCarry(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: en\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "common", "shared.yaml"), `version: 1
 sections:
   - rules:
@@ -507,9 +564,9 @@ sections:
             refs: [A1]
 `)
 	for _, name := range []string{"demo", "other"} {
-		body := "version: 1\ndocs:\n  - ../../common/\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n"
+		body := "version: 1\ndocs:\n  - ../../common/\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n"
 		if name == "demo" {
-			body = "version: 1\ndocs:\n  - ../../common/\n  - protocol.yaml\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n"
+			body = "version: 1\ndocs:\n  - ../../common/\n  - protocol.yaml\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n"
 			writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "protocol.yaml"),
 				"version: 1\nsections:\n  - rules:\n      - id: P1\n        text: five\n        tests: [T-2]\n")
 		}
@@ -549,7 +606,7 @@ func TestValidateShapeReportsABrokenFile(t *testing.T) {
 	if !strings.Contains(got, "file: .hergy/teams/demo/team.yaml\n  result: broken\n") {
 		t.Fatalf("validate does not report the break in the one shape:\n%s", got)
 	}
-	if !strings.Contains(got, "checked: 2\nproblems: 1\n") {
+	if !strings.Contains(got, "checked: 3\nproblems: 1\n") {
 		t.Fatalf("validate summary is not in the one shape:\n%s", got)
 	}
 }
@@ -563,17 +620,19 @@ func TestShowShape(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"document: .hergy/teams/demo/protocol.yaml",
 		"member: demo-lead",
 		"  role: lead",
 		"  kind: claude",
+		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
 		"  role file: .hergy/teams/demo/roles/lead.yaml",
 		"  reads: .hergy/teams/demo/protocol.yaml",
 		"member: demo-builder",
 		"  role: builder",
 		"  kind: claude",
+		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
 		"  role file: .hergy/teams/demo/roles/builder.yaml",
 		"  reads: .hergy/teams/demo/protocol.yaml",
@@ -711,7 +770,7 @@ func TestDownDryShape(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"demo-lead: would close (pane p1)",
 		"demo-builder: would close (pane p2)",
 		"would close: 2",
@@ -731,7 +790,7 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"demo-lead: would skip (not present)",
 		"demo-builder: would skip (not present)",
 		"note: nothing to close (team \"demo\")",
@@ -754,7 +813,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"submitted: demo-lead (pane p1)",
 		"submitted: demo-builder (pane p2)",
 		"booted: demo (tab t1)",
@@ -780,7 +839,7 @@ func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"demo-lead: closing (pane p1)",
 		"demo-builder: closing (pane p2)",
 		"closed: 2",
@@ -990,7 +1049,7 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 	mustRun(t, "new", "dev", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
@@ -1013,7 +1072,7 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	mustRun(t, "new", "dev", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
@@ -1043,7 +1102,7 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	mustRun(t, "new", "dev", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
@@ -1163,7 +1222,7 @@ func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 	mustRun(t, "new", "demo", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: \"%{team}-lead\"\n    role: lead\n    kind: claude\n")
+			"  - name: \"%{team}-lead\"\n    role: lead\n    profile: dev\n")
 
 	for _, argv := range [][]string{
 		{"up", "demo", "--dry"},
@@ -1189,7 +1248,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nprompt: \"%{name}\\n%{spawn}\"\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
@@ -1228,7 +1287,7 @@ func maySpawnFixture(t *testing.T) {
 	mustRun(t, "new", "dev", "--local")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: seeker\n"+
 			"    may_spawn:\n      workers:\n"+
 			"        - purpose: 調査\n          profile: seeker\n"+
 			"        - purpose: 実装\n          profile: developer\n")
@@ -1302,7 +1361,7 @@ func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    kind: claude\n"+
+			"  - name: lead\n    role: lead\n    profile: seeker\n"+
 			"    may_spawn:\n      workers:\n"+
 			"        - purpose: 調査\n          profile: seeker\n"+
 			"        - purpose: 実装\n          profile: developer\n")
@@ -1360,7 +1419,7 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 		"version: 1",
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
-		"profiles: none",
+		"profiles: .hergy/profiles.yaml",
 		"demo-lead: working",
 		"demo-builder: blocked",
 		"demo-w1: idle (worker)",
@@ -1431,7 +1490,7 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	// demo-lead works and demo-builder is blocked here, so drop the blocked one by
 	// selecting a team whose only member is working: rewrite team.yaml.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n")
+		"version: 1\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n")
 	got := mustRun(t, "status", "demo")
 	if !strings.Contains(got, "demo-lead: working\n") {
 		t.Fatalf("status does not report the working member:\n%s", got)
