@@ -106,7 +106,7 @@ func Read(in Input) (*Definition, error) {
 	if raw.Team != "" && raw.Team != in.Name {
 		return nil, i18n.Errorf("error.team_name_mismatch", in.TeamYAMLPath, raw.Team, in.Name)
 	}
-	mission, err := missionOf(raw.Mission)
+	mission, err := missionOf(raw.Mission, in.TeamYAMLPath)
 	if err != nil {
 		return nil, err
 	}
@@ -160,18 +160,19 @@ func promptOf(raw *string) (string, error) {
 
 // missionOf is the mission team.yaml writes: one line saying what the team is
 // for (I15). It is required, so a file that writes none, writes an empty one, or
-// writes one over more than one line is stopped here. The ends are trimmed
-// first, so a block scalar's trailing newline is not a second line.
-func missionOf(raw *string) (string, error) {
+// writes one over more than one line is stopped here, with the file's path the
+// way the other reading errors carry it. The ends are trimmed first, so a block
+// scalar's trailing newline is not a second line.
+func missionOf(raw *string, path string) (string, error) {
 	if raw == nil {
-		return "", i18n.Errorf("error.mission_missing")
+		return "", i18n.Errorf("error.mission_missing", path)
 	}
 	mission := strings.TrimSpace(*raw)
 	if mission == "" {
-		return "", i18n.Errorf("error.mission_missing")
+		return "", i18n.Errorf("error.mission_missing", path)
 	}
 	if strings.Contains(mission, "\n") {
-		return "", i18n.Errorf("error.mission_multiline")
+		return "", i18n.Errorf("error.mission_multiline", path)
 	}
 	return mission, nil
 }

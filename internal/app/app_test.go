@@ -507,6 +507,7 @@ func TestValidateShape(t *testing.T) {
 		"  result: ok",
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
+		"  warning: "+i18n.T("validate.mission_placeholder"),
 		"checked: 3",
 		"problems: 0",
 		"rules 6 in 3 files",

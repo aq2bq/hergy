@@ -611,6 +611,7 @@
   "web.error.internal": "画面の表示中にエラーが起きました: %v",
   "error.layer_flag_gone": "--%s は無くなりました。同じ名前のチーム定義は、ローカルのものを使います",
   "validate.global_hidden": "グローバルのチーム定義 %s は、ローカルの %s に隠れて使われません",
-  "error.mission_missing": "使命が書かれていません。team.yaml に mission: を 1 行書いてください",
-  "error.mission_multiline": "使命は 1 行で書いてください（team.yaml の mission:）"
+  "error.mission_missing": "%s: 使命が書かれていません。team.yaml に mission: を 1 行書いてください",
+  "error.mission_multiline": "%s: 使命は 1 行で書いてください（team.yaml の mission:）",
+  "validate.mission_placeholder": "使命がひな形の例文のままです。このチームの使命を 1 行で書いてください"
 }

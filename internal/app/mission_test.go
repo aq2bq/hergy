@@ -102,10 +102,10 @@ func TestValidateStopsOnABadMission(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 
-	cases := []struct{ name, mission, want string }{
-		{"no mission", "", i18n.T("error.mission_missing")},
-		{"written empty", "mission: \"\"\n", i18n.T("error.mission_missing")},
-		{"over two lines", "mission: |-\n  first\n  second\n", i18n.T("error.mission_multiline")},
+	cases := []struct{ name, mission, key string }{
+		{"no mission", "", "error.mission_missing"},
+		{"written empty", "mission: \"\"\n", "error.mission_missing"},
+		{"over two lines", "mission: |-\n  first\n  second\n", "error.mission_multiline"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,8 +114,11 @@ func TestValidateStopsOnABadMission(t *testing.T) {
 			if code == 0 {
 				t.Fatalf("validate accepted a definition with %s:\n%s", tc.name, stdout)
 			}
-			if !strings.Contains(stdout, tc.want) {
-				t.Errorf("validate does not say %q:\n%s", tc.want, stdout)
+			// The detail carries the file, the way hergy validate names a
+			// broken file (D2).
+			want := i18n.Tf(tc.key, ".hergy/teams/demo/team.yaml")
+			if !strings.Contains(stdout, want) {
+				t.Errorf("validate does not say %q:\n%s", want, stdout)
 			}
 			if _, _, code := run("show", "demo"); code == 0 {
 				t.Errorf("show read a definition with %s", tc.name)
@@ -130,7 +133,9 @@ func TestValidateStopsOnABadMission(t *testing.T) {
 		t.Fatalf("a written mission is a break?\n%s", stdout)
 	}
 	for _, unwanted := range []string{
-		i18n.T("error.mission_missing"), i18n.T("error.mission_multiline"),
+		i18n.Tf("error.mission_missing", "team.yaml"),
+		i18n.Tf("error.mission_multiline", "team.yaml"),
+		i18n.T("validate.mission_placeholder"),
 	} {
 		if strings.Contains(stdout, unwanted) {
 			t.Errorf("validate says %q about a mission written in one line:\n%s", unwanted, stdout)
@@ -138,5 +143,82 @@ func TestValidateStopsOnABadMission(t *testing.T) {
 	}
 	if show := mustRun(t, "show", "demo"); !strings.HasPrefix(show, "mission: one line is enough\n") {
 		t.Errorf("show does not print the mission:\n%s", show)
+	}
+}
+
+// TestStatusNamesWhyARunningTeamsDefinitionDoesNotRead: a running team whose
+// definition is here but does not read is not "in another project": status says
+// why the file does not read, with its path (D1). A definition that is not here
+// at all keeps the sentence that says so.
+func TestStatusNamesWhyARunningTeamsDefinitionDoesNotRead(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+
+	// The definition stops reading: the mission line is gone.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\ndocs: [protocol.yaml]\n"+
+			"members:\n  - name: lead\n    role: lead\n    profile: claude-default\n"+
+			"  - name: builder\n    role: builder\n    profile: claude-default\n")
+
+	got := mustRun(t, "status")
+	if strings.Contains(got, i18n.T("status.definition_elsewhere")) {
+		t.Errorf("status says a definition that is here is in another project:\n%s", got)
+	}
+	want := i18n.Tf("error.mission_missing", ".hergy/teams/demo/team.yaml")
+	if !strings.Contains(got, want) {
+		t.Errorf("status does not say why the file does not read (%q):\n%s", want, got)
+	}
+}
+
+// TestStatusSaysWhenTheDefinitionIsNotHere: a running team whose definition is
+// gone from this project keeps the sentence that says so (D1's other half).
+func TestStatusSaysWhenTheDefinitionIsNotHere(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+
+	if err := os.RemoveAll(filepath.Join(f.proj, ".hergy", "teams", "demo")); err != nil {
+		t.Fatal(err)
+	}
+	got := mustRun(t, "status")
+	if !strings.Contains(got, i18n.T("status.definition_elsewhere")) {
+		t.Errorf("status does not say the definition is not in this project:\n%s", got)
+	}
+}
+
+// TestValidateWarnsAboutTheStarterMission: the starter team's mission is an
+// example, so a definition that still writes it reads and boots, and hergy
+// validate warns that its team has not said what it is for (d-3cae). The
+// warning moves no exit code, and rewriting the line clears it.
+func TestValidateWarnsAboutTheStarterMission(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+
+	stdout, _, code := run("validate")
+	if code != 0 {
+		t.Fatalf("the starter team is a break?\n%s", stdout)
+	}
+	if want := "  warning: " + i18n.T("validate.mission_placeholder") + "\n"; !strings.Contains(stdout, want) {
+		t.Errorf("validate does not warn about the starter mission:\n%s", stdout)
+	}
+
+	// A mission of the definition's own: the warning is gone.
+	missionTeam(t, f, "mission: hergy をよくする\n")
+	stdout, _, code = run("validate")
+	if code != 0 {
+		t.Fatalf("a written mission is a break?\n%s", stdout)
+	}
+	if strings.Contains(stdout, i18n.T("validate.mission_placeholder")) {
+		t.Errorf("validate warns about the starter mission after it was rewritten:\n%s", stdout)
 	}
 }

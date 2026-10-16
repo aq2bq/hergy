@@ -643,11 +643,11 @@ func TestParseStopsOnAMissionThatIsNotOneLine(t *testing.T) {
 		return "version: 1\n" + mission +
 			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
 	}
-	cases := []struct{ name, mission, want string }{
-		{"no mission", "", i18n.T("error.mission_missing")},
-		{"written empty", "mission: \"\"\n", i18n.T("error.mission_missing")},
-		{"written blank", "mission: \"  \"\n", i18n.T("error.mission_missing")},
-		{"over two lines", "mission: |-\n  first\n  second\n", i18n.T("error.mission_multiline")},
+	cases := []struct{ name, mission, key string }{
+		{"no mission", "", "error.mission_missing"},
+		{"written empty", "mission: \"\"\n", "error.mission_missing"},
+		{"written blank", "mission: \"  \"\n", "error.mission_missing"},
+		{"over two lines", "mission: |-\n  first\n  second\n", "error.mission_multiline"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -655,8 +655,11 @@ func TestParseStopsOnAMissionThatIsNotOneLine(t *testing.T) {
 			if err == nil {
 				t.Fatalf("a definition with %s did not stop the parse", tc.name)
 			}
-			if !strings.Contains(err.Error(), tc.want) {
-				t.Errorf("error %q does not say %q", err, tc.want)
+			// The error carries the file's path, the way the other reading
+			// errors do (D2).
+			want := i18n.Tf(tc.key, filepath.Join(dir, "team.yaml"))
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error %q does not say %q", err, want)
 			}
 		})
 	}

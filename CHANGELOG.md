@@ -16,7 +16,10 @@
 - **`mission:` is now required**: every `team.yaml` writes one line saying what
   the team is for. A definition that writes none, writes an empty one, or
   writes one over more than one line does not read, and `hergy validate` reports
-  the file broken. `hergy new`'s starter team writes a mission too.
+  the file broken, with the file's path, the way it reports any other break.
+  `hergy new`'s starter team writes an example mission too, and `hergy validate`
+  warns (without failing) while a definition still writes that example: it has
+  not said what its team is for yet.
 
   Before:
 

@@ -32,6 +32,27 @@ const (
 	ProfileKind = "claude"
 )
 
+// MissionPlaceholder is the mission line the starter team's team.yaml writes, in
+// each language. It is an example, not a mission: a definition that still writes
+// it has not said what its team is for, so hergy validate warns about it
+// (d-3cae). It is kept in step with files/<lang>/team.yaml by a test.
+var MissionPlaceholder = map[string]string{
+	Fallback: "what this team is for, in one line",
+	"ja":     "このチームの使命を 1 行で",
+}
+
+// IsPlaceholderMission reports whether a mission is still a starter example, in
+// any language: a definition carried from another language still has not said
+// what its team is for.
+func IsPlaceholderMission(mission string) bool {
+	for _, example := range MissionPlaceholder {
+		if mission == example {
+			return true
+		}
+	}
+	return false
+}
+
 // File is one file of a starter team: its path inside the team directory, and
 // its contents.
 type File struct {

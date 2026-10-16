@@ -611,6 +611,7 @@
   "web.error.internal": "Something went wrong while showing the screen: %v",
   "error.layer_flag_gone": "--%s is gone; a team definition name resolves to the project's own first",
   "validate.global_hidden": "the global team definition %s is hidden by the project's %s and is not used",
-  "error.mission_missing": "no mission is written: add a one-line mission: to team.yaml",
-  "error.mission_multiline": "write the mission in one line (team.yaml's mission:)"
+  "error.mission_missing": "%s: no mission is written: add a one-line mission: to team.yaml",
+  "error.mission_multiline": "%s: write the mission in one line (team.yaml's mission:)",
+  "validate.mission_placeholder": "the mission is still the starter's example; write what this team is for, in one line"
 }

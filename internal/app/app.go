@@ -619,14 +619,10 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	seenFiles := map[string]bool{}
 	report := func(path string, err error) {
 		checked++
-		field(stdout, label("file"), env.Display(path))
-		if err == nil {
-			indentField(stdout, 1, label("result"), i18n.T("value.ok"))
-			return
+		reportFile(stdout, env, path, err)
+		if err != nil {
+			problems++
 		}
-		problems++
-		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
-		indentField(stdout, 1, label("detail"), breakLine(env, path, err))
 	}
 
 	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {
@@ -641,36 +637,19 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			}
 		}
 	}
-	rows := cat.Definitions()
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
-		for _, row := range rows {
-			var path string
-			switch layer {
-			case source.LayerGlobal:
-				if !row.Global {
-					continue
-				}
-				path = row.GlobalPath
-			case source.LayerLocal:
-				if !row.Local {
-					continue
-				}
-				path = row.LocalPath
+		for _, row := range cat.Definitions() {
+			path := listingPath(row, layer)
+			if path == "" {
+				continue
 			}
-			r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
-			report(path, err)
-			if err == nil {
-				if layer == source.LayerGlobal && row.Local {
-					// The project's definition of this name is the one that is
-					// used, so the global one is hidden (I11); validate says so,
-					// where a person reading the global file finds it.
-					indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
-				}
-				collectRules(tally, seenFiles, r)
-				team := sizeOf(r)
-				team.name = env.Display(filepath.Dir(path))
-				teams = append(teams, team)
+			checked++
+			size, ok := validateDefinition(cat, env, stdout, tally, seenFiles, row, layer)
+			if !ok {
+				problems++
+				continue
 			}
+			teams = append(teams, size)
 		}
 	}
 
@@ -682,6 +661,45 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
 	return nil
+}
+
+// reportFile writes one checked file: where it is, as a person writes it, and
+// whether it reads, with the reason when it does not.
+func reportFile(stdout io.Writer, env team.Env, path string, err error) {
+	field(stdout, label("file"), env.Display(path))
+	if err == nil {
+		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
+		return
+	}
+	indentField(stdout, 1, label("result"), i18n.T("value.broken"))
+	indentField(stdout, 1, label("detail"), breakLine(env, path, err))
+}
+
+// validateDefinition checks one definition of one layer the way up reads it,
+// writes its result line and its warnings, and returns the size to print after
+// the per-file lines. ok is false when the definition does not read.
+func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, tally *rules.Tally, seen map[string]bool, row catalog.Listing, layer string) (size teamSize, ok bool) {
+	path := listingPath(row, layer)
+	r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
+	reportFile(stdout, env, path, err)
+	if err != nil {
+		return teamSize{}, false
+	}
+	if scaffold.IsPlaceholderMission(r.team.Definition.Mission) {
+		// The starter team's mission is an example: the definition reads, but
+		// its team has not said what it is for (d-3cae).
+		indentField(stdout, 1, label("warning"), i18n.T("validate.mission_placeholder"))
+	}
+	if layer == source.LayerGlobal && row.Local {
+		// The project's definition of this name is the one that is used, so the
+		// global one is hidden (I11); validate says so, where a person reading
+		// the global file finds it.
+		indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
+	}
+	collectRules(tally, seen, r)
+	size = sizeOf(r)
+	size.name = env.Display(filepath.Dir(path))
+	return size, true
 }
 
 // reportProfileNames is the one warning a profiles.yaml gets: a profile whose
@@ -1057,10 +1075,16 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		r, err := buildRunning(cat, env.ProjectRoot, entry)
 		if err != nil {
 			// A team booted from another project's definition is still listed,
-			// so one such team does not hide the rest.
+			// so one such team does not hide the rest. A definition that is here
+			// but does not read says why, with its file's path; only a
+			// definition that is not here says "another project".
 			field(stdout, label("team"), entry.Team)
 			indentField(stdout, 1, label("definition"), entry.Definition)
-			fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
+			if errors.Is(err, catalog.ErrNotFound) {
+				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
+			} else {
+				indentField(stdout, 1, label("detail"), brokenTeamLine(env, err))
+			}
 			continue
 		}
 		field(stdout, label("team"), r.team.Name)
@@ -1077,6 +1101,17 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		}
 	}
 	return nil
+}
+
+// brokenTeamLine is why a running team's definition cannot be read, as one line:
+// the file as a person writes it and the reason, the way hergy validate writes a
+// broken file.
+func brokenTeamLine(env team.Env, err error) string {
+	var readErr *catalog.ReadError
+	if errors.As(err, &readErr) {
+		return breakLine(env, readErr.Path, err)
+	}
+	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
 // printStatusJudgement prints the judgement line for the rows: who is waiting on
