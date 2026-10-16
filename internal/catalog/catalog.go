@@ -186,7 +186,7 @@ func (c *Catalog) defaultDefinition(layer string) (*definition.Definition, error
 			return c.definitionIn(names[0], source.LayerLocal, ProfilesEdit{})
 		}
 	}
-	return nil, c.candidates()
+	return nil, c.candidates(layer)
 }
 
 // readDefinition reads one team.yaml with the profiles its layer reads.
@@ -244,14 +244,21 @@ func nextCommand(candidates []string) string {
 }
 
 // candidates is what a missing name does when several definitions are there:
-// name one, with the ones there to choose from.
-func (c *Catalog) candidates() error {
+// name one, with the ones there to choose from. The count is of the definitions
+// a name would read (the project's), so it can be 0 while the list is not: a name
+// outside the project is a candidate, but a name that is omitted does not use it
+// (D1, spec/35).
+func (c *Catalog) candidates(layer string) error {
 	list := c.candidateNames()
 	if len(list) == 0 {
-		return notFoundError{i18n.T("error.team_count_none")}
+		return notFoundError{i18n.T("error.team_count_none") + "\n" + i18n.Tf("next", "new <name>")}
+	}
+	dir := c.localDir
+	if layer == source.LayerGlobal {
+		dir = c.globalDir
 	}
 	var b strings.Builder
-	fmt.Fprint(&b, i18n.Tf("error.team_count_candidates", len(list), strings.Join(list, i18n.T("list.separator"))))
+	fmt.Fprint(&b, i18n.Tf("error.team_count_candidates", len(teamNames(dir)), strings.Join(list, i18n.T("list.separator"))))
 	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
 	return notFoundError{b.String()}
 }

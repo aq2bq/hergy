@@ -287,7 +287,10 @@ func parseTurns(entries *stringList) ([]Edge, error) {
 	}
 	turns := make([]Edge, 0, len(*entries))
 	for i, line := range *entries {
-		label := fmt.Sprintf("turns[%d]", i)
+		// The label names the line as a person counts lines, so the sentence a
+		// broken turns: line gets reads "turns: の 5 行目"/"line 5 in turns:"
+		// rather than "turns[4]" (spec/33, 段 7).
+		label := i18n.Tf("label.turns_line", i+1)
 		from, to, err := parseTurn(line, label)
 		if err != nil {
 			return nil, err

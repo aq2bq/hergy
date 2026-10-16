@@ -18,12 +18,18 @@
   `local:`/`global:` lines (a name that is also outside the project is said in
   one line), `hergy new` says where it writes when `--local`/`--global` is
   typed, and a definition that is not found is reported in one shape:
-  `there is no team definition X (looked in: <paths>; candidates: …)`. The
+  `there is no team definition X (looked in: <paths>; candidates: …)`. A
+  command that is given no team name counts the project's definitions (that is
+  what a name that is omitted reads), and with none anywhere it says
+  `next: new <name>`. The
   cheatsheet, the bundled skills, the READMEs and every `--help` say the places
   by path too. Every `role file` in the English messages, the cheatsheet, the
   skills and the README is now `role document`. The `--local`/`--global` flags
   keep stopping with the sentence that says a name resolves to the project's
-  own first.
+  own first. A broken `turns:` line is named by the line a person counts
+  (`line 2`, not `turns[1]`), and the line a member's prompt writes for the
+  human says what to do with the turn (hand it over and stop until the person
+  answers).
 
 - **`hergy hire` refuses a purpose the hiring member's `workers:` does not
   name, and `--profile` is gone**: the profile comes from the `workers:` entry

@@ -1092,6 +1092,41 @@ func TestNotFoundTeamWithoutCandidatesHasNoNext(t *testing.T) {
 	}
 }
 
+// TestUpWithoutANameCountsTheProjectsDefinitions: a name that is omitted reads
+// the project's definitions only, so the number the stop reports is the project's
+// (0 here), while a definition outside the project is still a candidate (D1,
+// spec/35).
+func TestUpWithoutANameCountsTheProjectsDefinitions(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "g", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\n")
+	_, stderr, code := run("up")
+	if code == 0 {
+		t.Fatal("up without a name succeeded with no project definition")
+	}
+	want := i18n.Tf("error.team_count_candidates", 0, "g")
+	if !strings.Contains(stderr, want) {
+		t.Fatalf("up without a name does not count the project's definitions:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "next: up g\n") {
+		t.Fatalf("up without a name does not offer the one candidate:\n%s", stderr)
+	}
+}
+
+// TestUpWithoutAnyDefinitionSaysHowToMakeOne: with no definition anywhere, the
+// stop says there are none and names the next command (D1, spec/35).
+func TestUpWithoutAnyDefinitionSaysHowToMakeOne(t *testing.T) {
+	newFixture(t)
+	_, stderr, code := run("up")
+	if code == 0 {
+		t.Fatal("up without a name succeeded with no definitions")
+	}
+	want := i18n.T("error.team_count_none") + "\n" + i18n.Tf("next", "new <name>")
+	if !strings.Contains(stderr, want) {
+		t.Fatalf("up without any definition does not say how to make one:\n%s", stderr)
+	}
+}
+
 func TestJSONNeedsDry(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo")
