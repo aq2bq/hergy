@@ -71,7 +71,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy hire <name> --purpose X --task "…" [--profile P]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). Without `--profile` the profile may_spawn pairs with `--purpose` is used |
 | `hergy ls` | List the available team definitions and their layers, and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
-| `hergy validate` | Check every settings file and show each broken one |
+| `hergy validate` | Check every settings file and show each broken one. It then prints what the rules carry and the size of what each member is handed and of each team definition's rule files, warning when one is over the provisional limit; a warning does not change the exit code |
 | `hergy serve` | Serve the screens in a browser on this machine and print the URL (`--port`, default 8787; `0` lets the operating system pick a free one). Now it shows the layer you pick: one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |

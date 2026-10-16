@@ -457,6 +457,9 @@ func TestValidateShape(t *testing.T) {
 		"no origin: .hergy/teams/demo/roles/lead.yaml: L1, L2",
 		"no origin: .hergy/teams/demo/protocol.yaml: C1, C2",
 		"no origin: .hergy/teams/demo/roles/builder.yaml: B1, B2",
+		"  member demo-lead: rules 4, characters 372",
+		"  member demo-builder: rules 4, characters 434",
+		"  team .hergy/teams/demo: sources 3, characters 1552",
 	)
 }
 

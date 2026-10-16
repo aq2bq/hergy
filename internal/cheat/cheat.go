@@ -102,7 +102,8 @@ var behavior = map[options.Kind]string{
 	options.New: `      Write a starter team definition: into the global layer by default, into the project's .hergy/ with --local. The global config.yaml is written too when it is missing, with --local as well.
 `,
 	options.Validate: `      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
-      It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file. That count is not a break: only a broken file makes the exit 1.
+      It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
+      It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit that is written in internal/rules/size.go (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
 	options.Serve: `      Serve the screens over HTTP on 127.0.0.1 and print the URL, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one). It reads the settings and herdr's state the way the commands do; it changes nothing but the files the screens edit.
 `,
@@ -151,7 +152,8 @@ Reading the output:
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
   A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, may_spawn and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
-  validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin). That count never changes the exit code.
+  validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin).
+  It then prints the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns when one is over the provisional limit. Neither the count nor a warning changes the exit code: only a broken file makes it 1.
   To read the text form, add --lang en, or use --dry --json.
 
 Web UI:

@@ -4,6 +4,17 @@
 
 ### Added
 
+- **`hergy validate` counts the size of a team, and warns over a provisional
+  limit**: after the count of what the rules carry, it prints what each member of
+  every team definition is handed — the rules of the documents that go into its
+  prompt, and the characters of the Markdown hergy renders from them, with the
+  prompt's own frame left out — and what each team definition keeps (its rule
+  files, counted once however many members read them). A member over 20 rules or
+  6,000 characters, or a team definition over 8 files or 20,000 characters, gets
+  a warning, because a large team is a team to look at rather than a broken one:
+  the warning never changes the exit code, and `hergy up` still runs. The numbers
+  are provisional and are written in one place for whoever moves them; a team
+  that has been through a few changes is the point to look at them again.
 - **The rules screen finds a rule, shows what it is related to, and offers to
   look into where it came from**: the rules list has a search box that keeps the
   rules whose id, text, reason or note holds what you type (the same narrow as

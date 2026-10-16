@@ -398,6 +398,8 @@ func writeScaffold(dir string, files []scaffold.File) error {
 func runValidate(env team.Env, stdout io.Writer) error {
 	checked, problems := 0, 0
 	tally := &rules.Tally{}
+	var members []memberSize
+	var teams []teamSize
 	seenFiles := map[string]bool{}
 	report := func(path string, err error) {
 		checked++
@@ -439,6 +441,9 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			report(path, err)
 			if err == nil {
 				collectRules(tally, seenFiles, cfg)
+				sizes, size := sizeOf(cfg)
+				members = append(members, sizes...)
+				teams = append(teams, teamSize{name: env.Display(filepath.Dir(path)), size: size})
 			}
 		}
 	}
@@ -446,6 +451,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
 	printTally(stdout, env, tally)
+	printSize(stdout, members, teams)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
@@ -505,6 +511,102 @@ func printTally(w io.Writer, env team.Env, tally *rules.Tally) {
 	for _, missing := range tally.Missing {
 		line(i18n.Tf("validate.rules_missing_origin",
 			env.Display(missing.Path), strings.Join(missing.IDs, i18n.T("list.separator"))))
+	}
+}
+
+// memberSize is one member's size, with the name the output writes.
+type memberSize struct {
+	name string
+	size rules.MemberSize
+}
+
+// teamSize is one team definition's size, with where it stands.
+type teamSize struct {
+	name string
+	size rules.TeamSize
+}
+
+// sizeOf counts what one team definition hands each member and what the team
+// keeps. Each rule file is read and parsed once; a file two members read is
+// counted in the team's sources once, because a person maintains it once.
+func sizeOf(cfg *config.Config) ([]memberSize, rules.TeamSize) {
+	parsed := map[string]*rules.Document{}
+	texts := map[string]string{}
+	load := func(doc source.Doc) *rules.Document {
+		if document, ok := parsed[doc.Path]; ok {
+			return document
+		}
+		text, err := os.ReadFile(doc.Path)
+		if err != nil {
+			parsed[doc.Path] = nil
+			return nil
+		}
+		texts[doc.Path] = string(text)
+		document, err := rules.Parse(string(text), doc.Path)
+		if err != nil {
+			parsed[doc.Path] = nil
+			return nil
+		}
+		parsed[doc.Path] = document
+		return document
+	}
+	var members []memberSize
+	var size rules.TeamSize
+	for i := range cfg.Members {
+		member := &cfg.Members[i]
+		var read rules.MemberSize
+		files := make([]source.Doc, 0, len(member.DocsRead)+1)
+		if member.HasRoleSource {
+			files = append(files, member.RoleSource)
+		}
+		files = append(files, member.DocsRead...)
+		for _, doc := range files {
+			if document := load(doc); document != nil {
+				read.Add(document)
+			}
+			if text, ok := texts[doc.Path]; ok {
+				size.AddSource(doc.Path, text)
+			}
+		}
+		members = append(members, memberSize{name: member.Name, size: read})
+	}
+	return members, size
+}
+
+// printSize is the size of what each member is handed and what each team
+// definition keeps, after the rules count. A member or a team over one of the
+// provisional limits (d-f2bc) gets a warning line; the numbers move no exit
+// code, because a large team is a team to look at, not a broken one.
+func printSize(w io.Writer, members []memberSize, teams []teamSize) {
+	if len(members) == 0 && len(teams) == 0 {
+		return
+	}
+	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
+	warned := false
+	for _, member := range members {
+		line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars))
+		if member.size.OverMemberRules() {
+			line(i18n.Tf("validate.size_warn_member_rules", member.name, member.size.Rules, rules.MemberRuleLimit))
+			warned = true
+		}
+		if member.size.OverMemberChars() {
+			line(i18n.Tf("validate.size_warn_member_chars", member.name, member.size.Chars, rules.MemberCharLimit))
+			warned = true
+		}
+	}
+	for _, team := range teams {
+		line(i18n.Tf("validate.size_team", team.name, team.size.Sources, team.size.Chars))
+		if team.size.OverTeamSources() {
+			line(i18n.Tf("validate.size_warn_team_sources", team.name, team.size.Sources, rules.TeamSourceLimit))
+			warned = true
+		}
+		if team.size.OverTeamChars() {
+			line(i18n.Tf("validate.size_warn_team_chars", team.name, team.size.Chars, rules.TeamSourceCharLimit))
+			warned = true
+		}
+	}
+	if warned {
+		line(i18n.T("validate.size_note"))
 	}
 }
 
