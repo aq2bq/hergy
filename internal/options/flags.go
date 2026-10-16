@@ -70,8 +70,6 @@ var (
 		Set: setsValue(func(o *Options, v string) { o.Team = v })}
 	flagAs = &Flag{Name: "as", Value: text("<team>", "<チーム名>"),
 		Set: setsValue(func(o *Options, v string) { o.As = v })}
-	flagProfile = &Flag{Name: "profile", Value: text("<profile>", "<プロファイル>"),
-		Set: setsValue(func(o *Options, v string) { o.Profile = v })}
 	flagPurpose = &Flag{Name: "purpose", Value: text("<purpose>", "<目的>"),
 		Set: setsValue(func(o *Options, v string) { o.Purpose = v })}
 	flagTask = &Flag{Name: "task", Value: text("<task>", "<依頼>"),
@@ -106,7 +104,7 @@ var (
 // allFlags is every flag hergy reads, in the order the cheatsheet lists them.
 var allFlags = []*Flag{
 	flagAI, flagAs, flagDry, flagJSON, flagAll, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
-	flagTeam, flagProfile, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
+	flagTeam, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
 }
 
 // lookupFlag finds the flag a spelling on the command line names, or nil.

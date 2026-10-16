@@ -18,7 +18,7 @@ func TestParse(t *testing.T) {
 		{name: "unknown command", argv: []string{"frobnicate"}, wantErr: true},
 		{name: "unknown flag", argv: []string{"up", "--frobnicate"}, wantErr: true},
 		{name: "unknown flag with a value", argv: []string{"up", "--frobnicate=1"}, wantErr: true},
-		{name: "a flag that belongs to another command", argv: []string{"down", "--profile", "p"}, wantErr: true},
+		{name: "a flag that belongs to another command", argv: []string{"down", "--all"}, wantErr: true},
 		{name: "version word", argv: []string{"version"}, kind: Version},
 		{name: "version flag", argv: []string{"--version"}, kind: Version},
 		{name: "up with dry", argv: []string{"up", "--dry"}, kind: Up, dry: true},

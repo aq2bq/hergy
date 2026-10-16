@@ -1330,7 +1330,7 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
-	got := mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+	got := mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev", "--dry")
 	if !strings.Contains(got, "A worker adds no teammates") {
 		t.Fatalf("the worker's prompt does not say it adds no teammates:\n%s", got)
@@ -1355,7 +1355,7 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
-	got := mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+	got := mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev", "--dry")
 	for _, line := range []string{
 		"mode: spawn",
@@ -1393,14 +1393,14 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	mustRun(t, "up", "dev")
 	mustRun(t, "up", "dev", "--as", "dev2")
 
-	mustRun(t, "hire", "researcher", "--profile", "dev", "--purpose", "research",
+	mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev")
 	record := readFile(t, log)
 	if !strings.Contains(record, "--label worker:dev/researcher ") {
 		t.Fatalf("hire did not label the tab with the team and short name:\n%s", record)
 	}
 
-	mustRun(t, "hire", "reviewer", "--profile", "dev", "--purpose", "research",
+	mustRun(t, "hire", "reviewer", "--purpose", "research",
 		"--task", "review the docs", "--team", "dev2")
 	record = readFile(t, log)
 	if !strings.Contains(record, "--label worker:dev2/reviewer ") {
@@ -1578,8 +1578,8 @@ func workersFixture(t *testing.T) {
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
 }
 
-// TestHireUsesTheProfilePairedWithThePurpose: with no --profile, hire takes the
-// profile workers: pairs with --purpose, so one purpose runs one engine and the
+// TestHireUsesTheProfilePairedWithThePurpose: hire takes the profile the
+// member's workers: pairs with --purpose, so one purpose runs one engine and the
 // next runs another.
 func TestHireUsesTheProfilePairedWithThePurpose(t *testing.T) {
 	workersFixture(t)
@@ -1599,41 +1599,83 @@ func TestHireUsesTheProfilePairedWithThePurpose(t *testing.T) {
 	}
 }
 
-// TestHirePurposeOutsideWorkers: a purpose workers: does not pair, with no
-// --profile, is an error that lists the purposes it may hire for. With a
-// --profile it is only a note, and so is a profile that is not the paired one.
+// TestHirePurposeOutsideWorkers: a purpose the hiring member's workers: does not
+// name stops the hire, and the sentence lists the purposes that member may hire
+// for (I6). The profile comes from the workers: entry, so there is no --profile;
+// a purpose the entry does name hires.
 func TestHirePurposeOutsideWorkers(t *testing.T) {
-	workersFixture(t)
-
-	_, stderr, code := run("hire", "w", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry")
-	if code == 0 {
-		t.Fatal("hire with a purpose outside workers: and no --profile succeeded")
-	}
-	for _, want := range []string{"error:", "未知", "調査", "実装"} {
-		if !strings.Contains(stderr, want) {
-			t.Fatalf("the error does not name %q:\n%s", want, stderr)
+	t.Run("a purpose no member hires for", func(t *testing.T) {
+		workersFixture(t)
+		_, stderr, code := run("hire", "w", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry")
+		if code == 0 {
+			t.Fatal("hire with a purpose outside workers: succeeded")
 		}
-	}
-	if strings.Contains(stderr, "[[") {
-		t.Fatalf("the error prints an untranslated key:\n%s", stderr)
-	}
+		for _, want := range []string{"error:", "未知", "調査", "実装"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("the error does not name %q:\n%s", want, stderr)
+			}
+		}
+		if strings.Contains(stderr, "[[") {
+			t.Fatalf("the error prints an untranslated key:\n%s", stderr)
+		}
+	})
 
-	// A --profile for a purpose outside the pairs: a note, and the hire goes on.
-	for _, argv := range [][]string{
-		{"hire", "w", "--profile", "seeker", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry"},
-		{"hire", "w", "--profile", "developer", "--purpose", "調査", "--task", "t", "--team", "dev", "--dry"},
-	} {
-		stdout, stderr, code := run(argv...)
+	t.Run("a purpose another member hires for", func(t *testing.T) {
+		f := newFixture(t)
+		mustRun(t, "new", "dev")
+		writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+			"version: 1\nmission: a mission for the test\nmembers:\n"+
+				"  - name: lead\n    role: lead\n    profile: seeker\n"+
+				"  - name: spec\n    role: spec\n    profile: seeker\n"+
+				"workers:\n"+
+				"  - from: lead\n    purpose: 実装\n    profile: developer\n"+
+				"  - from: spec\n    purpose: 調査\n    profile: seeker\n"+
+				"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> lead\n")
+		writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+			"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
+		// The second member's role needs its document (roles live once per
+		// layer).
+		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.yaml"),
+			"version: 1\nsections:\n  - rules:\n      - id: S1\n        text: hand the turn to lead\n")
+		f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+
+		// --from names the member, so the sentence is about what that member may
+		// hire for, not about the member whose purpose was written.
+		_, stderr, code := run("hire", "w", "--from", "lead", "--purpose", "調査", "--task", "t", "--team", "dev", "--dry")
+		if code == 0 {
+			t.Fatal("hire for another member's purpose succeeded")
+		}
+		for _, want := range []string{"lead", "調査", "実装"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("the error does not name %q:\n%s", want, stderr)
+			}
+		}
+	})
+
+	t.Run("--profile is gone", func(t *testing.T) {
+		workersFixture(t)
+		_, stderr, code := run("hire", "w", "--profile", "seeker", "--purpose", "調査", "--task", "t", "--team", "dev", "--dry")
+		if code == 0 {
+			t.Fatal("hire --profile succeeded")
+		}
+		if !strings.Contains(stderr, "--profile") {
+			t.Fatalf("the error does not name --profile:\n%s", stderr)
+		}
+	})
+
+	t.Run("a purpose the entry names hires", func(t *testing.T) {
+		workersFixture(t)
+		stdout, stderr, code := run("hire", "w", "--purpose", "実装", "--task", "t", "--team", "dev", "--dry")
 		if code != 0 {
-			t.Fatalf("%v: exit %d\nstderr:\n%s", argv, code, stderr)
+			t.Fatalf("hire for a purpose workers: names: exit %d\nstderr:\n%s", code, stderr)
 		}
-		if !strings.Contains(stdout, "mode: spawn") {
-			t.Fatalf("%v did not plan the hire:\n%s", argv, stdout)
+		if !strings.Contains(stdout, "mode: spawn") || !strings.Contains(stdout, "profile: developer") {
+			t.Fatalf("hire did not plan the worker with the paired profile:\n%s", stdout)
 		}
-		if !strings.Contains(stderr, "note:") || !strings.Contains(stderr, "spawning anyway") {
-			t.Fatalf("%v does not note the hire outside workers:\n%s", argv, stderr)
+		if stderr != "" {
+			t.Fatalf("hire for a purpose workers: names noted something:\n%s", stderr)
 		}
-	}
+	})
 }
 
 // TestHireFromIsOptionalWithOneCandidate: --from may be left out when exactly

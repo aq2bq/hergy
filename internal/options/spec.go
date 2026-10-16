@@ -172,12 +172,9 @@ var specs = []Spec{
 		}},
 		Flags: []Use{
 			required(flagPurpose, text(
-				"What the worker is for (required)\nWithout --profile, workers: pairs it with the profile to start",
-				"ワーカーの目的（必須）\n--profile を省くと、workers: の組から起動するプロファイルが決まる")),
+				"What the worker is for (required)\nA purpose the hiring member's workers: names;\nthe profile comes from that entry",
+				"ワーカーの目的（必須）\n呼ぶメンバーの workers: が名指す目的であること。\nプロファイルはその組から決まる")),
 			required(flagTask, text("The task text handed to the worker (required)", "ワーカーに渡す依頼の文（必須）")),
-			use(flagProfile, text(
-				"The worker's engine, a profile name in profiles.yaml\nLeft out: the profile workers: pairs with --purpose",
-				"ワーカーのエンジン（profiles.yaml のプロファイル名）\n省くと、workers: が --purpose に組み合わせたプロファイル")),
 			use(flagFrom, text(
 				"The member that hires the worker (short member name or herdr name)\nLeft out: required unless exactly one member hires for this purpose",
 				"ワーカーを追加するメンバー（短いメンバー名か herdr 名）\nこの目的のワーカーを持つメンバーが1人だけなら省ける")),

@@ -56,7 +56,6 @@ type Options struct {
 	Name   string // hire positional
 	As     string // up only: the team name to boot under (defaults to the team definition name)
 
-	Profile string
 	Purpose string
 	Task    string
 	From    string

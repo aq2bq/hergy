@@ -33,7 +33,7 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you are inside a team
 
-- The lead adds workers within its `workers:` (from, purpose and profile) and gives each a short name. With no `--profile`, `hergy hire` uses the profile `workers:` pairs with `--purpose`; with no `--from`, it uses the one member that hires for that purpose (two or more stop the hire and are listed).
+- The lead adds workers within its `workers:` (from, purpose and profile) and gives each a short name. `hergy hire --purpose` must be a purpose the hiring member's `workers:` names, and the profile comes from that entry (a hire does not choose one); a purpose outside it is refused, naming the purposes the member may hire for. With no `--from`, it uses the one member that hires for that purpose (two or more stop the hire and are listed).
 - `turns:` says who hands the turn to whom (a member's name, or `human`). Each member and the human hand the turn on to at least one party, and at least one turn reaches the human; a definition that does not say so stops hergy the way a file that does not read does, so `up`, `refresh`, `reprompt`, `hire` and `validate` all stop with the same sentences. A rule text that still writes "a → b" is compared with `turns:` and warned about when they disagree.
 - A worker reports back to the member that hired it when the work is done.
 

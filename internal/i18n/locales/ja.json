@@ -4,7 +4,7 @@
   "help.options_placeholder": "[オプション]",
   "help.arguments": "引数",
   "help.options": "オプション",
-  "cheat.people": "hergy cheat\n\nはじめて使うとき\n  hergy new myteam  チーム定義のひな形を作る\n  team.yaml を編集  使命とメンバー、使うエージェントを書く\n  hergy up myteam   チームを起動する（--dry で中身だけ確認）\n\nよく使うコマンド\n  チームを起動する          hergy up [チーム定義]\n  チームを終了する          hergy down [チーム]\n  チームの状態を見る        hergy status [チーム]\n  メンバーを起動し直す      hergy refresh <メンバー>\n  初期プロンプトを送り直す  hergy reprompt <メンバー>\n  ワーカーを追加する        hergy hire <名前> --purpose X --task \"...\" [--profile P] [--from <メンバー>]\n  チーム定義の一覧を見る    hergy ls\n  チーム定義を確認する      hergy show <チーム定義>\n  設定を検査する            hergy validate\n  バージョンを見る          hergy version\n  ブラウザで WebUI を開く   hergy serve [--port <ポート>]（--no-open なら開かない）\n\nWebUI の画面（hergy serve で開く）\n  ホーム              /\n  チーム一覧          /teams\n  規則                /rules\n  プロンプトの差分    /diff\n  バージョンを上げる  /bump\n  チーム定義          /team\n  動いているチーム    /running\n  構成図              /figure\n\nチーム定義の場所\n  プロジェクト  .hergy/teams/<チーム定義>/team.yaml\n  グローバル    ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとのオプションは hergy <コマンド> --help、全体の一覧は hergy --help、AI 向けは hergy cheat --ai\n",
+  "cheat.people": "hergy cheat\n\nはじめて使うとき\n  hergy new myteam  チーム定義のひな形を作る\n  team.yaml を編集  使命とメンバー、使うエージェントを書く\n  hergy up myteam   チームを起動する（--dry で中身だけ確認）\n\nよく使うコマンド\n  チームを起動する          hergy up [チーム定義]\n  チームを終了する          hergy down [チーム]\n  チームの状態を見る        hergy status [チーム]\n  メンバーを起動し直す      hergy refresh <メンバー>\n  初期プロンプトを送り直す  hergy reprompt <メンバー>\n  ワーカーを追加する        hergy hire <名前> --purpose X --task \"...\" [--from <メンバー>]\n  チーム定義の一覧を見る    hergy ls\n  チーム定義を確認する      hergy show <チーム定義>\n  設定を検査する            hergy validate\n  バージョンを見る          hergy version\n  ブラウザで WebUI を開く   hergy serve [--port <ポート>]（--no-open なら開かない）\n\nWebUI の画面（hergy serve で開く）\n  ホーム              /\n  チーム一覧          /teams\n  規則                /rules\n  プロンプトの差分    /diff\n  バージョンを上げる  /bump\n  チーム定義          /team\n  動いているチーム    /running\n  構成図              /figure\n\nチーム定義の場所\n  プロジェクト  .hergy/teams/<チーム定義>/team.yaml\n  グローバル    ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとのオプションは hergy <コマンド> --help、全体の一覧は hergy --help、AI 向けは hergy cheat --ai\n",
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "このコマンドは扱えません",
   "error.unknown_language": "未対応の言語です: %q（使える言語: %s）",
@@ -96,9 +96,6 @@
   "error.prompt_missing_part": "%s: %s%%{%s} がありません。ロールの文書と約束は %%{role_doc} と %%{docs} から入るので、消せません",
   "error.worker_name_pattern": "ワーカー名は [a-z][a-z0-9_-]{0,31} の形にしてください",
   "error.worker_exists": "%s はすでにチームのメンバーです",
-  "error.purpose_outside": "目的 %s は %s の workers: にありません",
-  "error.profile_outside": "プロファイル %s は、%s の workers: が目的 %s に組み合わせているプロファイルと違います",
-  "error.purpose_needs_profile": "目的 %s は %s が追加してよい目的にないため、--profile を指定してください（workers: の目的: %s）",
   "error.from_required_none": "--from を指定してください（ワーカーを呼べるメンバーがいません）",
   "error.from_required_many": "--from を指定してください（この目的のワーカーを持つメンバー: %v）",
   "error.cwd_not_dir": "cwd がディレクトリではありません: %s",
@@ -126,7 +123,6 @@
   "error.herdr_not_number": "herdr の応答の %s が数値ではありません",
   "error.kill_failed": "%s: エージェントを止められません: %v",
   "error.agent_not_gone": "%s: %d ミリ秒待っても、herdr からエージェントの名前が消えません。起動し直していません",
-  "note.spawn_outside": "注意: %s（そのまま続けます）\n",
   "launch.not_recorded": "起動の記録を残せませんでした: %v",
   "launcher.boot_complete": "起動しました: %s（タブ %s）\n",
   "launcher.boot_submitted": "初期プロンプト: 送りました（文書の読み込みは各ペインで続きます）\n",
@@ -271,7 +267,6 @@
   "error.workers_profile_empty": "%s.profile を空にはできません",
   "error.workers_no_profile": "%s.profile: %s というプロファイルはありません",
   "error.workers_duplicate_purpose": "%s: %s の目的 %s が重複しています（メンバーと目的の組ごとにワーカーを 1 つ書いてください）",
-  "error.no_workers": "%s は workers: を持っていません",
   "error.no_running_teams": "動いているチームがありません（hergy status で見られます）",
   "error.need_running_team": "チーム名を指定してください（動いているチーム: %s）",
   "label.definition": "チーム定義",
@@ -619,5 +614,6 @@
   "validate.mission_placeholder": "使命がひな形の例文のままです。このチームの使命を 1 行で書いてください",
   "validate.old_team_agreement": "%s は読まれません。チームの約束は %s に置きます（名前を変えてください）",
   "validate.old_team_role": "%s は読まれません。ロールの文書は %s（層の根）に置きます",
-  "validate.old_common": "%s は読まれません。共通の約束は %s に置きます"
+  "validate.old_common": "%s は読まれません。共通の約束は %s に置きます",
+  "error.hire_purpose_outside": "%[1]s は目的「%[2]s」でワーカーを呼べません。呼べる目的: %[3]s（team.yaml の workers:）"
 }

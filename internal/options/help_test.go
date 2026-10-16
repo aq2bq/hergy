@@ -202,7 +202,7 @@ func TestSynopsis(t *testing.T) {
 		New:     "hergy new <definition> [-C <dir>]",
 		Up:      "hergy up [definition] [--as <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
 		Refresh: "hergy refresh <member>|--all [--team <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
-		Hire: "hergy hire <name> --purpose <purpose> --task <task> [--profile <profile>] [--from <member>] [--team <team>] " +
+		Hire: "hergy hire <name> --purpose <purpose> --task <task> [--from <member>] [--team <team>] " +
 			"[--timeout <ms>] [--dry] [--json] [-C <dir>]",
 		Version: "hergy version",
 	}

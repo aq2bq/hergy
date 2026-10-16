@@ -1478,12 +1478,9 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	if err != nil {
 		return err
 	}
-	worker, notes, err := spawn.Plan(r.team.Name, r.starts, r.profiles, opts.Name, opts.Profile, opts.Purpose, opts.Task, opts.From)
+	worker, err := spawn.Plan(r.team.Name, r.starts, r.profiles, opts.Name, opts.Purpose, opts.Task, opts.From)
 	if err != nil {
 		return err
-	}
-	for _, note := range notes {
-		fmt.Fprintf(stderr, i18n.T("note.spawn_outside"), note)
 	}
 	if opts.Dry {
 		// A hire has no obvious next step: the worker is named by the member

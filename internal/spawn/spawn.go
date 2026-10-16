@@ -2,7 +2,6 @@
 package spawn
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -11,55 +10,41 @@ import (
 	"github.com/aq2bq/hergy/internal/prompt"
 )
 
-// Plan returns the worker and notes on where the hire goes beyond the member's
-// workers. Notes never stop the hire: the permission is only stated (段 6b makes
-// it a refusal). team is the team name the hiring member runs under; starts are
-// the team's members. name is the short worker name; the herdr name is
-// "<team>-<name>", like the team's own members. profileName, when empty, is the
-// one the member's workers pair with purpose.
-func Plan(team string, starts []definition.Start, profiles map[string]profile.Profile, name, profileName, purpose, task, from string) (*definition.Start, []string, error) {
+// Plan returns the worker for one hire, or stops it. A member may hire only for
+// a purpose its workers: names (I6): a purpose outside that entry stops the hire
+// and names the purposes the member may hire for. The profile comes from that
+// entry, so a hire does not choose one (I12c). team is the team name the hiring
+// member runs under; starts are the team's members. name is the short worker
+// name; the herdr name is "<team>-<name>", like the team's own members. from
+// names the hiring member; empty means the one member whose workers: name this
+// purpose (d-6f03).
+func Plan(team string, starts []definition.Start, profiles map[string]profile.Profile, name, purpose, task, from string) (*definition.Start, error) {
 	if !profile.NamePattern.MatchString(name) {
-		return nil, nil, i18n.Errorf("error.worker_name_pattern")
+		return nil, i18n.Errorf("error.worker_name_pattern")
 	}
 	herdrName := team + "-" + name
 	if !profile.NamePattern.MatchString(herdrName) {
-		return nil, nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
+		return nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
 	}
 	for i := range starts {
 		if starts[i].Short == name || starts[i].Name == name {
-			return nil, nil, i18n.Errorf("error.worker_exists", name)
+			return nil, i18n.Errorf("error.worker_exists", name)
 		}
 	}
-	var lead *definition.Start
-	if from != "" {
-		found, err := lookup(starts, from)
-		if err != nil {
-			return nil, nil, err
-		}
-		lead = found
-	} else {
-		found, err := defaultLead(starts, purpose)
-		if err != nil {
-			return nil, nil, err
-		}
-		lead = found
+	lead, err := hiringMember(starts, purpose, from)
+	if err != nil {
+		return nil, err
 	}
 
-	// With no --profile the purpose names the pair: its profile is the one to
-	// use. A purpose outside the member's workers then has no profile to fall
-	// back to.
-	chosen := profileName
-	if chosen == "" {
-		paired, ok := profileFor(lead.Workers, purpose)
-		if !ok {
-			return nil, nil, i18n.Errorf("error.purpose_needs_profile",
-				purpose, lead.Name, availablePurposes(lead.Workers))
-		}
-		chosen = paired
+	// The purpose must be one the member's workers: names, and its profile is
+	// the one that entry pairs it with.
+	chosen, ok := profileFor(lead.Workers, purpose)
+	if !ok {
+		return nil, i18n.Errorf("error.hire_purpose_outside", lead.Short, purpose, availablePurposes(lead.Workers))
 	}
 	profileValue, ok := profiles[chosen]
 	if !ok {
-		return nil, nil, i18n.Errorf("error.no_profile_named", chosen)
+		return nil, i18n.Errorf("error.no_profile_named", chosen)
 	}
 
 	var parts = map[string]func() string{
@@ -75,7 +60,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 	}
 	text, err := prompt.Expand(prompt.WorkerTemplate(), parts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	worker := &definition.Start{
@@ -89,7 +74,16 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		Prompt:  text,
 		Profile: profileValue.Name,
 	}
-	return worker, notes(lead, chosen, purpose), nil
+	return worker, nil
+}
+
+// hiringMember is who hires: the member --from names, or the one member whose
+// workers: name this purpose (d-6f03).
+func hiringMember(starts []definition.Start, purpose, from string) (*definition.Start, error) {
+	if from != "" {
+		return lookup(starts, from)
+	}
+	return defaultLead(starts, purpose)
 }
 
 // lookup finds one member as a start: by its herdr name first, then by its short
@@ -107,8 +101,7 @@ func lookup(starts []definition.Start, name string) (*definition.Start, error) {
 // workers: name this purpose (d-6f03). One is the hiring member; two or more stop
 // the hire, naming them so a person says which. When no member hires for this
 // purpose, the members that may hire at all are taken instead, so a purpose
-// outside every workers: still reaches the note that says so; none of those
-// stops the hire.
+// outside every workers: is refused by Plan with the chosen member's purposes.
 func defaultLead(starts []definition.Start, purpose string) (*definition.Start, error) {
 	candidates := hirersFor(starts, purpose)
 	if len(candidates) == 0 {
@@ -156,23 +149,8 @@ func profileFor(workers []definition.WorkerNode, purpose string) (string, bool) 
 	return "", false
 }
 
-// notes says where the hire goes beyond the member's workers. Nothing here stops
-// the hire: the permission is only stated.
-func notes(lead *definition.Start, profileName, purpose string) []string {
-	if len(lead.Workers) == 0 {
-		return []string{fmt.Sprintf(i18n.T("error.no_workers"), lead.Name)}
-	}
-	paired, ok := profileFor(lead.Workers, purpose)
-	if !ok {
-		return []string{fmt.Sprintf(i18n.T("error.purpose_outside"), purpose, lead.Name)}
-	}
-	if paired != profileName {
-		return []string{fmt.Sprintf(i18n.T("error.profile_outside"), profileName, purpose, lead.Name)}
-	}
-	return nil
-}
-
-// availablePurposes is what a "this purpose has no profile" error can offer.
+// availablePurposes is the purposes a member may hire for, as one list: what a
+// refused hire names, so a person reads what the member's workers: allows.
 func availablePurposes(workers []definition.WorkerNode) string {
 	if len(workers) == 0 {
 		return i18n.T("value.none")
