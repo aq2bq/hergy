@@ -283,8 +283,10 @@ docs: [protocol.yaml]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
 `)
+	writeFile(t, filepath.Join(other, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(dir, "protocol.yaml"), "version: 1\nrevision: 4\nsections:\n  - rules:\n      - id: Q1\n        text: from the other project\n")
 	writeFile(t, filepath.Join(dir, "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: the role of the other project\n")
 	// The fake herdr remembers the agents it started; the other project starts

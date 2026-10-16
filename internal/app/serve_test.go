@@ -45,11 +45,12 @@ roles: [roles]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
   - name: builder
     role: builder
-    kind: claude
+    profile: claude-default
 `)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "protocol.yaml"), `version: 1
 sections:
   - rules:
@@ -89,11 +90,12 @@ func TestServePortTeams(t *testing.T) {
 	initLocales(t)
 	writeDemoTeam(t, f, "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"), "version: 2\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "shared", "team.yaml"), `version: 1
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
 `)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "shared", "roles", "lead.yaml"), `version: 1
 sections:

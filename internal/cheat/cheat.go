@@ -211,10 +211,7 @@ Settings files and their keys:
     members:          required, nonempty list.
       name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
       role: <role>       required, string; reads <role>.yaml from a roles directory.
-      profile: <name>    string; a named engine from profiles.yaml. Write this or kind/args/env inline, not both.
-      kind: <kind>       string; herdr's agent kind (claude, codex, opencode, ...).
-      args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
-      env: {NAME: value} mapping of string to string; environment for the pane.
+      profile: <name>    required, string; a named engine from profiles.yaml. kind, args and env are the profile's: writing one of them on a member is an error that says where it goes.
       cwd: <dir>         string; overrides the team cwd.
       prompt: "<text>"   string; overrides the team prompt.
       may_spawn:         mapping, optional; what this member may hire. An empty value is an error.
@@ -226,8 +223,9 @@ Settings files and their keys:
     profiles:         mapping of profile name to engine.
       <name>:
         kind: <kind>       required, string; herdr's agent kind.
-        args: [<arg>...]   list of strings; passed to the agent CLI as is.
+        args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
         env: {NAME: value} mapping of string to string; environment for the pane.
+      A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
   A local team definition reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global definition reads only the global one.
 
 Rule files (what docs and roles point at):
@@ -267,6 +265,7 @@ hire (a member starting a worker):
 
 new:
   It writes team.yaml, protocol.yaml, roles/lead.yaml and roles/builder.yaml, and the global config.yaml (version: 1, lang) when that file is missing.
+  The starter members name the profile claude-default, and new writes that profile into the layer's profiles.yaml when the layer cannot already resolve it.
   It never overwrites: an existing team definition directory stops it and nothing is written (exit 1).
 
 Bootstrap prompt placeholders:

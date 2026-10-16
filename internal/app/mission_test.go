@@ -22,7 +22,7 @@ func missionTeam(t *testing.T, f *fixture, mission string) {
 	}
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	body := "version: 1\n" + mission +
-		"docs: [protocol.yaml]\nmembers:\n  - name: lead\n    role: lead\n    kind: claude\n"
+		"docs: [protocol.yaml]\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n"
 	writeFile(t, path, body)
 }
 

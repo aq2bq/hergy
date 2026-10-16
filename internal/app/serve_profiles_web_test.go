@@ -76,7 +76,7 @@ profiles:
 	if got := readFile(t, local); got != want {
 		t.Errorf("the local profiles.yaml holds:\n%s\nwant:\n%s", got, want)
 	}
-	if err := validateProfiles(local); err != nil {
+	if _, err := validateProfiles(local); err != nil {
 		t.Errorf("hergy validate refuses the file the screen wrote: %v", err)
 	}
 	global := filepath.Join(f.cfg, "hergy", "profiles.yaml")

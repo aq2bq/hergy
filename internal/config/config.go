@@ -239,6 +239,10 @@ type rawTeam struct {
 	Members []rawMember `yaml:"members"`
 }
 
+// rawMember is one member of team.yaml. kind, args and env are not a member's
+// to write: they belong to the profile the member names (I7). They are still
+// read, only so that a file which writes one is stopped with the sentence that
+// says where it goes, rather than with an unknown-key complaint.
 type rawMember struct {
 	Name     string         `yaml:"name"`
 	Role     string         `yaml:"role"`
@@ -620,34 +624,35 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (Member, err
 	}, nil
 }
 
-// engine is either a named profile, or kind/args/env spelled out inline.
+// engine is the profile a member names. kind, args and env are the profile's
+// (I7): a member that writes one of them is stopped here, with the sentence that
+// says where they go, so the file is fixed before a team boots from it.
 func engine(rm rawMember, label string, profiles map[string]Profile) (string, []string, map[string]string, string, error) {
-	if rm.Profile == "" {
-		if rm.Kind == "" {
-			return "", nil, nil, "", i18n.Errorf("error.needs_profile_or_kind", label)
-		}
-		kind, err := kindOf(rm.Kind, label+".kind")
-		if err != nil {
-			return "", nil, nil, "", err
-		}
-		args, err := argsOf(rm.Args, label+".args")
-		if err != nil {
-			return "", nil, nil, "", err
-		}
-		env, err := envOf(rm.Env, label+".env")
-		if err != nil {
-			return "", nil, nil, "", err
-		}
-		return kind, args, env, "", nil
+	if key := inlineEngineKey(rm); key != "" {
+		return "", nil, nil, "", i18n.Errorf("error.member_writes_engine", rm.Name, key, key)
 	}
-	if rm.Kind != "" || rm.Args != nil || rm.Env != nil {
-		return "", nil, nil, "", i18n.Errorf("error.profile_and_inline", label)
+	if rm.Profile == "" {
+		return "", nil, nil, "", i18n.Errorf("error.member_needs_profile", rm.Name)
 	}
 	profile, ok := profiles[rm.Profile]
 	if !ok {
 		return "", nil, nil, "", i18n.Errorf("error.no_profile", label, rm.Profile)
 	}
 	return profile.Kind, profile.Args, profile.Env, profile.Name, nil
+}
+
+// inlineEngineKey is the first of kind, args and env a member writes itself, or
+// "" when it writes none. Each of the three is refused the same way.
+func inlineEngineKey(rm rawMember) string {
+	switch {
+	case rm.Kind != "":
+		return "kind"
+	case rm.Args != nil:
+		return "args"
+	case rm.Env != nil:
+		return "env"
+	}
+	return ""
 }
 
 // parseMaySpawnNode reads may_spawn by hand: the node tells "absent" apart from

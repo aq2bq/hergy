@@ -219,7 +219,7 @@ func TestServePortCheckProfilesIsTheCheckValidateRuns(t *testing.T) {
 	// The same text on disk is what hergy validate refuses, so the screen and
 	// the command agree on what is broken.
 	writeFile(t, path, broken)
-	if err := validateProfiles(path); err == nil {
+	if _, err := validateProfiles(path); err == nil {
 		t.Error("hergy validate reads the text the screen refused as sound")
 	}
 	if !strings.Contains(reason, ".hergy/profiles.yaml") {

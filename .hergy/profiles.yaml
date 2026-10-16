@@ -1,8 +1,8 @@
 version: 1
 profiles:
-  claude:
-    kind: claude
-  codex:
-    kind: codex
-  opencode:
+  coder:
     kind: opencode
+  planner:
+    kind: claude
+  researcher:
+    kind: codex

@@ -5,15 +5,15 @@ docs: [protocol.yaml]
 members:
   - name: lead
     role: lead
-    profile: claude
+    profile: planner
     may_spawn:
       workers:
         - purpose: 実装
-          profile: opencode
+          profile: coder
         - purpose: 試作
-          profile: claude
+          profile: planner
         - purpose: 調査
-          profile: codex
+          profile: researcher
   - name: spec
     role: spec
-    profile: claude
+    profile: planner

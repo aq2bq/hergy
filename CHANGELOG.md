@@ -13,6 +13,45 @@
 
 ### Changed
 
+- **A member names a profile; `kind`, `args` and `env` are no longer written on
+  the member**: a `team.yaml` member writes one `profile:` key, naming a profile
+  in `profiles.yaml`, and the profile holds the engine. Writing `kind`, `args` or
+  `env` on a member stops the read with a message that says to write it in a
+  profile and to give the member `profile: <name>`. A member with no `profile:`
+  is stopped the same way. `hergy validate` warns when a profile is named after
+  its kind (`claude`), because such a name reads as a choice of kind where a
+  profile is a choice of what the engine runs; the warning does not stop
+  anything. `hergy new`'s starter team names `claude-default`, and `hergy new`
+  writes that profile into the layer's `profiles.yaml` when the layer cannot
+  already resolve the name. The write is the whole file, in profile-name order,
+  so comments in that `profiles.yaml` and the order the profiles were written in
+  do not survive it. To move a definition over:
+
+  Before:
+
+  ```yaml
+  members:
+    - name: builder
+      role: builder
+      kind: claude
+  ```
+
+  After:
+
+  ```yaml
+  # teams/<definition>/team.yaml
+  members:
+    - name: builder
+      role: builder
+      profile: claude-default
+
+  # profiles.yaml, in the layer root
+  version: 1
+  profiles:
+    claude-default:
+      kind: claude
+  ```
+
 - **herdr's tab for a team carries the team's name alone**: `hergy up <definition>
   --as <name>` now labels the tab `<name>`, where it used to write
   `team:<name>@<definition>`. The definition behind a running team is read from

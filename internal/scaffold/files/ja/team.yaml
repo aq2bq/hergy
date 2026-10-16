@@ -4,7 +4,7 @@ docs: [protocol.yaml]
 members:
   - name: lead
     role: lead
-    kind: claude
+    profile: claude-default
   - name: builder
     role: builder
-    kind: claude
+    profile: claude-default
