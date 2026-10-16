@@ -210,10 +210,12 @@
 
 - **The header carries the hergy logo (d-fb33)**: the words "Rule editor" beside
   `hergy` are gone, and the top-left corner of every screen shows the mark — a
-  cluster of dots and the word `hergy` — linking to the home. The mark is
-  written into the page itself, so it costs no second request, and it takes its
-  colours from the page, so it follows the light and the dark scheme. It names
-  itself `hergy` to a screen reader, and the header keeps the height it had.
+  small flock of squares, the one in front in the origin colour, and the word
+  `hergy` — linking to the home of the layer being shown, so a person reading
+  the global layer stays there. The mark is written into the page itself, so it
+  costs no second request, and it takes its colours from the page, so it follows
+  the light and the dark scheme. It names itself `hergy` to a screen reader, and
+  the header keeps the height it had.
 
 
 ## 0.4.0 - 2026-10-15
