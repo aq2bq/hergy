@@ -43,7 +43,7 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## The web UI
 
-- `hergy serve` serves the screens on 127.0.0.1 and prints the URL; it holds the foreground until you stop it. Hand the URL to the person rather than leaving it running behind a member.
+- `hergy serve` serves the screens on 127.0.0.1, prints the URL and opens it in this machine's default browser; it holds the foreground until you stop it. Run it with `--no-open` when nothing should take the person's screen, and hand them the URL yourself instead.
 - It answers this machine only. A write is a POST from a page it rendered, carrying that page's token, so driving it with curl means reading the token out of a form first. Do not work around it.
 - The screens read and write the same files the commands do. `hergy validate` still decides whether the settings hold.
 - The team definition is at `/team`: the documents every member reads, the members, and the workers each member may call, each member's prompt opening in the panel on the right. The running teams are at `/running`: what herdr reports, read the way `hergy status` reads it, a row per member with its terminal title and pane, and the button that moves herdr's focus to that pane — the one write these screens hold; it reads herdr again every 5 seconds. The figure is at `/figure`: one team definition drawn as a picture — the documents, the role files, the members, the workers, the human, and the turn directions read out of the rules — with herdr's state on a team that is running, and a document or a rule id leading to the rules screen.

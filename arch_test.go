@@ -21,7 +21,7 @@ import (
 const modulePath = "github.com/aq2bq/hergy"
 
 // leaves import no package of this module.
-var leaves = []string{"i18n", "layout", "scaffold", "source", "version"}
+var leaves = []string{"browser", "i18n", "layout", "scaffold", "source", "version"}
 
 // topLayer is imported by internal/app only. A package nested under one of
 // these (internal/web/rulesview) is a part of it and may import its parent; the

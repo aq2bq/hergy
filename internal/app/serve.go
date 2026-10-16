@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/browser"
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
@@ -284,16 +285,21 @@ func breakLine(env team.Env, path string, err error) string {
 }
 
 // runServe serves the screens on this machine and prints the URL once the socket
-// is open. It runs in the foreground until Ctrl-C, then waits for the requests
-// in flight. It reads the settings the way the other commands read them and
-// changes no file the screens do not write.
+// is open, then opens that URL in the person's default browser. It runs in the
+// foreground until Ctrl-C, then waits for the requests in flight. It reads the
+// settings the way the other commands read them and changes no file the screens
+// do not write.
+//
+// A browser that cannot be opened is one line on stderr and nothing else: the
+// screens are already answering, so the command goes on and the line carries the
+// URL to open by hand (d-fb89).
 //
 // The order here is the order of the navigation, and it follows the daily flow:
 // the home first, because opening hergy serve lands on it (d-ff49), then the team
 // list, then the rules screen, then the record's other screens: the prompt diff,
 // then the version screen. The screens that read a running team come after those.
 // A screen of another part is added on this line, in its place.
-func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
+func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	port := servePort{env: env, timeout: opts.Timeout}
 	home, err := homeview.New(port)
 	if err != nil {
@@ -330,8 +336,19 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	}
 	return server.Serve(ctx, opts.Port, func(url string) {
 		fmt.Fprintln(stdout, i18n.Tf("serve.url", url))
+		if opts.NoOpen {
+			return
+		}
+		if err := openBrowser(url); err != nil {
+			fmt.Fprintln(stderr, i18n.Tf("serve.no_browser", url))
+		}
 	})
 }
+
+// openBrowser opens a URL in the person's browser. It is internal/browser's
+// Open, held as a variable so a test can watch what runServe asks for without a
+// browser opening on the machine the tests run on.
+var openBrowser = browser.Open
 
 // orderScreens puts the screens in the order the navigation shows them (d-207f):
 // the home first, then the running teams, the team list, the figure, the rules,

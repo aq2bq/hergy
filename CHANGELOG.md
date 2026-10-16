@@ -33,6 +33,11 @@
   POST that carries the token of the running process, and sets
   `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
   with its license.
+- **`hergy serve` opens the URL it prints**: once the socket is open, hergy
+  hands the URL to this machine's default browser (`open` on macOS, `xdg-open`
+  on Linux, `rundll32 url.dll,FileProtocolHandler` on Windows). `--no-open`
+  prints the URL and opens nothing. A browser that cannot be started is one line
+  on stderr, and `hergy serve` goes on answering, with the URL to open by hand.
 - **The rule files say how to write a turn direction**: `hergy cheat --ai` and
   `skills/hergy-rules` now say that a rule's text can hand the turn between two
   of the team as `<name> → <name>`, or `<name> ⇄ <name>` when it goes both ways.
