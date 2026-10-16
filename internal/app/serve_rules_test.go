@@ -75,6 +75,7 @@ func TestWriteRuleRefusesAGlobalFileOnlyALocalTeamReads(t *testing.T) {
 	borrowed := filepath.Join(f.cfg, "hergy", "borrowed", "shared.yaml")
 	writeFile(t, borrowed, "version: 1\nsections:\n  - rules:\n      - id: S1\n        text: one\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "borrow", "team.yaml"), `version: 1
+mission: a mission for the test
 docs:
   - `+borrowed+`
 roles: [roles]
@@ -188,6 +189,7 @@ func TestPreviewSpeaksAboutThisEditOnly(t *testing.T) {
 
 	t.Run("a broken definition that does not read the file is not a break", func(t *testing.T) {
 		writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "torn", "team.yaml"), `version: 1
+mission: a mission for the test
 roles: [roles]
 members:
   - name: lead

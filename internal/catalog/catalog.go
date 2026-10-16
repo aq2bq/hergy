@@ -8,6 +8,7 @@
 package catalog
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -41,6 +42,29 @@ func New(globalDir, localDir, base string, reader source.Reader, display func(st
 		display:   display,
 	}
 }
+
+// ErrNotFound says a team definition name has none: in the layer asked for, or
+// in either one. A caller that has to tell "no such definition" from "a
+// definition that does not read" asks errors.Is.
+var ErrNotFound = errors.New("no team definition")
+
+// notFoundError is a not-found message: the text a person reads, and the
+// sentinel ErrNotFound for such a caller. The sentinel is not in the text.
+type notFoundError struct{ message string }
+
+func (e notFoundError) Error() string        { return e.message }
+func (e notFoundError) Is(target error) bool { return target == ErrNotFound }
+
+// ReadError is a team.yaml that is there but does not read: which file, and why.
+// A caller that shows the reason where a person reads it (status, for a running
+// team whose definition does not read) takes the path from here.
+type ReadError struct {
+	Path string
+	Err  error
+}
+
+func (e *ReadError) Error() string { return e.Err.Error() }
+func (e *ReadError) Unwrap() error { return e.Err }
 
 // LayerDir is where one layer's files live.
 func (c *Catalog) LayerDir(layer string) string {
@@ -121,12 +145,12 @@ func (c *Catalog) definitionIn(name, layer string, edit ProfilesEdit) (*definiti
 	switch layer {
 	case source.LayerLocal:
 		if !hasLocal {
-			return nil, i18n.Errorf("error.team_not_local", name, c.display(local), c.display(c.localDir))
+			return nil, notFoundError{i18n.Errorf("error.team_not_local", name, c.display(local), c.display(c.localDir)).Error()}
 		}
 		chosen, chosenLayer = local, source.LayerLocal
 	case source.LayerGlobal:
 		if !hasGlobal {
-			return nil, i18n.Errorf("error.team_not_global", name, c.display(global), c.display(c.globalDir))
+			return nil, notFoundError{i18n.Errorf("error.team_not_global", name, c.display(global), c.display(c.globalDir)).Error()}
 		}
 		chosen, chosenLayer = global, source.LayerGlobal
 	default:
@@ -178,7 +202,7 @@ func (c *Catalog) defaultDefinition(layer string) (*definition.Definition, error
 func (c *Catalog) readDefinition(name, path, layer, other string, edit ProfilesEdit) (*definition.Definition, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, &ReadError{Path: path, Err: err}
 	}
 	profiles, _, err := c.ProfilesEdit(edit)
 	if err != nil {
@@ -195,7 +219,7 @@ func (c *Catalog) readDefinition(name, path, layer, other string, edit ProfilesE
 		Reader:       c.reader,
 	})
 	if err != nil {
-		return nil, err
+		return nil, &ReadError{Path: path, Err: err}
 	}
 	def.OtherYAML = other
 	return def, nil
@@ -210,7 +234,7 @@ func (c *Catalog) notFound(name, local, global string) error {
 		fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(candidates, i18n.T("list.separator")))
 		fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(candidates)))
 	}
-	return fmt.Errorf("%s", b.String())
+	return notFoundError{b.String()}
 }
 
 // nextCommand is the command that moves a not-found error on: boot the one
@@ -231,7 +255,7 @@ func (c *Catalog) candidates(head string) error {
 	fmt.Fprintf(&b, "%s", head)
 	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(list, i18n.T("list.separator")))
 	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
-	return fmt.Errorf("%s", b.String())
+	return notFoundError{b.String()}
 }
 
 // candidateNames is every team definition name visible in either layer.

@@ -135,7 +135,7 @@ func TestTheProfilesScreenRefusesASaveThatWouldBreakATeamDefinition(t *testing.T
 	// The profile is one the global layer does not hold, so dropping it takes it
 	// away for good.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: solo\n")
+		"version: 1\nmission: a mission for the test\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: solo\n")
 	port := servePort{env: serveEnv(t)}
 	screen, err := profileview.New(port)
 	if err != nil {

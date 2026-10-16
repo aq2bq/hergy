@@ -1,5 +1,7 @@
 version: 1
-# mission: このチームの使命を 1 行で。チームを扱うコマンドの見出しと WebUI が最初に表示する
+# mission は必須。このチームの使命を 1 行で書く。チームを扱うコマンドの見出しと
+# WebUI が最初に表示する。自分のチームの使命に書き換える。
+mission: このチームの使命を 1 行で
 docs: [protocol.yaml]
 members:
   - name: lead

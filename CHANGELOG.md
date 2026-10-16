@@ -13,6 +13,29 @@
 
 ### Changed
 
+- **`mission:` is now required**: every `team.yaml` writes one line saying what
+  the team is for. A definition that writes none, writes an empty one, or
+  writes one over more than one line does not read, and `hergy validate` reports
+  the file broken, with the file's path, the way it reports any other break.
+  `hergy new`'s starter team writes an example mission too, and `hergy validate`
+  warns (without failing) while a definition still writes that example: it has
+  not said what its team is for yet.
+
+  Before:
+
+  ```yaml
+  version: 1
+  members: [...]
+  ```
+
+  After:
+
+  ```yaml
+  version: 1
+  mission: what this team is for, in one line
+  members: [...]
+  ```
+
 - **A member names a profile; `kind`, `args` and `env` are no longer written on
   the member**: a `team.yaml` member writes one `profile:` key, naming a profile
   in `profiles.yaml`, and the profile holds the engine. Writing `kind`, `args` or

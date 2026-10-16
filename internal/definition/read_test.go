@@ -105,11 +105,6 @@ func startsOf(def *definition.Definition, runName, base string, profiles map[str
 	return out, nil
 }
 
-func (b *built) missionLine() string {
-	line, _, _ := strings.Cut(b.def.Mission, "\n")
-	return strings.TrimSpace(line)
-}
-
 func (b *built) usesProfiles() bool {
 	return len(b.def.Graph.Members) > 0 || len(b.def.Graph.Workers) > 0
 }
@@ -127,7 +122,7 @@ func workerProfile(def *definition.Definition, member, purpose string) (string, 
 // teamText is a team.yaml body whose prompt is only the documents, so the
 // tests read the concatenation without any other prompt part in the way.
 func teamText(docs string) string {
-	return "version: 1\nteam: t\nprompt: \"%{docs}\"\ndocs: " + docs + "\n" +
+	return "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{docs}\"\ndocs: " + docs + "\n" +
 		"members:\n  - name: a\n    role: r\n    profile: claude-default\n"
 }
 
@@ -218,7 +213,7 @@ reports:
 // directory that holds only Markdown, and a role whose file is still Markdown
 // each stop with the way to move over.
 func TestParseStopsOnMarkdownInPlaceOfYAML(t *testing.T) {
-	roleTeam := "version: 1\nteam: t\nprompt: \"%{role_doc}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
+	roleTeam := "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
 	cases := []struct {
 		name string
 		file string
@@ -354,7 +349,7 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 		{
 			name: "team.yaml with an unknown key",
 			parse: func() error {
-				_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nunknown_key: 1\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+				_, err := parseTeam(t, t.TempDir(), "version: 1\nmission: a mission for the test\nteam: t\nunknown_key: 1\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
 				return err
 			},
 		},
@@ -373,7 +368,7 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	profiles := map[string]profile.Profile{
 		"lead": {Name: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
 	}
-	got, err := parse("version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\n", "t", "", dir, profiles)
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\n", "t", "", dir, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +394,7 @@ func parseMaySpawnTeam(t *testing.T, maySpawn string) (*built, error) {
 		"seeker":    {Name: "seeker", Kind: "claude"},
 		"developer": {Name: "developer", Kind: "codex"},
 	}
-	return parse("version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
+	return parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
 		"    may_spawn:\n"+maySpawn, "t", "", dir, profiles)
 }
@@ -413,7 +408,7 @@ func TestWorkerNoteNamesTheHerdrName(t *testing.T) {
 	profiles := map[string]profile.Profile{
 		"seeker": {Name: "seeker", Kind: "claude"},
 	}
-	got, err := parse("version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
 		"    may_spawn:\n      workers:\n        - purpose: build\n          profile: seeker\n",
 		"t", "alt", dir, profiles)
@@ -483,7 +478,7 @@ func TestMaySpawnStopsOnBrokenPairs(t *testing.T) {
 
 func TestParseUnknownProfileStops(t *testing.T) {
 	_, err := definition.Read(definition.Input{
-		YAML:         "version: 1\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\n",
+		YAML:         "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\n",
 		Name:         "t",
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: "team.yaml",
@@ -510,7 +505,7 @@ func TestMemberCannotWriteItsOwnEngine(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parseTeam(t, t.TempDir(),
-				"version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n"+tc.member)
+				"version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n"+tc.member)
 			if err == nil {
 				t.Fatalf("a member writing %s did not stop the parse", tc.name)
 			}
@@ -526,7 +521,7 @@ func TestMemberCannotWriteItsOwnEngine(t *testing.T) {
 // TestMemberNeedsAProfile: a member with no profile has no engine at all, and is
 // stopped with the way to give it one.
 func TestMemberNeedsAProfile(t *testing.T) {
-	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n")
+	_, err := parseTeam(t, t.TempDir(), "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n")
 	if err == nil {
 		t.Fatal("a member with no profile did not stop the parse")
 	}
@@ -541,7 +536,7 @@ func TestMemberNeedsAProfile(t *testing.T) {
 // the member's herdr name is "<team>-<member>".
 func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 	dir := t.TempDir()
-	got, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
+	got, err := parseTeam(t, dir, "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +552,7 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 // TestMemberNameTakesTheRunName: --as replaces the prefix, not the member name.
 func TestMemberNameTakesTheRunName(t *testing.T) {
 	dir := t.TempDir()
-	got, err := parse("version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n", "dev", "dev2", dir, testProfiles(dir))
+	got, err := parse("version: 1\nmission: a mission for the test\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n", "dev", "dev2", dir, testProfiles(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +567,7 @@ func TestMemberNameTakesTheRunName(t *testing.T) {
 // TestMemberNameWithTeamPlaceholderStops: the team name is added for the writer,
 // so a literal %{team} left in a member name is refused.
 func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
-	_, err := parseTeam(t, t.TempDir(), "version: 1\nteam: t\nmembers:\n  - name: \"%{team}-lead\"\n    role: r\n    profile: claude-default\n")
+	_, err := parseTeam(t, t.TempDir(), "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: \"%{team}-lead\"\n    role: r\n    profile: claude-default\n")
 	if err == nil {
 		t.Fatal("a member name with %{team} did not stop the parse")
 	}
@@ -585,7 +580,7 @@ func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
 // their own pattern, but the combined herdr name is checked too.
 func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	dir := t.TempDir()
-	_, err := parse("version: 1\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
+	_, err := parse("version: 1\nmission: a mission for the test\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
 		"abcdefghijklmnopqrstuvwxyz", "", dir, testProfiles(dir)) // 26 chars, over the team-name limit
 	if err == nil {
 		t.Fatal("an over-long herdr name did not stop the parse")
@@ -595,15 +590,13 @@ func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	}
 }
 
-// TestParseReadsTheMission: team.yaml's mission: is the one line a team says it
-// is for (r-341e). It is optional, so a file without it carries none; the ends
-// of what it wrote are trimmed, and a mission written over more than one line
-// keeps its lines, because hergy does not join them: validate says it should be
-// one line, and MissionLine is what the output shows.
+// TestParseReadsTheMission: team.yaml's mission: is required (I15) and is the
+// one line a team says it is for. The ends of what it wrote are trimmed, so a
+// block scalar's trailing newline is not a second line.
 func TestParseReadsTheMission(t *testing.T) {
 	dir := t.TempDir()
 	// teamWith is a team.yaml body with the given text in place of the mission
-	// line (empty for none), so each case writes only what it is about.
+	// line, so each case writes only what it is about.
 	teamWith := func(mission string) string {
 		return "version: 1\n" + mission +
 			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
@@ -612,37 +605,21 @@ func TestParseReadsTheMission(t *testing.T) {
 		name    string
 		yaml    string
 		mission string
-		line    string
 	}{
-		{
-			name:    "no mission",
-			yaml:    teamWith(""),
-			mission: "",
-			line:    "",
-		},
 		{
 			name:    "one line",
 			yaml:    teamWith("mission:  hergy をよくする  \n"),
 			mission: "hergy をよくする",
-			line:    "hergy をよくする",
 		},
 		{
 			name:    "a block scalar",
 			yaml:    teamWith("mission: |-\n  one line\n"),
 			mission: "one line",
-			line:    "one line",
 		},
 		{
-			name:    "over two lines",
-			yaml:    teamWith("mission: |-\n  first\n  second\n"),
-			mission: "first\nsecond",
-			line:    "first",
-		},
-		{
-			name:    "written empty",
-			yaml:    teamWith("mission: \"\"\n"),
-			mission: "",
-			line:    "",
+			name:    "a block scalar with a trailing newline",
+			yaml:    teamWith("mission: |\n  one line\n"),
+			mission: "one line",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -653,8 +630,36 @@ func TestParseReadsTheMission(t *testing.T) {
 			if got.def.Mission != tc.mission {
 				t.Errorf("Mission = %q, want %q", got.def.Mission, tc.mission)
 			}
-			if line := got.missionLine(); line != tc.line {
-				t.Errorf("MissionLine = %q, want %q", line, tc.line)
+		})
+	}
+}
+
+// TestParseStopsOnAMissionThatIsNotOneLine: the mission is required, so a
+// definition that writes none, writes an empty one, or writes one over more
+// than one line does not read (I15).
+func TestParseStopsOnAMissionThatIsNotOneLine(t *testing.T) {
+	dir := t.TempDir()
+	teamWith := func(mission string) string {
+		return "version: 1\n" + mission +
+			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
+	}
+	cases := []struct{ name, mission, key string }{
+		{"no mission", "", "error.mission_missing"},
+		{"written empty", "mission: \"\"\n", "error.mission_missing"},
+		{"written blank", "mission: \"  \"\n", "error.mission_missing"},
+		{"over two lines", "mission: |-\n  first\n  second\n", "error.mission_multiline"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseTeam(t, dir, teamWith(tc.mission))
+			if err == nil {
+				t.Fatalf("a definition with %s did not stop the parse", tc.name)
+			}
+			// The error carries the file's path, the way the other reading
+			// errors do (D2).
+			want := i18n.Tf(tc.key, filepath.Join(dir, "team.yaml"))
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error %q does not say %q", err, want)
 			}
 		})
 	}
@@ -664,8 +669,8 @@ func TestParseReadsTheMission(t *testing.T) {
 // go test; the nightly workflow (go run ./tools/check nightly) runs them with
 // -fuzz.
 func FuzzRead(f *testing.F) {
-	f.Add("version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
-	f.Add("version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n    may_spawn:\n      workers:\n        - purpose: 調査\n          profile: seeker\n")
+	f.Add("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+	f.Add("version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n    may_spawn:\n      workers:\n        - purpose: 調査\n          profile: seeker\n")
 	f.Add("version: 2\n")
 	f.Add("members: [")
 	f.Add("")

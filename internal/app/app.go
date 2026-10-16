@@ -285,7 +285,8 @@ func (r *resolved) selectStarts(name string) ([]definition.Start, error) {
 	return []definition.Start{*member}, nil
 }
 
-// missionLine is the mission as one line, or "" when team.yaml writes none.
+// missionLine is the mission as one line. It is required, so it is never empty
+// for a definition that read.
 func (r *resolved) missionLine() string {
 	line, _, _ := strings.Cut(r.team.Definition.Mission, "\n")
 	return strings.TrimSpace(line)
@@ -618,14 +619,10 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	seenFiles := map[string]bool{}
 	report := func(path string, err error) {
 		checked++
-		field(stdout, label("file"), env.Display(path))
-		if err == nil {
-			indentField(stdout, 1, label("result"), i18n.T("value.ok"))
-			return
+		reportFile(stdout, env, path, err)
+		if err != nil {
+			problems++
 		}
-		problems++
-		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
-		indentField(stdout, 1, label("detail"), breakLine(env, path, err))
 	}
 
 	if path := filepath.Join(env.GlobalDir, "config.yaml"); isFile(path) {
@@ -640,37 +637,19 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			}
 		}
 	}
-	rows := cat.Definitions()
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
-		for _, row := range rows {
-			var path string
-			switch layer {
-			case source.LayerGlobal:
-				if !row.Global {
-					continue
-				}
-				path = row.GlobalPath
-			case source.LayerLocal:
-				if !row.Local {
-					continue
-				}
-				path = row.LocalPath
+		for _, row := range cat.Definitions() {
+			path := listingPath(row, layer)
+			if path == "" {
+				continue
 			}
-			r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
-			report(path, err)
-			if err == nil {
-				reportMission(stdout, r)
-				if layer == source.LayerGlobal && row.Local {
-					// The project's definition of this name is the one that is
-					// used, so the global one is hidden (I11); validate says so,
-					// where a person reading the global file finds it.
-					indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
-				}
-				collectRules(tally, seenFiles, r)
-				team := sizeOf(r)
-				team.name = env.Display(filepath.Dir(path))
-				teams = append(teams, team)
+			checked++
+			size, ok := validateDefinition(cat, env, stdout, tally, seenFiles, row, layer)
+			if !ok {
+				problems++
+				continue
 			}
+			teams = append(teams, size)
 		}
 	}
 
@@ -684,6 +663,45 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	return nil
 }
 
+// reportFile writes one checked file: where it is, as a person writes it, and
+// whether it reads, with the reason when it does not.
+func reportFile(stdout io.Writer, env team.Env, path string, err error) {
+	field(stdout, label("file"), env.Display(path))
+	if err == nil {
+		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
+		return
+	}
+	indentField(stdout, 1, label("result"), i18n.T("value.broken"))
+	indentField(stdout, 1, label("detail"), breakLine(env, path, err))
+}
+
+// validateDefinition checks one definition of one layer the way up reads it,
+// writes its result line and its warnings, and returns the size to print after
+// the per-file lines. ok is false when the definition does not read.
+func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, tally *rules.Tally, seen map[string]bool, row catalog.Listing, layer string) (size teamSize, ok bool) {
+	path := listingPath(row, layer)
+	r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
+	reportFile(stdout, env, path, err)
+	if err != nil {
+		return teamSize{}, false
+	}
+	if scaffold.IsPlaceholderMission(r.team.Definition.Mission) {
+		// The starter team's mission is an example: the definition reads, but
+		// its team has not said what it is for (d-3cae).
+		indentField(stdout, 1, label("warning"), i18n.T("validate.mission_placeholder"))
+	}
+	if layer == source.LayerGlobal && row.Local {
+		// The project's definition of this name is the one that is used, so the
+		// global one is hidden (I11); validate says so, where a person reading
+		// the global file finds it.
+		indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
+	}
+	collectRules(tally, seen, r)
+	size = sizeOf(r)
+	size.name = env.Display(filepath.Dir(path))
+	return size, true
+}
+
 // reportProfileNames is the one warning a profiles.yaml gets: a profile whose
 // name is its kind (d-a477). A name that is the kind makes a profile look like a
 // choice of kind, where I7 makes it a choice of engine settings; the name should
@@ -694,20 +712,6 @@ func reportProfileNames(w io.Writer, profiles map[string]profile.Profile) {
 		if profiles[name].Kind == name {
 			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
 		}
-	}
-}
-
-// reportMission is the one warning a team definition gets about its mission: no
-// mission written (r-341e), or one written over more than one line. It stands
-// under the file's own result line, where a person reading that file finds it.
-// It moves no exit code: a team whose mission is missing or long boots the same,
-// the way a team over the provisional size does (n-9eea).
-func reportMission(w io.Writer, r *resolved) {
-	switch {
-	case r.missionLine() == "":
-		indentField(w, 1, label("warning"), i18n.T("validate.mission_missing"))
-	case strings.Contains(r.team.Definition.Mission, "\n"):
-		indentField(w, 1, label("warning"), i18n.T("validate.mission_multiline"))
 	}
 }
 
@@ -1071,10 +1075,16 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		r, err := buildRunning(cat, env.ProjectRoot, entry)
 		if err != nil {
 			// A team booted from another project's definition is still listed,
-			// so one such team does not hide the rest.
+			// so one such team does not hide the rest. A definition that is here
+			// but does not read says why, with its file's path; only a
+			// definition that is not here says "another project".
 			field(stdout, label("team"), entry.Team)
 			indentField(stdout, 1, label("definition"), entry.Definition)
-			fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
+			if errors.Is(err, catalog.ErrNotFound) {
+				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
+			} else {
+				indentField(stdout, 1, label("detail"), brokenTeamLine(env, err))
+			}
 			continue
 		}
 		field(stdout, label("team"), r.team.Name)
@@ -1091,6 +1101,17 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		}
 	}
 	return nil
+}
+
+// brokenTeamLine is why a running team's definition cannot be read, as one line:
+// the file as a person writes it and the reason, the way hergy validate writes a
+// broken file.
+func brokenTeamLine(env team.Env, err error) string {
+	var readErr *catalog.ReadError
+	if errors.As(err, &readErr) {
+		return breakLine(env, readErr.Path, err)
+	}
+	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
 // printStatusJudgement prints the judgement line for the rows: who is waiting on
@@ -1244,11 +1265,10 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 }
 
 // printHeader is the short provenance every team command shows: the team's
-// mission when team.yaml writes one, the team definition, the team it runs as,
-// its version, the layer in use, and the files the effective values came from.
-// show prints the definition alone; a team command also prints the team name.
-// The mission is first: it is the one line that says what the team is for, and
-// a team without one prints no line for it.
+// mission, the team definition, the team it runs as, its version, the layer in
+// use, and the files the effective values came from. show prints the definition
+// alone; a team command also prints the team name. The mission is first: it is
+// the one line that says what the team is for, and it is required.
 func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	def := r.team.Definition
 	if mission := r.missionLine(); mission != "" {

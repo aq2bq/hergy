@@ -179,6 +179,7 @@ func TestBumpRefusesADocumentTheRecordDoesNotHold(t *testing.T) {
 	added := filepath.Join(dir, "added.yaml")
 	writeFile(t, added, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: A1\n        text: one\n")
 	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
+mission: a mission for the test
 docs: [protocol.yaml, added.yaml]
 members:
   - name: lead

@@ -39,6 +39,7 @@ func serveEnv(t *testing.T) team.Env {
 func writeDemoTeam(t *testing.T, f *fixture, name string) {
 	t.Helper()
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "team.yaml"), `version: 1
+mission: a mission for the test
 docs:
   - protocol.yaml
 roles: [roles]
@@ -92,6 +93,7 @@ func TestServePortTeams(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"), "version: 2\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "shared", "team.yaml"), `version: 1
+mission: a mission for the test
 members:
   - name: lead
     role: lead
