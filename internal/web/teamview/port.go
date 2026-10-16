@@ -50,6 +50,9 @@ type Definition struct {
 	Mission string
 	Docs    []Doc
 	Members []Member
+	// Turns is the definition's graph: who hands the turn to whom. The figure
+	// draws these and nothing else (段 5).
+	Turns []Turn
 }
 
 // Doc is one rule file the members read: a document every member reads (Role
@@ -84,8 +87,16 @@ type Member struct {
 	Kind     string // the engine the settings name: claude, opencode
 	Profile  string
 	Prompt   string
+	Turns    []Turn
 	Workers  []Worker
 	RoleFile *Doc // the role file this member reads, nil when it has none
+}
+
+// Turn is one edge of the definition's graph: who hands the turn to whom
+// (段 5). An end is a member's short name, or "human".
+type Turn struct {
+	From string
+	To   string
 }
 
 // Worker is one worker a member may hire.

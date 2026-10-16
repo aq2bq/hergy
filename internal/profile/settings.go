@@ -60,8 +60,8 @@ func CheckVersion(version *int, what, path string) error {
 }
 
 // CleanError is a YAML error as a person reads it: the Go type names yaml.v3
-// puts in it are dropped, and the "profiles" field it names when a team.yaml
-// writes may_spawn in the old form is explained.
+// puts in it are dropped, and a team.yaml that still writes its profiles in the
+// file is told where they went.
 func CleanError(err error) string {
 	msg := typeNameRE.ReplaceAllString(err.Error(), "")
 	msg = dangleRE.ReplaceAllString(msg, "")

@@ -51,8 +51,9 @@ func (s *stringList) UnmarshalYAML(value *yaml.Node) error {
 
 // The may_spawn key is kept as a raw node, because yaml.v3 does not call a
 // custom unmarshaler for `may_spawn:` (null); the node tells "absent" apart from
-// "null". Unknown keys inside it are checked by hand, since KnownFields does not
-// descend into a yaml.Node.
+// "null", which is what the sentence that says it is gone needs (段 5). Unknown
+// keys inside it are checked by hand, since KnownFields does not descend into a
+// yaml.Node.
 //
 // docs: and roles: are gone (段 4). They are still read, only so that a file
 // which writes one is stopped with the sentence that says where the documents
@@ -66,12 +67,23 @@ type rawTeam struct {
 	Docs    *stringList `yaml:"docs"`
 	Roles   *stringList `yaml:"roles"`
 	Members []rawMember `yaml:"members"`
+	Workers []rawWorker `yaml:"workers"`
+	Turns   *stringList `yaml:"turns"`
+}
+
+// rawWorker is one worker a member may hire: who hires it, what it is for, and
+// the profile it runs (I12c, 段 5).
+type rawWorker struct {
+	From    string `yaml:"from"`
+	Purpose string `yaml:"purpose"`
+	Profile string `yaml:"profile"`
 }
 
 // rawMember is one member of team.yaml. kind, args and env are not a member's
 // to write: they belong to the profile the member names (I7). They are still
 // read, only so that a file which writes one is stopped with the sentence that
-// says where it goes, rather than with an unknown-key complaint.
+// says where it goes, rather than with an unknown-key complaint. may_spawn is
+// the same: the workers moved to the top level (段 5).
 type rawMember struct {
 	Name     string         `yaml:"name"`
 	Role     string         `yaml:"role"`
@@ -84,14 +96,10 @@ type rawMember struct {
 	MaySpawn yaml.Node      `yaml:"may_spawn"`
 }
 
-type rawMaySpawn struct {
-	Workers []rawMaySpawnWorker `yaml:"workers"`
-}
-
-type rawMaySpawnWorker struct {
-	Purpose string `yaml:"purpose"`
-	Profile string `yaml:"profile"`
-}
+// spawnPlaceholder is the old name of the part of a prompt template that lists
+// the workers a member may hire. The template that still writes it is stopped
+// with the name of the part that replaced it (段 5).
+const spawnPlaceholder = "%{spawn}"
 
 // Read reads one team definition: the members (the frames), the workers each
 // member may hire, and the team's own agreement. It builds the graph, so the
@@ -127,15 +135,30 @@ func Read(in Input) (*Definition, error) {
 	if err != nil {
 		return nil, err
 	}
-	members, workers, err := parseMembers(raw, in)
+	members, err := parseMembers(raw, in)
 	if err != nil {
 		return nil, err
+	}
+	workers, err := parseWorkers(raw, in)
+	if err != nil {
+		return nil, err
+	}
+	turns, err := parseTurns(raw.Turns)
+	if err != nil {
+		return nil, err
+	}
+	graph := NewGraph(members, workers, turns)
+	// A graph whose turns the definition cannot hold stops every command that
+	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
+	// member and of the human, and a turn reaching the human.
+	if problems := graph.Check(); len(problems) > 0 {
+		return nil, &GraphError{Path: in.TeamYAMLPath, Problems: problems}
 	}
 
 	return &Definition{
 		Name:         in.Name,
 		Mission:      mission,
-		Graph:        NewGraph(members, workers),
+		Graph:        graph,
 		Dir:          in.TeamDir,
 		TeamYAML:     in.TeamYAMLPath,
 		Layer:        in.Layer,
@@ -155,13 +178,17 @@ func teamAgreement(in Input) source.Doc {
 
 // promptOf is the team's own prompt template: the text it wrote, or "" when it
 // wrote none (the default in the locales is used). An explicitly empty prompt is
-// an error rather than a silent fallback.
+// an error rather than a silent fallback, and so is a template that still writes
+// the old %{spawn}: expanding it would only stop as an unknown part.
 func promptOf(raw *string) (string, error) {
 	if raw == nil {
 		return "", nil
 	}
 	if strings.TrimSpace(*raw) == "" {
 		return "", i18n.Errorf("error.prompt_empty_team")
+	}
+	if strings.Contains(*raw, spawnPlaceholder) {
+		return "", i18n.Errorf("error.spawn_placeholder_gone")
 	}
 	return *raw, nil
 }
@@ -185,50 +212,148 @@ func missionOf(raw *string, path string) (string, error) {
 	return mission, nil
 }
 
-// parseMembers builds the member frames and the worker nodes, refusing the ways
-// a member breaks. Each member writes its profile by name (I7); the profile's
-// own fields are read by the caller from the profiles it passed in.
-func parseMembers(raw rawTeam, in Input) ([]MemberNode, []WorkerNode, error) {
+// parseMembers builds the member frames, refusing the ways a member breaks. Each
+// member writes its profile by name (I7); the profile's own fields are read by
+// the caller from the profiles it passed in.
+func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 	members := make([]MemberNode, 0, len(raw.Members))
-	var workers []WorkerNode
 	for i, rm := range raw.Members {
 		label := fmt.Sprintf("members[%d]", i)
 		// The team name is added to every member name automatically, so a
 		// literal %{team} is a leftover that would only make the herdr name
 		// carry the team twice.
 		if strings.Contains(rm.Name, teamPlaceholder) {
-			return nil, nil, i18n.Errorf("error.name_team_placeholder", label)
+			return nil, i18n.Errorf("error.name_team_placeholder", label)
+		}
+		// The workers moved to the top level (段 5): a member that still writes
+		// them is stopped here, with the sentence that says where they went.
+		if rm.MaySpawn.Kind != 0 {
+			return nil, i18n.Errorf("error.may_spawn_gone")
 		}
 		member, err := parseMember(rm, raw.Cwd, in, i)
 		if err != nil {
-			return nil, nil, err
-		}
-		more, err := parseMaySpawn(rm, in, i)
-		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		members = append(members, member)
-		workers = append(workers, more...)
 	}
 	seen := map[string]bool{}
 	for _, member := range members {
 		if seen[member.Name] {
-			return nil, nil, i18n.Errorf("error.duplicate_member", member.Name)
+			return nil, i18n.Errorf("error.duplicate_member", member.Name)
 		}
 		seen[member.Name] = true
 	}
-	return members, workers, nil
+	return members, nil
+}
+
+// parseWorkers reads the top-level workers: into the worker nodes the graph
+// makes the two edges of each from (I12c). Each one names the member that hires
+// it, the purpose, and the profile the worker runs.
+func parseWorkers(raw rawTeam, in Input) ([]WorkerNode, error) {
+	workers := make([]WorkerNode, 0, len(raw.Workers))
+	seen := map[string]bool{}
+	for i, rw := range raw.Workers {
+		label := fmt.Sprintf("workers[%d]", i)
+		if strings.TrimSpace(rw.From) == "" {
+			return nil, i18n.Errorf("error.workers_from_empty", label)
+		}
+		if strings.TrimSpace(rw.Purpose) == "" {
+			return nil, i18n.Errorf("error.workers_purpose_empty", label)
+		}
+		if rw.Profile == "" {
+			return nil, i18n.Errorf("error.workers_profile_empty", label)
+		}
+		if _, ok := in.Profiles[rw.Profile]; !ok {
+			return nil, i18n.Errorf("error.workers_no_profile", label, rw.Profile)
+		}
+		// A worker's identity is the member that hires it and the purpose
+		// (I12c): two workers of the same pair are one node twice.
+		key := rw.From + "\x00" + rw.Purpose
+		if seen[key] {
+			return nil, i18n.Errorf("error.workers_duplicate_purpose", label, rw.From, rw.Purpose)
+		}
+		seen[key] = true
+		workers = append(workers, WorkerNode(rw))
+	}
+	return workers, nil
+}
+
+// parseTurns reads the turns: lines, each "- a -> b", into the edges of the
+// graph. Both ends are read as d-11f8 writes them: the human, a member's name,
+// or "<kind>:<name>" for another kind, which is read and stopped.
+func parseTurns(entries *stringList) ([]Edge, error) {
+	if entries == nil {
+		return nil, nil
+	}
+	turns := make([]Edge, 0, len(*entries))
+	for i, line := range *entries {
+		label := fmt.Sprintf("turns[%d]", i)
+		from, to, err := parseTurn(line, label)
+		if err != nil {
+			return nil, err
+		}
+		turns = append(turns, Edge{From: from, To: to})
+	}
+	return turns, nil
+}
+
+// parseTurn reads one turns: line into its two ends. It is written "a -> b", one
+// arrow, with a name on each side.
+func parseTurn(line, label string) (NodeID, NodeID, error) {
+	before, after, found := strings.Cut(line, arrow)
+	if !found {
+		return NodeID{}, NodeID{}, i18n.Errorf("error.turns_not_an_edge", label, strings.TrimSpace(line))
+	}
+	if strings.Contains(after, arrow) {
+		return NodeID{}, NodeID{}, i18n.Errorf("error.turns_not_an_edge", label, strings.TrimSpace(line))
+	}
+	fromName, toName := strings.TrimSpace(before), strings.TrimSpace(after)
+	if fromName == "" || toName == "" {
+		return NodeID{}, NodeID{}, i18n.Errorf("error.turns_empty_end", label, strings.TrimSpace(line))
+	}
+	from, err := parseTurnName(fromName)
+	if err != nil {
+		return NodeID{}, NodeID{}, err
+	}
+	to, err := parseTurnName(toName)
+	if err != nil {
+		return NodeID{}, NodeID{}, err
+	}
+	return from, to, nil
+}
+
+// arrow is what a turns: line writes between its two ends. A member's name
+// carries no arrow, so one arrow is the whole of it.
+const arrow = "->"
+
+// parseTurnName reads one end of a turns: line. A name written as
+// "<kind>:<name>" is read (so the shape of the file does not change when a kind
+// is added, d-11f8) and stopped: no kind but the human and a member may stand in
+// turns: yet. Any other name is a member's; a name the team has no member for is
+// kept, and Check reports it.
+func parseTurnName(name string) (NodeID, error) {
+	if strings.Contains(name, ":") {
+		return NodeID{}, i18n.Errorf("error.turns_kind_prefix", name)
+	}
+	if name == nodeKinds[KindHuman].fixedName {
+		return NodeID{Kind: KindHuman, Name: name}, nil
+	}
+	return memberID(name), nil
 }
 
 // memberPrompt is the prompt the member writes over the team's own: an
 // explicitly empty one is an error, so a file that would silently fall back is
-// stopped. The prompt itself is the template prompt.Member expands.
+// stopped, and so is one that still writes the old %{spawn}. The prompt itself
+// is the template prompt.Member expands.
 func memberPrompt(rm rawMember, label string) (*string, error) {
 	if rm.Prompt == nil {
 		return nil, nil
 	}
 	if strings.TrimSpace(*rm.Prompt) == "" {
 		return nil, i18n.Errorf("error.prompt_empty_member", label)
+	}
+	if strings.Contains(*rm.Prompt, spawnPlaceholder) {
+		return nil, i18n.Errorf("error.spawn_placeholder_gone")
 	}
 	return rm.Prompt, nil
 }
@@ -296,83 +421,4 @@ func inlineEngineKey(rm rawMember) string {
 		return "env"
 	}
 	return ""
-}
-
-// parseMaySpawn reads one member's may_spawn into the worker nodes it hires, so
-// the graph can make the two edges of each pair (I12c). It is read by hand: the
-// node tells "absent" apart from "null", and each worker's keys are checked
-// because KnownFields does not descend into a yaml.Node.
-func parseMaySpawn(rm rawMember, in Input, index int) ([]WorkerNode, error) {
-	if rm.MaySpawn.Kind == 0 {
-		return nil, nil
-	}
-	label := fmt.Sprintf("members[%d].may_spawn", index)
-	node := rm.MaySpawn
-	if node.Tag == "!!null" {
-		return nil, i18n.Errorf("error.must_be_mapping_not_null", label)
-	}
-	if node.Kind != yaml.MappingNode {
-		return nil, i18n.Errorf("error.must_be_mapping", label)
-	}
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		switch key := node.Content[i].Value; key {
-		case "workers":
-		case "purposes", "profiles":
-			return nil, i18n.Errorf("error.mayspawn_old_form", label)
-		default:
-			return nil, i18n.Errorf("error.unknown_keys", label, key)
-		}
-	}
-	workers := mappingValue(&node, "workers")
-	if workers == nil || workers.Tag == "!!null" {
-		return nil, i18n.Errorf("error.mayspawn_workers_empty", label)
-	}
-	if workers.Kind != yaml.SequenceNode {
-		return nil, i18n.Errorf("error.mayspawn_workers_list", label)
-	}
-	if len(workers.Content) == 0 {
-		return nil, i18n.Errorf("error.mayspawn_workers_empty", label)
-	}
-	out := make([]WorkerNode, 0, len(workers.Content))
-	seen := map[string]bool{}
-	for i, worker := range workers.Content {
-		item := fmt.Sprintf("%s.workers[%d]", label, i)
-		if worker.Kind != yaml.MappingNode {
-			return nil, i18n.Errorf("error.must_be_mapping", item)
-		}
-		for j := 0; j+1 < len(worker.Content); j += 2 {
-			if key := worker.Content[j].Value; key != "purpose" && key != "profile" {
-				return nil, i18n.Errorf("error.unknown_keys", item, key)
-			}
-		}
-		var raw rawMaySpawnWorker
-		if err := worker.Decode(&raw); err != nil {
-			return nil, fmt.Errorf("%s: %s", item, profile.CleanError(err))
-		}
-		if strings.TrimSpace(raw.Purpose) == "" {
-			return nil, i18n.Errorf("error.mayspawn_purpose_empty", item)
-		}
-		if raw.Profile == "" {
-			return nil, i18n.Errorf("error.mayspawn_profile_empty", item)
-		}
-		if _, ok := in.Profiles[raw.Profile]; !ok {
-			return nil, i18n.Errorf("error.mayspawn_no_profile", item, raw.Profile)
-		}
-		if seen[raw.Purpose] {
-			return nil, i18n.Errorf("error.mayspawn_duplicate_purpose", label, raw.Purpose)
-		}
-		seen[raw.Purpose] = true
-		out = append(out, WorkerNode{From: rm.Name, Purpose: raw.Purpose, Profile: raw.Profile})
-	}
-	return out, nil
-}
-
-// mappingValue returns the value node for a key in a mapping node, or nil.
-func mappingValue(node *yaml.Node, key string) *yaml.Node {
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		if node.Content[i].Value == key {
-			return node.Content[i+1]
-		}
-	}
-	return nil
 }

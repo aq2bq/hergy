@@ -14,7 +14,7 @@ import (
 func TestCheatMachineNamesEveryConfigKey(t *testing.T) {
 	keys := map[string]bool{}
 	roots := []any{
-		rawTeam{}, rawMember{}, rawMaySpawn{},
+		rawTeam{}, rawMember{}, rawWorker{},
 	}
 	for _, root := range roots {
 		collectYAMLKeys(keys, reflect.TypeOf(root))

@@ -80,6 +80,9 @@ members:
   - name: lead
     role: lead
     profile: claude-default
+turns:
+  - human -> lead
+  - lead -> human
 `)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	p := servePort{env: serveEnv(t)}

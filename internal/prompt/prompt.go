@@ -74,24 +74,50 @@ func HerdrWorker(intro string) string {
 	return i18n.Tf("herdr.guide_worker", intro)
 }
 
-// SpawnPair is one purpose-to-profile pair a member may hire for.
-type SpawnPair struct {
+// WorkerPair is one purpose-to-profile pair a member may hire for.
+type WorkerPair struct {
 	Purpose string
 	Profile string
 }
 
-// SpawnNote states what a member may spawn. It is written into the prompt and
+// WorkersNote states what a member may hire. It is written into the prompt and
 // never enforced: a hire outside it only prints a note. It lists the pairs of
 // purpose and profile the member may hire for. `command` is the hire command
 // line shown to the member, with the placeholders it should fill in.
-func SpawnNote(memberName string, workers []SpawnPair, command string) string {
+func WorkersNote(memberName string, workers []WorkerPair, command string) string {
 	allowed := make([]string, 0, len(workers))
 	for _, worker := range workers {
-		allowed = append(allowed, fmt.Sprintf(i18n.T("spawn.allowed_item"), worker.Purpose, worker.Profile))
+		allowed = append(allowed, fmt.Sprintf(i18n.T("workers.allowed_item"), worker.Purpose, worker.Profile))
 	}
 	separator := i18n.T("list.separator")
-	return i18n.Tf("spawn.note",
+	return i18n.Tf("workers.note",
 		strings.Join(allowed, separator),
 		command,
 		memberName)
+}
+
+// TurnPart is one node a member hands the turn to, as the member's prompt names
+// it: the herdr name it reaches the party by, and its role. Role is empty for
+// the human, which has none.
+type TurnPart struct {
+	Name string
+	Role string
+}
+
+// TurnsNote lists who a member hands the turn to. It is built from the graph's
+// edges out of the member and adds nothing to them (I13): taking one edge away
+// takes that party out of the prompt.
+func TurnsNote(turns []TurnPart) string {
+	if len(turns) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(turns))
+	for _, turn := range turns {
+		if turn.Role == "" {
+			lines = append(lines, i18n.T("turns.human_item"))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf(i18n.T("turns.member_item"), turn.Name, turn.Role))
+	}
+	return i18n.Tf("turns.note", strings.Join(lines, "\n"))
 }

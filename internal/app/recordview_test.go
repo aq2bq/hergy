@@ -284,6 +284,9 @@ members:
   - name: lead
     role: lead
     profile: claude-default
+turns:
+  - human -> lead
+  - lead -> human
 `)
 	writeFile(t, filepath.Join(other, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")

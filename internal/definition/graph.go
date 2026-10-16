@@ -1,5 +1,11 @@
 package definition
 
+import (
+	"strings"
+
+	"github.com/aq2bq/hergy/internal/i18n"
+)
+
 // Graph is one definition's nodes and edges: who is in the team, what they may
 // hire, and who hands the turn to whom. It is read, never written, by every
 // projection (the figure, the activity, the lists, a member's prompt, validate).
@@ -7,20 +13,28 @@ type Graph struct {
 	Human   Human
 	Members []MemberNode
 	Workers []WorkerNode
-	Edges   []Edge
+	// Turns is the edges a settings file writes in turns:, in the order it
+	// writes them. A worker's two edges are not here: workers: makes them
+	// (I12c).
+	Turns []Edge
+	// Edges is every turn: Turns, then the two edges of each worker.
+	Edges []Edge
 	// nodes is the identity of every node, for the edges' ends and for the
 	// checks; it is built once, here.
 	nodes map[NodeID]Node
 }
 
-// NewGraph builds a graph of the members and the workers. The edge from a worker
-// back to the member that hired it is not written in a settings file; it is made
-// here, because a worker always returns to the one that hired it (I12c).
-func NewGraph(members []MemberNode, workers []WorkerNode) *Graph {
+// NewGraph builds a graph of the members, the workers and the turns. The edge
+// from a worker back to the member that hired it is not written in a settings
+// file; it is made here, because a worker always returns to the one that hired
+// it (I12c).
+func NewGraph(members []MemberNode, workers []WorkerNode, turns []Edge) *Graph {
 	g := &Graph{
 		Human:   Human{},
 		Members: members,
 		Workers: workers,
+		Turns:   turns,
+		Edges:   append([]Edge(nil), turns...),
 		nodes:   map[NodeID]Node{},
 	}
 	g.nodes[g.Human.ID()] = g.Human
@@ -36,24 +50,13 @@ func NewGraph(members []MemberNode, workers []WorkerNode) *Graph {
 			continue
 		}
 		// The member hires the worker, and the worker returns to it.
-		g.addEdge(memberID(worker.From), worker.ID())
-		g.addEdge(worker.ID(), memberID(worker.From))
+		g.Edges = append(g.Edges, Edge{From: memberID(worker.From), To: worker.ID()})
+		g.Edges = append(g.Edges, Edge{From: worker.ID(), To: memberID(worker.From)})
 	}
 	return g
 }
 
 func memberID(name string) NodeID { return NodeID{Kind: KindMember, Name: name} }
-
-// AddEdge writes one turn from the settings file (段 5 reads `turns:`). It is how
-// the human and the member-to-member edges get in; an edge to a node that is not
-// there is kept, and Check reports it.
-func (g *Graph) AddEdge(from, to NodeID) {
-	g.addEdge(from, to)
-}
-
-func (g *Graph) addEdge(from, to NodeID) {
-	g.Edges = append(g.Edges, Edge{From: from, To: to})
-}
 
 // Node is the node with this identity, and whether the graph holds it.
 func (g *Graph) Node(id NodeID) (Node, bool) {
@@ -101,9 +104,40 @@ type Problem struct {
 	Args []any
 }
 
+// Message is the problem as a person reads it.
+func (p Problem) Message() string { return i18n.Tf(p.Key, p.Args...) }
+
+// GraphError is a definition whose graph cannot hold: the file it was read
+// from, and every problem, in the order Check reports them. It is one error, so
+// a command that reads the definition stops with all of them, the way a file
+// that does not read does (I12a, I12b, d-edd4).
+type GraphError struct {
+	Path     string // the team.yaml the definition was read from
+	Problems []Problem
+}
+
+// Error is every problem, one line each, with the file once at the front, the
+// way the other read errors name it: a command that takes a team name does not
+// know which team.yaml that name means.
+func (e *GraphError) Error() string {
+	return e.Path + ": " + strings.Join(e.Messages(), "\n")
+}
+
+// Messages is the sentence of every problem, one line each, without the file:
+// hergy validate writes the file itself (breakLine), and would otherwise write
+// it twice.
+func (e *GraphError) Messages() []string {
+	out := make([]string, len(e.Problems))
+	for i, problem := range e.Problems {
+		out[i] = problem.Message()
+	}
+	return out
+}
+
 // Check is what the graph itself cannot hold: an edge whose end is not a node,
-// and a worker whose hiring member is not one. The turn invariants (I12a, I12b)
-// arrive with `turns:` in 段 5.
+// an edge to itself, one edge written twice, a worker whose hiring member is not
+// one, and the turn invariants I12a (every node hands the turn on) and I12b (at
+// least one turn reaches the human).
 func (g *Graph) Check() []Problem {
 	var problems []Problem
 	seen := map[Edge]bool{}
@@ -122,6 +156,9 @@ func (g *Graph) Check() []Problem {
 				Args: []any{edge.String(), edge.To.String()},
 			})
 		}
+		if edge.From == edge.To {
+			problems = append(problems, Problem{At: edge.String(), Key: "error.graph_self_loop", Args: []any{edge.String()}})
+		}
 		if seen[edge] {
 			problems = append(problems, Problem{At: edge.String(), Key: "error.graph_edge_twice", Args: []any{edge.String()}})
 			continue
@@ -137,13 +174,50 @@ func (g *Graph) Check() []Problem {
 			})
 		}
 	}
+	problems = append(problems, g.noTurnProblems()...)
+	if !g.ReachesHuman() {
+		problems = append(problems, Problem{At: "turns:", Key: "error.graph_no_turn_reaches_human"})
+	}
 	return problems
+}
+
+// noTurnProblems is I12a: every node hands the turn on. What a node without an
+// outgoing turn is told comes from its kind (1 節); a worker is never without
+// one, because workers: makes its edge back to the member that hired it.
+func (g *Graph) noTurnProblems() []Problem {
+	var problems []Problem
+	for _, id := range g.identity() {
+		kind := nodeKinds[id.Kind]
+		if kind.noTurnKey == "" || len(g.Out(id)) > 0 {
+			continue
+		}
+		args := make([]any, kind.noTurnArgs)
+		for i := range args {
+			args[i] = id.String()
+		}
+		problems = append(problems, Problem{At: id.String(), Key: kind.noTurnKey, Args: args})
+	}
+	return problems
+}
+
+// identity is every node of the graph: the human first, then the members in the
+// order the file writes them, then the workers.
+func (g *Graph) identity() []NodeID {
+	out := make([]NodeID, 0, 1+len(g.Members)+len(g.Workers))
+	out = append(out, g.Human.ID())
+	for _, member := range g.Members {
+		out = append(out, member.ID())
+	}
+	for _, worker := range g.Workers {
+		out = append(out, worker.ID())
+	}
+	return out
 }
 
 // String is a node's identity as a settings file writes it: the human, a member
 // name, or "<kind>:<name>" for another kind (d-11f8).
 func (id NodeID) String() string {
-	if id.Kind == KindHuman || id.Kind == KindMember {
+	if nodeKinds[id.Kind].byName {
 		return id.Name
 	}
 	return string(id.Kind) + ":" + id.Name

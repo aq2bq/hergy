@@ -26,6 +26,9 @@ type Start struct {
 	HasRole bool
 	// Read is the documents the prompt read, in order.
 	Read []source.Doc
+	// Turns is who this member hands the turn to, in the order turns: writes
+	// them: "human" or another member's short name (段 5).
+	Turns []string
 	// Workers is what this member may hire: the graph's edges out of it.
 	Workers []WorkerNode
 }
@@ -48,12 +51,15 @@ func (s Start) ToPlan() map[string]any {
 	if len(s.Env) > 0 {
 		out["env"] = s.Env
 	}
+	if len(s.Turns) > 0 {
+		out["turns"] = s.Turns
+	}
 	if len(s.Workers) > 0 {
 		workers := make([]map[string]any, len(s.Workers))
 		for i, worker := range s.Workers {
-			workers[i] = map[string]any{"purpose": worker.Purpose, "profile": worker.Profile}
+			workers[i] = map[string]any{"from": worker.From, "purpose": worker.Purpose, "profile": worker.Profile}
 		}
-		out["may_spawn"] = map[string]any{"workers": workers}
+		out["workers"] = workers
 	}
 	if sources := s.sourceDisplays(); len(sources) > 0 {
 		out["sources"] = sources

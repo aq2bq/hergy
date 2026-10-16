@@ -100,7 +100,7 @@ var behavior = map[options.Kind]string{
       Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
 `,
-	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. --profile is optional: without it, the profile the hiring member's may_spawn pairs with --purpose is used.
+	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. --profile is optional: without it, the profile the hiring member's workers: pairs with --purpose is used.
 `,
 	options.Ls: `      List the visible team definitions and the layer each came from, and the running team names each one booted.
 `,
@@ -132,7 +132,7 @@ var flagMeaning = map[string]string{
 	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
 	"no-open": "Print the URL and open nothing. Without it, hergy serve opens the URL in this machine's default browser once the socket is open.",
 	"team":    "The team, by team name, to act on.",
-	"profile": "The worker's named engine, from profiles.yaml. Optional: without it, the profile may_spawn pairs with --purpose is used.",
+	"profile": "The worker's named engine, from profiles.yaml. Optional: without it, the profile workers: pairs with --purpose is used.",
 	"purpose": "The worker's purpose.",
 	"task":    "The worker's task text.",
 	"from":    "The member hiring the worker; a short member name or a herdr name.",
@@ -156,7 +156,7 @@ Reading the output:
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
-  A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, may_spawn and sources appear only when set.
+  A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, workers, turns and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin).
   It then prints the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns when one is over the provisional limit. Neither the count nor a warning changes the exit code: only a broken file makes it 1.
@@ -173,7 +173,7 @@ Web UI:
     /bump     the version screen: the documents whose content moved since the last launch, each with the version it holds, the version a bump writes (n → n+1), and the command that hands the change over
     /team     the team definition: the documents every member reads, the members, and the workers each member may call, with the prompt a member is handed
     /running  the running teams: the teams herdr reports running, read the way hergy status reads them, with each member's terminal title and pane; the button moves herdr's focus to that pane, and the screen reads herdr again every 5 seconds
-    /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role files, the members, the workers, the human, and the turn directions read out of the rules, with herdr's state on a team that is running
+    /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role files, the members, the workers, the human, and the turns the definition writes in turns:, with herdr's state on a team that is running
     /profiles the profiles: the profile names, kinds, args and env of one layer, each env variable a name and its value, as a form that adds, changes and deletes them; the save writes that layer's own profiles.yaml through the same check hergy validate runs (the file, and the team definitions that read it)
   Opening the URL lands on the home, which is the way into the daily flow; every screen reads the same files the commands read.
 
@@ -210,10 +210,12 @@ Settings files and their keys:
       profile: <name>    required, string; a named engine from profiles.yaml. kind, args and env are the profile's: writing one of them on a member is an error that says where it goes.
       cwd: <dir>         string; overrides the team cwd.
       prompt: "<text>"   string; overrides the team prompt. It must keep %{role_doc} and %{docs}.
-      may_spawn:         mapping, optional; what this member may hire. An empty value is an error.
-        workers:           required, nonempty list of purpose-to-profile pairs.
-          - purpose: <text>    required, string; what a hired worker is for; one worker per purpose.
-            profile: <profile> required, string; the engine that worker runs; a profile in profiles.yaml.
+      may_spawn:         gone. What a member may hire is written at the top level now, in workers:; a member that still writes may_spawn is an error that says so.
+    workers:          list, optional; which member may hire which worker. Each entry ties one worker to the member that hires it; the worker's two turns (the member to the worker, and the worker back) are made from it and cannot be written in turns:. A member and a purpose written twice is an error.
+      - from: <member>     required, string; the member that hires this worker.
+        purpose: <text>    required, string; what the worker is for; one worker per member and purpose.
+        profile: <profile> required, string; the engine that worker runs; a profile in profiles.yaml.
+    turns:            list, required; who hands the turn to whom, one entry per turn, written "- <from> -> <to>". Each end is a member's name, or human. A turn graph hergy cannot hold stops the definition, the way a file that does not read does: the same sentences stop up, refresh, reprompt, hire and validate, one per line, and down still closes such a team by name. What stops it is a name that is no member and no human, a name written "<kind>:<name>" (no kind but human and a member may stand there yet), a turn to itself, the same turn twice, a member or the human that hands the turn to nobody, and no turn reaching the human. A rule text that still writes "a → b" is compared with turns: and warned about when the two disagree.
   Where a member's documents are (team.yaml has no key for them):
     <layer>/roles/<role>.yaml                    a member's role document; read first. Local first, then global.
     <layer>/agreement.yaml                       the agreement every team of the layer shares; read next. Optional.
@@ -240,7 +242,7 @@ Rule files (what the role documents and the agreements are):
     style: paragraphs|bullets|numbered|ids   how the rules are laid out; default paragraphs.
     rules:          list; each rule is an entry:
       id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
-      text: <text>  required, string; what the member reads, in Markdown. A rule may hand the turn between two of the team, written "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. The WebUI's figure reads these out of the text: a name that matches no member of the team is drawn dotted, to a box that holds the written word, and an arrow that matches no member on either side is listed under the figure.
+      text: <text>  required, string; what the member reads, in Markdown. A rule may still write a turn between two of the team as "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. hergy reads turns from the team definition's turns: now, and validate warns when a rule text claims a turn turns: does not hold. The figure draws turns: and nothing else.
       why: <text>   string, optional; one space and the reason follow the text, unless send_why is false.
       send_why: false   boolean, optional; keeps the reason in the file and out of the prompt.
       note: <text>  string, optional; for whoever maintains the file; never sent, and not a reason.
@@ -258,10 +260,10 @@ Rule files (what the role documents and the agreements are):
 
 hire (a member starting a worker):
   --profile names a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
-  Without --profile, may_spawn must pair --purpose with a profile, and that profile is used; a purpose that names no pair is an error that lists the purposes may_spawn allows.
+  Without --profile, workers: must pair --purpose with a profile, and that profile is used; a purpose that names no pair is an error that lists the purposes workers: allows.
   The worker's name must not match an existing member name or herdr name, and <team>-<worker> must match [a-z][a-z0-9_-]{0,31}.
-  With no --from, --from is required unless exactly one member has may_spawn.
-  A --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
+  With no --from, the one member whose workers: name --purpose hires. No such member is an error, and so are two or more, which list the candidates.
+  A --purpose or --profile outside the hiring member's workers: does not stop the hire: a note goes to stderr and it continues; a member with no workers: gives the same note.
 
 new:
   It writes team.yaml and agreement.yaml into the team definition, and roles/lead.yaml and roles/builder.yaml into the layer's roles/, and the global config.yaml (version: 1, lang) when that file is missing.
@@ -271,5 +273,7 @@ new:
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
   %{role_doc}  the role document     %{docs}  the agreements     %{roster}  the roster
-  %{herdr}  how to reach others over herdr, and how to add a teammate     %{spawn}  what the member may hire, with the command (only when may_spawn is set)
+  %{herdr}  how to reach others over herdr, and how to add a teammate
+  %{turns}  who the member hands the turn to, from the definition's turns:
+  %{workers}  what the member may hire, with the command (only when workers: names one for it). The old %{spawn} is gone: a template that still writes it is an error that says so.
 `

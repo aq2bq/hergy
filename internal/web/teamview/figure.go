@@ -50,7 +50,7 @@ func (s *figureScreen) show(r *http.Request) (web.View, error) {
 		data.Broken = def.Broken
 		if def.Broken == "" {
 			states, live := s.liveStates(layer, def.Name)
-			layout := topology.Layout(topologyMembers(def), topologyDocs(def))
+			layout := topology.Layout(topologyMembers(def), topologyDocs(def), topologyTurns(def))
 			data.View = figureOf(layout, def, live, states)
 			data.NoArrows = len(layout.Edges) == 0
 			if live != nil {
@@ -109,7 +109,6 @@ func figureLegend() []string {
 		i18n.T("web.teamview.figure.legend.member"),
 		i18n.T("web.teamview.figure.legend.worker"),
 		i18n.T("web.teamview.figure.legend.arrow"),
-		i18n.T("web.teamview.figure.legend.dotted"),
 		i18n.T("web.teamview.figure.legend.pill"),
 	}
 }
@@ -125,9 +124,7 @@ type figure struct {
 	Docs               []docBox
 	Human              labelBox
 	Members            []memberBox
-	Strangers          []labelBox
 	Arrows             []arrow
-	Unread             []unread
 }
 
 // labelBox is one box of the figure and the two lines it writes: the name, and
@@ -176,31 +173,10 @@ type workerBox struct {
 	HireX, HireTop, HireBottom float64
 }
 
-// arrow is one turn direction ready to write as SVG: the curve, and the id
-// label on it.
+// arrow is one turn ready to write as SVG: the curve the graph's edge makes.
 type arrow struct {
-	DocKey    string
-	Layer     string // the layer the rule's file lives in
-	RuleID    string
-	Path      string
-	Both      bool
-	Dotted    bool
-	Title     string
-	LabelX    float64 // the label's left edge
-	LabelTop  float64
-	LabelMid  float64 // the middle of the label, where its text sits
-	LabelBase float64
-	LabelW    float64
-}
-
-// unread is one turn direction the figure could not draw, as the list under it
-// writes it.
-type unread struct {
-	DocKey  string
-	Layer   string
-	RuleID  string
-	Text    string
-	Missing []string
+	Path  string
+	Title string
 }
 
 // figureOf turns the layout into what the template writes.
@@ -284,20 +260,7 @@ func figureOf(layout topology.Figure, def Definition, live *LiveTeam, states map
 		}
 		out.Members = append(out.Members, box)
 	}
-	for _, stranger := range layout.Strangers {
-		out.Strangers = append(out.Strangers, labelBox{
-			Box: stranger.Box, Name: stranger.Word, Sub: i18n.T("web.teamview.figure.stranger"),
-			NameX: stranger.X + 18, NameY: stranger.Y + 27,
-			SubX: stranger.X + 18, SubY: stranger.Y + 47,
-		})
-	}
 	out.Arrows = arrowsOf(layout, def)
-	for _, dropped := range layout.Unread {
-		out.Unread = append(out.Unread, unread{
-			DocKey: dropped.DocKey, Layer: docLayer(def, dropped.DocKey), RuleID: dropped.RuleID,
-			Text: dropped.Text, Missing: dropped.Missing,
-		})
-	}
 	return out
 }
 
@@ -329,7 +292,7 @@ func memberSub(def Definition, box topology.MemberBox, live *LiveTeam, states ma
 	return dot(parts...)
 }
 
-// arrowsOf puts each turn direction's curve in the figure's own coordinates: it
+// arrowsOf puts every turn of the graph in the figure's own coordinates: it
 // leaves the member column's right edge, bends at its own lane, and comes back
 // to the row it points at. SVG cannot bend a line, so the curve is written as
 // data here.
@@ -338,48 +301,26 @@ func arrowsOf(layout topology.Figure, def Definition) []arrow {
 	for _, edge := range layout.Edges {
 		x0 := layout.MemberRight
 		bend := (edge.LaneX - 0.25*x0) / 0.75
-		// The label is as wide as internal/topology measured it when it told
-		// the labels apart, so the box that is drawn matches the gap that was
-		// left for it.
-		width := float64(len(edge.RuleID))*7.4 + 14
 		out = append(out, arrow{
-			DocKey: edge.DocKey, Layer: docLayer(def, edge.DocKey), RuleID: edge.RuleID,
-			Both: edge.Both, Dotted: edge.Dotted,
 			Path: "M" + num(x0) + " " + num(edge.FromY) +
 				" C" + num(bend) + " " + num(edge.FromY) +
 				" " + num(bend) + " " + num(edge.ToY) +
 				" " + num(x0) + " " + num(edge.ToY),
-			Title: i18n.Tf("web.teamview.figure.arrow",
-				edge.RuleID, sideLabel(def, edge.From), arrowWord(edge.Both), sideLabel(def, edge.To)),
-			LabelX:    edge.LaneX - width/2,
-			LabelW:    width,
-			LabelTop:  edge.LabelY - 10,
-			LabelMid:  edge.LaneX,
-			LabelBase: edge.LabelY + 4,
+			Title: i18n.Tf("web.teamview.figure.turn",
+				sideLabel(def, edge.From), sideLabel(def, edge.To)),
 		})
 	}
 	return out
 }
 
-// sideLabel is one end of an arrow as a person reads it: the member's name, the
-// word a rule wrote for a party that is not in the team, or the word for the
-// human. A member the definition does not have is written as the human: there is
-// nothing better to say about it.
+// sideLabel is one end of a turn as a person reads it: the member's name, or
+// the word for the human. A member the definition does not have is written as
+// the human: there is nothing better to say about it.
 func sideLabel(def Definition, side topology.Side) string {
-	if side.Kind == topology.SideStranger {
-		return side.Word
-	}
 	if side.Kind == topology.SideMember && side.Member >= 0 && side.Member < len(def.Members) {
 		return def.Members[side.Member].Name
 	}
 	return i18n.T("web.teamview.figure.human")
-}
-
-func arrowWord(both bool) string {
-	if both {
-		return "⇄"
-	}
-	return "→"
 }
 
 // roleClass is the colour class of each member's box: the roles in the order
@@ -413,9 +354,48 @@ func topologyMembers(def Definition) []topology.Member {
 	return out
 }
 
+// topologyTurns is the graph's turns as the figure draws them: each end read as
+// a member of this definition, or the human. A turn that names a member the
+// definition does not have is left out; validate reports it as a problem of the
+// definition.
+func topologyTurns(def Definition) []topology.Turn {
+	index := map[string]int{}
+	for i, member := range def.Members {
+		index[member.Name] = i
+	}
+	out := make([]topology.Turn, 0, len(def.Turns))
+	for _, turn := range def.Turns {
+		from, ok := turnSide(index, turn.From)
+		if !ok {
+			continue
+		}
+		to, ok := turnSide(index, turn.To)
+		if !ok {
+			continue
+		}
+		out = append(out, topology.Turn{From: from, To: to})
+	}
+	return out
+}
+
+// turnSide reads one end of a turn: the human, or a member the definition has.
+func turnSide(index map[string]int, name string) (topology.Side, bool) {
+	if name == humanName {
+		return topology.Side{Kind: topology.SideHuman}, true
+	}
+	at, ok := index[name]
+	if !ok {
+		return topology.Side{}, false
+	}
+	return topology.Side{Kind: topology.SideMember, Member: at}, true
+}
+
+// humanName is how a settings file writes the human (d-11f8).
+const humanName = "human"
+
 // topologyDocs is every rule file the members read: the documents every member
-// reads, then each member's role file. The turn directions are read from the
-// text of all of them (spec/12).
+// reads, then each member's role file. The rules screen and the figure's links
+// read them; the turn arrows come from the graph (段 5).
 func topologyDocs(def Definition) []topology.Doc {
 	var out []topology.Doc
 	seen := map[string]bool{}

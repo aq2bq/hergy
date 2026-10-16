@@ -7,9 +7,8 @@ import (
 
 // The figure's fixed sizes, in pixels. The columns run left to right: the
 // documents every member reads, the role files, the members, and then the
-// arrows. The rows run top to bottom: the human, the members, and the parties
-// no team name matched. These are the sizes the prototype settled on; the
-// screen draws at these positions.
+// arrows. The rows run top to bottom: the human, then the members. These are the
+// sizes the prototype settled on; the screen draws at these positions.
 const (
 	sharedX    = 12.0
 	sharedW    = 176.0
@@ -19,7 +18,6 @@ const (
 	memberW    = 380.0
 	memberH    = 62.0
 	humanH     = 46.0
-	strangerH  = 52.0
 	roleH      = 42.0
 	workerH    = 36.0
 	workerGap  = 14.0
@@ -89,16 +87,22 @@ type StrangerBox struct {
 	Word string
 }
 
-// Arrow is one turn direction placed in the figure: where it meets each row,
-// where its id label sits, and whether it is dotted (one end matched no team
-// name).
+// Turn is one edge of the graph the figure draws: one node hands the turn to
+// another. The ends are members of this definition, or the human. The figure
+// draws the graph and adds nothing to it (段 5): a turn that is not in turns:
+// is not in the figure.
+type Turn struct {
+	From Side
+	To   Side
+}
+
+// Arrow is one turn placed in the figure: where it meets each row, and the lane
+// it bends in.
 type Arrow struct {
-	Edge
-	FromY  float64
-	ToY    float64
-	LaneX  float64
-	LabelY float64
-	Dotted bool
+	Turn
+	FromY float64
+	ToY   float64
+	LaneX float64
 }
 
 // Figure is one team definition laid out for drawing.
@@ -108,28 +112,23 @@ type Figure struct {
 	Docs          []DocBox
 	Human         Box
 	Members       []MemberBox
-	Strangers     []StrangerBox
 	Edges         []Arrow
-	Unread        []Unread
 	// MemberRight is the x where the member column ends: the edge the turn
 	// arrows leave from and come back to. The screen draws the curves; this is
 	// where they start.
 	MemberRight float64
 }
 
-// Layout lays out one team definition: the boxes, the arrows read from its rule
-// files, and the arrows that could not be read.
-func Layout(members []Member, docs []Doc) Figure {
-	reading := Read(members, docs)
-	strangers := strangerWords(reading.Edges)
-	rows := buildRows(members, strangers)
+// Layout lays out one team definition: the boxes, and the arrows the graph's
+// turns make. It reads no rule text: the turns are the definition's own (段 5).
+func Layout(members []Member, docs []Doc, turns []Turn) Figure {
+	rows := buildRows(members)
 	top := topMargin + humanH + humanGap
 	bottom := stackRows(rows, top, len(sharedDocs(docs)))
 	f := Figure{
 		Shared:  Box{X: sharedX, Y: top, W: sharedW, H: bottom - top},
 		Docs:    placeDocs(docs, top),
 		Human:   Box{X: memberX, Y: rows[0].Y, W: memberW, H: humanH},
-		Unread:  reading.Unread,
 		Members: make([]MemberBox, len(members)),
 		// The arrows leave the member column: its right edge is fixed, so the
 		// screen can draw the curves without knowing the sizes.
@@ -138,13 +137,8 @@ func Layout(members []Member, docs []Doc) Figure {
 	for i := range members {
 		f.Members[i] = placeMember(members[i], i, rows[1+i], docs)
 	}
-	for i, word := range strangers {
-		f.Strangers = append(f.Strangers, StrangerBox{Box: Box{
-			X: memberX, Y: rows[1+len(members)+i].Y, W: memberW, H: strangerH,
-		}, Word: word})
-	}
 	index := rowIndex(rows)
-	f.Edges = placeEdges(reading.Edges, rows, index)
+	f.Edges = placeEdges(turns, rows, index)
 	f.Width = memberX + memberW + laneStart + math.Max(0, float64(len(f.Edges)-1))*laneW + rightPad
 	f.Height = bottom + bottomPad
 	return f
@@ -156,10 +150,9 @@ type row struct {
 	Y, H float64
 }
 
-// buildRows is the rows in drawn order: the human, the members, then the
-// parties no team name matched.
-func buildRows(members []Member, strangers []string) []row {
-	rows := make([]row, 0, len(members)+len(strangers)+1)
+// buildRows is the rows in drawn order: the human, then the members.
+func buildRows(members []Member) []row {
+	rows := make([]row, 0, len(members)+1)
 	rows = append(rows, row{key: Side{Kind: SideHuman}.Key(), H: humanH})
 	for i, member := range members {
 		h := memberH
@@ -167,9 +160,6 @@ func buildRows(members []Member, strangers []string) []row {
 			h += workerStep
 		}
 		rows = append(rows, row{key: Side{Kind: SideMember, Member: i}.Key(), H: h})
-	}
-	for _, word := range strangers {
-		rows = append(rows, row{key: Side{Kind: SideStranger, Word: word}.Key(), H: strangerH})
 	}
 	return rows
 }
@@ -254,22 +244,6 @@ func roleFile(role string, docs []Doc) (Doc, bool) {
 	return Doc{}, false
 }
 
-// strangerWords is the parties that matched no team name, in the order they
-// first appear, one box each.
-func strangerWords(edges []Edge) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, edge := range edges {
-		for _, side := range []Side{edge.From, edge.To} {
-			if side.Kind == SideStranger && !seen[side.Word] {
-				seen[side.Word] = true
-				out = append(out, side.Word)
-			}
-		}
-	}
-	return out
-}
-
 // rowIndex maps each party's key to its row.
 func rowIndex(rows []row) map[string]int {
 	index := make(map[string]int, len(rows))
@@ -279,20 +253,20 @@ func rowIndex(rows []row) map[string]int {
 	return index
 }
 
-// placeEdges puts every arrow: its lane to the right of the members, the y
-// where it meets each row, and where its id label sits.
-func placeEdges(edges []Edge, rows []row, index map[string]int) []Arrow {
-	held := make([]heldEdge, 0, len(edges))
-	for _, edge := range edges {
-		from, ok := index[edge.From.Key()]
+// placeEdges puts every arrow: its lane to the right of the members, and the y
+// where it meets each row.
+func placeEdges(turns []Turn, rows []row, index map[string]int) []Arrow {
+	held := make([]heldEdge, 0, len(turns))
+	for _, turn := range turns {
+		from, ok := index[turn.From.Key()]
 		if !ok {
 			continue
 		}
-		to, ok := index[edge.To.Key()]
+		to, ok := index[turn.To.Key()]
 		if !ok {
 			continue
 		}
-		held = append(held, heldEdge{edge: edge, from: from, to: to})
+		held = append(held, heldEdge{turn: turn, from: from, to: to})
 	}
 	sort.SliceStable(held, func(i, j int) bool {
 		si, sj := held[i].span(), held[j].span()
@@ -310,7 +284,7 @@ func placeEdges(edges []Edge, rows []row, index map[string]int) []Arrow {
 
 // heldEdge is one arrow with the rows its ends meet.
 type heldEdge struct {
-	edge     Edge
+	turn     Turn
 	from, to int
 	lane     int
 }
@@ -377,28 +351,11 @@ func placeEnds(list []end, held []heldEdge, r row, index int, fromY, toY []float
 func assemble(held []heldEdge, fromY, toY []float64) []Arrow {
 	x0 := memberX + memberW
 	out := make([]Arrow, 0, len(held))
-	var placed []label
 	for i, h := range held {
 		laneX := x0 + laneStart + float64(h.lane)*laneW
-		width := float64(len(h.edge.RuleID))*7.4 + 14
-		y := (fromY[i] + toY[i]) / 2
-		for _, p := range placed {
-			if math.Abs(p.x-laneX) < (p.w+width)/2+2 && math.Abs(p.y-y) < 22 {
-				y += 22
-			}
-		}
-		placed = append(placed, label{x: laneX, y: y, w: width})
-		out = append(out, Arrow{
-			Edge: h.edge, FromY: fromY[i], ToY: toY[i], LaneX: laneX, LabelY: y,
-			Dotted: h.edge.From.Kind == SideStranger || h.edge.To.Kind == SideStranger,
-		})
+		out = append(out, Arrow{Turn: h.turn, FromY: fromY[i], ToY: toY[i], LaneX: laneX})
 	}
 	return out
-}
-
-// label is a placed arrow id, for telling overlapping labels apart.
-type label struct {
-	x, y, w float64
 }
 
 func abs(n int) int {

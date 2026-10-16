@@ -132,6 +132,14 @@ func demoDefinition() Definition {
 				},
 			},
 		},
+		// The turns the figure draws. The rules above still write turn
+		// directions, but the figure reads turns: and nothing else (段 5).
+		Turns: []Turn{
+			{From: "human", To: "lead"},
+			{From: "lead", To: "dev"},
+			{From: "dev", To: "lead"},
+			{From: "lead", To: "human"},
+		},
 	}
 }
 
@@ -358,9 +366,9 @@ func TestPanelSaysWhenALinkIsStale(t *testing.T) {
 }
 
 // TestDocumentsAndRulesLeadToTheRulesScreen: these screens keep no rule of their
-// own. A document of the definition and of the figure, and a rule id on an
-// arrow, lead to the rules screen, where a person reads and changes them
-// (spec/10 の 8 節).
+// own. A document of the definition and of the figure leads to the rules screen,
+// where a person reads and changes the rules (spec/10 の 8 節). The figure's
+// arrows come from turns:, so they carry no rule id (段 5).
 func TestDocumentsAndRulesLeadToTheRulesScreen(t *testing.T) {
 	base := start(t, demoPort())
 	doc := "/rules?layer=local&amp;doc=" + url.QueryEscape(sharedKey)
@@ -369,8 +377,8 @@ func TestDocumentsAndRulesLeadToTheRulesScreen(t *testing.T) {
 	mustContain(t, "the definition screen", body, `href="`+doc+`"`)
 
 	_, body = get(t, base, "/figure?layer=local&name=demo")
-	mustContain(t, "the figure", body, `href="`+doc+`"`, `href="`+doc+`&amp;rule=C2"`)
-	mustNotContain(t, "the figure", body, "/panel/doc", "/panel/rule")
+	mustContain(t, "the figure", body, `href="`+doc+`"`)
+	mustNotContain(t, "the figure", body, "/panel/doc", "/panel/rule", "&amp;rule=")
 }
 
 // TestRunningScreenShowsWhatHerdrSays: one row per member and worker, with the
@@ -494,11 +502,10 @@ func TestScreensSayWhenHerdrCannotBeRead(t *testing.T) {
 	mustContain(t, "the definition screen", body, "lead")
 }
 
-// TestFigureDrawsTheTurnDirectionsItReads: the figure carries a box for every
-// document, member and worker, an arrow for every turn direction with a name on
-// it, and the states Herdr reports; a direction that matches no name is listed
-// under the figure instead of drawn.
-func TestFigureDrawsTheTurnDirectionsItReads(t *testing.T) {
+// TestFigureDrawsTheTurnGraph: the figure carries a box for every document,
+// member and worker, an arrow for every turn the definition writes in turns:,
+// and the states Herdr reports. The rules' text does not change the figure (段 5).
+func TestFigureDrawsTheTurnGraph(t *testing.T) {
 	base := start(t, demoPort())
 	code, body := get(t, base, "/figure?layer=local&name=demo")
 
@@ -508,21 +515,20 @@ func TestFigureDrawsTheTurnDirectionsItReads(t *testing.T) {
 	mustContain(t, "the figure", body,
 		"<svg", "チームの約束", "リード", "実装", "調べものを手伝う",
 		shown("web.teamview.figure.human"), shown("web.teamview.figure.no_role_file"),
-		// The three directions that name a member: two solid, and the one
-		// whose far end is not in the team, which is dotted.
-		"C2", "C3", "D1", "tp-edge any", "依頼主",
+		// Every turn is drawn: human ⇄ lead and lead ⇄ dev, four arrows.
+		strings.Repeat(`marker-end="url(#tp-end)"`, 1), `class="tp-edge"`,
 		// The two states Herdr reports, on the members.
 		"st-working", "st-blocked", "working", "blocked",
-		// A member opens a panel, and a document and a rule id lead to the
-		// rules screen.
+		// A member opens a panel, and a document leads to the rules screen.
 		"/panel/member?layer=local", "member=lead\"",
-		"/rules?layer=local&amp;doc="+url.QueryEscape(sharedKey)+"&amp;rule=C2\"",
-		// A ⇄ is drawn with a head at both ends.
-		`marker-end="url(#tp-end)"`, `marker-start="url(#tp-start)"`,
+		"/rules?layer=local&amp;doc="+url.QueryEscape(sharedKey)+"\"",
 	)
-	mustContain(t, "the dropped directions", body,
-		shown("web.teamview.figure.unread"), "D3", "経理", "総務")
-	mustNotContain(t, "the figure", body, shown("web.teamview.figure.no_arrows"))
+	// A turn is one direction: the figure draws no arrow with a head at both
+	// ends, and it does not read the rules' text for directions.
+	mustNotContain(t, "the figure", body,
+		`marker-start="url(#tp-start)"`, "tp-edge any",
+		shown("web.teamview.figure.unread"), "D3", "経理", "総務", "C2", "C3", "D1",
+		shown("web.teamview.figure.no_arrows"))
 }
 
 // TestFigureSaysWhenTheDefinitionIsNotRunning: a definition no team is booted
@@ -533,7 +539,7 @@ func TestFigureSaysWhenTheDefinitionIsNotRunning(t *testing.T) {
 	base := start(t, port)
 	_, body := get(t, base, "/figure?layer=local&name=demo")
 
-	mustContain(t, "the figure", body, shown("web.teamview.figure.not_running"), "C2")
+	mustContain(t, "the figure", body, shown("web.teamview.figure.not_running"), "リード")
 	mustNotContain(t, "the figure", body, "st-working")
 }
 

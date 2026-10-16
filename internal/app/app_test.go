@@ -546,7 +546,7 @@ func TestValidateNamesEveryPlaceItLookedForARoleDocument(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 
 	stdout, _, code := run("validate")
 	if code == 0 {
@@ -566,7 +566,8 @@ func TestValidateNamesEveryPlaceItLookedForARoleDocument(t *testing.T) {
 // that drops a door stops (I4), and the sentence names the team.yaml it read and,
 // when it is a member's own prompt:, the member (spec/32 D2).
 func TestValidateNamesTheFileAndMemberForATemplateMissingADoor(t *testing.T) {
-	const member = "members:\n  - name: lead\n    role: lead\n    profile: claude-default\n"
+	const member = "members:\n  - name: lead\n    role: lead\n    profile: claude-default\n" +
+		"turns:\n  - human -> lead\n  - lead -> human\n"
 	cases := []struct {
 		name, team string
 		whereKey   string
@@ -601,6 +602,84 @@ func TestValidateNamesTheFileAndMemberForATemplateMissingADoor(t *testing.T) {
 				t.Errorf("validate does not name the file and %s (%q):\n%s", tc.name, want, stdout)
 			}
 		})
+	}
+}
+
+// TestUpStopsOnAGraphTheDefinitionCannotHold: a definition whose turns cannot
+// hold stops hergy up the way a file that does not read does, with every
+// sentence hergy validate prints, rather than booting a team whose turns the
+// definition does not say (I12a, I12b, 段 5, d-edd4).
+func TestUpStopsOnAGraphTheDefinitionCannotHold(t *testing.T) {
+	f := newFixture(t)
+	// Two members and no turns: each of them, and the human, hands the turn to
+	// nobody, and no turn reaches the human.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
+			"  - name: builder\n    role: builder\n    profile: dev\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+
+	want := []string{
+		"the human hands the turn to nobody",
+		"lead hands the turn to nobody",
+		"builder hands the turn to nobody",
+		"no turn reaches the human",
+	}
+	stdout, stderr, code := run("up", "demo", "--dry")
+	if code == 0 {
+		t.Fatal("up --dry succeeded with a graph the definition cannot hold")
+	}
+	if stdout != "" {
+		t.Errorf("up --dry wrote to stdout:\n%s", stdout)
+	}
+	for _, sentence := range want {
+		if !strings.Contains(stderr, sentence) {
+			t.Errorf("up --dry does not say %q:\n%s", sentence, stderr)
+		}
+	}
+	// The file the definition was read from is named once, up in front (D2):
+	// a command that takes a team name does not know which team.yaml that is.
+	teamYAML := filepath.Join(".hergy", "teams", "demo", "team.yaml")
+	if got := strings.Count(stderr, teamYAML); got != 1 {
+		t.Errorf("up --dry names %s %d times, want it once at the front:\n%s", teamYAML, got, stderr)
+	}
+
+	// hergy validate prints the same sentences, one detail line each, and the
+	// file once on a line (not twice: breakLine writes it).
+	out, _, code := run("validate")
+	if code == 0 {
+		t.Fatal("validate found no problem in a graph the definition cannot hold")
+	}
+	for _, sentence := range want {
+		if !strings.Contains(out, sentence) {
+			t.Errorf("validate does not say %q:\n%s", sentence, out)
+		}
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		if strings.Contains(line, want[0]) && strings.Count(line, teamYAML) != 1 {
+			t.Errorf("validate's detail line names %s %d times, want once:\n%s", teamYAML, strings.Count(line, teamYAML), line)
+		}
+	}
+
+	// The commands that build a prompt stop the same way: each reads the
+	// definition before it touches herdr (d-edd4).
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:demo@demo"}`, "")
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	for _, argv := range [][]string{
+		{"refresh", "lead", "--team", "demo"},
+		{"reprompt", "lead", "--team", "demo"},
+		{"hire", "researcher", "--purpose", "build", "--task", "read", "--team", "demo", "--dry"},
+	} {
+		_, stderr, code := run(argv...)
+		if code == 0 {
+			t.Errorf("%v succeeded with a graph the definition cannot hold", argv)
+			continue
+		}
+		if !strings.Contains(stderr, want[0]) {
+			t.Errorf("%v does not stop with the graph's sentences:\n%s", argv, stderr)
+		}
 	}
 }
 
@@ -690,7 +769,7 @@ sections:
 				"version: 1\nsections:\n  - rules:\n      - id: P1\n        text: five\n        tests: [T-2]\n")
 		}
 		writeFile(t, filepath.Join(f.cfg, "hergy", "teams", name, "team.yaml"),
-			"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n")
+			"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\nturns:\n  - human -> lead\n  - lead -> human\n")
 	}
 
 	got, _, code := run("validate")
@@ -748,6 +827,7 @@ func TestShowShape(t *testing.T) {
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
+		"  turns: builder, human",
 		"  role file: .hergy/roles/lead.yaml",
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"member: demo-builder",
@@ -755,6 +835,7 @@ func TestShowShape(t *testing.T) {
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
+		"  turns: lead",
 		"  role file: .hergy/roles/builder.yaml",
 		"  reads: .hergy/teams/demo/agreement.yaml",
 	)
@@ -1087,7 +1168,7 @@ func TestValidateWarnsAboutAHiddenGlobalDefinition(t *testing.T) {
 	// project's profiles.yaml answers its profile (K1), so it reads and is only
 	// hidden, not broken.
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\nturns:\n  - human -> a\n  - a -> human\n")
 
 	out := mustRun(t, "validate")
 	want := "warning: the global team definition demo is hidden by the project's demo and is not used"
@@ -1244,7 +1325,8 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
-			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
+			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
@@ -1267,7 +1349,8 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
-			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
+			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
@@ -1297,7 +1380,8 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
-			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
+			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	log := f.statefulHerdr(t)
@@ -1441,9 +1525,10 @@ func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 func TestHireCommandCarriesTheTeam(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{name}\\n%{spawn}\"\nmembers:\n"+
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{name}\\n%{workers}\"\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
-			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
+			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
@@ -1475,28 +1560,29 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	}
 }
 
-// maySpawnFixture writes a dev team whose lead may hire for 調査 (seeker) and
+// workersFixture writes a dev team whose lead may hire for 調査 (seeker) and
 // 実装 (developer), and points the fake herdr at the running team.
-func maySpawnFixture(t *testing.T) {
+func workersFixture(t *testing.T) {
 	t.Helper()
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: seeker\n"+
-			"    may_spawn:\n      workers:\n"+
-			"        - purpose: 調査\n          profile: seeker\n"+
-			"        - purpose: 実装\n          profile: developer\n")
+			"workers:\n"+
+			"  - from: lead\n    purpose: 調査\n    profile: seeker\n"+
+			"  - from: lead\n    purpose: 実装\n    profile: developer\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
 }
 
 // TestHireUsesTheProfilePairedWithThePurpose: with no --profile, hire takes the
-// profile may_spawn pairs with --purpose, so one purpose runs one engine and the
+// profile workers: pairs with --purpose, so one purpose runs one engine and the
 // next runs another.
 func TestHireUsesTheProfilePairedWithThePurpose(t *testing.T) {
-	maySpawnFixture(t)
+	workersFixture(t)
 
 	researcher := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry")
 	for _, want := range []string{"member: dev-researcher", "kind: claude", "profile: seeker"} {
@@ -1513,15 +1599,15 @@ func TestHireUsesTheProfilePairedWithThePurpose(t *testing.T) {
 	}
 }
 
-// TestHirePurposeOutsideMaySpawn: a purpose may_spawn does not pair, with no
+// TestHirePurposeOutsideWorkers: a purpose workers: does not pair, with no
 // --profile, is an error that lists the purposes it may hire for. With a
 // --profile it is only a note, and so is a profile that is not the paired one.
-func TestHirePurposeOutsideMaySpawn(t *testing.T) {
-	maySpawnFixture(t)
+func TestHirePurposeOutsideWorkers(t *testing.T) {
+	workersFixture(t)
 
 	_, stderr, code := run("hire", "w", "--purpose", "未知", "--task", "t", "--team", "dev", "--dry")
 	if code == 0 {
-		t.Fatal("hire with a purpose outside may_spawn and no --profile succeeded")
+		t.Fatal("hire with a purpose outside workers: and no --profile succeeded")
 	}
 	for _, want := range []string{"error:", "未知", "調査", "実装"} {
 		if !strings.Contains(stderr, want) {
@@ -1545,22 +1631,65 @@ func TestHirePurposeOutsideMaySpawn(t *testing.T) {
 			t.Fatalf("%v did not plan the hire:\n%s", argv, stdout)
 		}
 		if !strings.Contains(stderr, "note:") || !strings.Contains(stderr, "spawning anyway") {
-			t.Fatalf("%v does not note the hire outside may_spawn:\n%s", argv, stderr)
+			t.Fatalf("%v does not note the hire outside workers:\n%s", argv, stderr)
 		}
 	}
 }
 
-// TestUpDryPromptShowsMaySpawnPairs: the %{spawn} note lists purpose-to-profile
+// TestHireFromIsOptionalWithOneCandidate: --from may be left out when exactly
+// one member hires for the purpose (d-6f03). Two members hiring for it stop the
+// hire and list them.
+func TestHireFromIsOptionalWithOneCandidate(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: seeker\n"+
+			"  - name: other\n    role: lead\n    profile: seeker\n"+
+			"workers:\n"+
+			"  - from: lead\n    purpose: 調査\n    profile: seeker\n"+
+			"turns:\n  - human -> lead\n  - lead -> other\n  - other -> human\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+
+	got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry")
+	if !strings.Contains(got, "member: dev-researcher") {
+		t.Fatalf("hire without --from did not pick the one member hiring for 調査:\n%s", got)
+	}
+
+	// A second member hiring for the same purpose: the candidates are listed.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: seeker\n"+
+			"  - name: other\n    role: lead\n    profile: seeker\n"+
+			"workers:\n"+
+			"  - from: lead\n    purpose: 調査\n    profile: seeker\n"+
+			"  - from: other\n    purpose: 調査\n    profile: seeker\n"+
+			"turns:\n  - human -> lead\n  - lead -> other\n  - other -> human\n")
+	_, stderr, code := run("hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry")
+	if code == 0 {
+		t.Fatal("hire without --from succeeded with two members hiring for the purpose")
+	}
+	for _, want := range []string{"--from", "lead", "other"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("the error does not name the candidate %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestUpDryPromptShowsWorkerPairs: the %{workers} note lists purpose-to-profile
 // pairs, and the hire command it embeds needs no --profile. show and --dry
 // --json carry the same pairs.
-func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
+func TestUpDryPromptShowsWorkerPairs(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{spawn}\"\nmembers:\n"+
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{workers}\"\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: seeker\n"+
-			"    may_spawn:\n      workers:\n"+
-			"        - purpose: 調査\n          profile: seeker\n"+
-			"        - purpose: 実装\n          profile: developer\n")
+			"workers:\n"+
+			"  - from: lead\n    purpose: 調査\n    profile: seeker\n"+
+			"  - from: lead\n    purpose: 実装\n    profile: developer\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
@@ -1577,30 +1706,29 @@ func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
 	}
 
 	shown := mustRun(t, "show", "demo", "--lang", "ja")
-	if !strings.Contains(shown, "may_spawn: 調査 → seeker、実装 → developer\n") {
-		t.Fatalf("show does not list the may_spawn pairs:\n%s", shown)
+	if !strings.Contains(shown, "ワーカー: 調査 → seeker、実装 → developer\n") {
+		t.Fatalf("show does not list the worker pairs:\n%s", shown)
 	}
 
 	raw := mustRun(t, "up", "demo", "--dry", "--json")
 	var plan struct {
 		Members []struct {
-			MaySpawn struct {
-				Workers []struct {
-					Purpose string `json:"purpose"`
-					Profile string `json:"profile"`
-				} `json:"workers"`
-			} `json:"may_spawn"`
+			Workers []struct {
+				From    string `json:"from"`
+				Purpose string `json:"purpose"`
+				Profile string `json:"profile"`
+			} `json:"workers"`
 		} `json:"members"`
 	}
 	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
 		t.Fatalf("--json output is not JSON: %v\n%s", err, raw)
 	}
-	if len(plan.Members) == 0 || len(plan.Members[0].MaySpawn.Workers) != 2 {
-		t.Fatalf("--json does not carry two may_spawn workers: %s", raw)
+	if len(plan.Members) == 0 || len(plan.Members[0].Workers) != 2 {
+		t.Fatalf("--json does not carry two workers: %s", raw)
 	}
-	first := plan.Members[0].MaySpawn.Workers[0]
-	if first.Purpose != "調査" || first.Profile != "seeker" {
-		t.Fatalf("--json may_spawn first worker = %+v, want 調査/seeker", first)
+	first := plan.Members[0].Workers[0]
+	if first.From != "lead" || first.Purpose != "調査" || first.Profile != "seeker" {
+		t.Fatalf("--json first worker = %+v, want lead/調査/seeker", first)
 	}
 }
 
@@ -1689,7 +1817,7 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	// demo-lead works and demo-builder is blocked here, so drop the blocked one by
 	// selecting a team whose only member is working: rewrite team.yaml.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	got := mustRun(t, "status", "demo")
 	if !strings.Contains(got, "demo-lead: working\n") {
 		t.Fatalf("status does not report the working member:\n%s", got)

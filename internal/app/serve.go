@@ -133,6 +133,9 @@ func (p servePort) Definition(layer, name string) (teamview.Definition, error) {
 	for _, doc := range agreementDocs(r) {
 		out.Docs = append(out.Docs, p.readDoc(doc, ""))
 	}
+	for _, turn := range def.Graph.Turns {
+		out.Turns = append(out.Turns, teamview.Turn{From: turn.From.String(), To: turn.To.String()})
+	}
 	for i := range r.starts {
 		member := &r.starts[i]
 		entry := teamview.Member{

@@ -9,3 +9,9 @@ members:
   - name: builder
     role: builder
     profile: claude-default
+# turns: 誰が誰にターンを渡すか（human か、メンバー名）
+turns:
+  - human -> lead
+  - lead -> builder
+  - builder -> lead
+  - lead -> human

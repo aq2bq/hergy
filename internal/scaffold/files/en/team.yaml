@@ -9,3 +9,9 @@ members:
   - name: builder
     role: builder
     profile: claude-default
+# turns: who hands the turn to whom (human, or a member by name)
+turns:
+  - human -> lead
+  - lead -> builder
+  - builder -> lead
+  - lead -> human
