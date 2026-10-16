@@ -95,8 +95,10 @@ func TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles(t *testing.T) {
 		t.Fatalf("LoadProfiles: %v", err)
 	}
 	local := p.Uses(web.LayerLocal)
-	if got := profileNames(local); strings.Join(got, ",") != "impl,shared,solo" {
-		t.Fatalf("the local uses = %v, want the same names LoadProfiles reads (%v)", got, merged)
+	// The project's own profiles come first and the global layer's after, so a
+	// person reads what its team definitions use before what they fall back on.
+	if got := profileNames(local); strings.Join(got, ",") != "impl,solo,shared" {
+		t.Fatalf("the local uses = %v, want the project's own first and then the global layer's (%v)", got, merged)
 	}
 	from := map[string]profileview.Profile{}
 	for _, profile := range local {

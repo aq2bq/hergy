@@ -55,8 +55,20 @@ func (p servePort) Uses(layer string) []profileview.Profile {
 	}
 	local := p.layerProfiles(web.LayerLocal)
 	global := p.layerProfiles(web.LayerGlobal)
+	names := sortedProfileNames(merged)
+	// A local team definition reads its project's profiles over the global ones,
+	// and the screen says which is which by listing the project's own first, the
+	// way the prototype does (試作 profilesFor). A global definition reads the
+	// global layer alone, so name order is all there is.
+	if layer == web.LayerLocal {
+		slices.SortStableFunc(names, func(a, b string) int {
+			fromA, _ := profileOrigin(layer, a, local, global)
+			fromB, _ := profileOrigin(layer, b, local, global)
+			return originRank(fromA) - originRank(fromB)
+		})
+	}
 	out := make([]profileview.Profile, 0, len(merged))
-	for _, name := range sortedProfileNames(merged) {
+	for _, name := range names {
 		profile := merged[name]
 		from, over := profileOrigin(layer, name, local, global)
 		out = append(out, profileview.Profile{
@@ -69,6 +81,15 @@ func (p servePort) Uses(layer string) []profileview.Profile {
 		})
 	}
 	return out
+}
+
+// originRank orders the profiles a local team definition ends up with: its own
+// project's first, then the global layer's.
+func originRank(from string) int {
+	if from == web.LayerLocal {
+		return 0
+	}
+	return 1
 }
 
 // profileOrigin is which layer a profile a team definition uses came from, and
