@@ -4,6 +4,18 @@
 
 ### Added
 
+- **`hergy validate` counts the size of a team, and warns over a provisional
+  limit**: after the count of what the rules carry, it prints what each member of
+  every team definition is handed — the rules of the documents that go into its
+  prompt, and the characters of the Markdown hergy renders from them, with the
+  prompt's own frame left out — and what each team definition keeps (its rule
+  files, counted once however many members read them). A member over 20 rules or
+  6,000 characters, or a team definition over 8 files or 20,000 characters, gets
+  a warning, because a large team is a team to look at rather than a broken one:
+  the warning never changes the exit code, and `hergy up` still runs. The numbers
+  are provisional and are written in one place for whoever moves them; the review
+  comes after hergy-dev, the team definition hergy develops itself with, has gone
+  through ten changes.
 - **The rules screen finds a rule, shows what it is related to, and offers to
   look into where it came from**: the rules list has a search box that keeps the
   rules whose id, text, reason or note holds what you type (the same narrow as
@@ -39,6 +51,11 @@
   POST that carries the token of the running process, and sets
   `Content-Security-Policy: default-src 'self'`. HTMX 2.0.4 (0BSD) is embedded
   with its license.
+- **`hergy serve` opens the URL it prints**: once the socket is open, hergy
+  hands the URL to this machine's default browser (`open` on macOS, `xdg-open`
+  on Linux, `rundll32 url.dll,FileProtocolHandler` on Windows). `--no-open`
+  prints the URL and opens nothing. A browser that cannot be started is one line
+  on stderr, and `hergy serve` goes on answering, with the URL to open by hand.
 - **The rule files say how to write a turn direction**: `hergy cheat --ai` and
   `skills/hergy-rules` now say that a rule's text can hand the turn between two
   of the team as `<name> → <name>`, or `<name> ⇄ <name>` when it goes both ways.

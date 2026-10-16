@@ -38,12 +38,13 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 ## While you write settings from outside
 
 - Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
+- `hergy validate` counts what the rules carry and then the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). A warning is not a failure: it names a team to look at, and the exit code stays 0. When a team is over, look for rules that are duplicates, that are no longer needed, or that could be read only when they are needed, before cutting the meaning.
 - To write, change or move a team's rules, read the `hergy-rules` skill first: it asks the person the questions one at a time, so they answer and never write YAML.
 - Start at the `--local` layer; ask the person before you change the global layer.
 
 ## The web UI
 
-- `hergy serve` serves the screens on 127.0.0.1 and prints the URL; it holds the foreground until you stop it. Hand the URL to the person rather than leaving it running behind a member.
+- `hergy serve` serves the screens on 127.0.0.1, prints the URL and opens it in this machine's default browser; it holds the foreground until you stop it. Run it with `--no-open` when nothing should take the person's screen, and hand them the URL yourself instead.
 - It answers this machine only. A write is a POST from a page it rendered, carrying that page's token, so driving it with curl means reading the token out of a form first. Do not work around it.
 - The screens read and write the same files the commands do. `hergy validate` still decides whether the settings hold.
 - The team definition is at `/team`: the documents every member reads, the members, and the workers each member may call, each member's prompt opening in the panel on the right. The running teams are at `/running`: what herdr reports, read the way `hergy status` reads it, a row per member with its terminal title and pane, and the button that moves herdr's focus to that pane — the one write these screens hold; it reads herdr again every 5 seconds. The figure is at `/figure`: one team definition drawn as a picture — the documents, the role files, the members, the workers, the human, and the turn directions read out of the rules — with herdr's state on a team that is running, and a document or a rule id leading to the rules screen.

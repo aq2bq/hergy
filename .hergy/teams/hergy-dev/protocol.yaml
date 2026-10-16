@@ -49,7 +49,7 @@ sections:
             date: "2026-10-16"
             refs: [d-207f]
       - id: T6
-        text: hergy を手で動かす確かめ（serve、up、見比べの script）も、テストと同じく XDG_CONFIG_HOME と XDG_STATE_HOME を作業用に差し替えてから動かし、PO の ~/.config/hergy と ~/.local/state/hergy には読みにも行かない。非公開のプロジェクト名とPO の設定を、公開リポジトリ・テスト・ドキュメント・試作に持ち込まない。
+        text: hergy を手で動かす確かめ（serve、up、見比べの script）も、テストと同じく XDG_CONFIG_HOME と XDG_STATE_HOME を作業用に差し替えてから動かし、確かめで動かす serve には --no-open を付け（PO の画面にブラウザを開かない）、確かめで動かす serve には --no-open を付け（PO の画面にブラウザを開かない）、PO の ~/.config/hergy と ~/.local/state/hergy には読みにも行かない。非公開のプロジェクト名とPO の設定を、公開リポジトリ・テスト・ドキュメント・試作に持ち込まない。
         origin:
           - kind: incident
             date: "2026-10-16"

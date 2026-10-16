@@ -71,8 +71,8 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy hire <name> --purpose X --task "…" [--profile P]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). Without `--profile` the profile may_spawn pairs with `--purpose` is used |
 | `hergy ls` | List the available team definitions and their layers, and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
-| `hergy validate` | Check every settings file and show each broken one |
-| `hergy serve` | Serve the screens in a browser on this machine and print the URL (`--port`, default 8787; `0` lets the operating system pick a free one). Now it shows the layer you pick: one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
+| `hergy validate` | Check every settings file and show each broken one. It then prints what the rules carry and the size of what each member is handed and of each team definition's rule files, warning when one is over the provisional limit; a warning does not change the exit code |
+| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). Now it shows the layer you pick: one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 
@@ -80,7 +80,7 @@ Common options: `--global` / `--local` (pick a layer; for `new`, `--local` picks
 
 `refresh` and `reprompt` are the two ways to hand a member its prompt again. `reprompt` keeps the conversation, so it is what you want after editing a document the member reads. `refresh` ends the agent and starts it again, so the conversation starts empty and an edited `kind`, `args`, `profile` or prompt is picked up; a member that is no longer running is started again in the pane hergy named after it, when that pane is still at its shell (if the pane is gone or busy, `refresh` changes nothing and points at `down` then `up`). `env` is fixed when the pane is made, so after editing `env` run `hergy down` then `hergy up`; `refresh` keeps the pane and its env. `refresh` refuses a member running in the pane hergy itself is in (`HERDR_PANE_ID`): stopping it would stop hergy before it could start the agent again. Run `refresh` from another pane, or as the human. `refresh --dry` reads the live agents so it shows the same refusal; `reprompt --dry` reads nothing.
 
-`hergy serve` shows the same settings in a browser, read the same way. It is for this machine only: it listens on 127.0.0.1, refuses a request that was not addressed to its own name, and takes a write only as a POST that carries a token which the running process and the pages it rendered know. It changes no file that a screen does not edit.
+`hergy serve` shows the same settings in a browser, read the same way. It prints the URL and opens it in the default browser of this machine; `--no-open` prints the URL and opens nothing, and a browser that cannot be started is one line on stderr, with the URL to open by hand. It is for this machine only: it listens on 127.0.0.1, refuses a request that was not addressed to its own name, and takes a write only as a POST that carries a token which the running process and the pages it rendered know. It changes no file that a screen does not edit.
 
 ## Where team definitions and settings live
 

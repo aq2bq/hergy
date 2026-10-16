@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -162,11 +163,12 @@ func TestServePortLayerRoot(t *testing.T) {
 func TestServePrintsTheURLAndStops(t *testing.T) {
 	newFixture(t)
 	initLocales(t)
+	fakeBrowser(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	var out strings.Builder
-	if err := runServe(ctx, serveEnv(t), &options.Options{Port: 0}, &out); err != nil {
+	var out, errOut strings.Builder
+	if err := runServe(ctx, serveEnv(t), &options.Options{Port: 0}, &out, &errOut); err != nil {
 		t.Fatalf("serve stopped with %v, want nil", err)
 	}
 	got := out.String()
@@ -176,5 +178,93 @@ func TestServePrintsTheURLAndStops(t *testing.T) {
 	want := i18n.Tf("serve.url", "http://127.0.0.1:")
 	if !strings.HasPrefix(got, want) {
 		t.Errorf("serve printed %q, want a line starting with %q", got, want)
+	}
+	if errOut.String() != "" {
+		t.Errorf("serve wrote %q to stderr, want nothing", errOut.String())
+	}
+}
+
+// fakeBrowser stands in for the person's browser in a serve test: it records
+// what runServe asked to open and answers with the error the test chose, so no
+// browser opens on the machine the tests run on.
+func fakeBrowser(t *testing.T, openErr error) *[]string {
+	t.Helper()
+	var opened []string
+	prev := openBrowser
+	openBrowser = func(url string) error {
+		opened = append(opened, url)
+		return openErr
+	}
+	t.Cleanup(func() { openBrowser = prev })
+	return &opened
+}
+
+// serveOnce runs hergy serve with a context that is already canceled (which is
+// what Ctrl-C does) and gives back what it printed on both streams.
+func serveOnce(t *testing.T, opts *options.Options) (out, errOut string) {
+	t.Helper()
+	newFixture(t)
+	initLocales(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stdout, stderr strings.Builder
+	if err := runServe(ctx, serveEnv(t), opts, &stdout, &stderr); err != nil {
+		t.Fatalf("serve stopped with %v, want nil", err)
+	}
+	return stdout.String(), stderr.String()
+}
+
+// TestServeHandsTheURLToTheBrowser: once the URL is printed, hergy serve opens
+// it in the person's browser (d-fb89), and says nothing more.
+func TestServeHandsTheURLToTheBrowser(t *testing.T) {
+	opened := fakeBrowser(t, nil)
+	out, errOut := serveOnce(t, &options.Options{Port: 0})
+
+	if len(*opened) != 1 {
+		t.Fatalf("serve opened %q, want the one URL it printed", *opened)
+	}
+	url := (*opened)[0]
+	if !strings.HasPrefix(url, "http://127.0.0.1:") {
+		t.Errorf("serve opened %q, want this machine's own address", url)
+	}
+	if !strings.Contains(out, url) {
+		t.Errorf("serve opened %q but printed %q", url, out)
+	}
+	if errOut != "" {
+		t.Errorf("serve wrote %q to stderr, want nothing", errOut)
+	}
+}
+
+// TestServeNoOpenPrintsTheURLOnly: with --no-open the URL is printed and nothing
+// is opened.
+func TestServeNoOpenPrintsTheURLOnly(t *testing.T) {
+	opened := fakeBrowser(t, nil)
+	out, errOut := serveOnce(t, &options.Options{Port: 0, NoOpen: true})
+
+	if len(*opened) != 0 {
+		t.Errorf("hergy serve --no-open opened %q, want nothing", *opened)
+	}
+	if want := i18n.Tf("serve.url", "http://127.0.0.1:"); !strings.HasPrefix(out, want) {
+		t.Errorf("hergy serve --no-open printed %q, want a line starting with %q", out, want)
+	}
+	if errOut != "" {
+		t.Errorf("hergy serve --no-open wrote %q to stderr, want nothing", errOut)
+	}
+}
+
+// TestServeGoesOnWhenNoBrowserOpens: a browser that cannot be started is one
+// line on stderr carrying the URL, and serve goes on answering (d-fb89).
+func TestServeGoesOnWhenNoBrowserOpens(t *testing.T) {
+	opened := fakeBrowser(t, errors.New("no xdg-open here"))
+	out, errOut := serveOnce(t, &options.Options{Port: 0})
+
+	if len(*opened) != 1 {
+		t.Fatalf("serve opened %q, want it to try the one URL", *opened)
+	}
+	if want := i18n.Tf("serve.no_browser", (*opened)[0]); !strings.Contains(errOut, want) {
+		t.Errorf("serve wrote %q to stderr, want %q", errOut, want)
+	}
+	if !strings.Contains(out, (*opened)[0]) {
+		t.Errorf("serve printed %q, want the URL %q on it too", out, (*opened)[0])
 	}
 }
