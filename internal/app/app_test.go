@@ -183,20 +183,21 @@ case "$g $s" in
   "agent list")
     printf '{"result":{"agents":['
     first=1
-    while read -r n; do
+    while read -r tab n; do
       [ -z "$n" ] && continue
       if [ $first -eq 1 ]; then first=0; else printf ','; fi
-      printf '{"name":"%s","agent":"claude","agent_status":"idle","pane_id":"p-%s"}' "$n" "$n"
+      printf '{"name":"%s","agent":"claude","agent_status":"idle","pane_id":"p-%s","tab_id":"%s"}' "$n" "$n" "$tab"
     done < "$state"
     printf ']}}'
     ;;
   "agent start")
     name="$3"
-    if grep -qx "$name" "$state"; then
+    if grep -q " $name$" "$state"; then
       echo '{"error":{"code":"name_in_use"}}'
       exit 1
     fi
-    printf '%s\n' "$name" >> "$state"
+    tab=$(tail -n 1 "$tabs" | cut -d' ' -f1)
+    printf '%s %s\n' "$tab" "$name" >> "$state"
     echo '{"result":{}}'
     ;;
   "agent get")
@@ -204,8 +205,9 @@ case "$g $s" in
     case "$3" in
       p-*) name="${3#p-}" ;;
     esac
-    if grep -qx "$name" "$state"; then
-      printf '{"result":{"agent":{"name":"%s","agent":"claude","agent_status":"idle","pane_id":"p-%s","tab_id":"t1"}}}\n' "$name" "$name"
+    tab=$(awk -v n="$name" '$2 == n { print $1; exit }' "$state")
+    if [ -n "$tab" ]; then
+      printf '{"result":{"agent":{"name":"%s","agent":"claude","agent_status":"idle","pane_id":"p-%s","tab_id":"%s"}}}\n' "$name" "$name" "$tab"
     else
       echo '{"error":{"code":"agent_not_found"}}'
     fi

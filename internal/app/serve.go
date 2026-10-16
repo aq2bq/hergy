@@ -84,12 +84,12 @@ func (p servePort) Teams(layer string) []web.Team {
 // Herdr missing or unreadable leaves it empty: the team list is a list of files
 // first, and a team that is not running is not an error.
 func (p servePort) runningDefinitions() map[string]bool {
-	tabs, err := herdrTabs()
+	tabs, agentsRead, err := herdrTabs()
 	if err != nil {
 		return nil
 	}
 	out := map[string]bool{}
-	for _, entry := range team.RunningTeams(tabs, launchTeams()) {
+	for _, entry := range team.RunningTeams(tabs, launchTeams(), agentsRead) {
 		out[entry.Definition] = true
 	}
 	return out
@@ -158,12 +158,13 @@ func (p servePort) Running(layer string) (teamview.Herdr, error) {
 	if err != nil {
 		return teamview.Herdr{}, err
 	}
+	known := teamTabs(tabs, agents)
 	out := teamview.Herdr{At: time.Now()}
-	for _, entry := range team.RunningTeams(teamTabs(tabs, agents), launchTeams()) {
+	for _, entry := range team.RunningTeams(known, launchTeams(), true) {
 		live := teamview.LiveTeam{
 			Team:       entry.Team,
 			Definition: entry.Definition,
-			TabID:      tabIDOf(tabs, entry),
+			TabID:      tabIDOf(known, entry),
 		}
 		resolved, err := p.env.Resolve(entry.Definition, layer)
 		if err != nil {
@@ -250,15 +251,25 @@ func herdrTabList() ([]protocol.Tab, error) {
 
 // tabIDOf finds the tab one running team sits in, by the label hergy gave it:
 // the team's name alone, or the older "team:<team>@<definition>" and
-// "team:<team>" shapes of a team booted before the label was cut down.
-func tabIDOf(tabs []protocol.Tab, entry team.Running) string {
+// "team:<team>" shapes of a team booted before the label was cut down. A person's
+// tab can carry a team's name, so the tab that holds one of the team's agents
+// wins, and a tab that only matches the label is the fallback.
+func tabIDOf(tabs []team.Tab, entry team.Running) string {
+	fallback := ""
 	for _, tab := range tabs {
 		switch tab.Label {
 		case entry.Team, "team:" + entry.Team, "team:" + entry.Team + "@" + entry.Definition:
+		default:
+			continue
+		}
+		if team.HoldsMember(tab, entry.Team) {
 			return tab.ID
 		}
+		if fallback == "" {
+			fallback = tab.ID
+		}
 	}
-	return ""
+	return fallback
 }
 
 // listingPath is the team.yaml of one layer's row of the listing.

@@ -72,10 +72,12 @@ name (down, status, refresh, reprompt, hire). A running team's tab is labelled
 with the team's name alone, and a team command finds the definition behind it in
 this machine's launch record ($XDG_STATE_HOME/hergy/launches/log.jsonl). A tab is
 one of hergy's when the live agents in it are named after its label
-("<team>-<member>"), or when its label is a team this machine recorded, or when
-it still has the older shape "team:<team>@<definition>" ("team:<team>", where the
-definition name is the team name): a team booted by an older hergy is still found
-from its label, and another tool's tab is not a team.
+("<team>-<member>"), or when it still has the older shape
+"team:<team>@<definition>" ("team:<team>", where the definition name is the team
+name): a team booted by an older hergy is still found from its label, and another
+tool's tab, or a person's tab that happens to carry a team's name, is not a team.
+When herdr's agent list cannot be read at all, a label this machine recorded a
+launch of is taken as a team's instead.
 
 Commands (hergy <command> --help prints one command's page, and every command but version takes it; a bare -- ends the flags, and --flag=value is accepted):
 `
@@ -144,7 +146,7 @@ var flagMeaning = map[string]string{
 // tail is what comes after the Flags: section.
 const tail = `Running against herdr:
   up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
-  A team command (down, status, refresh, reprompt, hire) reads herdr's tabs to find the running team, and this machine's launch record to find the team definition behind the team name; a team name with neither a tab nor a launch is an error. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status).
+  A team command (down, status, refresh, reprompt, hire) reads herdr's tabs to find the running team (a tab is a team's when the agents in it are named after the tab's label), and this machine's launch record only says which team definition a found tab came from. A team name with no hergy tab is an error, whatever the record holds. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status). down closes the panes named after the team even when its definition cannot be read.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.

@@ -1,9 +1,12 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -28,52 +31,100 @@ func TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName(t *testing.T) {
 	}
 }
 
-// TestStatusListsOnlyTheTeamsInTheRecord: with the label cut down to the team's
-// name, a tab hergy never started looks like any other tab. The record is what
-// tells them apart, so the person's own tab is not listed as a running team.
-func TestStatusListsOnlyTheTeamsInTheRecord(t *testing.T) {
+// TestStatusListsOnlyHergeTeams: a running team is one whose members are
+// running. The launch record is history, so a tab a person labelled with the
+// name of a team that has stopped (or with any other name) is not a team, even
+// though the record holds that name (E1).
+func TestStatusListsOnlyHergeTeams(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw", "--local")
 	writeLaunchRecord(t, "qw2", "qw")
-	tabs := `{"tab_id":"t1","label":"qw2"},{"tab_id":"t9","label":"notes"}`
-	f.runningHerdr(t, tabs, "")
+	writeLaunchRecord(t, "docs", "docs-team") // a team that ran once and has stopped
+	tabs := `{"tab_id":"t1","label":"qw2"},{"tab_id":"t2","label":"notes"},{"tab_id":"t3","label":"docs"}`
+	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}` +
+		`,{"name":"claude-1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"t3"}`
+	f.runningHerdr(t, tabs, agents)
 
 	got := mustRun(t, "status")
 	if !strings.Contains(got, "team: qw2\n") {
-		t.Fatalf("status does not list the team this machine launched:\n%s", got)
+		t.Fatalf("status does not list the team whose member is running:\n%s", got)
 	}
-	if strings.Contains(got, "notes") {
-		t.Fatalf("status lists a tab hergy never started:\n%s", got)
+	for _, name := range []string{"notes", "docs"} {
+		if strings.Contains(got, "team: "+name+"\n") {
+			t.Fatalf("status lists %q, which is not a running team:\n%s", name, got)
+		}
 	}
 }
 
 // TestATeamWhoseBootFailedIsStillFound: a boot that failed once the tab was made
-// leaves a tab and a member, and no launch record. The member hergy started is
-// named after the team, so the tab is still hergy's: status finds it and down can
-// close it, with the definition falling back to the team's name (r-e494).
+// leaves a tab and a member, and no launch record, so the definition cannot be
+// read. The member names the team, so status finds the tab, and down closes the
+// panes hergy started for it by name: a definition is only what a prompt is built
+// from (r-e494).
 func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 	f := newFixture(t)
+	initLocales(t)
 	mustRun(t, "new", "qw", "--local")
-	tabs := `{"tab_id":"t1","label":"qw2"}`
-	agents := `{"name":"qw2-m","agent":"codex","agent_status":"blocked","pane_id":"p1","tab_id":"t1"}`
-	f.runningHerdr(t, tabs, agents)
+	log := f.halfBootedHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
 
-	// The tab is found (the member names it), and with no record the definition
-	// falls back to the team's own name, which is not a definition here: that is
-	// the one thing this label change cannot tell apart, and the error names the
-	// candidates. `hergy status` with no name lists the team all the same.
+	// status names the team, keeps the reason, and says what can still be done.
 	out, stderr, code := run("status", "qw2")
-	_ = out
 	if code == 0 {
-		t.Fatalf("status of a team with no record and no definition of that name succeeded:\n%s", out)
+		t.Fatalf("status of a team whose definition cannot be read succeeded:\n%s", out)
 	}
-	if !strings.Contains(stderr, "qw2") {
-		t.Fatalf("status does not name the team it could not read:\n%s", stderr)
+	if !strings.Contains(stderr, "qw2") || !strings.Contains(stderr, i18n.Tf("status.can_down", "qw2")) {
+		t.Fatalf("status does not say what can be done about the team:\n%s", stderr)
 	}
-	listed := mustRun(t, "status")
-	if !strings.Contains(listed, "team: qw2\n") {
+	if listed := mustRun(t, "status"); !strings.Contains(listed, "team: qw2\n") {
 		t.Fatalf("status does not list the half-booted team's tab:\n%s", listed)
 	}
+
+	// down closes the member's pane, by the name hergy gave it.
+	down := mustRun(t, "down", "qw2")
+	for _, line := range []string{
+		"team: qw2",
+		i18n.T("down.closes_by_name"),
+		"qw2-m: closing (pane p-qw2-m)",
+		"closed: 1",
+	} {
+		if !strings.Contains(down, line+"\n") {
+			t.Fatalf("down qw2 is missing %q:\n%s", line, down)
+		}
+	}
+	if closes := readFile(t, log); !strings.Contains(closes, "pane close p-qw2-m") {
+		t.Fatalf("down did not close the pane hergy started:\n%s", closes)
+	}
+}
+
+// halfBootedHerdr writes a fake herdr with a tab labelled by the team's name
+// alone, one live member in it, and no launch record: what a boot that failed
+// once the tab was made leaves behind. It records the calls in <cfg>/herdr.log
+// and returns that path.
+func (f *fixture) halfBootedHerdr(t *testing.T) string {
+	t.Helper()
+	log := filepath.Join(f.cfg, "herdr.log")
+	if err := os.WriteFile(log, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.herdr(t, `#!/bin/sh
+log='`+log+`'
+printf '%s\n' "$*" >> "$log"
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent list") echo '{"result":{"agents":[{"name":"qw2-m","agent":"codex","agent_status":"blocked","pane_id":"p-qw2-m","tab_id":"t1"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"qw2"}]}}' ;;
+  "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`)
+	return log
 }
 
 // TestOlderLabelsStillFindTheirTeams: a team booted before the label was cut

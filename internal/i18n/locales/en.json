@@ -163,6 +163,8 @@
   "down.would_skip": "%s: would skip (not present)\n",
   "down.absent_only": "note: nothing to close (team %q)\n",
   "down.done": "closed: %d\nabsent: %d\n",
+  "down.closes_by_name": "the definition cannot be read; hergy closes the panes it started for this team, by their names",
+  "status.can_down": "hergy down %s still closes the panes hergy started for this team",
   "down.dry_done": "would close: %d\nwould skip: %d\n",
   "status.not_live": "not present",
   "status.worker_suffix": " (worker)",

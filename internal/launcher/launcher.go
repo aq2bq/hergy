@@ -398,13 +398,9 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 		return 0, err
 	}
 	panes := panesOf(agents)
-	l.stage(i18n.T("progress.stage.closing"))
-	closed, absent := 0, 0
-	// A pane is closed once, however many targets point at it.
-	seen := make(map[string]bool)
-	var self *downTarget
 	// Members first, then the workers; hergy's own pane is held back to last.
 	targets := make([]downTarget, 0, len(members)+len(workers))
+	absent := 0
 	for _, member := range members {
 		pane := panes[member.Name]
 		if pane == "" {
@@ -419,14 +415,55 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 		targets = append(targets, downTarget{name: member.Name, pane: pane})
 	}
 	targets = append(targets, workers...)
+	return l.closeTargets(targets, selfPane, absent, dry)
+}
+
+// DownByName closes what this team started when the team definition behind it
+// cannot be read: the live agents named after the team ("<team>-<member>"), and
+// the workers in tabs labelled "worker:<team>/". A team definition is what a
+// prompt is built from, and putting a team away needs no prompt, so a team whose
+// boot failed once its tab was made (and left no launch record to read the
+// definition from) can still be closed.
+func (l *Launcher) DownByName(selfPane string, dry bool) (int, error) {
+	if !dry {
+		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
+			return 0, err
+		}
+	}
+	agents, err := l.herdr.LiveAgents()
+	if err != nil {
+		return 0, err
+	}
+	workers, err := l.workerTargets(agents)
+	if err != nil {
+		return 0, err
+	}
+	prefix := l.cfg.Team + "-"
+	targets := make([]downTarget, 0, len(agents)+len(workers))
+	for _, agent := range agents {
+		if agent.Name == "" || agent.PaneID == "" || !strings.HasPrefix(agent.Name, prefix) {
+			continue
+		}
+		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID})
+	}
+	targets = append(targets, workers...)
+	return l.closeTargets(targets, selfPane, 0, dry)
+}
+
+// closeTargets closes what a down found: a pane once, however many targets point
+// at it, and hergy's own pane last, because closing it first would take hergy
+// with it and leave the rest open. absent is how many members were not there.
+func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent int, dry bool) (int, error) {
+	l.stage(i18n.T("progress.stage.closing"))
+	closed := 0
+	seen := make(map[string]bool)
+	var self *downTarget
 	for _, target := range targets {
 		if seen[target.pane] {
 			continue
 		}
 		seen[target.pane] = true
 		if target.pane == selfPane {
-			// Hold it back: closing this pane first would take hergy with it,
-			// and the rest would stay open.
 			target.self = true
 			held := target
 			self = &held

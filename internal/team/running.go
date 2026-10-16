@@ -9,11 +9,12 @@ type Running struct {
 	Definition string
 }
 
-// Tab is one of herdr's tabs as telling hergy's own tabs apart needs it: the
-// label on it, and the names of the live agents in it. hergy names a member's
-// agent "<team>-<member>", so the agents in a tab say which team the tab is,
+// Tab is one of herdr's tabs as telling hergy's own tabs apart needs it: its id,
+// the label on it, and the names of the live agents in it. hergy names a member's
+// agent "<team>-<member>", so the agents in a tab say whose team the tab is,
 // even when hergy has no launch record of it (d-a72d).
 type Tab struct {
+	ID     string
 	Label  string
 	Agents []string
 }
@@ -34,19 +35,25 @@ type Launch struct {
 // ("<label>-<member>"), which is how a team is still found after a boot that
 // failed once the tab was made and left no record, or when the label still has
 // the older shape "team:<team>@<definition>" or "team:<team>", which carried the
-// definition itself. A tab whose label hergy recorded a launch of is hergy's
-// too. Another tab, with another tool's agents in it, is not.
+// definition itself. Another tab is not, even one a person labelled with the name
+// of a team that has stopped: the launch record is history, so it says where a
+// definition is read from, not which tab is a team's.
+//
+// agentsRead says whether the live agents could be read. When they could not,
+// there is nothing to tell a team's tab from a person's tab with the same name,
+// and a label this machine recorded a launch of is taken as a team's rather than
+// losing the team.
 //
 // The definition comes from the newest record of that team; the older label is
 // the fallback for a team this machine has no record of, and the team's own name
 // is the last one (a team booted without --as runs from the definition of its
 // name).
-func RunningTeams(tabs []Tab, launches []Launch) []Running {
+func RunningTeams(tabs []Tab, launches []Launch, agentsRead bool) []Running {
 	known := latestDefinitions(launches)
 	seen := map[string]bool{}
 	var out []Running
 	for _, tab := range tabs {
-		name, definition, ok := runningOf(tab, known)
+		name, definition, ok := runningOf(tab, known, agentsRead)
 		if !ok || seen[name] {
 			continue
 		}
@@ -68,8 +75,9 @@ func latestDefinitions(launches []Launch) map[string]string {
 }
 
 // runningOf reads one tab: the team it stands for, and the definition behind it.
-// known is the launch record, by team name.
-func runningOf(tab Tab, known map[string]string) (name, definition string, ok bool) {
+// known is the launch record, by team name, and agentsRead says whether the live
+// agents could be read.
+func runningOf(tab Tab, known map[string]string, agentsRead bool) (name, definition string, ok bool) {
 	if rest, older := strings.CutPrefix(tab.Label, "team:"); older {
 		name, definition, ok = splitTeamLabel(rest)
 		if !ok {
@@ -83,20 +91,29 @@ func runningOf(tab Tab, known map[string]string) (name, definition string, ok bo
 	if tab.Label == "" {
 		return "", "", false
 	}
-	if recorded, found := known[tab.Label]; found {
-		return tab.Label, recorded, true
-	}
-	if !holdsMember(tab) {
+	recorded, found := known[tab.Label]
+	if !HoldsMember(tab, tab.Label) {
+		// The record alone does not make a tab a team's: it is the history of
+		// what this machine started, and a person's tab can carry the name of a
+		// team that has stopped. Only when the agents could not be read at all
+		// is the record the best guess left.
+		if !agentsRead && found {
+			return tab.Label, recorded, true
+		}
 		return "", "", false
 	}
-	return tab.Label, tab.Label, true
+	if !found {
+		recorded = tab.Label
+	}
+	return tab.Label, recorded, true
 }
 
-// holdsMember says whether a tab holds an agent hergy started for the team the
-// tab is labelled after.
-func holdsMember(tab Tab) bool {
+// HoldsMember reports whether a tab holds an agent hergy started for the team of
+// this name: hergy names a member's agent "<team>-<member>". It is what tells a
+// team's tab from another tab that carries the same label.
+func HoldsMember(tab Tab, name string) bool {
 	for _, agent := range tab.Agents {
-		if strings.HasPrefix(agent, tab.Label+"-") {
+		if strings.HasPrefix(agent, name+"-") {
 			return true
 		}
 	}

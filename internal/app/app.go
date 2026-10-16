@@ -206,11 +206,11 @@ func buildRunning(env team.Env, layer string, running team.Running) (*team.Resol
 // runningTeams reads herdr's tabs and this machine's launch record, and returns
 // the running teams.
 func runningTeams() ([]team.Running, error) {
-	tabs, err := herdrTabs()
+	tabs, agentsRead, err := herdrTabs()
 	if err != nil {
 		return nil, err
 	}
-	return team.RunningTeams(tabs, launchTeams()), nil
+	return team.RunningTeams(tabs, launchTeams(), agentsRead), nil
 }
 
 // launchTeams is this machine's launch record as the team name and the team
@@ -236,20 +236,22 @@ func launchTeams() []team.Launch {
 
 // herdrTabs reads the tabs herdr reports, each with the live agents in it. It is
 // how a team command tells hergy's own tabs apart and finds the team definition
-// behind a running team name.
-func herdrTabs() ([]team.Tab, error) {
-	tabs, err := herdrTabList()
+// behind a running team name. agentsRead says whether the agent list could be
+// read at all: with no agent names, the launch record is the best guess left at
+// which tab is a team's.
+func herdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
+	list, err := herdrTabList()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	agents, err := herdrAgents()
 	if err != nil {
-		// A herdr that cannot list its agents still lists its tabs: the teams
-		// an older hergy labelled, and the ones this machine recorded, are
-		// found without the agent names, and the tab is not lost.
-		return teamTabs(tabs, nil), nil
+		// A herdr that cannot list its agents still lists its tabs: the tabs an
+		// older hergy labelled are found from their labels, and the ones this
+		// machine recorded are guessed at from the record, rather than lost.
+		return teamTabs(list, nil), false, nil
 	}
-	return teamTabs(tabs, agents), nil
+	return teamTabs(list, agents), true, nil
 }
 
 // herdrAgents reads the live agents herdr reports.
@@ -270,7 +272,7 @@ func teamTabs(tabs []protocol.Tab, agents []protocol.Agent) []team.Tab {
 	}
 	out := make([]team.Tab, 0, len(tabs))
 	for _, tab := range tabs {
-		out = append(out, team.Tab{Label: tab.Label, Agents: inTab[tab.ID]})
+		out = append(out, team.Tab{ID: tab.ID, Label: tab.Label, Agents: inTab[tab.ID]})
 	}
 	return out
 }
@@ -317,8 +319,8 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 	// The running teams, grouped by the team definition they were booted from.
 	// Outside herdr the tabs cannot be read; then only the definitions show.
 	running := map[string][]string{}
-	if tabs, err := herdrTabs(); err == nil {
-		for _, team := range team.RunningTeams(tabs, launchTeams()) {
+	if tabs, agentsRead, err := herdrTabs(); err == nil {
+		for _, team := range team.RunningTeams(tabs, launchTeams(), agentsRead) {
 			running[team.Definition] = append(running[team.Definition], team.Team)
 		}
 	}
@@ -735,9 +737,19 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 // runDown closes the panes of a live team's members. --dry prints what would
 // close and reads the live agents, but sends no close and needs no Herdr pane.
 func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveTeam(env, opts)
+	running, err := runningTeams()
 	if err != nil {
 		return err
+	}
+	chosen, err := pickTeam(running, opts.Team)
+	if err != nil {
+		return err
+	}
+	resolved, cfg, buildErr := buildRunning(env, opts.Layer, chosen)
+	if buildErr != nil {
+		// The definition is what a prompt is built from; closing a team needs no
+		// prompt, so a team whose definition cannot be read is still put away.
+		return downByName(ctx, chosen, buildErr, opts, stdout, stderr)
 	}
 	members, err := cfg.Select("")
 	if err != nil {
@@ -768,6 +780,43 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	})
 }
 
+// downByName puts a running team away when the team definition behind it cannot
+// be read (a boot that failed once its tab was made left no launch record to read
+// the definition from). The panes are the ones hergy started, named after the
+// team, so closing them needs no definition.
+func downByName(ctx context.Context, chosen team.Running, reason error, opts *options.Options, stdout, stderr io.Writer) error {
+	field(stdout, label("team"), chosen.Team)
+	indentField(stdout, 1, label("definition"), chosen.Definition)
+	// The reason, on one line, without the "next:" step the resolution error
+	// suggests: the step here is the down itself.
+	detail := reason.Error()
+	if i := strings.Index(detail, "\nnext:"); i >= 0 {
+		detail = detail[:i]
+	}
+	indentField(stdout, 1, label("detail"), strings.Join(strings.Fields(detail), " "))
+	indentField(stdout, 1, label("note"), i18n.T("down.closes_by_name"))
+	selfPane := os.Getenv("HERDR_PANE_ID")
+	l := newLauncher(&config.Config{Team: chosen.Team}, opts.Timeout, stdout)
+	if opts.Dry {
+		closed, err := l.DownByName(selfPane, true)
+		if err != nil {
+			return err
+		}
+		// A dry run that would close nothing has no next step to name.
+		if closed > 0 {
+			printNext(stdout, "down "+chosen.Team)
+		}
+		return nil
+	}
+	if err := requireHerdrPane(); err != nil {
+		return err
+	}
+	return runOperation(ctx, stderr, nil, func() error {
+		_, err := l.DownByName(selfPane, false)
+		return err
+	})
+}
+
 // runStatus reports each member's and worker's live state, one "name: state"
 // line each, then the judgement: who is waiting on the human, or that nobody is
 // working. It only reads Herdr, so it runs outside a herdr-managed pane too.
@@ -778,7 +827,7 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	resolved, cfg, err := resolveTeam(env, opts)
 	if err != nil {
-		return err
+		return statusOfARunningTeam(opts, err)
 	}
 	members, err := cfg.Select("")
 	if err != nil {
@@ -793,6 +842,21 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 		field(stdout, row.Name, row.Text())
 	}
 	return printStatusJudgement(stdout, rows, "")
+}
+
+// statusOfARunningTeam keeps the reason a running team's definition cannot be
+// read, and adds the one thing that can still be done about it: down closes the
+// team's panes by name, so a team is not stuck when its definition is out of
+// reach (r-e494's follow-up).
+func statusOfARunningTeam(opts *options.Options, reason error) error {
+	running, err := runningTeams()
+	if err != nil {
+		return reason
+	}
+	if _, ok := team.FindRunning(running, opts.Team); !ok {
+		return reason
+	}
+	return errors.New(reason.Error() + "\n" + i18n.Tf("status.can_down", opts.Team))
 }
 
 // runStatusList is status with no team name: every running team, with its team

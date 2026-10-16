@@ -163,6 +163,8 @@
   "down.would_skip": "%s: 動いていないので閉じません\n",
   "down.absent_only": "注意: 閉じるものはありません（チーム %q）\n",
   "down.done": "閉じた数: %d\n動いていなかった数: %d\n",
+  "down.closes_by_name": "定義は読めません。hergy は、このチームのために起動したペインを名前で閉じます",
+  "status.can_down": "hergy down %s は、このチームのために hergy が起動したペインを閉じられます",
   "down.dry_done": "閉じる予定の数: %d\n閉じない数: %d\n",
   "status.not_live": "動いていない",
   "status.worker_suffix": "（ワーカー）",
