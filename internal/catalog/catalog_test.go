@@ -246,6 +246,26 @@ func TestRolePrefersLocalOverGlobal(t *testing.T) {
 	}
 }
 
+// TestRolePlacesNamesBothLayersInOrder: a missing role document names every
+// place it was looked for, the project's layer first then the global one (K1),
+// so a person moving a definition over sees the whole list (spec/32 D2).
+func TestRolePlacesNamesBothLayersInOrder(t *testing.T) {
+	l := newLayers(t)
+	got := l.catalog().RolePlaces("r")
+	want := []string{
+		filepath.Join(l.local, "roles", "r.yaml"),
+		filepath.Join(l.global, "roles", "r.yaml"),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("RolePlaces(r) = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("RolePlaces(r)[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 // TestRoleWithNoDocumentAndOneStillMarkdown: a role with no .yaml is not a role
 // document; a role left as roles/<role>.md is what RoleMarkdown names, for the
 // sentence that says how to move it over.

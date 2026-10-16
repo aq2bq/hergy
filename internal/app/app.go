@@ -217,7 +217,7 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 	if err != nil || executable == "" {
 		executable = "hergy"
 	}
-	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader, Sources: cat}
+	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader, Sources: cat, Display: cat.Display}
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
@@ -704,6 +704,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		}
 	}
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
+		reportOldCommon(stdout, env, cat.LayerDir(layer))
 		for _, row := range cat.Definitions() {
 			path := listingPath(row, layer)
 			if path == "" {
@@ -748,6 +749,7 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 	path := listingPath(row, layer)
 	r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
 	reportFile(stdout, env, path, err)
+	reportOldTeamFiles(stdout, env, cat, row.Name, layer)
 	if err != nil {
 		return teamSize{}, false
 	}
@@ -766,6 +768,42 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 	size = sizeOf(r)
 	size.name = env.Display(filepath.Dir(path))
 	return size, true
+}
+
+// reportOldTeamFiles warns about files a team definition used to keep where
+// hergy no longer reads them (段 4, spec/32 D1): a protocol.yaml that was not
+// renamed to agreement.yaml, and role documents that were not moved out of the
+// definition's folder. The warning stands under the team's own file line, names
+// the file and the place it goes now, and moves no exit code: the definition
+// still reads, but the rules those files hold are read no more.
+func reportOldTeamFiles(w io.Writer, env team.Env, cat *catalog.Catalog, name, layer string) {
+	dir := cat.LayerDir(layer)
+	old := filepath.Join(dir, "teams", name, "protocol.yaml")
+	if isFile(old) {
+		indentField(w, 1, label("warning"), i18n.Tf("validate.old_team_agreement",
+			env.Display(old), env.Display(filepath.Join(dir, "teams", name, "agreement.yaml"))))
+	}
+	matches, _ := filepath.Glob(filepath.Join(dir, "teams", name, "roles", "*.yaml"))
+	slices.Sort(matches)
+	for _, path := range matches {
+		role := strings.TrimSuffix(filepath.Base(path), ".yaml")
+		indentField(w, 1, label("warning"), i18n.Tf("validate.old_team_role",
+			env.Display(path), env.Display(filepath.Join(dir, "roles", role+".yaml"))))
+	}
+}
+
+// reportOldCommon warns about the layer's common/ directory, where the agreement
+// every team shares used to stand as a folder of files: it is one agreement.yaml
+// at the layer's root now (段 4, spec/32 D1). It is asked once for the layer
+// rather than once per team, because the directory is the layer's, and it moves
+// no exit code.
+func reportOldCommon(w io.Writer, env team.Env, dir string) {
+	matches, _ := filepath.Glob(filepath.Join(dir, "common", "*.yaml"))
+	if len(matches) == 0 {
+		return
+	}
+	field(w, label("warning"), i18n.Tf("validate.old_common",
+		env.Display(filepath.Join(dir, "common")), env.Display(filepath.Join(dir, "agreement.yaml"))))
 }
 
 // reportProfileNames is the one warning a profiles.yaml gets: a profile whose

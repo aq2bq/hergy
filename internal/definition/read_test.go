@@ -309,8 +309,8 @@ func TestMemberStopsOnARoleThatIsStillMarkdown(t *testing.T) {
 }
 
 // TestMemberStopsOnAMissingRole: a member whose role has no document at all is
-// stopped, and the sentence names the member, the role and the one place it
-// looks (段 4).
+// stopped, and the sentence names the member, the role and every place it looks
+// (段 4, spec/32 D2).
 func TestMemberStopsOnAMissingRole(t *testing.T) {
 	l := newLayer(t, "")
 	_, err := parseTeam(t, l,
@@ -326,7 +326,8 @@ func TestMemberStopsOnAMissingRole(t *testing.T) {
 }
 
 // TestMemberTemplateMustKeepTheTwoDoors: a template that drops the role
-// document or the agreements stops (d-0ccd, I4), whichever file wrote it.
+// document or the agreements stops (d-0ccd, I4), whichever file wrote it, and
+// the sentence names the team.yaml it read (spec/32 D2).
 func TestMemberTemplateMustKeepTheTwoDoors(t *testing.T) {
 	cases := []struct{ name, prompt, want string }{
 		{"a prompt with no role document", `"%{docs}"`, "role_doc"},
@@ -340,8 +341,10 @@ func TestMemberTemplateMustKeepTheTwoDoors(t *testing.T) {
 			if err == nil {
 				t.Fatal("a template with a door missing did not stop the prompt")
 			}
-			if !strings.Contains(err.Error(), tc.want) {
-				t.Errorf("error %q does not name %q", err, tc.want)
+			for _, want := range []string{tc.want, filepath.Join(l.team, "team.yaml")} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not name %q", err, want)
+				}
 			}
 		})
 	}

@@ -363,6 +363,24 @@ func (c *Catalog) RoleMarkdown(name string) (source.Doc, bool) {
 	return c.firstFile(filepath.Join("roles", name+".md"))
 }
 
+// RolePlaces is every path a role document is looked for, in the one order a
+// name is looked up (K1): the project's layer first, then the global one. It is
+// what the sentence a missing role document gets names, so a person moving a
+// definition over sees the whole list rather than one place that may already
+// hold the file.
+func (c *Catalog) RolePlaces(name string) []string {
+	out := make([]string, 0, len(c.layers()))
+	for _, one := range c.layers() {
+		out = append(out, filepath.Join(one.dir, "roles", name+".yaml"))
+	}
+	return out
+}
+
+// Display is how a path is shown to a person; the app hands the catalog the
+// environment's own. A caller that builds a sentence of its own asks for it
+// here, so a path reads the same wherever hergy prints it.
+func (c *Catalog) Display(path string) string { return c.display(path) }
+
 // SharedAgreement is the agreement every team of a layer shares: agreement.yaml
 // in the project's layer, else in the global layer's. There is one, not a list
 // (d-0ccd), and writing none is allowed (段 4); the second return says whether a

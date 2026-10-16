@@ -99,11 +99,11 @@
   "error.arg_nul": "%s[%d] must not contain NUL",
   "error.not_variable_name": "%s: %q is not a variable name",
   "error.env_not_string": "%s.%s must be a string (quote numbers)",
-  "error.no_role_doc": "member %s has no document for the role %s (roles/%s.yaml)",
+  "error.no_role_doc": "member %s has no document for the role %s (looked in: %s)",
   "error.role_markdown": "no .yaml role file for %s (%s is still Markdown); write the rules as YAML. To move the file over, use the team-building skill",
   "error.profiles_moved": " (team.yaml no longer has profiles; profiles live in profiles.yaml)",
   "error.unknown_placeholder": "unknown prompt placeholder: %%{%s}",
-  "error.prompt_missing_part": "the prompt template has no %%{%s}; %%{role_doc} and %%{docs} are the doors the role document and the agreements come in through, and cannot be taken out",
+  "error.prompt_missing_part": "%s: %s has no %%{%s}; %%{role_doc} and %%{docs} are the doors the role document and the agreements come in through, and cannot be taken out",
   "error.worker_name_pattern": "worker name must match [a-z][a-z0-9_-]{0,31}",
   "error.worker_exists": "%s is already a team member",
   "error.no_may_spawn": "%s has no may_spawn in the config",
@@ -190,6 +190,9 @@
   "role.worker": "%s worker",
   "prompt.self_intro_member": "From %[3]s:",
   "prompt.self_intro_worker": "From %[3]s:",
+  "prompt.template_member": "the prompt: of member %s",
+  "prompt.template_team": "the team's prompt:",
+  "prompt.template_default": "the prompt template",
   "list.separator": ", ",
   "spawn.allowed_item": "%s → %s",
   "prompt.member": "You are %{name} (%{role}) on team %{team}.\n\n%{role_doc}\n%{docs}\n## Roster\n%{roster}\n\n## Contact\n%{herdr}\n%{spawn}",
@@ -610,5 +613,8 @@
   "validate.global_hidden": "the global team definition %s is hidden by the project's %s and is not used",
   "error.mission_missing": "%s: no mission is written: add a one-line mission: to team.yaml",
   "error.mission_multiline": "%s: write the mission in one line (team.yaml's mission:)",
-  "validate.mission_placeholder": "the mission is still the starter's example; write what this team is for, in one line"
+  "validate.mission_placeholder": "the mission is still the starter's example; write what this team is for, in one line",
+  "validate.old_team_agreement": "%s is no longer read; a team's agreement goes in %s (rename the file)",
+  "validate.old_team_role": "%s is no longer read; a role document goes in %s (the layer's root)",
+  "validate.old_common": "%s is no longer read; the agreement every team shares goes in %s"
 }

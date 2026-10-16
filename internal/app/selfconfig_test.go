@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestTheRepositoriesOwnHermyPassesValidate: the project keeps its own team
+// TestTheRepositoriesOwnHergyPassesValidate: the project keeps its own team
 // definition in .hergy/, and a person writes those files by hand, so a change
 // that moves where a document stands has to carry this .hergy over in the same
 // change (d-8d89). This reads the repository's own .hergy the way a person
@@ -15,7 +15,7 @@ import (
 // check never looks at the machine's own hergy files (d-a861), and asks for
 // neither a problem nor a warning: a warning is a file the next change has to
 // fix.
-func TestTheRepositoriesOwnHermyPassesValidate(t *testing.T) {
+func TestTheRepositoriesOwnHergyPassesValidate(t *testing.T) {
 	root := repoRoot(t)
 	if _, err := os.Stat(filepath.Join(root, ".hergy")); err != nil {
 		t.Skip("the repository keeps no .hergy")

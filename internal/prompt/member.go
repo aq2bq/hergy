@@ -27,6 +27,18 @@ type Run struct {
 	// every team of the layer shares. internal/catalog answers it, so the layer
 	// stays in one place (K1, I11).
 	Sources Sources
+	// Display is how a path is written in the sentences the prompt builds: a
+	// member that misses a document reads a path the way a person writes it.
+	// Empty means a path stands as it is.
+	Display func(string) string
+}
+
+// shown writes one path the way the environment writes it.
+func (r Run) shown(path string) string {
+	if r.Display == nil {
+		return path
+	}
+	return r.Display(path)
 }
 
 // Sources is the one place a role document and the shared agreement are looked
@@ -38,6 +50,10 @@ type Sources interface {
 	// RoleMarkdown is a role document still left as Markdown, for the sentence
 	// that says how to move it over. It is asked only when Role found none.
 	RoleMarkdown(name string) (source.Doc, bool)
+	// RolePlaces is every path a role document is looked for, in the one order a
+	// name is looked up. It is what the sentence a missing role document gets
+	// names, so a person sees the whole list.
+	RolePlaces(name string) []string
 	// SharedAgreement is the agreement every team of a layer shares, and
 	// whether a layer wrote one.
 	SharedAgreement() (source.Doc, bool)
@@ -69,7 +85,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	case def.Prompt != "":
 		template = def.Prompt
 	}
-	if err := checkTemplate(template); err != nil {
+	if err := checkTemplate(run, def, node, template); err != nil {
 		return nil, err
 	}
 
@@ -222,11 +238,20 @@ func shellQuote(s string) string {
 
 // checkTemplate stops a template that would drop the role document or the
 // agreements from a member's prompt (d-0ccd): a member or a team that writes its
-// own prompt still has to leave the two doors in (I4).
-func checkTemplate(template string) error {
+// own prompt still has to leave the two doors in (I4). The sentence names the
+// team.yaml it read and, when the template is a member's own, the member, so a
+// person knows which file to open (spec/32 D2).
+func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
+	where := i18n.T("prompt.template_default")
+	switch {
+	case node.HasPrompt:
+		where = i18n.Tf("prompt.template_member", node.Name)
+	case def.Prompt != "":
+		where = i18n.T("prompt.template_team")
+	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return i18n.Errorf("error.prompt_missing_part", part)
+			return i18n.Errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part)
 		}
 	}
 	return nil
@@ -262,13 +287,23 @@ func memberRole(node *definition.MemberNode, run Run) (source.Doc, error) {
 }
 
 // missingRole says which it is: a role document still left as Markdown, or none
-// at all. The place is always roles/<role>.yaml, in the layer the catalog looks
-// in (段 4).
+// at all. A document that is nowhere names every place it was looked for, in the
+// one order a name is looked up (K1), so a person moving the file over sees the
+// whole list (spec/32 D2).
 func missingRole(node *definition.MemberNode, run Run) error {
 	if run.Sources != nil {
 		if doc, ok := run.Sources.RoleMarkdown(node.Role); ok {
-			return i18n.Errorf("error.role_markdown", node.Role, doc.Path)
+			return i18n.Errorf("error.role_markdown", node.Role, run.shown(doc.Path))
 		}
 	}
-	return i18n.Errorf("error.no_role_doc", node.Name, node.Role, node.Role)
+	places := []string{run.shown("roles/" + node.Role + ".yaml")}
+	if run.Sources != nil {
+		if found := run.Sources.RolePlaces(node.Role); len(found) > 0 {
+			places = make([]string, len(found))
+			for i, path := range found {
+				places[i] = run.shown(path)
+			}
+		}
+	}
+	return i18n.Errorf("error.no_role_doc", node.Name, node.Role, strings.Join(places, i18n.T("list.separator")))
 }

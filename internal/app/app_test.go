@@ -483,6 +483,127 @@ func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
 	}
 }
 
+// TestValidateWarnsAboutThePlacesHergyNoLongerReads: 段 4 moved a team's
+// agreement to agreement.yaml, a role document to the layer's roles/, and the
+// shared agreement to one agreement.yaml. A file left in one of the old places
+// is not read, so validate names it and where it goes now, once per file, and
+// moves no exit code (spec/32 D1). Each of the three old places is tried on its
+// own, so a fix that forgets one is still a warning here.
+func TestValidateWarnsAboutThePlacesHergyNoLongerReads(t *testing.T) {
+	cases := []struct {
+		name  string
+		key   string
+		args  []any
+		write func(t *testing.T, f *fixture)
+	}{
+		{
+			name: "a protocol.yaml that was not renamed",
+			key:  "validate.old_team_agreement",
+			args: []any{".hergy/teams/demo/protocol.yaml", ".hergy/teams/demo/agreement.yaml"},
+			write: func(t *testing.T, f *fixture) {
+				writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml"), "version: 1\nsections: []\n")
+			},
+		},
+		{
+			name: "a role document left in the definition's folder",
+			key:  "validate.old_team_role",
+			args: []any{".hergy/teams/demo/roles/keep.yaml", ".hergy/roles/keep.yaml"},
+			write: func(t *testing.T, f *fixture) {
+				writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "keep.yaml"), "version: 1\nsections: []\n")
+			},
+		},
+		{
+			name: "a common/ directory",
+			key:  "validate.old_common",
+			args: []any{".hergy/common", ".hergy/agreement.yaml"},
+			write: func(t *testing.T, f *fixture) {
+				writeFile(t, filepath.Join(f.proj, ".hergy", "common", "old.yaml"), "version: 1\nsections: []\n")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			mustRun(t, "new", "demo")
+			tc.write(t, f)
+			got := mustRun(t, "validate")
+			want := i18n.Tf(tc.key, tc.args...)
+			if !strings.Contains(got, "warning: "+want+"\n") {
+				t.Fatalf("validate does not warn about %s:\n%s", tc.name, got)
+			}
+			if !strings.Contains(got, "problems: 0\n") {
+				t.Errorf("the warning about %s moved the exit code:\n%s", tc.name, got)
+			}
+		})
+	}
+}
+
+// TestValidateNamesEveryPlaceItLookedForARoleDocument: a missing role document
+// names every place it was looked for, in the one order a name is looked up
+// (spec/32 D2). A person moving a definition over sees both, rather than one
+// place that may already hold the file.
+func TestValidateNamesEveryPlaceItLookedForARoleDocument(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\n")
+
+	stdout, _, code := run("validate")
+	if code == 0 {
+		t.Fatalf("validate accepted a missing role document:\n%s", stdout)
+	}
+	places := strings.Join([]string{
+		".hergy/roles/absent.yaml",
+		filepath.Join(f.cfg, "hergy", "roles", "absent.yaml"),
+	}, i18n.T("list.separator"))
+	want := i18n.Tf("error.no_role_doc", "lead", "absent", places)
+	if !strings.Contains(stdout, want) {
+		t.Errorf("validate does not name every place it looked (%q):\n%s", want, stdout)
+	}
+}
+
+// TestValidateNamesTheFileAndMemberForATemplateMissingADoor: a prompt template
+// that drops a door stops (I4), and the sentence names the team.yaml it read and,
+// when it is a member's own prompt:, the member (spec/32 D2).
+func TestValidateNamesTheFileAndMemberForATemplateMissingADoor(t *testing.T) {
+	const member = "members:\n  - name: lead\n    role: lead\n    profile: claude-default\n"
+	cases := []struct {
+		name, team string
+		whereKey   string
+		whereArgs  []any
+	}{
+		{
+			name:     "the team's prompt:",
+			team:     "version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}\"\n" + member,
+			whereKey: "prompt.template_team",
+		},
+		{
+			name:      "a member's prompt:",
+			team:      "version: 1\nmission: a mission for the test\n" + strings.Replace(member, "    profile: claude-default\n", "    profile: claude-default\n    prompt: \"%{role_doc}\"\n", 1),
+			whereKey:  "prompt.template_member",
+			whereArgs: []any{"lead"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+			writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: L1\n        text: one\n")
+			writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), tc.team)
+
+			stdout, _, code := run("validate")
+			if code == 0 {
+				t.Fatalf("validate accepted a template with a door missing:\n%s", stdout)
+			}
+			where := i18n.Tf(tc.whereKey, tc.whereArgs...)
+			want := i18n.Tf("error.prompt_missing_part", ".hergy/teams/demo/team.yaml", where, "docs")
+			if !strings.Contains(stdout, want) {
+				t.Errorf("validate does not name the file and %s (%q):\n%s", tc.name, want, stdout)
+			}
+		})
+	}
+}
+
 func TestLsShape(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")

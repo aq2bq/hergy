@@ -48,10 +48,17 @@
   `hergy validate` stops a template that dropped either. A `team.yaml` that
   still writes `docs:` or `roles:` stops the read with a message that says where
   the documents went. A member whose role has no document is stopped with a
-  message naming the member, the role and the file hergy looked for. `hergy new`
-  writes `agreement.yaml` into the team's folder and the two role documents into
+  message naming the member, the role and every place hergy looked for the
+  document. `hergy new` writes `agreement.yaml` into the team's folder and the
+  two role documents into
   the layer's `roles/`, and leaves a role document that is already there as it
   is. `hergy validate` counts the shared agreement among a team's sources.
+
+  `hergy validate` also warns, without stopping, about a file left where hergy
+  no longer reads it: a `teams/<name>/protocol.yaml` that was not renamed, a
+  role document still in the team's folder, or a `<layer>/common/` directory.
+  The warning names the file and the place it goes now, so a file that was not
+  moved over is not read away in silence.
 
   Before:
 

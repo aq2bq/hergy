@@ -99,11 +99,11 @@
   "error.arg_nul": "%s[%d] に NUL 文字は使えません",
   "error.not_variable_name": "%s: %q は環境変数の名前として使えません",
   "error.env_not_string": "%s.%s は文字列にしてください（数値は引用符で囲んでください）",
-  "error.no_role_doc": "メンバー %s のロール %s の文書が見つかりません（roles/%s.yaml）",
+  "error.no_role_doc": "メンバー %s のロール %s の文書が見つかりません（探した場所: %s）",
   "error.role_markdown": "ロール %s の .yaml がありません（%s は Markdown のままです）。規則は .yaml で書きます（移行はチーム構築スキルで行います）",
   "error.profiles_moved": "（プロファイルは team.yaml ではなく profiles.yaml に書きます）",
   "error.unknown_placeholder": "初期プロンプトに不明な置き換えがあります: %%{%s}",
-  "error.prompt_missing_part": "プロンプトのひな形に %%{%s} がありません。ロールの文書と約束は %%{role_doc} と %%{docs} から入るので、消せません",
+  "error.prompt_missing_part": "%s: %s%%{%s} がありません。ロールの文書と約束は %%{role_doc} と %%{docs} から入るので、消せません",
   "error.worker_name_pattern": "ワーカー名は [a-z][a-z0-9_-]{0,31} の形にしてください",
   "error.worker_exists": "%s はすでにチームのメンバーです",
   "error.no_may_spawn": "%s には may_spawn が書かれていません",
@@ -190,6 +190,9 @@
   "role.worker": "%sワーカー",
   "prompt.self_intro_member": "%[3]s より:",
   "prompt.self_intro_worker": "%[3]s より:",
+  "prompt.template_member": "メンバー %s の prompt: に",
+  "prompt.template_team": "チームの prompt: に",
+  "prompt.template_default": "プロンプトのひな形に",
   "list.separator": "、",
   "spawn.allowed_item": "%s → %s",
   "prompt.member": "あなたは %{team} チームの %{name} です。ロールは %{role} です。\n\n%{role_doc}\n%{docs}\n## 名簿\n%{roster}\n\n## 連絡\n%{herdr}\n%{spawn}",
@@ -610,5 +613,8 @@
   "validate.global_hidden": "グローバルのチーム定義 %s は、ローカルの %s に隠れて使われません",
   "error.mission_missing": "%s: 使命が書かれていません。team.yaml に mission: を 1 行書いてください",
   "error.mission_multiline": "%s: 使命は 1 行で書いてください（team.yaml の mission:）",
-  "validate.mission_placeholder": "使命がひな形の例文のままです。このチームの使命を 1 行で書いてください"
+  "validate.mission_placeholder": "使命がひな形の例文のままです。このチームの使命を 1 行で書いてください",
+  "validate.old_team_agreement": "%s は読まれません。チームの約束は %s に置きます（名前を変えてください）",
+  "validate.old_team_role": "%s は読まれません。ロールの文書は %s（層の根）に置きます",
+  "validate.old_common": "%s は読まれません。共通の約束は %s に置きます"
 }
