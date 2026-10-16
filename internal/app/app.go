@@ -22,6 +22,7 @@ import (
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
@@ -202,20 +203,76 @@ func buildRunning(env team.Env, layer string, running team.Running) (*team.Resol
 	return resolved, cfg, nil
 }
 
-// runningTeams reads herdr's tab labels and returns the running teams.
+// runningTeams reads herdr's tabs and this machine's launch record, and returns
+// the running teams.
 func runningTeams() ([]team.Running, error) {
-	labels, err := herdrTabs()
+	tabs, err := herdrTabs()
 	if err != nil {
 		return nil, err
 	}
-	return team.RunningTeams(labels), nil
+	return team.RunningTeams(tabs, launchTeams()), nil
 }
 
-// herdrTabs reads the tab labels herdr reports. It is how a team command finds
-// the team definition behind a running team name.
-func herdrTabs() ([]string, error) {
+// launchTeams is this machine's launch record as the team name and the team
+// definition of each launch, oldest first. It is how a running team is
+// recognized (a tab is labelled with the team's name alone) and how the
+// definition behind it is found (d-a72d). A record that cannot be read leaves
+// the older "team:<team>@<definition>" labels as the only way a team is found.
+func launchTeams() []team.Launch {
+	log, err := launchlog.Open()
+	if err != nil {
+		return nil
+	}
+	records, err := log.Read()
+	if err != nil {
+		return nil
+	}
+	out := make([]team.Launch, 0, len(records))
+	for _, record := range records {
+		out = append(out, team.Launch{Team: record.Team, Definition: record.Definition})
+	}
+	return out
+}
+
+// herdrTabs reads the tabs herdr reports, each with the live agents in it. It is
+// how a team command tells hergy's own tabs apart and finds the team definition
+// behind a running team name.
+func herdrTabs() ([]team.Tab, error) {
+	tabs, err := herdrTabList()
+	if err != nil {
+		return nil, err
+	}
+	agents, err := herdrAgents()
+	if err != nil {
+		// A herdr that cannot list its agents still lists its tabs: the teams
+		// an older hergy labelled, and the ones this machine recorded, are
+		// found without the agent names, and the tab is not lost.
+		return teamTabs(tabs, nil), nil
+	}
+	return teamTabs(tabs, agents), nil
+}
+
+// herdrAgents reads the live agents herdr reports.
+func herdrAgents() ([]protocol.Agent, error) {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
-	return herdr.New(port).TabLabels()
+	return herdr.New(port).LiveAgents()
+}
+
+// teamTabs pairs herdr's tabs with the names of the live agents in each, which
+// is what tells hergy's own tabs apart: hergy names a member's agent
+// "<team>-<member>".
+func teamTabs(tabs []protocol.Tab, agents []protocol.Agent) []team.Tab {
+	inTab := map[string][]string{}
+	for _, agent := range agents {
+		if agent.Name != "" && agent.TabID != "" {
+			inTab[agent.TabID] = append(inTab[agent.TabID], agent.Name)
+		}
+	}
+	out := make([]team.Tab, 0, len(tabs))
+	for _, tab := range tabs {
+		out = append(out, team.Tab{Label: tab.Label, Agents: inTab[tab.ID]})
+	}
+	return out
 }
 
 // pickTeam is the omitted-argument rule for a team command: the one running
@@ -260,8 +317,8 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 	// The running teams, grouped by the team definition they were booted from.
 	// Outside herdr the tabs cannot be read; then only the definitions show.
 	running := map[string][]string{}
-	if labels, err := herdrTabs(); err == nil {
-		for _, team := range team.RunningTeams(labels) {
+	if tabs, err := herdrTabs(); err == nil {
+		for _, team := range team.RunningTeams(tabs, launchTeams()) {
 			running[team.Definition] = append(running[team.Definition], team.Team)
 		}
 	}

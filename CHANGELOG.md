@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- **herdr's tab for a team carries the team's name alone**: `hergy up <definition>
+  --as <name>` now labels the tab `<name>`, where it used to write
+  `team:<name>@<definition>`. The definition behind a running team is read from
+  this machine's launch record, so `hergy status`, `down`, `refresh`, `reprompt`
+  and `hire` keep finding it, and a tab that is not hergy's own is no longer
+  taken for a team. A team booted by an older hergy keeps its older label
+  (`team:<name>@<definition>`, or `team:<name>`) and is still found from it.
+
 ### Fixed
 
 - **The rules screen opens the row you press**: a row outside the first section

@@ -1105,7 +1105,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 	}
 
 	record := readFile(t, log)
-	for _, want := range []string{"--label team:alpha@demo", "--label team:beta@demo"} {
+	for _, want := range []string{"--label alpha", "--label beta"} {
 		if !strings.Contains(record, want) {
 			t.Fatalf("herdr was not asked for %q:\n%s", want, record)
 		}
@@ -1582,7 +1582,7 @@ func TestUpLabelsTheTeamTab(t *testing.T) {
 	mustRun(t, "up", "demo", "--as", "alpha")
 
 	record := readFile(t, log)
-	for _, want := range []string{"--label team:demo@demo", "--label team:alpha@demo"} {
+	for _, want := range []string{"--label demo", "--label alpha"} {
 		if !strings.Contains(record, want) {
 			t.Fatalf("up did not name the team tab %q:\n%s", want, record)
 		}

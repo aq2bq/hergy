@@ -84,15 +84,12 @@ func (l *Launcher) Boot() error {
 	return nil
 }
 
-// teamTabLabel is the label of the team's tab. It carries both the team name and
-// the team definition name, "team:<team>@<definition>", so a command that takes
-// a team name can find the definition the team was booted from.
-func (l *Launcher) teamTabLabel() string {
-	if l.cfg.Definition == "" {
-		return "team:" + l.cfg.Team
-	}
-	return "team:" + l.cfg.Team + "@" + l.cfg.Definition
-}
+// teamTabLabel is the label of the team's tab: the team's own name, and nothing
+// else. A team booted with --as is called by that name there, and the team
+// definition it was booted from is not written into the label but read from this
+// machine's launch record when a command needs it (d-a72d): the tab is what a
+// person reads, and the definition is hergy's business.
+func (l *Launcher) teamTabLabel() string { return l.cfg.Team }
 
 // Reprompt re-submits the bootstrap prompt to idle agents, keeping each one's
 // conversation. It starts nothing.

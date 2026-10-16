@@ -84,12 +84,12 @@ func (p servePort) Teams(layer string) []web.Team {
 // Herdr missing or unreadable leaves it empty: the team list is a list of files
 // first, and a team that is not running is not an error.
 func (p servePort) runningDefinitions() map[string]bool {
-	tabs, err := herdrTabList()
+	tabs, err := herdrTabs()
 	if err != nil {
 		return nil
 	}
 	out := map[string]bool{}
-	for _, entry := range team.RunningTeams(tabLabels(tabs)) {
+	for _, entry := range team.RunningTeams(tabs, launchTeams()) {
 		out[entry.Definition] = true
 	}
 	return out
@@ -154,8 +154,12 @@ func (p servePort) Running(layer string) (teamview.Herdr, error) {
 	if err != nil {
 		return teamview.Herdr{}, err
 	}
+	agents, err := herdrAgents()
+	if err != nil {
+		return teamview.Herdr{}, err
+	}
 	out := teamview.Herdr{At: time.Now()}
-	for _, entry := range team.RunningTeams(tabLabels(tabs)) {
+	for _, entry := range team.RunningTeams(teamTabs(tabs, agents), launchTeams()) {
 		live := teamview.LiveTeam{
 			Team:       entry.Team,
 			Definition: entry.Definition,
@@ -244,19 +248,13 @@ func herdrTabList() ([]protocol.Tab, error) {
 	return herdr.New(port).Tabs()
 }
 
-// tabLabels is the tab labels, in Herdr's order.
-func tabLabels(tabs []protocol.Tab) []string {
-	out := make([]string, len(tabs))
-	for i, tab := range tabs {
-		out[i] = tab.Label
-	}
-	return out
-}
-
-// tabIDOf finds the tab one running team sits in, by the label hergy gave it.
+// tabIDOf finds the tab one running team sits in, by the label hergy gave it:
+// the team's name alone, or the older "team:<team>@<definition>" and
+// "team:<team>" shapes of a team booted before the label was cut down.
 func tabIDOf(tabs []protocol.Tab, entry team.Running) string {
 	for _, tab := range tabs {
-		if tab.Label == "team:"+entry.Team || tab.Label == "team:"+entry.Team+"@"+entry.Definition {
+		switch tab.Label {
+		case entry.Team, "team:" + entry.Team, "team:" + entry.Team + "@" + entry.Definition:
 			return tab.ID
 		}
 	}
