@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName: the tab is labelled qw2 and
@@ -106,5 +107,37 @@ func writeLaunchRecord(t *testing.T, teamName, definition string) {
 		Definition: definition,
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestTheWebUIScreensReadANameOnlyLabel: the running screen and the team list's
+// running mark go through the same reader, so they too find a team whose tab is
+// labelled with its name alone, and know the definition from the record.
+func TestTheWebUIScreensReadANameOnlyLabel(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "qw", "--local")
+	writeLaunchRecord(t, "qw2", "qw")
+	tabs := `{"tab_id":"t1","label":"qw2"}`
+	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`
+	f.runningHerdr(t, tabs, agents)
+
+	p := servePort{env: serveEnv(t)}
+	if defs := p.runningDefinitions(); !defs["qw"] {
+		t.Errorf("the team list does not mark the definition as running: %v", defs)
+	}
+	running, err := p.Running(web.LayerLocal)
+	if err != nil {
+		t.Fatalf("Running: %v", err)
+	}
+	if len(running.Teams) != 1 {
+		t.Fatalf("the running screen shows %d teams, want the one: %+v", len(running.Teams), running.Teams)
+	}
+	live := running.Teams[0]
+	if live.Team != "qw2" || live.Definition != "qw" || live.TabID != "t1" {
+		t.Errorf("the running team = %+v", live)
+	}
+	if !live.Known {
+		t.Errorf("the team's definition qw is not known: %+v", live)
 	}
 }
