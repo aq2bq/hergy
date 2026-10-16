@@ -398,7 +398,6 @@ func writeScaffold(dir string, files []scaffold.File) error {
 func runValidate(env team.Env, stdout io.Writer) error {
 	checked, problems := 0, 0
 	tally := &rules.Tally{}
-	var members []memberSize
 	var teams []teamSize
 	seenFiles := map[string]bool{}
 	report := func(path string, err error) {
@@ -441,9 +440,9 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			report(path, err)
 			if err == nil {
 				collectRules(tally, seenFiles, cfg)
-				sizes, size := sizeOf(cfg)
-				members = append(members, sizes...)
-				teams = append(teams, teamSize{name: env.Display(filepath.Dir(path)), size: size})
+				team := sizeOf(cfg)
+				team.name = env.Display(filepath.Dir(path))
+				teams = append(teams, team)
 			}
 		}
 	}
@@ -451,7 +450,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
 	printTally(stdout, env, tally)
-	printSize(stdout, members, teams)
+	printSize(stdout, teams)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
@@ -520,16 +519,20 @@ type memberSize struct {
 	size rules.MemberSize
 }
 
-// teamSize is one team definition's size, with where it stands.
+// teamSize is one team definition's size, with where it stands and the members
+// it hands its rules to. The members stand under the definition in the output,
+// so a definition name that stands in both layers is told apart by the block it
+// is in.
 type teamSize struct {
-	name string
-	size rules.TeamSize
+	name    string
+	size    rules.TeamSize
+	members []memberSize
 }
 
 // sizeOf counts what one team definition hands each member and what the team
 // keeps. Each rule file is read and parsed once; a file two members read is
 // counted in the team's sources once, because a person maintains it once.
-func sizeOf(cfg *config.Config) ([]memberSize, rules.TeamSize) {
+func sizeOf(cfg *config.Config) teamSize {
 	parsed := map[string]*rules.Document{}
 	texts := map[string]string{}
 	load := func(doc source.Doc) *rules.Document {
@@ -550,7 +553,7 @@ func sizeOf(cfg *config.Config) ([]memberSize, rules.TeamSize) {
 		parsed[doc.Path] = document
 		return document
 	}
-	var members []memberSize
+	var team teamSize
 	var size rules.TeamSize
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
@@ -568,32 +571,24 @@ func sizeOf(cfg *config.Config) ([]memberSize, rules.TeamSize) {
 				size.AddSource(doc.Path, text)
 			}
 		}
-		members = append(members, memberSize{name: member.Name, size: read})
+		team.members = append(team.members, memberSize{name: member.Name, size: read})
 	}
-	return members, size
+	team.size = size
+	return team
 }
 
-// printSize is the size of what each member is handed and what each team
-// definition keeps, after the rules count. A member or a team over one of the
-// provisional limits (d-f2bc) gets a warning line; the numbers move no exit
-// code, because a large team is a team to look at, not a broken one.
-func printSize(w io.Writer, members []memberSize, teams []teamSize) {
-	if len(members) == 0 && len(teams) == 0 {
+// printSize is the size of what each team definition keeps and of what each of
+// its members is handed, after the rules count. A definition comes first and its
+// members stand under it, so a name that stands in both layers says which file
+// its warnings are about. A member or a definition over one of the provisional
+// limits (d-f2bc) gets a warning line; the numbers move no exit code, because a
+// large team is a team to look at, not a broken one.
+func printSize(w io.Writer, teams []teamSize) {
+	if len(teams) == 0 {
 		return
 	}
 	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
 	warned := false
-	for _, member := range members {
-		line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars))
-		if member.size.OverMemberRules() {
-			line(i18n.Tf("validate.size_warn_member_rules", member.name, member.size.Rules, rules.MemberRuleLimit))
-			warned = true
-		}
-		if member.size.OverMemberChars() {
-			line(i18n.Tf("validate.size_warn_member_chars", member.name, member.size.Chars, rules.MemberCharLimit))
-			warned = true
-		}
-	}
 	for _, team := range teams {
 		line(i18n.Tf("validate.size_team", team.name, team.size.Sources, team.size.Chars))
 		if team.size.OverTeamSources() {
@@ -603,6 +598,17 @@ func printSize(w io.Writer, members []memberSize, teams []teamSize) {
 		if team.size.OverTeamChars() {
 			line(i18n.Tf("validate.size_warn_team_chars", team.name, team.size.Chars, rules.TeamSourceCharLimit))
 			warned = true
+		}
+		for _, member := range team.members {
+			line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars))
+			if member.size.OverMemberRules() {
+				line(i18n.Tf("validate.size_warn_member_rules", member.name, member.size.Rules, rules.MemberRuleLimit))
+				warned = true
+			}
+			if member.size.OverMemberChars() {
+				line(i18n.Tf("validate.size_warn_member_chars", member.name, member.size.Chars, rules.MemberCharLimit))
+				warned = true
+			}
 		}
 	}
 	if warned {

@@ -13,8 +13,9 @@
   6,000 characters, or a team definition over 8 files or 20,000 characters, gets
   a warning, because a large team is a team to look at rather than a broken one:
   the warning never changes the exit code, and `hergy up` still runs. The numbers
-  are provisional and are written in one place for whoever moves them; a team
-  that has been through a few changes is the point to look at them again.
+  are provisional and are written in one place for whoever moves them; the review
+  comes after hergy-dev, the team definition hergy develops itself with, has gone
+  through ten changes.
 - **The rules screen finds a rule, shows what it is related to, and offers to
   look into where it came from**: the rules list has a search box that keeps the
   rules whose id, text, reason or note holds what you type (the same narrow as

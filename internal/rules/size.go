@@ -10,9 +10,11 @@ import (
 //
 // The limits are provisional (d-f2bc, 2026-10-16). The survey behind them found
 // no measured basis for the numbers themselves: they are a working budget to
-// review a team's rules against, not a bound on what a model can follow. A team
-// that has been through a few changes is the point to look at them again, and
-// the reason for a change goes to gy (d-f2bc).
+// review a team's rules against, not a bound on what a model can follow.
+//
+// Review them once hergy-dev, the team definition hergy develops itself with,
+// has gone through ten changes: move them on the evidence of what failed and of
+// how much human work went up or down, and write the reason to gy (d-f2bc).
 const (
 	// MemberRuleLimit is how many rules one member may be handed.
 	MemberRuleLimit = 20
