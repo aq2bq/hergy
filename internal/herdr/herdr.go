@@ -111,19 +111,6 @@ func (h *Herdr) Tabs() ([]protocol.Tab, error) {
 	return out, nil
 }
 
-// TabLabels lists the labels of the server's tabs, in Herdr's order.
-func (h *Herdr) TabLabels() ([]string, error) {
-	tabs, err := h.Tabs()
-	if err != nil {
-		return nil, err
-	}
-	labels := make([]string, len(tabs))
-	for i, tab := range tabs {
-		labels[i] = tab.Label
-	}
-	return labels, nil
-}
-
 // FindPane returns the id of the pane hergy named with this label, or "" when no
 // pane carries it. hergy names a pane after its member with pane rename.
 func (h *Herdr) FindPane(label string) (string, error) {

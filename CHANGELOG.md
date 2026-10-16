@@ -11,6 +11,20 @@
   more than one line. Writing a mission is optional, so every existing team
   definition keeps working as it is.
 
+### Changed
+
+- **herdr's tab for a team carries the team's name alone**: `hergy up <definition>
+  --as <name>` now labels the tab `<name>`, where it used to write
+  `team:<name>@<definition>`. The definition behind a running team is read from
+  this machine's launch record, so `hergy status`, `down`, `refresh`, `reprompt`
+  and `hire` keep finding it. A tab is a team's when the agents in it are named
+  after the tab's label, so a tab a person labelled with the name of a team that
+  has stopped is no longer taken for one, and `hergy down` closes a team whose
+  definition cannot be read (a boot that failed once its tab was made) by the
+  names hergy gave its panes. A team booted by an older hergy keeps its older
+  label (`team:<name>@<definition>`, or `team:<name>`) and is still found from
+  it.
+
 ### Fixed
 
 - **The rules screen opens the row you press**: a row outside the first section
