@@ -11,6 +11,7 @@ func TestParse(t *testing.T) {
 		kind    Kind
 		dry     bool
 		ai      bool
+		noOpen  bool
 		wantErr bool
 	}{
 		{name: "no arguments prints usage", kind: Help},
@@ -53,6 +54,9 @@ func TestParse(t *testing.T) {
 		{name: "serve --port must be a number", argv: []string{"serve", "--port", "nine"}, wantErr: true},
 		{name: "serve --port is at most 65535", argv: []string{"serve", "--port", "65536"}, wantErr: true},
 		{name: "serve --port is at least 0", argv: []string{"serve", "--port", "-1"}, wantErr: true},
+		{name: "serve --no-open", argv: []string{"serve", "--no-open"}, kind: Serve, noOpen: true},
+		{name: "serve opens by default", argv: []string{"serve"}, kind: Serve},
+		{name: "--no-open is not allowed on up", argv: []string{"up", "--no-open"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -74,6 +78,9 @@ func TestParse(t *testing.T) {
 			}
 			if got.AI != tt.ai {
 				t.Fatalf("Parse(%v).AI = %v, want %v", tt.argv, got.AI, tt.ai)
+			}
+			if got.NoOpen != tt.noOpen {
+				t.Fatalf("Parse(%v).NoOpen = %v, want %v", tt.argv, got.NoOpen, tt.noOpen)
 			}
 		})
 	}

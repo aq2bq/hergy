@@ -141,7 +141,7 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	case options.Validate:
 		return runValidate(env, stdout)
 	case options.Serve:
-		return runServe(ctx, env, opts, stdout)
+		return runServe(ctx, env, opts, stdout, stderr)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Down:

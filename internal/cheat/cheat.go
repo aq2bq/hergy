@@ -105,7 +105,7 @@ var behavior = map[options.Kind]string{
       It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
       It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
-	options.Serve: `      Serve the screens over HTTP on 127.0.0.1 and print the URL, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one). It reads the settings and herdr's state the way the commands do; it changes nothing but the files the screens edit.
+	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings and herdr's state the way the commands do; it changes nothing but the files the screens edit.
 `,
 	options.Version: `      Print the commit and time of this hergy. It takes no other flags.
 `,
@@ -125,6 +125,7 @@ var flagMeaning = map[string]string{
 	"local":   "Use the local layer only; --global and --local together is an error. For new, the layer to write: --local writes to the project, and without it new writes to the global layer.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
 	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
+	"no-open": "Print the URL and open nothing. Without it, hergy serve opens the URL in this machine's default browser once the socket is open.",
 	"team":    "The team, by team name, to act on.",
 	"profile": "The worker's named engine, from profiles.yaml. Optional: without it, the profile may_spawn pairs with --purpose is used.",
 	"purpose": "The worker's purpose.",
@@ -157,7 +158,7 @@ Reading the output:
   To read the text form, add --lang en, or use --dry --json.
 
 Web UI:
-  The command for the screens is hergy serve: it answers on 127.0.0.1 and prints the URL; --port picks the port (default 8787, 0 lets the operating system pick a free one). It runs in the foreground until Ctrl-C, then waits for the requests in flight before it stops.
+  The command for the screens is hergy serve: it answers on 127.0.0.1, prints the URL and opens it in the default browser of this machine; --no-open prints the URL and opens nothing. --port picks the port (default 8787, 0 lets the operating system pick a free one). A browser that cannot be opened is one line on stderr, and serve goes on. It runs in the foreground until Ctrl-C, then waits for the requests in flight before it stops.
   It answers only a request whose Host is 127.0.0.1 or localhost. A write is a POST that must carry the token of this run and come from a page the same server rendered; that page holds it in its forms, so an agent driving the UI reads the token from a page first.
   The screens, one line each:
     /         the home: what moved since the last launch, and the rules with no check, each rule opening in the rules screen

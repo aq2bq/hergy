@@ -69,6 +69,7 @@ type Options struct {
 	Timeout int    // milliseconds
 	Lang    string // --lang: the language for this run
 	Port    int    // serve: the port to listen on (0: the operating system picks one)
+	NoOpen  bool   // serve --no-open: print the URL and open no browser
 
 	HelpText string
 
