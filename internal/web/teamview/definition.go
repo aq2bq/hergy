@@ -62,6 +62,7 @@ func (s *definitionScreen) show(r *http.Request) (web.View, error) {
 		}
 		data.Path = def.Path
 		data.Broken = def.Broken
+		data.Mission = def.Mission
 		data.Docs = def.Docs
 		shared := sharedRules(def)
 		for _, member := range def.Members {
@@ -101,6 +102,9 @@ type definitionData struct {
 	Name      string
 	Path      string // team.yaml, as a person writes it
 	Broken    string
+	// Mission is what team.yaml's mission: says the team is for, one line; the
+	// screen shows it (or the note that none is written) under the name.
+	Mission string
 	// Launch is the layer's row for this definition, with the launch record
 	// and the hash it wrote; HasLaunch is false when the layer does not list
 	// the definition (a name from another layer's link, say).

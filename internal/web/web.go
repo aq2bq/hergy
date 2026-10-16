@@ -38,6 +38,10 @@ type Team struct {
 	Members int    // the members team.yaml lists
 	Rules   int    // the rules those members read
 	NoCheck int    // of those rules, the ones with no check
+	// Mission is the one line team.yaml's mission: writes, empty when it writes
+	// none (r-341e). A row that cannot be read carries none: the file could not
+	// be read to find out.
+	Mission string
 	// Launched is when the definition was last launched from this machine, as a
 	// person reads it; empty when it has not been launched here.
 	Launched string

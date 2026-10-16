@@ -54,6 +54,12 @@ var glossary = []term{
 		meaning:  "the directory name under teams/ that holds team.yaml; the default team name",
 	},
 	{
+		id:       "mission",
+		english:  "mission",
+		japanese: "使命",
+		meaning:  "what team.yaml's mission: says the team is for: one line, shown first by the commands and the screens",
+	},
+	{
 		id:       "member",
 		english:  "member",
 		japanese: "メンバー",

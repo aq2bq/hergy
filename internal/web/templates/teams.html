@@ -13,7 +13,7 @@
     </div>
     {{- range .Teams}}
     <a class="tline" href="{{.Href}}">
-      <span><span class="tn">{{.Name}}</span>{{if .Running}}<span class="ts ok"><i class="ldot"></i> {{t "web.teams.running"}}</span>{{end}}{{if .Broken}}<span class="ts tw">{{.Broken}}</span>{{end}}</span>
+      <span><span class="tn">{{.Name}}</span>{{if .Running}}<span class="ts ok"><i class="ldot"></i> {{t "web.teams.running"}}</span>{{end}}{{if .Broken}}<span class="ts tw">{{.Broken}}</span>{{else}}<span class="ts">{{if .Mission}}{{.Mission}}{{else}}{{t "web.mission.empty"}}{{end}}</span>{{end}}</span>
       {{- if .Broken}}
       <span></span><span></span><span></span>
       {{- else}}

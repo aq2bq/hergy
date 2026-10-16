@@ -195,6 +195,7 @@ Settings files and their keys:
     lang: en|ja       string; the language when --lang is not given; default en.
   A team definition's team.yaml, at <layer>/teams/<definition>/team.yaml. docs and roles paths are relative to this directory; cwd is relative to the project root:
     version: 1        required, int; must be 1.
+    mission: "<text>" string, optional; one line saying what the team is for. The commands and the screens show it first; validate warns when it is missing, and says so when it is written over more than one line.
     team: <definition> string, optional; if written it must equal the team definition name (the directory name).
     cwd: <dir>        string; working directory, relative to the project root; default ".".
     prompt: "<text>"  string, optional; the bootstrap prompt template for every member.

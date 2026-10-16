@@ -23,7 +23,7 @@ The rules can also be changed on the screen: `hergy serve` shows the rule files 
 ### Write a new team
 
 1. Write the starter files with `hergy new <team> --local` (without `--local` it writes into the global layer; start local). You get `team.yaml`, `protocol.yaml`, `roles/lead.yaml` and `roles/builder.yaml`.
-2. Ask, one at a time: what is this team for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`.
+2. Ask, one at a time: what is this team for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`, and what the team is for as its `mission:` — one line, near the top of the file.
 3. For each rule, ask in this order:
    - the text: you draft one or two sentences from what they said, and read it back for a yes or a correction. When the rule hands the turn between two of the team — a member name, a role name, or the human — write it as `<name> → <name>`, or `<name> ⇄ <name>` when the turn goes both ways: the WebUI's figure reads the turn directions out of the text;
    - the origin: is this rule here because something went wrong (an incident, with its date), because someone asked for it (an instruction, whose and when), or because it follows from another rule (which id)? If the person does not know, write no origin: it can be filled in later, and `hergy validate` keeps counting the rule as one nobody can account for;

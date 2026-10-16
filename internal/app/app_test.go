@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 )
 
@@ -448,6 +449,7 @@ func TestValidateShape(t *testing.T) {
 		"  result: ok",
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
+		"  warning: "+i18n.T("validate.mission_missing"),
 		"checked: 2",
 		"problems: 0",
 		"rules 6 in 3 files",

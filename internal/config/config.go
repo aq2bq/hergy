@@ -110,8 +110,12 @@ type Config struct {
 	Team       string
 	Definition string // the team definition name: the teams/<name>/ directory
 	Version    int
-	Members    []Member
-	Profiles   map[string]Profile
+	// Mission is what team.yaml's mission: says the team is for, as written:
+	// one line, and empty when the file writes none. A mission written over
+	// several lines keeps them here; MissionLine is what the output shows.
+	Mission  string
+	Members  []Member
+	Profiles map[string]Profile
 
 	// Provenance: where the effective values came from.
 	TeamYAML     source.Doc
@@ -122,6 +126,15 @@ type Config struct {
 	// Which layers define this team name, for ls/show.
 	GlobalTeamYAML string
 	LocalTeamYAML  string
+}
+
+// MissionLine is the mission as one line: the first line of what team.yaml
+// writes, or "" when the file writes no mission. A mission written over several
+// lines is not joined: hergy validate says it should be one line, and the
+// output shows the first line rather than a paragraph.
+func (c *Config) MissionLine() string {
+	line, _, _ := strings.Cut(c.Mission, "\n")
+	return strings.TrimSpace(line)
 }
 
 // UsesProfiles reports whether any member reads a named profile, so the caller
@@ -217,6 +230,7 @@ func (s *stringList) UnmarshalYAML(value *yaml.Node) error {
 // descend into a yaml.Node.
 type rawTeam struct {
 	Version *int        `yaml:"version"`
+	Mission *string     `yaml:"mission"`
 	Team    string      `yaml:"team"`
 	Cwd     string      `yaml:"cwd"`
 	Prompt  *string     `yaml:"prompt"`
@@ -390,6 +404,7 @@ func Parse(in Input) (*Config, error) {
 		Team:           in.RunName,
 		Definition:     in.TeamName,
 		Version:        version,
+		Mission:        missionOf(raw.Mission),
 		Members:        members,
 		Profiles:       in.Profiles,
 		TeamYAML:       source.Doc{Layer: in.Layer, Path: in.TeamYAMLPath},
@@ -399,6 +414,16 @@ func Parse(in Input) (*Config, error) {
 		GlobalTeamYAML: in.GlobalTeamYAML,
 		LocalTeamYAML:  in.LocalTeamYAML,
 	}, nil
+}
+
+// missionOf is the mission team.yaml writes, with the ends of what it wrote
+// trimmed: a block scalar ends in a newline, which is not part of the line. The
+// lines inside it stay as they are; validate says when there is more than one.
+func missionOf(raw *string) string {
+	if raw == nil {
+		return ""
+	}
+	return strings.TrimSpace(*raw)
 }
 
 // expandDocs: with no docs key, no documents go in. With a docs key, exactly
