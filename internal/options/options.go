@@ -243,14 +243,18 @@ func validate(o *Options) error {
 // validateValues checks what every command's flags must hold, whatever the
 // command is.
 func validateValues(o *Options) error {
-	// --local and --global are gone (段 3): a team definition name resolves to
-	// the project's own first, then the global one (I11), so nobody chooses a
-	// layer. The flags are still read, so a person who types one is told what
-	// happened rather than "unknown option" (段 3 の設計).
+	// --local, --global and --profile are gone (段 3, 段 6b): a team definition
+	// name resolves to the project's own first, then the global one (I11), and
+	// a worker's profile comes from the workers: entry (I12c), so nobody chooses
+	// either. The flags are still read, so a person who types one is told what
+	// happened rather than "unknown option".
 	for _, flag := range []string{"global", "local"} {
 		if o.seen[flag] {
 			return i18n.Errorf("error.layer_flag_gone", flag)
 		}
+	}
+	if o.seen["profile"] {
+		return i18n.Errorf("error.profile_flag_gone")
 	}
 	for name := range o.seen {
 		if !allowed[o.Kind][name] {

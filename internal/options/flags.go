@@ -63,6 +63,10 @@ var (
 	// than with "unknown option". Nothing is set; validateValues refuses them.
 	flagGlobal = &Flag{Name: "global", Set: sets(func(*Options) {})}
 	flagLocal  = &Flag{Name: "local", Set: sets(func(*Options) {})}
+	// --profile is gone too (段 6b): the profile comes from the workers: entry,
+	// so a hire does not choose one. It still takes a value, so the word after
+	// it is not read as the worker's name.
+	flagProfile = &Flag{Name: "profile", Value: text("<profile>", "<プロファイル>"), Set: sets(func(*Options) {})}
 
 	flagDir = &Flag{Name: "dir", Short: "C", Value: text("<dir>", "<ディレクトリ>"),
 		Set: setsValue(func(o *Options, v string) { o.Dir = v })}
@@ -104,7 +108,7 @@ var (
 // allFlags is every flag hergy reads, in the order the cheatsheet lists them.
 var allFlags = []*Flag{
 	flagAI, flagAs, flagDry, flagJSON, flagAll, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
-	flagTeam, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
+	flagTeam, flagProfile, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
 }
 
 // lookupFlag finds the flag a spelling on the command line names, or nil.

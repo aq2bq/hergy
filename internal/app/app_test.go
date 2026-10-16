@@ -1658,8 +1658,13 @@ func TestHirePurposeOutsideWorkers(t *testing.T) {
 		if code == 0 {
 			t.Fatal("hire --profile succeeded")
 		}
-		if !strings.Contains(stderr, "--profile") {
-			t.Fatalf("the error does not name --profile:\n%s", stderr)
+		for _, want := range []string{"--profile", "workers:"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("the error does not name %q:\n%s", want, stderr)
+			}
+		}
+		if strings.Contains(stderr, "unknown option") {
+			t.Fatalf("--profile is refused as an unknown option, not as a flag that is gone:\n%s", stderr)
 		}
 	})
 
@@ -1676,6 +1681,54 @@ func TestHirePurposeOutsideWorkers(t *testing.T) {
 			t.Fatalf("hire for a purpose workers: names noted something:\n%s", stderr)
 		}
 	})
+}
+
+// TestHirePurposeNobodyHiresFor: no member's workers: names the purpose and
+// --from is not written. --from would not help (every member would refuse that
+// purpose), so the hire is refused with who may hire for what, rather than
+// asking for --from. The purposes are listed member by member, with the member's
+// short name.
+func TestHirePurposeNobodyHiresFor(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: seeker\n"+
+			"  - name: spec\n    role: spec\n    profile: seeker\n"+
+			"workers:\n"+
+			"  - from: lead\n    purpose: 実装\n    profile: developer\n"+
+			"  - from: spec\n    purpose: 調査\n    profile: seeker\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> lead\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: S1\n        text: hand the turn to lead\n")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+
+	_, stderr, code := run("hire", "w", "--purpose", "デザイン", "--task", "t", "--team", "dev", "--dry")
+	if code == 0 {
+		t.Fatal("hire for a purpose nobody hires for succeeded")
+	}
+	for _, want := range []string{"デザイン", "--from", "lead: 実装, spec: 調査"} {
+		if want == "--from" {
+			// The refusal must not ask for --from.
+			if strings.Contains(stderr, want) {
+				t.Fatalf("the refusal asks for --from, which would not help:\n%s", stderr)
+			}
+			continue
+		}
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("the error does not name %q:\n%s", want, stderr)
+		}
+	}
+
+	_, stderr, code = run("hire", "w", "--purpose", "デザイン", "--task", "t", "--team", "dev", "--dry", "--lang", "ja")
+	if code == 0 {
+		t.Fatal("hire for a purpose nobody hires for succeeded (ja)")
+	}
+	if !strings.Contains(stderr, "lead は 実装、spec は 調査") {
+		t.Fatalf("the Japanese refusal does not list who may hire for what:\n%s", stderr)
+	}
 }
 
 // TestHireFromIsOptionalWithOneCandidate: --from may be left out when exactly
@@ -1713,10 +1766,14 @@ func TestHireFromIsOptionalWithOneCandidate(t *testing.T) {
 	if code == 0 {
 		t.Fatal("hire without --from succeeded with two members hiring for the purpose")
 	}
-	for _, want := range []string{"--from", "lead", "other"} {
+	for _, want := range []string{"--from", "lead, other"} {
 		if !strings.Contains(stderr, want) {
-			t.Fatalf("the error does not name the candidate %q:\n%s", want, stderr)
+			t.Fatalf("the error does not name %q:\n%s", want, stderr)
 		}
+	}
+	// The candidates are the short names team.yaml writes, not the herdr names.
+	if strings.Contains(stderr, "dev-lead") || strings.Contains(stderr, "dev-other") {
+		t.Fatalf("the error names the herdr names, not the short ones:\n%s", stderr)
 	}
 }
 

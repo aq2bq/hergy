@@ -14,10 +14,12 @@
 
 - **`hergy hire` refuses a purpose the hiring member's `workers:` does not
   name, and `--profile` is gone**: the profile comes from the `workers:` entry
-  (the member → worker edge), so a hire does not choose one. A purpose outside
-  the hiring member's entries stops the hire and lists the purposes that member
-  may hire for. Before, such a purpose only printed a note on stderr and the
-  hire went on.
+  (the member → worker edge), so a hire does not choose one; typing `--profile`
+  stops with a sentence that says where the profile comes from now. A purpose
+  outside the hiring member's entries stops the hire and lists the purposes that
+  member may hire for. When no member hires for the purpose at all, the sentence
+  says who may hire for what instead of asking for `--from`. Before, such a
+  purpose only printed a note on stderr and the hire went on.
 
   Before:
 

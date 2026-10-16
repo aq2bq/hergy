@@ -96,8 +96,7 @@
   "error.prompt_missing_part": "%s: %s%%{%s} がありません。ロールの文書と約束は %%{role_doc} と %%{docs} から入るので、消せません",
   "error.worker_name_pattern": "ワーカー名は [a-z][a-z0-9_-]{0,31} の形にしてください",
   "error.worker_exists": "%s はすでにチームのメンバーです",
-  "error.from_required_none": "--from を指定してください（ワーカーを呼べるメンバーがいません）",
-  "error.from_required_many": "--from を指定してください（この目的のワーカーを持つメンバー: %v）",
+  "error.from_required_many": "--from を指定してください（この目的のワーカーを持つメンバー: %s）",
   "error.cwd_not_dir": "cwd がディレクトリではありません: %s",
   "error.live_names_in_use": "その名前のエージェントがすでに動いています: %s",
   "error.missing_pane_id": "%s: herdr の応答に pane_id がありません",
@@ -615,5 +614,8 @@
   "validate.old_team_agreement": "%s は読まれません。チームの約束は %s に置きます（名前を変えてください）",
   "validate.old_team_role": "%s は読まれません。ロールの文書は %s（層の根）に置きます",
   "validate.old_common": "%s は読まれません。共通の約束は %s に置きます",
-  "error.hire_purpose_outside": "%[1]s は目的「%[2]s」でワーカーを呼べません。呼べる目的: %[3]s（team.yaml の workers:）"
+  "error.hire_purpose_outside": "%[1]s は目的「%[2]s」でワーカーを呼べません。呼べる目的: %[3]s（team.yaml の workers:）",
+  "error.profile_flag_gone": "--profile は無くなりました。プロファイルは team.yaml の workers: の組（from と目的）から決まります",
+  "error.hire_purpose_nobody": "目的「%s」でワーカーを呼べるメンバーはいません。呼べる目的: %s",
+  "hire.member_purposes": "%s は %s"
 }

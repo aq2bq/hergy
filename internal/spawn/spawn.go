@@ -100,38 +100,46 @@ func lookup(starts []definition.Start, name string) (*definition.Start, error) {
 // defaultLead is the member that hires when --from is not written: the one whose
 // workers: name this purpose (d-6f03). One is the hiring member; two or more stop
 // the hire, naming them so a person says which. When no member hires for this
-// purpose, the members that may hire at all are taken instead, so a purpose
-// outside every workers: is refused by Plan with the chosen member's purposes.
+// purpose, --from would not help (every member would refuse it), so the hire is
+// refused with who may hire for what.
 func defaultLead(starts []definition.Start, purpose string) (*definition.Start, error) {
 	candidates := hirersFor(starts, purpose)
-	if len(candidates) == 0 {
-		candidates = hirersFor(starts, "")
-	}
 	switch len(candidates) {
 	case 1:
 		return candidates[0], nil
 	case 0:
-		return nil, i18n.Errorf("error.from_required_none")
+		return nil, i18n.Errorf("error.hire_purpose_nobody", purpose, hirings(starts))
 	default:
 		names := make([]string, len(candidates))
 		for i, candidate := range candidates {
-			names[i] = candidate.Name
+			names[i] = candidate.Short
 		}
-		return nil, i18n.Errorf("error.from_required_many", names)
+		return nil, i18n.Errorf("error.from_required_many", strings.Join(names, i18n.T("list.separator")))
 	}
 }
 
+// hirings is who may hire for what, as a person reads it ("lead は 実装、spec は
+// 調査"): every member whose workers: is not empty, with the purposes it names,
+// in the written order. No member hiring at all is "none".
+func hirings(starts []definition.Start) string {
+	var parts []string
+	for i := range starts {
+		if len(starts[i].Workers) == 0 {
+			continue
+		}
+		parts = append(parts, i18n.Tf("hire.member_purposes", starts[i].Short, availablePurposes(starts[i].Workers)))
+	}
+	if len(parts) == 0 {
+		return i18n.T("value.none")
+	}
+	return strings.Join(parts, i18n.T("list.separator"))
+}
+
 // hirersFor is the members that may hire for one purpose: the members whose
-// workers: name it. An empty purpose means every member that may hire at all.
+// workers: name it.
 func hirersFor(starts []definition.Start, purpose string) []*definition.Start {
 	var out []*definition.Start
 	for i := range starts {
-		if purpose == "" {
-			if len(starts[i].Workers) > 0 {
-				out = append(out, &starts[i])
-			}
-			continue
-		}
 		if _, ok := profileFor(starts[i].Workers, purpose); ok {
 			out = append(out, &starts[i])
 		}

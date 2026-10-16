@@ -96,8 +96,7 @@
   "error.prompt_missing_part": "%s: %s has no %%{%s}; %%{role_doc} and %%{docs} are the doors the role document and the agreements come in through, and cannot be taken out",
   "error.worker_name_pattern": "worker name must match [a-z][a-z0-9_-]{0,31}",
   "error.worker_exists": "%s is already a team member",
-  "error.from_required_none": "--from is required (no member may hire a worker)",
-  "error.from_required_many": "--from is required (members hiring for this purpose: %v)",
+  "error.from_required_many": "--from is required (members hiring for this purpose: %s)",
   "error.cwd_not_dir": "cwd is not a directory: %s",
   "error.live_names_in_use": "live agent names already in use: %s",
   "error.missing_pane_id": "%s: unexpected Herdr response: missing pane_id",
@@ -615,5 +614,8 @@
   "validate.old_team_agreement": "%s is no longer read; a team's agreement goes in %s (rename the file)",
   "validate.old_team_role": "%s is no longer read; a role document goes in %s (the layer's root)",
   "validate.old_common": "%s is no longer read; the agreement every team shares goes in %s",
-  "error.hire_purpose_outside": "%[1]s cannot hire for \"%[2]s\"; %[1]s may hire for: %[3]s (team.yaml workers:)"
+  "error.hire_purpose_outside": "%[1]s cannot hire for \"%[2]s\"; %[1]s may hire for: %[3]s (team.yaml workers:)",
+  "error.profile_flag_gone": "--profile is gone; the profile comes from the workers: entry in team.yaml (its from and purpose)",
+  "error.hire_purpose_nobody": "no member may hire a worker for \"%s\"; who may hire for what: %s",
+  "hire.member_purposes": "%s: %s"
 }
