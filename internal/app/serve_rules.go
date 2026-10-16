@@ -9,11 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/homeview"
 	"github.com/aq2bq/hergy/internal/web/rulesview"
@@ -30,15 +29,16 @@ import (
 // can read.
 func (p servePort) RuleTeams(layer string) []rulesview.Team {
 	var out []rulesview.Team
-	for _, row := range p.env.List() {
+	cat := p.catalog()
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
-		cfg, err := validateTeam(p.env, row.Name, layer)
+		r, err := validateTeam(cat, p.env.ProjectRoot, row.Name, layer)
 		if err != nil {
 			continue
 		}
-		out = append(out, p.ruleTeam(layer, row.Name, cfg))
+		out = append(out, p.ruleTeam(layer, row.Name, r))
 	}
 	return out
 }
@@ -132,7 +132,7 @@ func (p rulesPort) Bump(layer, path string) (rulesview.BumpAnswer, error) {
 // ruleTeam is one team definition as the rules screen reads it. Each file
 // carries the group its row in the left list falls into, so the screen's kicker
 // and the left list say the same words for one group.
-func (p servePort) ruleTeam(layer, name string, cfg *config.Config) rulesview.Team {
+func (p servePort) ruleTeam(layer, name string, r *resolved) rulesview.Team {
 	root := p.layerDir(layer)
 	file := func(path string, role bool) rulesview.File {
 		rel := relIn(root, path)
@@ -153,13 +153,13 @@ func (p servePort) ruleTeam(layer, name string, cfg *config.Config) rulesview.Te
 		}
 	}
 	team := rulesview.Team{Name: name}
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
+	for i := range r.starts {
+		member := &r.starts[i]
 		read := rulesview.Member{Name: member.Name}
-		if member.HasRoleSource {
-			read.Files = append(read.Files, file(member.RoleSource.Path, true))
+		if member.HasRole {
+			read.Files = append(read.Files, file(member.RoleDoc.Path, true))
 		}
-		for _, doc := range member.DocsRead {
+		for _, doc := range member.Read {
 			read.Files = append(read.Files, file(doc.Path, false))
 		}
 		team.Members = append(team.Members, read)
@@ -210,22 +210,23 @@ func (p servePort) Preview(layer, path string, section int, text string) (rulesv
 		out.Section, _ = document.SectionMarkdown(section)
 	}
 	reader := editing{base: source.Disk{}, path: path, text: text}
-	for _, row := range p.env.List() {
+	cat := p.catalog()
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
-		resolved, err := p.env.Resolve(row.Name, layer)
+		def, err := cat.Definition(row.Name, layer)
 		if err != nil {
 			continue
 		}
 		// Only a team definition that reads this file can be affected by the
 		// edit, and one that is broken on disk already says so elsewhere: the
 		// preview speaks about this edit and nothing else.
-		onDisk, err := p.env.BuildConfig(resolved, source.Disk{}, "")
+		onDisk, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, def, def.Name)
 		if err != nil || !readsPath(onDisk, path) {
 			continue
 		}
-		if _, err := p.env.BuildConfig(resolved, reader, ""); err != nil {
+		if _, err := buildResolved(cat, reader, p.env.ProjectRoot, def, def.Name); err != nil {
 			out.Break = breakLine(p.env, path, err)
 			return out, nil
 		}
@@ -234,13 +235,13 @@ func (p servePort) Preview(layer, path string, section int, text string) (rulesv
 }
 
 // readsPath reports whether a member of a built team reads one rule file.
-func readsPath(cfg *config.Config, path string) bool {
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
-		if member.HasRoleSource && member.RoleSource.Path == path {
+func readsPath(r *resolved, path string) bool {
+	for i := range r.starts {
+		member := &r.starts[i]
+		if member.HasRole && member.RoleDoc.Path == path {
 			return true
 		}
-		for _, doc := range member.DocsRead {
+		for _, doc := range member.Read {
 			if doc.Path == path {
 				return true
 			}
@@ -282,24 +283,17 @@ func (e editing) MarkdownIn(d source.Doc) ([]source.Doc, error) { return e.base.
 // reads reports whether a member of one layer's team definitions reads a rule
 // file: the range the rules screen may write in.
 func (p servePort) reads(layer, path string) bool {
-	for _, row := range p.env.List() {
+	cat := p.catalog()
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
-		cfg, err := validateTeam(p.env, row.Name, layer)
+		r, err := validateTeam(cat, p.env.ProjectRoot, row.Name, layer)
 		if err != nil {
 			continue
 		}
-		for i := range cfg.Members {
-			member := &cfg.Members[i]
-			if member.HasRoleSource && member.RoleSource.Path == path {
-				return true
-			}
-			for _, doc := range member.DocsRead {
-				if doc.Path == path {
-					return true
-				}
-			}
+		if readsPath(r, path) {
+			return true
 		}
 	}
 	return false
@@ -314,7 +308,7 @@ func (p servePort) layerOf(path string) string {
 }
 
 // inLayer reports whether a listing row belongs to one layer.
-func inLayer(row team.Listing, layer string) bool {
+func inLayer(row catalog.Listing, layer string) bool {
 	if layer == web.LayerGlobal {
 		return row.Global
 	}

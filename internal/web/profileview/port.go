@@ -27,11 +27,11 @@ type Port interface {
 	// profile says whether the other layer holds the same name, so the screen
 	// can mark what one layer overrides in the other.
 	Profiles(layer string) []Profile
-	// Uses is the profiles a team definition of one layer ends up with, by the
-	// same rule team.Env.LoadProfiles reads: the global layer's profiles, with
-	// the local layer's laid over them, and only for a local team definition.
-	// Each one says which layer it came from and whether it overrides the
-	// other layer's profile of that name.
+	// Uses is the profiles a team definition ends up with, by the one way a
+	// name is looked up (K1): the global layer's profiles, with the local
+	// layer's laid over them, whatever layer the definition sits in. Each one
+	// says which layer it came from and whether it overrides the other layer's
+	// profile of that name.
 	Uses(layer string) []Profile
 	// LayerRoot is where one layer's files live, as a person writes it (the
 	// path the heading shows). The app answers the frame's layer toggle the

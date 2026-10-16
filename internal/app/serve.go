@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/browser"
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -52,12 +52,13 @@ type servePort struct {
 func (p servePort) Teams(layer string) []web.Team {
 	records := readRecords()
 	running := p.runningDefinitions()
+	cat := p.catalog()
 	var out []web.Team
-	for _, row := range p.env.List() {
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
-		cfg, err := validateTeam(p.env, row.Name, layer)
+		r, err := validateTeam(cat, p.env.ProjectRoot, row.Name, layer)
 		if err != nil {
 			out = append(out, web.Team{
 				Name:    row.Name,
@@ -67,12 +68,12 @@ func (p servePort) Teams(layer string) []web.Team {
 			})
 			continue
 		}
-		tally := ruleTally(cfg)
-		team := p.launchNote(records, cfg, row.Name, layer)
+		tally := ruleTally(r)
+		team := p.launchNote(records, r, row.Name, layer)
 		team.Name = row.Name
 		team.Href = teamHref(layer, row.Name)
-		team.Mission = cfg.MissionLine()
-		team.Members = len(cfg.Members)
+		team.Mission = r.missionLine()
+		team.Members = len(r.starts)
 		team.Rules = tally.Total
 		team.NoCheck = tally.Total - tally.WithCheck
 		team.Running = running[row.Name]
@@ -102,44 +103,54 @@ func (p servePort) runningDefinitions() map[string]bool {
 // comes back with Broken set and nothing else, so the screen shows the same one
 // line hergy validate writes.
 func (p servePort) Definition(layer, name string) (teamview.Definition, error) {
-	resolved, err := p.env.Resolve(name, layer)
+	cat := p.catalog()
+	def, err := cat.Definition(name, layer)
 	if err != nil {
+		// A definition whose file is there but does not read is shown broken,
+		// the way hergy validate shows it; a name with no file at all is an
+		// error.
+		if path := cat.TeamYAML(name, layer); isFile(path) {
+			return teamview.Definition{
+				Name:   name,
+				Layer:  layer,
+				Path:   p.env.Display(path),
+				Broken: breakLine(p.env, path, err),
+			}, nil
+		}
 		return teamview.Definition{}, err
 	}
 	out := teamview.Definition{
 		Name:  name,
 		Layer: layer,
-		Path:  p.env.Display(resolved.TeamYAMLPath),
+		Path:  p.env.Display(def.TeamYAML),
 	}
-	cfg, err := p.env.BuildConfig(resolved, source.Disk{}, "")
+	r, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, def, name)
 	if err != nil {
-		out.Broken = breakLine(p.env, resolved.TeamYAMLPath, err)
+		out.Broken = breakLine(p.env, def.TeamYAML, err)
 		return out, nil
 	}
-	out.Mission = cfg.MissionLine()
-	for _, doc := range cfg.Docs {
+	out.Mission = r.missionLine()
+	for _, doc := range def.Docs {
 		out.Docs = append(out.Docs, p.readDoc(doc, ""))
 	}
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
+	for i := range r.starts {
+		member := &r.starts[i]
 		entry := teamview.Member{
-			Name:    member.ShortName,
+			Name:    member.Short,
 			Herdr:   member.Name,
 			Role:    member.Role,
 			Kind:    member.Kind,
 			Profile: member.Profile,
 			Prompt:  member.Prompt,
 		}
-		if member.MaySpawn != nil {
-			for _, worker := range member.MaySpawn.Workers {
-				entry.Workers = append(entry.Workers, teamview.Worker{
-					Purpose: worker.Purpose,
-					Profile: worker.Profile,
-				})
-			}
+		for _, worker := range member.Workers {
+			entry.Workers = append(entry.Workers, teamview.Worker{
+				Purpose: worker.Purpose,
+				Profile: worker.Profile,
+			})
 		}
-		if member.HasRoleSource {
-			doc := p.readDoc(member.RoleSource, member.Role)
+		if member.HasRole {
+			doc := p.readDoc(member.RoleDoc, member.Role)
 			entry.RoleFile = &doc
 		}
 		out.Members = append(out.Members, entry)
@@ -162,29 +173,26 @@ func (p servePort) Running(layer string) (teamview.Herdr, error) {
 	}
 	known := teamTabs(tabs, agents)
 	out := teamview.Herdr{At: time.Now()}
+	cat := p.catalog()
 	for _, entry := range team.RunningTeams(known, launchTeams(), true) {
 		live := teamview.LiveTeam{
 			Team:       entry.Team,
 			Definition: entry.Definition,
 			TabID:      tabIDOf(known, entry),
 		}
-		resolved, err := p.env.Resolve(entry.Definition, layer)
+		def, err := cat.Definition(entry.Definition, layer)
 		if err != nil {
 			out.Teams = append(out.Teams, live)
 			continue
 		}
-		cfg, err := p.env.BuildConfig(resolved, source.Disk{}, entry.Team)
+		r, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, def, entry.Team)
 		if err != nil {
 			live.Known = true
-			live.Broken = breakLine(p.env, resolved.TeamYAMLPath, err)
+			live.Broken = breakLine(p.env, def.TeamYAML, err)
 			out.Teams = append(out.Teams, live)
 			continue
 		}
-		members, err := cfg.Select("")
-		if err != nil {
-			return teamview.Herdr{}, err
-		}
-		rows, err := newLauncher(cfg, p.timeout, io.Discard).Status(members)
+		rows, err := newLauncher(r, p.timeout, io.Discard).Status(r.starts)
 		if err != nil {
 			return teamview.Herdr{}, err
 		}
@@ -275,7 +283,7 @@ func tabIDOf(tabs []team.Tab, entry team.Running) string {
 }
 
 // listingPath is the team.yaml of one layer's row of the listing.
-func listingPath(row team.Listing, layer string) string {
+func listingPath(row catalog.Listing, layer string) string {
 	if layer == web.LayerGlobal {
 		return row.GlobalPath
 	}
@@ -404,8 +412,14 @@ func hrefOf(pattern string) string {
 
 // ruleTally counts what one team's members read, the way hergy validate counts
 // the whole machine.
-func ruleTally(cfg *config.Config) *rules.Tally {
+func ruleTally(r *resolved) *rules.Tally {
 	tally := &rules.Tally{}
-	collectRules(tally, map[string]bool{}, cfg)
+	collectRules(tally, map[string]bool{}, r)
 	return tally
+}
+
+// catalog is the lookup the screens read: the same two layers the commands read,
+// over the disk.
+func (p servePort) catalog() *catalog.Catalog {
+	return p.env.Catalog(source.Disk{})
 }

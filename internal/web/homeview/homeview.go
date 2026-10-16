@@ -5,7 +5,7 @@
 // These screens read the record and the settings through their own Port, and
 // render through internal/web's frame, so they are added to hergy serve without
 // that package changing (d-3a80). What they compare is computed in the app, in
-// Go, with the same rules.Parse and config.Parse the commands use: the page
+// Go, with the same rules.Parse and definition.Read the commands use: the page
 // holds no comparison of its own.
 //
 // A screen's body carries no style and no script of its own: the answer sets

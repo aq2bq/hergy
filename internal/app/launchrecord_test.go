@@ -9,7 +9,6 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 )
@@ -34,12 +33,12 @@ func recordDev(t *testing.T, f *fixture) launchlog.Record {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, cfg, err := resolveDefinition(env, &options.Options{Team: "dev"})
+	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "dev", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
-	recordLaunch(&stderr, env, cfg, launchlog.CommandUp, definitionMembers(cfg))
+	recordLaunch(&stderr, env, r, launchlog.CommandUp, r.starts)
 	if stderr.Len() > 0 {
 		t.Fatalf("recording dev failed: %s", stderr.String())
 	}

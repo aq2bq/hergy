@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/profileview"
 )
@@ -79,26 +80,26 @@ func TestServePortProfilesReadsOneLayerAndMarksTheOther(t *testing.T) {
 	}
 }
 
-// TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles: Uses is the profiles
-// a team definition ends up with, by the rule Env.LoadProfiles reads: a local
-// definition lays the local layer over the global one, and a global definition
-// reads the global layer alone. Each profile says which layer it came from.
-func TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles(t *testing.T) {
+// TestServePortUsesOverlaysLocalOnGlobal: Uses is the profiles a team definition
+// ends up with, by the one way a name is looked up (K1): the local layer's
+// profiles laid over the global layer's, whatever layer the definition sits in.
+// Each profile says which layer it came from.
+func TestServePortUsesOverlaysLocalOnGlobal(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 	writeProfiles(t, f)
 	env := serveEnv(t)
 	p := servePort{env: env}
 
-	merged, _, err := env.LoadProfiles(web.LayerLocal)
+	merged, _, err := env.Catalog(source.Disk{}).Profiles()
 	if err != nil {
-		t.Fatalf("LoadProfiles: %v", err)
+		t.Fatalf("Profiles: %v", err)
 	}
 	local := p.Uses(web.LayerLocal)
 	// The project's own profiles come first and the global layer's after, so a
 	// person reads what its team definitions use before what they fall back on.
 	if got := profileNames(local); strings.Join(got, ",") != "impl,solo,shared" {
-		t.Fatalf("the local uses = %v, want the project's own first and then the global layer's (%v)", got, merged)
+		t.Fatalf("the uses = %v, want the project's own first and then the global layer's (%v)", got, merged)
 	}
 	from := map[string]profileview.Profile{}
 	for _, profile := range local {
@@ -108,7 +109,7 @@ func TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles(t *testing.T) {
 		t.Errorf("impl = %+v, want the local layer's, overriding the global one", from["impl"])
 	}
 	// The local file's profile is the one that wins, so its kind is the local
-	// "claude" and not the global "opencode": the overlay is LoadProfiles's.
+	// "claude" and not the global "opencode": the overlay is catalog.Profiles's.
 	if from["impl"].Kind != "claude" {
 		t.Errorf("impl kind = %q, want the local profile's claude", from["impl"].Kind)
 	}
@@ -119,14 +120,10 @@ func TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles(t *testing.T) {
 		t.Errorf("shared = %+v, want the global layer's, overriding nothing", from["shared"])
 	}
 
+	// A team definition of the global layer reads the same set (K1).
 	global := p.Uses(web.LayerGlobal)
-	if got := profileNames(global); strings.Join(got, ",") != "impl,shared" {
-		t.Fatalf("the global uses = %v, want the global layer's profiles", got)
-	}
-	for _, profile := range global {
-		if profile.Layer != web.LayerGlobal || profile.Over {
-			t.Errorf("a global team definition reads %+v, want the global layer's profile with no override", profile)
-		}
+	if got := profileNames(global); strings.Join(got, ",") != "impl,solo,shared" {
+		t.Fatalf("the global uses = %v, want the same one way (K1)", got)
 	}
 }
 
@@ -297,11 +294,11 @@ members:
 	// The same file is what hergy validate builds the definition from: a save
 	// the screen refuses is a project hergy would refuse.
 	writeFile(t, local, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  solo:\n    kind: opencode\n")
-	if _, err := validateTeam(p.env, "demo", web.LayerLocal); err == nil {
+	if _, err := validateTeam(p.catalog(), p.env.ProjectRoot, "demo", web.LayerLocal); err == nil {
 		t.Error("hergy validate builds the definition the screen refused")
 	}
 	writeFile(t, local, sound)
-	if _, err := validateTeam(p.env, "demo", web.LayerLocal); err != nil {
+	if _, err := validateTeam(p.catalog(), p.env.ProjectRoot, "demo", web.LayerLocal); err != nil {
 		t.Errorf("hergy validate refuses the file the screen allowed: %v", err)
 	}
 }

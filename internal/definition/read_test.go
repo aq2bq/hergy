@@ -1,23 +1,25 @@
-package config
+// These are the tests of reading team.yaml, moved from internal/config when the
+// reading became definition.Read and the prompt became prompt.Member. The
+// package is the external test package, because building a member's prompt is
+// prompt.Member's and this package must not import it.
+package definition_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/cheat"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
+	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
 func TestMain(m *testing.M) {
 	if err := i18n.Init(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	os.Exit(m.Run())
@@ -41,27 +43,92 @@ func testProfiles(dir string) map[string]profile.Profile {
 	}
 }
 
+// built is one team definition read: the definition itself and its members as
+// the launcher would take them (the same projection app builds).
+type built struct {
+	def    *definition.Definition
+	starts []definition.Start
+}
+
+// parseTeam reads a team.yaml body written into dir, with the one test profile.
+func parseTeam(t *testing.T, dir, text string) (*built, error) {
+	t.Helper()
+	return parse(text, "t", "", dir, testProfiles(dir))
+}
+
+func parse(text, name, runName, dir string, profiles map[string]profile.Profile) (*built, error) {
+	def, err := definition.Read(definition.Input{
+		YAML:         text,
+		Name:         name,
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
+		TeamDir:      dir,
+		Profiles:     profiles,
+		Base:         dir,
+		Reader:       source.Disk{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if runName == "" {
+		runName = name
+	}
+	starts, err := startsOf(def, runName, dir, profiles)
+	if err != nil {
+		return nil, err
+	}
+	return &built{def: def, starts: starts}, nil
+}
+
+// startsOf is the member projection app builds: the herdr name, the profile's
+// engine, and prompt.Member's text.
+func startsOf(def *definition.Definition, runName, base string, profiles map[string]profile.Profile) ([]definition.Start, error) {
+	run := prompt.Run{Team: runName, Executable: "hergy", Base: base, Reader: source.Disk{}}
+	out := make([]definition.Start, 0, len(def.Graph.Members))
+	for i := range def.Graph.Members {
+		node := &def.Graph.Members[i]
+		herdr := runName + "-" + node.Name
+		if !profile.NamePattern.MatchString(herdr) {
+			return nil, i18n.Errorf("error.herdr_name_pattern", herdr)
+		}
+		text, err := prompt.Member(def, node, run)
+		if err != nil {
+			return nil, err
+		}
+		value := profiles[node.Profile]
+		out = append(out, definition.Start{
+			Name: herdr, Short: node.Name, Role: node.Role, Profile: node.Profile,
+			Kind: value.Kind, Args: value.Args, Env: value.Env, Cwd: node.Cwd,
+			Prompt: text.Text, RoleDoc: text.Role, HasRole: text.HasRole, Read: text.Read,
+		})
+	}
+	return out, nil
+}
+
+func (b *built) missionLine() string {
+	line, _, _ := strings.Cut(b.def.Mission, "\n")
+	return strings.TrimSpace(line)
+}
+
+func (b *built) usesProfiles() bool {
+	return len(b.def.Graph.Members) > 0 || len(b.def.Graph.Workers) > 0
+}
+
+// workerProfile is what one member's workers pair with a purpose.
+func workerProfile(def *definition.Definition, member, purpose string) (string, bool) {
+	for _, worker := range def.Graph.Workers {
+		if worker.From == member && worker.Purpose == purpose {
+			return worker.Profile, true
+		}
+	}
+	return "", false
+}
+
 // teamText is a team.yaml body whose prompt is only the documents, so the
 // tests read the concatenation without any other prompt part in the way.
 func teamText(docs string) string {
 	return "version: 1\nteam: t\nprompt: \"%{docs}\"\ndocs: " + docs + "\n" +
 		"members:\n  - name: a\n    role: r\n    profile: claude-default\n"
-}
-
-func parseTeam(t *testing.T, dir, text string) (*Config, error) {
-	t.Helper()
-	return Parse(Input{
-		YAML:         text,
-		TeamName:     "t",
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
-		TeamDir:      dir,
-		Profiles:     testProfiles(dir),
-		ProfilesYAML: filepath.Join(dir, "profiles.yaml"),
-		Base:         dir,
-		Reader:       source.Disk{},
-		Executable:   "hergy",
-	})
 }
 
 // oneRule is a rule file with one section (no heading) and one rule, so a test
@@ -79,17 +146,17 @@ func TestParseConcatenatesDocsInOrder(t *testing.T) {
 	write(t, filepath.Join(dir, "guide", "skip.txt"), "not a rule file\n")
 	write(t, filepath.Join(dir, "guide", "deeper", "x.yaml"), oneRule("X1", "not directly inside"))
 
-	cfg, err := parseTeam(t, dir, teamText(`["z.yaml", "a.yaml", "guide"]`))
+	got, err := parseTeam(t, dir, teamText(`["z.yaml", "a.yaml", "guide"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := "\nZ doc\n\nA doc\n\nM doc\n\nN doc\n"
-	if got := cfg.Members[0].Prompt; got != want {
-		t.Errorf("prompt = %q, want %q", got, want)
+	if got.starts[0].Prompt != want {
+		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, want)
 	}
 
 	var read []string
-	for _, doc := range cfg.Docs {
+	for _, doc := range got.def.Docs {
 		read = append(read, filepath.Base(doc.Path))
 	}
 	if wantDocs := []string{"z.yaml", "a.yaml", "m.yaml", "n.yaml"}; strings.Join(read, ",") != strings.Join(wantDocs, ",") {
@@ -127,11 +194,11 @@ reports:
       scope: 変更の範囲
 `)
 
-	cfg, err := parseTeam(t, dir, teamText(`["note.yaml"]`))
+	got, err := parseTeam(t, dir, teamText(`["note.yaml"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	prompt := cfg.Members[0].Prompt
+	prompt := got.starts[0].Prompt
 	for _, want := range []string{
 		"# TEAM PROTOCOL", "## 基本", "前置きである。", "- **R1** 本文である。 理由である。",
 		"## " + i18n.T("rules.reports_heading"), "**監査** (担当する Issue)", "- `scope`: 変更の範囲",
@@ -291,20 +358,6 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "config.yaml without a version",
-			parse: func() error {
-				_, err := ParseConfig("lang: ja\n", "config.yaml")
-				return err
-			},
-		},
-		{
-			name: "config.yaml with an unknown key",
-			parse: func() error {
-				_, err := ParseConfig("version: 1\nlang: ja\nunknown_key: 1\n", "config.yaml")
-				return err
-			},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -320,80 +373,58 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	profiles := map[string]profile.Profile{
 		"lead": {Name: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
 	}
-	cfg, err := Parse(Input{
-		YAML:         "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\n",
-		TeamName:     "t",
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
-		TeamDir:      dir,
-		Base:         dir,
-		Profiles:     profiles,
-		ProfilesYAML: "profiles.yaml",
-		Reader:       source.Disk{},
-		Executable:   "hergy",
-	})
+	got, err := parse("version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\n", "t", "", dir, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}
-	member := cfg.Members[0]
+	member := got.starts[0]
 	if member.Kind != "claude" || member.Profile != "lead" {
 		t.Errorf("member kind/profile = %q/%q, want claude/lead", member.Kind, member.Profile)
 	}
 	if strings.Join(member.Args, " ") != "--model opus" {
 		t.Errorf("member args = %v", member.Args)
 	}
-	if !cfg.UsesProfiles() {
-		t.Error("UsesProfiles() = false, want true")
+	if !got.usesProfiles() {
+		t.Error("usesProfiles() = false, want true")
 	}
 }
 
 // parseMaySpawnTeam builds a one-member team whose may_spawn is the given block
 // (already indented under may_spawn), with two profiles defined. The prompt is
 // only %{spawn}, so no role file is needed.
-func parseMaySpawnTeam(t *testing.T, maySpawn string) (*Config, error) {
+func parseMaySpawnTeam(t *testing.T, maySpawn string) (*built, error) {
 	t.Helper()
 	dir := t.TempDir()
 	profiles := map[string]profile.Profile{
 		"seeker":    {Name: "seeker", Kind: "claude"},
 		"developer": {Name: "developer", Kind: "codex"},
 	}
-	return Parse(Input{
-		YAML: "version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n" +
-			"  - name: lead\n    role: r\n    profile: seeker\n" +
-			"    may_spawn:\n" + maySpawn,
-		TeamName:     "t",
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
-		TeamDir:      dir,
-		Base:         dir,
-		Profiles:     profiles,
-		ProfilesYAML: "profiles.yaml",
-		Reader:       source.Disk{},
-		Executable:   "hergy",
-	})
+	return parse("version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
+		"  - name: lead\n    role: r\n    profile: seeker\n"+
+		"    may_spawn:\n"+maySpawn, "t", "", dir, profiles)
 }
 
 // TestMaySpawnReadsPurposeProfilePairs: may_spawn is a list of purpose/profile
 // pairs, and each pair reaches the member's prompt.
 func TestMaySpawnReadsPurposeProfilePairs(t *testing.T) {
-	cfg, err := parseMaySpawnTeam(t, "      workers:\n"+
+	got, err := parseMaySpawnTeam(t, "      workers:\n"+
 		"        - purpose: research\n          profile: seeker\n"+
 		"        - purpose: build\n          profile: developer\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Members[0].MaySpawn == nil {
+	if len(got.def.Graph.Workers) == 0 {
 		t.Fatal("may_spawn was not read")
 	}
-	if got, ok := cfg.Members[0].MaySpawn.ProfileFor("build"); !ok || got != "developer" {
-		t.Errorf("ProfileFor(build) = %q, %v, want developer, true", got, ok)
+	if profile, ok := workerProfile(got.def, "lead", "build"); !ok || profile != "developer" {
+		t.Errorf("workerProfile(build) = %q, %v, want developer, true", profile, ok)
 	}
-	if !cfg.UsesProfiles() {
-		t.Error("UsesProfiles() = false, want true")
+	if !got.usesProfiles() {
+		t.Error("usesProfiles() = false, want true")
 	}
 	for _, want := range []string{"research → seeker", "build → developer"} {
-		if !strings.Contains(cfg.Members[0].Prompt, want) {
-			t.Errorf("the prompt does not pair %q:\n%s", want, cfg.Members[0].Prompt)
+		if !strings.Contains(got.starts[0].Prompt, want) {
+			t.Errorf("the prompt does not pair %q:\n%s", want, got.starts[0].Prompt)
 		}
 	}
 }
@@ -427,9 +458,9 @@ func TestMaySpawnStopsOnBrokenPairs(t *testing.T) {
 }
 
 func TestParseUnknownProfileStops(t *testing.T) {
-	_, err := Parse(Input{
+	_, err := definition.Read(definition.Input{
 		YAML:         "version: 1\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\n",
-		TeamName:     "t",
+		Name:         "t",
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: "team.yaml",
 		Reader:       source.Disk{},
@@ -486,13 +517,13 @@ func TestMemberNeedsAProfile(t *testing.T) {
 // the member's herdr name is "<team>-<member>".
 func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 	dir := t.TempDir()
-	cfg, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
+	got, err := parseTeam(t, dir, "version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	member := cfg.Members[0]
-	if member.ShortName != "lead" {
-		t.Errorf("ShortName = %q, want %q", member.ShortName, "lead")
+	member := got.starts[0]
+	if member.Short != "lead" {
+		t.Errorf("Short = %q, want %q", member.Short, "lead")
 	}
 	if member.Name != "t-lead" {
 		t.Errorf("Name = %q, want %q", member.Name, "t-lead")
@@ -502,25 +533,15 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 // TestMemberNameTakesTheRunName: --as replaces the prefix, not the member name.
 func TestMemberNameTakesTheRunName(t *testing.T) {
 	dir := t.TempDir()
-	cfg, err := Parse(Input{
-		YAML:         "version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n",
-		TeamName:     "dev",
-		RunName:      "dev2",
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: filepath.Join(dir, "team.yaml"),
-		TeamDir:      dir,
-		Profiles:     testProfiles(dir),
-		Base:         dir,
-		Reader:       source.Disk{},
-	})
+	got, err := parse("version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n", "dev", "dev2", dir, testProfiles(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Members[0].Name != "dev2-lead" {
-		t.Errorf("Name = %q, want %q", cfg.Members[0].Name, "dev2-lead")
+	if got.starts[0].Name != "dev2-lead" {
+		t.Errorf("Name = %q, want %q", got.starts[0].Name, "dev2-lead")
 	}
-	if cfg.Members[0].ShortName != "lead" {
-		t.Errorf("ShortName = %q, want %q", cfg.Members[0].ShortName, "lead")
+	if got.starts[0].Short != "lead" {
+		t.Errorf("Short = %q, want %q", got.starts[0].Short, "lead")
 	}
 }
 
@@ -539,14 +560,9 @@ func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
 // TestMemberNameTooLongForHerdrStops: the team name and the member name are each within
 // their own pattern, but the combined herdr name is checked too.
 func TestMemberNameTooLongForHerdrStops(t *testing.T) {
-	_, err := Parse(Input{
-		YAML:         "version: 1\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
-		TeamName:     "abcdefghijklmnopqrstuvwxyz", // 26 chars, over the team-name limit
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: "team.yaml",
-		Profiles:     testProfiles(t.TempDir()),
-		Reader:       source.Disk{},
-	})
+	dir := t.TempDir()
+	_, err := parse("version: 1\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
+		"abcdefghijklmnopqrstuvwxyz", "", dir, testProfiles(dir)) // 26 chars, over the team-name limit
 	if err == nil {
 		t.Fatal("an over-long herdr name did not stop the parse")
 	}
@@ -555,46 +571,6 @@ func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	}
 }
 
-// TestConfigYAMLRoundTrips: the config.yaml hergy writes is one ParseConfig
-// reads back to the same language.
-func TestConfigYAMLRoundTrips(t *testing.T) {
-	for _, lang := range []string{"en", "ja"} {
-		text := GlobalYAML(lang)
-		got, err := ParseConfig(text, "config.yaml")
-		if err != nil {
-			t.Fatalf("ParseConfig(%q) = %v", text, err)
-		}
-		if got != lang {
-			t.Errorf("ParseConfig(%q) lang = %q, want %q", text, got, lang)
-		}
-	}
-}
-
-// TestCheatMachineNamesEveryConfigKey collects every yaml key config.yaml's
-// settings struct reads, by reflection over its yaml tags, and checks the agent
-// cheatsheet names each one, so a key added later cannot be left out. The keys
-// team.yaml and profiles.yaml read are checked where those structs live.
-func TestCheatMachineNamesEveryConfigKey(t *testing.T) {
-	keys := map[string]bool{}
-	roots := []any{
-		rawConfig{},
-	}
-	for _, root := range roots {
-		collectYAMLKeys(keys, reflect.TypeOf(root))
-	}
-	if len(keys) == 0 {
-		t.Fatal("no yaml keys were collected; the reflection walk is broken")
-	}
-	for key := range keys {
-		if !strings.Contains(cheat.Machine, key) {
-			t.Errorf("cheat --ai does not name the settings key %q", key)
-		}
-	}
-}
-
-// collectYAMLKeys adds every yaml tag under a type to keys, descending into the
-// settings structs of this package only, so the yaml library's own structs are
-// left alone. Pointers, slices, arrays and maps are unwrapped.
 // TestParseReadsTheMission: team.yaml's mission: is the one line a team says it
 // is for (r-341e). It is optional, so a file without it carries none; the ends
 // of what it wrote are trimmed, and a mission written over more than one line
@@ -646,38 +622,38 @@ func TestParseReadsTheMission(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := parseTeam(t, dir, tc.yaml)
+			got, err := parseTeam(t, dir, tc.yaml)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cfg.Mission != tc.mission {
-				t.Errorf("Mission = %q, want %q", cfg.Mission, tc.mission)
+			if got.def.Mission != tc.mission {
+				t.Errorf("Mission = %q, want %q", got.def.Mission, tc.mission)
 			}
-			if got := cfg.MissionLine(); got != tc.line {
-				t.Errorf("MissionLine = %q, want %q", got, tc.line)
+			if line := got.missionLine(); line != tc.line {
+				t.Errorf("MissionLine = %q, want %q", line, tc.line)
 			}
 		})
 	}
 }
 
-func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
-	if typ == nil {
-		return
-	}
-	switch typ.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
-		collectYAMLKeys(keys, typ.Elem())
-	case reflect.Struct:
-		if typ.PkgPath() != reflect.TypeFor[rawConfig]().PkgPath() {
-			return
+// The YAML reader must never panic, whatever the file holds. The seeds run with
+// go test; the nightly workflow (go run ./tools/check nightly) runs them with
+// -fuzz.
+func FuzzRead(f *testing.F) {
+	f.Add("version: 1\nteam: t\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+	f.Add("version: 1\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n    may_spawn:\n      workers:\n        - purpose: 調査\n          profile: seeker\n")
+	f.Add("version: 2\n")
+	f.Add("members: [")
+	f.Add("")
+	f.Fuzz(func(t *testing.T, text string) {
+		dir := t.TempDir()
+		profiles := map[string]profile.Profile{
+			"claude-default": {Name: "claude-default", Kind: "claude"},
+			"seeker":         {Name: "seeker", Kind: "claude"},
 		}
-		for field := range typ.Fields() {
-			if tag, _, _ := strings.Cut(field.Tag.Get("yaml"), ","); tag != "" && tag != "-" {
-				keys[tag] = true
-			}
-			collectYAMLKeys(keys, field.Type)
+		got, err := parse(text, "t", "", dir, profiles)
+		if (got == nil) == (err == nil) {
+			t.Fatalf("parse = %v, %v: exactly one of the two must be set", got, err)
 		}
-	default:
-		// scalars carry no yaml keys.
-	}
+	})
 }

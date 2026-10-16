@@ -32,6 +32,10 @@ type Definition struct {
 	// Layer is where it was found (local or global). The layer stays inside
 	// hergy: it is not a word a person reads (I11).
 	Layer string
+	// OtherYAML is the same-name team.yaml in the other layer, empty when there
+	// is none. It is what the note about a local definition overriding a global
+	// one reads.
+	OtherYAML string
 
 	// Docs is what every member reads, and RoleDirs where a member's role
 	// document is looked for, both as team.yaml writes them. 段 4 moves the role

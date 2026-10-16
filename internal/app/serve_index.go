@@ -7,11 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/profileview"
 	"github.com/aq2bq/hergy/internal/web/rulesview"
@@ -54,7 +53,7 @@ func groupOf(rel string) string {
 // Index is the left list of one layer: its team definitions, the documents they
 // read, grouped, and how many profiles the layer holds.
 func (p servePort) Index(layer string) web.Index {
-	defs := layerDefinitions(p.env, layer)
+	defs := p.layerDefinitions(layer)
 	out := web.Index{
 		Teams:        p.indexTeams(layer, defs),
 		Profiles:     p.profileCount(layer),
@@ -83,12 +82,13 @@ func groupLabel(group string) string {
 // indexTeams is the team definitions of one layer, read the way the team list
 // reads them: a definition that cannot be read keeps its row with the reason.
 func (p servePort) indexTeams(layer string, defs []layerDef) []web.IndexTeam {
-	read := map[string]*config.Config{}
+	read := map[string]*resolved{}
 	for _, def := range defs {
-		read[def.name] = def.cfg
+		read[def.name] = def.read
 	}
+	cat := p.catalog()
 	var out []web.IndexTeam
-	for _, row := range p.env.List() {
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
@@ -97,16 +97,16 @@ func (p servePort) indexTeams(layer string, defs []layerDef) []web.IndexTeam {
 			Href: teamHref(layer, row.Name),
 		}
 		if layer == web.LayerGlobal {
-			entry.Shadowed = localDefinition(p.env, row.Name)
+			entry.Shadowed = localDefinition(cat, row.Name)
 		}
-		if cfg, ok := read[row.Name]; ok {
-			entry.Members = len(cfg.Members)
+		if r, ok := read[row.Name]; ok {
+			entry.Members = len(r.starts)
 			out = append(out, entry)
 			continue
 		}
 		// The definition is listed either way: the left list is the way into
 		// the screen that says why it cannot be read.
-		if _, err := validateTeam(p.env, row.Name, layer); err != nil {
+		if _, err := validateTeam(cat, p.env.ProjectRoot, row.Name, layer); err != nil {
 			entry.Broken = breakLine(p.env, listingPath(row, layer), err)
 		}
 		out = append(out, entry)
@@ -117,8 +117,8 @@ func (p servePort) indexTeams(layer string, defs []layerDef) []web.IndexTeam {
 // localDefinition reports whether the local layer holds a definition of one
 // name: a global definition of that name is the one a local one takes the place
 // of (the local one is what hergy up boots).
-func localDefinition(env team.Env, name string) bool {
-	for _, row := range env.List() {
+func localDefinition(cat *catalog.Catalog, name string) bool {
+	for _, row := range cat.Definitions() {
 		if row.Name == name && row.Local {
 			return true
 		}
@@ -131,7 +131,7 @@ func localDefinition(env team.Env, name string) bool {
 // is not counted in that meter.
 func (p servePort) Meters(layer string) web.Meters {
 	var out web.Meters
-	for _, doc := range p.layerDocs(layer, layerDefinitions(p.env, layer)) {
+	for _, doc := range p.layerDocs(layer, p.layerDefinitions(layer)) {
 		out.Rules += doc.tally.Total
 		out.Origin += doc.tally.WithOrigin
 		out.Reason += doc.tally.WithWhy
