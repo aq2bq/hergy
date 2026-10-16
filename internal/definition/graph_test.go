@@ -5,34 +5,46 @@ import (
 	"testing"
 )
 
-// TestNewGraphMakesTheWorkerEdges: a settings file writes a member's workers and
-// nothing else; the turn from the worker back to the member that hired it is made
+// turn is one edge a settings file writes in turns:, so a test does not spell
+// out the kinds.
+func turn(from, to NodeID) Edge { return Edge{From: from, To: to} }
+
+func humanID() NodeID { return Human{}.ID() }
+
+// TestNewGraphMakesTheWorkerEdges: a settings file writes the turns and the
+// workers; the turn from the worker back to the member that hired it is made
 // here, because it is always there (I12c).
 func TestNewGraphMakesTheWorkerEdges(t *testing.T) {
+	turns := []Edge{turn(memberID("lead"), humanID())}
 	g := NewGraph(
 		[]MemberNode{{Name: "lead", Role: "lead", Profile: "claude-main"}, {Name: "impl", Role: "impl", Profile: "claude-main"}},
 		[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+		turns,
 	)
 	want := []Edge{
-		{From: memberID("lead"), To: workerID("lead", "調査")},
-		{From: workerID("lead", "調査"), To: memberID("lead")},
+		turn(memberID("lead"), humanID()),
+		turn(memberID("lead"), workerID("lead", "調査")),
+		turn(workerID("lead", "調査"), memberID("lead")),
 	}
 	if !reflect.DeepEqual(g.Edges, want) {
 		t.Errorf("edges = %v, want %v", g.Edges, want)
 	}
-	if out := g.Out(memberID("lead")); len(out) != 1 || out[0].To != workerID("lead", "調査") {
+	if !reflect.DeepEqual(g.Turns, turns) {
+		t.Errorf("turns = %v, want %v", g.Turns, turns)
+	}
+	if out := g.Out(memberID("lead")); len(out) != 2 || out[1].To != workerID("lead", "調査") {
 		t.Errorf("Out(lead) = %v", out)
 	}
 	if out := g.Out(workerID("lead", "調査")); len(out) != 1 || out[0].To != memberID("lead") {
 		t.Errorf("Out(worker) = %v", out)
 	}
-	if g.ReachesHuman() {
-		t.Error("ReachesHuman = true: 段 3 writes no turn to the human")
+	if !g.ReachesHuman() {
+		t.Error("ReachesHuman = false: the turn to the human was written")
 	}
 }
 
 func TestGraphFindsItsNodes(t *testing.T) {
-	g := NewGraph([]MemberNode{{Name: "lead", Role: "lead"}}, nil)
+	g := NewGraph([]MemberNode{{Name: "lead", Role: "lead"}}, nil, nil)
 	if member, ok := g.Member("lead"); !ok || member.Role != "lead" {
 		t.Errorf("Member(lead) = %+v, %v", member, ok)
 	}
@@ -49,24 +61,35 @@ func TestGraphFindsItsNodes(t *testing.T) {
 
 func TestGraphCheck(t *testing.T) {
 	t.Run("a sound graph has no problem", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, []WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}})
+		g := NewGraph(
+			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
+			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), humanID())},
+		)
 		if problems := g.Check(); len(problems) != 0 {
 			t.Errorf("Check = %+v, want nothing", problems)
 		}
 	})
 	t.Run("a worker whose member is not there", func(t *testing.T) {
-		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: "調査"}})
+		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: "調査"}}, []Edge{turn(humanID(), humanID())})
 		problems := g.Check()
-		if len(problems) != 1 || problems[0].Key != "error.graph_worker_from" {
+		var found *Problem
+		for i := range problems {
+			if problems[i].Key == "error.graph_worker_from" {
+				found = &problems[i]
+			}
+		}
+		if found == nil {
 			t.Fatalf("Check = %+v, want the worker's from", problems)
 		}
-		if got := problems[0].Args; len(got) != 1 || got[0] != "lead" {
+		if got := found.Args; len(got) != 1 || got[0] != "lead" {
 			t.Errorf("the problem names %v, want lead", got)
 		}
 	})
 	t.Run("a turn whose ends are not nodes", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil)
-		g.AddEdge(memberID("lead"), memberID("impl"))
+		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{
+			turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("lead"), humanID()),
+		})
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_edge_to" {
 			t.Fatalf("Check = %+v, want the edge's end", problems)
@@ -76,22 +99,53 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("the same turn twice", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, []WorkerNode{{From: "lead", Purpose: "調査"}})
-		g.AddEdge(memberID("lead"), memberID("lead"))
-		g.AddEdge(memberID("lead"), memberID("lead"))
+		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{
+			turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), humanID()),
+		})
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_edge_twice" {
 			t.Fatalf("Check = %+v, want the repeated turn", problems)
 		}
 	})
-	t.Run("a turn to the human is a turn like any other", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil)
-		g.AddEdge(memberID("lead"), g.Human.ID())
-		if problems := g.Check(); len(problems) != 0 {
-			t.Errorf("Check = %+v, want nothing", problems)
+	t.Run("a turn to itself", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("lead"))})
+		problems := g.Check()
+		if len(problems) != 1 || problems[0].Key != "error.graph_self_loop" {
+			t.Fatalf("Check = %+v, want the turn to itself", problems)
 		}
-		if !g.ReachesHuman() {
-			t.Error("ReachesHuman = false: the turn to the human was written")
+	})
+	// I12a: every node hands the turn on.
+	t.Run("a member who hands the turn to nobody", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "lead"}, {Name: "impl"}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID())})
+		problems := g.Check()
+		if len(problems) != 1 || problems[0].Key != "error.graph_member_no_turn" {
+			t.Fatalf("Check = %+v, want the member with no turn", problems)
+		}
+		if got := problems[0].Args; len(got) != 2 || got[0] != "impl" || got[1] != "impl" {
+			t.Errorf("the problem names %v, want impl", got)
+		}
+	})
+	t.Run("a human who hands the turn to nobody", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{turn(memberID("lead"), humanID())})
+		problems := g.Check()
+		if len(problems) != 1 || problems[0].Key != "error.graph_human_no_turn" {
+			t.Fatalf("Check = %+v, want the human with no turn", problems)
+		}
+		if got := problems[0].Args; len(got) != 0 {
+			t.Errorf("the human's sentence names %v, want nothing", got)
+		}
+	})
+	// I12b: at least one turn reaches the human. A worker's turn back to its
+	// member is not a turn to the human.
+	t.Run("no turn reaches the human", func(t *testing.T) {
+		g := NewGraph(
+			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
+			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), memberID("lead"))},
+		)
+		problems := g.Check()
+		if len(problems) != 1 || problems[0].Key != "error.graph_no_turn_reaches_human" {
+			t.Fatalf("Check = %+v, want the turn that never reaches the human", problems)
 		}
 	})
 }

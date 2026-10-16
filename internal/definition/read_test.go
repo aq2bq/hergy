@@ -12,6 +12,7 @@
 package definition_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,10 +175,12 @@ func workerProfile(def *definition.Definition, member, purpose string) (string, 
 // teamText is a team.yaml body whose prompt is only the two doors, so the tests
 // read what a member is handed without any other prompt part in the way. A
 // template must keep both doors (d-0ccd), so every test team writes them and
-// every test layer holds the role document r.
+// every test layer holds the role document r. Its turns are the shortest graph
+// a team can have (段 5): the human hands the turn to a, and a hands it back.
 func teamText() string {
 	return "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\n" +
-		"members:\n  - name: a\n    role: r\n    profile: claude-default\n"
+		"members:\n  - name: a\n    role: r\n    profile: claude-default\n" +
+		"turns:\n  - human -> a\n  - a -> human\n"
 }
 
 // oneRule is a rule file with one section (no heading) and one rule, so a test
@@ -314,7 +317,7 @@ func TestMemberStopsOnARoleThatIsStillMarkdown(t *testing.T) {
 func TestMemberStopsOnAMissingRole(t *testing.T) {
 	l := newLayer(t, "")
 	_, err := parseTeam(t, l,
-		"version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	if err == nil {
 		t.Fatal("a missing role document did not stop the prompt")
 	}
@@ -337,7 +340,7 @@ func TestMemberTemplateMustKeepTheTwoDoors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			l := newLayer(t, "")
 			_, err := parseTeam(t, l,
-				"version: 1\nmission: a mission for the test\nteam: t\nprompt: "+tc.prompt+"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+				"version: 1\nmission: a mission for the test\nteam: t\nprompt: "+tc.prompt+"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\nturns:\n  - human -> a\n  - a -> human\n")
 			if err == nil {
 				t.Fatal("a template with a door missing did not stop the prompt")
 			}
@@ -461,7 +464,7 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	profiles := map[string]profile.Profile{
 		"lead": {Name: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
 	}
-	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\n", "t", "", l, profiles)
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\nturns:\n  - human -> a\n  - a -> human\n", "t", "", l, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,21 +480,22 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	}
 }
 
-// parseMaySpawnTeam builds a one-member team whose may_spawn is the given block
-// (already indented under may_spawn), with two profiles defined.
-func parseMaySpawnTeam(t *testing.T, maySpawn string) (*built, error) {
+// parseWorkersTeam builds a one-member team whose top-level workers: is the
+// given block (already indented under workers:), with two profiles defined.
+func parseWorkersTeam(t *testing.T, workers string) (*built, error) {
 	t.Helper()
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{
 		"seeker":    {Name: "seeker", Kind: "claude"},
 		"developer": {Name: "developer", Kind: "codex"},
 	}
-	return parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{spawn}\"\nmembers:\n"+
+	return parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{workers}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
-		"    may_spawn:\n"+maySpawn, "t", "", l, profiles)
+		"workers:\n"+workers+
+		"turns:\n  - human -> lead\n  - lead -> human\n", "t", "", l, profiles)
 }
 
-// TestWorkerNoteNamesTheHerdrName: the member's "%{spawn}" note says who a hired
+// TestWorkerNoteNamesTheHerdrName: the member's "%{workers}" note says who a hired
 // worker reports back to. That name is the member's herdr name, the same name
 // the worker's own prompt uses, so it follows --as rather than the short name
 // written in team.yaml (only the embedded hire command takes the short name).
@@ -500,9 +504,10 @@ func TestWorkerNoteNamesTheHerdrName(t *testing.T) {
 	profiles := map[string]profile.Profile{
 		"seeker": {Name: "seeker", Kind: "claude"},
 	}
-	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{spawn}\"\nmembers:\n"+
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{workers}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
-		"    may_spawn:\n      workers:\n        - purpose: build\n          profile: seeker\n",
+		"workers:\n  - from: lead\n    purpose: build\n    profile: seeker\n"+
+		"turns:\n  - human -> lead\n  - lead -> human\n",
 		"t", "alt", l, profiles)
 	if err != nil {
 		t.Fatal(err)
@@ -515,17 +520,16 @@ func TestWorkerNoteNamesTheHerdrName(t *testing.T) {
 	}
 }
 
-// TestMaySpawnReadsPurposeProfilePairs: may_spawn is a list of purpose/profile
-// pairs, and each pair reaches the member's prompt.
-func TestMaySpawnReadsPurposeProfilePairs(t *testing.T) {
-	got, err := parseMaySpawnTeam(t, "      workers:\n"+
-		"        - purpose: research\n          profile: seeker\n"+
-		"        - purpose: build\n          profile: developer\n")
+// TestWorkersReadPurposeProfilePairs: workers: is a list of member, purpose and
+// profile, and each pair reaches that member's prompt.
+func TestWorkersReadPurposeProfilePairs(t *testing.T) {
+	got, err := parseWorkersTeam(t, "  - from: lead\n    purpose: research\n    profile: seeker\n"+
+		"  - from: lead\n    purpose: build\n    profile: developer\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got.def.Graph.Workers) == 0 {
-		t.Fatal("may_spawn was not read")
+		t.Fatal("workers: was not read")
 	}
 	if profile, ok := workerProfile(got.def, "lead", "build"); !ok || profile != "developer" {
 		t.Errorf("workerProfile(build) = %q, %v, want developer, true", profile, ok)
@@ -540,31 +544,151 @@ func TestMaySpawnReadsPurposeProfilePairs(t *testing.T) {
 	}
 }
 
-// TestMaySpawnStopsOnBrokenPairs: every way a may_spawn block breaks stops the
-// parse, naming the pair or the key it did not like.
-func TestMaySpawnStopsOnBrokenPairs(t *testing.T) {
+// TestWorkersStopsOnBrokenEntries: every way a workers: entry breaks stops the
+// parse, naming the entry or the key it did not like.
+func TestWorkersStopsOnBrokenEntries(t *testing.T) {
 	cases := []struct{ name, block, want string }{
-		{"the old purposes and profiles", "      purposes: [research]\n      profiles: [seeker]\n", "workers"},
-		{"workers empty", "      workers: []\n", "workers"},
-		{"workers null", "      workers:\n", "workers"},
-		{"workers not a list", "      workers: research\n", "workers"},
-		{"a worker without a purpose", "      workers:\n        - profile: seeker\n", "purpose"},
-		{"a worker without a profile", "      workers:\n        - purpose: research\n", "profile"},
-		{"a profile that is not in profiles.yaml", "      workers:\n        - purpose: research\n          profile: absent\n", "absent"},
-		{"two workers with one purpose", "      workers:\n        - purpose: research\n          profile: seeker\n        - purpose: research\n          profile: developer\n", "research"},
-		{"an unknown key in a worker", "      workers:\n        - purpose: research\n          profile: seeker\n          kind: claude\n", "kind"},
-		{"an unknown key in may_spawn", "      purpose: research\n", "purpose"},
+		{"an entry without a member", "  - purpose: research\n    profile: seeker\n", "from"},
+		{"an entry without a purpose", "  - from: lead\n    profile: seeker\n", "purpose"},
+		{"an entry without a profile", "  - from: lead\n    purpose: research\n", "profile"},
+		{"a profile that is not in profiles.yaml", "  - from: lead\n    purpose: research\n    profile: absent\n", "absent"},
+		{"two workers of one member and purpose", "  - from: lead\n    purpose: research\n    profile: seeker\n  - from: lead\n    purpose: research\n    profile: developer\n", "research"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseMaySpawnTeam(t, tc.block)
+			_, err := parseWorkersTeam(t, tc.block)
 			if err == nil {
-				t.Fatal("a broken may_spawn did not stop the parse")
+				t.Fatal("a broken workers: entry did not stop the parse")
 			}
 			if !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("error %q does not name %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// TestMaySpawnIsGone: the workers moved to the top level (段 5). A member that
+// still writes may_spawn is stopped with the sentence that says where they went,
+// rather than being read as an unknown key.
+func TestMaySpawnIsGone(t *testing.T) {
+	l := newLayer(t, "")
+	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	_, err := parse("version: 1\nmission: a mission for the test\nteam: t\nmembers:\n"+
+		"  - name: lead\n    role: r\n    profile: seeker\n"+
+		"    may_spawn:\n      workers:\n        - purpose: research\n          profile: seeker\n",
+		"t", "", l, profiles)
+	if err == nil {
+		t.Fatal("a member that still writes may_spawn did not stop the parse")
+	}
+	for _, want := range []string{"may_spawn", "workers:"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %q", err, want)
+		}
+	}
+}
+
+// TestSpawnPlaceholderIsGone: the part of a prompt template that lists the
+// workers is %{workers} now. A template that still writes %{spawn} is stopped
+// with the name of the part that replaced it (段 5).
+func TestSpawnPlaceholderIsGone(t *testing.T) {
+	l := newLayer(t, "")
+	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	cases := []struct{ name, text string }{
+		{"the team's own template", "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: r\n    profile: seeker\n"},
+		{"one member's template", "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: seeker\n    prompt: \"%{spawn}\"\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parse(tc.text, "t", "", l, profiles)
+			if err == nil {
+				t.Fatal("a template that still writes %{spawn} did not stop the parse")
+			}
+			if !strings.Contains(err.Error(), "%{workers}") {
+				t.Errorf("error %q does not name the new placeholder", err)
+			}
+		})
+	}
+}
+
+// TestTurnsReadsTheGraph: turns: lines are read into the graph's turns, in the
+// order they are written, with the human and the member names as the ends.
+func TestTurnsReadsTheGraph(t *testing.T) {
+	l := newLayer(t, "")
+	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
+		"  - name: lead\n    role: r\n    profile: seeker\n"+
+		"  - name: impl\n    role: r\n    profile: seeker\n"+
+		"turns:\n  - human -> lead\n  - lead -> impl\n  - impl -> human\n", "t", "", l, profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"human -> lead", "lead -> impl", "impl -> human"}
+	if len(got.def.Graph.Turns) != len(want) {
+		t.Fatalf("turns = %v, want %v", got.def.Graph.Turns, want)
+	}
+	for i, edge := range got.def.Graph.Turns {
+		if got := edge.String(); got != want[i] {
+			t.Errorf("turns[%d] = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+// TestTurnsStopsOnBrokenLines: every way a turns: line breaks stops the parse.
+func TestTurnsStopsOnBrokenLines(t *testing.T) {
+	cases := []struct{ name, line, want string }{
+		{"no arrow", "  - lead impl\n", "lead impl"},
+		{"two arrows", "  - lead -> impl -> human\n", "->"},
+		{"an empty left end", "  - -> lead\n", "->"},
+		{"an empty right end", "  - lead ->\n", "->"},
+		{"a kind prefix", "  - lead -> team:review\n", "team:review"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := newLayer(t, "")
+			profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+			_, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
+				"  - name: lead\n    role: r\n    profile: seeker\n"+
+				"turns:\n"+tc.line, "t", "", l, profiles)
+			if err == nil {
+				t.Fatal("a broken turns: line did not stop the parse")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not name %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestTurnLeavesThePromptWithItsEdge is the golden of I13: the turns a member's
+// prompt names come from the graph, so taking one turn out of turns: takes
+// exactly that party out of the prompt and leaves every other line as it was.
+func TestTurnLeavesThePromptWithItsEdge(t *testing.T) {
+	l := newLayer(t, "")
+	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	head := "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\\n%{turns}\"\nmembers:\n" +
+		"  - name: lead\n    role: r\n    profile: seeker\n" +
+		"  - name: spec\n    role: r\n    profile: seeker\n"
+	full, err := parse(head+"turns:\n  - human -> lead\n  - lead -> spec\n  - lead -> human\n  - spec -> lead\n", "t", "", l, profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	less, err := parse(head+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> lead\n", "t", "", l, profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The lead hands the turn to spec and to the human; taking the turn to spec
+	// away takes that one line out.
+	specLine := fmt.Sprintf(i18n.T("turns.member_item"), "t-spec", "r") + "\n"
+	if !strings.Contains(full.starts[0].Prompt, specLine) {
+		t.Fatalf("the prompt does not name spec although lead -> spec is written:\n%s", full.starts[0].Prompt)
+	}
+	humanLine := i18n.T("turns.human_item") + "\n"
+	if got := strings.Replace(full.starts[0].Prompt, specLine, "", 1); got != less.starts[0].Prompt {
+		t.Errorf("taking lead -> spec away changed more than its line:\ngot:\n%s\nwant:\n%s", got, less.starts[0].Prompt)
+	}
+	if !strings.Contains(less.starts[0].Prompt, humanLine) {
+		t.Errorf("taking one turn away took the turn to the human with it:\n%s", less.starts[0].Prompt)
 	}
 }
 
@@ -628,7 +752,7 @@ func TestMemberNeedsAProfile(t *testing.T) {
 // the member's herdr name is "<team>-<member>".
 func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 	l := newLayer(t, "")
-	got, err := parseTeam(t, l, "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n")
+	got, err := parseTeam(t, l, "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -644,7 +768,7 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 // TestMemberNameTakesTheRunName: --as replaces the prefix, not the member name.
 func TestMemberNameTakesTheRunName(t *testing.T) {
 	l := newLayer(t, "")
-	got, err := parse("version: 1\nmission: a mission for the test\nteam: dev\nprompt: \"%{role_doc}%{docs}%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\n", "dev", "dev2", l, testProfiles(l.team))
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: dev\nprompt: \"%{role_doc}%{docs}%{name}\"\nmembers:\n  - name: lead\n    role: r\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n", "dev", "dev2", l, testProfiles(l.team))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -672,7 +796,7 @@ func TestMemberNameWithTeamPlaceholderStops(t *testing.T) {
 // their own pattern, but the combined herdr name is checked too.
 func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 	l := newLayer(t, "")
-	_, err := parse("version: 1\nmission: a mission for the test\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\n",
+	_, err := parse("version: 1\nmission: a mission for the test\nmembers:\n  - name: worker\n    role: r\n    profile: claude-default\nturns:\n  - human -> worker\n  - worker -> human\n",
 		"abcdefghijklmnopqrstuvwxyz", "", l, testProfiles(l.team)) // 26 chars, over the team-name limit
 	if err == nil {
 		t.Fatal("an over-long herdr name did not stop the parse")
@@ -691,7 +815,8 @@ func TestParseReadsTheMission(t *testing.T) {
 	// line, so each case writes only what it is about.
 	teamWith := func(mission string) string {
 		return "version: 1\n" + mission +
-			"team: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n"
+			"team: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n" +
+			"turns:\n  - human -> a\n  - a -> human\n"
 	}
 	for _, tc := range []struct {
 		name    string

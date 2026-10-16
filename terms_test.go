@@ -161,7 +161,7 @@ var glossary = []term{
 		id:       "hands-the-turn-to",
 		english:  "hands the turn to",
 		japanese: "ターンを渡す",
-		meaning:  "the directed relation between two nodes that says which one passes the turn on; a rule text writes it <a> → <b>",
+		meaning:  "the directed relation between two nodes that says which one passes the turn on; a team definition's turns write it <a> -> <b>, and a rule text still writes <a> → <b>",
 		banned: []ban{
 			// 手番 and 話しかけてよい were the old Japanese words for this
 			// (合意 7, d-0ccd).
@@ -185,7 +185,7 @@ var glossary = []term{
 		id:       "purpose",
 		english:  "purpose",
 		japanese: "目的",
-		meaning:  "what a worker is hired for; may_spawn pairs each purpose with a profile",
+		meaning:  "what a worker is hired for; workers: pairs each purpose with a member and a profile",
 	},
 	{
 		id:       "bootstrap-prompt",

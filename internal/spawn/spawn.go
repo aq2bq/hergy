@@ -38,7 +38,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		}
 		lead = found
 	} else {
-		found, err := defaultLead(starts)
+		found, err := defaultLead(starts, purpose)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -103,25 +103,47 @@ func lookup(starts []definition.Start, name string) (*definition.Start, error) {
 	return nil, i18n.Errorf("error.no_member", name)
 }
 
-// defaultLead is the only member that may hire; with none or several, --from is
-// required.
-func defaultLead(starts []definition.Start) (*definition.Start, error) {
-	var spawners []string
-	var only *definition.Start
-	for i := range starts {
-		if len(starts[i].Workers) > 0 {
-			spawners = append(spawners, starts[i].Name)
-			only = &starts[i]
-		}
+// defaultLead is the member that hires when --from is not written: the one whose
+// workers: name this purpose (d-6f03). One is the hiring member; two or more stop
+// the hire, naming them so a person says which. When no member hires for this
+// purpose, the members that may hire at all are taken instead, so a purpose
+// outside every workers: still reaches the note that says so; none of those
+// stops the hire.
+func defaultLead(starts []definition.Start, purpose string) (*definition.Start, error) {
+	candidates := hirersFor(starts, purpose)
+	if len(candidates) == 0 {
+		candidates = hirersFor(starts, "")
 	}
-	switch len(spawners) {
+	switch len(candidates) {
 	case 1:
-		return only, nil
+		return candidates[0], nil
 	case 0:
 		return nil, i18n.Errorf("error.from_required_none")
 	default:
-		return nil, i18n.Errorf("error.from_required_many", spawners)
+		names := make([]string, len(candidates))
+		for i, candidate := range candidates {
+			names[i] = candidate.Name
+		}
+		return nil, i18n.Errorf("error.from_required_many", names)
 	}
+}
+
+// hirersFor is the members that may hire for one purpose: the members whose
+// workers: name it. An empty purpose means every member that may hire at all.
+func hirersFor(starts []definition.Start, purpose string) []*definition.Start {
+	var out []*definition.Start
+	for i := range starts {
+		if purpose == "" {
+			if len(starts[i].Workers) > 0 {
+				out = append(out, &starts[i])
+			}
+			continue
+		}
+		if _, ok := profileFor(starts[i].Workers, purpose); ok {
+			out = append(out, &starts[i])
+		}
+	}
+	return out
 }
 
 // profileFor is the profile a member's workers pair with a purpose.
@@ -138,7 +160,7 @@ func profileFor(workers []definition.WorkerNode, purpose string) (string, bool) 
 // the hire: the permission is only stated.
 func notes(lead *definition.Start, profileName, purpose string) []string {
 	if len(lead.Workers) == 0 {
-		return []string{fmt.Sprintf(i18n.T("error.no_may_spawn"), lead.Name)}
+		return []string{fmt.Sprintf(i18n.T("error.no_workers"), lead.Name)}
 	}
 	paired, ok := profileFor(lead.Workers, purpose)
 	if !ok {

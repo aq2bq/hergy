@@ -5,14 +5,21 @@ members:
   - name: lead
     role: lead
     profile: planner
-    may_spawn:
-      workers:
-        - purpose: 実装
-          profile: coder
-        - purpose: 試作
-          profile: planner
-        - purpose: 調査
-          profile: researcher
   - name: spec
     role: spec
     profile: planner
+workers:
+  - from: lead
+    purpose: 実装
+    profile: coder
+  - from: lead
+    purpose: 試作
+    profile: planner
+  - from: lead
+    purpose: 調査
+    profile: researcher
+turns:
+  - human -> lead
+  - lead -> spec
+  - spec -> lead
+  - lead -> human

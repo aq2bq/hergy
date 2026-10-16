@@ -48,6 +48,10 @@ members:
   - name: builder
     role: builder
     profile: claude-default
+turns:
+  - human -> lead
+  - lead -> builder
+  - builder -> human
 `)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "agreement.yaml"), `version: 1
@@ -96,6 +100,9 @@ members:
   - name: lead
     role: shared-lead
     profile: claude-default
+turns:
+  - human -> lead
+  - lead -> human
 `)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "shared-lead.yaml"), `version: 1
 sections:

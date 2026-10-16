@@ -146,6 +146,65 @@
   change. The glossary in `terms_test.go` holds the words, and the test keeps
   them out of the locales, the cheatsheets, the bundled skills and the READMEs.
   No file or command is renamed, so a team definition keeps working as it is.
+- **Who hands the turn to whom, and who may hire a worker, are written in
+  `team.yaml`**: a definition writes its turn graph in a top-level `turns:`, one
+  `- a -> b` per turn, where each end is `human` or a member's name, and what
+  each member may hire in a top-level `workers:` (`from:`, `purpose:`,
+  `profile:`). A member's prompt is built from these: `%{turns}` names who it
+  hands the turn to, and `%{workers}` what it may hire. Writing `may_spawn:` on a
+  member, or `%{spawn}` in a prompt, stops the read with a sentence that says
+  what to write instead. A turn graph hergy cannot hold stops the definition the
+  way a file that does not read does: a member or the human with no turn out, no
+  turn reaching the human, an unknown name, a self loop, the same turn twice, a
+  `workers:` `from:` that is not a member. `hergy up`, `refresh`, `reprompt`,
+  `hire` and `validate` all stop on it, with the same sentences one line each,
+  and `hergy down` still closes such a team by name. A rule text that still
+  writes "a → b" is compared with `turns:` and warned about when the two
+  disagree (the warning does not stop anything). The figure on the web UI draws
+  the turn graph, and nothing else. `hergy hire` may leave `--from` out when
+  exactly one member hires for the purpose. To move a definition over:
+
+  Before:
+
+  ```yaml
+  members:
+    - name: lead
+      role: lead
+      profile: claude-default
+      may_spawn:
+        workers:
+          - purpose: 実装
+            profile: opencode
+    - name: spec
+      role: spec
+      profile: claude-default
+  ```
+
+  After:
+
+  ```yaml
+  members:
+    - name: lead
+      role: lead
+      profile: claude-default
+    - name: spec
+      role: spec
+      profile: claude-default
+  workers:
+    - from: lead
+      purpose: 実装
+      profile: opencode
+  turns:
+    - human -> lead
+    - lead -> human
+    - lead -> spec
+    - spec -> lead
+  ```
+
+  Every member and the human need a turn out, and at least one turn must reach
+  the human. A prompt that wrote `%{spawn}` writes `%{workers}`. A rule text that
+  wrote a turn as "a → b" is left where it is; where it disagrees with `turns:`,
+  `hergy validate` says so, and the definition keeps working.
 
 ### Fixed
 

@@ -253,10 +253,13 @@ members:
   - name: lead
     role: lead
     profile: solo
-    may_spawn:
-      workers:
-        - purpose: research
-          profile: seeker
+workers:
+  - from: lead
+    purpose: research
+    profile: seeker
+turns:
+  - human -> lead
+  - lead -> human
 `)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), roleDoc("L1"))
 	p := servePort{env: serveEnv(t)}
@@ -322,7 +325,7 @@ func TestServePortCheckProfilesWatchesTheLocalLayerForAGlobalSave(t *testing.T) 
 	// The local definition runs the global layer's shared profile: the project's
 	// own profiles.yaml does not hold that name.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\nturns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), roleDoc("L1"))
 	p := servePort{env: serveEnv(t)}
 

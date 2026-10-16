@@ -100,6 +100,36 @@ const (
 	KindWorker NodeKind = "worker"
 )
 
+// nodeKind is one kind of node: how a name of that kind is read from a settings
+// file, and what the turn invariants say about a node of it. Adding a kind is
+// adding one entry here; nothing that reads Node and Edge changes (I12e, 1 節).
+type nodeKind struct {
+	// byName says a settings file writes a node of this kind by its name alone:
+	// the human and a member. Another kind is written "<kind>:<name>".
+	byName bool
+	// fixedName is the one name a node of this kind is written with, or "" when
+	// any name the graph holds may be used (a member is written by its name).
+	fixedName string
+	// noTurnKey is the locale key of the message a node of this kind with no
+	// outgoing turn gets (I12a), or "" when a node of this kind cannot be
+	// without one: a worker's edge back to the member that hired it is made by
+	// workers:, not written.
+	noTurnKey string
+	// noTurnArgs is how many times that message names the node: the human's
+	// sentence needs no name, a member's names the member and the turns: line
+	// to add.
+	noTurnArgs int
+}
+
+// nodeKinds is every kind hergy has now. A settings file writes the human as
+// "human" and a member by its name; a name written as "<kind>:<name>" is read
+// and stopped (d-11f8 keeps the shape open for the kinds to come).
+var nodeKinds = map[NodeKind]nodeKind{
+	KindHuman:  {byName: true, fixedName: "human", noTurnKey: "error.graph_human_no_turn"},
+	KindMember: {byName: true, noTurnKey: "error.graph_member_no_turn", noTurnArgs: 2},
+	KindWorker: {},
+}
+
 // NodeID is a node's kind and its name. A settings file writes a member by its
 // name, the human as "human", and another kind as "<kind>:<name>"
 // (d-11f8).

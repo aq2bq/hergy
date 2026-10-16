@@ -1,7 +1,6 @@
 package topology
 
 import (
-	"math"
 	"testing"
 )
 
@@ -14,8 +13,8 @@ func sampleMembers() []Member {
 	}
 }
 
-// sampleDocs is a shared document, one role file per role, and a rule that names
-// no member on one side.
+// sampleDocs is a shared document and one role file per role. Its rules still
+// write turn directions; the figure no longer reads them (段 5).
 func sampleDocs() []Doc {
 	return []Doc{
 		{Key: "shared", Label: "合意", Rules: []Rule{
@@ -31,29 +30,20 @@ func sampleDocs() []Doc {
 	}
 }
 
-// boxOf is the box a side points at, for checking that an arrow meets its rows.
-func boxOf(f Figure, side Side) (Box, bool) {
-	switch side.Kind {
-	case SideHuman:
-		return f.Human, true
-	case SideMember:
-		if side.Member < 0 || side.Member >= len(f.Members) {
-			return Box{}, false
-		}
-		return f.Members[side.Member].Box, true
-	default:
-		for _, stranger := range f.Strangers {
-			if stranger.Word == side.Word {
-				return stranger.Box, true
-			}
-		}
-		return Box{}, false
+// sampleTurns is the graph the figure draws: the human and the lead hand the
+// turn to each other, and lead hands it to impl.
+func sampleTurns() []Turn {
+	return []Turn{
+		{From: Side{Kind: SideHuman}, To: Side{Kind: SideMember, Member: 0}},
+		{From: Side{Kind: SideMember, Member: 0}, To: Side{Kind: SideHuman}},
+		{From: Side{Kind: SideMember, Member: 0}, To: Side{Kind: SideMember, Member: 1}},
+		{From: Side{Kind: SideMember, Member: 1}, To: Side{Kind: SideMember, Member: 0}},
 	}
 }
 
 // TestLayoutBoxes: the figure keeps its parts in order and inside its bounds.
 func TestLayoutBoxes(t *testing.T) {
-	f := Layout(sampleMembers(), sampleDocs())
+	f := Layout(sampleMembers(), sampleDocs(), sampleTurns())
 
 	if f.Human.Y >= f.Members[0].Y {
 		t.Fatalf("the human is not above the members: human y %v, member y %v", f.Human.Y, f.Members[0].Y)
@@ -70,9 +60,6 @@ func TestLayoutBoxes(t *testing.T) {
 	doc := f.Docs[0]
 	if doc.X < f.Shared.X || doc.Y < f.Shared.Y || doc.Y+doc.H > f.Shared.Y+f.Shared.H {
 		t.Fatalf("the document %v is not inside the band %v", doc.Box, f.Shared)
-	}
-	if len(f.Strangers) != 1 || f.Strangers[0].Word != "書いた担当" {
-		t.Fatalf("strangers = %+v, want the one unmatched party", f.Strangers)
 	}
 	if f.Width <= 0 || f.Height <= 0 {
 		t.Fatalf("the figure has no size: %v x %v", f.Width, f.Height)
@@ -99,16 +86,13 @@ func allBoxes(f Figure) []Box {
 			out = append(out, worker.Box)
 		}
 	}
-	for _, stranger := range f.Strangers {
-		out = append(out, stranger.Box)
-	}
 	return out
 }
 
 // TestLayoutRoleFilesAndWorkers: a member carries the role file of its role, and
 // the workers it may hire sit under it.
 func TestLayoutRoleFilesAndWorkers(t *testing.T) {
-	f := Layout(sampleMembers(), sampleDocs())
+	f := Layout(sampleMembers(), sampleDocs(), nil)
 
 	lead, impl := f.Members[0], f.Members[1]
 	if lead.RoleFile == nil || lead.RoleFileKey != "role/進行管理" {
@@ -140,45 +124,54 @@ func TestLayoutRoleFilesAndWorkers(t *testing.T) {
 
 // TestLayoutNoRoleFile: a role with no file gets no role file box.
 func TestLayoutNoRoleFile(t *testing.T) {
-	f := Layout([]Member{{Name: "solo", Role: "設計"}}, nil)
+	f := Layout([]Member{{Name: "solo", Role: "設計"}}, nil, nil)
 	if f.Members[0].RoleFile != nil {
 		t.Fatalf("a role with no file got the box %v", f.Members[0].RoleFile)
 	}
 }
 
-// TestLayoutArrowsMeetTheirRows: every arrow meets both its rows, inside them,
-// and a dotted arrow is the one with a party that matched no team name.
+// TestLayoutArrowsMeetTheirRows: every arrow meets both its rows, inside them.
 func TestLayoutArrowsMeetTheirRows(t *testing.T) {
-	f := Layout(sampleMembers(), sampleDocs())
+	f := Layout(sampleMembers(), sampleDocs(), sampleTurns())
 	if len(f.Edges) == 0 {
 		t.Fatal("the figure has no arrows")
 	}
-	for _, arrow := range f.Edges {
-		from, ok := boxOf(f, arrow.From)
-		if !ok {
-			t.Fatalf("arrow %s points from a party with no box: %+v", arrow.RuleID, arrow.From)
+	if len(f.Edges) != len(sampleTurns()) {
+		t.Fatalf("the figure draws %d arrows, want the %d turns", len(f.Edges), len(sampleTurns()))
+	}
+	rows := func(side Side) (Box, bool) {
+		switch side.Kind {
+		case SideHuman:
+			return f.Human, true
+		case SideMember:
+			if side.Member < 0 || side.Member >= len(f.Members) {
+				return Box{}, false
+			}
+			member := f.Members[side.Member]
+			// A member's row grows by the workers under it.
+			h := member.H
+			if len(member.Workers) > 0 {
+				h += workerStep
+			}
+			return Box{X: member.X, Y: member.Y, W: member.W, H: h}, true
+		case SideStranger:
+			// The sample has no stranger; a side the figure has no row for is
+			// reported as one.
 		}
-		to, ok := boxOf(f, arrow.To)
+		return Box{}, false
+	}
+	for _, arrow := range f.Edges {
+		from, ok := rows(arrow.From)
 		if !ok {
-			t.Fatalf("arrow %s points to a party with no box: %+v", arrow.RuleID, arrow.To)
+			t.Fatalf("arrow %v points from a party with no row", arrow.From)
+		}
+		to, ok := rows(arrow.To)
+		if !ok {
+			t.Fatalf("arrow %v points to a party with no row", arrow.To)
 		}
 		if !within(arrow.FromY, from) || !within(arrow.ToY, to) {
-			t.Fatalf("arrow %s meets %v at %v and %v at %v", arrow.RuleID, from, arrow.FromY, to, arrow.ToY)
+			t.Fatalf("arrow %v meets %v at %v and %v at %v", arrow.Turn, from, arrow.FromY, to, arrow.ToY)
 		}
-		wantDotted := arrow.From.Kind == SideStranger || arrow.To.Kind == SideStranger
-		if arrow.Dotted != wantDotted {
-			t.Fatalf("arrow %s Dotted = %v, want %v", arrow.RuleID, arrow.Dotted, wantDotted)
-		}
-	}
-	// The one-sided rule (C2) makes a dotted arrow; the others do not.
-	dotted := 0
-	for _, arrow := range f.Edges {
-		if arrow.Dotted {
-			dotted++
-		}
-	}
-	if dotted != 1 {
-		t.Fatalf("%d dotted arrows, want 1 (from 人間 → 書いた担当)", dotted)
 	}
 }
 
@@ -187,15 +180,29 @@ func within(y float64, b Box) bool {
 	return y >= b.Y && y <= b.Y+b.H
 }
 
+// TestLayoutDrawsTheGraphOnly: a turn that names a member the figure does not
+// have is not drawn. The definition's turns: is what the figure draws, and
+// nothing the rules' text says changes it (段 5).
+func TestLayoutDrawsTheGraphOnly(t *testing.T) {
+	turns := []Turn{
+		{From: Side{Kind: SideHuman}, To: Side{Kind: SideMember, Member: 0}},
+		{From: Side{Kind: SideMember, Member: 0}, To: Side{Kind: SideMember, Member: 7}},
+	}
+	f := Layout(sampleMembers(), sampleDocs(), turns)
+	if len(f.Edges) != 1 {
+		t.Fatalf("the figure draws %d arrows, want only the one whose member is there", len(f.Edges))
+	}
+}
+
 // TestLayoutLanesSeparate: each arrow gets its own lane to the right of the
 // members, so two arrows do not share one.
 func TestLayoutLanesSeparate(t *testing.T) {
-	f := Layout(sampleMembers(), sampleDocs())
+	f := Layout(sampleMembers(), sampleDocs(), sampleTurns())
 	seen := map[float64]bool{}
 	right := memberX + memberW
 	for _, arrow := range f.Edges {
 		if arrow.LaneX <= right {
-			t.Fatalf("arrow %s sits at x %v, not right of the members (%v)", arrow.RuleID, arrow.LaneX, right)
+			t.Fatalf("arrow %v sits at x %v, not right of the members (%v)", arrow.Turn, arrow.LaneX, right)
 		}
 		if seen[arrow.LaneX] {
 			t.Fatalf("two arrows share lane x %v", arrow.LaneX)
@@ -206,8 +213,8 @@ func TestLayoutLanesSeparate(t *testing.T) {
 
 // TestLayoutDeterministic: the same definition lays out the same way every time.
 func TestLayoutDeterministic(t *testing.T) {
-	a := Layout(sampleMembers(), sampleDocs())
-	b := Layout(sampleMembers(), sampleDocs())
+	a := Layout(sampleMembers(), sampleDocs(), sampleTurns())
+	b := Layout(sampleMembers(), sampleDocs(), sampleTurns())
 	if !reflectEqual(t, a, b) {
 		t.Fatal("two layouts of one definition differ")
 	}
@@ -216,7 +223,7 @@ func TestLayoutDeterministic(t *testing.T) {
 // TestLayoutNoMembers: a definition with no members still lays out, with only
 // the human row.
 func TestLayoutNoMembers(t *testing.T) {
-	f := Layout(nil, nil)
+	f := Layout(nil, nil, nil)
 	if len(f.Members) != 0 || len(f.Edges) != 0 {
 		t.Fatalf("an empty team laid out %d members and %d arrows", len(f.Members), len(f.Edges))
 	}
@@ -236,37 +243,6 @@ func TestBoxCenter(t *testing.T) {
 	}
 }
 
-// TestLayoutStrangersOrderedByFirstUse: one box per unmatched word, in the order
-// the rules name them.
-func TestLayoutStrangersOrderedByFirstUse(t *testing.T) {
-	members := []Member{{Name: "lead", Role: "進行管理"}}
-	docs := []Doc{{Key: "s", Rules: []Rule{
-		{ID: "A", Text: "人間 → 振り出した担当"},
-		{ID: "B", Text: "人間 → 書いた担当"},
-		{ID: "C", Text: "人間 → 振り出した担当"},
-	}}}
-	f := Layout(members, docs)
-	if len(f.Strangers) != 2 {
-		t.Fatalf("strangers = %+v, want two, one per word", f.Strangers)
-	}
-	if f.Strangers[0].Word != "振り出した担当" || f.Strangers[1].Word != "書いた担当" {
-		t.Fatalf("strangers = %+v, want the words in first-use order", f.Strangers)
-	}
-	if len(f.Edges) != 3 {
-		t.Fatalf("edges = %d, want 3 (two to the same party, one to the other)", len(f.Edges))
-	}
-}
-
-// TestLayoutUnreadKept: the arrows nobody could read are carried on the figure,
-// so the screen can list them under it.
-func TestLayoutUnreadKept(t *testing.T) {
-	docs := []Doc{{Key: "s", Rules: []Rule{{ID: "A", Text: "判明した担当 → 振り出した担当"}}}}
-	f := Layout([]Member{{Name: "lead", Role: "進行管理"}}, docs)
-	if len(f.Unread) != 1 || f.Unread[0].RuleID != "A" {
-		t.Fatalf("unread = %+v, want the one unread arrow", f.Unread)
-	}
-}
-
 // reflectEqual compares two figures field by field, without a reflect import, so
 // the test says which part moved.
 func reflectEqual(t *testing.T, a, b Figure) bool {
@@ -274,9 +250,7 @@ func reflectEqual(t *testing.T, a, b Figure) bool {
 	if a.Width != b.Width || a.Height != b.Height || a.Shared != b.Shared || a.Human != b.Human {
 		return false
 	}
-	if len(a.Docs) != len(b.Docs) || len(a.Members) != len(b.Members) ||
-		len(a.Strangers) != len(b.Strangers) || len(a.Edges) != len(b.Edges) ||
-		len(a.Unread) != len(b.Unread) {
+	if len(a.Docs) != len(b.Docs) || len(a.Members) != len(b.Members) || len(a.Edges) != len(b.Edges) {
 		return false
 	}
 	for i := range a.Members {
@@ -309,15 +283,4 @@ func sameMember(a, b MemberBox) bool {
 		}
 	}
 	return true
-}
-
-// TestLayoutLabelBelowRow: an arrow's id sits on its lane, at a finite place in
-// the figure.
-func TestLayoutLabelBelowRow(t *testing.T) {
-	f := Layout(sampleMembers(), sampleDocs())
-	for _, arrow := range f.Edges {
-		if math.IsNaN(arrow.LabelY) || arrow.LabelY < 0 || arrow.LabelY > f.Height {
-			t.Fatalf("arrow %s label y %v is outside the figure", arrow.RuleID, arrow.LabelY)
-		}
-	}
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/aq2bq/hergy/internal/spawn"
 	"github.com/aq2bq/hergy/internal/status"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/topology"
 	"github.com/aq2bq/hergy/internal/version"
 )
 
@@ -247,9 +248,24 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 			HasRole: built.HasRole,
 			Read:    built.Read,
 			Workers: workersOf(def, node.Name),
+			Turns:   turnsOf(def, node.Name),
 		})
 	}
 	return starts, nil
+}
+
+// turnsOf is who one member hands the turn to, from the graph's edges out of it
+// (I13): the human or another member, in the order turns: writes them. A
+// worker's edge is made by workers: and is not a turn out of the member (I12c).
+func turnsOf(def *definition.Definition, member string) []string {
+	var out []string
+	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
+		if edge.To.Kind != definition.KindHuman && edge.To.Kind != definition.KindMember {
+			continue
+		}
+		out = append(out, edge.To.String())
+	}
+	return out
 }
 
 // workersOf is what one member may hire, from the graph's worker nodes.
@@ -711,9 +727,9 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				continue
 			}
 			checked++
-			size, ok := validateDefinition(cat, env, stdout, tally, seenFiles, row, layer)
+			size, fileProblems, ok := validateDefinition(cat, env, stdout, tally, seenFiles, row, layer)
+			problems += fileProblems
 			if !ok {
-				problems++
 				continue
 			}
 			teams = append(teams, size)
@@ -730,33 +746,61 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	return nil
 }
 
-// reportFile writes one checked file: where it is, as a person writes it, and
-// whether it reads, with the reason when it does not.
-func reportFile(stdout io.Writer, env team.Env, path string, err error) {
+// reportFile writes one team definition's own file: where it is, as a person
+// writes it, whether it reads, and why it does not. A graph the definition
+// cannot hold is one detail line per problem (I12a, I12b), the same sentences
+// validate has always printed (d-edd4); each is a separate thing to fix, so each
+// is counted. It returns how many problems it found.
+func reportFile(stdout io.Writer, env team.Env, path string, err error) int {
 	field(stdout, label("file"), env.Display(path))
+	if gerr, ok := graphErrorOf(err); ok {
+		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
+		for _, detail := range gerr.Messages() {
+			indentField(stdout, 1, label("detail"), breakLine(env, path, errors.New(detail)))
+		}
+		return len(gerr.Problems)
+	}
 	if err == nil {
 		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
-		return
+		return 0
 	}
 	indentField(stdout, 1, label("result"), i18n.T("value.broken"))
 	indentField(stdout, 1, label("detail"), breakLine(env, path, err))
+	return 1
+}
+
+// graphErrorOf is the graph problem a definition's reading stopped on, when that
+// is what it stopped on (d-edd4). validate writes a detail line per problem, so
+// it wants the problems rather than the one message Error() joins them into.
+func graphErrorOf(err error) (*definition.GraphError, bool) {
+	var gerr *definition.GraphError
+	if err == nil || !errors.As(err, &gerr) {
+		return nil, false
+	}
+	return gerr, true
 }
 
 // validateDefinition checks one definition of one layer the way up reads it,
 // writes its result line and its warnings, and returns the size to print after
-// the per-file lines. ok is false when the definition does not read.
-func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, tally *rules.Tally, seen map[string]bool, row catalog.Listing, layer string) (size teamSize, ok bool) {
+// the per-file lines, and how many problems it found. ok is false when the
+// definition does not read.
+func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, tally *rules.Tally, seen map[string]bool, row catalog.Listing, layer string) (size teamSize, problems int, ok bool) {
 	path := listingPath(row, layer)
 	r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
-	reportFile(stdout, env, path, err)
+	problems = reportFile(stdout, env, path, err)
 	reportOldTeamFiles(stdout, env, cat, row.Name, layer)
 	if err != nil {
-		return teamSize{}, false
+		return teamSize{}, problems, false
 	}
 	if scaffold.IsPlaceholderMission(r.team.Definition.Mission) {
 		// The starter team's mission is an example: the definition reads, but
 		// its team has not said what it is for (d-3cae).
 		indentField(stdout, 1, label("warning"), i18n.T("validate.mission_placeholder"))
+	}
+	// A rule text that still says "a → b" is where the turns used to live; the
+	// warning says when the text and turns: disagree.
+	for _, warning := range turnWarnings(cat, r) {
+		indentField(stdout, 1, label("warning"), warning)
 	}
 	if layer == source.LayerGlobal && row.Local {
 		// The project's definition of this name is the one that is used, so the
@@ -767,7 +811,7 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 	collectRules(tally, seen, r)
 	size = sizeOf(r)
 	size.name = env.Display(filepath.Dir(path))
-	return size, true
+	return size, 0, true
 }
 
 // reportOldTeamFiles warns about files a team definition used to keep where
@@ -804,6 +848,136 @@ func reportOldCommon(w io.Writer, env team.Env, dir string) {
 	}
 	field(w, label("warning"), i18n.Tf("validate.old_common",
 		env.Display(filepath.Join(dir, "common")), env.Display(filepath.Join(dir, "agreement.yaml"))))
+}
+
+// turnWarnings is the turn directions a team's rule texts claim and the graph
+// does not have (段 5). A rule text writes a turn as "a → b"; the turns live in
+// turns: now, and this says when the two disagree. A text that names a party the
+// graph has no node for claims no edge the graph should hold — a rule names a
+// worker by its purpose, and workers: already ties that worker to its member — so
+// those are left alone. Nothing here stops a team from booting.
+func turnWarnings(cat *catalog.Catalog, r *resolved) []string {
+	members, docs := turnReading(cat, r)
+	graph := r.team.Definition.Graph
+	var out []string
+	seen := map[string]bool{}
+	for _, edge := range topology.Read(members, docs).Edges {
+		for _, pair := range edgePairs(edge, members) {
+			if graphHasTurn(graph, pair[0], pair[1]) {
+				continue
+			}
+			key := edge.RuleID + "\x00" + pair[0].String() + "\x00" + pair[1].String()
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
+				pair[0].String()+" → "+pair[1].String()))
+		}
+	}
+	return out
+}
+
+// edgePairs is the turns one rule-text arrow claims: one, or both ways for "⇄".
+// An arrow with an end the graph has no node for claims none of them.
+func edgePairs(edge topology.Edge, members []topology.Member) [][2]definition.NodeID {
+	from, okFrom := turnNode(edge.From, members)
+	to, okTo := turnNode(edge.To, members)
+	if !okFrom || !okTo {
+		return nil
+	}
+	pairs := [][2]definition.NodeID{{from, to}}
+	if edge.Both {
+		pairs = append(pairs, [2]definition.NodeID{to, from})
+	}
+	return pairs
+}
+
+// turnNode is one end of a rule-text arrow as a node of the graph: a member the
+// team has, or the human. A name that matched no member is not a node.
+func turnNode(side topology.Side, members []topology.Member) (definition.NodeID, bool) {
+	switch side.Kind {
+	case topology.SideHuman:
+		return definition.NodeID{Kind: definition.KindHuman, Name: "human"}, true
+	case topology.SideMember:
+		if side.Member >= 0 && side.Member < len(members) {
+			return definition.NodeID{Kind: definition.KindMember, Name: members[side.Member].Name}, true
+		}
+	case topology.SideStranger:
+		// A worker's purpose, or a name the team has no node for: not a node.
+	}
+	return definition.NodeID{}, false
+}
+
+// graphHasTurn is whether the graph already holds this turn.
+func graphHasTurn(g *definition.Graph, from, to definition.NodeID) bool {
+	for _, edge := range g.Turns {
+		if edge.From == from && edge.To == to {
+			return true
+		}
+	}
+	return false
+}
+
+// turnReading is the members and the rule files the reading of a rule text's
+// turn arrows needs: the members of the team, and the documents a member reads
+// (段 4: the agreement every team of the layer shares, the team's own agreement,
+// and each member's role document), with the rules parsed. It reads what the
+// definition names, not what one prompt happened to ask for, so a team whose
+// prompt drops %{docs} still has its rule texts compared with turns:. A file that
+// cannot be read is left out: the definition was built a moment ago with the same
+// reading, so the break was already reported.
+func turnReading(cat *catalog.Catalog, r *resolved) ([]topology.Member, []topology.Doc) {
+	def := r.team.Definition
+	members := make([]topology.Member, 0, len(def.Graph.Members))
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		var workers []topology.Worker
+		for _, worker := range def.Graph.Workers {
+			if worker.From == member.Name {
+				workers = append(workers, topology.Worker{Purpose: worker.Purpose, Profile: worker.Profile})
+			}
+		}
+		members = append(members, topology.Member{Name: member.Name, Role: member.Role, Workers: workers})
+	}
+	var docs []topology.Doc
+	seen := map[string]bool{}
+	add := func(doc source.Doc, role string) {
+		if seen[doc.Path] {
+			return
+		}
+		seen[doc.Path] = true
+		text, err := os.ReadFile(doc.Path)
+		if err != nil {
+			return
+		}
+		parsed, err := rules.Parse(string(text), doc.Path)
+		if err != nil {
+			return
+		}
+		entry := topology.Doc{Key: doc.Path, Label: parsed.Title, Role: role}
+		for _, rule := range parsed.Rules() {
+			entry.Rules = append(entry.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
+		}
+		docs = append(docs, entry)
+	}
+	if cat != nil {
+		if shared, ok := cat.SharedAgreement(); ok {
+			add(shared, "")
+		}
+	}
+	if def.HasAgreement {
+		add(def.Agreement, "")
+	}
+	if cat != nil {
+		for i := range def.Graph.Members {
+			member := &def.Graph.Members[i]
+			if doc, ok := cat.Role(member.Role); ok {
+				add(doc, member.Role)
+			}
+		}
+	}
+	return members, docs
 }
 
 // reportProfileNames is the one warning a profiles.yaml gets: a profile whose
@@ -1423,8 +1597,11 @@ func printMember(w io.Writer, r *resolved, member *definition.Start, env team.En
 		indentField(w, 1, label("env"), envSummary(member.Env))
 	}
 	indentField(w, 1, label("cwd"), env.Display(member.Cwd))
+	if len(member.Turns) > 0 {
+		indentField(w, 1, label("turns"), strings.Join(member.Turns, i18n.T("list.separator")))
+	}
 	if len(member.Workers) > 0 {
-		indentField(w, 1, label("may_spawn"), maySpawnText(member.Workers))
+		indentField(w, 1, label("workers"), workersText(member.Workers))
 	}
 	if member.HasRole {
 		indentField(w, 1, label("role_file"), env.Display(member.RoleDoc.Path))
@@ -1479,6 +1656,13 @@ func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.S
 		"startup_timeout_ms": timeout,
 		"members":            plans,
 	}
+	if def := r.team.Definition; def != nil && len(def.Graph.Turns) > 0 {
+		turns := make([]string, len(def.Graph.Turns))
+		for i, turn := range def.Graph.Turns {
+			turns[i] = turn.String()
+		}
+		plan["turns"] = turns
+	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
@@ -1511,12 +1695,12 @@ func displayPaths(joined string, env team.Env) string {
 	return strings.Join(paths, ", ")
 }
 
-// maySpawnText is what show and up --dry print for may_spawn: the purpose and
+// workersText is what show and up --dry print for workers: the purpose and
 // profile of each worker pair, in the written order.
-func maySpawnText(workers []definition.WorkerNode) string {
+func workersText(workers []definition.WorkerNode) string {
 	parts := make([]string, len(workers))
 	for i, worker := range workers {
-		parts[i] = fmt.Sprintf(i18n.T("spawn.allowed_item"), worker.Purpose, worker.Profile)
+		parts[i] = fmt.Sprintf(i18n.T("workers.allowed_item"), worker.Purpose, worker.Profile)
 	}
 	return strings.Join(parts, i18n.T("list.separator"))
 }

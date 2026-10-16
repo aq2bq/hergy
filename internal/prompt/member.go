@@ -143,7 +143,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		"herdr": func() string {
 			return HerdrMember(i18n.Tf("prompt.self_intro_member", run.Team, node.Role, memberName))
 		},
-		"spawn": func() string {
+		"turns": func() string {
+			return TurnsNote(turnsOf(def, node.Name, run.Team))
+		},
+		"workers": func() string {
 			workers := workersOf(def, node.Name)
 			if len(workers) == 0 {
 				return ""
@@ -151,7 +154,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			// The worker reports back to this member: the note names the herdr
 			// name, the same name the worker's own prompt names, so it follows
 			// --as (the hire command takes the short name).
-			return SpawnNote(memberName, workers, hireCommand(run, node.Name))
+			return WorkersNote(memberName, workers, hireCommand(run, node.Name))
 		},
 	}
 	text, err := Expand(template, parts)
@@ -182,9 +185,41 @@ func rosterOf(def *definition.Definition, team string) []RosterEntry {
 	return out
 }
 
+// turnsOf is who a member hands the turn to, from the graph's edges out of it
+// (I13): the human, or another member with the role it reads. The order is the
+// order turns: writes them.
+func turnsOf(def *definition.Definition, member, team string) []TurnPart {
+	var out []TurnPart
+	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
+		// A worker's edge is made by workers: and is not a turn the member
+		// writes or is told about (I12c); the worker note covers it.
+		if edge.To.Kind != definition.KindHuman && edge.To.Kind != definition.KindMember {
+			continue
+		}
+		node, ok := def.Graph.Node(edge.To)
+		if !ok {
+			continue
+		}
+		switch edge.To.Kind {
+		case definition.KindHuman:
+			out = append(out, TurnPart{})
+		case definition.KindMember:
+			peer, ok := node.(definition.MemberNode)
+			if !ok {
+				continue
+			}
+			out = append(out, TurnPart{Name: team + "-" + peer.Name, Role: peer.Role})
+		case definition.KindWorker:
+			// A worker's edge back is made by workers: (I12c); the worker note
+			// covers it, so it is not a turn the member is told about.
+		}
+	}
+	return out
+}
+
 // workersOf is what a member may hire, from the graph's edges out of it (I12c).
-func workersOf(def *definition.Definition, member string) []SpawnPair {
-	var out []SpawnPair
+func workersOf(def *definition.Definition, member string) []WorkerPair {
+	var out []WorkerPair
 	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
 		if edge.To.Kind != definition.KindWorker {
 			continue
@@ -197,7 +232,7 @@ func workersOf(def *definition.Definition, member string) []SpawnPair {
 		if !ok {
 			continue
 		}
-		out = append(out, SpawnPair{Purpose: worker.Purpose, Profile: worker.Profile})
+		out = append(out, WorkerPair{Purpose: worker.Purpose, Profile: worker.Profile})
 	}
 	return out
 }

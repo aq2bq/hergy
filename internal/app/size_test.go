@@ -47,7 +47,7 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int) s
 	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, role, "version: 1\nsections:\n  - rules: []\n")
 	document, err := rules.Parse(readRule(t, agreement), agreement)
 	if err != nil {
