@@ -246,8 +246,6 @@
   "validate.size_warn_team_sources": "    警告: チーム定義 %s が読む原本が %d 件です（仮置きの上限は %d 件）",
   "validate.size_warn_team_chars": "    警告: チーム定義 %s が読む原本の合計が %d 文字です（仮置きの上限は %d 文字）",
   "validate.size_note": "この上限は、規則を見直すための仮置きの予算です。hergy up は止まりません。",
-  "validate.mission_missing": "使命が書かれていません（team.yaml の mission:）",
-  "validate.mission_multiline": "使命は 1 行で書いてください（team.yaml の mission:）",
   "validate.profile_named_after_kind": "プロファイル %s の名前が kind と同じです。名前はモデルや設定を言う名前にすると、kind を選んでいるように見えません",
   "label.dir": "場所",
   "label.config": "設定",
@@ -612,5 +610,7 @@
   "web.error.not_found": "その画面はありません。",
   "web.error.internal": "画面の表示中にエラーが起きました: %v",
   "error.layer_flag_gone": "--%s は無くなりました。同じ名前のチーム定義は、ローカルのものを使います",
-  "validate.global_hidden": "グローバルのチーム定義 %s は、ローカルの %s に隠れて使われません"
+  "validate.global_hidden": "グローバルのチーム定義 %s は、ローカルの %s に隠れて使われません",
+  "error.mission_missing": "使命が書かれていません。team.yaml に mission: を 1 行書いてください",
+  "error.mission_multiline": "使命は 1 行で書いてください（team.yaml の mission:）"
 }

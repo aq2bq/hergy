@@ -246,8 +246,6 @@
   "validate.size_warn_team_sources": "    warning: %s reads %d rule files (the provisional limit is %d)",
   "validate.size_warn_team_chars": "    warning: %s reads %d characters (the provisional limit is %d)",
   "validate.size_note": "This limit is a provisional budget for reviewing rules, and it does not stop hergy up.",
-  "validate.mission_missing": "No mission is written (team.yaml's mission:)",
-  "validate.mission_multiline": "Write the mission on one line (team.yaml's mission:)",
   "validate.profile_named_after_kind": "profile %s is named after its kind; a name that says the model or the settings does not look like choosing a kind",
   "label.dir": "dir",
   "label.config": "config",
@@ -612,5 +610,7 @@
   "web.error.not_found": "There is no such screen.",
   "web.error.internal": "Something went wrong while showing the screen: %v",
   "error.layer_flag_gone": "--%s is gone; a team definition name resolves to the project's own first",
-  "validate.global_hidden": "the global team definition %s is hidden by the project's %s and is not used"
+  "validate.global_hidden": "the global team definition %s is hidden by the project's %s and is not used",
+  "error.mission_missing": "no mission is written: add a one-line mission: to team.yaml",
+  "error.mission_multiline": "write the mission in one line (team.yaml's mission:)"
 }

@@ -285,7 +285,8 @@ func (r *resolved) selectStarts(name string) ([]definition.Start, error) {
 	return []definition.Start{*member}, nil
 }
 
-// missionLine is the mission as one line, or "" when team.yaml writes none.
+// missionLine is the mission as one line. It is required, so it is never empty
+// for a definition that read.
 func (r *resolved) missionLine() string {
 	line, _, _ := strings.Cut(r.team.Definition.Mission, "\n")
 	return strings.TrimSpace(line)
@@ -659,7 +660,6 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
 			report(path, err)
 			if err == nil {
-				reportMission(stdout, r)
 				if layer == source.LayerGlobal && row.Local {
 					// The project's definition of this name is the one that is
 					// used, so the global one is hidden (I11); validate says so,
@@ -694,20 +694,6 @@ func reportProfileNames(w io.Writer, profiles map[string]profile.Profile) {
 		if profiles[name].Kind == name {
 			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
 		}
-	}
-}
-
-// reportMission is the one warning a team definition gets about its mission: no
-// mission written (r-341e), or one written over more than one line. It stands
-// under the file's own result line, where a person reading that file finds it.
-// It moves no exit code: a team whose mission is missing or long boots the same,
-// the way a team over the provisional size does (n-9eea).
-func reportMission(w io.Writer, r *resolved) {
-	switch {
-	case r.missionLine() == "":
-		indentField(w, 1, label("warning"), i18n.T("validate.mission_missing"))
-	case strings.Contains(r.team.Definition.Mission, "\n"):
-		indentField(w, 1, label("warning"), i18n.T("validate.mission_multiline"))
 	}
 }
 
@@ -1244,11 +1230,10 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 }
 
 // printHeader is the short provenance every team command shows: the team's
-// mission when team.yaml writes one, the team definition, the team it runs as,
-// its version, the layer in use, and the files the effective values came from.
-// show prints the definition alone; a team command also prints the team name.
-// The mission is first: it is the one line that says what the team is for, and
-// a team without one prints no line for it.
+// mission, the team definition, the team it runs as, its version, the layer in
+// use, and the files the effective values came from. show prints the definition
+// alone; a team command also prints the team name. The mission is first: it is
+// the one line that says what the team is for, and it is required.
 func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	def := r.team.Definition
 	if mission := r.missionLine(); mission != "" {

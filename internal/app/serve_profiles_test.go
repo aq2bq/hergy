@@ -242,6 +242,7 @@ func TestServePortCheckProfilesRefusesASaveThatBreaksATeamDefinition(t *testing.
 	// One member that runs solo, and one worker it may hire that runs seeker:
 	// both names are named by the definition, impl is not.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
+mission: a mission for the test
 prompt: "%{spawn}"
 members:
   - name: lead
@@ -315,7 +316,7 @@ func TestServePortCheckProfilesWatchesTheLocalLayerForAGlobalSave(t *testing.T) 
 	// The local definition runs the global layer's shared profile: the project's
 	// own profiles.yaml does not hold that name.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
+		"version: 1\nmission: a mission for the test\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
 	p := servePort{env: serveEnv(t)}
 
 	// The global file as it stands reads for the local definition.

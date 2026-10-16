@@ -279,6 +279,7 @@ func TestTheScreensCompareWithThisProjectsLaunch(t *testing.T) {
 	}
 	dir := filepath.Join(other, ".hergy", "teams", "demo")
 	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
+mission: a mission for the test
 docs: [protocol.yaml]
 members:
   - name: lead
