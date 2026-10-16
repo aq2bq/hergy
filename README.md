@@ -98,7 +98,7 @@ Common options: `--global` / `--local` (pick a layer; for `new`, `--local` picks
 
 ```yaml
 version: 1              # required
-mission: "what this team is for"  # optional; one line, shown first by hergy show, hergy up --dry and the web UI
+mission: "what this team is for"  # optional; one line, shown first by the commands that handle a team and by the web UI
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
 docs: [protocol.yaml]   # documents for every member, joined in order; a directory means its *.yaml in name order

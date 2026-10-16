@@ -35,14 +35,16 @@ func TestDefinitionScreenShowsTheMissionUnderTheName(t *testing.T) {
 	}
 	mustNotContain(t, "the definition screen", body, shown("web.mission.empty"))
 
-	// No mission: the same line says so rather than standing empty.
+	// No mission: the same line says so rather than standing empty, and it
+	// carries the lighter `empty` style: without it the note reads as the
+	// mission itself, in the same bold as one (spec/25 H1).
 	base = start(t, missionPort(""))
 	code, body = get(t, base, "/team?layer=local")
 	if code != 200 {
 		t.Fatalf("GET /team = %d, want 200", code)
 	}
 	mustContain(t, "the definition screen", body,
-		`<p class="mission">`+shown("web.mission.empty")+`</p>`)
+		`<p class="mission empty">`+shown("web.mission.empty")+`</p>`)
 }
 
 // TestDefinitionScreenKeepsTheMissionOutOfABrokenFile: a definition that cannot

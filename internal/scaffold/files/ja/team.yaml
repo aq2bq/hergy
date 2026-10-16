@@ -1,4 +1,5 @@
 version: 1
+# mission: このチームの使命を 1 行で。チームを扱うコマンドの見出しと WebUI が最初に表示する
 docs: [protocol.yaml]
 members:
   - name: lead

@@ -1,4 +1,5 @@
 version: 1
+# mission: one line saying what this team is for; the commands that handle a team print it first, and so does the web UI
 docs: [protocol.yaml]
 members:
   - name: lead
