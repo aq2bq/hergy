@@ -24,6 +24,13 @@
   names hergy gave its panes. A team booted by an older hergy keeps its older
   label (`team:<name>@<definition>`, or `team:<name>`) and is still found from
   it.
+- **A member's role is a "role", and who a member hands the turn to is "hands
+  the turn to"**: in Japanese, every message and document now says ロール where
+  it said 役割, ロールの文書 where it said 役割ファイル, and ターンを渡す where it
+  said 手番 or 話しかけてよい. The English text already said role, so it does not
+  change. The glossary in `terms_test.go` holds the words, and the test keeps
+  them out of the locales, the cheatsheets, the bundled skills and the READMEs.
+  No file or command is renamed, so a team definition keeps working as it is.
 
 ### Fixed
 

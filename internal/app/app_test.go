@@ -584,7 +584,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo", "--local")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  役割: lead", "  役割ファイル: .hergy/teams/demo/roles/lead.yaml"} {
+	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/teams/demo/roles/lead.yaml"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}

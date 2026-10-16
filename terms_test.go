@@ -54,6 +54,18 @@ var glossary = []term{
 		meaning:  "the directory name under teams/ that holds team.yaml; the default team name",
 	},
 	{
+		id:       "team-definition",
+		english:  "team definition",
+		japanese: "チーム定義",
+		meaning:  "how one team is built: the folder under teams/ that holds team.yaml; of two definitions of a name, the project's own is the one used",
+	},
+	{
+		id:       "team",
+		english:  "team",
+		japanese: "チーム",
+		meaning:  "one group started from a team definition; it goes by the team name, and it is what runs on herdr",
+	},
+	{
 		id:       "mission",
 		english:  "mission",
 		japanese: "使命",
@@ -100,6 +112,74 @@ var glossary = []term{
 		english:  "profile",
 		japanese: "プロファイル",
 		meaning:  "a named engine (kind, args, env) in profiles.yaml",
+	},
+	{
+		id:       "kind",
+		english:  "kind",
+		japanese: "kind",
+		meaning:  "the kind of agent (エージェントの種類) a profile starts: claude, codex or opencode; written in a profile, not on a member, and the Japanese text is kind too",
+	},
+	{
+		id:       "role",
+		english:  "role",
+		japanese: "ロール",
+		meaning:  "what a member acts as; the member reads that role's document",
+		banned: []ban{
+			// 役割 was the old Japanese name for a role (合意 7, d-0ccd).
+			{lang: "ja", word: "役割"},
+		},
+	},
+	{
+		id:       "role-document",
+		english:  "role document",
+		japanese: "ロールの文書",
+		meaning:  "one role's rule document, roles/<role>.yaml; every member of that role reads it",
+		banned: []ban{
+			// 役割ファイル was the old Japanese name for a role document.
+			{lang: "ja", word: "役割ファイル"},
+		},
+	},
+	{
+		id:       "team-agreement",
+		english:  "team agreement",
+		japanese: "チームの約束",
+		meaning:  "the rules a team definition gives every member of that team, written in the definition's own folder",
+	},
+	{
+		id:       "shared-agreement",
+		english:  "shared agreement",
+		japanese: "共通の約束",
+		meaning:  "the rules every team definition of a layer gives its members, kept in one place for that layer",
+	},
+	{
+		id:       "human",
+		english:  "human",
+		japanese: "人間",
+		meaning:  "the one person outside every team; a team definition's turns write it human, and a Japanese rule text writes it 人間",
+	},
+	{
+		id:       "hands-the-turn-to",
+		english:  "hands the turn to",
+		japanese: "ターンを渡す",
+		meaning:  "the directed relation between two nodes that says which one passes the turn on; a rule text writes it <a> → <b>",
+		banned: []ban{
+			// 手番 and 話しかけてよい were the old Japanese words for this
+			// (合意 7, d-0ccd).
+			{lang: "ja", word: "手番", instead: "ターン"},
+			{lang: "ja", word: "話しかけてよい"},
+		},
+	},
+	{
+		id:       "node",
+		english:  "node",
+		japanese: "ノード",
+		meaning:  "who receives and hands on the turn: the human, a member, or a worker",
+	},
+	{
+		id:       "edge",
+		english:  "edge",
+		japanese: "エッジ",
+		meaning:  "one node handing the turn to another; a member -> worker edge also carries the purpose and the profile",
 	},
 	{
 		id:       "purpose",
@@ -191,6 +271,18 @@ var glossary = []term{
 		banned: []ban{
 			{lang: "ja", word: "事故"},
 		},
+	},
+	{
+		id:       "activity",
+		english:  "activity",
+		japanese: "活動",
+		meaning:  "how a running team stands now: who is waiting on the human, what needs deciding, and why it is stopped",
+	},
+	{
+		id:       "launch-record",
+		english:  "launch record",
+		japanese: "起動記録",
+		meaning:  "what a running team was started from: the definition and the hash of its content at that time",
 	},
 }
 
