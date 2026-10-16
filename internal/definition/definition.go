@@ -23,6 +23,8 @@ type Definition struct {
 	Mission string
 	// Graph is the nodes and the edges.
 	Graph *Graph
+	// Version is the format version team.yaml wrote.
+	Version int
 	// Dir is the definition's own directory, and TeamYAML the file it was read
 	// from.
 	Dir      string
@@ -50,6 +52,10 @@ type MemberNode struct {
 	Role    string
 	Profile string
 	Cwd     string
+	// Prompt is the member's own prompt, with HasPrompt saying whether it wrote
+	// one. 段 5 keeps this; the default comes from the locales.
+	Prompt    string
+	HasPrompt bool
 }
 
 // ID is the node's identity in the graph: a member is its name.

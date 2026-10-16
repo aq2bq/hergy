@@ -544,6 +544,7 @@ func TestMemberNameTooLongForHerdrStops(t *testing.T) {
 		TeamName:     "abcdefghijklmnopqrstuvwxyz", // 26 chars, over the team-name limit
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: "team.yaml",
+		Profiles:     testProfiles(t.TempDir()),
 		Reader:       source.Disk{},
 	})
 	if err == nil {
@@ -569,13 +570,14 @@ func TestConfigYAMLRoundTrips(t *testing.T) {
 	}
 }
 
-// TestCheatMachineNamesEveryConfigKey collects every yaml key the settings
-// structs read, by reflection over their yaml tags, and checks the agent
-// cheatsheet names each one, so a key added later cannot be left out.
+// TestCheatMachineNamesEveryConfigKey collects every yaml key config.yaml's
+// settings struct reads, by reflection over its yaml tags, and checks the agent
+// cheatsheet names each one, so a key added later cannot be left out. The keys
+// team.yaml and profiles.yaml read are checked where those structs live.
 func TestCheatMachineNamesEveryConfigKey(t *testing.T) {
 	keys := map[string]bool{}
 	roots := []any{
-		rawTeam{}, rawMember{}, rawMaySpawn{}, rawConfig{},
+		rawConfig{},
 	}
 	for _, root := range roots {
 		collectYAMLKeys(keys, reflect.TypeOf(root))
@@ -666,7 +668,7 @@ func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
 	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
 		collectYAMLKeys(keys, typ.Elem())
 	case reflect.Struct:
-		if typ.PkgPath() != reflect.TypeFor[rawTeam]().PkgPath() {
+		if typ.PkgPath() != reflect.TypeFor[rawConfig]().PkgPath() {
 			return
 		}
 		for field := range typ.Fields() {
