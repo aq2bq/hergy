@@ -63,3 +63,31 @@ func TestMachineLinesComeFromTheTable(t *testing.T) {
 		}
 	}
 }
+
+// TestCheatMachineDoesNotNameGoneKeys: an agent reads cheat --ai and writes the
+// keys it names. The keys and flags that are gone must not be among them: the
+// layer flags (段 3), the old document keys (段 5) and may_spawn, and kind: under
+// a member, which is the profile's (I7, 段 7). A file that writes one is stopped
+// with the sentence that says where it went.
+func TestCheatMachineDoesNotNameGoneKeys(t *testing.T) {
+	for _, gone := range []string{"--local", "--global", "docs:", "roles:", "may_spawn"} {
+		if strings.Contains(Machine, gone) {
+			t.Errorf("cheat --ai names %q, which is gone", gone)
+		}
+	}
+	// kind: is a profile's and a rule's origin, not a member's: under the
+	// members block it must not appear.
+	inMembers := false
+	for line := range strings.SplitSeq(Machine, "\n") {
+		switch {
+		case strings.HasPrefix(line, "    members:"):
+			inMembers = true
+			continue
+		case strings.HasPrefix(line, "    workers:"):
+			inMembers = false
+		}
+		if inMembers && strings.Contains(line, "kind:") {
+			t.Errorf("cheat --ai writes kind: under a member: %q", line)
+		}
+	}
+}

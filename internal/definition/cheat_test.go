@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/cheat"
+	"go.yaml.in/yaml/v3"
 )
 
 // TestCheatMachineNamesEveryConfigKey collects every yaml key team.yaml's
@@ -44,6 +45,13 @@ func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
 			return
 		}
 		for field := range typ.Fields() {
+			if field.Type == reflect.TypeFor[yaml.Node]() {
+				// A tombstone: the key is gone, and the raw node is kept only
+				// so a file that still writes it is stopped with the sentence
+				// that says where it went (段 5). It is not a key a person
+				// writes, so the cheatsheet does not name it.
+				continue
+			}
 			if tag, _, _ := strings.Cut(field.Tag.Get("yaml"), ","); tag != "" && tag != "-" {
 				keys[tag] = true
 			}

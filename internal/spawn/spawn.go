@@ -118,9 +118,11 @@ func defaultLead(starts []definition.Start, purpose string) (*definition.Start, 
 	}
 }
 
-// hirings is who may hire for what, as a person reads it ("lead は 実装、spec は
+// hirings is who may hire for what, as a person reads it ("lead は 実装／spec は
 // 調査"): every member whose workers: is not empty, with the purposes it names,
-// in the written order. No member hiring at all is "none".
+// in the written order. Members and purposes use different separators
+// (spec/34 H2), so a member is not read as another purpose. No member hiring at
+// all is "none".
 func hirings(starts []definition.Start) string {
 	var parts []string
 	for i := range starts {
@@ -132,7 +134,7 @@ func hirings(starts []definition.Start) string {
 	if len(parts) == 0 {
 		return i18n.T("value.none")
 	}
-	return strings.Join(parts, i18n.T("list.separator"))
+	return strings.Join(parts, i18n.T("hire.member_separator"))
 }
 
 // hirersFor is the members that may hire for one purpose: the members whose

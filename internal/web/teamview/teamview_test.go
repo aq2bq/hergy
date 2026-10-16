@@ -514,7 +514,10 @@ func TestFigureDrawsTheTurnGraph(t *testing.T) {
 	}
 	mustContain(t, "the figure", body,
 		"<svg", "チームの約束", "リード", "実装", "調べものを手伝う",
-		shown("web.teamview.figure.human"), shown("web.teamview.figure.no_role_file"),
+		shown("web.teamview.figure.human"),
+		// A member with no role document draws that in the role shape, a
+		// fixed-width box the label is cut to fit (14 runes).
+		cut(shown("web.teamview.figure.no_role_file"), 14),
 		// Every turn is drawn: human ⇄ lead and lead ⇄ dev, four arrows.
 		strings.Repeat(`marker-end="url(#tp-end)"`, 1), `class="tp-edge"`,
 		// The two states Herdr reports, on the members.

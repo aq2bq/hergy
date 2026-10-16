@@ -64,7 +64,7 @@ func flagLines() string {
 // head is what comes before the command lines.
 const head = `hergy cheat --ai - the whole of hergy, for an agent that will not read anything else
 
-A team definition is a directory, <layer>/teams/<definition>/team.yaml. A running
+A team definition is a directory, teams/<definition>/ under .hergy/ or ~/.config/hergy/. A running
 team has a team name: the team definition name by default, or another name given
 to hergy up --as. Commands that read or write a team definition take a team
 definition name (up, new, show); commands that act on a running team take a team
@@ -102,13 +102,13 @@ var behavior = map[options.Kind]string{
 `,
 	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for.
 `,
-	options.Ls: `      List the visible team definitions and the layer each came from, and the running team names each one booted.
+	options.Ls: `      List the visible team definitions and the running team names each one booted.
 `,
 	options.Show: `      Print the effective team definition and where each value and document came from.
 `,
-	options.New: `      Write a starter team definition: into the project's .hergy/ when hergy runs inside a git repository, into the global layer otherwise. The global config.yaml is written too when it is missing.
+	options.New: `      Write a starter team definition: into the project's .hergy/ when hergy runs inside a git repository, into ~/.config/hergy/ otherwise. The global config.yaml is written too when it is missing.
 `,
-	options.Validate: `      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
+	options.Validate: `      Check the global config.yaml, every profiles.yaml, and every team definition. Exit 1 if any is broken.
       It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
       It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
@@ -167,17 +167,17 @@ Web UI:
   The screens, one line each:
     /         the home: what moved since the last launch, and the rules with no check, each rule opening in the rules screen
     /teams    the team list: each definition's members, the rules with no check, and the last launch with its hash
-    /rules    the rules screen: the rule files the team definitions of a layer read, one rule at a time in the edit panel
+    /rules    the rules screen: the rule files the team definitions read, one rule at a time in the edit panel
     /diff     the prompt diff: per definition and member, the prompt the last launch handed over against the prompt the files build now, line by line
     /bump     the version screen: the documents whose content moved since the last launch, each with the version it holds, the version a bump writes (n → n+1), and the command that hands the change over
     /team     the team definition: the documents every member reads, the members, and the workers each member may call, with the prompt a member is handed
     /running  the running teams: the teams herdr reports running, read the way hergy status reads them, with each member's terminal title and pane; the button moves herdr's focus to that pane, and the screen reads herdr again every 5 seconds
-    /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role files, the members, the workers, the human, and the turns the definition writes in turns:, with herdr's state on a team that is running
-    /profiles the profiles: the profile names, kinds, args and env of one layer, each env variable a name and its value, as a form that adds, changes and deletes them; the save writes that layer's own profiles.yaml through the same check hergy validate runs (the file, and the team definitions that read it)
+    /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role documents, the members, the workers, the human, and the turns the definition writes in turns:, with herdr's state on a team that is running
+    /profiles the profiles: the profile names, kinds, args and env, each env variable a name and its value, as a form that adds, changes and deletes them; the save writes the profiles.yaml through the same check hergy validate runs (the file, and the team definitions that read it)
   Opening the URL lands on the home, which is the way into the daily flow; every screen reads the same files the commands read.
 
 Resolution:
-  A team definition is <layer>/teams/<definition>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
+  A team definition is teams/<definition>/ under the project's .hergy/, or under $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
   A definition name is looked up local first, then global; a name in both resolves to the project's own.
   The project root is the git root (else the current directory); -C, --dir overrides it.
   up with no name uses the one team definition of the project; otherwise the candidates are listed and it stops.
@@ -197,7 +197,7 @@ Settings files and their keys:
   Global config.yaml, at <global>/config.yaml:
     version: 1        required, int; must be 1.
     lang: en|ja       string; the language when --lang is not given; default en.
-  A team definition's team.yaml, at <layer>/teams/<definition>/team.yaml; cwd is relative to the project root:
+  A team definition's team.yaml, at teams/<definition>/team.yaml under .hergy/ or ~/.config/hergy/; cwd is relative to the project root:
     version: 1        required, int; must be 1.
     mission: "<text>" string, required; one line saying what the team is for. A definition that writes none, or writes one over more than one line, does not read; hergy validate warns while it is still the starter example hergy new writes. The commands and the screens show it first.
     team: <definition> string, optional; if written it must equal the team definition name (the directory name).
@@ -205,21 +205,20 @@ Settings files and their keys:
     prompt: "<text>"  string, optional; the bootstrap prompt template for every member. It must keep %{role_doc} and %{docs}.
     members:          required, nonempty list.
       name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
-      role: <role>       required, string; reads roles/<role>.yaml from the layer.
+      role: <role>       required, string; reads roles/<role>.yaml (the project's first, then ~/.config/hergy/).
       profile: <name>    required, string; a named engine from profiles.yaml. kind, args and env are the profile's: writing one of them on a member is an error that says where it goes.
       cwd: <dir>         string; overrides the team cwd.
       prompt: "<text>"   string; overrides the team prompt. It must keep %{role_doc} and %{docs}.
-      may_spawn:         gone. What a member may hire is written at the top level now, in workers:; a member that still writes may_spawn is an error that says so.
     workers:          list, optional; which member may hire which worker. Each entry ties one worker to the member that hires it; the worker's two turns (the member to the worker, and the worker back) are made from it and cannot be written in turns:. A member and a purpose written twice is an error.
       - from: <member>     required, string; the member that hires this worker.
         purpose: <text>    required, string; what the worker is for; one worker per member and purpose.
         profile: <profile> required, string; the engine that worker runs; a profile in profiles.yaml.
     turns:            list, required; who hands the turn to whom, one entry per turn, written "- <from> -> <to>". Each end is a member's name, or human. A turn graph hergy cannot hold stops the definition, the way a file that does not read does: the same sentences stop up, refresh, reprompt, hire and validate, one per line, and down still closes such a team by name. What stops it is a name that is no member and no human, a name written "<kind>:<name>" (no kind but human and a member may stand there yet), a turn to itself, the same turn twice, a member or the human that hands the turn to nobody, and no turn reaching the human. A rule text that still writes "a → b" is compared with turns: and warned about when the two disagree.
   Where a member's documents are (team.yaml has no key for them):
-    <layer>/roles/<role>.yaml                    a member's role document; read first. Local first, then global.
-    <layer>/agreement.yaml                       the agreement every team of the layer shares; read next. Optional.
-    <layer>/teams/<definition>/agreement.yaml    the team's own agreement; read last. Optional.
-  profiles.yaml, at <layer>/profiles.yaml, next to teams/ in the layer root:
+    roles/<role>.yaml                 under .hergy/ or ~/.config/hergy/: a member's role document; read first. The project's first, then outside it.
+    agreement.yaml                    under .hergy/ or ~/.config/hergy/: the agreement every team shares; read next. Optional.
+    teams/<definition>/agreement.yaml the team's own agreement; read last. Optional.
+  profiles.yaml, at .hergy/profiles.yaml or ~/.config/hergy/profiles.yaml, next to teams/:
     version: 1        required, int; must be 1.
     profiles:         mapping of profile name to engine.
       <name>:
@@ -227,7 +226,7 @@ Settings files and their keys:
         args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
         env: {NAME: value} mapping of string to string; environment for the pane.
       A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
-  A team definition reads the project's profiles.yaml over the global layer's, whatever layer the definition sits in: a profile of the same name resolves to the project's.
+  A team definition reads the project's profiles.yaml over the one outside it, wherever the definition sits: a profile of the same name resolves to the project's.
 
 Rule files (what the role documents and the agreements are):
   Every document a member reads is one rule file: the agreements (agreement.yaml) and a role document (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a role left as <role>.md stops with the way to move it over.
@@ -264,9 +263,9 @@ hire (a member starting a worker):
   With no --from, the one member whose workers: name --purpose hires. No such member is an error, and so are two or more, which list the candidates.
 
 new:
-  It writes team.yaml and agreement.yaml into the team definition, and roles/lead.yaml and roles/builder.yaml into the layer's roles/, and the global config.yaml (version: 1, lang) when that file is missing.
-  The starter members name the profile claude-default, and new writes that profile into the layer's profiles.yaml when the layer cannot already resolve it.
-  It never overwrites: an existing team definition directory stops it and nothing is written (exit 1), and a role document already in the layer is left as it is.
+  It writes team.yaml and agreement.yaml into the team definition, and roles/lead.yaml and roles/builder.yaml into roles/, and the global config.yaml (version: 1, lang) when that file is missing.
+  The starter members name the profile claude-default, and new writes that profile into the project's profiles.yaml when it cannot already resolve it.
+  It never overwrites: an existing team definition directory stops it and nothing is written (exit 1), and a role document already there is left as it is.
 
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)

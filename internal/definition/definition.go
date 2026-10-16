@@ -32,10 +32,6 @@ type Definition struct {
 	// Layer is where it was found (local or global). The layer stays inside
 	// hergy: it is not a word a person reads (I11).
 	Layer string
-	// OtherYAML is the same-name team.yaml in the other layer, empty when there
-	// is none. It is what the note about a local definition overriding a global
-	// one reads.
-	OtherYAML string
 
 	// Agreement is the team's own agreement: agreement.yaml in the definition's
 	// own directory, with HasAgreement saying whether the team wrote one. It is

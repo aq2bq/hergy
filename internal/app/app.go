@@ -451,8 +451,6 @@ func runningCandidates(running []team.Running) error {
 }
 
 func runLs(env team.Env, stdout io.Writer) error {
-	field(stdout, label("local"), env.Display(env.LocalDir))
-	field(stdout, label("global"), env.Display(env.GlobalDir))
 	// The running teams, grouped by the team definition they were booted from.
 	// Outside herdr the tabs cannot be read; then only the definitions show.
 	running := map[string][]string{}
@@ -463,21 +461,20 @@ func runLs(env team.Env, stdout io.Writer) error {
 	}
 	shown := 0
 	for _, row := range env.Catalog(source.Disk{}).Definitions() {
-		var layer, path, other string
+		var path, other string
 		if row.Local {
-			layer, path = source.LayerLocal, row.LocalPath
+			path = row.LocalPath
 			if row.Global {
 				other = row.GlobalPath
 			}
 		} else {
-			layer, path = source.LayerGlobal, row.GlobalPath
+			path = row.GlobalPath
 		}
 		shown++
 		field(stdout, label("definition"), row.Name)
-		indentField(stdout, 1, label("layer"), layer)
 		indentField(stdout, 1, label("path"), env.Display(path))
 		if other != "" {
-			indentField(stdout, 1, label("global"), env.Display(other))
+			indentField(stdout, 1, label("note"), i18n.Tf("note.elsewhere", env.Display(other)))
 		}
 		if teams := running[row.Name]; len(teams) > 0 {
 			indentField(stdout, 1, label("running"), strings.Join(teams, i18n.T("list.separator")))
@@ -577,7 +574,6 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 		return err
 	}
 	field(stdout, label("definition"), name)
-	field(stdout, label("layer"), layer)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
 		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
@@ -806,7 +802,7 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 		// The project's definition of this name is the one that is used, so the
 		// global one is hidden (I11); validate says so, where a person reading
 		// the global file finds it.
-		indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
+		indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name))
 	}
 	collectRules(tally, seen, r)
 	size = sizeOf(r)
@@ -1260,8 +1256,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 // the definition from). The panes are the ones hergy started, named after the
 // team, so closing them needs no definition.
 func downByName(ctx context.Context, chosen team.Running, reason error, opts *options.Options, stdout, stderr io.Writer) error {
-	field(stdout, label("team"), chosen.Team)
-	indentField(stdout, 1, label("definition"), chosen.Definition)
+	field(stdout, label("team"), startedFrom(chosen.Team, chosen.Definition))
 	// The reason, on one line, without the "next:" step the resolution error
 	// suggests: the step here is the down itself.
 	detail := reason.Error()
@@ -1356,8 +1351,7 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			// so one such team does not hide the rest. A definition that is here
 			// but does not read says why, with its file's path; only a
 			// definition that is not here says "another project".
-			field(stdout, label("team"), entry.Team)
-			indentField(stdout, 1, label("definition"), entry.Definition)
+			field(stdout, label("team"), startedFrom(entry.Team, entry.Definition))
 			if errors.Is(err, catalog.ErrNotFound) {
 				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
 			} else {
@@ -1365,8 +1359,7 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			}
 			continue
 		}
-		field(stdout, label("team"), r.team.Name)
-		indentField(stdout, 1, label("definition"), r.team.Definition.Name)
+		field(stdout, label("team"), startedFrom(r.team.Name, r.team.Definition.Name))
 		rows, err := newLauncher(r, opts.Timeout, stdout).Status(r.starts)
 		if err != nil {
 			return err
@@ -1540,30 +1533,25 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 }
 
 // printHeader is the short provenance every team command shows: the team's
-// mission, the team definition, the team it runs as, its version, the layer in
-// use, and the files the effective values came from. show prints the definition
-// alone; a team command also prints the team name. The mission is first: it is
-// the one line that says what the team is for, and it is required.
+// mission, the team it runs as, its version, and the files the effective values
+// came from. show prints the definition alone; a team command prints the team
+// name, and the definition behind it only when the two differ (I2). The mission
+// is first: it is the one line that says what the team is for, and it is
+// required.
 func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	def := r.team.Definition
 	if mission := r.missionLine(); mission != "" {
 		field(w, label("mission"), mission)
 	}
-	field(w, label("definition"), def.Name)
 	if withTeam {
-		field(w, label("team"), r.team.Name)
+		// A team is called by its name. The definition it was booted from is
+		// named only when the two differ (I2).
+		field(w, label("team"), startedFrom(r.team.Name, def.Name))
+	} else {
+		field(w, label("definition"), def.Name)
 	}
 	field(w, label("version"), strconv.Itoa(def.Version))
-	field(w, label("layer"), def.Layer)
 	field(w, label("team_file"), env.Display(def.TeamYAML))
-	if def.OtherYAML != "" {
-		switch def.Layer {
-		case source.LayerLocal:
-			field(w, label("note"), i18n.Tf("note.local_overrides", env.Display(def.OtherYAML)))
-		case source.LayerGlobal:
-			field(w, label("note"), i18n.Tf("note.global_used", env.Display(def.OtherYAML)))
-		}
-	}
 	switch {
 	case r.profilesYAML == "":
 		field(w, label("profiles"), i18n.T("value.none"))
@@ -1572,6 +1560,15 @@ func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	default:
 		field(w, label("profiles"), i18n.Tf("value.unused", displayPaths(r.profilesYAML, env)))
 	}
+}
+
+// startedFrom is how a running team is shown: its name, and the definition it
+// was booted from, only when the two differ (I2).
+func startedFrom(team, definition string) string {
+	if team == definition {
+		return team
+	}
+	return i18n.Tf("note.started_from", team, definition)
 }
 
 // printMember is one member: what it runs, where it runs, and the files its

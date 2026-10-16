@@ -24,7 +24,7 @@ func TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName(t *testing.T) {
 	f.runningHerdr(t, tabs, agents)
 
 	got := mustRun(t, "status", "qw2")
-	for _, line := range []string{"team definition: qw", "team: qw2", "qw2-lead: working"} {
+	for _, line := range []string{"team: qw2 (from qw)", "qw2-lead: working"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status qw2 is missing %q:\n%s", line, got)
 		}
@@ -46,7 +46,7 @@ func TestStatusListsOnlyHergeTeams(t *testing.T) {
 	f.runningHerdr(t, tabs, agents)
 
 	got := mustRun(t, "status")
-	if !strings.Contains(got, "team: qw2\n") {
+	if !strings.Contains(got, "team: qw2 (from qw)\n") {
 		t.Fatalf("status does not list the team whose member is running:\n%s", got)
 	}
 	for _, name := range []string{"notes", "docs"} {
@@ -142,7 +142,7 @@ func TestOlderLabelsStillFindTheirTeams(t *testing.T) {
 	f.runningHerdr(t, tabs, "")
 
 	got := mustRun(t, "status")
-	for _, line := range []string{"team definition: qw", "team: qw2"} {
+	for _, line := range []string{"team: qw2 (from qw)"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status does not read the older label: missing %q:\n%s", line, got)
 		}

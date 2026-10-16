@@ -12,6 +12,19 @@
 
 ### Changed
 
+- **The layer is no longer a word a person reads**: `hergy` says where a team
+  definition lives by its path (`.hergy/…`, `~/.config/hergy/…`), never by a
+  layer name. The commands' headers lost the `layer:` line, `hergy ls` lost its
+  `local:`/`global:` lines (a name that is also outside the project is said in
+  one line), `hergy new` says where it writes when `--local`/`--global` is
+  typed, and a definition that is not found is reported in one shape:
+  `there is no team definition X (looked in: <paths>; candidates: …)`. The
+  cheatsheet, the bundled skills, the READMEs and every `--help` say the places
+  by path too. Every `role file` in the English messages, the cheatsheet, the
+  skills and the README is now `role document`. The `--local`/`--global` flags
+  keep stopping with the sentence that says a name resolves to the project's
+  own first.
+
 - **`hergy hire` refuses a purpose the hiring member's `workers:` does not
   name, and `--profile` is gone**: the profile comes from the `workers:` entry
   (the member → worker edge), so a hire does not choose one; typing `--profile`

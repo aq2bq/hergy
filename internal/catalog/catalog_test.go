@@ -83,7 +83,7 @@ func TestDefinitionPrefersLocalOverGlobal(t *testing.T) {
 	}
 }
 
-func TestDefinitionRecordsTheOtherLayer(t *testing.T) {
+func TestDefinitionPicksTheProjectThenOutside(t *testing.T) {
 	l := newLayers(t)
 	l.writeTeam(t, source.LayerGlobal, "t")
 	l.writeTeam(t, source.LayerLocal, "t")
@@ -93,8 +93,8 @@ func TestDefinitionRecordsTheOtherLayer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.OtherYAML != filepath.Join(l.global, "teams", "t", "team.yaml") {
-		t.Errorf("OtherYAML = %q", got.OtherYAML)
+	if got.Layer != source.LayerLocal {
+		t.Errorf("Layer = %q, want %q", got.Layer, source.LayerLocal)
 	}
 
 	only, err := l.catalog().Definition("only-global", "")
@@ -103,9 +103,6 @@ func TestDefinitionRecordsTheOtherLayer(t *testing.T) {
 	}
 	if only.Layer != source.LayerGlobal {
 		t.Errorf("Layer = %q, want %q", only.Layer, source.LayerGlobal)
-	}
-	if only.OtherYAML != "" {
-		t.Errorf("OtherYAML = %q, want empty", only.OtherYAML)
 	}
 	if _, err := l.catalog().Definition("absent", ""); err == nil {
 		t.Error("Definition of an unknown name succeeded, want an error")
