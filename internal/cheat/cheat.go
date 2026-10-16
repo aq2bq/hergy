@@ -169,6 +169,7 @@ Web UI:
     /team     the team definition: the documents every member reads, the members, and the workers each member may call, with the prompt a member is handed
     /running  the running teams: the teams herdr reports running, read the way hergy status reads them, with each member's terminal title and pane; the button moves herdr's focus to that pane, and the screen reads herdr again every 5 seconds
     /figure   the figure: one team definition drawn as a picture: the documents every member reads, the role files, the members, the workers, the human, and the turn directions read out of the rules, with herdr's state on a team that is running
+    /profiles the profiles: the profile names, kinds, args and env of one layer, each env variable a name and its value, as a form that adds, changes and deletes them; the save writes that layer's own profiles.yaml through the same check hergy validate runs (the file, and the team definitions that read it)
   Opening the URL lands on the home, which is the way into the daily flow; every screen reads the same files the commands read.
 
 Resolution:

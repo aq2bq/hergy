@@ -4,7 +4,7 @@
   <p class="lede">{{t "web.profiles.lede.what"}}</p>
   <p class="lede">{{t "web.profiles.lede.overlay"}}</p>
   <p class="lede">{{t "web.profiles.lede.global"}}</p>
-  <p class="lede">{{t "web.profiles.readonly"}}</p>
+  <p class="lede">{{t "web.profiles.edit.note"}}</p>
   {{- if .Local}}
   <div class="panel">
     <h3>{{t "web.profiles.effective"}}</h3>
@@ -16,32 +16,62 @@
   </div>
   {{- end}}
   <h2 class="sect"><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span> <span class="mono">{{.LayerRoot}}/profiles.yaml</span></h2>
+  {{- if .Broken}}
   <div class="mtable">
-    <div class="mhead pline">
-      <span>{{t "web.profiles.column.name"}}</span>
-      <span>{{t "web.profiles.column.kind"}}</span>
-      <span>{{t "web.profiles.column.args"}}</span>
-      <span>{{t "web.profiles.column.env"}}</span>
-    </div>
-    {{- if .Rows}}
-    {{- range .Rows}}
-    <div class="mgroup{{if .Shadowed}} shadowed{{end}}">
-      <div class="pline">
-        <span class="mname">{{.Name}}</span>
-        <span class="mono">{{.Kind}}</span>
-        <span class="mono preline">{{join .Args "\n"}}</span>
-        <span class="mono preline">{{join .EnvNames "\n"}}</span>
+    <div class="empty-note">{{t "web.profiles.broken"}}</div>
+  </div>
+  <ul class="hints"><li>{{.Broken}}</li></ul>
+  {{- else}}
+  <form method="post" action="{{p "save"}}?layer={{.Layer}}">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <input type="hidden" name="hash" value="{{.Hash}}">
+    {{- if .Notice}}
+    <p class="fine">{{.Notice}}</p>
+    {{- end}}
+    {{- if .Reason}}
+    <ul class="hints"><li>{{.Reason}}</li></ul>
+    {{- end}}
+    <div class="mtable">
+      <div class="mhead pline">
+        <span>{{t "web.profiles.column.name"}}</span>
+        <span>{{t "web.profiles.column.kind"}}</span>
+        <span>{{t "web.profiles.column.args"}}</span>
+        <span>{{t "web.profiles.column.env"}}</span>
+        <span></span>
       </div>
-      {{- if .Shadowed}}
-      <div class="wrows"><span class="warnline">{{t "web.profiles.state.shadowed"}}</span></div>
-      {{- else if .Over}}
-      <div class="wrows"><span class="mcount">{{t "web.profiles.state.over"}}</span></div>
+      {{- range $i, $row := .Rows}}
+      <div class="mgroup{{if $row.Shadowed}} shadowed{{end}}">
+        <div class="pline">
+          <input class="input mname" type="text" name="name" value="{{$row.Name}}" aria-label="{{t "web.profiles.column.name"}}">
+          <input class="input mono" type="text" name="kind" value="{{$row.Kind}}" aria-label="{{t "web.profiles.column.kind"}}">
+          <textarea class="input mono" name="args" rows="2" aria-label="{{t "web.profiles.column.args"}}">{{$row.Args}}</textarea>
+          <div class="envlist">
+            {{- range $j, $variable := $row.Env}}
+            <div class="envpair">
+              <input type="hidden" name="envof" value="{{$i}}">
+              <input class="input mono" type="text" name="envname" value="{{$variable.Name}}" aria-label="{{t "web.profiles.column.env_name"}}">
+              <textarea class="input mono" name="envvalue" rows="1" aria-label="{{t "web.profiles.column.env_value"}}">{{$variable.Value}}</textarea>
+              <button class="x" type="submit" name="envdrop" value="{{$i}}:{{$j}}" formaction="{{p "edit"}}?layer={{$.Layer}}" aria-label="{{t "web.profiles.env.remove"}}">×</button>
+            </div>
+            {{- end}}
+            <button class="add-rule" type="submit" name="envadd" value="{{$i}}" formaction="{{p "edit"}}?layer={{$.Layer}}">{{t "web.profiles.env.add"}}</button>
+          </div>
+          <button class="linkbtn" type="submit" name="drop" value="{{$i}}" formaction="{{p "edit"}}?layer={{$.Layer}}">{{t "web.profiles.remove"}}</button>
+        </div>
+        {{- if $row.Shadowed}}
+        <div class="wrows"><span class="warnline">{{t "web.profiles.state.shadowed"}}</span></div>
+        {{- else if $row.Over}}
+        <div class="wrows"><span class="mcount">{{t "web.profiles.state.over"}}</span></div>
+        {{- end}}
+      </div>
+      {{- else}}
+      <div class="empty-note">{{tf "web.profiles.empty" (t (printf "label.%s" .Layer))}}</div>
       {{- end}}
     </div>
-    {{- end}}
-    {{- else}}
-    <div class="empty-note">{{tf "web.profiles.empty" (t (printf "label.%s" .Layer))}}</div>
-    {{- end}}
-  </div>
-  <p class="fine">{{t "web.profiles.env.note"}}</p>
+    <div class="row">
+      <button class="add-rule" type="submit" name="add" value="1" formaction="{{p "edit"}}?layer={{$.Layer}}">{{tf "web.profiles.add" (t (printf "label.%s" .Layer))}}</button>
+      <button class="btn primary" type="submit">{{t "web.profiles.save"}}</button>
+    </div>
+  </form>
+  {{- end}}
 </div>

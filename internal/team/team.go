@@ -346,15 +346,32 @@ func (e Env) List() []Listing {
 	return rows
 }
 
+// ProfilesEdit is one layer's profiles.yaml as an edit that is not on disk yet:
+// the file's path and the text a screen would write there. The zero value is
+// "no edit", which is what every reader but a screen's check passes.
+type ProfilesEdit struct {
+	Path string
+	Text string
+}
+
 // BuildConfig reads the resolved team.yaml and the profiles.yaml files its layer
 // may use, and parses them into a Config. runName is the team name at run time
 // (--as); empty means the resolved name.
 func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName string) (*config.Config, error) {
+	return e.BuildConfigEdit(resolved, reader, runName, ProfilesEdit{})
+}
+
+// BuildConfigEdit builds one team the way BuildConfig does, with edit's
+// profiles.yaml in place of what is on disk. It is how a screen checks an edit
+// before it writes it (r-daf8): the build hergy validate runs, over the file the
+// screen would write. A team that reads the edited layer's profiles is the one
+// that can be affected, so a caller passes the layer's own path.
+func (e Env) BuildConfigEdit(resolved *Resolved, reader source.Reader, runName string, edit ProfilesEdit) (*config.Config, error) {
 	text, err := os.ReadFile(resolved.TeamYAMLPath)
 	if err != nil {
 		return nil, err
 	}
-	profiles, profilesPaths, err := e.LoadProfiles(resolved.Layer)
+	profiles, profilesPaths, err := e.loadProfiles(resolved.Layer, edit)
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +403,22 @@ func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName strin
 // absent, which is fine when every member spells its engine out inline. The
 // files read are returned local first.
 func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, error) {
+	return e.loadProfiles(layer, ProfilesEdit{})
+}
+
+// LoadProfilesEdit reads the profiles a team of the layer may name, with edit's
+// profiles.yaml in place of what is on disk: LoadProfiles for a screen that has
+// not written its file yet. A caller asks this for the layer a team definition
+// reads, so it sees the names the definition will see once the edit lands.
+func (e Env) LoadProfilesEdit(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
+	return e.loadProfiles(layer, edit)
+}
+
+// loadProfiles is LoadProfiles with one profiles.yaml replaced by an edit: the
+// file at the edit's path answers with the edit's text whether or not it is on
+// disk, so a layer whose profiles.yaml does not exist yet is built as if the
+// screen had already written it.
+func (e Env) loadProfiles(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
 	dirs := []string{e.GlobalDir}
 	if layer == source.LayerLocal {
 		dirs = append(dirs, e.LocalDir)
@@ -394,14 +427,20 @@ func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, er
 	var paths []string
 	for _, dir := range dirs {
 		path := filepath.Join(dir, "profiles.yaml")
-		if !isFile(path) {
+		var text string
+		switch {
+		case edit.Path != "" && path == edit.Path:
+			text = edit.Text
+		case isFile(path):
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return nil, nil, err
+			}
+			text = string(b)
+		default:
 			continue
 		}
-		text, err := os.ReadFile(path)
-		if err != nil {
-			return nil, nil, err
-		}
-		more, err := config.ParseProfiles(string(text), path)
+		more, err := config.ParseProfiles(text, path)
 		if err != nil {
 			return nil, nil, err
 		}

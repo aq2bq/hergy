@@ -25,11 +25,21 @@
   offers to copy a prompt that asks an AI to find out when and why the rule was
   added, built from the rule's own id, text and reason, the file's path and the
   layer's root.
-- **The profiles of a layer, read-only, in the web UI**: the left list's
-  profiles row is now a link to `/profiles`, which shows the profiles of the
-  layer you pick: their name, kind, args and the names of their environment
-  variables. The values of `env` are never shown, because a value may hold an
-  API key. The local layer's page also shows the profiles a local team
+- **The profiles of a layer, and the form that edits them, in the web UI**: the
+  left list's profiles row is a link to `/profiles`, which shows the profiles of
+  the layer you pick — their name, kind, args and environment variables — and
+  edits them: the form adds a profile, changes a name, a kind, the args (one to
+  a line) and each environment variable as a pair of a name and a value, and
+  deletes a profile or one of its variables. The values of `env` are shown and
+  edited like any other field: a profile's env holds no API key. Saving writes
+  that layer's own `profiles.yaml` in the one format hergy writes, which leaves
+  no YAML comment behind, and only once the same check `hergy validate` runs
+  passes: that the file reads, and that the team definitions reading it can
+  still be built, so a save that would leave a definition without a profile it
+  names is refused with the definition and the member or worker that uses it, and
+  nothing is written. A file that changed under the screen, or a form that came
+  from an older page, is refused with the reason and the rows are kept as they
+  were typed. The local layer's page also shows the profiles a local team
   definition ends up with once the local layer is laid over the global one, and
   marks which profiles override which.
 - **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
