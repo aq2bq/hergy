@@ -49,7 +49,7 @@ func relatedPort() *fakePort {
 func panelFor(t *testing.T, screen *Screen, doc string, index int, view string) string {
 	t.Helper()
 	values := url.Values{
-		"sec": {"0"}, "i": {strconv.Itoa(index)}, "token": {"tok"},
+		"section": {"0"}, "i": {strconv.Itoa(index)}, "token": {"tok"},
 	}
 	if view != "" {
 		values.Set("view", view)

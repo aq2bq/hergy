@@ -164,7 +164,7 @@ func TestPanelBodyOpensARuleAndItsScope(t *testing.T) {
 	port := newFake()
 	port.preview = Preview{Section: "## 通信", Break: ""}
 	screen := newScreen(t, port)
-	body, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"0"}, "i": {"0"}, "token": {"tok"}})
+	body, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"section": {"0"}, "i": {"0"}, "token": {"tok"}})
 	if err != nil {
 		t.Fatalf("PanelBody: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestPanelBodyOpensARuleAndItsScope(t *testing.T) {
 
 func TestPanelBodySuggestsAFreeIDForANewRule(t *testing.T) {
 	screen := newScreen(t, newFake())
-	body, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"new": {"1"}, "sec": {"0"}, "token": {"tok"}})
+	body, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"new": {"1"}, "section": {"0"}, "token": {"tok"}})
 	if err != nil {
 		t.Fatalf("PanelBody: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestPanelBodyCloseAndAPlaceThatIsNotThere(t *testing.T) {
 	if !strings.Contains(body, `id="drawer"`) || !strings.Contains(body, "hidden") {
 		t.Errorf("the closed panel is not the hidden drawer: %s", body)
 	}
-	if _, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"9"}, "i": {"0"}}); err == nil {
+	if _, err := screen.PanelBody(LayerLocal, "protocol.yaml", url.Values{"section": {"9"}, "i": {"0"}}); err == nil {
 		t.Error("a rule that is not there was not refused")
 	}
 	if _, err := screen.RulesBody(RulesQuery{Layer: LayerGlobal, Filter: FilterAll}); err != nil {
@@ -1122,7 +1122,7 @@ func TestTheSearchBoxFiltersByWhatTheBoxHolds(t *testing.T) {
 // layer's root, and the origin shape to answer in, and offers the Copy button; a
 // rule with no reason leaves the reason line out of the prompt.
 func TestThePanelOffersThePromptToCopy(t *testing.T) {
-	panel, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"0"}, "i": {"0"}, "token": {"tok"}})
+	panel, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"section": {"0"}, "i": {"0"}, "token": {"tok"}})
 	if err != nil {
 		t.Fatalf("PanelBody: %v", err)
 	}
@@ -1150,7 +1150,7 @@ func TestThePanelOffersThePromptToCopy(t *testing.T) {
 	}
 
 	// C2 has no reason: the reason line is left out of the prompt.
-	bare, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"sec": {"0"}, "i": {"1"}, "token": {"tok"}})
+	bare, err := newScreen(t, newFake()).PanelBody(LayerLocal, "protocol.yaml", url.Values{"section": {"0"}, "i": {"1"}, "token": {"tok"}})
 	if err != nil {
 		t.Fatalf("PanelBody: %v", err)
 	}

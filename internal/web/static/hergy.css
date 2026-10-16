@@ -88,10 +88,8 @@ h2{font-size:17px;margin:0;text-wrap:balance}
 .intro{color:var(--muted);margin:0 0 8px;font-size:13.5px}
 
 .rules{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
-.rule{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;padding:11px 14px;border-top:1px solid var(--line);cursor:pointer;align-items:start}
+.rule{border-top:1px solid var(--line)}
 .rule:first-child{border-top:0}
-.rule:hover{background:color-mix(in srgb,var(--sunken) 55%,var(--surface))}
-.rule[aria-current="true"]{background:color-mix(in srgb,var(--reason-soft) 60%,var(--surface))}
 .rule.del .rtext{text-decoration:line-through;text-decoration-color:var(--danger);opacity:.7}
 .rid{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--muted);padding-top:2px;overflow-wrap:anywhere}
 .rtext{min-width:0;overflow-wrap:anywhere}
@@ -120,8 +118,7 @@ h2{font-size:17px;margin:0;text-wrap:balance}
 .r-list{margin:0 0 12px;padding-left:22px}
 .r-list li{margin-bottom:6px}
 .r-list.ids{list-style:none;padding-left:0}
-.r-rule{position:relative;cursor:pointer;border-radius:4px}
-.r-rule:hover{background:var(--sunken)}
+.r-rule{position:relative;border-radius:4px}
 .gut{position:absolute;left:-96px;top:2px;width:80px;text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--faint)}
 .r-list .gut{left:-118px}
 .r-list.ids .gut{left:-96px}
@@ -327,7 +324,6 @@ details.panel summary{cursor:pointer;font-weight:500}
   .layer-toggle a{padding:4px 10px}
   .layer-toggle a small{display:none}
   .meter .mb{width:90px}
-  .rule{grid-template-columns:minmax(0,1fr);gap:6px 10px}
   .rid{grid-column:1/-1;padding:0}
   .render{padding:18px}
   .gut{position:static;display:block;text-align:left;width:auto}
@@ -509,10 +505,17 @@ html,body{margin:0}
 /* 動いているチーム: ペインに移る form を行の 3 列目に置く (lkform は上) */
 
 /* 規則の行: 試作は li.rule の中に (ID | 本文) の 2 列を持つ。
-   この実装は開くボタンの中に入れているので、ボタンを grid の入れ物にする */
-/* 規則の一覧の 1 行は押すと右のパネルに開く。試作は li そのものが押せる (button を介さない) ので、
-   本実装の button は箱を作らず、活字だけ親から借りる。プロンプトのタブの .r-rule も同じ */
-.rule > .rule-open,.r-rule > .rule-open{display:contents;font:inherit;color:inherit;text-align:left}
+   この実装は開くボタンの中に入れているので、ボタンを grid の入れ物にする。
+   箱 (余白・列・押せる印) はボタンの側に置く: 行の余白を押しても開く (r-06a1) */
+.rule > .rule-open{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:start;width:100%;padding:11px 14px;border:0;background:transparent;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.rule > .rule-open:hover{background:color-mix(in srgb,var(--sunken) 55%,var(--surface))}
+.rule[aria-current="true"] > .rule-open{background:color-mix(in srgb,var(--reason-soft) 60%,var(--surface))}
+/* プロンプトのタブの規則も同じ: 押せる印と背景はボタンの側に置く */
+.r-rule > .rule-open{display:block;width:100%;border:0;background:transparent;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.r-rule > .rule-open:hover{background:var(--sunken)}
+
+/* 狭い画面: 規則の行は ID と本文を縦に積む */
+@media (max-width:760px){ .rule > .rule-open{grid-template-columns:minmax(0,1fr);gap:6px 10px} }
 
 /* チーム一覧: team.yaml に目的の欄が無いので 5 列 (試作は 6 列) */
 .tlist.no-about .thead,.tlist.no-about .tline{grid-template-columns:minmax(120px,180px) 84px minmax(170px,240px) minmax(150px,1fr) 16px}

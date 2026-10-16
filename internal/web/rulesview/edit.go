@@ -184,6 +184,16 @@ type Panel struct {
 	Badges Badges
 }
 
+// PanelFailed is the right panel when the rule it was asked for cannot be
+// opened: the reason in one line, and where the close button comes back to.
+// htmx puts a failed answer nowhere, so the panel answers with 200 and the
+// reason itself rather than the person seeing nothing happen (r-06a1).
+type PanelFailed struct {
+	Layer  string
+	Doc    string
+	Reason string
+}
+
 // Badges is the three marks above the edit form (the prototype's evBadges):
 // whether the rule as it stands carries an origin, a reason and a check.
 type Badges struct {

@@ -379,6 +379,7 @@
   "web.rules.rule.open": "この規則を編集パネルで開く",
   "web.rules.empty": "表示できる規則のファイルがありません。",
   "web.rules.panel.title": "規則の編集",
+  "web.rules.panel.failed": "開けませんでした: %s",
   "web.rules.panel.zone.send": "プロンプトに入る",
   "web.rules.panel.zone.keep": "メンテナンス用",
   "web.rules.panel.zone.keep_note": "プロンプトに入らない",

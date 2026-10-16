@@ -379,6 +379,7 @@
   "web.rules.rule.open": "open this rule",
   "web.rules.empty": "There is no rule file to show.",
   "web.rules.panel.title": "Edit a rule",
+  "web.rules.panel.failed": "Could not open this rule: %s",
   "web.rules.panel.zone.send": "Sent in the prompt",
   "web.rules.panel.zone.keep": "For maintenance",
   "web.rules.panel.zone.keep_note": "not sent in the prompt",

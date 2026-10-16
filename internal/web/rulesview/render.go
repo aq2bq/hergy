@@ -85,6 +85,13 @@ func (r *Renderer) Close() (string, error) {
 	return r.render("drawer-empty.html", nil)
 }
 
+// PanelFailed draws the right panel with a reason and nothing else: what the
+// panel answers when the rule it was asked for cannot be opened, so the person
+// sees why instead of nothing (r-06a1).
+func (r *Renderer) PanelFailed(data PanelFailed) (string, error) {
+	return r.render("panel-failed.html", data)
+}
+
 func (r *Renderer) render(name string, data any) (string, error) {
 	var buf bytes.Buffer
 	if err := r.templates.ExecuteTemplate(&buf, name, data); err != nil {

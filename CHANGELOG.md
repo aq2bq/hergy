@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The rules screen opens the row you press**: no row of the rules screen opened
+  the rule it named — in a document whose first section holds no rule, pressing a
+  row did nothing at all. A row of a later section opened a rule of the first
+  section instead, and saving the form it opened wrote into that other rule. The
+  name the row carries and the name the right panel reads are one again, and the
+  whole row is now its button, so pressing the row's padding opens it as well. A
+  rule the panel cannot open says so in the right panel, in one line, instead of
+  leaving the screen unchanged.
+
 ## 0.5.0 - 2026-10-16
 
 ### Added

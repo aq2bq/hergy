@@ -85,12 +85,22 @@ func (s *Screen) rulesList(r *http.Request) (web.View, error) {
 
 // panel answers the edit panel, swapped into the right panel. The token of the
 // run is put on the values here, so the form the panel renders carries it.
+//
+// A rule that cannot be opened is answered with 200 and the reason in the panel
+// itself: htmx keeps a failed answer out of the page, so a 500 here would leave
+// the person with nothing on screen at all (r-06a1).
 func (s *Screen) panel(r *http.Request) (web.View, error) {
 	values := r.URL.Query()
 	values.Set("token", web.Token(r))
-	body, err := s.PanelBody(web.LayerOf(r), r.URL.Query().Get("doc"), values)
+	layer := web.LayerOf(r)
+	path := r.URL.Query().Get("doc")
+	body, err := s.PanelBody(layer, path, values)
 	if err != nil {
-		return web.View{}, err
+		failed, ferr := s.render.PanelFailed(PanelFailed{Layer: layer, Doc: path, Reason: err.Error()})
+		if ferr != nil {
+			return web.View{}, ferr
+		}
+		return web.View{Title: s.Name(), Bare: true, Body: web.HTML(failed)}, nil
 	}
 	return web.View{Title: s.Name(), Bare: true, Body: web.HTML(body)}, nil
 }

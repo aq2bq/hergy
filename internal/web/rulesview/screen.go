@@ -78,14 +78,17 @@ func (s *Screen) rulesData(q RulesQuery) Rules {
 }
 
 // PanelBody is the edit panel, opened from a rule's place or for a new rule at
-// the end of a section. values are the query: sec, i, and new or close.
+// the end of a section. values are the query: section, i, and new or close. The
+// name is the one the rows, the prompt tab and the related rules put on the URL
+// (section): one spelling, or the panel reads another place than the row meant
+// (r-06a1).
 func (s *Screen) PanelBody(layer, path string, values url.Values) (string, error) {
 	if values.Get("close") != "" {
 		return s.render.Close()
 	}
 	docs := s.docs(layer)
 	shown := pick(layer, docs, path)
-	section := atoi(values.Get("sec"))
+	section := atoi(values.Get("section"))
 	var edit EditRule
 	if values.Get("new") != "" {
 		edit = EditRule{Section: section, Index: -1, Send: true, ID: suggestID(shown.Document, section)}
