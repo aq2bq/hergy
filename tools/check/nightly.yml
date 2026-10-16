@@ -11,7 +11,7 @@ mutation:
   timeout_coefficient: 10
   packages:
     internal/cheat: 70      # 実測 75.0
-    internal/definition: 60 # 段 3 で config から移した読み。実測はこれから
+    internal/definition: 85 # 実測 90.1（段 3 で config から移した読み）
     internal/herdr: 95      # 実測 100
     internal/herdrcli: 70   # 実測 75.0
     internal/i18n: 90       # 実測 93.3
