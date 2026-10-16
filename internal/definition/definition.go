@@ -37,12 +37,14 @@ type Definition struct {
 	// one reads.
 	OtherYAML string
 
-	// Docs is what every member reads, and RoleDirs where a member's role
-	// document is looked for, both as team.yaml writes them. 段 4 moves the role
-	// documents and the shared agreement into the catalog; until then the
-	// definition carries them.
-	Docs     []source.Doc
-	RoleDirs []source.Doc
+	// Agreement is the team's own agreement: agreement.yaml in the definition's
+	// own directory, with HasAgreement saying whether the team wrote one. It is
+	// optional. The agreement every team of a layer shares is not the
+	// definition's to carry: the catalog holds it (catalog.SharedAgreement),
+	// because a name is looked up in one place (K1). A member's role document is
+	// looked up the same way (catalog.Role).
+	Agreement    source.Doc
+	HasAgreement bool
 	// Prompt is the definition's own prompt template, empty when it writes none
 	// (the member prompt in the locales is used).
 	Prompt string

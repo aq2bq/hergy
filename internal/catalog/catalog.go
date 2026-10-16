@@ -347,3 +347,50 @@ func (c *Catalog) Profile(name string) (profile.Profile, bool) {
 	p, ok := profiles[name]
 	return p, ok
 }
+
+// Role is one member's role document by role name: roles/<name>.yaml in the
+// project's layer, else in the global layer's. It is the one way to a name (K1),
+// the same one a profile takes. The second return is whether a layer has one; a
+// run stops when it has none, and prompt.Member says so with the member's name.
+func (c *Catalog) Role(name string) (source.Doc, bool) {
+	return c.firstFile(filepath.Join("roles", name+".yaml"))
+}
+
+// RoleMarkdown is a role document still left as Markdown (roles/<name>.md): it
+// is what the sentence that says how to move the file over names. It is asked
+// only when Role found nothing.
+func (c *Catalog) RoleMarkdown(name string) (source.Doc, bool) {
+	return c.firstFile(filepath.Join("roles", name+".md"))
+}
+
+// SharedAgreement is the agreement every team of a layer shares: agreement.yaml
+// in the project's layer, else in the global layer's. There is one, not a list
+// (d-0ccd), and writing none is allowed (段 4); the second return says whether a
+// layer wrote one.
+func (c *Catalog) SharedAgreement() (source.Doc, bool) {
+	return c.firstFile("agreement.yaml")
+}
+
+// firstFile is the first layer that holds one file, in the one order a name is
+// looked up: the project's layer first, then the global one (K1).
+func (c *Catalog) firstFile(rel string) (source.Doc, bool) {
+	for _, one := range c.layers() {
+		doc := source.Doc{Layer: one.name, Path: filepath.Join(one.dir, rel)}
+		if c.reader.IsFile(doc) {
+			return doc, true
+		}
+	}
+	return source.Doc{}, false
+}
+
+// layerDir is one layer with its name, as the one order of a lookup walks them.
+type layerDir struct{ dir, name string }
+
+// layers is the two layers in the one order a name is looked up: local, then
+// global (K1).
+func (c *Catalog) layers() []layerDir {
+	return []layerDir{
+		{dir: c.localDir, name: source.LayerLocal},
+		{dir: c.globalDir, name: source.LayerGlobal},
+	}
+}

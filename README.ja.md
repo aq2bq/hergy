@@ -45,7 +45,7 @@ lead と worker の2人チームのひな形を書き出します。
 hergy new myteam        # git リポジトリの中ならプロジェクトの .hergy/、外なら ~/.config/hergy/ に書き出す
 ```
 
-`team.yaml`、`protocol.yaml`（チームの約束）、`roles/lead.yaml`、`roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・検証方法（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
+チームの `team.yaml` と `agreement.yaml`（チームの約束）、層の `roles/lead.yaml` と `roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・検証方法（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
 
 herdr のシェルペインで実行します。
 
@@ -101,12 +101,13 @@ version: 1              # 必須
 mission: "このチームは何のためか"  # 必須。1 行。チームを扱うコマンドの見出しと WebUI が最初に表示する
 team: myteam            # 任意。書くならチーム定義名（teams/<チーム定義名>/）と一致させる
 cwd: .                  # 作業場所（プロジェクトの直下が基準）
-docs: [protocol.yaml]   # 全員に渡す文書。書いた順に連結。ディレクトリなら *.yaml を名前順に
-roles: [roles]          # ロールの文書を探す場所（省略時は roles/）
-prompt: "…"             # 初期プロンプトのテンプレート（任意）
+                        # 文書を指す鍵はありません。層の agreement.yaml（層の全チーム）、
+                        # teams/<チーム定義名>/agreement.yaml（このチーム）、層の roles/<ロール名>.yaml
+                        # の順に読みます
+prompt: "…"             # 初期プロンプトのテンプレート（任意）。%{role_doc} と %{docs} は消せません
 members:
   - name: lead            # メンバー名（短い名前）。herdr では「<チーム名>-lead」になる
-    role: lead          # roles/lead.yaml を読む
+    role: lead          # 層の roles/lead.yaml を読む
     profile: opus       # profiles.yaml のプロファイル名。kind / args / env はそちらに書く
     may_spawn:          # 追加してよい「目的 → プロファイル」の組（プロンプトに書くだけで、強制しない）
       workers:

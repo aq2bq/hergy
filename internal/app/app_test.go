@@ -349,9 +349,9 @@ func TestNewShape(t *testing.T) {
 		"layer: local",
 		"dir: .hergy/teams/demo",
 		"file: .hergy/teams/demo/team.yaml",
-		"file: .hergy/teams/demo/protocol.yaml",
-		"file: .hergy/teams/demo/roles/lead.yaml",
-		"file: .hergy/teams/demo/roles/builder.yaml",
+		"file: .hergy/teams/demo/agreement.yaml",
+		"role file: .hergy/roles/lead.yaml",
+		"role file: .hergy/roles/builder.yaml",
 		"profile: claude-default",
 		"file: .hergy/profiles.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
@@ -514,9 +514,9 @@ func TestValidateShape(t *testing.T) {
 		"  with an origin 0 (incident 0 / instruction 0 / derived 0)  with no origin 6",
 		"  with a reason 6  with no reason 0",
 		"  with a check 0 (report 0 / test 0)  with no check 6",
-		"no origin: .hergy/teams/demo/roles/lead.yaml: L1, L2",
-		"no origin: .hergy/teams/demo/protocol.yaml: C1, C2",
-		"no origin: .hergy/teams/demo/roles/builder.yaml: B1, B2",
+		"no origin: .hergy/roles/lead.yaml: L1, L2",
+		"no origin: .hergy/teams/demo/agreement.yaml: C1, C2",
+		"no origin: .hergy/roles/builder.yaml: B1, B2",
 		"  team .hergy/teams/demo: sources 3, characters 1552",
 		"    member demo-lead: rules 4, characters 372",
 		"    member demo-builder: rules 4, characters 434",
@@ -531,7 +531,7 @@ func TestValidateCountsWhatTheRulesCarry(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: en\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  dev:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.cfg, "hergy", "common", "shared.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.cfg, "hergy", "agreement.yaml"), `version: 1
 sections:
   - rules:
       - id: A1
@@ -564,13 +564,12 @@ sections:
             refs: [A1]
 `)
 	for _, name := range []string{"demo", "other"} {
-		body := "version: 1\nmission: a mission for the test\ndocs:\n  - ../../common/\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n"
 		if name == "demo" {
-			body = "version: 1\nmission: a mission for the test\ndocs:\n  - ../../common/\n  - protocol.yaml\nroles: [../../roles]\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n"
-			writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "protocol.yaml"),
+			writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "agreement.yaml"),
 				"version: 1\nsections:\n  - rules:\n      - id: P1\n        text: five\n        tests: [T-2]\n")
 		}
-		writeFile(t, filepath.Join(f.cfg, "hergy", "teams", name, "team.yaml"), body)
+		writeFile(t, filepath.Join(f.cfg, "hergy", "teams", name, "team.yaml"),
+			"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\n")
 	}
 
 	got, _, code := run("validate")
@@ -583,8 +582,8 @@ sections:
 		"  with a reason 2  with no reason 3",
 		"  with a check 3 (report 1 / test 2)  with no check 2",
 		"no origin: " + filepath.Join(f.cfg, "hergy", "roles", "lead.yaml") + ": L1",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "common", "shared.yaml") + ": A2",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "teams", "demo", "protocol.yaml") + ": P1",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "agreement.yaml") + ": A2",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "teams", "demo", "agreement.yaml") + ": P1",
 	} {
 		if !strings.Contains(got, want+"\n") {
 			t.Errorf("validate is missing %q:\n%s", want, got)
@@ -622,21 +621,21 @@ func TestShowShape(t *testing.T) {
 		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
-		"document: .hergy/teams/demo/protocol.yaml",
+		"document: .hergy/teams/demo/agreement.yaml",
 		"member: demo-lead",
 		"  role: lead",
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
-		"  role file: .hergy/teams/demo/roles/lead.yaml",
-		"  reads: .hergy/teams/demo/protocol.yaml",
+		"  role file: .hergy/roles/lead.yaml",
+		"  reads: .hergy/teams/demo/agreement.yaml",
 		"member: demo-builder",
 		"  role: builder",
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
-		"  role file: .hergy/teams/demo/roles/builder.yaml",
-		"  reads: .hergy/teams/demo/protocol.yaml",
+		"  role file: .hergy/roles/builder.yaml",
+		"  reads: .hergy/teams/demo/agreement.yaml",
 	)
 }
 
@@ -644,7 +643,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/teams/demo/roles/lead.yaml"} {
+	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.yaml"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}
@@ -665,8 +664,8 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"timeout: 30000",
 		"member: demo-lead",
 		"  role: lead",
-		"  role file: .hergy/teams/demo/roles/lead.yaml",
-		"  reads: .hergy/teams/demo/protocol.yaml",
+		"  role file: .hergy/roles/lead.yaml",
+		"  reads: .hergy/teams/demo/agreement.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
 		"next: up demo",
@@ -967,7 +966,7 @@ func TestValidateWarnsAboutAHiddenGlobalDefinition(t *testing.T) {
 	// project's profiles.yaml answers its profile (K1), so it reads and is only
 	// hidden, not broken.
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\n")
 
 	out := mustRun(t, "validate")
 	want := "warning: the global team definition demo is hidden by the project's demo and is not used"
@@ -1321,11 +1320,13 @@ func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 func TestHireCommandCarriesTheTeam(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{name}\\n%{spawn}\"\nmembers:\n"+
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{name}\\n%{spawn}\"\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"    may_spawn:\n      workers:\n        - purpose: research\n          profile: dev\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: hand the turn to whoever acts next\n")
 
 	plain := mustRun(t, "up", "demo", "--dry")
 	if !strings.Contains(plain, "--team demo --lang en") {
@@ -1434,13 +1435,15 @@ func TestHirePurposeOutsideMaySpawn(t *testing.T) {
 func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{spawn}\"\nmembers:\n"+
+		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}%{spawn}\"\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: seeker\n"+
 			"    may_spawn:\n      workers:\n"+
 			"        - purpose: 調査\n          profile: seeker\n"+
 			"        - purpose: 実装\n          profile: developer\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: hand the turn to whoever acts next\n")
 
 	got := mustRun(t, "up", "demo", "--dry", "--lang", "ja")
 	for _, want := range []string{"## ワーカーの追加", "調査 → seeker", "実装 → developer", "hire <ワーカー名> --purpose <目的>"} {

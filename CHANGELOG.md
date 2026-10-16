@@ -36,6 +36,53 @@
   members: [...]
   ```
 
+- **A team definition writes no `docs:` and no `roles:`; where a document
+  stands says who reads it**: the agreement every team of a layer shares is
+  `<layer>/agreement.yaml` (one file), a team's own agreement is
+  `<layer>/teams/<name>/agreement.yaml`, and a member's role document is
+  `<layer>/roles/<role>.yaml`. A name is looked up in the project's layer first
+  and in the global layer after, so a role document lives once per layer rather
+  than once per team. A member's prompt carries them in one order: the role
+  document, the shared agreement, then the team's own. A prompt template has to
+  keep `%{role_doc}` and `%{docs}`, the two places the documents are put in, and
+  `hergy validate` stops a template that dropped either. A `team.yaml` that
+  still writes `docs:` or `roles:` stops the read with a message that says where
+  the documents went. A member whose role has no document is stopped with a
+  message naming the member, the role and the file hergy looked for. `hergy new`
+  writes `agreement.yaml` into the team's folder and the two role documents into
+  the layer's `roles/`, and leaves a role document that is already there as it
+  is. `hergy validate` counts the shared agreement among a team's sources.
+
+  Before:
+
+  ```yaml
+  # teams/agile-dev/team.yaml
+  docs: [../../common/, protocol.yaml]
+  roles: [../../roles]
+  members:
+    - name: lead
+      role: lead
+  ```
+
+  After:
+
+  ```yaml
+  # teams/agile-dev/team.yaml
+  members:
+    - name: lead
+      role: lead
+
+  # the layer root
+  agreement.yaml                  # every team of the layer reads it
+  roles/lead.yaml                 # a member's role document
+  teams/agile-dev/agreement.yaml  # this team's own agreement
+  ```
+
+  Move: concatenate the shared files into `<layer>/agreement.yaml`; move the
+  role files into `<layer>/roles/`; rename each team's `protocol.yaml` to
+  `agreement.yaml`. A definition that read another definition's file
+  (`docs: [../other/protocol.yaml]`) copies that file into its own
+  `agreement.yaml`.
 - **A member names a profile; `kind`, `args` and `env` are no longer written on
   the member**: a `team.yaml` member writes one `profile:` key, naming a profile
   in `profiles.yaml`, and the profile holds the engine. Writing `kind`, `args` or

@@ -74,7 +74,7 @@ func equalIDs(got []string, want ...string) bool {
 func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n"+
 		"      - id: P2\n        text: two\n")
@@ -125,13 +125,13 @@ func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 	}
 
 	// The role files did not move, and every document shows once.
-	role := docAt(t, home, filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "lead.yaml"))
+	role := docAt(t, home, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"))
 	if role.Changes() {
 		t.Errorf("a document nobody touched shows %v/%v/%v",
 			role.Added, role.Removed, role.Changed)
 	}
 	if len(home.Docs) != 3 {
-		t.Errorf("the home holds %d documents, want the protocol and the two role files", len(home.Docs))
+		t.Errorf("the home holds %d documents, want the agreement and the two role files", len(home.Docs))
 	}
 }
 
@@ -141,7 +141,7 @@ func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 func TestTheHomeCarriesTheRulesWithNoCheckWithoutARecord(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nreports:\n  audit:\n    where: the ledger\n    fields:\n      scope: the changed files\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n        report: audit.scope\n"+
 		"      - id: P2\n        text: two\n")
@@ -171,7 +171,7 @@ func TestTheDiffLinesUpThePromptsOfTheLastLaunch(t *testing.T) {
 	mustRun(t, "up", "demo")
 
 	// Only the lead reads this file, so only the lead's prompt moves.
-	role := filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "lead.yaml")
+	role := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
 	writeFile(t, role, "version: 1\nsections:\n  - style: ids\n    rules:\n"+
 		"      - id: L1\n        text: A rule the lead reads.\n        why: Because.\n        send_why: false\n")
 
@@ -261,7 +261,7 @@ func TestTheDiffKeepsThePromptOfTheLaunchBeforeAReprompt(t *testing.T) {
 func TestTheScreensCompareWithThisProjectsLaunch(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
@@ -280,7 +280,6 @@ func TestTheScreensCompareWithThisProjectsLaunch(t *testing.T) {
 	dir := filepath.Join(other, ".hergy", "teams", "demo")
 	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
 mission: a mission for the test
-docs: [protocol.yaml]
 members:
   - name: lead
     role: lead
@@ -288,8 +287,8 @@ members:
 `)
 	writeFile(t, filepath.Join(other, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	writeFile(t, filepath.Join(dir, "protocol.yaml"), "version: 1\nrevision: 4\nsections:\n  - rules:\n      - id: Q1\n        text: from the other project\n")
-	writeFile(t, filepath.Join(dir, "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: the role of the other project\n")
+	writeFile(t, filepath.Join(dir, "agreement.yaml"), "version: 1\nrevision: 4\nsections:\n  - rules:\n      - id: Q1\n        text: from the other project\n")
+	writeFile(t, filepath.Join(other, ".hergy", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: the role of the other project\n")
 	// The fake herdr remembers the agents it started; the other project starts
 	// the same names.
 	for _, name := range []string{"agents.txt", "tabs.txt"} {
@@ -357,7 +356,7 @@ func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
 
 	// A rule the members read moves, so the files no longer build the hash the
 	// launch wrote.
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: moved\n")
 	if again := recordPort(t).Teams(web.LayerLocal)[0]; again.Same {
 		t.Error("the row says the files build the launched hash after a rule moved")
@@ -380,7 +379,7 @@ func changeIDs(rules []rulesview.ChangeRule) []string {
 func TestTheRulesScreenComparesAndBumpsLikeTheHome(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n"+
 		"      - id: P2\n        text: two\n")

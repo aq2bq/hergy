@@ -34,6 +34,12 @@ profiles:
 `)
 }
 
+// roleDoc is one role document with one rule, enough for a team definition's
+// member to read (段 4).
+func roleDoc(id string) string {
+	return "version: 1\nsections:\n  - rules:\n      - id: " + id + "\n        text: one\n"
+}
+
 // profileNames is the names of a list of profiles, in the order they come.
 func profileNames(profiles []profileview.Profile) []string {
 	out := make([]string, 0, len(profiles))
@@ -243,7 +249,6 @@ func TestServePortCheckProfilesRefusesASaveThatBreaksATeamDefinition(t *testing.
 	// both names are named by the definition, impl is not.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
 mission: a mission for the test
-prompt: "%{spawn}"
 members:
   - name: lead
     role: lead
@@ -253,6 +258,7 @@ members:
         - purpose: research
           profile: seeker
 `)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), roleDoc("L1"))
 	p := servePort{env: serveEnv(t)}
 
 	// The file as it stands reads: nothing to refuse.
@@ -316,7 +322,8 @@ func TestServePortCheckProfilesWatchesTheLocalLayerForAGlobalSave(t *testing.T) 
 	// The local definition runs the global layer's shared profile: the project's
 	// own profiles.yaml does not hold that name.
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), roleDoc("L1"))
 	p := servePort{env: serveEnv(t)}
 
 	// The global file as it stands reads for the local definition.

@@ -17,13 +17,13 @@ import (
 // team.yaml alone.
 func missionTeam(t *testing.T, f *fixture, mission string) {
 	t.Helper()
-	starter := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	starter := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	if _, err := os.Stat(starter); err != nil {
 		mustRun(t, "new", "demo")
 	}
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	body := "version: 1\n" + mission +
-		"docs: [protocol.yaml]\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n"
+		"members:\n  - name: lead\n    role: lead\n    profile: claude-default\n"
 	writeFile(t, path, body)
 }
 

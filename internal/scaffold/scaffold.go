@@ -21,7 +21,13 @@ const Fallback = "en"
 var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 
 // Names are the files a starter team has, in the order hergy new writes them.
-var Names = []string{"team.yaml", "protocol.yaml", "roles/lead.yaml", "roles/builder.yaml"}
+var Names = []string{"team.yaml", "agreement.yaml"}
+
+// RoleNames are the role documents the starter team's members read. They are not
+// the team's own files: a role document lives once per layer, at
+// <layer>/roles/<role>.yaml (K5), so hergy new writes them there and leaves one
+// that is already there alone.
+var RoleNames = []string{"lead.yaml", "builder.yaml"}
 
 // The profile the starter team's members name, and the engine it picks. hergy
 // new writes it into the layer's profiles.yaml when that layer cannot already
@@ -65,10 +71,7 @@ type File struct {
 // unchanged; the member names in team.yaml are the short member names (lead, builder),
 // and hergy adds the team name when it boots them.
 func Team(lang string) ([]File, error) {
-	root := "files/" + lang
-	if _, err := fs.Stat(embedded, root); err != nil {
-		root = "files/" + Fallback
-	}
+	root := root(lang)
 	files := make([]File, 0, len(Names))
 	for _, name := range Names {
 		data, err := embedded.ReadFile(root + "/" + name)
@@ -78,4 +81,30 @@ func Team(lang string) ([]File, error) {
 		files = append(files, File{Path: name, Data: data})
 	}
 	return files, nil
+}
+
+// Roles returns the starter team's role documents for a language, in the order
+// they are written. Path is the file's name under the layer's roles/ directory:
+// a role document is the layer's, not the team's (K5). hergy new leaves one that
+// is already there alone, so this only says what the starter team reads.
+func Roles(lang string) ([]File, error) {
+	root := root(lang)
+	files := make([]File, 0, len(RoleNames))
+	for _, name := range RoleNames {
+		data, err := embedded.ReadFile(root + "/roles/" + name)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, File{Path: name, Data: data})
+	}
+	return files, nil
+}
+
+// root is where a language's files are, with English as the fallback.
+func root(lang string) string {
+	dir := "files/" + lang
+	if _, err := fs.Stat(embedded, dir); err != nil {
+		dir = "files/" + Fallback
+	}
+	return dir
 }

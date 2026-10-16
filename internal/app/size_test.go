@@ -14,15 +14,17 @@ import (
 // must print from the files themselves.
 type sizedTeam struct {
 	dir         string // the definition directory, as a person writes it
-	protocol    string
+	agreement   string
 	role        string
 	memberChars int
 	sourceChars int
 }
 
-// writeSizedTeam writes one team definition whose one member reads a protocol of
-// exactly n rules and an empty role file, so the size the member is handed is
-// the protocol's.
+// writeSizedTeam writes one team definition whose one member reads a document of
+// exactly n rules and an empty role document, so the size the member is handed is
+// that document's. The document is the team's own agreement (段 4), so two
+// definitions of one layer read a document each, and the role document is the
+// layer's own.
 func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int) sizedTeam {
 	t.Helper()
 	base := filepath.Join(f.proj, ".hergy")
@@ -40,23 +42,23 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int) s
 		body.WriteString(strconv.Itoa(i))
 		body.WriteString("\n")
 	}
-	protocol := filepath.Join(base, "teams", name, "protocol.yaml")
-	role := filepath.Join(base, "teams", name, "roles", "lead.yaml")
-	writeFile(t, protocol, body.String())
+	agreement := filepath.Join(base, "teams", name, "agreement.yaml")
+	role := filepath.Join(base, "roles", "lead.yaml")
+	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),
-		"version: 1\nmission: a mission for the test\ndocs:\n  - protocol.yaml\nroles: [roles]\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n")
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n")
 	writeFile(t, role, "version: 1\nsections:\n  - rules: []\n")
-	document, err := rules.Parse(readRule(t, protocol), protocol)
+	document, err := rules.Parse(readRule(t, agreement), agreement)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return sizedTeam{
 		dir:         display,
-		protocol:    protocol,
+		agreement:   agreement,
 		role:        role,
 		memberChars: rules.CharCount(document.Markdown()),
-		sourceChars: rules.CharCount(readRule(t, protocol)) + rules.CharCount(readRule(t, role)),
+		sourceChars: rules.CharCount(readRule(t, agreement)) + rules.CharCount(readRule(t, role)),
 	}
 }
 

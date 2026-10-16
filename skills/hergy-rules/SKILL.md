@@ -5,7 +5,7 @@ description: "Use when a person wants to write, change or move the rules of a he
 
 # hergy-rules
 
-A hergy team's rules are files: a team's agreements in `protocol.yaml`, and one file per role in `roles/<role>.yaml`. They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
+A hergy team's rules are files: one team's agreements in `teams/<team>/agreement.yaml`, the agreement every team of a layer shares in `<layer>/agreement.yaml`, and one file per role in `<layer>/roles/<role>.yaml`. They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
 
 This skill is for the person's side of that: writing a new team's rules, changing an existing team's rules, moving rules out of Markdown, and filling in the origins later. The shape of every key is in `hergy cheat --ai`; the format and the checks are what this skill walks through.
 
@@ -22,7 +22,7 @@ The rules can also be changed on the screen: `hergy serve` shows the rule files 
 
 ### Write a new team
 
-1. Write the starter files with `hergy new <team>` (inside a git repository it writes into the project's `.hergy/`; outside one, into the global layer; start in the project). You get `team.yaml`, `protocol.yaml`, `roles/lead.yaml` and `roles/builder.yaml`.
+1. Write the starter files with `hergy new <team>` (inside a git repository it writes into the project's `.hergy/`; outside one, into the global layer; start in the project). You get the team's `team.yaml` and `agreement.yaml`, and the layer's `roles/lead.yaml` and `roles/builder.yaml`.
 2. Ask, one at a time: what is this team for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`, and what the team is for as its `mission:` — one line, near the top of the file.
 3. For each rule, ask in this order:
    - the text: you draft one or two sentences from what they said, and read it back for a yes or a correction. When the rule hands the turn between two of the team — a member name, a role name, or the human — write it as `<name> → <name>`, or `<name> ⇄ <name>` when the turn goes both ways: the WebUI's figure reads the turn directions out of the text;

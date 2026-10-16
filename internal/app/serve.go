@@ -130,7 +130,7 @@ func (p servePort) Definition(layer, name string) (teamview.Definition, error) {
 		return out, nil
 	}
 	out.Mission = r.missionLine()
-	for _, doc := range def.Docs {
+	for _, doc := range agreementDocs(r) {
 		out.Docs = append(out.Docs, p.readDoc(doc, ""))
 	}
 	for i := range r.starts {

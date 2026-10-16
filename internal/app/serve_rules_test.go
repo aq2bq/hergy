@@ -23,7 +23,7 @@ func TestWriteRuleKeepsThePromises(t *testing.T) {
 	writeDemoTeam(t, f, "demo")
 	p := servePort{env: serveEnv(t)}
 	dir := filepath.Join(f.proj, ".hergy", "teams", "demo")
-	doc := filepath.Join(dir, "protocol.yaml")
+	doc := filepath.Join(dir, "agreement.yaml")
 	before := readRule(t, doc)
 	hash := hashText(before)
 
@@ -72,20 +72,16 @@ func TestWriteRuleKeepsThePromises(t *testing.T) {
 func TestWriteRuleRefusesAGlobalFileOnlyALocalTeamReads(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	borrowed := filepath.Join(f.cfg, "hergy", "borrowed", "shared.yaml")
+	borrowed := filepath.Join(f.cfg, "hergy", "roles", "lead.yaml")
 	writeFile(t, borrowed, "version: 1\nsections:\n  - rules:\n      - id: S1\n        text: one\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "borrow", "team.yaml"), `version: 1
 mission: a mission for the test
-docs:
-  - `+borrowed+`
-roles: [roles]
 members:
   - name: lead
     role: lead
     profile: claude-default
 `)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "borrow", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: L1\n        text: two\n")
 	p := servePort{env: serveEnv(t)}
 
 	text := readRule(t, borrowed)
@@ -107,9 +103,9 @@ func TestWriteRuleKeepsALinkALink(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 	writeDemoTeam(t, f, "demo")
-	target := filepath.Join(f.proj, "src", "protocol.yaml")
-	writeFile(t, target, readRule(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")))
-	link := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	target := filepath.Join(f.proj, "src", "agreement.yaml")
+	writeFile(t, target, readRule(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")))
+	link := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	if err := os.Remove(link); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +142,7 @@ func TestPreviewSpeaksAboutThisEditOnly(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 	writeDemoTeam(t, f, "demo")
-	doc := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	doc := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	p := servePort{env: serveEnv(t)}
 
 	t.Run("an id that stands twice across the member's files is a break", func(t *testing.T) {
@@ -190,13 +186,10 @@ func TestPreviewSpeaksAboutThisEditOnly(t *testing.T) {
 	t.Run("a broken definition that does not read the file is not a break", func(t *testing.T) {
 		writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "torn", "team.yaml"), `version: 1
 mission: a mission for the test
-roles: [roles]
 members:
   - name: lead
     role: lead
-    profile: claude-default
 `)
-		writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "torn", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - text: no id here\n")
 		got, err := p.Preview(web.LayerLocal, doc, 0, readRule(t, doc))
 		if err != nil {
 			t.Fatalf("Preview: %v", err)
@@ -230,7 +223,7 @@ func TestRuleTeamListsWhatEachMemberReads(t *testing.T) {
 	if !lead.Files[0].Role || !strings.HasSuffix(lead.Files[0].Path, filepath.Join("roles", "lead.yaml")) {
 		t.Errorf("the role file does not come first: %+v", lead.Files)
 	}
-	if lead.Files[1].Role || !strings.HasSuffix(lead.Files[1].Path, "protocol.yaml") {
+	if lead.Files[1].Role || !strings.HasSuffix(lead.Files[1].Path, "agreement.yaml") {
 		t.Errorf("the document does not come second: %+v", lead.Files)
 	}
 	// The name each file goes by is the name its row in the left list goes by:

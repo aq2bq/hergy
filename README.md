@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get `team.yaml`, `protocol.yaml` (the team's agreements), `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
+You get the team's `team.yaml` and `agreement.yaml` (its agreements), and the layer's `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
 
 Run it in a herdr shell pane.
 
@@ -101,12 +101,13 @@ version: 1              # required
 mission: "what this team is for"  # required; one line, shown first by the commands that handle a team and by the web UI
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
-docs: [protocol.yaml]   # documents for every member, joined in order; a directory means its *.yaml in name order
-roles: [roles]          # where to look for role files (defaults to roles/)
-prompt: "…"             # bootstrap prompt template (optional)
+                        # no key points at the documents: the layer's agreement.yaml (every team of
+                        # the layer), teams/<definition>/agreement.yaml (this team) and the layer's
+                        # roles/<role>.yaml are read, in that order
+prompt: "…"             # bootstrap prompt template (optional); it must keep %{role_doc} and %{docs}
 members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
-    role: lead          # reads roles/lead.yaml
+    role: lead          # reads the layer's roles/lead.yaml
     profile: opus       # a named profile from profiles.yaml; kind, args and env are written there, not here
     may_spawn:          # purpose-to-profile pairs this member may hire for (written into the prompt, not enforced)
       workers:

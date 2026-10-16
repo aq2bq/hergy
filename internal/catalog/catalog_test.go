@@ -211,3 +211,78 @@ func TestDefinitionWithNoNamePicksTheOneOrNamesTheCandidates(t *testing.T) {
 		}
 	}
 }
+
+// TestRolePrefersLocalOverGlobal: a role document is looked up the one way a
+// name is (K1): the project's layer first, then the global layer's.
+func TestRolePrefersLocalOverGlobal(t *testing.T) {
+	cases := []struct {
+		name      string
+		local     bool
+		global    bool
+		wantLayer string
+	}{
+		{"both layers write one", true, true, source.LayerLocal},
+		{"only the global layer", false, true, source.LayerGlobal},
+		{"only the project's layer", true, false, source.LayerLocal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := newLayers(t)
+			if tc.local {
+				write(t, filepath.Join(l.local, "roles", "r.yaml"), "version: 1\n")
+			}
+			if tc.global {
+				write(t, filepath.Join(l.global, "roles", "r.yaml"), "version: 1\n")
+			}
+			doc, ok := l.catalog().Role("r")
+			if !ok {
+				t.Fatal("Role(r) found no document")
+			}
+			want := filepath.Join(l.dir(tc.wantLayer), "roles", "r.yaml")
+			if doc.Path != want || doc.Layer != tc.wantLayer {
+				t.Errorf("Role(r) = %q (%s), want %q (%s)", doc.Path, doc.Layer, want, tc.wantLayer)
+			}
+		})
+	}
+}
+
+// TestRoleWithNoDocumentAndOneStillMarkdown: a role with no .yaml is not a role
+// document; a role left as roles/<role>.md is what RoleMarkdown names, for the
+// sentence that says how to move it over.
+func TestRoleWithNoDocumentAndOneStillMarkdown(t *testing.T) {
+	l := newLayers(t)
+	cat := l.catalog()
+	if _, ok := cat.Role("r"); ok {
+		t.Error("Role(r) found a document that is not there")
+	}
+	if _, ok := cat.RoleMarkdown("r"); ok {
+		t.Error("RoleMarkdown(r) found a document that is not there")
+	}
+	write(t, filepath.Join(l.local, "roles", "r.md"), "- R1: old\n")
+	doc, ok := cat.RoleMarkdown("r")
+	if !ok || doc.Path != filepath.Join(l.local, "roles", "r.md") {
+		t.Errorf("RoleMarkdown(r) = %q, %v; want the project's .md", doc.Path, ok)
+	}
+	if _, ok := cat.Role("r"); ok {
+		t.Error("Role(r) read a Markdown file as a role document")
+	}
+}
+
+// TestSharedAgreementPrefersLocalOverGlobal: the agreement every team of a layer
+// shares is one file, looked up the same way (K1), and writing none is allowed.
+func TestSharedAgreementPrefersLocalOverGlobal(t *testing.T) {
+	l := newLayers(t)
+	if _, ok := l.catalog().SharedAgreement(); ok {
+		t.Error("SharedAgreement() found a document that is not there")
+	}
+	write(t, filepath.Join(l.global, "agreement.yaml"), "version: 1\n")
+	doc, ok := l.catalog().SharedAgreement()
+	if !ok || doc.Path != filepath.Join(l.global, "agreement.yaml") || doc.Layer != source.LayerGlobal {
+		t.Errorf("SharedAgreement() = %q (%s), %v; want the global one", doc.Path, doc.Layer, ok)
+	}
+	write(t, filepath.Join(l.local, "agreement.yaml"), "version: 1\n")
+	doc, ok = l.catalog().SharedAgreement()
+	if !ok || doc.Path != filepath.Join(l.local, "agreement.yaml") || doc.Layer != source.LayerLocal {
+		t.Errorf("SharedAgreement() = %q (%s), %v; want the project's one", doc.Path, doc.Layer, ok)
+	}
+}

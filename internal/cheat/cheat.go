@@ -198,24 +198,26 @@ Settings files and their keys:
   Global config.yaml, at <global>/config.yaml:
     version: 1        required, int; must be 1.
     lang: en|ja       string; the language when --lang is not given; default en.
-  A team definition's team.yaml, at <layer>/teams/<definition>/team.yaml. docs and roles paths are relative to this directory; cwd is relative to the project root:
+  A team definition's team.yaml, at <layer>/teams/<definition>/team.yaml; cwd is relative to the project root:
     version: 1        required, int; must be 1.
     mission: "<text>" string, required; one line saying what the team is for. A definition that writes none, or writes one over more than one line, does not read; hergy validate warns while it is still the starter example hergy new writes. The commands and the screens show it first.
     team: <definition> string, optional; if written it must equal the team definition name (the directory name).
     cwd: <dir>        string; working directory, relative to the project root; default ".".
-    prompt: "<text>"  string, optional; the bootstrap prompt template for every member.
-    docs: [<path>...] list of strings, or one string; documents every member reads, joined in order; a directory means its *.yaml in name order; a path that is not there is an error. A rule file is YAML (see below).
-    roles: [<dir>...] list of strings, or one string; where role files are looked for; default [roles]; <role>.yaml comes from the first directory that has it.
+    prompt: "<text>"  string, optional; the bootstrap prompt template for every member. It must keep %{role_doc} and %{docs}.
     members:          required, nonempty list.
       name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
-      role: <role>       required, string; reads <role>.yaml from a roles directory.
+      role: <role>       required, string; reads roles/<role>.yaml from the layer.
       profile: <name>    required, string; a named engine from profiles.yaml. kind, args and env are the profile's: writing one of them on a member is an error that says where it goes.
       cwd: <dir>         string; overrides the team cwd.
-      prompt: "<text>"   string; overrides the team prompt.
+      prompt: "<text>"   string; overrides the team prompt. It must keep %{role_doc} and %{docs}.
       may_spawn:         mapping, optional; what this member may hire. An empty value is an error.
         workers:           required, nonempty list of purpose-to-profile pairs.
           - purpose: <text>    required, string; what a hired worker is for; one worker per purpose.
             profile: <profile> required, string; the engine that worker runs; a profile in profiles.yaml.
+  Where a member's documents are (team.yaml has no key for them):
+    <layer>/roles/<role>.yaml                    a member's role document; read first. Local first, then global.
+    <layer>/agreement.yaml                       the agreement every team of the layer shares; read next. Optional.
+    <layer>/teams/<definition>/agreement.yaml    the team's own agreement; read last. Optional.
   profiles.yaml, at <layer>/profiles.yaml, next to teams/ in the layer root:
     version: 1        required, int; must be 1.
     profiles:         mapping of profile name to engine.
@@ -226,8 +228,8 @@ Settings files and their keys:
       A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
   A team definition reads the project's profiles.yaml over the global layer's, whatever layer the definition sits in: a profile of the same name resolves to the project's.
 
-Rule files (what docs and roles point at):
-  Every document a member reads is one rule file: a team's agreements (protocol.yaml) and a role file (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a .md file, a directory with only .md, or a role with only <role>.md stops with the way to move it over.
+Rule files (what the role documents and the agreements are):
+  Every document a member reads is one rule file: the agreements (agreement.yaml) and a role document (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a role left as <role>.md stops with the way to move it over.
   version: 1        required, int; must be 1.
   title: <text>     string, optional; rendered as "# <text>".
   revision: <int>   int, optional; for the people reading the file; never sent.
@@ -262,12 +264,12 @@ hire (a member starting a worker):
   A --purpose or --profile outside the hiring member's may_spawn does not stop the hire: a note goes to stderr and it continues; a member with no may_spawn gives the same note.
 
 new:
-  It writes team.yaml, protocol.yaml, roles/lead.yaml and roles/builder.yaml, and the global config.yaml (version: 1, lang) when that file is missing.
+  It writes team.yaml and agreement.yaml into the team definition, and roles/lead.yaml and roles/builder.yaml into the layer's roles/, and the global config.yaml (version: 1, lang) when that file is missing.
   The starter members name the profile claude-default, and new writes that profile into the layer's profiles.yaml when the layer cannot already resolve it.
-  It never overwrites: an existing team definition directory stops it and nothing is written (exit 1).
+  It never overwrites: an existing team definition directory stops it and nothing is written (exit 1), and a role document already in the layer is left as it is.
 
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
-  %{role_doc}  the role file     %{docs}  the docs documents     %{roster}  the roster
+  %{role_doc}  the role document     %{docs}  the agreements     %{roster}  the roster
   %{herdr}  how to reach others over herdr, and how to add a teammate     %{spawn}  what the member may hire, with the command (only when may_spawn is set)
 `
