@@ -65,9 +65,12 @@ type Index struct {
 	// documents every definition of the layer reads, the documents of one
 	// team, and the role files (in that order).
 	Groups []IndexGroup
-	// Profiles is how many profiles the layer's own profiles.yaml holds. Its
-	// row is in the list; the screen that shows them is not built yet.
+	// Profiles is how many profiles the layer's own profiles.yaml holds.
 	Profiles int
+	// ProfilesHref is the profiles screen at this layer, which is where the
+	// row leads (r-bb9c). It is the screen's own path plus the layer, so the
+	// row keeps the layer being shown.
+	ProfilesHref string
 }
 
 // IndexTeam is one team definition in the left list.

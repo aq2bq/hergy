@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
+	"github.com/aq2bq/hergy/internal/web/profileview"
 	"github.com/aq2bq/hergy/internal/web/rulesview"
 )
 
@@ -55,8 +56,9 @@ func groupOf(rel string) string {
 func (p servePort) Index(layer string) web.Index {
 	defs := layerDefinitions(p.env, layer)
 	out := web.Index{
-		Teams:    p.indexTeams(layer, defs),
-		Profiles: p.profileCount(layer),
+		Teams:        p.indexTeams(layer, defs),
+		Profiles:     p.profileCount(layer),
+		ProfilesHref: profileHref(layer),
 	}
 	byGroup := map[string][]web.IndexRow{}
 	for _, doc := range p.layerDocs(layer, defs) {
@@ -279,17 +281,15 @@ func teamHref(layer, name string) string {
 	return teamPath + "?layer=" + url.QueryEscape(layer) + "&name=" + url.QueryEscape(name)
 }
 
+// profileHref is the profiles screen at one layer, which is where the left
+// list's profiles row leads (r-bb9c).
+func profileHref(layer string) string {
+	return profileview.ProfilePath + "?layer=" + url.QueryEscape(layer)
+}
+
 // profileCount is how many profiles one layer's own profiles.yaml holds. A
 // layer with no file has none, and a file that does not read shows none rather
 // than stopping the screen.
 func (p servePort) profileCount(layer string) int {
-	text, err := os.ReadFile(filepath.Join(p.layerDir(layer), "profiles.yaml"))
-	if err != nil {
-		return 0
-	}
-	profiles, err := config.ParseProfiles(string(text), filepath.Join(p.layerDir(layer), "profiles.yaml"))
-	if err != nil {
-		return 0
-	}
-	return len(profiles)
+	return len(p.layerProfiles(layer))
 }

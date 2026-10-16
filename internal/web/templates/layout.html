@@ -57,7 +57,7 @@
         </div>
         {{- end}}
         <div class="ix-group">
-          <span class="ix-item"><span class="ix-row"><span class="ix-name">{{t "web.frame.index.group.profiles"}}</span><span class="ix-rev">{{tf "web.frame.index.count" .Index.Profiles}}</span></span></span>
+          <a class="ix-item" href="{{.Index.ProfilesHref}}"{{if eq $.View "profiles"}} aria-current="true"{{end}}><span class="ix-row"><span class="ix-name">{{t "web.frame.index.group.profiles"}}</span><span class="ix-rev">{{tf "web.frame.index.count" .Index.Profiles}}</span></span></a>
         </div>
       </div>
     </aside>

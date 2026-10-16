@@ -13,6 +13,13 @@
   offers to copy a prompt that asks an AI to find out when and why the rule was
   added, built from the rule's own id, text and reason, the file's path and the
   layer's root.
+- **The profiles of a layer, read-only, in the web UI**: the left list's
+  profiles row is now a link to `/profiles`, which shows the profiles of the
+  layer you pick: their name, kind, args and the names of their environment
+  variables. The values of `env` are never shown, because a value may hold an
+  API key. The local layer's page also shows the profiles a local team
+  definition ends up with once the local layer is laid over the global one, and
+  marks which profiles override which.
 - **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
   8787; `0` lets the operating system pick a free one) serves the web UI on
   127.0.0.1 and prints the URL. The team list answers `/teams`: one row per

@@ -21,6 +21,7 @@ import (
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/homeview"
+	"github.com/aq2bq/hergy/internal/web/profileview"
 	"github.com/aq2bq/hergy/internal/web/rulesview"
 	"github.com/aq2bq/hergy/internal/web/teamview"
 )
@@ -318,7 +319,11 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
-	screens := append([]web.Screen{home, teams, rulesScreen, diff, bump}, teamScreens...)
+	profiles, err := profileview.New(port)
+	if err != nil {
+		return err
+	}
+	screens := append([]web.Screen{home, teams, rulesScreen, diff, bump, profiles}, teamScreens...)
 	server, err := web.New(port, orderScreens(screens)...)
 	if err != nil {
 		return err
@@ -330,10 +335,10 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout i
 
 // orderScreens puts the screens in the order the navigation shows them (d-207f):
 // the home first, then the running teams, the team list, the figure, the rules,
-// the prompt diff and the version. The team definition screen is last: it is not
-// a tab (web.NavScreen), and it is opened from the left list. The order lives
-// here and not in the callers, so a screen added by another part lands in its
-// place in one edit.
+// the prompt diff and the version. The screens that are not tabs
+// (web.NavScreen) come last: the team definition and the profiles are opened
+// from the left list, not from the navigation. The order lives here and not in
+// the callers, so a screen added by another part lands in its place in one edit.
 func orderScreens(screens []web.Screen) []web.Screen {
 	out := append([]web.Screen(nil), screens...)
 	sort.SliceStable(out, func(i, j int) bool { return navRank(out[i]) < navRank(out[j]) })

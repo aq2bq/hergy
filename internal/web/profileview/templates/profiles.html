@@ -1,0 +1,47 @@
+<div class="wrap w1080">
+  <div class="kicker"><span>{{t "web.profiles.title"}}</span></div>
+  <h1>{{t "web.profiles.title"}}</h1>
+  <p class="lede">{{t "web.profiles.lede.what"}}</p>
+  <p class="lede">{{t "web.profiles.lede.overlay"}}</p>
+  <p class="lede">{{t "web.profiles.lede.global"}}</p>
+  <p class="lede">{{t "web.profiles.readonly"}}</p>
+  {{- if .Local}}
+  <div class="panel">
+    <h3>{{t "web.profiles.effective"}}</h3>
+    <div class="row">
+      {{- range .Effective}}
+      <span class="tag"><span class="mono">{{.Name}}</span> {{tf "web.profiles.effective.row" (tf "web.layer.name" (t (printf "label.%s" .Layer)))}}{{if .Over}}{{t "web.profiles.over.global"}}{{end}}</span>
+      {{- end}}
+    </div>
+  </div>
+  {{- end}}
+  <h2 class="sect"><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span> <span class="mono">{{.LayerRoot}}/profiles.yaml</span></h2>
+  <div class="mtable">
+    <div class="mhead pline">
+      <span>{{t "web.profiles.column.name"}}</span>
+      <span>{{t "web.profiles.column.kind"}}</span>
+      <span>{{t "web.profiles.column.args"}}</span>
+      <span>{{t "web.profiles.column.env"}}</span>
+    </div>
+    {{- if .Rows}}
+    {{- range .Rows}}
+    <div class="mgroup{{if .Shadowed}} shadowed{{end}}">
+      <div class="pline">
+        <span class="mname">{{.Name}}</span>
+        <span class="mono">{{.Kind}}</span>
+        <span class="mono preline">{{join .Args "\n"}}</span>
+        <span class="mono preline">{{join .EnvNames "\n"}}</span>
+      </div>
+      {{- if .Shadowed}}
+      <div class="wrows"><span class="warnline">{{t "web.profiles.state.shadowed"}}</span></div>
+      {{- else if .Over}}
+      <div class="wrows"><span class="mcount">{{t "web.profiles.state.over"}}</span></div>
+      {{- end}}
+    </div>
+    {{- end}}
+    {{- else}}
+    <div class="empty-note">{{tf "web.profiles.empty" (t (printf "label.%s" .Layer))}}</div>
+    {{- end}}
+  </div>
+  <p class="fine">{{t "web.profiles.env.note"}}</p>
+</div>

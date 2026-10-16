@@ -28,8 +28,8 @@ func (p fakePort) Teams(layer string) []Team     { return p.teams[layer] }
 func (p fakePort) LayerRoot(layer string) string { return p.roots[layer] }
 
 // Index is the left list the tests' frame draws: one row per definition of the
-// layer, and no documents (a test that needs documents writes them in the
-// screens it hands the server).
+// layer, no documents (a test that needs documents writes them in the screens
+// it hands the server), and the row the profiles screen is opened from.
 func (p fakePort) Index(layer string) Index {
 	var out Index
 	for _, team := range p.teams[layer] {
@@ -40,6 +40,8 @@ func (p fakePort) Index(layer string) Index {
 			Href:    "/team?layer=" + layer + "&name=" + team.Name,
 		})
 	}
+	out.Profiles = 2
+	out.ProfilesHref = "/profiles?layer=" + layer
 	return out
 }
 
@@ -275,6 +277,36 @@ func TestTheLeftListMarksTheDocumentTheScreenOpened(t *testing.T) {
 	if marked := regexp.MustCompile(`class="ix-item" href="[^"]*" aria-current="true"`).FindAllString(get(t, none, "/rules?layer=local").Body.String(), -1); len(marked) != 0 {
 		t.Errorf("a screen that opens no document marks %v", marked)
 	}
+}
+
+// profilesScreen is a screen that answers /profiles, so a test can see the left
+// list link to the profiles and mark the row while that screen is open.
+type profilesScreen struct{}
+
+func (s *profilesScreen) Name() string { return "profiles" }
+
+func (s *profilesScreen) Routes() []Route {
+	return []Route{{Path: "/profiles", Handler: func(*http.Request) (View, error) {
+		return View{Title: "profiles", Body: HTML("<h1>profiles</h1>")}, nil
+	}}}
+}
+
+// TestTheLeftListLinksToTheProfilesAndMarksThem: the profiles row is a link to
+// the profiles screen (r-bb9c), and it carries the mark while that screen is
+// open. On every other screen it is a plain row.
+func TestTheLeftListLinksToTheProfilesAndMarksThem(t *testing.T) {
+	s := newTestServer(t, demoPort(), &profilesScreen{})
+
+	// The row is a link, with the layer being shown, on a page that is not the
+	// profiles screen.
+	plain := get(t, s, "/teams?layer=local").Body.String()
+	mustContain(t, "the left list", plain, `class="ix-item" href="/profiles?layer=local"`)
+	mustNotContain(t, "the left list", plain, `href="/profiles?layer=local" aria-current="true"`)
+
+	// Opening the profiles screen marks the row.
+	profiles := get(t, s, "/profiles?layer=local").Body.String()
+	mustContain(t, "the profiles page", profiles,
+		`class="ix-item" href="/profiles?layer=local" aria-current="true"`)
 }
 
 // TestUnknownPathIsNotFound: a path no screen claims is a 404, not the first

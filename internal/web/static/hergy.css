@@ -562,3 +562,15 @@ html,body{margin:0}
 .toggle[aria-pressed="true"]::before{content:"\2611 "}
 .toggle[aria-pressed="false"]::before{content:"\2610 "}
 .toggle[aria-disabled="true"]{color:var(--faint);cursor:default}
+
+/* プロファイル: 試作の .pline から「削除」の列を外した 4 列 (r-bb9c。
+   この画面は読み取りだけなので、名前・kind・args・env を文字で出す) */
+.pline{display:grid;grid-template-columns:130px 110px minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start;padding:8px 12px}
+.mhead.pline{grid-template-columns:130px 110px minmax(0,1fr) minmax(0,1fr)}
+.mgroup.shadowed .pline{opacity:.6}
+/* プロファイルの名前は識別子なので、チーム定義の表の名前と同じく code で出す
+   (試作の入力欄の見た目は要らない。port-map 3.2.1) */
+.pline .mname{font-family:var(--font-mono);font-weight:600}
+/* args と env は 1 行に 1 つ。join が入れた改行をそのまま見せる */
+.pline .preline{white-space:pre-line;overflow-wrap:anywhere}
+@media (max-width:760px){ .pline{grid-template-columns:1fr 1fr} .mhead.pline{display:none} }
