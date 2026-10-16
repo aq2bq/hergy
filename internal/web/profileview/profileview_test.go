@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -151,9 +152,11 @@ func mustNotContain(t *testing.T, what, body string, unwanted ...string) {
 }
 
 // TestTheScreenShowsTheProfilesAsEditableFields: the table carries a field for
-// each profile's name, its kind, its args one to a line and its env one
-// name=value to a line, with what the profile holds in it. The value of an env
-// variable is on the page like the rest (d-c60f).
+// each profile's name, its kind, its args one to a line, and each of its env
+// variables as a pair of a name field and a value textarea, with what the
+// profile holds in them. The value of an env variable is on the page like the
+// rest (d-c60f), and a value holding a line break is held by a textarea, so it
+// stays one value (r-daf8 の P2).
 func TestTheScreenShowsTheProfilesAsEditableFields(t *testing.T) {
 	body, err := newScreen(t, demoPort()).ProfileBody(LayerLocal)
 	if err != nil {
@@ -166,10 +169,15 @@ func TestTheScreenShowsTheProfilesAsEditableFields(t *testing.T) {
 		i18n.T("web.profiles.column.args"),
 		i18n.T("web.profiles.column.env"),
 		i18n.T("web.profiles.edit.note"),
-		`name="name" value="impl"`,                               // the profile's name, in a field
-		`name="kind" value="claude"`,                             // its kind
-		"--model\nopus",                                          // its args, one to a line
-		"OPENAI_API_KEY=sk-test",                                 // its env, name=value
+		`name="name" value="impl"`,              // the profile's name, in a field
+		`name="kind" value="claude"`,            // its kind
+		"--model\nopus",                         // its args, one to a line
+		`name="envname" value="OPENAI_API_KEY"`, // an env variable's name, in a field
+		">sk-test<",                             // its value, in the textarea beside it
+		i18n.T("web.profiles.column.env_name"),  // what the pair's fields are
+		i18n.T("web.profiles.column.env_value"),
+		i18n.T("web.profiles.env.add"),                           // one more env variable
+		i18n.T("web.profiles.env.remove"),                        // the pair's delete
 		i18n.T("web.profiles.save"),                              // the save button
 		i18n.T("web.profiles.remove"),                            // the per-row delete
 		i18n.Tf("web.profiles.add", i18n.T("label."+LayerLocal)), // the add button
@@ -203,7 +211,7 @@ func TestTheFormCarriesTheLayerItIsOn(t *testing.T) {
 
 // TestTheScreenDrawsTheFormTheSaveReads: the fields of the page are the fields
 // SaveBody reads: reading the page back as a form gives the profiles the port
-// handed in.
+// handed in, env values and all.
 func TestTheScreenDrawsTheFormTheSaveReads(t *testing.T) {
 	body, err := newScreen(t, demoPort()).ProfileBody(LayerLocal)
 	if err != nil {
@@ -218,8 +226,11 @@ func TestTheScreenDrawsTheFormTheSaveReads(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("the page holds %d rows, want the two profiles: %+v", len(rows), rows)
 	}
-	if rows[0].Name != "impl" || rows[0].Kind != "claude" || rows[0].Args != "--model\nopus" || rows[0].Env != "OPENAI_API_KEY=sk-test" {
-		t.Errorf("the first row = %+v, want the impl profile with its args and env", rows[0])
+	if rows[0].Name != "impl" || rows[0].Kind != "claude" || rows[0].Args != "--model\nopus" {
+		t.Errorf("the first row = %+v, want the impl profile with its args", rows[0])
+	}
+	if !slices.Equal(rows[0].Env, envSample) {
+		t.Errorf("the first row's env = %+v, want %+v", rows[0].Env, envSample)
 	}
 	if rows[1].Name != "solo" || rows[1].Kind != "opencode" {
 		t.Errorf("the second row = %+v, want the solo profile", rows[1])
@@ -227,8 +238,9 @@ func TestTheScreenDrawsTheFormTheSaveReads(t *testing.T) {
 }
 
 // fieldRE is one field of the form as the page draws it: an input or a textarea
-// under one of the names the handler reads.
-var fieldRE = regexp.MustCompile(`<(?:input|textarea)[^>]*\bname="(name|kind|args|env)"[^>]*?(?:value="([^"]*)"|>([^<]*)</)`)
+// under one of the names the handler reads, the hidden one that says which
+// profile an env pair belongs to included.
+var fieldRE = regexp.MustCompile(`<(?:input|textarea)[^>]*\bname="(name|kind|args|envof|envname|envvalue)"[^>]*?(?:value="([^"]*)"|>([^<]*)</)`)
 
 // TestTheScreenMarksTheOverrideOnBothLayers: a global profile a local one of
 // the same name takes the place of is marked shadowed and says what that means;
@@ -349,14 +361,18 @@ func TestTheScreenIsNotATabAndAnswersThePageAndTwoWrites(t *testing.T) {
 }
 
 // formOf is one form the page would send: the rows as they stand, under the
-// names the handler reads.
+// names the handler reads, with each profile's env as the pairs it draws.
 func formOf(rows ...Row) url.Values {
 	values := url.Values{"hash": {"hash"}, "token": {"token"}}
-	for _, row := range rows {
+	for i, row := range rows {
 		values["name"] = append(values["name"], row.Name)
 		values["kind"] = append(values["kind"], row.Kind)
 		values["args"] = append(values["args"], row.Args)
-		values["env"] = append(values["env"], row.Env)
+		for _, variable := range row.Env {
+			values["envof"] = append(values["envof"], strconv.Itoa(i))
+			values["envname"] = append(values["envname"], variable.Name)
+			values["envvalue"] = append(values["envvalue"], variable.Value)
+		}
 	}
 	return values
 }
@@ -369,7 +385,8 @@ func TestEditBodyAddsAndDropsARow(t *testing.T) {
 	screen := newScreen(t, port)
 
 	added, err := screen.EditBody(LayerLocal, "tok", url.Values{
-		"name": {"a", "b"}, "kind": {"claude", "codex"}, "args": {"--x", ""}, "env": {"FOO=bar", ""},
+		"name": {"a", "b"}, "kind": {"claude", "codex"}, "args": {"--x", ""},
+		"envof": {"0"}, "envname": {"FOO"}, "envvalue": {"bar"},
 		"add": {"1"}, "hash": {"h"},
 	})
 	if err != nil {
@@ -379,7 +396,8 @@ func TestEditBodyAddsAndDropsARow(t *testing.T) {
 	mustContain(t, "the page with a row added", added, `name="hash" value="h"`)
 
 	dropped, err := screen.EditBody(LayerLocal, "tok", url.Values{
-		"name": {"a", "b"}, "kind": {"claude", "codex"}, "args": {"--x", ""}, "env": {"FOO=bar", ""},
+		"name": {"a", "b"}, "kind": {"claude", "codex"}, "args": {"--x", ""},
+		"envof": {"0"}, "envname": {"FOO"}, "envvalue": {"bar"},
 		"drop": {"0"}, "hash": {"h"},
 	})
 	if err != nil {
@@ -393,6 +411,43 @@ func TestEditBodyAddsAndDropsARow(t *testing.T) {
 	}
 }
 
+// TestEditBodyAddsAndDropsOneEnvPair: the button under a profile's env opens one
+// more empty pair on that profile, and the pair's own button takes it out, with
+// the rest of the form kept. Neither writes a file (r-daf8 の P2).
+func TestEditBodyAddsAndDropsOneEnvPair(t *testing.T) {
+	port := demoPort()
+	screen := newScreen(t, port)
+
+	added, err := screen.EditBody(LayerLocal, "tok", url.Values{
+		"name": {"a"}, "kind": {"claude"}, "args": {""},
+		"envof": {"0"}, "envname": {"FOO"}, "envvalue": {"bar"},
+		"envadd": {"0"}, "hash": {"h"},
+	})
+	if err != nil {
+		t.Fatalf("EditBody: %v", err)
+	}
+	// The pair the person typed is still there, and an empty one stands beside
+	// it, so the form holds two names.
+	if got := strings.Count(added, `name="envname"`); got != 2 {
+		t.Errorf("the page holds %d env name fields, want the one typed and the one added:\n%s", got, added)
+	}
+	mustContain(t, "the page with a pair added", added, `name="envname" value="FOO"`, ">bar<", `name="hash" value="h"`)
+
+	dropped, err := screen.EditBody(LayerLocal, "tok", url.Values{
+		"name": {"a"}, "kind": {"claude"}, "args": {""},
+		"envof": {"0", "0"}, "envname": {"FOO", "KEEP"}, "envvalue": {"bar", "me"},
+		"envdrop": {"0:0"}, "hash": {"h"},
+	})
+	if err != nil {
+		t.Fatalf("EditBody: %v", err)
+	}
+	mustContain(t, "the page with a pair dropped", dropped, `name="envname" value="KEEP"`)
+	mustNotContain(t, "the page with a pair dropped", dropped, `name="envname" value="FOO"`)
+	if len(port.wrote) != 0 {
+		t.Errorf("adding and dropping an env pair wrote a file: %v", port.wrote)
+	}
+}
+
 // TestSaveBodyWritesTheRowsAsTheOneFormat: a save writes the rows of the form
 // into the layer's profiles.yaml: a name changed, args and env values in, a
 // profile added, and a profile the form no longer holds deleted.
@@ -401,7 +456,7 @@ func TestSaveBodyWritesTheRowsAsTheOneFormat(t *testing.T) {
 	// The page was drawn with two rows, and the person renamed one, gave the
 	// other args and env values, dropped the first and added a new profile.
 	values := formOf(
-		Row{Name: "impl", Kind: "claude", Args: "--model\nopus", Env: "OPENAI_API_KEY=sk-test\nHOME_HINT=here"},
+		Row{Name: "impl", Kind: "claude", Args: "--model\nopus", Env: []EnvVar{{Name: "OPENAI_API_KEY", Value: "sk-test"}, {Name: "HOME_HINT", Value: "here"}}},
 		Row{Name: "solo", Kind: "opencode", Args: "--foo bar"},
 		Row{Name: "fresh", Kind: "codex"},
 	)
@@ -434,6 +489,47 @@ profiles:
 	mustNotContain(t, "the page after a save", body, i18n.T("web.profiles.error"))
 }
 
+// TestSaveBodyKeepsAnEnvValueThatHoldsALineBreak: an env value holding a line
+// break is one value and not two lines, so a page that holds such a value can be
+// saved without touching it: the value comes back on the page in one field and
+// in the file one value (r-daf8 の P2).
+func TestSaveBodyKeepsAnEnvValueThatHoldsALineBreak(t *testing.T) {
+	value := "line one\nline two"
+	port := demoPort()
+	port.profiles[LayerLocal] = []Profile{{
+		Name: "impl", Kind: "claude", Env: []EnvVar{{Name: "CFG", Value: value}}, Layer: LayerLocal,
+	}}
+	file := "version: 1\nprofiles:\n  impl:\n    kind: claude\n    env:\n      CFG: |-\n        line one\n        line two\n"
+	port.file[LayerLocal] = Source{Text: file, Hash: hashOf(file), Exists: true}
+
+	screen := newScreen(t, port)
+	body, err := screen.ProfileBody(LayerLocal)
+	if err != nil {
+		t.Fatalf("ProfileBody: %v", err)
+	}
+	// The page is read back as a person's browser would send it: what stands on
+	// the page, unchanged.
+	values := url.Values{"token": {"tok"}, "hash": {port.file[LayerLocal].Hash}}
+	for _, match := range fieldRE.FindAllStringSubmatch(body, -1) {
+		values[match[1]] = append(values[match[1]], html.UnescapeString(match[2]+match[3]))
+	}
+	page, err := screen.SaveBody(LayerLocal, "tok", values)
+	if err != nil {
+		t.Fatalf("SaveBody: %v", err)
+	}
+	if got := port.wrote[LayerLocal]; got == "" {
+		t.Fatalf("a save that changed nothing wrote no file:\n%s", page)
+	}
+	profiles, err := config.ParseProfiles(port.wrote[LayerLocal], "profiles.yaml")
+	if err != nil {
+		t.Fatalf("the file the save wrote does not read: %v\n%s", err, port.wrote[LayerLocal])
+	}
+	if got := profiles["impl"].Env["CFG"]; got != value {
+		t.Errorf("the value came back as %q, want %q (the save wrote:\n%s)", got, value, port.wrote[LayerLocal])
+	}
+	mustContain(t, "the page after a save", page, value)
+}
+
 // TestSaveBodyDeletesAProfileTheFormNoLongerHolds: a profile whose row the
 // person deleted is gone from the file, and the rest of the file is what it was.
 func TestSaveBodyDeletesAProfileTheFormNoLongerHolds(t *testing.T) {
@@ -450,7 +546,7 @@ func TestSaveBodyDeletesAProfileTheFormNoLongerHolds(t *testing.T) {
 }
 
 // TestSaveBodyKeepsTheRowsAndWritesNothingWhenTheyCannotBeRead: a name written
-// twice, a profile with no name and an env line that is not name=value are
+// twice, a profile with no name and an env variable with a value but no name are
 // refused rather than written: the page comes back with the reason, the rows as
 // they were typed, and no file touched.
 func TestSaveBodyKeepsTheRowsAndWritesNothingWhenTheyCannotBeRead(t *testing.T) {
@@ -470,13 +566,13 @@ func TestSaveBodyKeepsTheRowsAndWritesNothingWhenTheyCannotBeRead(t *testing.T) 
 			reason: i18n.Tf("web.profiles.error.no_name", 1),
 		},
 		{
-			name:   "an env line with no =",
-			rows:   []Row{{Name: "impl", Kind: "claude", Env: "OPENAI_API_KEY"}},
-			reason: i18n.Tf("web.profiles.error.env_line", "OPENAI_API_KEY"),
+			name:   "an env variable with a value but no name",
+			rows:   []Row{{Name: "impl", Kind: "claude", Env: []EnvVar{{Value: "sk-test"}}}},
+			reason: i18n.Tf("web.profiles.error.env_name", 1, 1),
 		},
 		{
 			name:   "two env variables with the same name",
-			rows:   []Row{{Name: "impl", Kind: "claude", Env: "FOO=1\nFOO=2"}},
+			rows:   []Row{{Name: "impl", Kind: "claude", Env: []EnvVar{{Name: "FOO", Value: "1"}, {Name: "FOO", Value: "2"}}}},
 			reason: i18n.Tf("web.profiles.error.env_duplicate", "FOO"),
 		},
 		{

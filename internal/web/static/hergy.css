@@ -571,4 +571,10 @@ html,body{margin:0}
 .mgroup.shadowed .pline{opacity:.6}
 /* プロファイルの名前は識別子なので、ほかの欄と同じ入力欄を code の書体で出す */
 .pline .mname{font-family:var(--font-mono);font-weight:600}
+/* env は 1 変数を 1 組にして積む: 名前の欄と値の textarea. 値は textarea なの
+   で、改行を含む値もそのまま出て、そのまま編集できる (d-c60f) */
+.envlist{display:flex;flex-direction:column;gap:6px}
+.envlist .add-rule{align-self:flex-start;margin-top:0;padding:2px 8px;font-size:11.5px}
+.envpair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) auto;gap:6px;align-items:start}
+.envpair .x{font-size:16px;line-height:1.5;padding:0 2px}
 @media (max-width:760px){ .pline{grid-template-columns:1fr 1fr} .mhead.pline{display:none} }

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/profileview"
 )
@@ -19,8 +20,9 @@ import (
 // HTTP, the way a person drives it. The page hands out this run's token and the
 // hash of the file it read, the form posts the rows to the save, and the layer's
 // own profiles.yaml holds what was typed: a profile added, one renamed, its args
-// and the values of its env in, and a profile the form no longer holds deleted.
-// The file the screen wrote is one hergy validate reads.
+// and the values of its env in (one of them holding a line break), and a profile
+// the form no longer holds deleted. The file the screen wrote is one hergy
+// validate reads.
 func TestTheProfilesScreenSavesThroughTheServer(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
@@ -39,13 +41,17 @@ func TestTheProfilesScreenSavesThroughTheServer(t *testing.T) {
 
 	page := getBody(t, base+"/profiles?layer=local")
 	// The form the page draws carries what the save needs, and nothing else.
+	// Each env variable is a pair, so a value holding a line break is one value
+	// (r-daf8 の P2).
 	form := url.Values{
-		"token": {formField(t, page, "token")},
-		"hash":  {formField(t, page, "hash")},
-		"name":  {"impl", "fresh"},
-		"kind":  {"claude", "codex"},
-		"args":  {"--model\nopus", ""},
-		"env":   {"OPENAI_API_KEY=sk-live\nHOME_HINT=here", ""},
+		"token":    {formField(t, page, "token")},
+		"hash":     {formField(t, page, "hash")},
+		"name":     {"impl", "fresh"},
+		"kind":     {"claude", "codex"},
+		"args":     {"--model\nopus", ""},
+		"envof":    {"0", "0", "0"},
+		"envname":  {"OPENAI_API_KEY", "HOME_HINT", "CFG"},
+		"envvalue": {"sk-live", "here", "line one\nline two"},
 	}
 	answer := postForm(t, base+"/profiles/save?layer=local", form)
 	if !strings.Contains(html.UnescapeString(answer), "saved") {
@@ -61,6 +67,9 @@ profiles:
       - --model
       - opus
     env:
+      CFG: |-
+        line one
+        line two
       HOME_HINT: here
       OPENAI_API_KEY: sk-live
 `
@@ -75,23 +84,24 @@ profiles:
 		t.Errorf("the global profiles.yaml changed to:\n%s\nwant the layer the save was not for", got)
 	}
 
-	// A form whose env line is not name=value is refused the way hergy
-	// validate refuses it: the answer comes back with the reason, and the file
-	// stays as it was.
+	// A form whose env variable carries a value but no name is refused: the
+	// answer comes back with the reason, and the file stays as it was.
 	broken := url.Values{
-		"token": form["token"],
-		"hash":  {hashText(readFile(t, local))},
-		"name":  {"impl"},
-		"kind":  {"claude"},
-		"args":  {""},
-		"env":   {"OPENAI_API_KEY"},
+		"token":    form["token"],
+		"hash":     {hashText(readFile(t, local))},
+		"name":     {"impl"},
+		"kind":     {"claude"},
+		"args":     {""},
+		"envof":    {"0"},
+		"envname":  {""},
+		"envvalue": {"sk-live"},
 	}
 	answer = postForm(t, base+"/profiles/save?layer=local", broken)
 	if got := readFile(t, local); got != want {
 		t.Errorf("a refused save wrote:\n%s\nwant the file untouched:\n%s", got, want)
 	}
-	if !strings.Contains(html.UnescapeString(answer), "name=value") {
-		t.Errorf("the answer of a refused save does not say why:\n%s", answer)
+	if want := i18n.Tf("web.profiles.error.env_name", 1, 1); !strings.Contains(html.UnescapeString(answer), want) {
+		t.Errorf("the answer of a refused save does not say why (want %q):\n%s", want, answer)
 	}
 
 	// The save of the global layer writes the global file: the layer travels in
@@ -103,7 +113,6 @@ profiles:
 		"name":  {"impl"},
 		"kind":  {"codex"},
 		"args":  {""},
-		"env":   {""},
 	}
 	postForm(t, base+"/profiles/save?layer=global", globalForm)
 	if got := readFile(t, global); got != "version: 1\nprofiles:\n  impl:\n    kind: codex\n" {
@@ -111,6 +120,56 @@ profiles:
 	}
 	if got := readFile(t, local); got != want {
 		t.Errorf("the global save changed the local file to:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// TestTheProfilesScreenRefusesASaveThatWouldBreakATeamDefinition: over HTTP, a
+// save that would leave a team definition without a profile it names is refused,
+// the answer says which definition and which member name it, and the file is not
+// written (r-daf8 の P1).
+func TestTheProfilesScreenRefusesASaveThatWouldBreakATeamDefinition(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	// A local team definition whose member runs the profile the save would drop.
+	// The profile is one the global layer does not hold, so dropping it takes it
+	// away for good.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: solo\n")
+	port := servePort{env: serveEnv(t)}
+	screen, err := profileview.New(port)
+	if err != nil {
+		t.Fatalf("profileview.New: %v", err)
+	}
+	server, err := web.New(port, screen)
+	if err != nil {
+		t.Fatalf("web.New: %v", err)
+	}
+	base := serveForTest(t, server)
+	local := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	before := readFile(t, local)
+
+	// The page is drawn with impl and solo, and the form posted holds impl
+	// alone: the save would take solo, which demo's lead runs, out of the file.
+	page := getBody(t, base+"/profiles?layer=local")
+	form := url.Values{
+		"token": {formField(t, page, "token")},
+		"hash":  {formField(t, page, "hash")},
+		"name":  {"impl"},
+		"kind":  {"claude"},
+		"args":  {""},
+	}
+	answer := postForm(t, base+"/profiles/save?layer=local", form)
+	if got := readFile(t, local); got != before {
+		t.Errorf("a refused save wrote:\n%s\nwant the file untouched:\n%s", got, before)
+	}
+	text := html.UnescapeString(answer)
+	// The reason names the definition, the member and the profile, so a person
+	// knows what the save would break.
+	for _, want := range []string{"demo", "lead", "solo"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the answer does not name %q:\n%s", want, answer)
+		}
 	}
 }
 

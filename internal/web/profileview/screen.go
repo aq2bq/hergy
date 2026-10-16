@@ -161,20 +161,20 @@ func (s *Screen) page(state pageState) (string, error) {
 	return s.render.Profiles(data)
 }
 
-// readRows is the rows of a layer's profile as the form holds them: the args
-// one to a line, and the env one name=value to a line.
+// readRows is the rows of a layer's profile as the form holds them: the args one
+// to a line, and each environment variable as its own pair of name and value.
 func readRows(profiles []Profile) []Row {
 	rows := make([]Row, 0, len(profiles))
 	for _, profile := range profiles {
-		env := make([]string, 0, len(profile.Env))
+		env := make([]EnvVar, 0, len(profile.Env))
 		for _, variable := range profile.Env {
-			env = append(env, variable.Name+"="+variable.Value)
+			env = append(env, EnvVar{Name: variable.Name, Value: variable.Value})
 		}
 		rows = append(rows, Row{
 			Name:     profile.Name,
 			Kind:     profile.Kind,
 			Args:     joinLines(profile.Args),
-			Env:      joinLines(env),
+			Env:      env,
 			Over:     profile.Over,
 			Shadowed: profile.Shadowed,
 		})

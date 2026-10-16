@@ -4,6 +4,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -93,5 +94,44 @@ func TestEmitProfilesRoundTrips(t *testing.T) {
 		if got := slices.Sorted(maps.Keys(again)); !slices.Equal(got, slices.Sorted(maps.Keys(profiles))) {
 			t.Errorf("the profiles came back as %v, want %v", got, slices.Sorted(maps.Keys(profiles)))
 		}
+	}
+}
+
+// TestEmitProfilesRoundTripsEnvValues: an env value comes back exactly as it
+// was, including one that holds a line break (r-daf8 の P2 は、これが成り立つ
+// ことを前提にしている), so a screen that saves a profile without touching its
+// env changes no value.
+func TestEmitProfilesRoundTripsEnvValues(t *testing.T) {
+	values := []string{
+		"plain",
+		"",
+		" lead and trail ",
+		"a=b",
+		"line one\nline two",
+		"line one\nline two\n",
+		"\n",
+		"\n\n",
+		"1",
+		"true",
+		`{"a": 1}`,
+		"tab\tx",
+		"# not a comment",
+		"- a list item",
+	}
+	for _, value := range values {
+		t.Run(strconv.Quote(value), func(t *testing.T) {
+			profiles := map[string]Profile{"impl": {Name: "impl", Kind: "claude", Env: map[string]string{"CFG": value}}}
+			text, err := EmitProfiles(profiles)
+			if err != nil {
+				t.Fatalf("EmitProfiles: %v", err)
+			}
+			back, err := ParseProfiles(text, "profiles.yaml")
+			if err != nil {
+				t.Fatalf("ParseProfiles of what hergy wrote (%q): %v", text, err)
+			}
+			if got := back["impl"].Env["CFG"]; got != value {
+				t.Errorf("the value came back as %q, want %q (hergy wrote:\n%s)", got, value, text)
+			}
+		})
 	}
 }

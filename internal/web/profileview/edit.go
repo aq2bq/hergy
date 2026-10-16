@@ -9,17 +9,20 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// Row is one profile as the form holds it: the four fields as they were typed.
-// The screen reads the rows into profiles only when it saves, so what stands on
-// the page reaches a file only through SaveBody.
+// Row is one profile as the form holds it: the fields as they were typed. The
+// screen reads the rows into profiles only when it saves, so what stands on the
+// page reaches a file only through SaveBody.
 type Row struct {
 	// Name is the profile's name, and Kind the engine it starts.
 	Name string
 	Kind string
-	// Args are the arguments, one to a line, and Env the environment variables,
-	// one name=value to a line: the way the form holds them (r-daf8).
+	// Args are the arguments, one to a line: the way the form holds a list
+	// (r-daf8).
 	Args string
-	Env  string
+	// Env are the environment variables, each one a pair of its own, so a value
+	// holding a line break stays one value and reaches the file as it stands
+	// (d-c60f).
+	Env []EnvVar
 	// Over and Shadowed are the marks the other layer gives this name: Over for
 	// a local profile the global layer also holds, Shadowed for a global one a
 	// local profile of the same name takes the place of. They are read from
@@ -32,8 +35,22 @@ type Row struct {
 // which a save leaves out. A row of spaces counts as nothing here, so a person
 // can empty a row by clearing its fields.
 func (r Row) blank() bool {
-	return strings.TrimSpace(r.Name) == "" && strings.TrimSpace(r.Kind) == "" &&
-		strings.TrimSpace(r.Args) == "" && strings.TrimSpace(r.Env) == ""
+	if strings.TrimSpace(r.Name) != "" || strings.TrimSpace(r.Kind) != "" || strings.TrimSpace(r.Args) != "" {
+		return false
+	}
+	for _, variable := range r.Env {
+		if !variable.blank() {
+			return false
+		}
+	}
+	return true
+}
+
+// blank says one env pair holds nothing: it is the pair the add button opened,
+// which a save leaves out. A pair of spaces counts as nothing, like a row of
+// spaces.
+func (e EnvVar) blank() bool {
+	return strings.TrimSpace(e.Name) == "" && strings.TrimSpace(e.Value) == ""
 }
 
 // EditBody draws the page again from the form the person is in, with the row the
@@ -54,8 +71,10 @@ func (s *Screen) EditBody(layer, token string, values url.Values) (string, error
 //
 //   - the form carries no hash (the page was not one hergy drew),
 //   - the rows cannot be read as profiles (a profile with no name, a name
-//     written twice, an env line that is not name=value), or
-//   - the check hergy validate runs refuses the file hergy would write.
+//     written twice, an env variable with a value but no name), or
+//   - the check hergy validate runs refuses the file hergy would write: a file
+//     hergy cannot read back, or one that would leave a team definition
+//     without a profile it names.
 //
 // The page then comes back with the reason and the rows as they were typed, so
 // nothing the person wrote is lost. A file that changed on disk since it was
@@ -94,8 +113,10 @@ func (s *Screen) SaveBody(layer, token string, values url.Values) (string, error
 	return s.page(pageState{layer: layer, token: token, notice: i18n.T("web.profiles.saved")})
 }
 
-// rowsOf reads the rows of the form: the four fields of a row are the values
-// the browser sent under one name, in the order the rows stand on the page.
+// rowsOf reads the rows of the form. A profile's own fields are the values the
+// browser sent under one name, in the order the profiles stand on the page; the
+// env variables follow as pairs of their own, each pair saying which profile it
+// belongs to (envof), so a value holding a line break stays one value.
 func rowsOf(values url.Values) []Row {
 	names := values["name"]
 	rows := make([]Row, 0, len(names))
@@ -104,7 +125,17 @@ func rowsOf(values url.Values) []Row {
 			Name: names[i],
 			Kind: valueAt(values, "kind", i),
 			Args: valueAt(values, "args", i),
-			Env:  valueAt(values, "env", i),
+		})
+	}
+	envNames := values["envname"]
+	for k := range envNames {
+		owner, err := strconv.Atoi(valueAt(values, "envof", k))
+		if err != nil || owner < 0 || owner >= len(rows) {
+			continue
+		}
+		rows[owner].Env = append(rows[owner].Env, EnvVar{
+			Name:  envNames[k],
+			Value: valueAt(values, "envvalue", k),
 		})
 	}
 	return rows
@@ -119,13 +150,24 @@ func valueAt(values url.Values, field string, i int) string {
 	return ""
 }
 
-// applyRowAction is what the two buttons that are not the save do to the rows on
-// the page: the add button opens one more empty row, and the delete button names
-// the place of the row it takes out. A place that is not on the page leaves the
-// rows as they are.
+// applyRowAction is what the buttons that are not the save do to the rows on the
+// page: the add button opens one more empty row, the delete button takes the row
+// it names out, and the two env buttons do the same to one pair of a row. A
+// place that is not on the page leaves the rows as they are.
 func applyRowAction(rows []Row, values url.Values) []Row {
 	if values.Get("add") != "" {
 		return append(rows, Row{})
+	}
+	if place := values.Get("envadd"); place != "" {
+		i, err := strconv.Atoi(place)
+		if err != nil || i < 0 || i >= len(rows) {
+			return rows
+		}
+		rows[i].Env = append(rows[i].Env, EnvVar{})
+		return rows
+	}
+	if place := values.Get("envdrop"); place != "" {
+		return dropEnv(rows, place)
 	}
 	place := values.Get("drop")
 	if place == "" {
@@ -138,6 +180,25 @@ func applyRowAction(rows []Row, values url.Values) []Row {
 	out := make([]Row, 0, len(rows)-1)
 	out = append(out, rows[:i]...)
 	return append(out, rows[i+1:]...)
+}
+
+// dropEnv takes one env pair out. The button names the pair by the place of its
+// profile and the place of the pair inside it ("1:0").
+func dropEnv(rows []Row, place string) []Row {
+	owner, pair, ok := strings.Cut(place, ":")
+	if !ok {
+		return rows
+	}
+	i, err := strconv.Atoi(owner)
+	if err != nil || i < 0 || i >= len(rows) {
+		return rows
+	}
+	j, err := strconv.Atoi(pair)
+	if err != nil || j < 0 || j >= len(rows[i].Env) {
+		return rows
+	}
+	rows[i].Env = append(rows[i].Env[:j:j], rows[i].Env[j+1:]...)
+	return rows
 }
 
 // markRows puts the marks of the layer's file on the rows the form holds, by
@@ -178,7 +239,7 @@ func profilesOf(rows []Row) (map[string]config.Profile, error) {
 		if _, twice := out[name]; twice {
 			return nil, i18n.Errorf("web.profiles.error.duplicate", name)
 		}
-		env, err := envOf(row.Env)
+		env, err := envOf(row.Env, i+1)
 		if err != nil {
 			return nil, err
 		}
@@ -203,17 +264,23 @@ func argsOf(text string) []string {
 	return out
 }
 
-// envOf reads the env of one row: one NAME=value to a line, the name trimmed
-// and the value kept as it was typed. A line with no = is refused rather than
-// dropped in silence, and a name written twice is refused, because the file
-// would hold only one of them.
-func envOf(text string) (map[string]string, error) {
+// envOf reads the env of one profile from its pairs: the name trimmed and the
+// value kept as it was typed, so a value with a line break inside, or one with
+// spaces at its ends, is saved as it stands on the page (d-c60f). profile is the
+// place of the profile on the page, for the reason of a pair with no name.
+//
+// A pair that holds nothing is left out; a pair with a value but no name is
+// refused rather than written under a name the person did not give; a name
+// written twice is refused, because the file would hold only one of them.
+func envOf(pairs []EnvVar, profile int) (map[string]string, error) {
 	var out map[string]string
-	for _, line := range lines(text) {
-		name, value, found := strings.Cut(line, "=")
-		name = strings.TrimSpace(name)
-		if !found || name == "" {
-			return nil, i18n.Errorf("web.profiles.error.env_line", strings.TrimSpace(line))
+	for j, pair := range pairs {
+		if pair.blank() {
+			continue
+		}
+		name := strings.TrimSpace(pair.Name)
+		if name == "" {
+			return nil, i18n.Errorf("web.profiles.error.env_name", profile, j+1)
 		}
 		if _, twice := out[name]; twice {
 			return nil, i18n.Errorf("web.profiles.error.env_duplicate", name)
@@ -221,13 +288,13 @@ func envOf(text string) (map[string]string, error) {
 		if out == nil {
 			out = map[string]string{}
 		}
-		out[name] = value
+		out[name] = pair.Value
 	}
 	return out, nil
 }
 
 // lines is the non-empty lines of a textarea: what a person leaves blank in the
-// form is not an argument and not a variable.
+// form is not an argument.
 func lines(text string) []string {
 	var out []string
 	for line := range strings.SplitSeq(text, "\n") {
@@ -240,7 +307,7 @@ func lines(text string) []string {
 }
 
 // joinLines is how the form holds a list: one item to a line. It is the other
-// half of argsOf and envOf.
+// half of argsOf.
 func joinLines(items []string) string {
 	return strings.Join(items, "\n")
 }

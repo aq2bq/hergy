@@ -227,6 +227,121 @@ func TestServePortCheckProfilesIsTheCheckValidateRuns(t *testing.T) {
 	}
 }
 
+// TestServePortCheckProfilesRefusesASaveThatBreaksATeamDefinition: the check the
+// screen runs before a save builds the team definitions that read the layer's
+// profiles.yaml, so a save that takes away a profile a definition names — by
+// deleting it or by renaming it — is refused, and a profile no definition names
+// can go (r-daf8 の P1). Without this check the save would land and hergy
+// validate would then refuse the project.
+func TestServePortCheckProfilesRefusesASaveThatBreaksATeamDefinition(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	local := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	// The local layer holds profiles the global layer does not, so dropping one
+	// of those takes it away for good: impl is in both layers and would fall
+	// back on the global one.
+	writeFile(t, local, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  solo:\n    kind: opencode\n  seeker:\n    kind: codex\n")
+	// One member that runs solo, and one worker it may hire that runs seeker:
+	// both names are named by the definition, impl is not.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
+prompt: "%{spawn}"
+members:
+  - name: lead
+    role: lead
+    profile: solo
+    may_spawn:
+      workers:
+        - purpose: research
+          profile: seeker
+`)
+	p := servePort{env: serveEnv(t)}
+
+	// The file as it stands reads: nothing to refuse.
+	if reason := p.CheckProfiles(web.LayerLocal, readFile(t, local)); reason != "" {
+		t.Errorf("the file the project holds = %q, want no reason", reason)
+	}
+
+	// Dropping solo leaves demo's lead without the profile it runs.
+	reason := p.CheckProfiles(web.LayerLocal, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  seeker:\n    kind: codex\n")
+	if reason == "" {
+		t.Fatal("a save that drops a profile a team definition uses reads as sound")
+	}
+	for _, want := range []string{"demo", "lead", "solo"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("the reason = %q, want it to name %q", reason, want)
+		}
+	}
+
+	// Renaming it is the same thing: the name the member runs is gone.
+	if reason := p.CheckProfiles(web.LayerLocal, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  seeker:\n    kind: codex\n  solo2:\n    kind: opencode\n"); reason == "" {
+		t.Error("a save that renames a profile a team definition uses reads as sound")
+	}
+
+	// The profile a worker is hired with is watched the same way, and the
+	// reason names the member and the purpose it hires for.
+	reason = p.CheckProfiles(web.LayerLocal, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  solo:\n    kind: opencode\n")
+	if reason == "" {
+		t.Fatal("a save that drops the profile of a worker reads as sound")
+	}
+	if !strings.Contains(reason, "research") {
+		t.Errorf("the reason = %q, want it to name the purpose the worker is hired for", reason)
+	}
+
+	// A profile no definition names can go: impl is used by nothing here.
+	sound := "version: 1\nprofiles:\n  solo:\n    kind: opencode\n  seeker:\n    kind: codex\n"
+	if reason := p.CheckProfiles(web.LayerLocal, sound); reason != "" {
+		t.Errorf("a save that drops impl = %q, want no reason: no team definition names it", reason)
+	}
+
+	// The same file is what hergy validate builds the definition from: a save
+	// the screen refuses is a project hergy would refuse.
+	writeFile(t, local, "version: 1\nprofiles:\n  impl:\n    kind: claude\n  solo:\n    kind: opencode\n")
+	if _, err := validateTeam(p.env, "demo", web.LayerLocal); err == nil {
+		t.Error("hergy validate builds the definition the screen refused")
+	}
+	writeFile(t, local, sound)
+	if _, err := validateTeam(p.env, "demo", web.LayerLocal); err != nil {
+		t.Errorf("hergy validate refuses the file the screen allowed: %v", err)
+	}
+}
+
+// TestServePortCheckProfilesWatchesTheLocalLayerForAGlobalSave: a local team
+// definition reads the global layer's profiles under its own, so a global save
+// that drops a profile a local definition names is refused too, and the reason
+// names that definition (r-daf8 の P1).
+func TestServePortCheckProfilesWatchesTheLocalLayerForAGlobalSave(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	global := filepath.Join(f.cfg, "hergy", "profiles.yaml")
+	// The local definition runs the global layer's shared profile: the project's
+	// own profiles.yaml does not hold that name.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: shared\n")
+	p := servePort{env: serveEnv(t)}
+
+	// The global file as it stands reads for the local definition.
+	if reason := p.CheckProfiles(web.LayerGlobal, readFile(t, global)); reason != "" {
+		t.Errorf("the global file the project holds = %q, want no reason", reason)
+	}
+
+	// Dropping the global shared leaves the local definition without it.
+	reason := p.CheckProfiles(web.LayerGlobal, "version: 1\nprofiles:\n  impl:\n    kind: opencode\n")
+	if reason == "" {
+		t.Fatal("a global save that drops a profile a local team definition uses reads as sound")
+	}
+	if !strings.Contains(reason, "demo") {
+		t.Errorf("the reason = %q, want it to name the definition that reads the name", reason)
+	}
+
+	// Keeping the name reads, so a global save is not refused for a name the
+	// global layer holds.
+	if reason := p.CheckProfiles(web.LayerGlobal, "version: 1\nprofiles:\n  impl:\n    kind: opencode\n  shared:\n    kind: claude\n"); reason != "" {
+		t.Errorf("a global save that keeps every name = %q, want no reason", reason)
+	}
+}
+
 // TestServePortWriteProfilesWritesOneLayer: the one write of the profiles screen
 // writes the layer's own profiles.yaml, makes the file when the layer has none
 // yet, and refuses a file that is not the one the screen read.

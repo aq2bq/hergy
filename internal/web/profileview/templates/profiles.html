@@ -45,7 +45,17 @@
           <input class="input mname" type="text" name="name" value="{{$row.Name}}" aria-label="{{t "web.profiles.column.name"}}">
           <input class="input mono" type="text" name="kind" value="{{$row.Kind}}" aria-label="{{t "web.profiles.column.kind"}}">
           <textarea class="input mono" name="args" rows="2" aria-label="{{t "web.profiles.column.args"}}">{{$row.Args}}</textarea>
-          <textarea class="input mono" name="env" rows="2" aria-label="{{t "web.profiles.column.env"}}">{{$row.Env}}</textarea>
+          <div class="envlist">
+            {{- range $j, $variable := $row.Env}}
+            <div class="envpair">
+              <input type="hidden" name="envof" value="{{$i}}">
+              <input class="input mono" type="text" name="envname" value="{{$variable.Name}}" aria-label="{{t "web.profiles.column.env_name"}}">
+              <textarea class="input mono" name="envvalue" rows="1" aria-label="{{t "web.profiles.column.env_value"}}">{{$variable.Value}}</textarea>
+              <button class="x" type="submit" name="envdrop" value="{{$i}}:{{$j}}" formaction="{{p "edit"}}?layer={{$.Layer}}" aria-label="{{t "web.profiles.env.remove"}}">×</button>
+            </div>
+            {{- end}}
+            <button class="add-rule" type="submit" name="envadd" value="{{$i}}" formaction="{{p "edit"}}?layer={{$.Layer}}">{{t "web.profiles.env.add"}}</button>
+          </div>
           <button class="linkbtn" type="submit" name="drop" value="{{$i}}" formaction="{{p "edit"}}?layer={{$.Layer}}">{{t "web.profiles.remove"}}</button>
         </div>
         {{- if $row.Shadowed}}

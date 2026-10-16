@@ -10,6 +10,8 @@ import (
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/profileview"
 )
@@ -160,13 +162,89 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 
 // CheckProfiles is the check hergy validate runs on one layer's profiles.yaml
 // (validateProfiles), run over the text the screen would write: the reason it is
-// broken, in the words the screen shows, or "" when it reads.
+// broken, in the words the screen shows, or "" when it reads. It reads the file
+// itself, and then builds the team definitions that read it, so a save that
+// would leave a definition without a profile it names is refused rather than
+// written (r-daf8).
 func (p servePort) CheckProfiles(layer, text string) string {
 	path := p.profilesPath(layer)
 	if _, err := config.ParseProfiles(text, path); err != nil {
 		return breakLine(p.env, path, err)
 	}
+	if reason := p.checkTeamsReadProfiles(layer, path, text); reason != "" {
+		return reason
+	}
 	return ""
+}
+
+// checkTeamsReadProfiles builds every team definition that reads the layer's
+// profiles.yaml with the text the screen would write, and answers why one breaks,
+// or "" when the file reads for all of them.
+//
+// The layers built are the layer being written and, for the global layer, the
+// project's local layer: a global team reads the global profiles alone, but a
+// local team reads the local profiles over the global ones, so a global save can
+// leave a local definition without a profile it names. A definition that is
+// already broken on disk says so on its own screen and is left out here: this
+// check speaks about the change and nothing else.
+func (p servePort) checkTeamsReadProfiles(layer, path, text string) string {
+	edit := team.ProfilesEdit{Path: path, Text: text}
+	layers := []string{layer}
+	if layer == web.LayerGlobal {
+		layers = append(layers, web.LayerLocal)
+	}
+	for _, build := range layers {
+		for _, row := range p.env.List() {
+			if !inLayer(row, build) {
+				continue
+			}
+			resolved, err := p.env.Resolve(row.Name, build)
+			if err != nil {
+				continue
+			}
+			onDisk, err := p.env.BuildConfig(resolved, source.Disk{}, "")
+			if err != nil {
+				continue
+			}
+			// The names the definition will see once the file is written: the
+			// layer of the definition, read with the edit in place.
+			read, _, err := p.env.LoadProfilesEdit(build, edit)
+			if err != nil {
+				continue
+			}
+			if name, place := firstProfileLeftOut(onDisk, read); name != "" {
+				return i18n.Errorf("web.profiles.error.team_needs_profile", place, name, row.Name).Error()
+			}
+			if _, err := p.env.BuildConfigEdit(resolved, source.Disk{}, "", edit); err != nil {
+				return breakLine(p.env, resolved.TeamYAMLPath, err)
+			}
+		}
+	}
+	return ""
+}
+
+// firstProfileLeftOut names one profile a built team definition uses that the
+// file being saved does not hold, with where it is used: a member, or a worker of
+// the member named by its purpose. It answers the first in the order the members
+// are written. A definition that names no such profile answers "".
+func firstProfileLeftOut(cfg *config.Config, profiles map[string]config.Profile) (name, place string) {
+	for i := range cfg.Members {
+		member := &cfg.Members[i]
+		if member.Profile != "" {
+			if _, ok := profiles[member.Profile]; !ok {
+				return member.Profile, member.Name
+			}
+		}
+		if member.MaySpawn == nil {
+			continue
+		}
+		for _, worker := range member.MaySpawn.Workers {
+			if _, ok := profiles[worker.Profile]; !ok {
+				return worker.Profile, member.Name + " / " + worker.Purpose
+			}
+		}
+	}
+	return "", ""
 }
 
 // WriteProfiles writes one layer's profiles.yaml. It refuses a file whose
