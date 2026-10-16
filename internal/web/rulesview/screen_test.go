@@ -1043,7 +1043,7 @@ func TestTheSearchFormAndTheListFragment(t *testing.T) {
 		`<input type="hidden" name="doc" value="protocol.yaml">`,
 		`<input type="hidden" name="filter" value="all">`,
 		`type="search" name="q" value="C2"`,
-		`hx-get="/rules/list?layer=local&amp;doc=protocol.yaml&amp;q=C2"`,
+		`hx-get="/rules/list?layer=local&amp;doc=protocol.yaml"`,
 		`hx-target="#rules-list" hx-swap="outerHTML"`,
 		i18n.T("web.rules.search.placeholder"),
 		i18n.T("web.rules.search"),
@@ -1068,6 +1068,52 @@ func TestTheSearchFormAndTheListFragment(t *testing.T) {
 	}
 	if strings.Contains(fragment, `class="toolbar"`) || strings.Contains(fragment, `<div class="wrap">`) {
 		t.Errorf("the fragment carries the frame's chrome:\n%s", fragment)
+	}
+}
+
+// TestTheSearchBoxFiltersByWhatTheBoxHolds: a page opened with a query in its
+// address sends the word the box holds, not the word the page was opened with.
+// It went wrong when the box's address carried the page's own q as well: the
+// server reads the first value of a name, so the box went on filtering by the
+// word the page was opened with, and neither another word nor an empty one
+// changed the list (hergy-spec's finding).
+func TestTheSearchBoxFiltersByWhatTheBoxHolds(t *testing.T) {
+	screen := newScreen(t, newFake())
+	doc := sampleDoc(t, LayerLocal)
+	body, err := screen.RulesBody(RulesQuery{Layer: LayerLocal, Path: doc.Path, Filter: FilterAll, Query: "C2"})
+	if err != nil {
+		t.Fatalf("RulesBody: %v", err)
+	}
+	// The box's address carries the layer and the document and nothing else.
+	href := searchHref(doc)
+	want := `hx-get="` + strings.ReplaceAll(href, "&", "&amp;") + `"`
+	if !strings.Contains(body, want) {
+		t.Errorf("the search box does not send %s:\n%s", want, body)
+	}
+	if strings.Contains(href, "q=") || strings.Contains(href, "filter=") {
+		t.Fatalf("the box's address carries the page's own search: %q", href)
+	}
+	// What HTMX sends when a person types: the box's address, and then the
+	// form's fields, the box's own word among them.
+	send := func(q string) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet,
+			href+"&layer=local&doc="+url.QueryEscape(doc.Path)+"&filter=all&q="+url.QueryEscape(q), nil)
+		view, err := screen.rulesList(req)
+		if err != nil {
+			t.Fatalf("rulesList: %v", err)
+		}
+		return string(view.Body)
+	}
+	cleared := send("")
+	for _, id := range []string{">C1<", ">C2<", ">C3<"} {
+		if !strings.Contains(cleared, id) {
+			t.Errorf("clearing the box left %s out of the list:\n%s", id, cleared)
+		}
+	}
+	other := send("続き")
+	if !strings.Contains(other, ">C3<") || strings.Contains(other, ">C1<") {
+		t.Errorf("typing another word did not filter by it:\n%s", other)
 	}
 }
 

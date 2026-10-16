@@ -133,11 +133,21 @@ func (p rulesPort) Bump(layer, path string) (rulesview.BumpAnswer, error) {
 func (p servePort) ruleTeam(layer, name string, cfg *config.Config) rulesview.Team {
 	root := p.layerDir(layer)
 	file := func(path string, role bool) rulesview.File {
+		rel := relIn(root, path)
+		group := groupOf(rel)
+		name, _ := docName(rel, group)
+		if group == groupTeam {
+			// The row in the left list goes by the team's name alone; the
+			// screen's heading needs the document to be named, so it says whose
+			// document it is (試作 docLabel: "<チーム> チームの文書").
+			name = i18n.Tf("web.rules.doc.team_name", name)
+		}
 		return rulesview.File{
 			Path:       path,
 			Display:    p.env.Display(path),
 			Role:       role,
-			GroupLabel: groupLabel(groupOf(relIn(root, path))),
+			Name:       name,
+			GroupLabel: groupLabel(group),
 		}
 	}
 	team := rulesview.Team{Name: name}

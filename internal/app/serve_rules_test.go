@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -228,6 +229,16 @@ func TestRuleTeamListsWhatEachMemberReads(t *testing.T) {
 	}
 	if lead.Files[1].Role || !strings.HasSuffix(lead.Files[1].Path, "protocol.yaml") {
 		t.Errorf("the document does not come second: %+v", lead.Files)
+	}
+	// The name each file goes by is the name its row in the left list goes by:
+	// the heading reads it, so the heading and the row agree (hergy-spec's
+	// finding). A team's document says whose it is; a role file goes by the
+	// role's name.
+	if want := i18n.Tf("web.rules.doc.team_name", "demo"); lead.Files[1].Name != want {
+		t.Errorf("the document's name = %q, want %q", lead.Files[1].Name, want)
+	}
+	if lead.Files[0].Name != "lead" {
+		t.Errorf("the role file's name = %q, want %q", lead.Files[0].Name, "lead")
 	}
 }
 

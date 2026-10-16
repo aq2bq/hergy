@@ -140,9 +140,12 @@
   the right panel, the same way the rules list does. 前回の起動からの変更 draws
   what moved since the launch that last read the document — the same rows the
   home shows — and raises the version with the write `/bump` makes. YAML・検査
-  shows the file as it stands on disk, with a Copy button, and the break `hergy
-  validate` names for the whole document. A rule file that moved since its
-  launch also says so on the document's own line, as `前回の起動から変更 n 件`.
+  shows the file as it stands on disk, with a Copy button, the break `hergy
+  validate` names for the whole document, and the promise that hergy writes the
+  file back in one fixed shape when it saves it, so YAML comments do not
+  survive: a maintenance note belongs in a rule's note. A rule file that moved
+  since its launch also says so on the document's own line, as `前回の起動から変更
+  n 件`.
 
 ### Changed
 

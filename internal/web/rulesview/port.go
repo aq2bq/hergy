@@ -81,6 +81,11 @@ type File struct {
 	// is what the screen shows. Path stays the way the file is read and written.
 	Display string
 	Role    bool // a role file, not a document every member reads
+	// Name is what the left list calls this file's row: the name of the team
+	// whose document it is with チームの文書 (試作 normalize / docLabel), the
+	// role file's name without its extension, or the file's own name. The
+	// screen's heading uses it, so the heading and the row agree.
+	Name string
 	// GroupLabel is what the left list calls this file's group, in the language
 	// in use ("共通の文書", "チームの文書", "役割ファイル"). The app names it, so
 	// the kicker and the left list cannot say different words for one group.

@@ -22,6 +22,31 @@ func TestNewRuleCarriesTheThreeMarks(t *testing.T) {
 	}
 }
 
+// TestTheHeadingSaysWhatTheRowSays: the screen calls a document what its row in
+// the left list calls it. A document that names itself goes by its title; a
+// team's document says whose it is (the app names it that way); a role file
+// goes by the role's name; and a document with nothing to go by falls back on
+// its file name (hergy-spec's finding).
+func TestTheHeadingSaysWhatTheRowSays(t *testing.T) {
+	titled := sampleDoc(t, LayerLocal) // title: TEAM PROTOCOL
+	titled.Name = "demo チームの文書"
+	if got := titled.Label(); got != "TEAM PROTOCOL" {
+		t.Errorf("a document that names itself = %q, want its title", got)
+	}
+	named := Doc{Path: "protocol.yaml", Name: "demo チームの文書"}
+	if got := named.Label(); got != "demo チームの文書" {
+		t.Errorf("a team's document = %q, want the name its row goes by", got)
+	}
+	role := Doc{Path: "roles/lead.yaml", Name: "lead"}
+	if got := role.Label(); got != "lead" {
+		t.Errorf("a role file = %q, want the role's name", got)
+	}
+	bare := Doc{Path: "common/00_TEAM_PROTOCOL.yaml"}
+	if got := bare.Label(); got != "00_TEAM_PROTOCOL.yaml" {
+		t.Errorf("a document with no name = %q, want its file name", got)
+	}
+}
+
 func TestNewRulesDropsTheSectionsTheFilterEmpties(t *testing.T) {
 	doc := sampleDoc(t, LayerLocal)
 	all := NewRules(doc, FilterAll, "")

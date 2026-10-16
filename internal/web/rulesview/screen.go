@@ -438,7 +438,7 @@ func (s *Screen) docs(layer string) []Doc {
 			for _, file := range member.Files {
 				doc, ok := byPath[file.Path]
 				if !ok {
-					doc = &Doc{Path: file.Path, Display: file.Display, Layer: layer, Group: GroupDoc, GroupLabel: file.GroupLabel}
+					doc = &Doc{Path: file.Path, Display: file.Display, Name: file.Name, Layer: layer, Group: GroupDoc, GroupLabel: file.GroupLabel}
 					if file.Role {
 						doc.Group = GroupRole
 					}

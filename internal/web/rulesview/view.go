@@ -41,7 +41,12 @@ type Doc struct {
 	// is what the kicker shows; Path is the way the file is named in links and
 	// written back.
 	Display string
-	Group   string
+	// Name is what the left list calls this file's row (the app names it, the
+	// way docName names one): the team's name with チームの文書, the role file's
+	// name, or the file's own name. The heading falls back on it when the
+	// document writes no title, so the heading says what the row says.
+	Name  string
+	Group string
 	// GroupLabel is the group this file falls into as the frame's left list
 	// names it ("共通の文書", "チームの文書", "役割ファイル"). The app names it, so
 	// the kicker and the left list say the same words.
@@ -53,10 +58,15 @@ type Doc struct {
 	UsedBy     []string
 }
 
-// Label is what the file is called on the screen: its title, or its file name.
+// Label is what the file is called on the screen: its title (a document that
+// names itself is called that), or the name its row in the left list goes by,
+// or failing both its file name.
 func (d Doc) Label() string {
 	if d.Document != nil && d.Document.Title != "" {
 		return d.Document.Title
+	}
+	if d.Name != "" {
+		return d.Name
 	}
 	return filepath.Base(d.Path)
 }
@@ -153,8 +163,10 @@ type Rules struct {
 	// note contains it are kept, beside the filter (試作 passFilter).
 	Query   string
 	Filters []FilterChip
-	// SearchHref is the list alone, drawn again with the query and the filter in
-	// the search box: the fragment a search swaps in while a person types.
+	// SearchHref is the list alone, drawn again with what the search box holds:
+	// the fragment a search swaps in while a person types. It carries neither
+	// the query nor the filter, because the box sends those from the form it
+	// stands in (searchHref).
 	SearchHref string
 	Sections   []Section
 	Counts     Counts
@@ -208,7 +220,7 @@ func NewRules(doc Doc, filter, query string) Rules {
 		Global:      doc.Layer == LayerGlobal,
 		Broken:      doc.Broken,
 		PanelPrefix: panelPrefix(doc, doc.Path),
-		SearchHref:  listHref(doc, filter, query),
+		SearchHref:  searchHref(doc),
 	}
 	if doc.Document == nil {
 		data.Empty = true
@@ -416,18 +428,15 @@ func docHref(doc Doc, filter, query string) string {
 	return href
 }
 
-// listHref is the rules list alone, drawn again with one filter and one search
-// box: what the search box swaps into #rules-list while a person types, so only
-// the list changes and the cursor stays where it is.
-func listHref(doc Doc, filter, query string) string {
-	href := PathRulesList + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
-	if filter != "" && filter != FilterAll {
-		href += "&filter=" + filter
-	}
-	if query != "" {
-		href += "&q=" + url.QueryEscape(query)
-	}
-	return href
+// searchHref is where the search box sends what a person types: the list alone,
+// with the layer and the document on it. What the box holds travels in the form
+// it stands in (hx-include="closest form"), so this address carries neither the
+// query nor the filter: the server reads the first value of a name, and an
+// address that carried the page's own q would win over the box and the box
+// would go on filtering by the word the page was opened with (hergy-spec's
+// finding).
+func searchHref(doc Doc) string {
+	return PathRulesList + "?layer=" + doc.Layer + "&doc=" + url.QueryEscape(doc.Path)
 }
 
 // panelPrefix is the edit panel's path with the layer, the document the panel
