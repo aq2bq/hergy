@@ -30,7 +30,7 @@ fuzz:
       name: FuzzParse
     - package: internal/config
       name: FuzzParseTeam
-    - package: internal/config
+    - package: internal/profile
       name: FuzzParseProfiles
     - package: internal/config
       name: FuzzParseConfig

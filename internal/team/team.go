@@ -17,6 +17,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -402,7 +403,7 @@ func (e Env) BuildConfigEdit(resolved *Resolved, reader source.Reader, runName s
 // the same name. A global team never reads the project's. Either file may be
 // absent, which is fine when every member spells its engine out inline. The
 // files read are returned local first.
-func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, error) {
+func (e Env) LoadProfiles(layer string) (map[string]profile.Profile, []string, error) {
 	return e.loadProfiles(layer, ProfilesEdit{})
 }
 
@@ -410,7 +411,7 @@ func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, er
 // profiles.yaml in place of what is on disk: LoadProfiles for a screen that has
 // not written its file yet. A caller asks this for the layer a team definition
 // reads, so it sees the names the definition will see once the edit lands.
-func (e Env) LoadProfilesEdit(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
+func (e Env) LoadProfilesEdit(layer string, edit ProfilesEdit) (map[string]profile.Profile, []string, error) {
 	return e.loadProfiles(layer, edit)
 }
 
@@ -418,12 +419,12 @@ func (e Env) LoadProfilesEdit(layer string, edit ProfilesEdit) (map[string]confi
 // file at the edit's path answers with the edit's text whether or not it is on
 // disk, so a layer whose profiles.yaml does not exist yet is built as if the
 // screen had already written it.
-func (e Env) loadProfiles(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
+func (e Env) loadProfiles(layer string, edit ProfilesEdit) (map[string]profile.Profile, []string, error) {
 	dirs := []string{e.GlobalDir}
 	if layer == source.LayerLocal {
 		dirs = append(dirs, e.LocalDir)
 	}
-	profiles := map[string]config.Profile{}
+	profiles := map[string]profile.Profile{}
 	var paths []string
 	for _, dir := range dirs {
 		path := filepath.Join(dir, "profiles.yaml")
@@ -440,7 +441,7 @@ func (e Env) loadProfiles(layer string, edit ProfilesEdit) (map[string]config.Pr
 		default:
 			continue
 		}
-		more, err := config.ParseProfiles(text, path)
+		more, err := profile.ParseProfiles(text, path)
 		if err != nil {
 			return nil, nil, err
 		}

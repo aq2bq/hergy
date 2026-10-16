@@ -7,6 +7,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
 )
 
@@ -14,12 +15,12 @@ import (
 // may_spawn. Notes never stop the hire: the permission is only stated. name is
 // the short worker name; the herdr name is "<team>-<name>", like the team's own
 // members. profile, when empty, is the one may_spawn pairs with purpose.
-func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*config.Member, []string, error) {
-	if !config.NamePattern.MatchString(name) {
+func Plan(cfg *config.Config, name, profileName, purpose, task, from string) (*config.Member, []string, error) {
+	if !profile.NamePattern.MatchString(name) {
 		return nil, nil, i18n.Errorf("error.worker_name_pattern")
 	}
 	herdrName := cfg.Team + "-" + name
-	if !config.NamePattern.MatchString(herdrName) {
+	if !profile.NamePattern.MatchString(herdrName) {
 		return nil, nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
 	}
 	for i := range cfg.Members {
@@ -42,9 +43,9 @@ func Plan(cfg *config.Config, name, profile, purpose, task, from string) (*confi
 		lead = found
 	}
 
-	// With no --profile the purpose names the pair: its profile is the one to
-	// use. A purpose outside may_spawn then has no profile to fall back to.
-	chosen := profile
+	// With no --profileName the purpose names the pair: its profileName is the one to
+	// use. A purpose outside may_spawn then has no profileName to fall back to.
+	chosen := profileName
 	if chosen == "" {
 		paired, ok := lead.MaySpawn.ProfileFor(purpose)
 		if !ok {

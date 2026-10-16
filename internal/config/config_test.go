@@ -11,6 +11,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -34,8 +35,8 @@ func write(t *testing.T, path, text string) {
 
 // testProfiles is the one profile a test team names: kind is the profile's, so a
 // team.yaml body names it rather than writing the kind itself (I7).
-func testProfiles(dir string) map[string]Profile {
-	return map[string]Profile{
+func testProfiles(dir string) map[string]profile.Profile {
+	return map[string]profile.Profile{
 		"claude-default": {Name: "claude-default", Kind: "claude", Path: filepath.Join(dir, "profiles.yaml")},
 	}
 }
@@ -304,20 +305,6 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "profiles.yaml without a version",
-			parse: func() error {
-				_, err := ParseProfiles("profiles:\n  p:\n    kind: claude\n", "profiles.yaml")
-				return err
-			},
-		},
-		{
-			name: "profiles.yaml with an unknown key",
-			parse: func() error {
-				_, err := ParseProfiles("version: 1\nprofiles:\n  p:\n    kind: claude\n    unknown_key: 1\n", "profiles.yaml")
-				return err
-			},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -330,7 +317,7 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 
 func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	dir := t.TempDir()
-	profiles := map[string]Profile{
+	profiles := map[string]profile.Profile{
 		"lead": {Name: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
 	}
 	cfg, err := Parse(Input{
@@ -366,7 +353,7 @@ func TestParseReadsProfilesIntoMembers(t *testing.T) {
 func parseMaySpawnTeam(t *testing.T, maySpawn string) (*Config, error) {
 	t.Helper()
 	dir := t.TempDir()
-	profiles := map[string]Profile{
+	profiles := map[string]profile.Profile{
 		"seeker":    {Name: "seeker", Kind: "claude"},
 		"developer": {Name: "developer", Kind: "codex"},
 	}
@@ -588,7 +575,7 @@ func TestConfigYAMLRoundTrips(t *testing.T) {
 func TestCheatMachineNamesEveryConfigKey(t *testing.T) {
 	keys := map[string]bool{}
 	roots := []any{
-		rawTeam{}, rawMember{}, rawMaySpawn{}, rawProfiles{}, rawProfile{}, rawConfig{},
+		rawTeam{}, rawMember{}, rawMaySpawn{}, rawConfig{},
 	}
 	for _, root := range roots {
 		collectYAMLKeys(keys, reflect.TypeOf(root))

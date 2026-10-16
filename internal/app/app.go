@@ -24,6 +24,7 @@ import (
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
@@ -464,10 +465,10 @@ func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
 		dir = env.LocalDir
 	}
 	path := filepath.Join(dir, "profiles.yaml")
-	all := map[string]config.Profile{}
+	all := map[string]profile.Profile{}
 	switch text, err := os.ReadFile(path); {
 	case err == nil:
-		if all, err = config.ParseProfiles(string(text), path); err != nil {
+		if all, err = profile.ParseProfiles(string(text), path); err != nil {
 			return "", err
 		}
 	case errors.Is(err, os.ErrNotExist):
@@ -477,12 +478,12 @@ func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
 	default:
 		return "", err
 	}
-	all[scaffold.ProfileName] = config.Profile{
+	all[scaffold.ProfileName] = profile.Profile{
 		Name: scaffold.ProfileName,
 		Kind: scaffold.ProfileKind,
 		Path: path,
 	}
-	text, err := config.EmitProfiles(all)
+	text, err := profile.EmitProfiles(all)
 	if err != nil {
 		return "", err
 	}
@@ -584,7 +585,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 // choice of kind, where I7 makes it a choice of engine settings; the name should
 // say the model or the settings instead. It stands under the file's own result
 // line, and moves no exit code: such a profile runs the same.
-func reportProfileNames(w io.Writer, profiles map[string]config.Profile) {
+func reportProfileNames(w io.Writer, profiles map[string]profile.Profile) {
 	for _, name := range slices.Sorted(maps.Keys(profiles)) {
 		if profiles[name].Kind == name {
 			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
@@ -782,12 +783,12 @@ func validateConfig(path string) error {
 
 // validateProfiles reads one profiles.yaml the way up does, and returns the
 // profiles it holds for the name warning (d-a477).
-func validateProfiles(path string) (map[string]config.Profile, error) {
+func validateProfiles(path string) (map[string]profile.Profile, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return config.ParseProfiles(string(text), path)
+	return profile.ParseProfiles(string(text), path)
 }
 
 // validateTeam builds one team from one layer the way up does.

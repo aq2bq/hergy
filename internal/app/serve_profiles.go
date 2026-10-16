@@ -10,6 +10,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -102,7 +103,7 @@ func originRank(from string) int {
 // definition reads the global layer alone, so every profile is the global
 // layer's; a local one takes the local profile of a name the local file holds,
 // which overrides the global one when both hold it.
-func profileOrigin(layer, name string, local, global map[string]config.Profile) (from string, over bool) {
+func profileOrigin(layer, name string, local, global map[string]profile.Profile) (from string, over bool) {
 	if layer != web.LayerLocal {
 		return web.LayerGlobal, false
 	}
@@ -116,13 +117,13 @@ func profileOrigin(layer, name string, local, global map[string]config.Profile) 
 // layerProfiles reads one layer's own profiles.yaml, by name. A layer with no
 // file, or a file that does not read, holds no profile rather than stopping the
 // screen.
-func (p servePort) layerProfiles(layer string) map[string]config.Profile {
+func (p servePort) layerProfiles(layer string) map[string]profile.Profile {
 	path := p.profilesPath(layer)
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
-	profiles, err := config.ParseProfiles(string(text), path)
+	profiles, err := profile.ParseProfiles(string(text), path)
 	if err != nil {
 		return nil
 	}
@@ -154,7 +155,7 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 		return profileview.Source{Broken: breakLine(p.env, path, err)}
 	}
 	source := profileview.Source{Text: string(text), Hash: hashText(string(text)), Exists: true}
-	if _, err := config.ParseProfiles(string(text), path); err != nil {
+	if _, err := profile.ParseProfiles(string(text), path); err != nil {
 		source.Broken = breakLine(p.env, path, err)
 	}
 	return source
@@ -168,7 +169,7 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 // written (r-daf8).
 func (p servePort) CheckProfiles(layer, text string) string {
 	path := p.profilesPath(layer)
-	if _, err := config.ParseProfiles(text, path); err != nil {
+	if _, err := profile.ParseProfiles(text, path); err != nil {
 		return breakLine(p.env, path, err)
 	}
 	if reason := p.checkTeamsReadProfiles(layer, path, text); reason != "" {
@@ -227,7 +228,7 @@ func (p servePort) checkTeamsReadProfiles(layer, path, text string) string {
 // file being saved does not hold, with where it is used: a member, or a worker of
 // the member named by its purpose. It answers the first in the order the members
 // are written. A definition that names no such profile answers "".
-func firstProfileLeftOut(cfg *config.Config, profiles map[string]config.Profile) (name, place string) {
+func firstProfileLeftOut(cfg *config.Config, profiles map[string]profile.Profile) (name, place string) {
 	for i := range cfg.Members {
 		member := &cfg.Members[i]
 		if member.Profile != "" {
@@ -277,7 +278,7 @@ func (p servePort) WriteProfiles(layer, text, hash string) error {
 
 // sortedProfileNames is the names of a read profiles.yaml, in order: the map is
 // not ordered, and the screen shows the profiles by name.
-func sortedProfileNames(profiles map[string]config.Profile) []string {
+func sortedProfileNames(profiles map[string]profile.Profile) []string {
 	return slices.Sorted(maps.Keys(profiles))
 }
 

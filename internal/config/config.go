@@ -7,42 +7,22 @@
 package config
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
 )
 
-// Patterns the config enforces.
-var (
-	NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
-	kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-	envPattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	typeNameRE  = regexp.MustCompile(` in type \S+|\s*(?:\[\])?config\.raw\w+|\s*into\s+(?:map\[string\]interface \{\}|(?:\[\])?interface \{\}|\[\](?:string|int|bool|any|float64))`)
-	dangleRE    = regexp.MustCompile(`(?m)\s+into\s*$`)
-)
-
 // teamPlaceholder is a leftover from the form where a member name had to carry
 // the team name itself. The team name is now added automatically, so a member
 // name that still contains it is refused.
 const teamPlaceholder = "%{team}"
-
-// Profile is one engine choice, named, kept in a profiles.yaml.
-type Profile struct {
-	Name string
-	Kind string
-	Args []string
-	Env  map[string]string
-	Path string // the profiles.yaml it came from
-}
 
 // MaySpawnWorker is one purpose-to-profile pair: what a member may hire a worker
 // for, and the profile that worker runs.
@@ -115,7 +95,7 @@ type Config struct {
 	// several lines keeps them here; MissionLine is what the output shows.
 	Mission  string
 	Members  []Member
-	Profiles map[string]Profile
+	Profiles map[string]profile.Profile
 
 	// Provenance: where the effective values came from.
 	TeamYAML     source.Doc
@@ -195,7 +175,7 @@ type Input struct {
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
-	Profiles     map[string]Profile
+	Profiles     map[string]profile.Profile
 	ProfilesYAML string
 	Base         string // the project root, for cwd values and the embedded hire command
 	Reader       source.Reader
@@ -264,65 +244,21 @@ type rawMaySpawnWorker struct {
 	Profile string `yaml:"profile"`
 }
 
-type rawProfiles struct {
-	Version  *int                  `yaml:"version"`
-	Profiles map[string]rawProfile `yaml:"profiles"`
-}
-
-type rawProfile struct {
-	Kind string         `yaml:"kind"`
-	Args []any          `yaml:"args"`
-	Env  map[string]any `yaml:"env"`
-}
-
 type rawConfig struct {
 	Version *int   `yaml:"version"`
 	Lang    string `yaml:"lang"`
-}
-
-// ParseProfiles reads one profiles.yaml, checking its version
-// before anything else and then rejecting unknown keys.
-func ParseProfiles(text, path string) (map[string]Profile, error) {
-	if _, err := readVersion(text, "profiles.yaml", path); err != nil {
-		return nil, err
-	}
-	var raw rawProfiles
-	if err := strictDecode(text, &raw); err != nil {
-		return nil, fmt.Errorf("%s: %s", path, cleanYAMLError(err))
-	}
-	out := make(map[string]Profile, len(raw.Profiles))
-	for name, value := range raw.Profiles {
-		label := "profiles." + name
-		if !NamePattern.MatchString(name) {
-			return nil, i18n.Errorf("error.profile_name_pattern", label)
-		}
-		kind, err := kindOf(value.Kind, label+".kind")
-		if err != nil {
-			return nil, err
-		}
-		args, err := argsOf(value.Args, label+".args")
-		if err != nil {
-			return nil, err
-		}
-		env, err := envOf(value.Env, label+".env")
-		if err != nil {
-			return nil, err
-		}
-		out[name] = Profile{Name: name, Kind: kind, Args: args, Env: env, Path: path}
-	}
-	return out, nil
 }
 
 // ParseConfig reads the global config.yaml and returns the language it names, or
 // "" when it names none. It is held to the same strictness as team.yaml: the
 // version must be present and 1, and any unknown key is an error with a reason.
 func ParseConfig(text, path string) (string, error) {
-	if _, err := readVersion(text, "config.yaml", path); err != nil {
+	if _, err := profile.ReadVersion(text, "config.yaml", path); err != nil {
 		return "", err
 	}
 	var raw rawConfig
-	if err := strictDecode(text, &raw); err != nil {
-		return "", fmt.Errorf("%s: %s", path, cleanYAMLError(err))
+	if err := profile.StrictDecode(text, &raw); err != nil {
+		return "", fmt.Errorf("%s: %s", path, profile.CleanError(err))
 	}
 	return raw.Lang, nil
 }
@@ -334,53 +270,18 @@ func GlobalYAML(lang string) string {
 	return fmt.Sprintf("version: 1\nlang: %s\n", lang)
 }
 
-// readVersion decodes only the version, so a missing or wrong version is
-// reported before any unknown-key complaint.
-func readVersion(text, what, path string) (int, error) {
-	var only struct {
-		Version *int `yaml:"version"`
-	}
-	dec := yaml.NewDecoder(strings.NewReader(text))
-	if err := dec.Decode(&only); err != nil {
-		if errors.Is(err, io.EOF) {
-			return 0, i18n.Errorf("error.file_empty", what, path)
-		}
-		return 0, fmt.Errorf("%s: %s", path, cleanYAMLError(err))
-	}
-	if err := checkVersion(only.Version, what, path); err != nil {
-		return 0, err
-	}
-	return *only.Version, nil
-}
-
-func strictDecode(text string, out any) error {
-	dec := yaml.NewDecoder(strings.NewReader(text))
-	dec.KnownFields(true)
-	return dec.Decode(out)
-}
-
-func checkVersion(version *int, what, path string) error {
-	if version == nil {
-		return i18n.Errorf("error.version_missing", what, path)
-	}
-	if *version != 1 {
-		return i18n.Errorf("error.version_wrong", what, *version, path)
-	}
-	return nil
-}
-
 // Parse builds a Config from team.yaml text.
 func Parse(in Input) (*Config, error) {
 	if in.RunName == "" {
 		in.RunName = in.TeamName
 	}
-	version, err := readVersion(in.YAML, "team.yaml", in.TeamYAMLPath)
+	version, err := profile.ReadVersion(in.YAML, "team.yaml", in.TeamYAMLPath)
 	if err != nil {
 		return nil, err
 	}
 	var raw rawTeam
-	if err := strictDecode(in.YAML, &raw); err != nil {
-		return nil, fmt.Errorf("%s: %s", in.TeamYAMLPath, cleanYAMLError(err))
+	if err := profile.StrictDecode(in.YAML, &raw); err != nil {
+		return nil, fmt.Errorf("%s: %s", in.TeamYAMLPath, profile.CleanError(err))
 	}
 	if raw.Team != "" && raw.Team != in.TeamName {
 		return nil, i18n.Errorf("error.team_name_mismatch",
@@ -578,13 +479,13 @@ func memberTemplate(rm rawMember, raw rawTeam, label string) (string, error) {
 
 func parseMember(rm rawMember, teamCwd string, in Input, index int) (Member, error) {
 	label := fmt.Sprintf("members[%d]", index)
-	if !NamePattern.MatchString(rm.Name) {
+	if !profile.NamePattern.MatchString(rm.Name) {
 		return Member{}, i18n.Errorf("error.name_pattern", label)
 	}
 	// herdr sees the member as "<team>-<member>". The team name is checked short
 	// enough for this to fit, but a long member name can still overflow the limit.
 	name := in.RunName + "-" + rm.Name
-	if !NamePattern.MatchString(name) {
+	if !profile.NamePattern.MatchString(name) {
 		return Member{}, i18n.Errorf("error.herdr_name_pattern", name)
 	}
 	if strings.TrimSpace(rm.Role) == "" {
@@ -627,7 +528,7 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (Member, err
 // engine is the profile a member names. kind, args and env are the profile's
 // (I7): a member that writes one of them is stopped here, with the sentence that
 // says where they go, so the file is fixed before a team boots from it.
-func engine(rm rawMember, label string, profiles map[string]Profile) (string, []string, map[string]string, string, error) {
+func engine(rm rawMember, label string, profiles map[string]profile.Profile) (string, []string, map[string]string, string, error) {
 	if key := inlineEngineKey(rm); key != "" {
 		return "", nil, nil, "", i18n.Errorf("error.member_writes_engine", rm.Name, key, key)
 	}
@@ -658,7 +559,7 @@ func inlineEngineKey(rm rawMember) string {
 // parseMaySpawnNode reads may_spawn by hand: the node tells "absent" apart from
 // "null", and each worker's keys are checked because KnownFields does not descend
 // into a yaml.Node. The old purposes/profiles form is refused with the new one.
-func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile) (*MaySpawn, error) {
+func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]profile.Profile) (*MaySpawn, error) {
 	if node.Tag == "!!null" {
 		return nil, i18n.Errorf("error.must_be_mapping_not_null", label)
 	}
@@ -698,7 +599,7 @@ func parseMaySpawnNode(node yaml.Node, label string, profiles map[string]Profile
 		}
 		var raw rawMaySpawnWorker
 		if err := worker.Decode(&raw); err != nil {
-			return nil, fmt.Errorf("%s: %s", item, cleanYAMLError(err))
+			return nil, fmt.Errorf("%s: %s", item, profile.CleanError(err))
 		}
 		if strings.TrimSpace(raw.Purpose) == "" {
 			return nil, i18n.Errorf("error.mayspawn_purpose_empty", item)
@@ -884,57 +785,3 @@ func missingRole(role string, dirs []source.Doc, reader source.Reader) error {
 
 func isAbs(p string) bool         { return filepath.IsAbs(p) }
 func joinPath(a, b string) string { return filepath.Join(a, b) }
-
-// cleanYAMLError drops the Go type names yaml puts in its messages, and points
-// the removed team-level `profiles` at where profiles went.
-func cleanYAMLError(err error) string {
-	msg := typeNameRE.ReplaceAllString(err.Error(), "")
-	msg = dangleRE.ReplaceAllString(msg, "")
-	msg = strings.ReplaceAll(msg, "field profiles not found", "field profiles not found"+i18n.T("error.profiles_moved"))
-	return strings.TrimSpace(msg)
-}
-
-func kindOf(value, label string) (string, error) {
-	if value == "" || !kindPattern.MatchString(value) {
-		return "", i18n.Errorf("error.not_plain_kind", label)
-	}
-	return value, nil
-}
-
-// argsOf accepts only strings, so an unquoted number is an error; quote numbers.
-func argsOf(value []any, label string) ([]string, error) {
-	if value == nil {
-		return nil, nil
-	}
-	out := make([]string, 0, len(value))
-	for i, item := range value {
-		text, ok := item.(string)
-		if !ok {
-			return nil, i18n.Errorf("error.arg_not_string", label, i)
-		}
-		if strings.ContainsRune(text, 0) {
-			return nil, i18n.Errorf("error.arg_nul", label, i)
-		}
-		out = append(out, text)
-	}
-	return out, nil
-}
-
-// envOf accepts only a mapping of variable name to string value.
-func envOf(value map[string]any, label string) (map[string]string, error) {
-	if len(value) == 0 {
-		return nil, nil
-	}
-	out := make(map[string]string, len(value))
-	for key, item := range value {
-		if !envPattern.MatchString(key) {
-			return nil, i18n.Errorf("error.not_variable_name", label, key)
-		}
-		text, ok := item.(string)
-		if !ok {
-			return nil, i18n.Errorf("error.env_not_string", label, key)
-		}
-		out[key] = text
-	}
-	return out, nil
-}
