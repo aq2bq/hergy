@@ -13,13 +13,19 @@
   offers to copy a prompt that asks an AI to find out when and why the rule was
   added, built from the rule's own id, text and reason, the file's path and the
   layer's root.
-- **The profiles of a layer, read-only, in the web UI**: the left list's
-  profiles row is now a link to `/profiles`, which shows the profiles of the
-  layer you pick: their name, kind, args and the names of their environment
-  variables. The values of `env` are never shown, because a value may hold an
-  API key. The local layer's page also shows the profiles a local team
-  definition ends up with once the local layer is laid over the global one, and
-  marks which profiles override which.
+- **The profiles of a layer, and the form that edits them, in the web UI**: the
+  left list's profiles row is a link to `/profiles`, which shows the profiles of
+  the layer you pick — their name, kind, args and environment variables — and
+  edits them: the form adds a profile, changes a name, a kind, the args (one to
+  a line) and the env (one `name=value` to a line), and deletes a profile. The
+  values of `env` are shown and edited like any other field: a profile's env
+  holds no API key. Saving writes that layer's own `profiles.yaml` in the one
+  format hergy writes, and only once the same check `hergy validate` runs passes,
+  so a file hergy cannot read back is never written; a file that changed under
+  the screen, or a form that came from an older page, is refused with the reason
+  and the rows are kept as they were typed. The local layer's page also shows the
+  profiles a local team definition ends up with once the local layer is laid over
+  the global one, and marks which profiles override which.
 - **`hergy serve`: the settings in a browser**: `hergy serve [--port N]` (default
   8787; `0` lets the operating system pick a free one) serves the web UI on
   127.0.0.1 and prints the URL. The team list answers `/teams`: one row per

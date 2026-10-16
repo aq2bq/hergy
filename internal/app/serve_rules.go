@@ -3,6 +3,8 @@ package app
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -337,9 +339,16 @@ func hashText(text string) string {
 // ~/.config/hergy as links, so the link is followed and the file it points at is
 // what is written. The link stays a link, and the mode stays the one the file
 // already had rather than a fresh 0644.
+//
+// A target that is not there yet is written at its own path: this is how a layer
+// whose profiles.yaml does not exist gets one (r-daf8). The directory must be
+// there; the caller checks that where it matters.
 func writeFileBeside(path, text string) error {
 	target, err := filepath.EvalSymlinks(path)
-	if err != nil {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		target = path
+	case err != nil:
 		return err
 	}
 	mode := os.FileMode(0o644)

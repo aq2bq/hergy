@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/source"
@@ -40,8 +41,26 @@ func FuzzParseProfiles(f *testing.F) {
 	f.Add("profiles: {a: {kind: x}}")
 	f.Add("- 1")
 	f.Add("")
-	f.Fuzz(func(_ *testing.T, text string) {
-		_, _ = ParseProfiles(text, "profiles.yaml")
+	f.Fuzz(func(t *testing.T, text string) {
+		profiles, err := ParseProfiles(text, "profiles.yaml")
+		if err != nil {
+			return
+		}
+		// A profiles.yaml hergy writes is one it reads back as the same
+		// profiles: EmitProfiles is what the profiles screen saves with
+		// (d-cbac), so a text it writes that reads as something else would be a
+		// save that changes the file it was shown.
+		written, err := EmitProfiles(profiles)
+		if err != nil {
+			t.Fatalf("EmitProfiles(%+v): %v", profiles, err)
+		}
+		again, err := ParseProfiles(written, "profiles.yaml")
+		if err != nil {
+			t.Fatalf("ParseProfiles of what hergy wrote (%q): %v", written, err)
+		}
+		if !reflect.DeepEqual(again, profiles) {
+			t.Errorf("reading %q back gave %+v, want %+v", written, again, profiles)
+		}
 	})
 }
 

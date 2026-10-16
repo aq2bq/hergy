@@ -5,7 +5,6 @@ import (
 	"embed"
 	"html/template"
 	"maps"
-	"strings"
 )
 
 // The template is embedded: hergy serve is one binary, and the profiles screen
@@ -23,12 +22,21 @@ type Renderer struct {
 	templates *template.Template
 }
 
-// NewRenderer parses the screen's template with funcs. It adds join, which
-// writes the lines of a profile's args and env names one to a line.
+// paths is the screen's routes by the name its template uses, so a handler and
+// a form share one spelling of a path.
+var paths = map[string]string{
+	"page": ProfilePath,
+	"edit": EditPath,
+	"save": SavePath,
+}
+
+// NewRenderer parses the screen's template with funcs. It adds the paths the
+// forms point at (p), so the handlers and the template share one spelling of a
+// route.
 func NewRenderer(funcs template.FuncMap) (*Renderer, error) {
 	merged := make(template.FuncMap, len(funcs)+1)
 	maps.Copy(merged, funcs)
-	merged["join"] = strings.Join
+	merged["p"] = func(name string) string { return paths[name] }
 	templates, err := template.New("profileview").Funcs(merged).ParseFS(files, "templates/*.html")
 	if err != nil {
 		return nil, err

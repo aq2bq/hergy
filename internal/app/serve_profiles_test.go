@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -130,22 +130,171 @@ func TestServePortUsesOverlaysLocalOnGlobalLikeLoadProfiles(t *testing.T) {
 	}
 }
 
-// TestServePortProfilesNeverCarriesAnEnvValue: the env of a profile reaches the
-// screen as names alone. A value may hold an API key (r-bb9c), so it must not be
-// anywhere in what Profiles or Uses hands over.
-func TestServePortProfilesNeverCarriesAnEnvValue(t *testing.T) {
+// TestServePortProfilesCarriesTheEnvValues: the env of a profile reaches the
+// screen with its values too (d-c60f: env holds no API key, so the screen shows
+// them and edits them).
+func TestServePortProfilesCarriesTheEnvValues(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 	writeProfiles(t, f)
 	p := servePort{env: serveEnv(t)}
 
 	local := p.Profiles(web.LayerLocal)
-	if got := strings.Join(local[0].EnvNames, ","); got != "OPENAI_API_KEY" {
-		t.Errorf("the env names = %q, want the one name of the profile", got)
+	if len(local) == 0 {
+		t.Fatal("the local layer holds no profile")
 	}
-	for _, profile := range append(local, p.Uses(web.LayerLocal)...) {
-		if dump := fmt.Sprintf("%+v", profile); strings.Contains(dump, "sk-secret") {
-			t.Errorf("a profile carries an env value:\n%s", dump)
+	if got := local[0].Env; len(got) != 1 || got[0].Name != "OPENAI_API_KEY" || got[0].Value != "sk-secret" {
+		t.Errorf("the env = %+v, want the name and the value of the profile's variable", got)
+	}
+	// The profiles a local team definition uses carry them the same way.
+	for _, profile := range p.Uses(web.LayerLocal) {
+		if profile.Name != "impl" {
+			continue
 		}
+		if len(profile.Env) != 1 || profile.Env[0].Value != "sk-secret" {
+			t.Errorf("impl in the uses list = %+v, want its env value", profile.Env)
+		}
+	}
+}
+
+// TestServePortReadProfilesReadsTheFileForTheScreen: the screen is drawn from
+// and saved against what this reads: the text, the hash of that text, whether
+// the file is there, and, when it does not read, the reason hergy validate gives.
+func TestServePortReadProfilesReadsTheFileForTheScreen(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	p := servePort{env: serveEnv(t)}
+
+	local := p.ReadProfiles(web.LayerLocal)
+	if !local.Exists || local.Text == "" || local.Broken != "" {
+		t.Fatalf("the local file = %+v, want the text of a file that reads", local)
+	}
+	if local.Hash != hashText(local.Text) {
+		t.Errorf("the hash = %q, want the hash of the text the screen shows", local.Hash)
+	}
+
+	// A layer without the file: the empty text with the hash of it, and no
+	// reason. This is the layer the first save writes the file for.
+	if err := os.Remove(filepath.Join(f.cfg, "hergy", "profiles.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	missing := p.ReadProfiles(web.LayerGlobal)
+	if missing.Exists || missing.Text != "" || missing.Broken != "" || missing.Hash != hashText("") {
+		t.Errorf("a layer with no file = %+v, want the empty text, its hash and no reason", missing)
+	}
+
+	// A file that does not read: the reason is what hergy validate would say,
+	// and it names the file the way a person writes it.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "profiles:\n  impl:\n    kind: claude\n")
+	broken := p.ReadProfiles(web.LayerLocal)
+	if broken.Broken == "" {
+		t.Fatal("a file with no version reads as sound, want the reason")
+	}
+	if !strings.Contains(broken.Broken, ".hergy/profiles.yaml") {
+		t.Errorf("the reason = %q, want it to name the file", broken.Broken)
+	}
+}
+
+// TestServePortCheckProfilesIsTheCheckValidateRuns: what the screen asks before a
+// save is the check hergy validate runs on the file the screen would write, in
+// the words a person reads.
+func TestServePortCheckProfilesIsTheCheckValidateRuns(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	p := servePort{env: serveEnv(t)}
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+
+	sound := "version: 1\nprofiles:\n  impl:\n    kind: claude\n"
+	if reason := p.CheckProfiles(web.LayerLocal, sound); reason != "" {
+		t.Errorf("a profiles.yaml that reads = %q, want no reason", reason)
+	}
+
+	broken := "version: 1\nprofiles:\n  impl:\n    kind: Claude Code\n"
+	reason := p.CheckProfiles(web.LayerLocal, broken)
+	if reason == "" {
+		t.Fatal("a kind hergy refuses reads as sound")
+	}
+	// The same text on disk is what hergy validate refuses, so the screen and
+	// the command agree on what is broken.
+	writeFile(t, path, broken)
+	if err := validateProfiles(path); err == nil {
+		t.Error("hergy validate reads the text the screen refused as sound")
+	}
+	if !strings.Contains(reason, ".hergy/profiles.yaml") {
+		t.Errorf("the reason = %q, want it to name the file", reason)
+	}
+}
+
+// TestServePortWriteProfilesWritesOneLayer: the one write of the profiles screen
+// writes the layer's own profiles.yaml, makes the file when the layer has none
+// yet, and refuses a file that is not the one the screen read.
+func TestServePortWriteProfilesWritesOneLayer(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	writeProfiles(t, f)
+	p := servePort{env: serveEnv(t)}
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	global := filepath.Join(f.cfg, "hergy", "profiles.yaml")
+
+	before, err := os.ReadFile(global)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := p.ReadProfiles(web.LayerLocal)
+	text := "version: 1\nprofiles:\n  solo:\n    kind: opencode\n"
+	if err := p.WriteProfiles(web.LayerLocal, text, read.Hash); err != nil {
+		t.Fatalf("WriteProfiles: %v", err)
+	}
+	if got := readFile(t, path); got != text {
+		t.Errorf("the local file holds %q, want %q", got, text)
+	}
+	if got := readFile(t, global); got != string(before) {
+		t.Errorf("the global file changed to %q, want it untouched", got)
+	}
+
+	// A hash that is not the one the screen read: nothing is written, and the
+	// reason is the one the screen shows.
+	err = p.WriteProfiles(web.LayerLocal, "version: 1\n", hashText("something else"))
+	if err == nil {
+		t.Fatal("a write from an older file was accepted")
+	}
+	if !strings.Contains(err.Error(), "変わりました") && !strings.Contains(err.Error(), "changed on disk") {
+		t.Errorf("the refusal = %q, want the words about a file that moved", err)
+	}
+	if got := readFile(t, path); got != text {
+		t.Errorf("a refused write left %q, want %q", got, text)
+	}
+
+	// A layer whose profiles.yaml is not there yet: the save makes it.
+	if err := os.Remove(global); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.WriteProfiles(web.LayerGlobal, text, hashText("")); err != nil {
+		t.Fatalf("WriteProfiles of a layer with no file: %v", err)
+	}
+	if got := readFile(t, global); got != text {
+		t.Errorf("the global file holds %q, want the text of the first save", got)
+	}
+}
+
+// TestServePortWriteProfilesRefusesALayerThatIsNotThere: a project with no
+// .hergy has no local layer to write, and the reason says which directory is
+// missing rather than making one.
+func TestServePortWriteProfilesRefusesALayerThatIsNotThere(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	p := servePort{env: serveEnv(t)}
+
+	err := p.WriteProfiles(web.LayerLocal, "version: 1\n", hashText(""))
+	if err == nil {
+		t.Fatal("a write into a layer that is not there was accepted")
+	}
+	if !strings.Contains(err.Error(), ".hergy") {
+		t.Errorf("the refusal = %q, want it to name the directory that is not there", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(f.proj, ".hergy")); statErr == nil {
+		t.Error("the refused write made the layer's directory")
 	}
 }
