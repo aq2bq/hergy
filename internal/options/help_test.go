@@ -202,7 +202,7 @@ func TestSynopsis(t *testing.T) {
 		New:     "hergy new <definition> [-C <dir>]",
 		Up:      "hergy up [definition] [--as <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
 		Refresh: "hergy refresh <member>|--all [--team <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
-		Hire: "hergy hire <name> --purpose <purpose> --task <task> [--profile <profile>] [--from <member>] [--team <team>] " +
+		Hire: "hergy hire <name> --purpose <purpose> --task <task> [--from <member>] [--team <team>] " +
 			"[--timeout <ms>] [--dry] [--json] [-C <dir>]",
 		Version: "hergy version",
 	}
@@ -236,10 +236,10 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 				if accepts(s, f) {
 					continue
 				}
-				if f == flagGlobal || f == flagLocal {
-					// --global and --local are gone (段 3): they are refused
-					// with the sentence that says so, not with "not allowed
-					// here". The sentence is checked below.
+				if f == flagGlobal || f == flagLocal || f == flagProfile {
+					// --global, --local and --profile are gone (段 3, 段 6b):
+					// they are refused with the sentence that says so, not with
+					// "not allowed here". Those sentences are checked below.
 					continue
 				}
 				_, err := Parse(append(argvOf(s, len(s.Args), nil), flagArgs(f)...))
@@ -250,12 +250,16 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 		}
 
 		// --global and --local are refused everywhere with the one sentence
-		// (段 3 の設計), whatever command they are typed on.
+		// (段 3 の設計), whatever command they are typed on; --profile with the
+		// sentence that says where the profile comes from now (段 6b).
 		for _, f := range []*Flag{flagGlobal, flagLocal} {
 			_, err := Parse(append(argvOf(&specs[0], len(specs[0].Args), nil), "--"+f.Name))
 			if err == nil || !strings.Contains(err.Error(), "--"+f.Name) || !strings.Contains(err.Error(), i18n.Tf("error.layer_flag_gone", f.Name)) {
 				t.Errorf("[%s] hergy %s --%s: the error is %v, want the sentence that says the flag is gone", lang, specs[0].Name, f.Name, err)
 			}
+		}
+		if _, err := Parse([]string{"hire", "w", "--profile", "dev"}); err == nil || !strings.Contains(err.Error(), i18n.T("error.profile_flag_gone")) {
+			t.Errorf("[%s] hergy hire --profile: the error is %v, want the sentence that says the flag is gone", lang, err)
 		}
 
 		_, err := Parse([]string{"frobnicate"})

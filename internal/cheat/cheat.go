@@ -100,7 +100,7 @@ var behavior = map[options.Kind]string{
       Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
 `,
-	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. --profile is optional: without it, the profile the hiring member's workers: pairs with --purpose is used.
+	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for.
 `,
 	options.Ls: `      List the visible team definitions and the layer each came from, and the running team names each one booted.
 `,
@@ -132,7 +132,6 @@ var flagMeaning = map[string]string{
 	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
 	"no-open": "Print the URL and open nothing. Without it, hergy serve opens the URL in this machine's default browser once the socket is open.",
 	"team":    "The team, by team name, to act on.",
-	"profile": "The worker's named engine, from profiles.yaml. Optional: without it, the profile workers: pairs with --purpose is used.",
 	"purpose": "The worker's purpose.",
 	"task":    "The worker's task text.",
 	"from":    "The member hiring the worker; a short member name or a herdr name.",
@@ -259,11 +258,10 @@ Rule files (what the role documents and the agreements are):
       fields:          mapping of field name to what it holds.
 
 hire (a member starting a worker):
-  --profile names a profile in profiles.yaml; the worker takes its kind, args and env, and inherits the hiring member's cwd.
-  Without --profile, workers: must pair --purpose with a profile, and that profile is used; a purpose that names no pair is an error that lists the purposes workers: allows.
+  The hiring member's workers: must pair --purpose with a profile; the worker takes that profile's kind, args and env, and inherits the hiring member's cwd.
+  A --purpose the hiring member's workers: does not name stops the hire, and the sentence lists the purposes that member may hire for. There is no --profile: the profile comes from the workers: entry.
   The worker's name must not match an existing member name or herdr name, and <team>-<worker> must match [a-z][a-z0-9_-]{0,31}.
   With no --from, the one member whose workers: name --purpose hires. No such member is an error, and so are two or more, which list the candidates.
-  A --purpose or --profile outside the hiring member's workers: does not stop the hire: a note goes to stderr and it continues; a member with no workers: gives the same note.
 
 new:
   It writes team.yaml and agreement.yaml into the team definition, and roles/lead.yaml and roles/builder.yaml into the layer's roles/, and the global config.yaml (version: 1, lang) when that file is missing.

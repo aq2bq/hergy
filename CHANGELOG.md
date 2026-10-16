@@ -12,6 +12,27 @@
 
 ### Changed
 
+- **`hergy hire` refuses a purpose the hiring member's `workers:` does not
+  name, and `--profile` is gone**: the profile comes from the `workers:` entry
+  (the member → worker edge), so a hire does not choose one; typing `--profile`
+  stops with a sentence that says where the profile comes from now. A purpose
+  outside the hiring member's entries stops the hire and lists the purposes that
+  member may hire for. When no member hires for the purpose at all, the sentence
+  says who may hire for what instead of asking for `--from`. Before, such a
+  purpose only printed a note on stderr and the hire went on.
+
+  Before:
+
+  ```sh
+  hergy hire researcher --purpose 調査 --profile seeker --task "..."
+  ```
+
+  After:
+
+  ```sh
+  hergy hire researcher --purpose 調査 --task "..."   # the profile comes from the lead's workers: entry
+  ```
+
 - **`mission:` is now required**: every `team.yaml` writes one line saying what
   the team is for. A definition that writes none, writes an empty one, or
   writes one over more than one line does not read, and `hergy validate` reports

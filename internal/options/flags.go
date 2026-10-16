@@ -63,6 +63,10 @@ var (
 	// than with "unknown option". Nothing is set; validateValues refuses them.
 	flagGlobal = &Flag{Name: "global", Set: sets(func(*Options) {})}
 	flagLocal  = &Flag{Name: "local", Set: sets(func(*Options) {})}
+	// --profile is gone too (段 6b): the profile comes from the workers: entry,
+	// so a hire does not choose one. It still takes a value, so the word after
+	// it is not read as the worker's name.
+	flagProfile = &Flag{Name: "profile", Value: text("<profile>", "<プロファイル>"), Set: sets(func(*Options) {})}
 
 	flagDir = &Flag{Name: "dir", Short: "C", Value: text("<dir>", "<ディレクトリ>"),
 		Set: setsValue(func(o *Options, v string) { o.Dir = v })}
@@ -70,8 +74,6 @@ var (
 		Set: setsValue(func(o *Options, v string) { o.Team = v })}
 	flagAs = &Flag{Name: "as", Value: text("<team>", "<チーム名>"),
 		Set: setsValue(func(o *Options, v string) { o.As = v })}
-	flagProfile = &Flag{Name: "profile", Value: text("<profile>", "<プロファイル>"),
-		Set: setsValue(func(o *Options, v string) { o.Profile = v })}
 	flagPurpose = &Flag{Name: "purpose", Value: text("<purpose>", "<目的>"),
 		Set: setsValue(func(o *Options, v string) { o.Purpose = v })}
 	flagTask = &Flag{Name: "task", Value: text("<task>", "<依頼>"),
