@@ -72,18 +72,18 @@ func TestServePortDefinition(t *testing.T) {
 	}
 
 	if len(def.Docs) != 1 {
-		t.Fatalf("the definition reads %d documents, want the one protocol:", len(def.Docs))
+		t.Fatalf("the definition reads %d documents, want the one agreement:", len(def.Docs))
 	}
 	doc := def.Docs[0]
 	// Key is the file itself, which is what a link carries; Path is the file
 	// as a person writes it, which is what the screen shows.
-	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml"); doc.Key != want {
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"); doc.Key != want {
 		t.Errorf("the document key is %q, want %q", doc.Key, want)
 	}
-	if want := filepath.Join(".hergy", "teams", "demo", "protocol.yaml"); doc.Path != want {
+	if want := filepath.Join(".hergy", "teams", "demo", "agreement.yaml"); doc.Path != want {
 		t.Errorf("the document path is %q, want %q", doc.Path, want)
 	}
-	if doc.Layer != web.LayerLocal || doc.Label != "protocol.yaml" || doc.Role != "" {
+	if doc.Layer != web.LayerLocal || doc.Label != "agreement.yaml" || doc.Role != "" {
 		t.Errorf("the document is %+v, want a local document every member reads", doc)
 	}
 	if len(doc.Rules) != 2 || doc.Rules[0].ID != "C1" || doc.Rules[0].Text != "one" || doc.Rules[1].ID != "C2" {
@@ -103,10 +103,10 @@ func TestServePortDefinition(t *testing.T) {
 	if lead.RoleFile == nil {
 		t.Fatal("lead reads no role file")
 	}
-	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "lead.yaml"); lead.RoleFile.Key != want {
+	if want := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"); lead.RoleFile.Key != want {
 		t.Errorf("lead's role file is %q, want %q", lead.RoleFile.Key, want)
 	}
-	if want := filepath.Join(".hergy", "teams", "demo", "roles", "lead.yaml"); lead.RoleFile.Path != want {
+	if want := filepath.Join(".hergy", "roles", "lead.yaml"); lead.RoleFile.Path != want {
 		t.Errorf("lead's role file reads as %q, want %q", lead.RoleFile.Path, want)
 	}
 	if lead.RoleFile.Layer != web.LayerLocal || lead.RoleFile.Role != "lead" {

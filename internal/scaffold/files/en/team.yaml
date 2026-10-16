@@ -2,7 +2,6 @@ version: 1
 # mission is required: one line saying what this team is for. The commands that
 # handle a team print it first, and so does the web UI. Write your own here.
 mission: what this team is for, in one line
-docs: [protocol.yaml]
 members:
   - name: lead
     role: lead

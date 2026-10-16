@@ -34,15 +34,13 @@ func serveEnv(t *testing.T) team.Env {
 }
 
 // writeDemoTeam writes one project-local team definition whose two members read
-// the agreement and a role file each, with two of the four rules carrying a
-// check.
+// the team's own agreement and a role document each, with two of the four rules
+// carrying a check. A role document lives once per layer (段 4), so the layer's
+// roles/ holds the two.
 func writeDemoTeam(t *testing.T, f *fixture, name string) {
 	t.Helper()
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "team.yaml"), `version: 1
 mission: a mission for the test
-docs:
-  - protocol.yaml
-roles: [roles]
 members:
   - name: lead
     role: lead
@@ -52,7 +50,7 @@ members:
     profile: claude-default
 `)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "protocol.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "agreement.yaml"), `version: 1
 sections:
   - rules:
       - id: C1
@@ -66,14 +64,14 @@ reports:
     fields:
       scope: the scope
 `)
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "roles", "lead.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), `version: 1
 sections:
   - rules:
       - id: L1
         text: three
         tests: [T-1]
 `)
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", name, "roles", "builder.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"), `version: 1
 sections:
   - rules:
       - id: B1
@@ -96,10 +94,10 @@ func TestServePortTeams(t *testing.T) {
 mission: a mission for the test
 members:
   - name: lead
-    role: lead
+    role: shared-lead
     profile: claude-default
 `)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "shared", "roles", "lead.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "shared-lead.yaml"), `version: 1
 sections:
   - rules:
       - id: S1

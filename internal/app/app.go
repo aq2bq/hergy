@@ -197,7 +197,7 @@ func buildResolved(cat *catalog.Catalog, reader source.Reader, base string, def 
 	if err != nil {
 		return nil, err
 	}
-	starts, err := startsOf(def, runName, base, profiles, reader)
+	starts, err := startsOf(cat, def, runName, base, profiles, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -210,13 +210,14 @@ func buildResolved(cat *catalog.Catalog, reader source.Reader, base string, def 
 }
 
 // startsOf builds the running members: the frame of each member, the engine its
-// profile names, and the prompt hergy hands it (a projection of the definition).
-func startsOf(def *definition.Definition, runName, base string, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
+// profile names, and the prompt hergy hands it (a projection of the definition
+// and the catalog).
+func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base string, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
 	executable, err := os.Executable()
 	if err != nil || executable == "" {
 		executable = "hergy"
 	}
-	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader}
+	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader, Sources: cat, Display: cat.Display}
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
@@ -479,10 +480,11 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 		return err
 	}
 	printHeader(stdout, r, env, false)
-	if len(r.team.Definition.Docs) == 0 {
+	docs := agreementDocs(r)
+	if len(docs) == 0 {
 		field(stdout, label("document"), i18n.T("value.none"))
 	}
-	for _, doc := range r.team.Definition.Docs {
+	for _, doc := range docs {
 		field(stdout, label("document"), env.Display(doc.Path))
 	}
 	for i := range r.starts {
@@ -491,9 +493,30 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	return nil
 }
 
+// agreementDocs is what every member of a definition reads besides its own role
+// document, in the order a prompt joins them: the agreement every team of the
+// layer shares, then the team's own (段 4). It is read off the built prompts, so
+// the list a person sees cannot disagree with what the members were handed. A
+// document two members read stands once.
+func agreementDocs(r *resolved) []source.Doc {
+	var docs []source.Doc
+	seen := map[string]bool{}
+	for i := range r.starts {
+		for _, doc := range r.starts[i].Read {
+			if seen[doc.Path] {
+				continue
+			}
+			seen[doc.Path] = true
+			docs = append(docs, doc)
+		}
+	}
+	return docs
+}
+
 // runNew writes a starter team's files. It never overwrites: an existing team
-// directory stops it before anything is written. The files themselves come from
-// the embedded scaffold for the language in use.
+// directory stops it before anything is written, and a role document that is
+// already in the layer is left as it is. The files themselves come from the
+// embedded scaffold for the language in use.
 func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	name := opts.Team
 	if !scaffold.NamePattern.MatchString(name) {
@@ -518,6 +541,17 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err := writeScaffold(dir, files); err != nil {
 		return err
 	}
+	// A role document is the layer's, not the team's (K5), so it goes into the
+	// layer's roles/ directory, and one that is already there is left alone.
+	roles, err := scaffold.Roles(i18n.Language())
+	if err != nil {
+		return err
+	}
+	roleDir := filepath.Join(env.Catalog(source.Disk{}).LayerDir(layer), "roles")
+	wroteRoles, keptRoles, err := writeScaffoldRoles(roleDir, roles)
+	if err != nil {
+		return err
+	}
 	configPath, madeConfig, err := env.EnsureGlobalConfig(i18n.Language())
 	if err != nil {
 		return err
@@ -531,6 +565,12 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	field(stdout, label("dir"), env.Display(dir))
 	for _, file := range files {
 		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
+	}
+	for _, path := range wroteRoles {
+		field(stdout, label("role_file"), env.Display(path))
+	}
+	for _, path := range keptRoles {
+		field(stdout, label("note"), i18n.Tf("new.role_kept", env.Display(path)))
 	}
 	if profilePath != "" {
 		field(stdout, label("profile"), scaffold.ProfileName)
@@ -606,6 +646,32 @@ func writeScaffold(dir string, files []scaffold.File) error {
 	return nil
 }
 
+// writeScaffoldRoles writes the starter role documents into one layer's roles/
+// directory. A document that is already there is left as it is: it belongs to
+// the layer, not to this team, and a person's own file is never written over
+// (K5). The paths it wrote and the paths it left come back for the output line.
+func writeScaffoldRoles(dir string, files []scaffold.File) (wrote, kept []string, err error) {
+	for _, file := range files {
+		path := filepath.Join(dir, file.Path)
+		_, statErr := os.Stat(path)
+		switch {
+		case statErr == nil:
+			kept = append(kept, path)
+		case !errors.Is(statErr, os.ErrNotExist):
+			return nil, nil, statErr
+		default:
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return nil, nil, err
+			}
+			if err := os.WriteFile(path, file.Data, 0o644); err != nil {
+				return nil, nil, err
+			}
+			wrote = append(wrote, path)
+		}
+	}
+	return wrote, kept, nil
+}
+
 // runValidate reads every settings file the way up does, shows one line per
 // file, and fails when any of them is broken. It never touches Herdr. After the
 // files, it counts what the rules carry: where they came from, why they are
@@ -638,6 +704,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		}
 	}
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
+		reportOldCommon(stdout, env, cat.LayerDir(layer))
 		for _, row := range cat.Definitions() {
 			path := listingPath(row, layer)
 			if path == "" {
@@ -682,6 +749,7 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 	path := listingPath(row, layer)
 	r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
 	reportFile(stdout, env, path, err)
+	reportOldTeamFiles(stdout, env, cat, row.Name, layer)
 	if err != nil {
 		return teamSize{}, false
 	}
@@ -700,6 +768,42 @@ func validateDefinition(cat *catalog.Catalog, env team.Env, stdout io.Writer, ta
 	size = sizeOf(r)
 	size.name = env.Display(filepath.Dir(path))
 	return size, true
+}
+
+// reportOldTeamFiles warns about files a team definition used to keep where
+// hergy no longer reads them (段 4, spec/32 D1): a protocol.yaml that was not
+// renamed to agreement.yaml, and role documents that were not moved out of the
+// definition's folder. The warning stands under the team's own file line, names
+// the file and the place it goes now, and moves no exit code: the definition
+// still reads, but the rules those files hold are read no more.
+func reportOldTeamFiles(w io.Writer, env team.Env, cat *catalog.Catalog, name, layer string) {
+	dir := cat.LayerDir(layer)
+	old := filepath.Join(dir, "teams", name, "protocol.yaml")
+	if isFile(old) {
+		indentField(w, 1, label("warning"), i18n.Tf("validate.old_team_agreement",
+			env.Display(old), env.Display(filepath.Join(dir, "teams", name, "agreement.yaml"))))
+	}
+	matches, _ := filepath.Glob(filepath.Join(dir, "teams", name, "roles", "*.yaml"))
+	slices.Sort(matches)
+	for _, path := range matches {
+		role := strings.TrimSuffix(filepath.Base(path), ".yaml")
+		indentField(w, 1, label("warning"), i18n.Tf("validate.old_team_role",
+			env.Display(path), env.Display(filepath.Join(dir, "roles", role+".yaml"))))
+	}
+}
+
+// reportOldCommon warns about the layer's common/ directory, where the agreement
+// every team shares used to stand as a folder of files: it is one agreement.yaml
+// at the layer's root now (段 4, spec/32 D1). It is asked once for the layer
+// rather than once per team, because the directory is the layer's, and it moves
+// no exit code.
+func reportOldCommon(w io.Writer, env team.Env, dir string) {
+	matches, _ := filepath.Glob(filepath.Join(dir, "common", "*.yaml"))
+	if len(matches) == 0 {
+		return
+	}
+	field(w, label("warning"), i18n.Tf("validate.old_common",
+		env.Display(filepath.Join(dir, "common")), env.Display(filepath.Join(dir, "agreement.yaml"))))
 }
 
 // reportProfileNames is the one warning a profiles.yaml gets: a profile whose

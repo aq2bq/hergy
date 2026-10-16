@@ -110,9 +110,9 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	// The rule files those prompts were built from: the role file and the
 	// documents, once each, each at its whole text.
 	wantDocs := []string{
-		filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml"),
-		filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "builder.yaml"),
-		filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "lead.yaml"),
+		filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"),
+		filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
+		filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
 	}
 	gotDocs := make([]string, len(rec.Docs))
 	for i, doc := range rec.Docs {
@@ -274,7 +274,7 @@ func profilesYAML(fast, slow string) string {
 func TestTheRecordKeepsARevision(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 3\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 
 	rec := recordDev(t, f)

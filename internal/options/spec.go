@@ -218,10 +218,10 @@ var specs = []Spec{
 		Kind: New, Name: "new",
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
-			"Write team.yaml, protocol.yaml and roles/. An existing team definition is never overwritten.\n"+
+			"Write team.yaml and agreement.yaml, and the layer's roles/. An existing team is never overwritten.\n"+
 				"It writes into the project's .hergy/ inside a git repository, and into the global layer otherwise.\n"+
 				"If the global config.yaml (version and lang) is missing, it is written too.",
-			"team.yaml・protocol.yaml・roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
+			"team.yaml・agreement.yaml と層の roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
 				"書き先は、git リポジトリの中ならプロジェクトの .hergy/、外ならグローバル。\n"+
 				"グローバルの config.yaml（version と lang）は、無いときだけ作る。"),
 		Args: []Arg{{

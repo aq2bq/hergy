@@ -14,7 +14,7 @@ import (
 func TestBumpRaisesTheVersionAndKeepsTheDocument(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
@@ -70,7 +70,7 @@ func TestBumpRaisesTheVersionAndKeepsTheDocument(t *testing.T) {
 func TestBumpWritesTheFirstVersion(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
@@ -103,7 +103,7 @@ func TestBumpWritesTheFirstVersion(t *testing.T) {
 func TestBumpRefusesADocumentThatHasNotMoved(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
@@ -130,7 +130,7 @@ func TestBumpRefusesADocumentThatHasNotMoved(t *testing.T) {
 func TestBumpRefusesASecondRaiseFromAStalePage(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
@@ -168,27 +168,16 @@ func TestBumpRefusesASecondRaiseFromAStalePage(t *testing.T) {
 func TestBumpRefusesADocumentTheRecordDoesNotHold(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	dir := filepath.Join(f.proj, ".hergy", "teams", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	mustRun(t, "up", "demo")
 
-	// The definition gains a document after the launch: the launch read nothing
-	// of it.
-	added := filepath.Join(dir, "added.yaml")
+	// The layer gains a document the launch read nothing of: the agreement every
+	// team of the layer shares (段 4) is written after the launch, and the
+	// members of demo read it from then on.
+	added := filepath.Join(f.proj, ".hergy", "agreement.yaml")
 	writeFile(t, added, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: A1\n        text: one\n")
-	writeFile(t, filepath.Join(dir, "team.yaml"), `version: 1
-mission: a mission for the test
-docs: [protocol.yaml, added.yaml]
-members:
-  - name: lead
-    role: lead
-    profile: claude-default
-  - name: builder
-    role: builder
-    profile: claude-default
-`)
 	before := readRule(t, added)
 
 	answer, err := recordPort(t).Bump(web.LayerLocal, added)

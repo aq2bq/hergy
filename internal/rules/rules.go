@@ -1,6 +1,6 @@
-// Package rules reads hergy's rule files: one YAML document per team agreement
-// (protocol.yaml) or role (roles/<role>.yaml), and renders it to the Markdown a
-// member's prompt carries.
+// Package rules reads hergy's rule files: one YAML document per agreement
+// (agreement.yaml) or role document (roles/<role>.yaml), and renders it to the
+// Markdown a member's prompt carries.
 //
 // What a person keeps in the file and what an agent reads are different. The
 // file carries the origin of each rule, a note for whoever maintains it, and

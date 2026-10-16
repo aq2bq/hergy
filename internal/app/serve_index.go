@@ -22,27 +22,29 @@ import (
 // many rules the layer holds.
 //
 // The list shows the documents in the groups the prototype groups them in
-// (common/, the documents of each team, roles/), and every document counts once
-// however many team definitions read it.
+// (the layer's agreement.yaml, the documents of each team, roles/), and every
+// document counts once however many team definitions read it.
 
 // The groups a document falls into, as the left list and the prototype name
-// them: a document every member reads, a document of one team, or a role file.
+// them: the agreement every team of a layer shares, a document of one team, or
+// a role document. A document belongs to a group by where it stands in its layer
+// (段 4): agreement.yaml, teams/<definition>/, roles/<role>.yaml.
 const (
 	groupCommon = "common"
 	groupTeam   = "team"
 	groupRole   = "role"
 )
 
-// roleAtEnd is the path of a role file inside a team's own directory
-// ("teams/demo/roles/lead.yaml"), which the prototype counts as a role file
-// too.
+// roleAtEnd is the path of a role document inside a team's own directory
+// ("teams/demo/roles/lead.yaml"): 段 4 moved role documents into the layer's
+// roles/, so this only still reads a layer that was not moved over yet.
 var roleAtEnd = regexp.MustCompile(`/roles/[^/]+\.ya?ml$`)
 
 // groupOf is which group one document falls into, told from where it stands in
-// its layer ("common/00_TEAM_PROTOCOL.yaml", "teams/demo/protocol.yaml").
+// its layer ("agreement.yaml", "roles/lead.yaml", "teams/demo/agreement.yaml").
 func groupOf(rel string) string {
 	switch {
-	case strings.HasPrefix(rel, "common/"):
+	case rel == "agreement.yaml":
 		return groupCommon
 	case strings.HasPrefix(rel, "roles/"), roleAtEnd.MatchString(rel):
 		return groupRole
@@ -258,7 +260,7 @@ func (p servePort) layerDir(layer string) string {
 }
 
 // relIn is where a file stands inside its layer, the way the prototype writes
-// it ("common/00_TEAM_PROTOCOL.yaml").
+// it ("teams/demo/agreement.yaml").
 func relIn(root, file string) string {
 	rel, err := filepath.Rel(root, file)
 	if err != nil {
