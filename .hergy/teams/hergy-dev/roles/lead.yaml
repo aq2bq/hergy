@@ -1,6 +1,6 @@
 version: 1
 title: 進行管理
-revision: 2
+revision: 3
 sections:
   - heading: 使命
     style: ids
@@ -28,7 +28,7 @@ sections:
     style: ids
     rules:
       - id: LEAD-4
-        text: 曖昧度の高い仕事（要求定義、設計、試作）は spec か試作ワーカー（opus）、Web 検索を含む調査は調査ワーカー（gpt5）、実装は実装ワーカー（deepseek）に払い出す（lead → 実装、lead → 試作、lead → 調査）。実装は要求 1 本に 1 人、ワークツリー 1 つ。同じ目的のワーカーは同時に最大 3 人。
+        text: 曖昧度の高い仕事（要求定義、設計、試作）は spec か試作ワーカー（planner）、Web 検索を含む調査は調査ワーカー（researcher）、実装は実装ワーカー（coder）に払い出す（lead → 実装、lead → 試作、lead → 調査）。実装は要求 1 本に 1 人、ワークツリー 1 つ。同じ目的のワーカーは同時に最大 3 人。
         origin:
           - kind: instruction
             date: "2026-10-15"

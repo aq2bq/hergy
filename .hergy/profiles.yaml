@@ -1,8 +1,8 @@
 version: 1
 profiles:
-  deepseek:
+  coder:
     kind: opencode
-  gpt5:
-    kind: codex
-  opus:
+  planner:
     kind: claude
+  researcher:
+    kind: codex

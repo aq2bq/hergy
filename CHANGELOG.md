@@ -23,7 +23,9 @@
   profile is a choice of what the engine runs; the warning does not stop
   anything. `hergy new`'s starter team names `claude-default`, and `hergy new`
   writes that profile into the layer's `profiles.yaml` when the layer cannot
-  already resolve the name. To move a definition over:
+  already resolve the name. The write is the whole file, in profile-name order,
+  so comments in that `profiles.yaml` and the order the profiles were written in
+  do not survive it. To move a definition over:
 
   Before:
 
