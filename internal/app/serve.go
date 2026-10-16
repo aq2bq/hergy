@@ -71,6 +71,7 @@ func (p servePort) Teams(layer string) []web.Team {
 		team := p.launchNote(records, cfg, row.Name, layer)
 		team.Name = row.Name
 		team.Href = teamHref(layer, row.Name)
+		team.Mission = cfg.MissionLine()
 		team.Members = len(cfg.Members)
 		team.Rules = tally.Total
 		team.NoCheck = tally.Total - tally.WithCheck
@@ -115,6 +116,7 @@ func (p servePort) Definition(layer, name string) (teamview.Definition, error) {
 		out.Broken = breakLine(p.env, resolved.TeamYAMLPath, err)
 		return out, nil
 	}
+	out.Mission = cfg.MissionLine()
 	for _, doc := range cfg.Docs {
 		out.Docs = append(out.Docs, p.readDoc(doc, ""))
 	}

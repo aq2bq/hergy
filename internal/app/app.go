@@ -439,6 +439,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			cfg, err := validateTeam(env, row.Name, layer)
 			report(path, err)
 			if err == nil {
+				reportMission(stdout, cfg)
 				collectRules(tally, seenFiles, cfg)
 				team := sizeOf(cfg)
 				team.name = env.Display(filepath.Dir(path))
@@ -455,6 +456,20 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
 	return nil
+}
+
+// reportMission is the one warning a team definition gets about its mission: no
+// mission written (r-341e), or one written over more than one line. It stands
+// under the file's own result line, where a person reading that file finds it.
+// It moves no exit code: a team whose mission is missing or long boots the same,
+// the way a team over the provisional size does (n-9eea).
+func reportMission(w io.Writer, cfg *config.Config) {
+	switch {
+	case cfg.MissionLine() == "":
+		indentField(w, 1, label("warning"), i18n.T("validate.mission_missing"))
+	case strings.Contains(cfg.Mission, "\n"):
+		indentField(w, 1, label("warning"), i18n.T("validate.mission_multiline"))
+	}
 }
 
 // collectRules adds the rule files the members of one team read to the tally.
@@ -940,11 +955,16 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 	}
 }
 
-// printHeader is the short provenance every team command shows: the team
-// definition, the team it runs as, its version, the layer in use, and the files
-// the effective values came from. show prints the definition alone; a team
-// command also prints the team name.
+// printHeader is the short provenance every team command shows: the team's
+// mission when team.yaml writes one, the team definition, the team it runs as,
+// its version, the layer in use, and the files the effective values came from.
+// show prints the definition alone; a team command also prints the team name.
+// The mission is first: it is the one line that says what the team is for, and
+// a team without one prints no line for it.
 func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env team.Env, withTeam bool) {
+	if mission := cfg.MissionLine(); mission != "" {
+		field(w, label("mission"), mission)
+	}
 	field(w, label("definition"), cfg.Definition)
 	if withTeam {
 		field(w, label("team"), cfg.Team)

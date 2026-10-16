@@ -5,6 +5,9 @@
 {{else}}
   <div class="kicker"><a class="linkbtn" href="/teams?layer={{.Layer}}">{{t "web.teams.title"}}</a><span>›</span><span class="lay {{.Layer}}">{{t (printf "label.%s" .Layer)}}</span><span class="mono">{{.Path}}</span></div>
   <h1 class="mono">{{.Name}}</h1>
+  {{- if not .Broken}}
+  <p class="mission">{{if .Mission}}{{.Mission}}{{else}}{{t "web.mission.empty"}}{{end}}</p>
+  {{- end}}
   <p class="lede">{{tf "web.teamview.definition.lede" .Name}}</p>
   {{- if .HasLaunch}}
   <div class="panel">

@@ -98,6 +98,7 @@ hergy up myteam         # 起動
 
 ```yaml
 version: 1              # 必須
+mission: "このチームは何のためか"  # 任意。1 行。hergy show・hergy up --dry・WebUI が最初に表示する
 team: myteam            # 任意。書くならチーム定義名（teams/<チーム定義名>/）と一致させる
 cwd: .                  # 作業場所（プロジェクトの直下が基準）
 docs: [protocol.yaml]   # 全員に渡す文書。書いた順に連結。ディレクトリなら *.yaml を名前順に

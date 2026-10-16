@@ -41,10 +41,13 @@ type Port interface {
 // Definition is one team definition, read for the screens: the documents every
 // member reads, and the members themselves.
 type Definition struct {
-	Name    string // the team definition name
-	Layer   string
-	Path    string // team.yaml, as a person writes it
-	Broken  string // why it cannot be read; everything below is empty then
+	Name   string // the team definition name
+	Layer  string
+	Path   string // team.yaml, as a person writes it
+	Broken string // why it cannot be read; everything below is empty then
+	// Mission is the one line team.yaml's mission: writes, empty when it writes
+	// none (r-341e). The screen shows it as the first line under the name.
+	Mission string
 	Docs    []Doc
 	Members []Member
 }

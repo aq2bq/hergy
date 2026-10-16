@@ -18,6 +18,7 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 ## Team definitions and team names
 
 - A team definition is the directory `teams/<name>/` with its `team.yaml`; `hergy up`, `hergy new` and `hergy show` take a team definition name.
+- `team.yaml` may write `mission:` — one line saying what the team is for. `hergy show`, `hergy up --dry` and the web UI's team list and team screen show it first; `hergy validate` warns when a definition writes none.
 - A team is a running team, named by `hergy up --as` or, without it, by the team definition name; `hergy down`, `hergy status`, `hergy refresh`, `hergy reprompt` and `hergy hire` take a team name and find the definition from the team's herdr tab.
 - `hergy status` with no team name lists every running team, with its team definition name.
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- **A team can say what it is for, in one line**: a `team.yaml` may write
+  `mission:`, and `hergy show` and `hergy up --dry` print it first, the web UI's
+  team list and team definition screen show it, and `hergy validate` says so
+  when a definition writes none, or writes one over more than one line.
+  Writing a mission is optional, so every existing team definition keeps
+  working as it is.
+
 ### Fixed
 
 - **The rules screen opens the row you press**: a row outside the first section

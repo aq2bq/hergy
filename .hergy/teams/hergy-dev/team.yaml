@@ -1,4 +1,5 @@
 version: 1
+mission: hergy 自身を、hergy で起動したチームで改修するためのチーム
 team: hergy-dev
 docs: [protocol.yaml]
 members:

@@ -555,6 +555,71 @@ func TestCheatMachineNamesEveryConfigKey(t *testing.T) {
 // collectYAMLKeys adds every yaml tag under a type to keys, descending into the
 // settings structs of this package only, so the yaml library's own structs are
 // left alone. Pointers, slices, arrays and maps are unwrapped.
+// TestParseReadsTheMission: team.yaml's mission: is the one line a team says it
+// is for (r-341e). It is optional, so a file without it carries none; the ends
+// of what it wrote are trimmed, and a mission written over more than one line
+// keeps its lines, because hergy does not join them: validate says it should be
+// one line, and MissionLine is what the output shows.
+func TestParseReadsTheMission(t *testing.T) {
+	dir := t.TempDir()
+	// teamWith is a team.yaml body with the given text in place of the mission
+	// line (empty for none), so each case writes only what it is about.
+	teamWith := func(mission string) string {
+		return "version: 1\n" + mission +
+			"team: t\nprompt: \"%{docs}\"\ndocs: []\nmembers:\n  - name: a\n    role: r\n    kind: claude\n"
+	}
+	for _, tc := range []struct {
+		name    string
+		yaml    string
+		mission string
+		line    string
+	}{
+		{
+			name:    "no mission",
+			yaml:    teamWith(""),
+			mission: "",
+			line:    "",
+		},
+		{
+			name:    "one line",
+			yaml:    teamWith("mission:  hergy をよくする  \n"),
+			mission: "hergy をよくする",
+			line:    "hergy をよくする",
+		},
+		{
+			name:    "a block scalar",
+			yaml:    teamWith("mission: |-\n  one line\n"),
+			mission: "one line",
+			line:    "one line",
+		},
+		{
+			name:    "over two lines",
+			yaml:    teamWith("mission: |-\n  first\n  second\n"),
+			mission: "first\nsecond",
+			line:    "first",
+		},
+		{
+			name:    "written empty",
+			yaml:    teamWith("mission: \"\"\n"),
+			mission: "",
+			line:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := parseTeam(t, dir, tc.yaml)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Mission != tc.mission {
+				t.Errorf("Mission = %q, want %q", cfg.Mission, tc.mission)
+			}
+			if got := cfg.MissionLine(); got != tc.line {
+				t.Errorf("MissionLine = %q, want %q", got, tc.line)
+			}
+		})
+	}
+}
+
 func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
 	if typ == nil {
 		return
