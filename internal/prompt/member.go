@@ -109,7 +109,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			if len(workers) == 0 {
 				return ""
 			}
-			return SpawnNote(node.Name, workers, hireCommand(run, node.Name))
+			// The worker reports back to this member: the note names the herdr
+			// name, the same name the worker's own prompt names, so it follows
+			// --as (the hire command takes the short name).
+			return SpawnNote(memberName, workers, hireCommand(run, node.Name))
 		},
 	}
 	text, err := Expand(template, parts)

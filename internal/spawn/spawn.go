@@ -45,7 +45,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		lead = found
 	}
 
-	// With no --profileName the purpose names the pair: its profile is the one to
+	// With no --profile the purpose names the pair: its profile is the one to
 	// use. A purpose outside the member's workers then has no profile to fall
 	// back to.
 	chosen := profileName

@@ -404,6 +404,30 @@ func parseMaySpawnTeam(t *testing.T, maySpawn string) (*built, error) {
 		"    may_spawn:\n"+maySpawn, "t", "", dir, profiles)
 }
 
+// TestWorkerNoteNamesTheHerdrName: the member's "%{spawn}" note says who a hired
+// worker reports back to. That name is the member's herdr name, the same name
+// the worker's own prompt uses, so it follows --as rather than the short name
+// written in team.yaml (only the embedded hire command takes the short name).
+func TestWorkerNoteNamesTheHerdrName(t *testing.T) {
+	dir := t.TempDir()
+	profiles := map[string]profile.Profile{
+		"seeker": {Name: "seeker", Kind: "claude"},
+	}
+	got, err := parse("version: 1\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n"+
+		"  - name: lead\n    role: r\n    profile: seeker\n"+
+		"    may_spawn:\n      workers:\n        - purpose: build\n          profile: seeker\n",
+		"t", "alt", dir, profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.starts[0].Prompt, "reports back to you (alt-lead)") {
+		t.Errorf("the worker note does not name the herdr name (alt-lead):\n%s", got.starts[0].Prompt)
+	}
+	if strings.Contains(got.starts[0].Prompt, "reports back to you (lead)") {
+		t.Errorf("the worker note names the short member name:\n%s", got.starts[0].Prompt)
+	}
+}
+
 // TestMaySpawnReadsPurposeProfilePairs: may_spawn is a list of purpose/profile
 // pairs, and each pair reaches the member's prompt.
 func TestMaySpawnReadsPurposeProfilePairs(t *testing.T) {

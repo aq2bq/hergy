@@ -3,10 +3,10 @@ package options
 import "sort"
 
 // Use says one command accepts one flag, and what the flag means there. The
-// same flag reads differently from command to command (hergy new --local is
-// where to write, hergy ls --local is which layer to read), so the description
-// belongs to the command, and there is no description to fall back on: a flag
-// added to a command without one fails the tests.
+// same flag reads differently from command to command (up --dry prints the boot
+// plan, down --dry prints what would close), so the description belongs to the
+// command, and there is no description to fall back on: a flag added to a
+// command without one fails the tests.
 type Use struct {
 	Flag     *Flag
 	Desc     Text
