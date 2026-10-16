@@ -106,7 +106,7 @@ var behavior = map[options.Kind]string{
 `,
 	options.Show: `      Print the effective team definition and where each value and document came from.
 `,
-	options.New: `      Write a starter team definition: into the global layer by default, into the project's .hergy/ with --local. The global config.yaml is written too when it is missing, with --local as well.
+	options.New: `      Write a starter team definition: into the project's .hergy/ when hergy runs inside a git repository, into the global layer otherwise. The global config.yaml is written too when it is missing.
 `,
 	options.Validate: `      Check the global config.yaml, both layers' profiles.yaml, and every team definition in both layers. Exit 1 if any is broken.
       It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
@@ -128,8 +128,6 @@ var flagMeaning = map[string]string{
 	"dry":     "Print what would happen and change nothing. up, reprompt and hire never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane). --dry-run is an alias.",
 	"json":    "With --dry, print the plan as JSON. --json without --dry is an error.",
 	"all":     "Act on every member instead of one <member>; both together is an error.",
-	"global":  "Use the global layer only.",
-	"local":   "Use the local layer only; --global and --local together is an error. For new, the layer to write: --local writes to the project, and without it new writes to the global layer.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
 	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
 	"no-open": "Print the URL and open nothing. Without it, hergy serve opens the URL in this machine's default browser once the socket is open.",
@@ -181,9 +179,9 @@ Web UI:
 
 Resolution:
   A team definition is <layer>/teams/<definition>/team.yaml. The local layer is <project>/.hergy; the global layer is $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
-  A definition name is looked up local first, then global; a name in both resolves to local. --global or --local looks at that layer only.
+  A definition name is looked up local first, then global; a name in both resolves to the project's own.
   The project root is the git root (else the current directory); -C, --dir overrides it.
-  up with no name uses one local team definition; --global uses one global one; with neither flag, a lone global definition is not chosen; otherwise the candidates are listed and it stops.
+  up with no name uses the one team definition of the project; otherwise the candidates are listed and it stops.
   A team command with no team name uses the one running team; none or several stops with the running team names.
   hergy's own state is $XDG_STATE_HOME/hergy (or ~/.local/state/hergy when unset): launches/log.jsonl is one line per launch (up, refresh or reprompt, written after it succeeds), and launches/blobs/<sha256> is the prompt texts and rule file contents that line points at. A launch that cannot be recorded still runs, with one line on stderr.
 
@@ -226,7 +224,7 @@ Settings files and their keys:
         args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
         env: {NAME: value} mapping of string to string; environment for the pane.
       A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
-  A local team definition reads the project's profiles.yaml over the global one: a profile of the same name resolves to the local one, and a global definition reads only the global one.
+  A team definition reads the project's profiles.yaml over the global layer's, whatever layer the definition sits in: a profile of the same name resolves to the project's.
 
 Rule files (what docs and roles point at):
   Every document a member reads is one rule file: a team's agreements (protocol.yaml) and a role file (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a .md file, a directory with only .md, or a role with only <role>.md stops with the way to move it over.

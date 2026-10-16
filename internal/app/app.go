@@ -139,7 +139,7 @@ func fail(stderr io.Writer, err error) {
 func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	switch opts.Kind {
 	case options.Ls:
-		return runLs(env, opts, stdout)
+		return runLs(env, stdout)
 	case options.Show:
 		return runShow(env, opts, stdout)
 	case options.New:
@@ -432,7 +432,7 @@ func runningCandidates(running []team.Running) error {
 	return errors.New(b.String())
 }
 
-func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
+func runLs(env team.Env, stdout io.Writer) error {
 	field(stdout, label("local"), env.Display(env.LocalDir))
 	field(stdout, label("global"), env.Display(env.GlobalDir))
 	// The running teams, grouped by the team definition they were booted from.
@@ -445,33 +445,14 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	shown := 0
 	for _, row := range env.Catalog(source.Disk{}).Definitions() {
-		var layer, path, other, note string
-		switch opts.Layer {
-		case "global":
-			if !row.Global {
-				continue
-			}
-			layer, path = source.LayerGlobal, row.GlobalPath
-			if row.Local {
-				note = i18n.T("value.overridden_local")
-			}
-		case "local":
-			if !row.Local {
-				continue
-			}
+		var layer, path, other string
+		if row.Local {
 			layer, path = source.LayerLocal, row.LocalPath
 			if row.Global {
-				note = i18n.T("value.also_global")
+				other = row.GlobalPath
 			}
-		default:
-			if row.Local {
-				layer, path = source.LayerLocal, row.LocalPath
-				if row.Global {
-					other = row.GlobalPath
-				}
-			} else {
-				layer, path = source.LayerGlobal, row.GlobalPath
-			}
+		} else {
+			layer, path = source.LayerGlobal, row.GlobalPath
 		}
 		shown++
 		field(stdout, label("definition"), row.Name)
@@ -479,9 +460,6 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 		indentField(stdout, 1, label("path"), env.Display(path))
 		if other != "" {
 			indentField(stdout, 1, label("global"), env.Display(other))
-		}
-		if note != "" {
-			indentField(stdout, 1, label("note"), note)
 		}
 		if teams := running[row.Name]; len(teams) > 0 {
 			indentField(stdout, 1, label("running"), strings.Join(teams, i18n.T("list.separator")))
@@ -495,7 +473,7 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 
 func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.Layer, opts.As)
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
 	if err != nil {
 		return err
 	}
@@ -520,8 +498,10 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if !scaffold.NamePattern.MatchString(name) {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
+	// hergy new writes where the person is (K2): inside a git repository that
+	// is the project's own layer, and outside one the global layer.
 	layer := source.LayerGlobal
-	if opts.Layer == "local" {
+	if env.InRepo() {
 		layer = source.LayerLocal
 	}
 	dir := env.TeamDir(name, layer)
@@ -680,6 +660,12 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			report(path, err)
 			if err == nil {
 				reportMission(stdout, r)
+				if layer == source.LayerGlobal && row.Local {
+					// The project's definition of this name is the one that is
+					// used, so the global one is hidden (I11); validate says so,
+					// where a person reading the global file finds it.
+					indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
+				}
 				collectRules(tally, seenFiles, r)
 				team := sizeOf(r)
 				team.name = env.Display(filepath.Dir(path))
@@ -925,7 +911,7 @@ func isFile(path string) bool {
 
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.Layer, opts.As)
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ import (
 // behind the running team (r-e494).
 func TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	writeLaunchRecord(t, "qw2", "qw")
 	tabs := `{"tab_id":"t1","label":"qw2"}`
 	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"}`
@@ -37,7 +37,7 @@ func TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName(t *testing.T) {
 // though the record holds that name (E1).
 func TestStatusListsOnlyHergeTeams(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	writeLaunchRecord(t, "qw2", "qw")
 	writeLaunchRecord(t, "docs", "docs-team") // a team that ran once and has stopped
 	tabs := `{"tab_id":"t1","label":"qw2"},{"tab_id":"t2","label":"notes"},{"tab_id":"t3","label":"docs"}`
@@ -64,7 +64,7 @@ func TestStatusListsOnlyHergeTeams(t *testing.T) {
 func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	log := f.halfBootedHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -137,7 +137,7 @@ esac
 // down is still found, from the label alone, with the definition it carries.
 func TestOlderLabelsStillFindTheirTeams(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw2@qw"},{"tab_id":"t2","label":"team:bare"}`
 	f.runningHerdr(t, tabs, "")
 
@@ -173,7 +173,7 @@ func writeLaunchRecord(t *testing.T, teamName, definition string) {
 func TestTheWebUIScreensReadANameOnlyLabel(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	writeLaunchRecord(t, "qw2", "qw")
 	tabs := `{"tab_id":"t1","label":"qw2"}`
 	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`

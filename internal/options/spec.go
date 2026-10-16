@@ -51,8 +51,6 @@ var (
 		"プロジェクトの場所を指定する\n（既定は git のルート。なければ今のディレクトリ）")
 	descJSON    = text("With --dry, print the plan as JSON (--dry is required)", "--dry の計画を JSON で表示する（--dry が必要）")
 	descTimeout = text("Startup timeout in milliseconds, 3001..300000 (default 30000)", "起動を待つ時間（ミリ秒。3001〜300000、既定 30000）")
-	descGlobal  = text("Use only the global team definitions", "グローバルのチーム定義だけを使う")
-	descLocal   = text("Use only the project's team definitions (not with --global)", "プロジェクトのチーム定義だけを使う（--global とは同時に使えない）")
 	descTeam    = text(
 		"The team to act on, by team name\n(left out: the one running team)",
 		"対象のチーム名\n（動いているチームが1つだけなら省ける）")
@@ -69,15 +67,13 @@ var specs = []Spec{
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"), Optional: true,
 			Desc: text(
-				"The team definition to start\n(left out: the lone project one; with --global, the lone global one)",
-				"起動するチーム定義の名前\n（省くと、プロジェクトのチーム定義が1つならそれ。\n--global ならグローバルが1つならそれ）"),
+				"The team definition to start\n(left out: the lone project one)",
+				"起動するチーム定義の名前\n（省くと、プロジェクトのチーム定義が1つならそれ）"),
 		}},
 		Flags: []Use{
 			use(flagAs, text(
 				"Start the team under this team name (default: the team definition name)\nIt is the first half of the herdr name",
 				"このチーム名で起動する（既定はチーム定義名）\nherdr 名の前半になる")),
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagDry, text(
 				"Print the plan (each member's prompt as text) and start nothing\nIt never reads herdr",
 				"起動せず、計画（メンバーごとのプロンプト）だけを表示する\nherdr は読まない")),
@@ -97,8 +93,6 @@ var specs = []Spec{
 			Desc: text("The team name (left out: the one running team)", "チーム名（動いているチームが1つだけなら省ける）"),
 		}},
 		Flags: []Use{
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagDry, text(
 				"Print what would close and close nothing\nIt reads herdr's live agents and tabs",
 				"閉じる予定だけを表示し、何も閉じない\nherdr の今のエージェントとタブを読む")),
@@ -116,8 +110,6 @@ var specs = []Spec{
 			Desc: text("The team name (left out: every running team)", "チーム名（省くと、動いているチームをすべて一覧する）"),
 		}},
 		Flags: []Use{
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagDir, descDir),
 		},
 	},
@@ -136,8 +128,6 @@ var specs = []Spec{
 		Flags: []Use{
 			use(flagAll, text("Restart every member (not with a member)", "全メンバーを起動し直す（メンバーとは同時に指定できない）")),
 			use(flagTeam, descTeam),
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagDry, text(
 				"Print what would restart and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
 				"起動し直す予定だけを表示し、何も変えない\nherdr の今の状態を読み、自分のペインは本番と同じく断る")),
@@ -161,8 +151,6 @@ var specs = []Spec{
 		Flags: []Use{
 			use(flagAll, text("Send it to every member (not with a member)", "全メンバーに送り直す（メンバーとは同時に指定できない）")),
 			use(flagTeam, descTeam),
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagDry, text(
 				"Print what would be sent and send nothing\nIt never reads herdr",
 				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
@@ -194,8 +182,6 @@ var specs = []Spec{
 				"The member that hires the worker (short member name or herdr name)\nLeft out: required unless exactly one member has may_spawn",
 				"ワーカーを追加するメンバー（短いメンバー名か herdr 名）\nmay_spawn を持つメンバーが1人だけなら省ける")),
 			use(flagTeam, descTeam),
-			use(flagGlobal, descGlobal),
-			use(flagLocal, descLocal),
 			use(flagTimeout, descTimeout),
 			use(flagDry, text(
 				"Print the plan and start nothing\nIt never reads herdr",
@@ -211,8 +197,6 @@ var specs = []Spec{
 			"List the visible team definitions and the layer each came from,\nand the running team names each one booted.",
 			"見えるチーム定義と、それがどの層のものか、そこから動いているチーム名を一覧する。"),
 		Flags: []Use{
-			use(flagGlobal, text("List only the global team definitions", "グローバルのチーム定義だけを一覧する")),
-			use(flagLocal, text("List only the project's team definitions (not with --global)", "プロジェクトのチーム定義だけを一覧する（--global とは同時に使えない）")),
 			use(flagDir, descDir),
 		},
 	},
@@ -227,8 +211,6 @@ var specs = []Spec{
 			Desc: text("The team definition to show", "表示するチーム定義の名前"),
 		}},
 		Flags: []Use{
-			use(flagGlobal, text("Read the team definition from the global layer only", "チーム定義をグローバルだけから読む")),
-			use(flagLocal, text("Read the team definition from the project only (not with --global)", "チーム定義をプロジェクトだけから読む（--global とは同時に使えない）")),
 			use(flagDir, descDir),
 		},
 	},
@@ -237,9 +219,11 @@ var specs = []Spec{
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
 			"Write team.yaml, protocol.yaml and roles/. An existing team definition is never overwritten.\n"+
-				"If the global config.yaml (version and lang) is missing, it is written too,\nwith --local as well.",
+				"It writes into the project's .hergy/ inside a git repository, and into the global layer otherwise.\n"+
+				"If the global config.yaml (version and lang) is missing, it is written too.",
 			"team.yaml・protocol.yaml・roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
-				"グローバルの config.yaml（version と lang）は、無いときだけ作る。--local のときも作る。"),
+				"書き先は、git リポジトリの中ならプロジェクトの .hergy/、外ならグローバル。\n"+
+				"グローバルの config.yaml（version と lang）は、無いときだけ作る。"),
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"),
 			Desc: text(
@@ -247,9 +231,6 @@ var specs = []Spec{
 				"作るチーム定義の名前（[a-z][a-z0-9_-]{0,24}）"),
 		}},
 		Flags: []Use{
-			use(flagLocal, text(
-				"Write into the project's .hergy/\nWithout it, write into the global layer (~/.config/hergy/)",
-				"書き込み先をプロジェクトの .hergy/ にする\n付けないと、グローバル（~/.config/hergy/）に書く")),
 			use(flagDir, descDir),
 		},
 	},

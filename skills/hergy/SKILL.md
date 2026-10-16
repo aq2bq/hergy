@@ -38,10 +38,10 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 ## While you write settings from outside
 
-- Write with `hergy new --local` (without `--local` it writes to the global layer), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
+- Write with `hergy new` (it writes into the project's `.hergy/` inside a git repository, and into the global layer outside one), edit, `hergy validate`, then show `hergy up --dry` to the person before `hergy up`.
 - `hergy validate` counts what the rules carry and then the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). A warning is not a failure: it names a team to look at, and the exit code stays 0. When a team is over, look for rules that are duplicates, that are no longer needed, or that could be read only when they are needed, before cutting the meaning.
 - To write, change or move a team's rules, read the `hergy-rules` skill first: it asks the person the questions one at a time, so they answer and never write YAML.
-- Start at the `--local` layer; ask the person before you change the global layer.
+- Start in the project's own layer; ask the person before you change the global layer.
 
 ## The web UI
 

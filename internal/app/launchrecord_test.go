@@ -53,7 +53,7 @@ func recordDev(t *testing.T, f *fixture) launchlog.Record {
 // handed out, and every text the line points at is in blobs/ at its full text.
 func TestUpRecordsTheLaunch(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -139,7 +139,7 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 // whole definition either way, so two commands of one team line up.
 func TestTheRecordFollowsWhatTheCommandHandedOut(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -168,7 +168,7 @@ func TestTheRecordFollowsWhatTheCommandHandedOut(t *testing.T) {
 // launch that failed are both absent from the record: it holds what ran.
 func TestDryAndFailedLaunchesRecordNothing(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	mustRun(t, "up", "demo", "--dry")
 
 	if _, records := launchLog(t, f); len(records) != 0 {
@@ -212,7 +212,7 @@ esac
 // command a success.
 func TestALaunchThatCannotBeRecordedStillRuns(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -240,7 +240,7 @@ func TestALaunchThatCannotBeRecordedStillRuns(t *testing.T) {
 // reads leaves it alone and a change to one a member reads moves it.
 func TestTheHashFollowsTheProfilesTheMembersRead(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: fast\n"+
@@ -273,7 +273,7 @@ func profilesYAML(fast, slow string) string {
 // its current shape.
 func TestTheRecordKeepsARevision(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 3\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 

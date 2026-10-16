@@ -109,7 +109,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			if len(workers) == 0 {
 				return ""
 			}
-			return SpawnNote(node.Name, workers, hireCommand(def, run, node.Name))
+			return SpawnNote(node.Name, workers, hireCommand(run, node.Name))
 		},
 	}
 	text, err := Expand(template, parts)
@@ -170,24 +170,21 @@ func readRuleFile(reader source.Reader, doc source.Doc) (*rules.Document, error)
 	return rules.Parse(text, doc.Path)
 }
 
-// hireCommand is embedded in a member's prompt. It names the exact team, layer
-// and project, so a hire works even when the member runs outside the project or
-// the same name exists in both layers. --team carries the team name the member
-// runs under (hire takes a team name, not a team definition name), so the hire
-// finds the running team even when --as named it. The --from value is the
-// hiring member's short name: the command line takes the short name, and hergy
-// adds the team name to the herdr name itself.
-func hireCommand(def *definition.Definition, run Run, shortName string) string {
-	layerFlag := "--local"
-	if def.Layer == source.LayerGlobal {
-		layerFlag = "--global"
-	}
+// hireCommand is embedded in a member's prompt. It names the exact team and
+// project, so a hire works even when the member runs outside the project.
+// --team carries the team name the member runs under (hire takes a team name,
+// not a team definition name), so the hire finds the running team even when
+// --as named it, and the project's own definition wins by the one way a name is
+// looked up (段 3). The --from value is the hiring member's short name: the
+// command line takes the short name, and hergy adds the team name to the herdr
+// name itself.
+func hireCommand(run Run, shortName string) string {
 	executable := run.Executable
 	if executable == "" {
 		executable = "hergy"
 	}
 	return i18n.Tf("hire.command",
-		shellQuote(executable), run.Team, layerFlag, i18n.Language(), shellQuote(run.Base), shortName)
+		shellQuote(executable), run.Team, i18n.Language(), shellQuote(run.Base), shortName)
 }
 
 func shellQuote(s string) string {

@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - run a team of agents on top of herdr\n\nUsage: hergy <command> [options]\n\nRun a team\n  up [definition]          Start a team\n  down [team]              Stop a team, and close the workers it hired\n  status [team]            Show how the members and workers are doing\n  refresh <member>|--all   Restart a member; its conversation starts empty\n  reprompt <member>|--all  Send the bootstrap prompt again; the conversation stays\n  hire <name>              Add a worker\n\nTeam definitions\n  new <definition>         Write a starter team definition\n  ls                       List the team definitions\n  show <definition>        Show the final team definition and where each value came from\n  validate                 Check the settings files\n  serve                    Open the web UI in a browser\n\nOther\n  cheat [--ai]             Show the cheatsheet\n  version                  Show the version\n\nCommon options\n  --dry                    Show what would happen, and do nothing\n  --as <team>              Run the same team definition under another team name (up only)\n  --team <team>            The team for refresh, reprompt and hire\n  --global / --local       Use only the global or the project team definitions\n  -C <dir>                 Use this directory as the project\n  --lang en|ja             Language of the output (default en)\n  --port <port>            The port hergy serve listens on (default 8787)\n\nOptions for hire\n  --purpose <purpose> --task \"<task>\" [--profile <profile>] [--from <member>]\n\nWhere team definitions live\n  Project                  .hergy/teams/<definition>/team.yaml\n  Global                   ~/.config/hergy/teams/<definition>/team.yaml\n\nDetails of one command: hergy <command> --help\n",
+  "usage": "hergy - run a team of agents on top of herdr\n\nUsage: hergy <command> [options]\n\nRun a team\n  up [definition]          Start a team\n  down [team]              Stop a team, and close the workers it hired\n  status [team]            Show how the members and workers are doing\n  refresh <member>|--all   Restart a member; its conversation starts empty\n  reprompt <member>|--all  Send the bootstrap prompt again; the conversation stays\n  hire <name>              Add a worker\n\nTeam definitions\n  new <definition>         Write a starter team definition\n  ls                       List the team definitions\n  show <definition>        Show the final team definition and where each value came from\n  validate                 Check the settings files\n  serve                    Open the web UI in a browser\n\nOther\n  cheat [--ai]             Show the cheatsheet\n  version                  Show the version\n\nCommon options\n  --dry                    Show what would happen, and do nothing\n  --as <team>              Run the same team definition under another team name (up only)\n  --team <team>            The team for refresh, reprompt and hire\n  -C <dir>                 Use this directory as the project\n  --lang en|ja             Language of the output (default en)\n  --port <port>            The port hergy serve listens on (default 8787)\n\nOptions for hire\n  --purpose <purpose> --task \"<task>\" [--profile <profile>] [--from <member>]\n\nWhere team definitions live\n  Project                  .hergy/teams/<definition>/team.yaml\n  Global                   ~/.config/hergy/teams/<definition>/team.yaml\n\nDetails of one command: hergy <command> --help\n",
   "help.usage_label": "Usage:",
   "help.options_placeholder": "[options]",
   "help.arguments": "Arguments",
@@ -18,7 +18,6 @@
   "error.ls_no_args": "hergy ls takes no positional arguments: %v",
   "error.validate_no_args": "hergy validate takes no positional arguments: %v",
   "error.cheat_no_args": "hergy cheat takes no positional arguments: %v",
-  "error.global_local_conflict": "--global and --local cannot be used together",
   "error.flag_not_allowed": "--%[1]s cannot be used with hergy %[2]s (see `hergy %[2]s --help`)",
   "error.member_and_all": "%s cannot take both <member> and --all",
   "error.needs_member": "%s needs <member> or --all",
@@ -204,7 +203,7 @@
   "herdr.guide_member": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.\n- To add a teammate, use `hergy hire`, not `herdr agent start`: a teammate herdr starts directly is invisible to hergy's roster, `hergy down` and `hergy status`.",
   "herdr.guide_worker": "- To a member: `herdr agent prompt <name> \"<text>\"`. Start the text with \"%s\".\n- To the human: write in your own pane.\n- For anything else: `herdr agent --help`.\n- A worker adds no teammates: reach the others with `herdr agent prompt`, and ask the member that hired you if another worker is needed.",
   "spawn.note": "\n## Spawning workers\nWhen needed, you may spawn a worker for one of these purpose-to-profile pairs: %s\nHow to spawn: `%s`\nThe worker starts in another tab; its herdr name is \"<team>-<worker>\". It reports back to you (%s) when done. Worker names are lower-case ASCII and must not collide with the roster.\n",
-  "hire.command": "%s hire <worker> --purpose <purpose> --task \"<task>\" --team %s %s --lang %s -C %s --from %s",
+  "hire.command": "%s hire <worker> --purpose <purpose> --task \"<task>\" --team %s --lang %s -C %s --from %s",
   "next": "next: %s",
   "label.team": "team",
   "label.version": "version",
@@ -259,8 +258,6 @@
   "value.none": "none",
   "value.ok": "ok",
   "value.broken": "broken",
-  "value.overridden_local": "overridden by local",
-  "value.also_global": "also in global",
   "value.unused": "%s (no member uses it)",
   "value.profile_with_path": "%s (%s)",
   "note.local_overrides": "a team definition with this name is also global: %s (local overrides)",
@@ -613,5 +610,7 @@
   "web.error.origin": "A write from another page is refused.",
   "web.error.method": "This screen takes GET and POST only.",
   "web.error.not_found": "There is no such screen.",
-  "web.error.internal": "Something went wrong while showing the screen: %v"
+  "web.error.internal": "Something went wrong while showing the screen: %v",
+  "error.layer_flag_gone": "--%s is gone; a team definition name resolves to the project's own first",
+  "validate.global_hidden": "the global team definition %s is hidden by the project's %s and is not used"
 }

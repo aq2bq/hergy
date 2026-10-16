@@ -167,3 +167,47 @@ func TestProfilesWithoutFilesIsEmpty(t *testing.T) {
 		t.Errorf("got %d profiles and %q paths, want none", len(profiles), paths)
 	}
 }
+
+// TestGlobalDefinitionReadsTheProjectProfile: a team definition of the global
+// layer reads the project's profiles.yaml, so a definition carried from one
+// project to another reads what the project it stands in carries (K1).
+func TestGlobalDefinitionReadsTheProjectProfile(t *testing.T) {
+	l := newLayers(t)
+	write(t, filepath.Join(l.global, "profiles.yaml"), "version: 1\nprofiles:\n  globalprof:\n    kind: claude\n")
+	write(t, filepath.Join(l.local, "profiles.yaml"), "version: 1\nprofiles:\n  localprof:\n    kind: codex\n")
+	write(t, filepath.Join(l.global, "teams", "g", "team.yaml"),
+		"version: 1\nteam: g\nmembers:\n  - name: a\n    role: r\n    profile: localprof\n")
+
+	def, err := l.catalog().Definition("g", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Layer != source.LayerGlobal {
+		t.Fatalf("Layer = %q, want global", def.Layer)
+	}
+	if def.Graph.Members[0].Profile != "localprof" {
+		t.Errorf("the member names %q, want the project's profile localprof", def.Graph.Members[0].Profile)
+	}
+}
+
+// TestDefinitionWithNoNamePicksTheOneOrNamesTheCandidates: a missing name uses
+// the one project definition, or stops and names what there is to choose from.
+func TestDefinitionWithNoNamePicksTheOneOrNamesTheCandidates(t *testing.T) {
+	l := newLayers(t)
+	l.writeTeam(t, source.LayerLocal, "one")
+	def, err := l.catalog().Definition("", "")
+	if err != nil || def.Name != "one" {
+		t.Fatalf("Definition(\"\") = %v, %v; want the one project definition", def, err)
+	}
+
+	l.writeTeam(t, source.LayerLocal, "two")
+	_, err = l.catalog().Definition("", "")
+	if err == nil {
+		t.Fatal("two project definitions with no name did not stop")
+	}
+	for _, want := range []string{"one", "two"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error %q does not name the candidate %q", err, want)
+		}
+	}
+}

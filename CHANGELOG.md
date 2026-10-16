@@ -82,6 +82,35 @@
   rule the panel cannot open says so in the right panel, in one line, instead of
   leaving the screen unchanged.
 
+### Removed
+
+- **`--local` and `--global` are gone from the team commands**: a team
+  definition name resolves to the project's own definition first, then the
+  global one, so nobody picks a layer. `hergy new` writes into the project's
+  `.hergy/` when hergy runs inside a git repository, and into the global layer
+  (`~/.config/hergy/`) outside one. Typing `--local` or `--global` on any
+  command stops with a sentence that says so.
+
+  Before:
+
+  ```sh
+  hergy up agile-dev --global
+  hergy new agile-dev --local
+  ```
+
+  After:
+
+  ```sh
+  hergy up agile-dev          # the project's own definition wins, else the global one
+  hergy new agile-dev         # into .hergy/ inside a git repository, into ~/.config/hergy/ outside one
+  ```
+
+  To pick the global definition when a project definition of the same name
+  exists, rename one of the two, or remove the project's copy. A team
+  definition of the global layer now reads the project's `profiles.yaml` too
+  (under the global one). A member's embedded `hergy hire` command no longer
+  carries a layer flag.
+
 ## 0.5.0 - 2026-10-16
 
 ### Added
