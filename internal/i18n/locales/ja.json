@@ -464,7 +464,6 @@
   "web.diff.member_never": "%s: このメンバーには、まだプロンプトを渡していません。",
   "web.diff.member_same": "%s: 変化はありません",
   "web.frame.title": "%s - hergy",
-  "web.frame.brand": "規則エディタ",
   "web.frame.nav": "画面",
   "web.frame.layer": "表示する層",
   "web.frame.layer.note.local": "（このプロジェクト）",
