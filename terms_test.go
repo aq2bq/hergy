@@ -117,7 +117,7 @@ var glossary = []term{
 		id:       "kind",
 		english:  "kind",
 		japanese: "kind",
-		meaning:  "the kind of agent (エージェントの種類) a profile starts: claude, codex or opencode; written in a profile, not on a member, and the Japanese text is kind too",
+		meaning:  "the kind of agent (エージェントの種類) a profile starts, for example claude, codex or opencode (hergy keeps no closed list); written in a profile, not on a member, and the Japanese text is kind too",
 	},
 	{
 		id:       "role",
@@ -173,7 +173,7 @@ var glossary = []term{
 		id:       "node",
 		english:  "node",
 		japanese: "ノード",
-		meaning:  "who receives and hands on the turn: the human, a member, or a worker",
+		meaning:  "who receives and hands on the turn; today the human, a member, or a worker, and more kinds can be added",
 	},
 	{
 		id:       "edge",
