@@ -13,7 +13,7 @@ import (
 // reads the raised version as the change being handed over.
 func TestBumpRaisesTheVersionAndKeepsTheDocument(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n")
@@ -69,7 +69,7 @@ func TestBumpRaisesTheVersionAndKeepsTheDocument(t *testing.T) {
 // raising it writes 1.
 func TestBumpWritesTheFirstVersion(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
@@ -102,7 +102,7 @@ func TestBumpWritesTheFirstVersion(t *testing.T) {
 // the two texts are the same, so there is no change to hand over.
 func TestBumpRefusesADocumentThatHasNotMoved(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
@@ -129,7 +129,7 @@ func TestBumpRefusesADocumentThatHasNotMoved(t *testing.T) {
 // version is ahead of the one the launch that read the document read.
 func TestBumpRefusesASecondRaiseFromAStalePage(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
@@ -167,7 +167,7 @@ func TestBumpRefusesASecondRaiseFromAStalePage(t *testing.T) {
 // it: the record is the only thing that says a document moved.
 func TestBumpRefusesADocumentTheRecordDoesNotHold(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	dir := filepath.Join(f.proj, ".hergy", "teams", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
@@ -207,7 +207,7 @@ members:
 // do not read, and the file is left as it was.
 func TestBumpRefusesAPathNoMemberReads(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	stray := filepath.Join(f.proj, ".hergy", "teams", "demo", "stray.yaml")
 	writeFile(t, stray, "version: 1\nrevision: 1\n")
 	before := readRule(t, stray)
@@ -224,7 +224,7 @@ func TestBumpRefusesAPathNoMemberReads(t *testing.T) {
 // went away says so rather than writing anything.
 func TestBumpOfAFileThatIsNotThereIsAnError(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	gone := filepath.Join(f.proj, ".hergy", "teams", "demo", "gone.yaml")
 
 	if _, err := recordPort(t).Bump(web.LayerLocal, gone); err == nil {

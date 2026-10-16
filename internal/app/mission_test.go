@@ -18,7 +18,7 @@ func missionTeam(t *testing.T, f *fixture, mission string) {
 	t.Helper()
 	starter := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	if _, err := os.Stat(starter); err != nil {
-		mustRun(t, "new", "demo", "--local")
+		mustRun(t, "new", "demo")
 	}
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	body := "version: 1\n" + mission +

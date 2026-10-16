@@ -11,7 +11,7 @@ mutation:
   timeout_coefficient: 10
   packages:
     internal/cheat: 70      # 実測 75.0
-    internal/config: 80     # 実測 83.2
+    internal/definition: 85 # 実測 90.1（段 3 で config から移した読み）
     internal/herdr: 95      # 実測 100
     internal/herdrcli: 70   # 実測 75.0
     internal/i18n: 90       # 実測 93.3
@@ -28,11 +28,11 @@ fuzz:
   targets:
     - package: internal/options
       name: FuzzParse
-    - package: internal/config
-      name: FuzzParseTeam
-    - package: internal/config
+    - package: internal/definition
+      name: FuzzRead
+    - package: internal/profile
       name: FuzzParseProfiles
-    - package: internal/config
+    - package: internal/team
       name: FuzzParseConfig
     # 規則の書き戻し（Emit）: 読み直して同じ Document・同じ render になること（d-cbac）。
     - package: internal/rules

@@ -54,12 +54,15 @@ func setsValue(set func(o *Options, value string)) func(*Options, string) error 
 }
 
 var (
-	flagDry    = &Flag{Name: "dry", Alias: []string{"dry-run"}, Set: sets(func(o *Options) { o.Dry = true })}
-	flagJSON   = &Flag{Name: "json", Set: sets(func(o *Options) { o.JSON = true })}
-	flagAI     = &Flag{Name: "ai", Set: sets(func(o *Options) { o.AI = true })}
-	flagAll    = &Flag{Name: "all", Set: sets(func(o *Options) { o.All = true })}
-	flagGlobal = &Flag{Name: "global", Set: sets(func(o *Options) { o.Layer = "global" })}
-	flagLocal  = &Flag{Name: "local", Set: sets(func(o *Options) { o.Layer = "local" })}
+	flagDry  = &Flag{Name: "dry", Alias: []string{"dry-run"}, Set: sets(func(o *Options) { o.Dry = true })}
+	flagJSON = &Flag{Name: "json", Set: sets(func(o *Options) { o.JSON = true })}
+	flagAI   = &Flag{Name: "ai", Set: sets(func(o *Options) { o.AI = true })}
+	flagAll  = &Flag{Name: "all", Set: sets(func(o *Options) { o.All = true })}
+	// --global and --local are gone (段 3): the parser still knows them, so a
+	// person who types one is stopped with the sentence that says so, rather
+	// than with "unknown option". Nothing is set; validateValues refuses them.
+	flagGlobal = &Flag{Name: "global", Set: sets(func(*Options) {})}
+	flagLocal  = &Flag{Name: "local", Set: sets(func(*Options) {})}
 
 	flagDir = &Flag{Name: "dir", Short: "C", Value: text("<dir>", "<ディレクトリ>"),
 		Set: setsValue(func(o *Options, v string) { o.Dir = v })}

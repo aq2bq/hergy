@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
@@ -189,7 +189,7 @@ const paneBusy = "agent_pane_busy"
 
 // Start starts the member's agent in its pane. Herdr has no command that waits
 // for a new pane's shell, so a busy pane is tried again until the timeout.
-func (h *Herdr) Start(member *config.Member, pane string, timeoutMS int) error {
+func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) error {
 	args := []string{"agent", "start", member.Name, "--kind", member.Kind, "--pane", pane,
 		"--timeout", fmt.Sprintf("%d", timeoutMS), "--"}
 	args = append(args, member.Args...)

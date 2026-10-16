@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 	"github.com/aq2bq/hergy/internal/web/profileview"
 )
@@ -43,16 +43,15 @@ func (p servePort) Profiles(layer string) []profileview.Profile {
 	return out
 }
 
-// Uses is the profiles a team definition of one layer ends up with, by the rule
-// team.Env.LoadProfiles reads: the global layer's profiles, with the local
-// layer's laid over them, and only for a local team definition. Each one says
-// which layer it came from and whether it overrides the other layer's profile
-// of that name.
+// Uses is the profiles a team definition ends up with, by the one way a name is
+// looked up (K1): the global layer's profiles, with the local layer's laid over
+// them, whatever layer the definition sits in. Each one says which layer it came
+// from and whether it overrides the other layer's profile of that name.
 //
-// The overlay itself is Env.LoadProfiles's, not repeated here: this reads which
+// The overlay itself is catalog.Profiles's, not repeated here: this reads which
 // layer each name came from out of the two files, and nothing else.
-func (p servePort) Uses(layer string) []profileview.Profile {
-	merged, _, err := p.env.LoadProfiles(layer)
+func (p servePort) Uses(_ string) []profileview.Profile {
+	merged, _, err := p.catalog().Profiles()
 	if err != nil {
 		// A profiles.yaml that does not read holds no profile for a team
 		// either, so the screen shows none rather than stopping.
@@ -61,21 +60,17 @@ func (p servePort) Uses(layer string) []profileview.Profile {
 	local := p.layerProfiles(web.LayerLocal)
 	global := p.layerProfiles(web.LayerGlobal)
 	names := sortedProfileNames(merged)
-	// A local team definition reads its project's profiles over the global ones,
-	// and the screen says which is which by listing the project's own first, the
-	// way the prototype does (試作 profilesFor). A global definition reads the
-	// global layer alone, so name order is all there is.
-	if layer == web.LayerLocal {
-		slices.SortStableFunc(names, func(a, b string) int {
-			fromA, _ := profileOrigin(layer, a, local, global)
-			fromB, _ := profileOrigin(layer, b, local, global)
-			return originRank(fromA) - originRank(fromB)
-		})
-	}
+	// The project's own profiles come first, the way the prototype does
+	// (試作 profilesFor).
+	slices.SortStableFunc(names, func(a, b string) int {
+		fromA, _ := profileOrigin(a, local, global)
+		fromB, _ := profileOrigin(b, local, global)
+		return originRank(fromA) - originRank(fromB)
+	})
 	out := make([]profileview.Profile, 0, len(merged))
 	for _, name := range names {
 		profile := merged[name]
-		from, over := profileOrigin(layer, name, local, global)
+		from, over := profileOrigin(name, local, global)
 		out = append(out, profileview.Profile{
 			Name:  profile.Name,
 			Kind:  profile.Kind,
@@ -88,8 +83,8 @@ func (p servePort) Uses(layer string) []profileview.Profile {
 	return out
 }
 
-// originRank orders the profiles a local team definition ends up with: its own
-// project's first, then the global layer's.
+// originRank orders the profiles a team definition ends up with: the project's
+// own first, then the global layer's.
 func originRank(from string) int {
 	if from == web.LayerLocal {
 		return 0
@@ -98,14 +93,9 @@ func originRank(from string) int {
 }
 
 // profileOrigin is which layer a profile a team definition uses came from, and
-// whether it overrides the other layer's profile of that name. A global team
-// definition reads the global layer alone, so every profile is the global
-// layer's; a local one takes the local profile of a name the local file holds,
-// which overrides the global one when both hold it.
-func profileOrigin(layer, name string, local, global map[string]config.Profile) (from string, over bool) {
-	if layer != web.LayerLocal {
-		return web.LayerGlobal, false
-	}
+// whether it overrides the other layer's profile of that name: the local profile
+// of a name the local file holds wins over the global one (K1).
+func profileOrigin(name string, local, global map[string]profile.Profile) (from string, over bool) {
 	if _, ok := local[name]; ok {
 		_, over := global[name]
 		return web.LayerLocal, over
@@ -116,13 +106,13 @@ func profileOrigin(layer, name string, local, global map[string]config.Profile) 
 // layerProfiles reads one layer's own profiles.yaml, by name. A layer with no
 // file, or a file that does not read, holds no profile rather than stopping the
 // screen.
-func (p servePort) layerProfiles(layer string) map[string]config.Profile {
+func (p servePort) layerProfiles(layer string) map[string]profile.Profile {
 	path := p.profilesPath(layer)
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
-	profiles, err := config.ParseProfiles(string(text), path)
+	profiles, err := profile.ParseProfiles(string(text), path)
 	if err != nil {
 		return nil
 	}
@@ -154,7 +144,7 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 		return profileview.Source{Broken: breakLine(p.env, path, err)}
 	}
 	source := profileview.Source{Text: string(text), Hash: hashText(string(text)), Exists: true}
-	if _, err := config.ParseProfiles(string(text), path); err != nil {
+	if _, err := profile.ParseProfiles(string(text), path); err != nil {
 		source.Broken = breakLine(p.env, path, err)
 	}
 	return source
@@ -168,7 +158,7 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 // written (r-daf8).
 func (p servePort) CheckProfiles(layer, text string) string {
 	path := p.profilesPath(layer)
-	if _, err := config.ParseProfiles(text, path); err != nil {
+	if _, err := profile.ParseProfiles(text, path); err != nil {
 		return breakLine(p.env, path, err)
 	}
 	if reason := p.checkTeamsReadProfiles(layer, path, text); reason != "" {
@@ -188,35 +178,40 @@ func (p servePort) CheckProfiles(layer, text string) string {
 // already broken on disk says so on its own screen and is left out here: this
 // check speaks about the change and nothing else.
 func (p servePort) checkTeamsReadProfiles(layer, path, text string) string {
-	edit := team.ProfilesEdit{Path: path, Text: text}
+	edit := catalog.ProfilesEdit{Path: path, Text: text}
+	cat := p.catalog()
 	layers := []string{layer}
 	if layer == web.LayerGlobal {
 		layers = append(layers, web.LayerLocal)
 	}
 	for _, build := range layers {
-		for _, row := range p.env.List() {
+		for _, row := range cat.Definitions() {
 			if !inLayer(row, build) {
 				continue
 			}
-			resolved, err := p.env.Resolve(row.Name, build)
+			def, err := cat.Definition(row.Name, build)
 			if err != nil {
 				continue
 			}
-			onDisk, err := p.env.BuildConfig(resolved, source.Disk{}, "")
+			onDisk, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, def, def.Name)
 			if err != nil {
 				continue
 			}
 			// The names the definition will see once the file is written: the
 			// layer of the definition, read with the edit in place.
-			read, _, err := p.env.LoadProfilesEdit(build, edit)
+			read, _, err := cat.ProfilesEdit(edit)
 			if err != nil {
 				continue
 			}
 			if name, place := firstProfileLeftOut(onDisk, read); name != "" {
 				return i18n.Errorf("web.profiles.error.team_needs_profile", place, name, row.Name).Error()
 			}
-			if _, err := p.env.BuildConfigEdit(resolved, source.Disk{}, "", edit); err != nil {
-				return breakLine(p.env, resolved.TeamYAMLPath, err)
+			editedDef, err := cat.DefinitionEdit(row.Name, build, edit)
+			if err != nil {
+				return breakLine(p.env, def.TeamYAML, err)
+			}
+			if _, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, editedDef, editedDef.Name); err != nil {
+				return breakLine(p.env, def.TeamYAML, err)
 			}
 		}
 	}
@@ -227,18 +222,15 @@ func (p servePort) checkTeamsReadProfiles(layer, path, text string) string {
 // file being saved does not hold, with where it is used: a member, or a worker of
 // the member named by its purpose. It answers the first in the order the members
 // are written. A definition that names no such profile answers "".
-func firstProfileLeftOut(cfg *config.Config, profiles map[string]config.Profile) (name, place string) {
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
+func firstProfileLeftOut(r *resolved, profiles map[string]profile.Profile) (name, place string) {
+	for i := range r.starts {
+		member := &r.starts[i]
 		if member.Profile != "" {
 			if _, ok := profiles[member.Profile]; !ok {
 				return member.Profile, member.Name
 			}
 		}
-		if member.MaySpawn == nil {
-			continue
-		}
-		for _, worker := range member.MaySpawn.Workers {
+		for _, worker := range member.Workers {
 			if _, ok := profiles[worker.Profile]; !ok {
 				return worker.Profile, member.Name + " / " + worker.Purpose
 			}
@@ -277,7 +269,7 @@ func (p servePort) WriteProfiles(layer, text, hash string) error {
 
 // sortedProfileNames is the names of a read profiles.yaml, in order: the map is
 // not ordered, and the screen shows the profiles by name.
-func sortedProfileNames(profiles map[string]config.Profile) []string {
+func sortedProfileNames(profiles map[string]profile.Profile) []string {
 	return slices.Sorted(maps.Keys(profiles))
 }
 

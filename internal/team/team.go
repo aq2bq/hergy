@@ -1,22 +1,19 @@
-// Package team resolves a team name to a team.yaml through the layers, and
-// builds the config from it. It is the layer-aware part of the CLI.
-//
-// Layers, in order: global -> local. A team lives in one team.yaml; when the
-// same name exists in both global and local, local wins.
+// Package team is where a team's files live for this invocation: the project
+// root, the two layer directories, the language, and the team itself (I1, I2).
+// The lookup of a name by layer is the catalog's.
 package team
 
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"os/exec" //nolint:depguard // gitRoot asks git for the project root; it is not a herdr call (d-ddd2 D2)
 	"path/filepath"
-	"sort"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/config"
-	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/definition"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -25,6 +22,9 @@ type Env struct {
 	ProjectRoot string // the git root, or the current directory
 	GlobalDir   string // $XDG_CONFIG_HOME/hergy, or ~/.config/hergy
 	LocalDir    string // <project>/.hergy
+	// inRepo says the project root is a real git repository, which is what tells
+	// hergy new where to write (K2).
+	inRepo bool
 }
 
 // NewEnv finds the project root and the global config directory.
@@ -33,11 +33,12 @@ func NewEnv() (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	root := gitRoot(cwd)
+	root, inRepo := gitRoot(cwd)
 	return Env{
 		ProjectRoot: root,
 		GlobalDir:   globalDir(),
 		LocalDir:    filepath.Join(root, ".hergy"),
+		inRepo:      inRepo,
 	}, nil
 }
 
@@ -50,6 +51,15 @@ func globalDir() string {
 		home = "."
 	}
 	return filepath.Join(home, ".config", "hergy")
+}
+
+// InRepo reports whether the project root is inside a git repository. hergy new
+// writes to the local layer then, and to the global layer otherwise (K2).
+func (e Env) InRepo() bool { return e.inRepo }
+
+// Catalog builds the lookup over this environment's two layers.
+func (e Env) Catalog(reader source.Reader) *catalog.Catalog {
+	return catalog.New(e.GlobalDir, e.LocalDir, e.ProjectRoot, reader, e.Display)
 }
 
 // Display is how a path is shown to a person: relative to the project root when
@@ -99,7 +109,7 @@ func Lang() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return config.ParseConfig(string(text), path)
+	return ParseConfig(string(text), path)
 }
 
 // EnsureGlobalConfig writes the global config.yaml when it is missing, so a
@@ -116,7 +126,7 @@ func (e Env) EnsureGlobalConfig(lang string) (string, bool, error) {
 	if err := os.MkdirAll(e.GlobalDir, 0o755); err != nil {
 		return path, false, err
 	}
-	if err := os.WriteFile(path, []byte(config.GlobalYAML(lang)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(GlobalYAML(lang)), 0o644); err != nil {
 		return path, false, err
 	}
 	return path, true, nil
@@ -129,24 +139,27 @@ func (e Env) WithProject(dir string) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	e.ProjectRoot = abs
-	e.LocalDir = filepath.Join(abs, ".hergy")
+	root, inRepo := gitRoot(abs)
+	e.ProjectRoot = root
+	e.LocalDir = filepath.Join(root, ".hergy")
+	e.inRepo = inRepo
 	return e, nil
 }
 
-func gitRoot(dir string) string {
+// gitRoot is the git root of dir, and whether dir is inside a repository at all.
+func gitRoot(dir string) (string, bool) {
 	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel") //nolint:gosec // G204: dir is the cwd, the command is fixed
 	out, err := cmd.Output()
 	if err != nil {
-		return dir
+		return dir, false
 	}
 	if root := strings.TrimSpace(string(out)); root != "" {
-		return root
+		return root, true
 	}
-	return dir
+	return dir, false
 }
 
-// TeamDir is where a team's files live in one layer.
+// TeamDir is where a team definition's files live in one layer.
 func (e Env) TeamDir(name, layer string) string {
 	if layer == source.LayerLocal {
 		return filepath.Join(e.LocalDir, "teams", name)
@@ -154,300 +167,38 @@ func (e Env) TeamDir(name, layer string) string {
 	return filepath.Join(e.GlobalDir, "teams", name)
 }
 
-// Paths to a team's team.yaml in each layer.
-func (e Env) localTeamYAML(name string) string {
-	return filepath.Join(e.TeamDir(name, source.LayerLocal), "team.yaml")
-}
-
-func (e Env) globalTeamYAML(name string) string {
-	return filepath.Join(e.TeamDir(name, source.LayerGlobal), "team.yaml")
-}
-
-// Resolved is where a team name was found.
-type Resolved struct {
-	Name           string
-	Layer          string
-	TeamYAMLPath   string
-	TeamDir        string
-	GlobalTeamYAML string // set when the global layer also defines this name
-	LocalTeamYAML  string // set when the local layer also defines this name
-}
-
-// Resolve finds a team by name. force is "", "global" or "local".
-func (e Env) Resolve(name, force string) (*Resolved, error) {
-	if name == "" {
-		return e.resolveDefault(force)
-	}
-	local := e.localTeamYAML(name)
-	global := e.globalTeamYAML(name)
-	hasLocal := isFile(local)
-	hasGlobal := isFile(global)
-
-	resolved := &Resolved{Name: name}
-	if hasGlobal {
-		resolved.GlobalTeamYAML = global
-	}
-	if hasLocal {
-		resolved.LocalTeamYAML = local
-	}
-
-	switch force {
-	case "local":
-		if !hasLocal {
-			return nil, i18n.Errorf("error.team_not_local", name, e.Display(local), e.Display(e.LocalDir))
-		}
-		resolved.Layer = source.LayerLocal
-		resolved.TeamYAMLPath = local
-	case "global":
-		if !hasGlobal {
-			return nil, i18n.Errorf("error.team_not_global", name, e.Display(global), e.Display(e.GlobalDir))
-		}
-		resolved.Layer = source.LayerGlobal
-		resolved.TeamYAMLPath = global
-	default:
-		switch {
-		case hasLocal:
-			resolved.Layer = source.LayerLocal
-			resolved.TeamYAMLPath = local
-		case hasGlobal:
-			resolved.Layer = source.LayerGlobal
-			resolved.TeamYAMLPath = global
-		default:
-			return nil, e.notFound(name, local, global)
-		}
-	}
-	resolved.TeamDir = filepath.Dir(resolved.TeamYAMLPath)
-	return resolved, nil
-}
-
-// resolveDefault is what a missing team name does: the single local team, or a
-// list of candidates to choose from.
-func (e Env) resolveDefault(force string) (*Resolved, error) {
-	switch force {
-	case "global":
-		names := e.teamNames(e.GlobalDir)
-		if len(names) == 1 {
-			return e.Resolve(names[0], "global")
-		}
-		return nil, e.candidates(i18n.Tf("error.global_count", len(names)))
-	case "local":
-		names := e.teamNames(e.LocalDir)
-		if len(names) == 1 {
-			return e.Resolve(names[0], "local")
-		}
-		return nil, e.candidates(i18n.Tf("error.local_count", len(names)))
-	default:
-		names := e.teamNames(e.LocalDir)
-		if len(names) == 1 {
-			return e.Resolve(names[0], "local")
-		}
-		return nil, e.candidates(i18n.Tf("error.need_team_name", len(names)))
-	}
-}
-
-func (e Env) notFound(name, local, global string) error {
-	var b strings.Builder
-	fmt.Fprintf(&b, i18n.T("error.team_not_found"), name)
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.local"), e.Display(local))
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.global"), e.Display(global))
-	if candidates := e.candidatesList(); len(candidates) > 0 {
-		fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(candidates, i18n.T("list.separator")))
-		fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(candidates)))
-	}
-	return fmt.Errorf("%s", b.String())
-}
-
-// nextCommand is the command that moves a not-found error on: boot the one
-// candidate, or list the teams when the choice is not obvious.
-func nextCommand(candidates []string) string {
-	if len(candidates) == 1 {
-		return "up " + candidates[0]
-	}
-	return "ls"
-}
-
-func (e Env) candidates(head string) error {
-	list := e.candidatesList()
-	if len(list) == 0 {
-		return i18n.Errorf("error.no_candidates", head, e.Display(e.GlobalDir), e.Display(e.LocalDir))
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s", head)
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(list, i18n.T("list.separator")))
-	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
-	return fmt.Errorf("%s", b.String())
-}
-
-// candidatesList is every team name visible in either layer.
-func (e Env) candidatesList() []string {
-	seen := map[string]bool{}
-	var names []string
-	for _, name := range append(e.teamNames(e.LocalDir), e.teamNames(e.GlobalDir)...) {
-		if !seen[name] {
-			seen[name] = true
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	return names
-}
-
-// teamNames lists the team directories under a layer that have a team.yaml.
-func (e Env) teamNames(dir string) []string {
-	matches, err := filepath.Glob(filepath.Join(dir, "teams", "*", "team.yaml"))
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, match := range matches {
-		names = append(names, filepath.Base(filepath.Dir(match)))
-	}
-	sort.Strings(names)
-	return names
-}
-
-// Listing is one row of `hergy ls`.
-type Listing struct {
+// Team is one team: the definition it was booted from and the name it runs under
+// (I1, I2). The definition is the type; a team is one run of it, and the name it
+// runs under is its own (--as, else the definition's).
+type Team struct {
 	Name       string
-	Local      bool
-	Global     bool
-	LocalPath  string
-	GlobalPath string
+	Definition *definition.Definition
 }
 
-// List returns the visible teams, local and global, by name.
-func (e Env) List() []Listing {
-	byName := map[string]*Listing{}
-	add := func(name string, local bool, path string) {
-		row, ok := byName[name]
-		if !ok {
-			row = &Listing{Name: name}
-			byName[name] = row
-		}
-		if local {
-			row.Local = true
-			row.LocalPath = path
-		} else {
-			row.Global = true
-			row.GlobalPath = path
-		}
-	}
-	for _, name := range e.teamNames(e.LocalDir) {
-		add(name, true, e.localTeamYAML(name))
-	}
-	for _, name := range e.teamNames(e.GlobalDir) {
-		add(name, false, e.globalTeamYAML(name))
-	}
-	rows := make([]Listing, 0, len(byName))
-	for _, row := range byName {
-		rows = append(rows, *row)
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
-	return rows
+type rawConfig struct {
+	Version *int   `yaml:"version"`
+	Lang    string `yaml:"lang"`
 }
 
-// ProfilesEdit is one layer's profiles.yaml as an edit that is not on disk yet:
-// the file's path and the text a screen would write there. The zero value is
-// "no edit", which is what every reader but a screen's check passes.
-type ProfilesEdit struct {
-	Path string
-	Text string
+// ParseConfig reads the global config.yaml and returns the language it names, or
+// "" when it names none. It is held to the same strictness as team.yaml: the
+// version must be present and 1, and any unknown key is an error with a reason.
+func ParseConfig(text, path string) (string, error) {
+	if _, err := profile.ReadVersion(text, "config.yaml", path); err != nil {
+		return "", err
+	}
+	var raw rawConfig
+	if err := profile.StrictDecode(text, &raw); err != nil {
+		return "", fmt.Errorf("%s: %s", path, profile.CleanError(err))
+	}
+	return raw.Lang, nil
 }
 
-// BuildConfig reads the resolved team.yaml and the profiles.yaml files its layer
-// may use, and parses them into a Config. runName is the team name at run time
-// (--as); empty means the resolved name.
-func (e Env) BuildConfig(resolved *Resolved, reader source.Reader, runName string) (*config.Config, error) {
-	return e.BuildConfigEdit(resolved, reader, runName, ProfilesEdit{})
-}
-
-// BuildConfigEdit builds one team the way BuildConfig does, with edit's
-// profiles.yaml in place of what is on disk. It is how a screen checks an edit
-// before it writes it (r-daf8): the build hergy validate runs, over the file the
-// screen would write. A team that reads the edited layer's profiles is the one
-// that can be affected, so a caller passes the layer's own path.
-func (e Env) BuildConfigEdit(resolved *Resolved, reader source.Reader, runName string, edit ProfilesEdit) (*config.Config, error) {
-	text, err := os.ReadFile(resolved.TeamYAMLPath)
-	if err != nil {
-		return nil, err
-	}
-	profiles, profilesPaths, err := e.loadProfiles(resolved.Layer, edit)
-	if err != nil {
-		return nil, err
-	}
-	executable, err := os.Executable()
-	if err != nil || executable == "" {
-		executable = "hergy"
-	}
-	return config.Parse(config.Input{
-		YAML:           string(text),
-		TeamName:       resolved.Name,
-		RunName:        runName,
-		Layer:          resolved.Layer,
-		TeamYAMLPath:   resolved.TeamYAMLPath,
-		TeamDir:        resolved.TeamDir,
-		Profiles:       profiles,
-		ProfilesYAML:   strings.Join(profilesPaths, ", "),
-		Base:           e.ProjectRoot,
-		Reader:         reader,
-		Executable:     executable,
-		GlobalTeamYAML: resolved.GlobalTeamYAML,
-		LocalTeamYAML:  resolved.LocalTeamYAML,
-	})
-}
-
-// LoadProfiles reads the profiles a team of the layer may name: the global
-// profiles.yaml, and for a local team the project's profiles.yaml over it, so
-// a project carries its own profiles and a local one wins over a global one of
-// the same name. A global team never reads the project's. Either file may be
-// absent, which is fine when every member spells its engine out inline. The
-// files read are returned local first.
-func (e Env) LoadProfiles(layer string) (map[string]config.Profile, []string, error) {
-	return e.loadProfiles(layer, ProfilesEdit{})
-}
-
-// LoadProfilesEdit reads the profiles a team of the layer may name, with edit's
-// profiles.yaml in place of what is on disk: LoadProfiles for a screen that has
-// not written its file yet. A caller asks this for the layer a team definition
-// reads, so it sees the names the definition will see once the edit lands.
-func (e Env) LoadProfilesEdit(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
-	return e.loadProfiles(layer, edit)
-}
-
-// loadProfiles is LoadProfiles with one profiles.yaml replaced by an edit: the
-// file at the edit's path answers with the edit's text whether or not it is on
-// disk, so a layer whose profiles.yaml does not exist yet is built as if the
-// screen had already written it.
-func (e Env) loadProfiles(layer string, edit ProfilesEdit) (map[string]config.Profile, []string, error) {
-	dirs := []string{e.GlobalDir}
-	if layer == source.LayerLocal {
-		dirs = append(dirs, e.LocalDir)
-	}
-	profiles := map[string]config.Profile{}
-	var paths []string
-	for _, dir := range dirs {
-		path := filepath.Join(dir, "profiles.yaml")
-		var text string
-		switch {
-		case edit.Path != "" && path == edit.Path:
-			text = edit.Text
-		case isFile(path):
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return nil, nil, err
-			}
-			text = string(b)
-		default:
-			continue
-		}
-		more, err := config.ParseProfiles(text, path)
-		if err != nil {
-			return nil, nil, err
-		}
-		maps.Copy(profiles, more)
-		paths = append([]string{path}, paths...)
-	}
-	return profiles, paths, nil
+// GlobalYAML is the global config.yaml hergy new writes when the file is
+// missing: the version every settings file carries, and the language that run
+// displayed in. It holds exactly the two keys ParseConfig reads.
+func GlobalYAML(lang string) string {
+	return fmt.Sprintf("version: 1\nlang: %s\n", lang)
 }
 
 func isFile(path string) bool {

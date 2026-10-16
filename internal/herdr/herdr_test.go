@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
@@ -49,7 +49,7 @@ func TestStartRetriesWhileThePaneIsBusy(t *testing.T) {
 		}
 		return map[string]any{}, nil
 	}
-	member := &config.Member{Name: "worker", Kind: "claude", Args: []string{"--flag"}}
+	member := &definition.Start{Name: "worker", Kind: "claude", Args: []string{"--flag"}}
 
 	if err := New(port).Start(member, "p1", 30000); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -69,7 +69,7 @@ func TestStartGivesUpAfterTheTimeout(t *testing.T) {
 	port := &fakePort{reply: alwaysReply(herdrFailure("agent_pane_busy"))}
 
 	start := time.Now()
-	err := New(port).Start(&config.Member{Name: "worker", Kind: "claude"}, "p1", timeoutMS)
+	err := New(port).Start(&definition.Start{Name: "worker", Kind: "claude"}, "p1", timeoutMS)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -92,7 +92,7 @@ func TestStartGivesUpAfterTheTimeout(t *testing.T) {
 func TestStartDoesNotRetryAnotherError(t *testing.T) {
 	port := &fakePort{reply: alwaysReply(herdrFailure("agent_kind_unknown"))}
 
-	err := New(port).Start(&config.Member{Name: "worker", Kind: "claude"}, "p1", 30000)
+	err := New(port).Start(&definition.Start{Name: "worker", Kind: "claude"}, "p1", 30000)
 
 	if err == nil {
 		t.Fatal("Start returned no error")

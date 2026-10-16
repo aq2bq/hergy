@@ -16,14 +16,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/cheat"
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/profile"
+	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
@@ -136,7 +139,7 @@ func fail(stderr io.Writer, err error) {
 func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	switch opts.Kind {
 	case options.Ls:
-		return runLs(env, opts, stdout)
+		return runLs(env, stdout)
 	case options.Show:
 		return runShow(env, opts, stdout)
 	case options.New:
@@ -162,47 +165,161 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	}
 }
 
-// resolveDefinition finds a team definition by name (up, show) and builds its
-// config. opts.As names the team at run time; empty means the definition name.
-func resolveDefinition(env team.Env, opts *options.Options) (*team.Resolved, *config.Config, error) {
-	resolved, err := env.Resolve(opts.Team, opts.Layer)
+// resolved is one team definition read for a command: the team (the definition
+// and the name it runs under), the members as starts, and where the values came
+// from.
+type resolved struct {
+	team         team.Team
+	starts       []definition.Start
+	profiles     map[string]profile.Profile
+	profilesYAML string
+}
+
+// readDefinition reads a team definition by name (up, show) and builds its
+// members. layer forces one layer; empty is the one way, local first. runName
+// names the team at run time; empty means the definition name.
+func readDefinition(cat *catalog.Catalog, base, name, layer, runName string) (*resolved, error) {
+	def, err := cat.Definition(name, layer)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	cfg, err := env.BuildConfig(resolved, source.Disk{}, opts.As)
+	if runName == "" {
+		runName = def.Name
+	}
+	return buildResolved(cat, source.Disk{}, base, def, runName)
+}
+
+// buildResolved builds the running members of one definition under a team name.
+// reader is what the prompt reads the rule files through; a screen's check hands
+// an edited file in place of the one on disk.
+func buildResolved(cat *catalog.Catalog, reader source.Reader, base string, def *definition.Definition, runName string) (*resolved, error) {
+	profiles, profilesYAML, err := cat.Profiles()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return resolved, cfg, nil
+	starts, err := startsOf(def, runName, base, profiles, reader)
+	if err != nil {
+		return nil, err
+	}
+	return &resolved{
+		team:         team.Team{Name: runName, Definition: def},
+		starts:       starts,
+		profiles:     profiles,
+		profilesYAML: profilesYAML,
+	}, nil
+}
+
+// startsOf builds the running members: the frame of each member, the engine its
+// profile names, and the prompt hergy hands it (a projection of the definition).
+func startsOf(def *definition.Definition, runName, base string, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
+	executable, err := os.Executable()
+	if err != nil || executable == "" {
+		executable = "hergy"
+	}
+	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader}
+	starts := make([]definition.Start, 0, len(def.Graph.Members))
+	for i := range def.Graph.Members {
+		node := &def.Graph.Members[i]
+		// herdr sees the member as "<team>-<member>"; the team name is checked
+		// short enough for this to fit, but a long member name can still
+		// overflow the limit.
+		herdr := runName + "-" + node.Name
+		if !profile.NamePattern.MatchString(herdr) {
+			return nil, i18n.Errorf("error.herdr_name_pattern", herdr)
+		}
+		built, err := prompt.Member(def, node, run)
+		if err != nil {
+			return nil, err
+		}
+		value := profiles[node.Profile]
+		starts = append(starts, definition.Start{
+			Name:    herdr,
+			Short:   node.Name,
+			Role:    node.Role,
+			Profile: node.Profile,
+			Kind:    value.Kind,
+			Args:    value.Args,
+			Env:     value.Env,
+			Cwd:     node.Cwd,
+			Prompt:  built.Text,
+			RoleDoc: built.Role,
+			HasRole: built.HasRole,
+			Read:    built.Read,
+			Workers: workersOf(def, node.Name),
+		})
+	}
+	return starts, nil
+}
+
+// workersOf is what one member may hire, from the graph's worker nodes.
+func workersOf(def *definition.Definition, member string) []definition.WorkerNode {
+	var out []definition.WorkerNode
+	for _, worker := range def.Graph.Workers {
+		if worker.From == member {
+			out = append(out, worker)
+		}
+	}
+	return out
+}
+
+// member finds one member as a start: by its herdr name first, then by its short
+// name.
+func (r *resolved) member(name string) (*definition.Start, error) {
+	for i := range r.starts {
+		if r.starts[i].Name == name || r.starts[i].Short == name {
+			return &r.starts[i], nil
+		}
+	}
+	return nil, i18n.Errorf("error.no_member", name)
+}
+
+// selectStarts returns every member, or only the named one.
+func (r *resolved) selectStarts(name string) ([]definition.Start, error) {
+	if name == "" {
+		return r.starts, nil
+	}
+	member, err := r.member(name)
+	if err != nil {
+		return nil, err
+	}
+	return []definition.Start{*member}, nil
+}
+
+// missionLine is the mission as one line, or "" when team.yaml writes none.
+func (r *resolved) missionLine() string {
+	line, _, _ := strings.Cut(r.team.Definition.Mission, "\n")
+	return strings.TrimSpace(line)
+}
+
+// usesProfiles reports whether any member reads a named profile, so the caller
+// shows profiles.yaml only when it is actually in effect.
+func (r *resolved) usesProfiles() bool {
+	return r.profilesYAML != "" && (len(r.starts) > 0 || len(r.team.Definition.Graph.Workers) > 0)
 }
 
 // resolveTeam finds a running team by its team name (down, status, refresh,
 // reprompt, hire) and builds the team definition it was booted from. An empty
 // name picks the one running team, or stops and names the candidates.
-func resolveTeam(env team.Env, opts *options.Options) (*team.Resolved, *config.Config, error) {
+func resolveTeam(cat *catalog.Catalog, base string, opts *options.Options) (*resolved, error) {
 	running, err := runningTeams()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	chosen, err := pickTeam(running, opts.Team)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return buildRunning(env, opts.Layer, chosen)
+	return buildRunning(cat, base, chosen)
 }
 
-// buildRunning resolves one running team's definition and builds the config
+// buildRunning resolves one running team's definition and builds the members
 // under the team's run name.
-func buildRunning(env team.Env, layer string, running team.Running) (*team.Resolved, *config.Config, error) {
-	resolved, err := env.Resolve(running.Definition, layer)
+func buildRunning(cat *catalog.Catalog, base string, running team.Running) (*resolved, error) {
+	def, err := cat.Definition(running.Definition, "")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	cfg, err := env.BuildConfig(resolved, source.Disk{}, running.Team)
-	if err != nil {
-		return nil, nil, err
-	}
-	return resolved, cfg, nil
+	return buildResolved(cat, source.Disk{}, base, def, running.Team)
 }
 
 // runningTeams reads herdr's tabs and this machine's launch record, and returns
@@ -315,7 +432,7 @@ func runningCandidates(running []team.Running) error {
 	return errors.New(b.String())
 }
 
-func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
+func runLs(env team.Env, stdout io.Writer) error {
 	field(stdout, label("local"), env.Display(env.LocalDir))
 	field(stdout, label("global"), env.Display(env.GlobalDir))
 	// The running teams, grouped by the team definition they were booted from.
@@ -327,34 +444,15 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 		}
 	}
 	shown := 0
-	for _, row := range env.List() {
-		var layer, path, other, note string
-		switch opts.Layer {
-		case "global":
-			if !row.Global {
-				continue
-			}
-			layer, path = source.LayerGlobal, row.GlobalPath
-			if row.Local {
-				note = i18n.T("value.overridden_local")
-			}
-		case "local":
-			if !row.Local {
-				continue
-			}
+	for _, row := range env.Catalog(source.Disk{}).Definitions() {
+		var layer, path, other string
+		if row.Local {
 			layer, path = source.LayerLocal, row.LocalPath
 			if row.Global {
-				note = i18n.T("value.also_global")
+				other = row.GlobalPath
 			}
-		default:
-			if row.Local {
-				layer, path = source.LayerLocal, row.LocalPath
-				if row.Global {
-					other = row.GlobalPath
-				}
-			} else {
-				layer, path = source.LayerGlobal, row.GlobalPath
-			}
+		} else {
+			layer, path = source.LayerGlobal, row.GlobalPath
 		}
 		shown++
 		field(stdout, label("definition"), row.Name)
@@ -362,9 +460,6 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 		indentField(stdout, 1, label("path"), env.Display(path))
 		if other != "" {
 			indentField(stdout, 1, label("global"), env.Display(other))
-		}
-		if note != "" {
-			indentField(stdout, 1, label("note"), note)
 		}
 		if teams := running[row.Name]; len(teams) > 0 {
 			indentField(stdout, 1, label("running"), strings.Join(teams, i18n.T("list.separator")))
@@ -377,19 +472,20 @@ func runLs(env team.Env, opts *options.Options, stdout io.Writer) error {
 }
 
 func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolved, cfg, err := resolveDefinition(env, opts)
+	cat := env.Catalog(source.Disk{})
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
 	if err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, false)
-	if len(cfg.Docs) == 0 {
+	printHeader(stdout, r, env, false)
+	if len(r.team.Definition.Docs) == 0 {
 		field(stdout, label("document"), i18n.T("value.none"))
 	}
-	for _, doc := range cfg.Docs {
+	for _, doc := range r.team.Definition.Docs {
 		field(stdout, label("document"), env.Display(doc.Path))
 	}
-	for i := range cfg.Members {
-		printMember(stdout, cfg, &cfg.Members[i], env, false)
+	for i := range r.starts {
+		printMember(stdout, r, &r.starts[i], env, false)
 	}
 	return nil
 }
@@ -402,8 +498,10 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if !scaffold.NamePattern.MatchString(name) {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
+	// hergy new writes where the person is (K2): inside a git repository that
+	// is the project's own layer, and outside one the global layer.
 	layer := source.LayerGlobal
-	if opts.Layer == "local" {
+	if env.InRepo() {
 		layer = source.LayerLocal
 	}
 	dir := env.TeamDir(name, layer)
@@ -452,7 +550,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 // profiles.yaml, which is made when the layer has none yet. An existing file the
 // layer cannot read is an error rather than something to write over.
 func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
-	profiles, _, err := env.LoadProfiles(layer)
+	profiles, _, err := env.Catalog(source.Disk{}).Profiles()
 	if err != nil {
 		return "", err
 	}
@@ -464,10 +562,10 @@ func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
 		dir = env.LocalDir
 	}
 	path := filepath.Join(dir, "profiles.yaml")
-	all := map[string]config.Profile{}
+	all := map[string]profile.Profile{}
 	switch text, err := os.ReadFile(path); {
 	case err == nil:
-		if all, err = config.ParseProfiles(string(text), path); err != nil {
+		if all, err = profile.ParseProfiles(string(text), path); err != nil {
 			return "", err
 		}
 	case errors.Is(err, os.ErrNotExist):
@@ -477,12 +575,12 @@ func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
 	default:
 		return "", err
 	}
-	all[scaffold.ProfileName] = config.Profile{
+	all[scaffold.ProfileName] = profile.Profile{
 		Name: scaffold.ProfileName,
 		Kind: scaffold.ProfileKind,
 		Path: path,
 	}
-	text, err := config.EmitProfiles(all)
+	text, err := profile.EmitProfiles(all)
 	if err != nil {
 		return "", err
 	}
@@ -513,6 +611,7 @@ func writeScaffold(dir string, files []scaffold.File) error {
 // there, and whether anything shows they were kept. That count is not a break:
 // it changes no exit code.
 func runValidate(env team.Env, stdout io.Writer) error {
+	cat := env.Catalog(source.Disk{})
 	checked, problems := 0, 0
 	tally := &rules.Tally{}
 	var teams []teamSize
@@ -541,7 +640,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			}
 		}
 	}
-	rows := env.List()
+	rows := cat.Definitions()
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
 		for _, row := range rows {
 			var path string
@@ -557,12 +656,18 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				}
 				path = row.LocalPath
 			}
-			cfg, err := validateTeam(env, row.Name, layer)
+			r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
 			report(path, err)
 			if err == nil {
-				reportMission(stdout, cfg)
-				collectRules(tally, seenFiles, cfg)
-				team := sizeOf(cfg)
+				reportMission(stdout, r)
+				if layer == source.LayerGlobal && row.Local {
+					// The project's definition of this name is the one that is
+					// used, so the global one is hidden (I11); validate says so,
+					// where a person reading the global file finds it.
+					indentField(stdout, 1, label("warning"), i18n.Tf("validate.global_hidden", row.Name, row.Name))
+				}
+				collectRules(tally, seenFiles, r)
+				team := sizeOf(r)
 				team.name = env.Display(filepath.Dir(path))
 				teams = append(teams, team)
 			}
@@ -584,7 +689,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 // choice of kind, where I7 makes it a choice of engine settings; the name should
 // say the model or the settings instead. It stands under the file's own result
 // line, and moves no exit code: such a profile runs the same.
-func reportProfileNames(w io.Writer, profiles map[string]config.Profile) {
+func reportProfileNames(w io.Writer, profiles map[string]profile.Profile) {
 	for _, name := range slices.Sorted(maps.Keys(profiles)) {
 		if profiles[name].Kind == name {
 			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
@@ -597,11 +702,11 @@ func reportProfileNames(w io.Writer, profiles map[string]config.Profile) {
 // under the file's own result line, where a person reading that file finds it.
 // It moves no exit code: a team whose mission is missing or long boots the same,
 // the way a team over the provisional size does (n-9eea).
-func reportMission(w io.Writer, cfg *config.Config) {
+func reportMission(w io.Writer, r *resolved) {
 	switch {
-	case cfg.MissionLine() == "":
+	case r.missionLine() == "":
 		indentField(w, 1, label("warning"), i18n.T("validate.mission_missing"))
-	case strings.Contains(cfg.Mission, "\n"):
+	case strings.Contains(r.team.Definition.Mission, "\n"):
 		indentField(w, 1, label("warning"), i18n.T("validate.mission_multiline"))
 	}
 }
@@ -610,13 +715,13 @@ func reportMission(w io.Writer, cfg *config.Config) {
 // seen is shared across every team, so a file that two team definitions read is
 // counted once. Within one team, a member's role file comes first, then the
 // documents it reads.
-func collectRules(tally *rules.Tally, seen map[string]bool, cfg *config.Config) {
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
-		if member.HasRoleSource {
-			countRules(tally, seen, member.RoleSource)
+func collectRules(tally *rules.Tally, seen map[string]bool, r *resolved) {
+	for i := range r.starts {
+		member := &r.starts[i]
+		if member.HasRole {
+			countRules(tally, seen, member.RoleDoc)
 		}
-		for _, doc := range member.DocsRead {
+		for _, doc := range member.Read {
 			countRules(tally, seen, doc)
 		}
 	}
@@ -681,7 +786,7 @@ type teamSize struct {
 // sizeOf counts what one team definition hands each member and what the team
 // keeps. Each rule file is read and parsed once; a file two members read is
 // counted in the team's sources once, because a person maintains it once.
-func sizeOf(cfg *config.Config) teamSize {
+func sizeOf(r *resolved) teamSize {
 	parsed := map[string]*rules.Document{}
 	texts := map[string]string{}
 	load := func(doc source.Doc) *rules.Document {
@@ -704,14 +809,14 @@ func sizeOf(cfg *config.Config) teamSize {
 	}
 	var team teamSize
 	var size rules.TeamSize
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
+	for i := range r.starts {
+		member := &r.starts[i]
 		var read rules.MemberSize
-		files := make([]source.Doc, 0, len(member.DocsRead)+1)
-		if member.HasRoleSource {
-			files = append(files, member.RoleSource)
+		files := make([]source.Doc, 0, len(member.Read)+1)
+		if member.HasRole {
+			files = append(files, member.RoleDoc)
 		}
-		files = append(files, member.DocsRead...)
+		files = append(files, member.Read...)
 		for _, doc := range files {
 			if document := load(doc); document != nil {
 				read.Add(document)
@@ -772,7 +877,7 @@ func validateConfig(path string) error {
 	if err != nil {
 		return err
 	}
-	lang, err := config.ParseConfig(string(text), path)
+	lang, err := team.ParseConfig(string(text), path)
 	if err != nil {
 		return err
 	}
@@ -782,21 +887,21 @@ func validateConfig(path string) error {
 
 // validateProfiles reads one profiles.yaml the way up does, and returns the
 // profiles it holds for the name warning (d-a477).
-func validateProfiles(path string) (map[string]config.Profile, error) {
+func validateProfiles(path string) (map[string]profile.Profile, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return config.ParseProfiles(string(text), path)
+	return profile.ParseProfiles(string(text), path)
 }
 
 // validateTeam builds one team from one layer the way up does.
-func validateTeam(env team.Env, name, layer string) (*config.Config, error) {
-	resolved, err := env.Resolve(name, layer)
+func validateTeam(cat *catalog.Catalog, base, name, layer string) (*resolved, error) {
+	def, err := cat.Definition(name, layer)
 	if err != nil {
 		return nil, err
 	}
-	return env.BuildConfig(resolved, source.Disk{}, "")
+	return buildResolved(cat, source.Disk{}, base, def, def.Name)
 }
 
 func isFile(path string) bool {
@@ -805,28 +910,30 @@ func isFile(path string) bool {
 }
 
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveDefinition(env, opts)
+	cat := env.Catalog(source.Disk{})
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
 	if err != nil {
 		return err
 	}
 	if opts.Dry {
-		return dryPlan(stdout, env, resolved, cfg, "boot", cfg.Members, opts, "up "+resolved.Name+asSuffix(opts))
+		return dryPlan(stdout, env, r, "boot", r.starts, opts, "up "+r.team.Definition.Name+asSuffix(opts))
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, true)
-	l := newLauncher(cfg, opts.Timeout, stdout)
+	printHeader(stdout, r, env, true)
+	l := newLauncher(r, opts.Timeout, stdout)
 	if err := runLaunch(ctx, stderr, l, l.Boot); err != nil {
 		return err
 	}
-	recordLaunch(stderr, env, cfg, launchlog.CommandUp, definitionMembers(cfg))
+	recordLaunch(stderr, env, r, launchlog.CommandUp, r.starts)
 	return nil
 }
 
 // runDown closes the panes of a live team's members. --dry prints what would
 // close and reads the live agents, but sends no close and needs no Herdr pane.
 func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
+	cat := env.Catalog(source.Disk{})
 	running, err := runningTeams()
 	if err != nil {
 		return err
@@ -835,37 +942,33 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	if err != nil {
 		return err
 	}
-	resolved, cfg, buildErr := buildRunning(env, opts.Layer, chosen)
+	r, buildErr := buildRunning(cat, env.ProjectRoot, chosen)
 	if buildErr != nil {
 		// The definition is what a prompt is built from; closing a team needs no
 		// prompt, so a team whose definition cannot be read is still put away.
 		return downByName(ctx, chosen, buildErr, opts, stdout, stderr)
 	}
-	members, err := cfg.Select("")
-	if err != nil {
-		return err
-	}
 	// The pane hergy runs in is the member that must be closed last.
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	if opts.Dry {
-		printHeader(stdout, resolved, cfg, env, true)
-		closed, err := newLauncher(cfg, opts.Timeout, stdout).Down(members, selfPane, true)
+		printHeader(stdout, r, env, true)
+		closed, err := newLauncher(r, opts.Timeout, stdout).Down(r.starts, selfPane, true)
 		if err != nil {
 			return err
 		}
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
-			printNext(stdout, "down "+cfg.Team)
+			printNext(stdout, "down "+r.team.Name)
 		}
 		return nil
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, true)
-	l := newLauncher(cfg, opts.Timeout, stdout)
+	printHeader(stdout, r, env, true)
+	l := newLauncher(r, opts.Timeout, stdout)
 	return runOperation(ctx, stderr, nil, func() error {
-		_, err := l.Down(members, selfPane, false)
+		_, err := l.Down(r.starts, selfPane, false)
 		return err
 	})
 }
@@ -890,7 +993,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		return err
 	}
 	selfPane := os.Getenv("HERDR_PANE_ID")
-	l := newLauncher(&config.Config{Team: chosen.Team}, opts.Timeout, stdout)
+	l := newLauncher(&resolved{team: team.Team{Name: chosen.Team}}, opts.Timeout, stdout)
 	if opts.Dry {
 		closed, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, true)
 		if err != nil {
@@ -919,16 +1022,12 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if opts.Team == "" {
 		return runStatusList(env, opts, stdout)
 	}
-	resolved, cfg, err := resolveTeam(env, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return statusOfARunningTeam(opts, err)
 	}
-	members, err := cfg.Select("")
-	if err != nil {
-		return err
-	}
-	printHeader(stdout, resolved, cfg, env, true)
-	rows, err := newLauncher(cfg, opts.Timeout, stdout).Status(members)
+	printHeader(stdout, r, env, true)
+	rows, err := newLauncher(r, opts.Timeout, stdout).Status(r.starts)
 	if err != nil {
 		return err
 	}
@@ -964,11 +1063,12 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		fmt.Fprintln(stdout, i18n.T("status.none"))
 		return nil
 	}
+	cat := env.Catalog(source.Disk{})
 	for i, entry := range running {
 		if i > 0 {
 			fmt.Fprintln(stdout)
 		}
-		_, cfg, err := buildRunning(env, opts.Layer, entry)
+		r, err := buildRunning(cat, env.ProjectRoot, entry)
 		if err != nil {
 			// A team booted from another project's definition is still listed,
 			// so one such team does not hide the rest.
@@ -977,13 +1077,9 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
 			continue
 		}
-		members, err := cfg.Select("")
-		if err != nil {
-			return err
-		}
-		field(stdout, label("team"), cfg.Team)
-		indentField(stdout, 1, label("definition"), cfg.Definition)
-		rows, err := newLauncher(cfg, opts.Timeout, stdout).Status(members)
+		field(stdout, label("team"), r.team.Name)
+		indentField(stdout, 1, label("definition"), r.team.Definition.Name)
+		rows, err := newLauncher(r, opts.Timeout, stdout).Status(r.starts)
 		if err != nil {
 			return err
 		}
@@ -1008,7 +1104,7 @@ func printStatusJudgement(stdout io.Writer, rows []status.Row, indent string) er
 }
 
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveTeam(env, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1016,41 +1112,37 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	if opts.All {
 		memberName = ""
 	}
-	selected, err := cfg.Select(memberName)
+	selected, err := r.selectStarts(memberName)
 	if err != nil {
 		return err
 	}
 	if opts.Dry {
-		members := make([]config.Member, len(selected))
-		for i, member := range selected {
-			members[i] = *member
-		}
 		// --dry stops nothing, but it shows the same refusal the real refresh
 		// would, so it reads the live agents too (like down --dry).
-		if err := newLauncher(cfg, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID")); err != nil {
+		if err := newLauncher(r, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID")); err != nil {
 			return err
 		}
 		next := "refresh " + memberName
 		if opts.All {
 			next = "refresh --all"
 		}
-		next += " --team " + cfg.Team
-		return dryPlan(stdout, env, resolved, cfg, "restart", members, opts, next)
+		next += " --team " + r.team.Name
+		return dryPlan(stdout, env, r, "restart", selected, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, true)
-	l := newLauncher(cfg, opts.Timeout, stdout)
+	printHeader(stdout, r, env, true)
+	l := newLauncher(r, opts.Timeout, stdout)
 	if err := runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) }); err != nil {
 		return err
 	}
-	recordLaunch(stderr, env, cfg, launchlog.CommandRefresh, selected)
+	recordLaunch(stderr, env, r, launchlog.CommandRefresh, selected)
 	return nil
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveTeam(env, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1058,40 +1150,36 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	if opts.All {
 		memberName = ""
 	}
-	selected, err := cfg.Select(memberName)
+	selected, err := r.selectStarts(memberName)
 	if err != nil {
 		return err
 	}
 	if opts.Dry {
-		members := make([]config.Member, len(selected))
-		for i, member := range selected {
-			members[i] = *member
-		}
 		next := "reprompt " + memberName
 		if opts.All {
 			next = "reprompt --all"
 		}
-		next += " --team " + cfg.Team
-		return dryPlan(stdout, env, resolved, cfg, "reprompt", members, opts, next)
+		next += " --team " + r.team.Name
+		return dryPlan(stdout, env, r, "reprompt", selected, opts, next)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, true)
-	l := newLauncher(cfg, opts.Timeout, stdout)
+	printHeader(stdout, r, env, true)
+	l := newLauncher(r, opts.Timeout, stdout)
 	if err := runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) }); err != nil {
 		return err
 	}
-	recordLaunch(stderr, env, cfg, launchlog.CommandReprompt, selected)
+	recordLaunch(stderr, env, r, launchlog.CommandReprompt, selected)
 	return nil
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	resolved, cfg, err := resolveTeam(env, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
-	worker, notes, err := spawn.Plan(cfg, opts.Name, opts.Profile, opts.Purpose, opts.Task, opts.From)
+	worker, notes, err := spawn.Plan(r.team.Name, r.starts, r.profiles, opts.Name, opts.Profile, opts.Purpose, opts.Task, opts.From)
 	if err != nil {
 		return err
 	}
@@ -1101,24 +1189,24 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	if opts.Dry {
 		// A hire has no obvious next step: the worker is named by the member
 		// that hires it, so only the plan is shown.
-		return dryPlan(stdout, env, resolved, cfg, "spawn", []config.Member{*worker}, opts, "")
+		return dryPlan(stdout, env, r, "spawn", []definition.Start{*worker}, opts, "")
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, resolved, cfg, env, true)
-	l := newLauncher(cfg, opts.Timeout, stdout)
+	printHeader(stdout, r, env, true)
+	l := newLauncher(r, opts.Timeout, stdout)
 	return runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) })
 }
 
 // dryPlan is the --dry output: the same plan as JSON with --json, and a
 // readable form (the prompt verbatim) by default. next, when not empty, is the
 // command the plan moves on to, printed last and only in the readable form.
-func dryPlan(stdout io.Writer, env team.Env, resolved *team.Resolved, cfg *config.Config, mode string, members []config.Member, opts *options.Options, next string) error {
+func dryPlan(stdout io.Writer, env team.Env, r *resolved, mode string, members []definition.Start, opts *options.Options, next string) error {
 	if opts.JSON {
-		return printPlanJSON(stdout, mode, cfg, members, opts.Timeout)
+		return printPlanJSON(stdout, mode, r, members, opts.Timeout)
 	}
-	printPlanText(stdout, mode, resolved, cfg, members, opts.Timeout, env)
+	printPlanText(stdout, mode, r, members, opts.Timeout, env)
 	if next != "" {
 		printNext(stdout, next)
 	}
@@ -1161,45 +1249,48 @@ func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer),
 // show prints the definition alone; a team command also prints the team name.
 // The mission is first: it is the one line that says what the team is for, and
 // a team without one prints no line for it.
-func printHeader(w io.Writer, resolved *team.Resolved, cfg *config.Config, env team.Env, withTeam bool) {
-	if mission := cfg.MissionLine(); mission != "" {
+func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
+	def := r.team.Definition
+	if mission := r.missionLine(); mission != "" {
 		field(w, label("mission"), mission)
 	}
-	field(w, label("definition"), cfg.Definition)
+	field(w, label("definition"), def.Name)
 	if withTeam {
-		field(w, label("team"), cfg.Team)
+		field(w, label("team"), r.team.Name)
 	}
-	field(w, label("version"), strconv.Itoa(cfg.Version))
-	field(w, label("layer"), cfg.Layer)
-	field(w, label("team_file"), env.Display(cfg.TeamYAML.Path))
-	if resolved.GlobalTeamYAML != "" && resolved.LocalTeamYAML != "" {
-		switch cfg.Layer {
+	field(w, label("version"), strconv.Itoa(def.Version))
+	field(w, label("layer"), def.Layer)
+	field(w, label("team_file"), env.Display(def.TeamYAML))
+	if def.OtherYAML != "" {
+		switch def.Layer {
 		case source.LayerLocal:
-			field(w, label("note"), i18n.Tf("note.local_overrides", env.Display(resolved.GlobalTeamYAML)))
+			field(w, label("note"), i18n.Tf("note.local_overrides", env.Display(def.OtherYAML)))
 		case source.LayerGlobal:
-			field(w, label("note"), i18n.Tf("note.global_used", env.Display(resolved.LocalTeamYAML)))
+			field(w, label("note"), i18n.Tf("note.global_used", env.Display(def.OtherYAML)))
 		}
 	}
 	switch {
-	case cfg.ProfilesYAML == "":
+	case r.profilesYAML == "":
 		field(w, label("profiles"), i18n.T("value.none"))
-	case cfg.UsesProfiles():
-		field(w, label("profiles"), displayPaths(cfg.ProfilesYAML, env))
+	case r.usesProfiles():
+		field(w, label("profiles"), displayPaths(r.profilesYAML, env))
 	default:
-		field(w, label("profiles"), i18n.Tf("value.unused", displayPaths(cfg.ProfilesYAML, env)))
+		field(w, label("profiles"), i18n.Tf("value.unused", displayPaths(r.profilesYAML, env)))
 	}
 }
 
 // printMember is one member: what it runs, where it runs, and the files its
 // prompt was built from. With prompt, the expanded prompt is printed verbatim
 // after the fields, so up --dry shows exactly what the agent would receive.
-func printMember(w io.Writer, cfg *config.Config, member *config.Member, env team.Env, prompt bool) {
+func printMember(w io.Writer, r *resolved, member *definition.Start, env team.Env, prompt bool) {
 	field(w, label("member"), member.Name)
 	indentField(w, 1, label("role"), member.Role)
 	indentField(w, 1, label("kind"), member.Kind)
 	if member.Profile != "" {
-		indentField(w, 1, label("profile"),
-			i18n.Tf("value.profile_with_path", member.Profile, env.Display(cfg.Profiles[member.Profile].Path)))
+		if value, ok := r.profiles[member.Profile]; ok {
+			indentField(w, 1, label("profile"),
+				i18n.Tf("value.profile_with_path", member.Profile, env.Display(value.Path)))
+		}
 	}
 	if len(member.Args) > 0 {
 		indentField(w, 1, label("args"), strings.Join(member.Args, " "))
@@ -1208,16 +1299,16 @@ func printMember(w io.Writer, cfg *config.Config, member *config.Member, env tea
 		indentField(w, 1, label("env"), envSummary(member.Env))
 	}
 	indentField(w, 1, label("cwd"), env.Display(member.Cwd))
-	if member.MaySpawn != nil {
-		indentField(w, 1, label("may_spawn"), maySpawnText(member.MaySpawn.Workers))
+	if len(member.Workers) > 0 {
+		indentField(w, 1, label("may_spawn"), maySpawnText(member.Workers))
 	}
-	if member.HasRoleSource {
-		indentField(w, 1, label("role_file"), env.Display(member.RoleSource.Path))
+	if member.HasRole {
+		indentField(w, 1, label("role_file"), env.Display(member.RoleDoc.Path))
 	} else {
 		indentField(w, 1, label("role_file"), i18n.T("value.none"))
 	}
-	if len(member.DocsRead) > 0 {
-		for _, doc := range member.DocsRead {
+	if len(member.Read) > 0 {
+		for _, doc := range member.Read {
 			indentField(w, 1, label("reads"), env.Display(doc.Path))
 		}
 	} else {
@@ -1243,24 +1334,24 @@ func printPrompt(w io.Writer, prompt string) {
 
 // printPlanText is the readable --dry plan. It is the same information as the
 // JSON, with each member's prompt shown as the text it is.
-func printPlanText(w io.Writer, mode string, resolved *team.Resolved, cfg *config.Config, members []config.Member, timeout int, env team.Env) {
+func printPlanText(w io.Writer, mode string, r *resolved, members []definition.Start, timeout int, env team.Env) {
 	field(w, label("mode"), mode)
-	printHeader(w, resolved, cfg, env, true)
+	printHeader(w, r, env, true)
 	field(w, label("timeout"), strconv.Itoa(timeout))
 	for i := range members {
-		printMember(w, cfg, &members[i], env, true)
+		printMember(w, r, &members[i], env, true)
 	}
 }
 
 // printPlanJSON is the --dry output with --json: the expanded members as JSON.
-func printPlanJSON(w io.Writer, mode string, cfg *config.Config, members []config.Member, timeout int) error {
+func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.Start, timeout int) error {
 	plans := make([]map[string]any, len(members))
 	for i := range members {
 		plans[i] = members[i].ToPlan()
 	}
 	plan := map[string]any{
 		"mode":               mode,
-		"team":               cfg.Team,
+		"team":               r.team.Name,
 		"startup_timeout_ms": timeout,
 		"members":            plans,
 	}
@@ -1298,7 +1389,7 @@ func displayPaths(joined string, env team.Env) string {
 
 // maySpawnText is what show and up --dry print for may_spawn: the purpose and
 // profile of each worker pair, in the written order.
-func maySpawnText(workers []config.MaySpawnWorker) string {
+func maySpawnText(workers []definition.WorkerNode) string {
 	parts := make([]string, len(workers))
 	for i, worker := range workers {
 		parts[i] = fmt.Sprintf(i18n.T("spawn.allowed_item"), worker.Purpose, worker.Profile)
@@ -1306,9 +1397,9 @@ func maySpawnText(workers []config.MaySpawnWorker) string {
 	return strings.Join(parts, i18n.T("list.separator"))
 }
 
-func newLauncher(cfg *config.Config, timeout int, out io.Writer) *launcher.Launcher {
+func newLauncher(r *resolved, timeout int, out io.Writer) *launcher.Launcher {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
-	return launcher.New(cfg, herdr.New(port), timeout, out)
+	return launcher.New(r.starts, r.team.Name, herdr.New(port), timeout, out)
 }
 
 // requireHerdrPane refuses to touch Herdr outside a Herdr-managed shell pane.

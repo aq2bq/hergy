@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/rules"
@@ -23,10 +23,10 @@ import (
 // a launch that failed, and not hire, because a worker is not a member of the
 // team definition). A record that cannot be written is one line on stderr and
 // nothing else: the team is already up, so the command still succeeds.
-func recordLaunch(stderr io.Writer, env team.Env, cfg *config.Config, command string, members []*config.Member) {
+func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start) {
 	log, err := launchlog.Open()
 	if err == nil {
-		err = writeLaunch(log, env, cfg, command, members)
+		err = writeLaunch(log, env, r, command, members)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))
@@ -35,8 +35,8 @@ func recordLaunch(stderr io.Writer, env team.Env, cfg *config.Config, command st
 
 // writeLaunch builds one record and appends it. The texts the record points at —
 // the prompts it handed out and the rule files it read — go into blobs/ first.
-func writeLaunch(log launchlog.Log, env team.Env, cfg *config.Config, command string, members []*config.Member) error {
-	material, err := teamMaterial(cfg)
+func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, members []definition.Start) error {
+	material, err := teamMaterial(r)
 	if err != nil {
 		return err
 	}
@@ -45,23 +45,24 @@ func writeLaunch(log launchlog.Log, env team.Env, cfg *config.Config, command st
 		Command:    command,
 		Hergy:      version.Line(),
 		Project:    env.ProjectRoot,
-		Layer:      cfg.Layer,
-		Definition: cfg.Definition,
-		Team:       cfg.Team,
-		TeamYAML:   cfg.TeamYAML.Path,
+		Layer:      r.team.Definition.Layer,
+		Definition: r.team.Definition.Name,
+		Team:       r.team.Name,
+		TeamYAML:   r.team.Definition.TeamYAML,
 		Hash:       launchlog.Hash(material),
 	}
 	// A document two members read is one entry, and one blob: the record names
 	// the files, not the times they were read.
 	seen := map[string]bool{}
-	for _, member := range members {
+	for i := range members {
+		member := &members[i]
 		hash, err := log.Put([]byte(member.Prompt))
 		if err != nil {
 			return err
 		}
 		rec.Members = append(rec.Members, launchlog.Member{
 			Name:   member.Name,
-			Short:  member.ShortName,
+			Short:  member.Short,
 			Prompt: hash,
 		})
 		for _, doc := range docsReadBy(member) {
@@ -79,32 +80,23 @@ func writeLaunch(log launchlog.Log, env team.Env, cfg *config.Config, command st
 	return log.Append(rec)
 }
 
-// definitionMembers is every member of a definition, in the written order: who
-// up hands a prompt to.
-func definitionMembers(cfg *config.Config) []*config.Member {
-	members := make([]*config.Member, len(cfg.Members))
-	for i := range cfg.Members {
-		members[i] = &cfg.Members[i]
-	}
-	return members
-}
-
 // teamMaterial is the team definition as it was launched: the settings file, and
 // every member of the definition after its profile is resolved. The hash is over
 // this and not over the members one command handed a prompt to, so the same team
 // definition hashes the same across up, refresh and reprompt, and a change to a
 // profile no member reads does not change it.
-func teamMaterial(cfg *config.Config) (launchlog.Material, error) {
-	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: cfg.Layer, Path: cfg.TeamYAML.Path})
+func teamMaterial(r *resolved) (launchlog.Material, error) {
+	def := r.team.Definition
+	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: def.Layer, Path: def.TeamYAML})
 	if err != nil {
 		return launchlog.Material{}, err
 	}
 	material := launchlog.Material{
 		TeamYAML: []byte(teamYAML),
-		Members:  make([]launchlog.MaterialMember, 0, len(cfg.Members)),
+		Members:  make([]launchlog.MaterialMember, 0, len(r.starts)),
 	}
-	for i := range cfg.Members {
-		member := &cfg.Members[i]
+	for i := range r.starts {
+		member := &r.starts[i]
 		material.Members = append(material.Members, launchlog.MaterialMember{
 			Kind:   member.Kind,
 			Args:   member.Args,
@@ -117,12 +109,12 @@ func teamMaterial(cfg *config.Config) (launchlog.Material, error) {
 
 // docsReadBy is every rule file one member's prompt was built from: the role
 // file first, then the documents, in the order the prompt read them.
-func docsReadBy(member *config.Member) []source.Doc {
+func docsReadBy(member *definition.Start) []source.Doc {
 	var docs []source.Doc
-	if member.HasRoleSource {
-		docs = append(docs, member.RoleSource)
+	if member.HasRole {
+		docs = append(docs, member.RoleDoc)
 	}
-	return append(docs, member.DocsRead...)
+	return append(docs, member.Read...)
 }
 
 // docEntry is one rule file as the record holds it: where it is, which layer

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -187,13 +187,12 @@ func downLauncher(t *testing.T, port *fakePort, members ...string) (*Launcher, *
 // name the worker tabs are labelled with.
 func downLauncherFor(t *testing.T, port *fakePort, team string, members ...string) (*Launcher, *bytes.Buffer) {
 	t.Helper()
-	list := make([]config.Member, len(members))
+	list := make([]definition.Start, len(members))
 	for i, name := range members {
-		list[i] = config.Member{Name: name, ShortName: name, Role: "role", Kind: "claude"}
+		list[i] = definition.Start{Name: name, Short: name, Role: "role", Kind: "claude"}
 	}
-	cfg := &config.Config{Team: team, Version: 1, Members: list}
 	out := &bytes.Buffer{}
-	return New(cfg, herdr.New(port), 30000, out), out
+	return New(list, team, herdr.New(port), 30000, out), out
 }
 
 func TestDownClosesItsOwnPaneLast(t *testing.T) {
@@ -203,10 +202,7 @@ func TestDownClosesItsOwnPaneLast(t *testing.T) {
 		{Name: "c", Kind: "claude", Status: "idle", PaneID: "p3"},
 	}}
 	l, _ := downLauncher(t, port, "a", "b", "c")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "own", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -225,10 +221,7 @@ func TestDownSkipsAMemberThatIsNotLive(t *testing.T) {
 		{Name: "a", Kind: "claude", Status: "idle", PaneID: "p1"},
 	}}
 	l, out := downLauncher(t, port, "a", "b")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -247,10 +240,7 @@ func TestDownDryClosesNothing(t *testing.T) {
 		{Name: "b", Kind: "claude", Status: "idle", PaneID: "p2"},
 	}}
 	l, out := downLauncher(t, port, "a", "b")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "p1", true); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -269,10 +259,7 @@ func TestDownDryClosesNothing(t *testing.T) {
 func TestDownWithNobodyLiveClosesNothing(t *testing.T) {
 	port := &fakePort{}
 	l, out := downLauncher(t, port, "a", "b")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -305,10 +292,7 @@ func TestDownClosesTheTeamsHiredWorkers(t *testing.T) {
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -342,10 +326,7 @@ func TestDownAsClosesOnlyThatTeamsWorkers(t *testing.T) {
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev2", "dev2-lead", "dev2-worker")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -372,10 +353,7 @@ func TestDownDryPlansTheWorkers(t *testing.T) {
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "", true); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -412,10 +390,7 @@ func TestDownClosesAWorkersOwnPaneLast(t *testing.T) {
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if _, err := l.Down(members, "own", false); err != nil {
 		t.Fatalf("Down: %v", err)
@@ -442,10 +417,7 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 		},
 	}
 	l, _ := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	rows, err := l.Status(members)
 	if err != nil {
@@ -483,10 +455,7 @@ func TestRefreshStartsAMemberThatIsNotLive(t *testing.T) {
 		t.Fatalf("refresh killed %d for a member that is not live", pgid)
 		return nil
 	}
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err != nil {
 		t.Fatalf("Refresh: %v", err)
@@ -509,10 +478,7 @@ func TestRefreshRefusesAMemberWithNoPane(t *testing.T) {
 	port := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}}
 	l, _ := downLauncher(t, port, "team-lead")
 	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh accepted a member with no pane")
@@ -536,10 +502,7 @@ func TestRefreshRefusesAMemberWhosePaneIsBusy(t *testing.T) {
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh accepted a member whose pane is busy")
@@ -558,10 +521,7 @@ func TestRefreshRefusesItsOwnPaneForADeadMember(t *testing.T) {
 		panes:  []protocol.Pane{{ID: "own", Label: "team-lead"}},
 	}
 	l, _ := downLauncher(t, port, "team-lead")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, "own"); err == nil {
 		t.Fatal("Refresh accepted its own pane for a member that is not live")
@@ -584,10 +544,7 @@ func TestRefreshAllChecksEveryoneBeforeStarting(t *testing.T) {
 		process: map[string][2]int{"p2": {900, 900}},
 	}
 	l, _ := downLauncher(t, port, "team-lead", "team-worker")
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh --all accepted a working member")
@@ -609,10 +566,7 @@ func TestRefreshDryAcceptsADeadMember(t *testing.T) {
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 	l.kill = func(pgid int) error { t.Fatalf("dry refresh killed %d", pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.RefreshDry(members, ""); err != nil {
 		t.Fatalf("RefreshDry: %v", err)
@@ -644,10 +598,7 @@ func TestRefreshRestartsInPlaceInOrder(t *testing.T) {
 		port.gone["team-lead"] = true
 		return nil
 	}
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err != nil {
 		t.Fatalf("Refresh: %v", err)
@@ -679,10 +630,7 @@ func TestRefreshStopsNothingWhenAMemberIsWorking(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh accepted a working member")
@@ -708,10 +656,7 @@ func TestRefreshAllStopsNothingWhenAnyIsWorking(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead", "team-worker")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh --all accepted a working member")
@@ -736,10 +681,7 @@ func TestRefreshTimesOutWhenTheAgentNeverGoes(t *testing.T) {
 	var killed []int
 	// The process group is stopped, but herdr never forgets the name.
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh did not time out")
@@ -765,10 +707,7 @@ func TestRefreshDoesNotStopTheShell(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err != nil {
 		t.Fatalf("Refresh: %v", err)
@@ -792,10 +731,7 @@ func TestRepromptOnlyPrompts(t *testing.T) {
 	}
 	l, out := downLauncher(t, port, "team-lead")
 	l.kill = func(pgid int) error { t.Fatalf("reprompt called kill(%d)", pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Reprompt(members); err != nil {
 		t.Fatalf("Reprompt: %v", err)
@@ -828,10 +764,7 @@ func TestRefreshRefusesItsOwnPane(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, "own"); err == nil {
 		t.Fatal("Refresh accepted its own pane")
@@ -857,10 +790,7 @@ func TestRefreshAllRefusesWhenSelfIsIncluded(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead", "team-worker")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, "own"); err == nil {
 		t.Fatal("Refresh --all accepted its own pane")
@@ -885,10 +815,7 @@ func TestRefreshDryShowsTheSameRefusal(t *testing.T) {
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 	l.kill = func(pgid int) error { t.Fatalf("dry refresh called kill(%d)", pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.RefreshDry(members, "own"); err == nil {
 		t.Fatal("RefreshDry accepted its own pane")
@@ -924,10 +851,7 @@ func TestRefreshRechecksBeforeStopping(t *testing.T) {
 	l, _ := downLauncher(t, port, "team-lead")
 	var killed []int
 	l.kill = func(pgid int) error { killed = append(killed, pgid); return nil }
-	members, err := l.cfg.Select("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	members := l.starts
 
 	if err := l.Refresh(members, ""); err == nil {
 		t.Fatal("Refresh stopped a member that started working after the first check")

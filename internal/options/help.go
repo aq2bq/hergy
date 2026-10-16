@@ -7,10 +7,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// exclusive are flags that cannot be given together. A command line writes such
-// a pair as one group: [--global|--local].
-var exclusive = [][2]*Flag{{flagGlobal, flagLocal}}
-
 // spelling is how a command line writes a flag: the one-letter form when it
 // has one (-C), else the long form.
 func spelling(f *Flag) string {
@@ -85,13 +81,6 @@ func Synopsis(kind Kind, lang string) string {
 			continue
 		}
 		word := "[" + withValue(spelling(u.Flag), u.Flag, lang) + "]"
-		for _, pair := range exclusive {
-			if pair[0] == u.Flag && i+1 < len(s.Flags) && s.Flags[i+1].Flag == pair[1] {
-				word = "[--" + pair[0].Name + "|--" + pair[1].Name + "]"
-				i++
-				break
-			}
-		}
 		words = append(words, word)
 	}
 	return strings.Join(words, " ")
@@ -190,6 +179,12 @@ func FlagSummaries() []FlagSummary {
 				if has(s, f) {
 					sum.Commands = append(sum.Commands, s.Name)
 				}
+			}
+			if len(sum.Commands) == 0 {
+				// A flag the parser still knows but no command takes any more
+				// (--global and --local, gone in 段 3): it is refused with its
+				// own sentence and is not a flag of the shape.
+				continue
 			}
 		}
 		out = append(out, sum)

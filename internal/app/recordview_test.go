@@ -73,7 +73,7 @@ func equalIDs(got []string, want ...string) bool {
 // the one the launch read.
 func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n"+
@@ -140,7 +140,7 @@ func TestTheHomeReadsTheFilesAgainstTheLastLaunch(t *testing.T) {
 // anything yet, and each one links into the rules screen.
 func TestTheHomeCarriesTheRulesWithNoCheckWithoutARecord(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nreports:\n  audit:\n    where: the ledger\n    fields:\n      scope: the changed files\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n        report: audit.scope\n"+
@@ -164,7 +164,7 @@ func TestTheHomeCarriesTheRulesWithNoCheckWithoutARecord(t *testing.T) {
 // same.
 func TestTheDiffLinesUpThePromptsOfTheLastLaunch(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -211,7 +211,7 @@ func TestTheDiffLinesUpThePromptsOfTheLastLaunch(t *testing.T) {
 // to compare with, and says so rather than showing an empty diff.
 func TestTheDiffWithoutARecord(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 
 	diff := recordPort(t).Diff(web.LayerLocal)
 	if len(diff.Definitions) != 1 {
@@ -233,7 +233,7 @@ func TestTheDiffWithoutARecord(t *testing.T) {
 // not disappear (M2).
 func TestTheDiffKeepsThePromptOfTheLaunchBeforeAReprompt(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -260,7 +260,7 @@ func TestTheDiffKeepsThePromptOfTheLaunchBeforeAReprompt(t *testing.T) {
 // team.yaml a launch read is what tells the definitions apart (M1).
 func TestTheScreensCompareWithThisProjectsLaunch(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
 	f.statefulHerdr(t)
@@ -336,7 +336,7 @@ members:
 // same hash now.
 func TestTheTeamListCarriesTheLastLaunch(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -378,7 +378,7 @@ func changeIDs(rules []rulesview.ChangeRule) []string {
 // makes, through the same checks.
 func TestTheRulesScreenComparesAndBumpsLikeTheHome(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	protocol := filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml")
 	writeFile(t, protocol, "version: 1\nrevision: 1\nsections:\n  - rules:\n"+
 		"      - id: P1\n        text: one\n"+

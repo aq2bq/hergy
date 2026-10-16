@@ -343,7 +343,7 @@ func wantLines(t *testing.T, got string, want ...string) {
 
 func TestNewShape(t *testing.T) {
 	f := newFixture(t)
-	got := mustRun(t, "new", "demo", "--local")
+	got := mustRun(t, "new", "demo")
 	wantLines(t, got,
 		"team definition: demo",
 		"layer: local",
@@ -364,7 +364,7 @@ func TestNewShape(t *testing.T) {
 // and reports the file as one more output line.
 func TestNewCreatesTheGlobalConfigWhenMissing(t *testing.T) {
 	f := newFixture(t)
-	got := mustRun(t, "new", "demo", "--local")
+	got := mustRun(t, "new", "demo")
 	path := filepath.Join(f.cfg, "hergy", "config.yaml")
 	wantLines(t, readFile(t, path), "version: 1", "lang: en")
 	if !strings.Contains(got, "config: "+path+"\n") {
@@ -377,12 +377,12 @@ func TestNewCreatesTheGlobalConfigWhenMissing(t *testing.T) {
 func TestNewConfigLanguageFollowsTheRun(t *testing.T) {
 	t.Run("--lang ja", func(t *testing.T) {
 		f := newFixture(t)
-		mustRun(t, "new", "demo", "--local", "--lang", "ja")
+		mustRun(t, "new", "demo", "--lang", "ja")
 		wantLines(t, readFile(t, filepath.Join(f.cfg, "hergy", "config.yaml")), "version: 1", "lang: ja")
 	})
 	t.Run("no --lang", func(t *testing.T) {
 		f := newFixture(t)
-		mustRun(t, "new", "demo", "--local")
+		mustRun(t, "new", "demo")
 		wantLines(t, readFile(t, filepath.Join(f.cfg, "hergy", "config.yaml")), "version: 1", "lang: en")
 	})
 }
@@ -393,7 +393,7 @@ func TestNewLeavesAnExistingConfigAlone(t *testing.T) {
 	f := newFixture(t)
 	path := filepath.Join(f.cfg, "hergy", "config.yaml")
 	writeFile(t, path, "version: 1\nlang: ja\n")
-	got := mustRun(t, "new", "demo", "--local", "--lang", "en")
+	got := mustRun(t, "new", "demo", "--lang", "en")
 	if after := readFile(t, path); after != "version: 1\nlang: ja\n" {
 		t.Fatalf("new rewrote an existing config.yaml:\n%s", after)
 	}
@@ -406,7 +406,7 @@ func TestNewLeavesAnExistingConfigAlone(t *testing.T) {
 // command with no --lang reads Japanese.
 func TestLsAfterNewUsesTheCreatedLanguage(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local", "--lang", "ja")
+	mustRun(t, "new", "demo", "--lang", "ja")
 	got := mustRun(t, "ls")
 	if !strings.Contains(got, "チーム定義: demo\n") {
 		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
@@ -420,7 +420,7 @@ func TestLsAfterNewUsesTheCreatedLanguage(t *testing.T) {
 // validate reads without complaint.
 func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	path := filepath.Join(f.cfg, "hergy", "config.yaml")
 	got := mustRun(t, "validate")
 	if !strings.Contains(got, "file: "+path+"\n  result: ok\n") {
@@ -437,7 +437,7 @@ func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
 // the kind it runs, so validate's name warning has nothing to say about it.
 func TestNewWritesTheProfileTheStarterTeamNames(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	wantLines(t, readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")),
 		"version: 1", "profiles:", "  claude-default:", "    kind: claude")
 	if got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")); !strings.Contains(got, "profile: claude-default") {
@@ -455,7 +455,7 @@ func TestNewKeepsAnExistingProfile(t *testing.T) {
 	f := newFixture(t)
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	writeFile(t, path, "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    args: [--model, opus]\n")
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	if got := readFile(t, path); !strings.Contains(got, "--model") {
 		t.Errorf("new rewrote a profiles.yaml that already names the profile:\n%s", got)
 	}
@@ -467,7 +467,7 @@ func TestNewKeepsAnExistingProfile(t *testing.T) {
 // is a warning: validate still finds no problem.
 func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  claude:\n    kind: claude\n")
 	got := mustRun(t, "validate")
@@ -485,7 +485,7 @@ func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
 
 func TestLsShape(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "ls")
 	wantLines(t, got,
 		"local: .hergy",
@@ -498,7 +498,7 @@ func TestLsShape(t *testing.T) {
 
 func TestValidateShape(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "validate")
 	wantLines(t, got,
 		"file: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
@@ -594,7 +594,7 @@ sections:
 
 func TestValidateShapeReportsABrokenFile(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	if err := os.WriteFile(path, []byte("version: 2\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -613,7 +613,7 @@ func TestValidateShapeReportsABrokenFile(t *testing.T) {
 
 func TestShowShape(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo")
 	wantLines(t, got,
 		"team definition: demo",
@@ -641,7 +641,7 @@ func TestShowShape(t *testing.T) {
 
 func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
 	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/teams/demo/roles/lead.yaml"} {
 		if !strings.Contains(got, line+"\n") {
@@ -652,7 +652,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 
 func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "up", "demo", "--dry")
 	if strings.Contains(got, `\n`) {
 		t.Fatalf("up --dry escapes the prompt:\n%s", got)
@@ -681,7 +681,7 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 
 func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "up", "demo", "--dry", "--json")
 	var plan map[string]any
 	if err := json.Unmarshal([]byte(got), &plan); err != nil {
@@ -704,7 +704,7 @@ func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 // the pane hergy named after it is still at its shell, using that pane.
 func TestRefreshStartsAStoppedMember(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	log := f.refreshDeadHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "w0:p1")
@@ -722,7 +722,7 @@ func TestRefreshStartsAStoppedMember(t *testing.T) {
 // refresh changes nothing and tells the reader to redo down and up.
 func TestRefreshStoppedMemberWithoutAPanePointsAtDownAndUp(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, noPaneHerdr)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "w0:p1")
@@ -739,7 +739,7 @@ func TestRefreshStoppedMemberWithoutAPanePointsAtDownAndUp(t *testing.T) {
 
 func TestRefreshDryEndsWithNext(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	// refresh --dry reads the live agents to show the same refusal the real
 	// refresh would, so it needs a herdr that answers agent get.
 	f.herdr(t, liveHerdr)
@@ -761,7 +761,7 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 
 func TestDownDryShape(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, liveHerdr)
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
@@ -781,7 +781,7 @@ func TestDownDryShape(t *testing.T) {
 
 func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, passingHerdr)
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
@@ -802,7 +802,7 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 
 func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, passingHerdr)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -828,7 +828,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 
 func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, liveHerdr)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -854,7 +854,7 @@ func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 
 func TestNotFoundTeamEndsWithNext(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	stdout, stderr, code := run("up", "nosuch")
 	if code == 0 {
 		t.Fatal("up nosuch succeeded")
@@ -884,7 +884,7 @@ func TestNotFoundTeamWithoutCandidatesHasNoNext(t *testing.T) {
 
 func TestJSONNeedsDry(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	_, stderr, code := run("up", "demo", "--json")
 	if code == 0 {
 		t.Fatal("up --json without --dry succeeded")
@@ -908,9 +908,6 @@ func TestHomePathsUseTilde(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if out, err := exec.Command("git", "-C", proj, "init", "-q").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, out)
-	}
 	t.Chdir(proj)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("HOME", home)
@@ -920,11 +917,83 @@ func TestHomePathsUseTilde(t *testing.T) {
 	}
 }
 
+// TestNewWritesIntoTheProjectInsideARepository: hergy new writes where the person
+// is (K2): inside a git repository that is the project's own layer, so no layer
+// flag is needed for the common case.
+func TestNewWritesIntoTheProjectInsideARepository(t *testing.T) {
+	f := newFixture(t)
+	got := mustRun(t, "new", "demo")
+	if !strings.Contains(got, "dir: .hergy/teams/demo\n") {
+		t.Fatalf("new did not write into the project inside a git repository:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")); err != nil {
+		t.Fatalf("the team definition is not in the project: %v", err)
+	}
+}
+
+// TestLayerFlagsAreGone: --local and --global are gone from the team commands
+// (段 3): typing one stops with the sentence that says a team definition name
+// resolves to the project's own first, rather than with "unknown option".
+func TestLayerFlagsAreGone(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo")
+	for _, flag := range []string{"--local", "--global"} {
+		stdout, stderr, code := run("up", "demo", flag, "--dry")
+		if code == 0 {
+			t.Fatalf("hergy up demo %s succeeded", flag)
+		}
+		if stdout != "" {
+			t.Errorf("hergy up demo %s printed to stdout:\n%s", flag, stdout)
+		}
+		if !strings.Contains(stderr, flag+" is gone") {
+			t.Errorf("hergy up demo %s: the error is %q, want the sentence that says the flag is gone", flag, stderr)
+		}
+	}
+}
+
+// TestValidateWarnsAboutAHiddenGlobalDefinition: a global definition that a
+// project definition of the same name hides is warned about, where a person
+// reading the global file finds it (段 3); the project's own definition is the
+// one hergy uses (I11).
+func TestValidateWarnsAboutAHiddenGlobalDefinition(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	// A global definition of the same name, with no role file of its own: the
+	// project's profiles.yaml answers its profile (K1), so it reads and is only
+	// hidden, not broken.
+	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nprompt: \"%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+
+	out := mustRun(t, "validate")
+	want := "warning: the global team definition demo is hidden by the project's demo and is not used"
+	if !strings.Contains(out, want) {
+		t.Fatalf("validate does not warn about the hidden global definition:\n%s", out)
+	}
+}
+
+// TestNewWritesIntoTheGlobalLayerOutsideARepository: outside a git repository
+// there is no project, so hergy new writes into the global layer.
+func TestNewWritesIntoTheGlobalLayerOutsideARepository(t *testing.T) {
+	f := newFixture(t)
+	outside := filepath.Join(filepath.Dir(f.proj), "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(outside)
+	got := mustRun(t, "new", "demo")
+	if !strings.Contains(got, "dir: ") || !strings.Contains(got, "demo") {
+		t.Fatalf("new printed no directory:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml")); err != nil {
+		t.Fatalf("the team definition is not in the global layer: %v", err)
+	}
+}
+
 // TestNewWritesShortMemberNames: hergy new writes the member names as the short
 // member names, without quotes; hergy adds the team name when it boots them.
 func TestNewWritesShortMemberNames(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	text := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
 	for _, want := range []string{"  - name: lead\n", "  - name: builder\n"} {
 		if !strings.Contains(text, want) {
@@ -942,7 +1011,7 @@ func TestNewWritesShortMemberNames(t *testing.T) {
 // that name; without --as the team definition name is the team name.
 func TestUpAsDryUsesTheTeamName(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 
 	plain := mustRun(t, "up", "demo", "--dry")
 	for _, line := range []string{
@@ -984,7 +1053,7 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 // lead and worker, and the herdr names, roster and self-intro become dev2-*.
 func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	got := mustRun(t, "up", "dev", "--as", "dev2", "--dry")
 	for _, line := range []string{
 		"team definition: dev",
@@ -1009,8 +1078,8 @@ func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 // herdr names stay apart and the second boot does not collide.
 func TestTwoTeamsWithTheSameMemberNamesDoNotCollide(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
-	mustRun(t, "new", "discovery", "--local")
+	mustRun(t, "new", "dev")
+	mustRun(t, "new", "discovery")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1033,7 +1102,7 @@ func TestTwoTeamsWithTheSameMemberNamesDoNotCollide(t *testing.T) {
 // to add a teammate with hergy hire, not herdr agent start.
 func TestUpDryPromptSendsHiringThroughHergy(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	got := mustRun(t, "up", "demo", "--dry")
 	for _, want := range []string{"hergy hire", "herdr agent start"} {
 		if !strings.Contains(got, want) {
@@ -1046,7 +1115,7 @@ func TestUpDryPromptSendsHiringThroughHergy(t *testing.T) {
 // no teammates, rather than telling it to hire.
 func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
@@ -1069,7 +1138,7 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 // prompt the worker receives.
 func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
@@ -1099,7 +1168,7 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 // definition label their workers apart by the team name.
 func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
@@ -1135,7 +1204,7 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 // second boot collide in preflight.
 func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	log := f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1180,7 +1249,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 // both teams come from one team definition.
 func TestDownByTeamNameClosesOnlyThatTeamsMembers(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	log := f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1219,7 +1288,7 @@ func TestDownByTeamNameClosesOnlyThatTeamsMembers(t *testing.T) {
 // with a message that says not to write it, --as or not.
 func TestUpStopsOnTeamPlaceholderInMemberName(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: \"%{team}-lead\"\n    role: lead\n    profile: dev\n")
@@ -1254,7 +1323,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
 	plain := mustRun(t, "up", "demo", "--dry")
-	if !strings.Contains(plain, "--team demo --local --lang en") {
+	if !strings.Contains(plain, "--team demo --lang en") {
 		t.Fatalf("the hire command without --as is wrong:\n%s", plain)
 	}
 	if !strings.Contains(plain, "--from lead") {
@@ -1268,7 +1337,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 	}
 
 	named := mustRun(t, "up", "demo", "--as", "alpha", "--dry")
-	if !strings.Contains(named, "--team alpha --local --lang en") {
+	if !strings.Contains(named, "--team alpha --lang en") {
 		t.Fatalf("the hire command with --as is wrong:\n%s", named)
 	}
 	if strings.Contains(named, "--team demo") {
@@ -1284,7 +1353,7 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 func maySpawnFixture(t *testing.T) {
 	t.Helper()
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: seeker\n"+
@@ -1410,7 +1479,7 @@ func TestUpDryPromptShowsMaySpawnPairs(t *testing.T) {
 // worker, separates the worker, and ends with who is waiting on the human.
 func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, statusHerdr)
 	got := mustRun(t, "status", "demo")
 	wantLines(t, got,
@@ -1431,7 +1500,7 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 // the agent states are herdr's words, whatever the language.
 func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, statusHerdr)
 	got := mustRun(t, "status", "demo", "--lang", "ja")
 	for _, line := range []string{
@@ -1450,7 +1519,7 @@ func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 // TestStatusNobodyWorking: when every member is idle, the judgement says so.
 func TestStatusNobodyWorking(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, liveHerdr)
 	got := mustRun(t, "status", "demo")
 	for _, line := range []string{
@@ -1468,7 +1537,7 @@ func TestStatusNobodyWorking(t *testing.T) {
 // and one working member with nobody blocked has no judgement line.
 func TestStatusAbsentAndNoJudgement(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, absentHerdr)
 	got := mustRun(t, "status", "demo")
 	for _, line := range []string{"demo-lead: idle", "demo-builder: not present"} {
@@ -1485,7 +1554,7 @@ func TestStatusAbsentAndNoJudgement(t *testing.T) {
 // no judgement line at all.
 func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, statusHerdr)
 	// demo-lead works and demo-builder is blocked here, so drop the blocked one by
 	// selecting a team whose only member is working: rewrite team.yaml.
@@ -1506,7 +1575,7 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 // herdr-managed pane (the fixture leaves HERDR_ENV unset).
 func TestStatusDoesNotNeedAHerdrPane(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	f.herdr(t, statusHerdr)
 	if _, stderr, code := run("status", "demo"); code != 0 {
 		t.Fatalf("status outside herdr: exit %d\nstderr:\n%s", code, stderr)
@@ -1636,7 +1705,7 @@ func TestCheatAIIsEnglishWhateverLang(t *testing.T) {
 // can find the team definition behind the team name.
 func TestUpLabelsTheTeamTab(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "demo", "--local")
+	mustRun(t, "new", "demo")
 	log := f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1657,7 +1726,7 @@ func TestUpLabelsTheTeamTab(t *testing.T) {
 // for one never shows the other.
 func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	agents := `{"name":"qw-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"}` +
 		`,{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2"}`
@@ -1688,7 +1757,7 @@ func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 // definition names the team definition after the team.
 func TestTeamCommandReadsTheOlderTabLabel(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev"}`,
 		`{"name":"dev-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`)
 	got := mustRun(t, "status", "dev")
@@ -1703,7 +1772,7 @@ func TestTeamCommandReadsTheOlderTabLabel(t *testing.T) {
 // at hergy status.
 func TestTeamCommandWithNoTabStops(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "dev", "--local")
+	mustRun(t, "new", "dev")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:other@other"}`, "")
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1725,7 +1794,7 @@ func TestTeamCommandWithNoTabStops(t *testing.T) {
 // team command's omitted team name picks it.
 func TestTeamCommandWithoutArgumentUsesTheOneRunningTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:qw@qw"}`, "")
 	got := mustRun(t, "reprompt", "lead", "--dry")
 	if !strings.HasSuffix(got, "next: reprompt lead --team qw\n") {
@@ -1737,7 +1806,7 @@ func TestTeamCommandWithoutArgumentUsesTheOneRunningTeam(t *testing.T) {
 // command's omitted team name stops.
 func TestTeamCommandWithoutArgumentStopsWhenNone(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	f.runningHerdr(t, "", "")
 	_, stderr, code := run("reprompt", "lead", "--dry")
 	if code == 0 {
@@ -1754,7 +1823,7 @@ func TestTeamCommandWithoutArgumentStopsWhenNone(t *testing.T) {
 // team, a team command's omitted team name stops and lists them.
 func TestTeamCommandWithoutArgumentStopsWhenSeveral(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
 	_, stderr, code := run("reprompt", "lead", "--dry")
@@ -1772,7 +1841,7 @@ func TestTeamCommandWithoutArgumentStopsWhenSeveral(t *testing.T) {
 // team, with its team definition, its counts, and the judgement.
 func TestStatusListsEveryRunningTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"},{"tab_id":"tw","label":"worker:qw/w1"}`
 	agents := `{"name":"qw-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"}` +
 		`,{"name":"qw-builder","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"}` +
@@ -1801,7 +1870,7 @@ func TestStatusListsEveryRunningTeam(t *testing.T) {
 // it are still listed.
 func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t0","label":"team:othersite"},{"tab_id":"t1","label":"team:qw@qw"}`
 	agents := `{"name":"othersite-lead","agent":"claude","agent_status":"idle","pane_id":"p0","tab_id":"t0"}` +
 		`,{"name":"qw-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`
@@ -1824,7 +1893,7 @@ func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
 // says so.
 func TestStatusWithoutRunningTeams(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	f.runningHerdr(t, "", "")
 	if got := mustRun(t, "status"); !strings.Contains(got, "no teams are running\n") {
 		t.Fatalf("status with nothing running does not say so:\n%s", got)
@@ -1835,7 +1904,7 @@ func TestStatusWithoutRunningTeams(t *testing.T) {
 // names each team definition booted.
 func TestLsShowsTheRunningTeams(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
 	got := mustRun(t, "ls")
@@ -1853,7 +1922,7 @@ func TestLsShowsTheRunningTeams(t *testing.T) {
 // herdr), ls shows the team definitions and no running teams.
 func TestLsWithoutHerdrShowsOnlyDefinitions(t *testing.T) {
 	newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	got := mustRun(t, "ls")
 	if strings.Contains(got, "running:") {
 		t.Fatalf("ls without herdr shows running teams:\n%s", got)
@@ -1867,7 +1936,7 @@ func TestLsWithoutHerdrShowsOnlyDefinitions(t *testing.T) {
 // name, even when another team comes from the same team definition.
 func TestTeamCommandTargetsTheNamedTeam(t *testing.T) {
 	f := newFixture(t)
-	mustRun(t, "new", "qw", "--local")
+	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
 	got := mustRun(t, "reprompt", "lead", "--team", "qw2", "--dry")

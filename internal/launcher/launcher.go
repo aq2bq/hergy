@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/layout"
@@ -24,7 +24,8 @@ import (
 // Launcher runs one operation. The mutex protects the progress record, which an
 // interrupt may report while the operation is still running.
 type Launcher struct {
-	cfg     *config.Config
+	starts  []definition.Start
+	team    string
 	timeout int
 	herdr   *herdr.Herdr
 	out     io.Writer
@@ -37,15 +38,17 @@ type Launcher struct {
 	progress *progress.Progress
 }
 
-// New builds a launcher.
-func New(cfg *config.Config, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
+// New builds a launcher over the members of one team: the team name, and the
+// members as starts.
+func New(starts []definition.Start, team string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
 	return &Launcher{
-		cfg:      cfg,
+		starts:   starts,
+		team:     team,
 		timeout:  timeoutMS,
 		herdr:    h,
 		out:      out,
 		kill:     defaultKill,
-		progress: progress.Start(memberNames(cfg.Members)),
+		progress: progress.Start(namesOf(starts)),
 	}
 }
 
@@ -57,15 +60,12 @@ func defaultKill(pgid int) error {
 // Boot creates the team tab, lays out the panes, starts the agents and submits
 // the bootstrap prompts.
 func (l *Launcher) Boot() error {
-	members, err := l.cfg.Select("")
-	if err != nil {
-		return err
-	}
+	members := l.starts
 	workspace, err := l.preflight(members)
 	if err != nil {
 		return err
 	}
-	if _, err := l.createTab(workspace, members[0], l.teamTabLabel()); err != nil {
+	if _, err := l.createTab(workspace, &members[0], l.teamTabLabel()); err != nil {
 		return err
 	}
 	l.stage(i18n.T("progress.stage.creating_panes"))
@@ -74,12 +74,12 @@ func (l *Launcher) Boot() error {
 			return err
 		}
 	}
-	for _, member := range members {
-		if err := l.start(member); err != nil {
+	for i := range members {
+		if err := l.start(&members[i]); err != nil {
 			return err
 		}
 	}
-	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.cfg.Team, l.tabID())
+	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.team, l.tabID())
 	fmt.Fprint(l.out, i18n.T("launcher.boot_submitted"))
 	return nil
 }
@@ -89,11 +89,11 @@ func (l *Launcher) Boot() error {
 // definition it was booted from is not written into the label but read from this
 // machine's launch record when a command needs it (d-a72d): the tab is what a
 // person reads, and the definition is hergy's business.
-func (l *Launcher) teamTabLabel() string { return l.cfg.Team }
+func (l *Launcher) teamTabLabel() string { return l.team }
 
 // Reprompt re-submits the bootstrap prompt to idle agents, keeping each one's
 // conversation. It starts nothing.
-func (l *Launcher) Reprompt(members []*config.Member) error {
+func (l *Launcher) Reprompt(members []definition.Start) error {
 	if err := l.herdr.Verify(protocol.ModeReprompt); err != nil {
 		return err
 	}
@@ -112,7 +112,8 @@ func (l *Launcher) Reprompt(members []*config.Member) error {
 		}
 		l.place(member.Name, agent.PaneID)
 	}
-	for _, member := range members {
+	for i := range members {
+		member := &members[i]
 		pane := l.paneOf(member.Name)
 		l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
 		agent, err := l.herdr.Agent(pane)
@@ -141,7 +142,7 @@ func (l *Launcher) Reprompt(members []*config.Member) error {
 // before it stops or starts any, so one member that is not idle or done, is
 // hergy's own, or has no pane to start in, stops the whole command with nothing
 // changed.
-func (l *Launcher) Refresh(members []*config.Member, selfPane string) error {
+func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
@@ -161,7 +162,7 @@ func (l *Launcher) Refresh(members []*config.Member, selfPane string) error {
 // RefreshDry checks the same targets a real refresh checks and changes nothing,
 // so --dry shows the same refusal. Like down --dry, it reads the live agents and
 // panes.
-func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
+func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) error {
 	_, err := l.checkTargets(members, selfPane)
 	return err
 }
@@ -169,7 +170,7 @@ func (l *Launcher) RefreshDry(members []*config.Member, selfPane string) error {
 // Status reads the live agents and tabs and reports one row per selected member
 // and per worker this team hired. It starts and stops nothing, so it runs
 // outside a herdr-managed pane too.
-func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
+func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 	if err := l.herdr.Verify(protocol.ModeStatus); err != nil {
 		return nil, err
 	}
@@ -219,7 +220,7 @@ func (l *Launcher) Status(members []*config.Member) ([]status.Row, error) {
 // is live there. A member with no live agent is started again in the pane hergy
 // named for it, when that pane is at its shell.
 type refreshTarget struct {
-	member *config.Member
+	member *definition.Start
 	pane   string
 	live   bool
 }
@@ -228,9 +229,10 @@ type refreshTarget struct {
 // each one can be restarted: live and idle or done, or not live with its named
 // pane still at the shell. A member in hergy's own pane is refused either way.
 // Nothing is stopped or started until every member passes.
-func (l *Launcher) checkTargets(members []*config.Member, selfPane string) ([]refreshTarget, error) {
+func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]refreshTarget, error) {
 	targets := make([]refreshTarget, 0, len(members))
-	for _, member := range members {
+	for i := range members {
+		member := &members[i]
 		l.stage(i18n.Tf("progress.stage.checking", member.Name))
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
@@ -265,7 +267,7 @@ func (l *Launcher) checkTargets(members []*config.Member, selfPane string) ([]re
 // The member can be started again only when that pane is still there and its
 // foreground process is the shell; otherwise the pane is gone or something hergy
 // did not start is running in it, and refresh must not take it over.
-func (l *Launcher) deadTarget(member *config.Member, selfPane string) (refreshTarget, error) {
+func (l *Launcher) deadTarget(member *definition.Start, selfPane string) (refreshTarget, error) {
 	pane, err := l.herdr.FindPane(member.Name)
 	if err != nil {
 		return refreshTarget{}, err
@@ -344,13 +346,13 @@ func (l *Launcher) waitGone(name string) error {
 }
 
 // Hire starts one worker in a tab of its own, so the team layout stays as booted.
-func (l *Launcher) Hire(worker *config.Member) error {
+func (l *Launcher) Hire(worker *definition.Start) error {
 	l.progress = progress.Start([]string{worker.Name})
-	workspace, err := l.preflight([]*config.Member{worker})
+	workspace, err := l.preflight([]definition.Start{*worker})
 	if err != nil {
 		return err
 	}
-	pane, err := l.createTab(workspace, worker, "worker:"+l.cfg.Team+"/"+worker.ShortName)
+	pane, err := l.createTab(workspace, worker, "worker:"+l.team+"/"+worker.Short)
 	if err != nil {
 		return err
 	}
@@ -383,7 +385,7 @@ type downTarget struct {
 // runs in is closed last, so the rest still get closed. With dry, it prints what
 // would close and closes nothing. It returns how many panes it closed (or would
 // close), so a caller can tell a no-op from real work.
-func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (int, error) {
+func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
@@ -491,7 +493,7 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 		closed++
 	}
 	if closed == 0 {
-		fmt.Fprint(l.out, i18n.Tf("down.absent_only", l.cfg.Team))
+		fmt.Fprint(l.out, i18n.Tf("down.absent_only", l.team))
 		return 0, nil
 	}
 	if dry {
@@ -513,7 +515,7 @@ func (l *Launcher) workerAgents(agents []protocol.Agent) ([]protocol.Agent, erro
 	for _, tab := range tabs {
 		labels[tab.ID] = tab.Label
 	}
-	prefix := "worker:" + l.cfg.Team + "/"
+	prefix := "worker:" + l.team + "/"
 	var out []protocol.Agent
 	for _, agent := range agents {
 		if agent.Name == "" || agent.PaneID == "" || agent.TabID == "" {
@@ -599,7 +601,7 @@ func (l *Launcher) ReportFailure(w io.Writer) {
 
 // preflight is everything that can be checked without changing Herdr; it also
 // returns the caller's workspace.
-func (l *Launcher) preflight(members []*config.Member) (string, error) {
+func (l *Launcher) preflight(members []definition.Start) (string, error) {
 	for i := range members {
 		if !isDir(members[i].Cwd) {
 			return "", i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
@@ -623,7 +625,7 @@ func (l *Launcher) preflight(members []*config.Member) (string, error) {
 }
 
 // createTab makes the new tab whose root pane the first member holds.
-func (l *Launcher) createTab(workspace string, first *config.Member, label string) (string, error) {
+func (l *Launcher) createTab(workspace string, first *definition.Start, label string) (string, error) {
 	l.stage(i18n.T("progress.stage.creating_tab"))
 	root, err := l.herdr.CreateTab(workspace, label, first.Cwd, first.Env, func(id string) {
 		l.mu.Lock()
@@ -640,7 +642,7 @@ func (l *Launcher) createTab(workspace string, first *config.Member, label strin
 func (l *Launcher) layOut(step layout.Step) error {
 	switch s := step.(type) {
 	case layout.Split:
-		target, err := l.cfg.Member(s.Target)
+		target, err := l.lookup(s.Target)
 		if err != nil {
 			return err
 		}
@@ -658,7 +660,7 @@ func (l *Launcher) layOut(step layout.Step) error {
 	return nil
 }
 
-func (l *Launcher) start(member *config.Member) error {
+func (l *Launcher) start(member *definition.Start) error {
 	l.stage(i18n.Tf("progress.stage.starting", member.Name))
 	l.mark(member.Name, i18n.T("progress.mark.start_requested"))
 	if err := l.herdr.Start(member, l.paneOf(member.Name), l.timeout); err != nil {
@@ -668,7 +670,7 @@ func (l *Launcher) start(member *config.Member) error {
 	return l.submit(member, member.Name)
 }
 
-func (l *Launcher) submit(member *config.Member, target string) error {
+func (l *Launcher) submit(member *definition.Start, target string) error {
 	l.stage(i18n.Tf("progress.stage.submitting", member.Name))
 	l.mark(member.Name, i18n.T("progress.mark.prompt_requested"))
 	if err := l.herdr.Prompt(target, member.Prompt); err != nil {
@@ -709,7 +711,7 @@ func (l *Launcher) tabID() string {
 	return l.progress.TabID
 }
 
-func memberNames(members []config.Member) []string {
+func namesOf(members []definition.Start) []string {
 	names := make([]string, len(members))
 	for i, member := range members {
 		names[i] = member.Name
@@ -717,12 +719,16 @@ func memberNames(members []config.Member) []string {
 	return names
 }
 
-func namesOf(members []*config.Member) []string {
-	names := make([]string, len(members))
-	for i, member := range members {
-		names[i] = member.Name
+// lookup finds one member as a start: by its herdr name first, then by its short
+// name, so both the internal lookups (which use the herdr name) and the
+// command-line member names (the short member name) resolve.
+func (l *Launcher) lookup(name string) (*definition.Start, error) {
+	for i := range l.starts {
+		if l.starts[i].Name == name || l.starts[i].Short == name {
+			return &l.starts[i], nil
+		}
 	}
-	return names
+	return nil, i18n.Errorf("error.no_member", name)
 }
 
 func intersect(a, b []string) []string {

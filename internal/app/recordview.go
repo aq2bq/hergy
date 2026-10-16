@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/config"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/rules"
@@ -29,23 +29,24 @@ import (
 // layerDef is one team definition of a layer, read the way the commands read it.
 type layerDef struct {
 	name string
-	cfg  *config.Config
+	read *resolved
 }
 
 // layerDefinitions reads one layer's team definitions, the broken ones left out:
 // a definition that cannot be read has no documents and no prompts to show, and
 // the team list already carries why it is broken.
-func layerDefinitions(env team.Env, layer string) []layerDef {
+func (p servePort) layerDefinitions(layer string) []layerDef {
 	var out []layerDef
-	for _, row := range env.List() {
+	cat := p.catalog()
+	for _, row := range cat.Definitions() {
 		if !inLayer(row, layer) {
 			continue
 		}
-		cfg, err := validateTeam(env, row.Name, layer)
+		r, err := validateTeam(cat, p.env.ProjectRoot, row.Name, layer)
 		if err != nil {
 			continue
 		}
-		out = append(out, layerDef{name: row.Name, cfg: cfg})
+		out = append(out, layerDef{name: row.Name, read: r})
 	}
 	return out
 }
@@ -86,7 +87,7 @@ func latestRecord(records []launchlog.Record, teamYAML string) (launchlog.Record
 // one of another project whose team.yaml no definition of this layer stands at.
 func definitionOf(rec launchlog.Record, defs []layerDef) (layerDef, bool) {
 	for _, def := range defs {
-		if def.cfg.TeamYAML.Path == rec.TeamYAML {
+		if def.read.team.Definition.TeamYAML == rec.TeamYAML {
 			return def, true
 		}
 	}
@@ -104,7 +105,7 @@ func recordLine(env team.Env, log launchlog.Log, err error) string {
 // down. The rules with no check are read from the files themselves, so they show
 // on a machine that has not launched anything yet.
 func (p servePort) Home(layer string) homeview.Home {
-	defs := layerDefinitions(p.env, layer)
+	defs := p.layerDefinitions(layer)
 	log, openErr := launchlog.Open()
 	records, readErr := log.Read()
 	out := homeview.Home{}
@@ -138,8 +139,8 @@ func documentsOf(defs []layerDef) []source.Doc {
 	seen := map[string]bool{}
 	var out []source.Doc
 	for _, def := range defs {
-		for i := range def.cfg.Members {
-			for _, doc := range docsReadBy(&def.cfg.Members[i]) {
+		for i := range def.read.starts {
+			for _, doc := range docsReadBy(&def.read.starts[i]) {
 				if seen[doc.Path] {
 					continue
 				}
@@ -302,7 +303,7 @@ func (p servePort) Bump(layer, path string) (homeview.Answer, error) {
 	if err != nil {
 		return homeview.Answer{}, err
 	}
-	launched, recorded := launchedDocs(records, layerDefinitions(p.env, layer), []source.Doc{{Path: path}})[path]
+	launched, recorded := launchedDocs(records, p.layerDefinitions(layer), []source.Doc{{Path: path}})[path]
 	display := p.env.Display(path)
 	if !recorded {
 		return homeview.Answer{Why: i18n.Tf("error.bump_not_recorded", display)}, nil
@@ -344,10 +345,10 @@ func (p servePort) Bump(layer, path string) (homeview.Answer, error) {
 // that definition still reads it, and otherwise the first definition of the
 // layer that reads it now. Empty when no definition of the layer reads it.
 func (p servePort) definitionToRun(layer, path string) string {
-	defs := layerDefinitions(p.env, layer)
+	defs := p.layerDefinitions(layer)
 	var reading []layerDef
 	for _, def := range defs {
-		if readsPath(def.cfg, path) {
+		if readsPath(def.read, path) {
 			reading = append(reading, def)
 		}
 	}
@@ -362,7 +363,7 @@ func (p servePort) definitionToRun(layer, path string) string {
 		if !mine || !recordReads(records[i], path) {
 			continue
 		}
-		if readsPath(def.cfg, path) {
+		if readsPath(def.read, path) {
 			return def.name
 		}
 		// The newest launch that read it belongs to a definition that no longer
@@ -572,11 +573,11 @@ func (p servePort) Diff(layer string) homeview.Diff {
 		return homeview.Diff{Problem: recordLine(p.env, log, err)}
 	}
 	var out homeview.Diff
-	for _, def := range layerDefinitions(p.env, layer) {
-		_, found := latestRecord(records, def.cfg.TeamYAML.Path)
+	for _, def := range p.layerDefinitions(layer) {
+		_, found := latestRecord(records, def.read.team.Definition.TeamYAML)
 		item := homeview.Definition{Name: def.name, Launched: found}
-		for i := range def.cfg.Members {
-			item.Members = append(item.Members, p.memberDiff(log, records, def, &def.cfg.Members[i]))
+		for i := range def.read.starts {
+			item.Members = append(item.Members, p.memberDiff(log, records, def, &def.read.starts[i]))
 		}
 		out.Definitions = append(out.Definitions, item)
 	}
@@ -591,9 +592,9 @@ func (p servePort) Diff(layer string) homeview.Diff {
 // A launch that handed prompts to one member only (refresh, reprompt) says what
 // that member got and nothing about the others, so each member is compared with
 // the launch that last handed it one (M2).
-func (p servePort) memberDiff(log launchlog.Log, records []launchlog.Record, def layerDef, member *config.Member) homeview.Member {
+func (p servePort) memberDiff(log launchlog.Log, records []launchlog.Record, def layerDef, member *definition.Start) homeview.Member {
 	diff := homeview.Member{Name: member.Name}
-	text, ok := recordedPrompt(log, records, def.cfg.TeamYAML.Path, member.ShortName)
+	text, ok := recordedPrompt(log, records, def.read.team.Definition.TeamYAML, member.Short)
 	if !ok {
 		return diff
 	}
@@ -669,8 +670,8 @@ func (p servePort) RuleHref(layer, path, id string) string {
 // when it ran, the hash it wrote, and whether the files build that hash now. The
 // definition's team.yaml is what picks the record out of the machine's log, so
 // another project's launch of a definition of the same name is not it (M1).
-func (p servePort) launchNote(records []launchlog.Record, cfg *config.Config, name, layer string) web.Team {
-	rec, ok := latestRecord(records, cfg.TeamYAML.Path)
+func (p servePort) launchNote(records []launchlog.Record, r *resolved, name, layer string) web.Team {
+	rec, ok := latestRecord(records, r.team.Definition.TeamYAML)
 	if !ok {
 		return web.Team{}
 	}
@@ -685,15 +686,16 @@ func (p servePort) launchNote(records []launchlog.Record, cfg *config.Config, na
 // team name given: the name reaches the prompts, so it is part of what a launch
 // hands over, and the comparison is made under the name that was used.
 func (p servePort) teamHash(name, layer, teamName string) string {
-	resolved, err := p.env.Resolve(name, layer)
+	cat := p.catalog()
+	def, err := cat.Definition(name, layer)
 	if err != nil {
 		return ""
 	}
-	cfg, err := p.env.BuildConfig(resolved, source.Disk{}, teamName)
+	r, err := buildResolved(cat, source.Disk{}, p.env.ProjectRoot, def, teamName)
 	if err != nil {
 		return ""
 	}
-	material, err := teamMaterial(cfg)
+	material, err := teamMaterial(r)
 	if err != nil {
 		return ""
 	}

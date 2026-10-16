@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -51,7 +51,7 @@ func (p *fakePort) LayerRoot(layer string) string   { return p.roots[layer] }
 func (p *fakePort) ReadProfiles(layer string) Source { return p.file[layer] }
 
 func (p *fakePort) CheckProfiles(_, text string) string {
-	if _, err := config.ParseProfiles(text, "profiles.yaml"); err != nil {
+	if _, err := profile.ParseProfiles(text, "profiles.yaml"); err != nil {
 		return err.Error()
 	}
 	return ""
@@ -71,7 +71,7 @@ func (p *fakePort) WriteProfiles(layer, text, hash string) error {
 	// The file is what was written, and the layer's profiles are what it holds:
 	// the page drawn after a save is drawn from the file, the way it is by the
 	// app.
-	profiles, err := config.ParseProfiles(text, "profiles.yaml")
+	profiles, err := profile.ParseProfiles(text, "profiles.yaml")
 	if err != nil {
 		return err
 	}
@@ -520,7 +520,7 @@ func TestSaveBodyKeepsAnEnvValueThatHoldsALineBreak(t *testing.T) {
 	if got := port.wrote[LayerLocal]; got == "" {
 		t.Fatalf("a save that changed nothing wrote no file:\n%s", page)
 	}
-	profiles, err := config.ParseProfiles(port.wrote[LayerLocal], "profiles.yaml")
+	profiles, err := profile.ParseProfiles(port.wrote[LayerLocal], "profiles.yaml")
 	if err != nil {
 		t.Fatalf("the file the save wrote does not read: %v\n%s", err, port.wrote[LayerLocal])
 	}

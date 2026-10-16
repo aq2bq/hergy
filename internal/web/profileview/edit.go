@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/config"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 )
 
 // Row is one profile as the form holds it: the fields as they were typed. The
@@ -97,7 +97,7 @@ func (s *Screen) SaveBody(layer, token string, values url.Values) (string, error
 	if err != nil {
 		return refuse(err.Error())
 	}
-	text, err := config.EmitProfiles(profiles)
+	text, err := profile.EmitProfiles(profiles)
 	if err != nil {
 		return refuse(err.Error())
 	}
@@ -226,8 +226,8 @@ func markRows(rows []Row, profiles []Profile) {
 //
 // The names, the kinds, the args and the env are checked by the same check
 // hergy validate runs (CheckProfiles), over the file hergy would write.
-func profilesOf(rows []Row) (map[string]config.Profile, error) {
-	out := make(map[string]config.Profile, len(rows))
+func profilesOf(rows []Row) (map[string]profile.Profile, error) {
+	out := make(map[string]profile.Profile, len(rows))
 	for i, row := range rows {
 		if row.blank() {
 			continue
@@ -243,7 +243,7 @@ func profilesOf(rows []Row) (map[string]config.Profile, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[name] = config.Profile{
+		out[name] = profile.Profile{
 			Name: name,
 			Kind: strings.TrimSpace(row.Kind),
 			Args: argsOf(row.Args),

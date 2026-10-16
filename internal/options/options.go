@@ -64,7 +64,6 @@ type Options struct {
 	Dry     bool
 	JSON    bool   // --json: print the --dry plan as JSON instead of text
 	AI      bool   // --ai: cheat prints the agent cheatsheet
-	Layer   string // "", "global", "local"
 	Dir     string // -C: the project root to resolve against
 	Timeout int    // milliseconds
 	Lang    string // --lang: the language for this run
@@ -245,8 +244,14 @@ func validate(o *Options) error {
 // validateValues checks what every command's flags must hold, whatever the
 // command is.
 func validateValues(o *Options) error {
-	if o.seen["global"] && o.seen["local"] {
-		return i18n.Errorf("error.global_local_conflict")
+	// --local and --global are gone (段 3): a team definition name resolves to
+	// the project's own first, then the global one (I11), so nobody chooses a
+	// layer. The flags are still read, so a person who types one is told what
+	// happened rather than "unknown option" (段 3 の設計).
+	for _, flag := range []string{"global", "local"} {
+		if o.seen[flag] {
+			return i18n.Errorf("error.layer_flag_gone", flag)
+		}
 	}
 	for name := range o.seen {
 		if !allowed[o.Kind][name] {

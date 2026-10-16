@@ -195,15 +195,15 @@ func TestHelpStopsTheParseWhereItStands(t *testing.T) {
 }
 
 // TestSynopsis: the command line the cheatsheet for an agent prints for a
-// command, written out for the four shapes: optional argument, required flags,
-// a flag standing in for an argument, and the --global|--local pair.
+// command, written out for the shapes: optional argument, required flags, and a
+// flag standing in for an argument.
 func TestSynopsis(t *testing.T) {
 	tests := map[Kind]string{
-		New:     "hergy new <definition> [--local] [-C <dir>]",
-		Up:      "hergy up [definition] [--as <team>] [--global|--local] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
-		Refresh: "hergy refresh <member>|--all [--team <team>] [--global|--local] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
+		New:     "hergy new <definition> [-C <dir>]",
+		Up:      "hergy up [definition] [--as <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
+		Refresh: "hergy refresh <member>|--all [--team <team>] [--dry] [--json] [--timeout <ms>] [-C <dir>]",
 		Hire: "hergy hire <name> --purpose <purpose> --task <task> [--profile <profile>] [--from <member>] [--team <team>] " +
-			"[--global|--local] [--timeout <ms>] [--dry] [--json] [-C <dir>]",
+			"[--timeout <ms>] [--dry] [--json] [-C <dir>]",
 		Version: "hergy version",
 	}
 	for kind, want := range tests {
@@ -236,10 +236,25 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 				if accepts(s, f) {
 					continue
 				}
+				if f == flagGlobal || f == flagLocal {
+					// --global and --local are gone (段 3): they are refused
+					// with the sentence that says so, not with "not allowed
+					// here". The sentence is checked below.
+					continue
+				}
 				_, err := Parse(append(argvOf(s, len(s.Args), nil), flagArgs(f)...))
 				if err == nil || !strings.Contains(err.Error(), "--"+f.Name) || !strings.Contains(err.Error(), want) {
 					t.Errorf("[%s] hergy %s --%s: the error is %v, want it to name the flag and point at %q", lang, s.Name, f.Name, err, want)
 				}
+			}
+		}
+
+		// --global and --local are refused everywhere with the one sentence
+		// (段 3 の設計), whatever command they are typed on.
+		for _, f := range []*Flag{flagGlobal, flagLocal} {
+			_, err := Parse(append(argvOf(&specs[0], len(specs[0].Args), nil), "--"+f.Name))
+			if err == nil || !strings.Contains(err.Error(), "--"+f.Name) || !strings.Contains(err.Error(), i18n.Tf("error.layer_flag_gone", f.Name)) {
+				t.Errorf("[%s] hergy %s --%s: the error is %v, want the sentence that says the flag is gone", lang, specs[0].Name, f.Name, err)
 			}
 		}
 
