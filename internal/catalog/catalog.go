@@ -141,16 +141,16 @@ func (c *Catalog) definitionIn(name, layer string, edit ProfilesEdit) (*definiti
 	hasLocal := isFile(local)
 	hasGlobal := isFile(global)
 
-	var chosen, other, chosenLayer string
+	var chosen, chosenLayer string
 	switch layer {
 	case source.LayerLocal:
 		if !hasLocal {
-			return nil, notFoundError{i18n.Errorf("error.team_not_local", name, c.display(local), c.display(c.localDir)).Error()}
+			return nil, c.missing(name)
 		}
 		chosen, chosenLayer = local, source.LayerLocal
 	case source.LayerGlobal:
 		if !hasGlobal {
-			return nil, notFoundError{i18n.Errorf("error.team_not_global", name, c.display(global), c.display(c.globalDir)).Error()}
+			return nil, c.missing(name)
 		}
 		chosen, chosenLayer = global, source.LayerGlobal
 	default:
@@ -160,16 +160,10 @@ func (c *Catalog) definitionIn(name, layer string, edit ProfilesEdit) (*definiti
 		case hasGlobal:
 			chosen, chosenLayer = global, source.LayerGlobal
 		default:
-			return nil, c.notFound(name, local, global)
+			return nil, c.missing(name)
 		}
 	}
-	if chosen == local && hasGlobal {
-		other = global
-	}
-	if chosen == global && hasLocal {
-		other = local
-	}
-	return c.readDefinition(name, chosen, chosenLayer, other, edit)
+	return c.readDefinition(name, chosen, chosenLayer, edit)
 }
 
 // defaultDefinition is what a missing name does: the single local definition, or
@@ -181,25 +175,22 @@ func (c *Catalog) defaultDefinition(layer string) (*definition.Definition, error
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerGlobal, ProfilesEdit{})
 		}
-		return nil, c.candidates(i18n.Tf("error.global_count", len(names)))
 	case source.LayerLocal:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerLocal, ProfilesEdit{})
 		}
-		return nil, c.candidates(i18n.Tf("error.local_count", len(names)))
 	default:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerLocal, ProfilesEdit{})
 		}
-		return nil, c.candidates(i18n.Tf("error.need_team_name", len(names)))
 	}
+	return nil, c.candidates(layer)
 }
 
-// readDefinition reads one team.yaml with the profiles its layer reads, and
-// records the same-name team.yaml of the other layer for the note that says so.
-func (c *Catalog) readDefinition(name, path, layer, other string, edit ProfilesEdit) (*definition.Definition, error) {
+// readDefinition reads one team.yaml with the profiles its layer reads.
+func (c *Catalog) readDefinition(name, path, layer string, edit ProfilesEdit) (*definition.Definition, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
@@ -221,20 +212,26 @@ func (c *Catalog) readDefinition(name, path, layer, other string, edit ProfilesE
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
 	}
-	def.OtherYAML = other
 	return def, nil
 }
 
-func (c *Catalog) notFound(name, local, global string) error {
-	var b strings.Builder
-	fmt.Fprintf(&b, i18n.T("error.team_not_found"), name)
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.local"), c.display(local))
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.global"), c.display(global))
-	if candidates := c.candidateNames(); len(candidates) > 0 {
-		fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(candidates, i18n.T("list.separator")))
-		fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(candidates)))
+// missing is the one not-found message: the name, every place it was looked for
+// (the project first, then outside it), and the names that are there to choose
+// from. The layer is not a word a person reads (I11).
+func (c *Catalog) missing(name string) error {
+	places := strings.Join([]string{
+		c.display(c.TeamYAML(name, source.LayerLocal)),
+		c.display(c.TeamYAML(name, source.LayerGlobal)),
+	}, i18n.T("list.separator"))
+	candidates := c.candidateNames()
+	var msg string
+	if len(candidates) == 0 {
+		msg = i18n.Tf("error.team_not_found", name, places)
+	} else {
+		msg = i18n.Tf("error.team_not_found_candidates", name, places, strings.Join(candidates, i18n.T("list.separator")))
+		msg += "\n" + i18n.Tf("next", nextCommand(candidates))
 	}
-	return notFoundError{b.String()}
+	return notFoundError{msg}
 }
 
 // nextCommand is the command that moves a not-found error on: boot the one
@@ -246,14 +243,22 @@ func nextCommand(candidates []string) string {
 	return "ls"
 }
 
-func (c *Catalog) candidates(head string) error {
+// candidates is what a missing name does when several definitions are there:
+// name one, with the ones there to choose from. The count is of the definitions
+// a name would read (the project's), so it can be 0 while the list is not: a name
+// outside the project is a candidate, but a name that is omitted does not use it
+// (D1, spec/35).
+func (c *Catalog) candidates(layer string) error {
 	list := c.candidateNames()
 	if len(list) == 0 {
-		return i18n.Errorf("error.no_candidates", head, c.display(c.globalDir), c.display(c.localDir))
+		return notFoundError{i18n.T("error.team_count_none") + "\n" + i18n.Tf("next", "new <name>")}
+	}
+	dir := c.localDir
+	if layer == source.LayerGlobal {
+		dir = c.globalDir
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s", head)
-	fmt.Fprintf(&b, "\n  %s: %s", i18n.T("label.candidates"), strings.Join(list, i18n.T("list.separator")))
+	fmt.Fprint(&b, i18n.Tf("error.team_count_candidates", len(teamNames(dir)), strings.Join(list, i18n.T("list.separator"))))
 	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
 	return notFoundError{b.String()}
 }

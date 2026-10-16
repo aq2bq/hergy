@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get the team's `team.yaml` and `agreement.yaml` (its agreements), and the layer's `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
+You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
 
 Run it in a herdr shell pane.
 
@@ -69,10 +69,10 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy refresh <member>` / `--all` | Restart each member of a running team. A live member's agent is ended and started again in the same pane, so its conversation starts empty; a member that is not live is started again in the pane hergy named after it, when that pane is still at its shell (a pane that is gone or busy is an error, pointing at `down` then `up`). The team definition is read again, so an edited profile (its kind, args and env), or an edited prompt, takes effect (`env` is the exception; see below). A member cannot refresh itself: run it from another pane, or as the human |
 | `hergy reprompt <member>` / `--all` | Re-send the bootstrap prompt to waiting members, keeping each conversation |
 | `hergy hire <name> --purpose X --task "…" [--from <member>]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). `--purpose` must be a purpose the hiring member's `workers:` names, and the profile comes from that entry; anything else is refused, naming the purposes the member may hire for. `--from` may be left out when exactly one member hires for that purpose |
-| `hergy ls` | List the available team definitions and their layers, and the running team names each one booted |
+| `hergy ls` | List the available team definitions and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one. It then prints what the rules carry and the size of what each member is handed and of each team definition's rule files, warning when one is over the provisional limit; a warning does not change the exit code |
-| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). Now it shows the layer you pick: one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
+| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 
@@ -84,13 +84,13 @@ Common options: `-C <dir>` (pick the project), `--lang ja` (show Japanese; Engli
 
 ## Where team definitions and settings live
 
-| Layer | Location |
+| Where | Location |
 |---|---|
-| Global | `$XDG_CONFIG_HOME/hergy/` (`~/.config/hergy/` when unset) |
-| Local | `<project>/.hergy/` |
+| Outside the project | `$XDG_CONFIG_HOME/hergy/` (`~/.config/hergy/` when unset) |
+| The project | `<project>/.hergy/` |
 
-- A team definition lives in `teams/<definition>/team.yaml`. When both layers have the same name, the local one wins
-- `profiles.yaml` and the global `config.yaml` are settings files. `profiles.yaml` can live in both layers: a local team definition reads the local one over the global one (local wins for the same name); a global one reads only the global one
+- A team definition lives in `teams/<definition>/team.yaml`. When a name is in both places, the project's one wins
+- `profiles.yaml` and the global `config.yaml` are settings files. `profiles.yaml` can be in both places: a team definition in the project reads the project's over the one outside it (the project's wins for the same name); a definition outside reads only the one outside
 - Put `version: 1` and `lang: ja` in the global `config.yaml` to get Japanese without `--lang`; `hergy new` writes it, with the language that run showed, when it is missing, and leaves it alone when it is there
 - `hergy up <definition> --dry` shows each member's prompt and the files it read
 
@@ -101,13 +101,13 @@ version: 1              # required
 mission: "what this team is for"  # required; one line, shown first by the commands that handle a team and by the web UI
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
-                        # no key points at the documents: the layer's agreement.yaml (every team of
-                        # the layer), teams/<definition>/agreement.yaml (this team) and the layer's
-                        # roles/<role>.yaml are read, in that order
+                        # no key points at the documents: the shared agreement.yaml (every team),
+                        # teams/<definition>/agreement.yaml (this team) and roles/<role>.yaml are
+                        # read, in that order (the project's .hergy/ first, then ~/.config/hergy/)
 prompt: "…"             # bootstrap prompt template (optional); it must keep %{role_doc} and %{docs}
 members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
-    role: lead          # reads the layer's roles/lead.yaml
+    role: lead          # reads roles/lead.yaml
     profile: opus       # a named profile from profiles.yaml; kind, args and env are written there, not here
 workers:                # purpose-to-profile pairs a member may hire for (written into the prompt, not enforced)
   - from: lead          # the member that may hire this worker
@@ -152,7 +152,7 @@ profiles:
 | Placeholder | Content |
 |---|---|
 | `%{team}` / `%{role}` / `%{name}` | Team name, role, herdr name (`"<team>-<member>"`) |
-| `%{role_doc}` | The role file |
+| `%{role_doc}` | The role document |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |
 | `%{herdr}` | How to reach others over herdr, and how to add a teammate (`hergy hire`, not `herdr agent start`) |

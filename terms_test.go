@@ -27,6 +27,10 @@ type ban struct {
 	// rules the wording; a ban with no instead says the word is out and leaves
 	// the way to say it to whoever rewrites the sentence.
 	instead string
+	// except is a locale key prefix left unchecked. The Web UI's own strings
+	// (web.*) still name the layer until the Web UI is rebuilt (r-5f80); every
+	// string the commands, the cheatsheet and the docs read is checked.
+	except string
 }
 
 // term is one thing hergy names, in both languages.
@@ -105,7 +109,13 @@ var glossary = []term{
 		id:       "layer",
 		english:  "layer",
 		japanese: "層",
-		meaning:  "one of the two settings roots: local (<project>/.hergy) and global ($XDG_CONFIG_HOME/hergy)",
+		meaning:  "one of the two settings roots: the project (<project>/.hergy) and outside it ($XDG_CONFIG_HOME/hergy). It stays inside hergy: it is not a word a person reads (I11)",
+		banned: []ban{
+			// The layer is hergy's own word. A person reads the place by its
+			// path, never by this name (I11, 段 7).
+			{lang: "ja", word: "層", except: "web."},
+			{lang: "en", word: "layer", except: "web."},
+		},
 	},
 	{
 		id:       "profile",
@@ -233,7 +243,7 @@ var glossary = []term{
 		id:       "rule",
 		english:  "rule",
 		japanese: "規則",
-		meaning:  "one rule of a team's agreement or role file: its id, its text, and, when the file gives them, its origin, its reason and its check",
+		meaning:  "one rule of a team's agreement or role document: its id, its text, and, when the file gives them, its origin, its reason and its check",
 	},
 	{
 		id:       "origin",
@@ -295,6 +305,8 @@ var bannedWords = []ban{
 	{lang: "ja", word: "つながり"},
 	{lang: "ja", word: "棚卸し"},
 	{lang: "ja", word: "版", instead: "バージョン"},
+	// role file was the old English name for a role document (段 7, spec/28 H3).
+	{lang: "en", word: "role file", instead: "role document"},
 }
 
 // TestGlossaryIsConsistent fails when the table contradicts itself: one name on
@@ -335,7 +347,7 @@ func TestGlossaryIsConsistent(t *testing.T) {
 				t.Errorf("term %q bans %q in the unknown language %q", tm.id, b.word, b.lang)
 				continue
 			}
-			if other, ok := names[b.word]; ok {
+			if other, ok := names[b.word]; ok && other != tm.id {
 				t.Errorf("term %q forbids %q, but it is the name of %q", tm.id, b.word, other)
 			}
 		}
@@ -365,17 +377,23 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		hits = append(hits, hit{where: where, word: b.word, term: termID, want: want})
 	}
 
-	check := func(where, lang, text string) {
+	check := func(where, key, lang, text string) {
 		for _, tm := range glossary {
 			name := tm.english
 			if lang == "ja" {
 				name = tm.japanese
 			}
 			for _, b := range tm.banned {
+				if b.except != "" && strings.HasPrefix(key, b.except) {
+					continue
+				}
 				add(where, lang, text, tm.id, name, b)
 			}
 		}
 		for _, b := range bannedWords {
+			if b.except != "" && strings.HasPrefix(key, b.except) {
+				continue
+			}
 			add(where, lang, text, "", "", b)
 		}
 	}
@@ -397,7 +415,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			check(path+":"+key, lang, messages[key])
+			check(path+":"+key, key, lang, messages[key])
 		}
 	}
 
@@ -413,13 +431,13 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 			t.Fatalf("read %s: %v", src.path, err)
 		}
 		for i, line := range strings.Split(string(raw), "\n") {
-			check(fmt.Sprintf("%s:%d", src.path, i+1), src.lang, line)
+			check(fmt.Sprintf("%s:%d", src.path, i+1), "", src.lang, line)
 		}
 	}
 
 	// The agent cheatsheet is a Go constant, so it comes from the package.
 	for i, line := range strings.Split(cheat.Machine, "\n") {
-		check(fmt.Sprintf("internal/cheat/cheat.go:Machine:%d", i+1), "en", line)
+		check(fmt.Sprintf("internal/cheat/cheat.go:Machine:%d", i+1), "", "en", line)
 	}
 
 	if len(hits) == 0 {

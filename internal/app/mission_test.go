@@ -45,7 +45,13 @@ func TestShowAndUpDryPrintTheMissionFirst(t *testing.T) {
 		if !strings.HasPrefix(got, want) {
 			t.Errorf("%v does not open with the mission:\n%s", argv, got)
 		}
-		if !strings.Contains(got, "team definition: demo\n") {
+		header := "team definition: demo\n"
+		if argv[0] == "up" {
+			// A team command names the team; the definition is named only
+			// when the two differ.
+			header = "team: demo\n"
+		}
+		if !strings.Contains(got, header) {
 			t.Errorf("%v does not carry the header after the mission:\n%s", argv, got)
 		}
 	}

@@ -346,12 +346,11 @@ func TestNewShape(t *testing.T) {
 	got := mustRun(t, "new", "demo")
 	wantLines(t, got,
 		"team definition: demo",
-		"layer: local",
 		"dir: .hergy/teams/demo",
 		"file: .hergy/teams/demo/team.yaml",
 		"file: .hergy/teams/demo/agreement.yaml",
-		"role file: .hergy/roles/lead.yaml",
-		"role file: .hergy/roles/builder.yaml",
+		"role document: .hergy/roles/lead.yaml",
+		"role document: .hergy/roles/builder.yaml",
 		"profile: claude-default",
 		"file: .hergy/profiles.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
@@ -411,7 +410,7 @@ func TestLsAfterNewUsesTheCreatedLanguage(t *testing.T) {
 	if !strings.Contains(got, "チーム定義: demo\n") {
 		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
 	}
-	if !strings.Contains(got, "ローカル: .hergy\n") {
+	if !strings.Contains(got, "  パス: .hergy/teams/demo/team.yaml\n") {
 		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
 	}
 }
@@ -684,16 +683,33 @@ func TestUpStopsOnAGraphTheDefinitionCannotHold(t *testing.T) {
 }
 
 func TestLsShape(t *testing.T) {
-	f := newFixture(t)
+	newFixture(t)
 	mustRun(t, "new", "demo")
 	got := mustRun(t, "ls")
 	wantLines(t, got,
-		"local: .hergy",
-		"global: "+filepath.Join(f.cfg, "hergy"),
 		"team definition: demo",
-		"  layer: local",
 		"  path: .hergy/teams/demo/team.yaml",
 	)
+}
+
+// TestNoOutputNamesTheLayer: the layer is hergy's own word and a person reads
+// where a definition is by its path, so no command names the layer (I11, 段 7).
+func TestNoOutputNamesTheLayer(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo")
+	for _, argv := range [][]string{
+		{"ls"},
+		{"show", "demo"},
+		{"up", "demo", "--dry"},
+		{"new", "fresh"},
+	} {
+		out := mustRun(t, argv...)
+		for _, word := range []string{"layer", "層"} {
+			if strings.Contains(out, word) {
+				t.Errorf("%v names the layer (%q):\n%s", argv, word, out)
+			}
+		}
+	}
 }
 
 func TestValidateShape(t *testing.T) {
@@ -818,7 +834,6 @@ func TestShowShape(t *testing.T) {
 		"mission: what this team is for, in one line",
 		"team definition: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"document: .hergy/teams/demo/agreement.yaml",
@@ -828,7 +843,7 @@ func TestShowShape(t *testing.T) {
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
 		"  turns: builder, human",
-		"  role file: .hergy/roles/lead.yaml",
+		"  role document: .hergy/roles/lead.yaml",
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"member: demo-builder",
 		"  role: builder",
@@ -836,7 +851,7 @@ func TestShowShape(t *testing.T) {
 		"  profile: claude-default (.hergy/profiles.yaml)",
 		"  cwd: .",
 		"  turns: lead",
-		"  role file: .hergy/roles/builder.yaml",
+		"  role document: .hergy/roles/builder.yaml",
 		"  reads: .hergy/teams/demo/agreement.yaml",
 	)
 }
@@ -845,7 +860,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "層: local", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.yaml"} {
+	for _, line := range []string{"チーム定義: demo", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.yaml"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}
@@ -861,12 +876,11 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 	}
 	for _, line := range []string{
 		"mode: boot",
-		"team definition: demo",
 		"team: demo",
 		"timeout: 30000",
 		"member: demo-lead",
 		"  role: lead",
-		"  role file: .hergy/roles/lead.yaml",
+		"  role document: .hergy/roles/lead.yaml",
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
@@ -968,10 +982,8 @@ func TestDownDryShape(t *testing.T) {
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
 		"mission: what this team is for, in one line",
-		"team definition: demo",
 		"team: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"demo-lead: would close (pane p1)",
@@ -989,10 +1001,8 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
 		"mission: what this team is for, in one line",
-		"team definition: demo",
 		"team: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"demo-lead: would skip (not present)",
@@ -1013,10 +1023,8 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 	got := mustRun(t, "up", "demo")
 	wantLines(t, got,
 		"mission: what this team is for, in one line",
-		"team definition: demo",
 		"team: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"submitted: demo-lead (pane p1)",
@@ -1040,10 +1048,8 @@ func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 	got := mustRun(t, "down", "demo")
 	wantLines(t, got,
 		"mission: what this team is for, in one line",
-		"team definition: demo",
 		"team: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"demo-lead: closing (pane p1)",
@@ -1069,10 +1075,8 @@ func TestNotFoundTeamEndsWithNext(t *testing.T) {
 		t.Fatalf("up nosuch wrote to stdout: %q", stdout)
 	}
 	wantLines(t, stderr,
-		`error: no team definition "nosuch"`,
-		"  local: .hergy/teams/nosuch/team.yaml",
-		"  global: "+filepath.Join(f.cfg, "hergy", "teams", "nosuch", "team.yaml"),
-		"  candidates: demo",
+		"error: there is no team definition nosuch (looked in: .hergy/teams/nosuch/team.yaml, "+
+			filepath.Join(f.cfg, "hergy", "teams", "nosuch", "team.yaml")+"; candidates: demo)",
 		"next: up demo",
 	)
 }
@@ -1085,6 +1089,41 @@ func TestNotFoundTeamWithoutCandidatesHasNoNext(t *testing.T) {
 	}
 	if strings.Contains(stderr, "next:") {
 		t.Fatalf("a not-found error without candidates has a next:\n%s", stderr)
+	}
+}
+
+// TestUpWithoutANameCountsTheProjectsDefinitions: a name that is omitted reads
+// the project's definitions only, so the number the stop reports is the project's
+// (0 here), while a definition outside the project is still a candidate (D1,
+// spec/35).
+func TestUpWithoutANameCountsTheProjectsDefinitions(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "g", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\n")
+	_, stderr, code := run("up")
+	if code == 0 {
+		t.Fatal("up without a name succeeded with no project definition")
+	}
+	want := i18n.Tf("error.team_count_candidates", 0, "g")
+	if !strings.Contains(stderr, want) {
+		t.Fatalf("up without a name does not count the project's definitions:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "next: up g\n") {
+		t.Fatalf("up without a name does not offer the one candidate:\n%s", stderr)
+	}
+}
+
+// TestUpWithoutAnyDefinitionSaysHowToMakeOne: with no definition anywhere, the
+// stop says there are none and names the next command (D1, spec/35).
+func TestUpWithoutAnyDefinitionSaysHowToMakeOne(t *testing.T) {
+	newFixture(t)
+	_, stderr, code := run("up")
+	if code == 0 {
+		t.Fatal("up without a name succeeded with no definitions")
+	}
+	want := i18n.T("error.team_count_none") + "\n" + i18n.Tf("next", "new <name>")
+	if !strings.Contains(stderr, want) {
+		t.Fatalf("up without any definition does not say how to make one:\n%s", stderr)
 	}
 }
 
@@ -1155,6 +1194,16 @@ func TestLayerFlagsAreGone(t *testing.T) {
 			t.Errorf("hergy up demo %s: the error is %q, want the sentence that says the flag is gone", flag, stderr)
 		}
 	}
+	// new is told where it writes, on a second line (段 7, H6).
+	for _, flag := range []string{"--local", "--global"} {
+		_, stderr, code := run("new", "fresh", flag)
+		if code == 0 {
+			t.Fatalf("hergy new fresh %s succeeded", flag)
+		}
+		if !strings.Contains(stderr, flag+" is gone") || !strings.Contains(stderr, i18n.T("error.new_writes")) {
+			t.Errorf("hergy new fresh %s: the error is %q, want the flag sentence and a line saying where new writes", flag, stderr)
+		}
+	}
 }
 
 // TestValidateWarnsAboutAHiddenGlobalDefinition: a global definition that a
@@ -1171,7 +1220,7 @@ func TestValidateWarnsAboutAHiddenGlobalDefinition(t *testing.T) {
 		"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\nturns:\n  - human -> a\n  - a -> human\n")
 
 	out := mustRun(t, "validate")
-	want := "warning: the global team definition demo is hidden by the project's demo and is not used"
+	want := "warning: a team definition with this name is also in the project, so this one is not used (demo)"
 	if !strings.Contains(out, want) {
 		t.Fatalf("validate does not warn about the hidden global definition:\n%s", out)
 	}
@@ -1221,7 +1270,6 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 
 	plain := mustRun(t, "up", "demo", "--dry")
 	for _, line := range []string{
-		"team definition: demo",
 		"team: demo",
 		"member: demo-lead",
 		"    You are demo-lead (lead) on team demo.",
@@ -1237,8 +1285,7 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 
 	named := mustRun(t, "up", "demo", "--as", "alpha", "--dry")
 	for _, line := range []string{
-		"team definition: demo",
-		"team: alpha",
+		"team: alpha (from demo)",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"member: alpha-lead",
 		"member: alpha-builder",
@@ -1262,8 +1309,7 @@ func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 	mustRun(t, "new", "dev")
 	got := mustRun(t, "up", "dev", "--as", "dev2", "--dry")
 	for _, line := range []string{
-		"team definition: dev",
-		"team: dev2",
+		"team: dev2 (from dev)",
 		"member: dev2-lead",
 		"member: dev2-builder",
 		"    You are dev2-lead (lead) on team dev2.",
@@ -1420,8 +1466,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 
 	alpha := mustRun(t, "up", "demo", "--as", "alpha")
 	for _, line := range []string{
-		"team definition: demo",
-		"team: alpha",
+		"team: alpha (from demo)",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"submitted: alpha-lead (pane p1)",
 		"submitted: alpha-builder (pane p2)",
@@ -1434,8 +1479,7 @@ func TestUpAsBootsTwoTeamsSideBySide(t *testing.T) {
 
 	beta := mustRun(t, "up", "demo", "--as", "beta")
 	for _, line := range []string{
-		"team definition: demo",
-		"team: beta",
+		"team: beta (from demo)",
 		"submitted: beta-lead (pane p1)",
 		"submitted: beta-builder (pane p2)",
 		"booted: beta (tab t2)",
@@ -1468,8 +1512,7 @@ func TestDownByTeamNameClosesOnlyThatTeamsMembers(t *testing.T) {
 
 	got := mustRun(t, "down", "alpha")
 	for _, line := range []string{
-		"team definition: demo",
-		"team: alpha",
+		"team: alpha (from demo)",
 		"alpha-lead: closing (pane p-alpha-lead)",
 		"alpha-builder: closing (pane p-alpha-builder)",
 		"closed: 2",
@@ -1709,7 +1752,7 @@ func TestHirePurposeNobodyHiresFor(t *testing.T) {
 	if code == 0 {
 		t.Fatal("hire for a purpose nobody hires for succeeded")
 	}
-	for _, want := range []string{"デザイン", "--from", "lead: 実装, spec: 調査"} {
+	for _, want := range []string{"デザイン", "--from", "lead: 実装 / spec: 調査"} {
 		if want == "--from" {
 			// The refusal must not ask for --from.
 			if strings.Contains(stderr, want) {
@@ -1726,7 +1769,7 @@ func TestHirePurposeNobodyHiresFor(t *testing.T) {
 	if code == 0 {
 		t.Fatal("hire for a purpose nobody hires for succeeded (ja)")
 	}
-	if !strings.Contains(stderr, "lead は 実装、spec は 調査") {
+	if !strings.Contains(stderr, "lead は 実装／spec は 調査") {
 		t.Fatalf("the Japanese refusal does not list who may hire for what:\n%s", stderr)
 	}
 }
@@ -1840,10 +1883,8 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 	got := mustRun(t, "status", "demo")
 	wantLines(t, got,
 		"mission: what this team is for, in one line",
-		"team definition: demo",
 		"team: demo",
 		"version: 1",
-		"layer: local",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"demo-lead: working",
@@ -2090,7 +2131,7 @@ func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	f.runningHerdr(t, tabs, agents)
 
 	first := mustRun(t, "status", "qw")
-	for _, line := range []string{"team definition: qw", "team: qw", "qw-lead: working", "qw-builder: not present"} {
+	for _, line := range []string{"team: qw", "qw-lead: working", "qw-builder: not present"} {
 		if !strings.Contains(first, line+"\n") {
 			t.Fatalf("status qw is missing %q:\n%s", line, first)
 		}
@@ -2100,7 +2141,7 @@ func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	}
 
 	second := mustRun(t, "status", "qw2")
-	for _, line := range []string{"team definition: qw", "team: qw2", "qw2-lead: idle"} {
+	for _, line := range []string{"team: qw2 (from qw)", "qw2-lead: idle"} {
 		if !strings.Contains(second, line+"\n") {
 			t.Fatalf("status qw2 is missing %q:\n%s", line, second)
 		}
@@ -2118,7 +2159,7 @@ func TestTeamCommandReadsTheOlderTabLabel(t *testing.T) {
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev"}`,
 		`{"name":"dev-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`)
 	got := mustRun(t, "status", "dev")
-	for _, line := range []string{"team definition: dev", "team: dev", "dev-lead: idle"} {
+	for _, line := range []string{"team: dev", "dev-lead: idle"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status dev is missing %q:\n%s", line, got)
 		}
@@ -2209,13 +2250,11 @@ func TestStatusListsEveryRunningTeam(t *testing.T) {
 	got := mustRun(t, "status")
 	wantLines(t, got,
 		"team: qw",
-		"  team definition: qw",
 		"  members: 2",
 		"  workers: 1",
 		"  waiting for a human: qw-builder",
 		"",
-		"team: qw2",
-		"  team definition: qw",
+		"team: qw2 (from qw)",
 		"  members: 2",
 		"  workers: 0",
 		"  nobody is working",
@@ -2235,11 +2274,9 @@ func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
 	got := mustRun(t, "status")
 	wantLines(t, got,
 		"team: othersite",
-		"  team definition: othersite",
 		"  the team definition is not in this project; run hergy status from the project that booted it",
 		"",
 		"team: qw",
-		"  team definition: qw",
 		"  members: 2",
 		"  workers: 0",
 		"  nobody is working",
@@ -2266,10 +2303,7 @@ func TestLsShowsTheRunningTeams(t *testing.T) {
 	f.runningHerdr(t, tabs, "")
 	got := mustRun(t, "ls")
 	wantLines(t, got,
-		"local: .hergy",
-		"global: "+filepath.Join(f.cfg, "hergy"),
 		"team definition: qw",
-		"  layer: local",
 		"  path: .hergy/teams/qw/team.yaml",
 		"  running: qw, qw2",
 	)
@@ -2289,6 +2323,24 @@ func TestLsWithoutHerdrShowsOnlyDefinitions(t *testing.T) {
 	}
 }
 
+// TestLsSaysWhenANameIsAlsoOutsideTheProject: a name written both in the project
+// and outside it is read from the project, and ls says so, naming the place by
+// its path rather than by the layer (段 7, H8).
+func TestLsSaysWhenANameIsAlsoOutsideTheProject(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmission: outside the project\nmembers:\n  - name: a\n    role: lead\n    profile: claude-default\n")
+	got := mustRun(t, "ls")
+	want := i18n.Tf("note.elsewhere", filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml"))
+	if !strings.Contains(got, want+"\n") {
+		t.Fatalf("ls does not say the name is also outside the project:\n%s", got)
+	}
+	if !strings.Contains(got, "  path: .hergy/teams/demo/team.yaml\n") {
+		t.Fatalf("ls does not read the project's definition:\n%s", got)
+	}
+}
+
 // TestTeamCommandTargetsTheNamedTeam: --team picks one running team by its team
 // name, even when another team comes from the same team definition.
 func TestTeamCommandTargetsTheNamedTeam(t *testing.T) {
@@ -2297,7 +2349,7 @@ func TestTeamCommandTargetsTheNamedTeam(t *testing.T) {
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
 	got := mustRun(t, "reprompt", "lead", "--team", "qw2", "--dry")
-	for _, line := range []string{"team definition: qw", "team: qw2", "member: qw2-lead"} {
+	for _, line := range []string{"team: qw2 (from qw)", "member: qw2-lead"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("reprompt --team qw2 is missing %q:\n%s", line, got)
 		}

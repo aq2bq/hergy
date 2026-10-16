@@ -191,8 +191,8 @@ var specs = []Spec{
 		Kind: Ls, Name: "ls",
 		Summary: text("List the team definitions", "チーム定義の一覧を見る"),
 		Detail: text(
-			"List the visible team definitions and the layer each came from,\nand the running team names each one booted.",
-			"見えるチーム定義と、それがどの層のものか、そこから動いているチーム名を一覧する。"),
+			"List the visible team definitions,\nand the running team names each one booted.",
+			"見えるチーム定義と、そこから動いているチーム名を一覧する。"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
@@ -215,11 +215,11 @@ var specs = []Spec{
 		Kind: New, Name: "new",
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
-			"Write team.yaml and agreement.yaml, and the layer's roles/. An existing team is never overwritten.\n"+
-				"It writes into the project's .hergy/ inside a git repository, and into the global layer otherwise.\n"+
+			"Write team.yaml and agreement.yaml, and the roles/ folder. An existing team is never overwritten.\n"+
+				"It writes into the project's .hergy/ inside a git repository, and into ~/.config/hergy/ outside one.\n"+
 				"If the global config.yaml (version and lang) is missing, it is written too.",
-			"team.yaml・agreement.yaml と層の roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
-				"書き先は、git リポジトリの中ならプロジェクトの .hergy/、外ならグローバル。\n"+
+			"team.yaml・agreement.yaml と roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
+				"書く先は、git の中ならプロジェクトの .hergy/、外なら ~/.config/hergy/。\n"+
 				"グローバルの config.yaml（version と lang）は、無いときだけ作る。"),
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"),
@@ -235,8 +235,8 @@ var specs = []Spec{
 		Kind: Validate, Name: "validate",
 		Summary: text("Check the settings files", "設定ファイルを検査する"),
 		Detail: text(
-			"Check the global config.yaml, both layers' profiles.yaml and every team definition.\nExit 1 if any is broken.",
-			"グローバルの config.yaml、両方の層の profiles.yaml、\nすべてのチーム定義を検査する。壊れたものがあれば終了コード 1。"),
+			"Check the global config.yaml, every profiles.yaml and every team definition.\nExit 1 if any is broken.",
+			"グローバルの config.yaml、すべての profiles.yaml、\nすべてのチーム定義を検査する。壊れたものがあれば終了コード 1。"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
@@ -245,8 +245,8 @@ var specs = []Spec{
 		Kind: Serve, Name: "serve",
 		Summary: text("Open the web UI in a browser", "ブラウザで WebUI を開く"),
 		Detail: text(
-			"Serve the screens on 127.0.0.1, in the foreground, and print the URL. The URL is then\nopened in this machine's default browser. Nothing but this machine can reach it, and no\nwrite leaves the settings of the layers it shows.",
-			"127.0.0.1 で画面を配り、URL を 1 行表示して、前景で動き続ける。表示した URL は、\nこの機械の既定のブラウザで開く。この機械の外からは届かず、書き込みは表示する層の設定の外へ出ない。"),
+			"Serve the screens on 127.0.0.1, in the foreground, and print the URL. The URL is then\nopened in this machine's default browser. Nothing but this machine can reach it, and no\nwrite leaves the settings it shows.",
+			"127.0.0.1 で画面を配り、URL を 1 行表示して、前景で動き続ける。表示した URL は、\nこの機械の既定のブラウザで開く。この機械の外からは届かず、書き込みは表示する設定の外へ出ない。"),
 		Flags: []Use{
 			use(flagPort, text(
 				"The port to listen on (default 8787; 0 lets the operating system pick a free one)",

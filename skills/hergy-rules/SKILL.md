@@ -1,15 +1,15 @@
 ---
 name: hergy-rules
-description: "Use when a person wants to write, change or move the rules of a hergy team (its agreements and its role files): the questions are asked one at a time and the person never writes YAML. It covers a new team, an existing team, moving rules out of Markdown, and filling in origins later from the git and gy history, asking only whether a candidate is right. For booting, stopping or inspecting a team, read the hergy skill instead."
+description: "Use when a person wants to write, change or move the rules of a hergy team (its agreements and its role documents): the questions are asked one at a time and the person never writes YAML. It covers a new team, an existing team, moving rules out of Markdown, and filling in origins later from the git and gy history, asking only whether a candidate is right. For booting, stopping or inspecting a team, read the hergy skill instead."
 ---
 
 # hergy-rules
 
-A hergy team's rules are files: one team's agreements in `teams/<team>/agreement.yaml`, the agreement every team of a layer shares in `<layer>/agreement.yaml`, and one file per role in `<layer>/roles/<role>.yaml`. They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
+A hergy team's rules are files: one team's agreements in `teams/<team>/agreement.yaml`, the agreement every team shares in `agreement.yaml`, and one file per role in `roles/<role>.yaml` (the last two under the project's `.hergy/` or, outside it, `~/.config/hergy/`). They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
 
 This skill is for the person's side of that: writing a new team's rules, changing an existing team's rules, moving rules out of Markdown, and filling in the origins later. The shape of every key is in `hergy cheat --ai`; the format and the checks are what this skill walks through.
 
-The rules can also be changed on the screen: `hergy serve` shows the rule files of a layer, the counts, the three filters, and a panel for one rule, and it saves the file. Send the person there for a small fix they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, or an origin to fill in).
+The rules can also be changed on the screen: `hergy serve` shows the rule files, the counts, the three filters, and a panel for one rule, and it saves the file. Send the person there for a small fix they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, or an origin to fill in).
 
 ## What you keep to
 
@@ -22,7 +22,7 @@ The rules can also be changed on the screen: `hergy serve` shows the rule files 
 
 ### Write a new team
 
-1. Write the starter files with `hergy new <team>` (inside a git repository it writes into the project's `.hergy/`; outside one, into the global layer; start in the project). You get the team's `team.yaml` and `agreement.yaml`, and the layer's `roles/lead.yaml` and `roles/builder.yaml`.
+1. Write the starter files with `hergy new <team>` (inside a git repository it writes into the project's `.hergy/`; outside one, into `~/.config/hergy/`; start in the project). You get the team's `team.yaml` and `agreement.yaml`, and `roles/lead.yaml` and `roles/builder.yaml`.
 2. Ask, one at a time: what is this team for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`, and what the team is for as its `mission:` — one line, near the top of the file.
 3. For each rule, ask in this order:
    - the text: you draft one or two sentences from what they said, and read it back for a yes or a correction. When the rule hands the turn between two of the team — a member name, a role name, or the human — write it as `<name> → <name>`, or `<name> ⇄ <name>` when the turn goes both ways: the WebUI's figure reads the turn directions out of the text;

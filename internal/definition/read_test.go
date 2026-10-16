@@ -659,6 +659,25 @@ func TestTurnsStopsOnBrokenLines(t *testing.T) {
 	}
 }
 
+// TestTurnsBrokenLineNamesTheLine: a broken turns: line is reported by the line
+// a person counts, not by the index hergy walks, so "turns:" does not appear
+// twice (spec/33, 段 7).
+func TestTurnsBrokenLineNamesTheLine(t *testing.T) {
+	l := newLayer(t, "")
+	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	// The broken line is the second one, so a person calls it line 2.
+	_, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
+		"  - name: lead\n    role: r\n    profile: seeker\n"+
+		"turns:\n  - human -> lead\n  - lead impl\n", "t", "", l, profiles)
+	if err == nil {
+		t.Fatal("a broken turns: line did not stop the parse")
+	}
+	want := i18n.Tf("label.turns_line", 2)
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("the error %q does not name %q", err, want)
+	}
+}
+
 // TestTurnLeavesThePromptWithItsEdge is the golden of I13: the turns a member's
 // prompt names come from the graph, so taking one turn out of turns: takes
 // exactly that party out of the prompt and leaves every other line as it was.
