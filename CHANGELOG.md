@@ -115,6 +115,10 @@
   wrote), or listed under the figure with the rule and the names that matched
   nothing. Pressing a document or a rule id opens the Rules screen. The team list
   marks the definitions Herdr reports a running team for.
+- **The running teams read Herdr again every five seconds**: the running screen
+  keeps itself up to date while it is open, on by default, and the box above the
+  table turns that off and on. The choice travels in the screen's own URL
+  (`?auto=0` is off), so it survives a reload and a link.
 - **The home shows how a rule changed, against which launch**: a document's
   panel on the home and the version screen names the launch the changes are
   against (`前回の起動: <team definition> · <when> · <hash>`, from the launch
