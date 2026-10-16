@@ -218,6 +218,21 @@ func TestTheLayerTravelsInTheLinks(t *testing.T) {
 	)
 }
 
+// TestTheLogoGoesToTheHomeOfTheLayer: the header's logo carries the layer being
+// shown, the way the navigation's Home tab does. A logo that dropped the layer
+// would take a person reading the global layer to the local home.
+func TestTheLogoGoesToTheHomeOfTheLayer(t *testing.T) {
+	s := newTestServer(t, demoPort())
+
+	global := get(t, s, "/teams?layer=global")
+	mustContain(t, "the logo in the global layer", global.Body.String(),
+		`<a class="brand" href="/?layer=global">`)
+
+	local := get(t, s, "/teams")
+	mustContain(t, "the logo in the local layer", local.Body.String(),
+		`<a class="brand" href="/?layer=local">`)
+}
+
 // docScreen is a screen that opens one document of the layer without the URL
 // naming it, the way the rules screen opens the first document when no ?doc= is
 // given.

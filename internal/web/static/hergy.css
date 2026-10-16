@@ -29,10 +29,14 @@ a.ref{color:var(--reason);text-decoration:underline;text-decoration-thickness:1p
 
 .app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
 .top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 28px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--surface);border-bottom:1px solid var(--line)}
-.brand{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
-.brand b{font-family:var(--font-mono);font-weight:600;font-size:15px;letter-spacing:.02em}
-.brand span{font-weight:700;font-size:15px}
-.brand small{color:var(--muted);font-size:12px}
+/* ロゴ (r-9da5、d-fb33)。SVG は layout.html に直接書いてあり、CSP (default-src 'self') では
+   SVG の中の <style> が効かないので、色のクラスはここに置く。色はページの変数に従うので、
+   明暗の切り替えは :root の --ink / --origin がやる。高さは前の枠と同じ 26px */
+.brand{display:flex;align-items:center;white-space:nowrap}
+.brand svg{display:block;width:72.7px;height:26px}
+.hg-ink{fill:none;stroke:var(--ink)}
+.hg-dot{fill:var(--ink)}
+.hg-lead{fill:var(--origin)}
 .views{display:flex;gap:2px;background:var(--sunken);padding:3px;border-radius:8px}
 .views a{border:0;background:transparent;padding:5px 14px;border-radius:6px;color:var(--muted);font-weight:500}
 .views a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .08)}

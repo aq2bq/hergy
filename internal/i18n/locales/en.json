@@ -464,7 +464,6 @@
   "web.diff.member_never": "%s: no launch has handed this member a prompt yet.",
   "web.diff.member_same": "%s: nothing changed",
   "web.frame.title": "%s - hergy",
-  "web.frame.brand": "Rule editor",
   "web.frame.nav": "Screens",
   "web.frame.layer": "Layer shown",
   "web.frame.layer.note.local": "(this project)",

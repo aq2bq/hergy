@@ -280,6 +280,10 @@ type page struct {
 	View string
 	// Nav is the screens the navigation lists, in their order.
 	Nav []link
+	// Home is where the frame's logo goes: the home of the layer being shown,
+	// the same link as the navigation's Home tab. A logo that dropped the
+	// layer would take a person reading the global layer to the local home.
+	Home string
 	// Layers is the two sides of the layer toggle.
 	Layers []layerLink
 	// Layer is the layer being shown ("local"), and LayerName what a person
@@ -355,6 +359,11 @@ func (s *Server) frameData(r *http.Request, current Screen, view View) page {
 		Drawer:      view.Drawer,
 		Body:        view.Body,
 	}
+	// The logo goes to the home of the layer being shown (r-9da5): the site's
+	// root with the layer, which is the link the navigation's Home tab
+	// carries. A logo without the layer would take a person reading the
+	// global layer to the local home.
+	data.Home = "/?layer=" + layer
 	for _, screen := range s.screens {
 		if !inNav(screen) {
 			continue
