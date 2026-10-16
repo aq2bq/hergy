@@ -148,8 +148,8 @@ func (s *Screen) page(state pageState) (string, error) {
 	}
 	// The hash the form carries back is the one the file had when the page was
 	// drawn: a page drawn again from the form keeps the hash it came with, so a
-	// file changed under the screen is refused rather than passed over (K1,
-	// web.rules.hashToCarry).
+	// file changed under the screen is refused rather than written over. The
+	// rules screen carries its hash the same way.
 	if data.Hash == "" {
 		data.Hash = file.Hash
 	}
