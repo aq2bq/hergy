@@ -419,12 +419,14 @@ func (l *Launcher) Down(members []*config.Member, selfPane string, dry bool) (in
 }
 
 // DownByName closes what this team started when the team definition behind it
-// cannot be read: the live agents named after the team ("<team>-<member>"), and
-// the workers in tabs labelled "worker:<team>/". A team definition is what a
-// prompt is built from, and putting a team away needs no prompt, so a team whose
-// boot failed once its tab was made (and left no launch record to read the
-// definition from) can still be closed.
-func (l *Launcher) DownByName(selfPane string, dry bool) (int, error) {
+// cannot be read. names are the members' live agent names, which the caller found
+// in this team's own tab: a name is not enough to go by, because another team's
+// name can start the same way ("qw2-x" beside "qw2"). The workers in tabs
+// labelled "worker:<team>/" are found here, as down finds them. A team definition
+// is what a prompt is built from, and putting a team away needs no prompt, so a
+// team whose boot failed once its tab was made (and left no launch record to read
+// the definition from) can still be closed.
+func (l *Launcher) DownByName(names []string, selfPane string, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
@@ -438,16 +440,24 @@ func (l *Launcher) DownByName(selfPane string, dry bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	prefix := l.cfg.Team + "-"
-	targets := make([]downTarget, 0, len(agents)+len(workers))
-	for _, agent := range agents {
-		if agent.Name == "" || agent.PaneID == "" || !strings.HasPrefix(agent.Name, prefix) {
+	panes := panesOf(agents)
+	targets := make([]downTarget, 0, len(names)+len(workers))
+	absent := 0
+	for _, name := range names {
+		pane := panes[name]
+		if pane == "" {
+			absent++
+			if dry {
+				fmt.Fprint(l.out, i18n.Tf("down.would_skip", name))
+			} else {
+				fmt.Fprint(l.out, i18n.Tf("down.skipped", name))
+			}
 			continue
 		}
-		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID})
+		targets = append(targets, downTarget{name: name, pane: pane})
 	}
 	targets = append(targets, workers...)
-	return l.closeTargets(targets, selfPane, 0, dry)
+	return l.closeTargets(targets, selfPane, absent, dry)
 }
 
 // closeTargets closes what a down found: a pane once, however many targets point

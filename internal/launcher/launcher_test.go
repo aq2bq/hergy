@@ -941,10 +941,9 @@ func TestRefreshRechecksBeforeStopping(t *testing.T) {
 }
 
 // TestDownByNameClosesWhatTheTeamStarted: when the team definition behind a
-// running team cannot be read, down still closes what hergy started for it: the
-// agents named "<team>-<member>" and the workers in "worker:<team>/" tabs. A
-// definition is what a prompt is built from, and closing needs no prompt
-// (r-e494's follow-up).
+// running team cannot be read, down closes the member agents the caller found and
+// the workers in "worker:<team>/" tabs. A definition is what a prompt is built
+// from, and closing needs no prompt (r-e494's follow-up).
 func TestDownByNameClosesWhatTheTeamStarted(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
@@ -962,7 +961,7 @@ func TestDownByNameClosesWhatTheTeamStarted(t *testing.T) {
 	}
 	l, out := downLauncherFor(t, port, "qw2")
 
-	if _, err := l.DownByName("", false); err != nil {
+	if _, err := l.DownByName([]string{"qw2-m"}, "", false); err != nil {
 		t.Fatalf("DownByName: %v", err)
 	}
 	want := []string{"p-m", "p-w1"}
@@ -990,7 +989,7 @@ func TestDownByNameHoldsTheOwnPaneBack(t *testing.T) {
 		{Name: "qw2-b", Kind: "codex", Status: "idle", PaneID: "own"},
 	}}
 	l, out := downLauncherFor(t, port, "qw2")
-	if _, err := l.DownByName("own", false); err != nil {
+	if _, err := l.DownByName([]string{"qw2-a", "qw2-b"}, "own", false); err != nil {
 		t.Fatalf("DownByName: %v", err)
 	}
 	if want := []string{"p1", "own"}; !slices.Equal(port.closed, want) {

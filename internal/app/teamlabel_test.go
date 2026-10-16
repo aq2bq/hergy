@@ -93,8 +93,14 @@ func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 			t.Fatalf("down qw2 is missing %q:\n%s", line, down)
 		}
 	}
-	if closes := readFile(t, log); !strings.Contains(closes, "pane close p-qw2-m") {
+	closes := readFile(t, log)
+	if !strings.Contains(closes, "pane close p-qw2-m") {
 		t.Fatalf("down did not close the pane hergy started:\n%s", closes)
+	}
+	// Another team whose name starts the same way has its own tab, and keeps its
+	// member: a name alone would have closed it (the audit's D1).
+	if strings.Contains(closes, "p-qw2-x-lead") || strings.Contains(down, "qw2-x-lead") {
+		t.Fatalf("down qw2 closed another team's member:\n%s\n%s", down, closes)
 	}
 }
 
@@ -118,8 +124,8 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
-  "agent list") echo '{"result":{"agents":[{"name":"qw2-m","agent":"codex","agent_status":"blocked","pane_id":"p-qw2-m","tab_id":"t1"}]}}' ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"qw2"}]}}' ;;
+  "agent list") echo '{"result":{"agents":[{"name":"qw2-m","agent":"codex","agent_status":"blocked","pane_id":"p-qw2-m","tab_id":"t1"},{"name":"qw2-x-lead","agent":"claude","agent_status":"idle","pane_id":"p-qw2-x-lead","tab_id":"t2"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"qw2"},{"tab_id":"t2","label":"qw2-x"}]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac

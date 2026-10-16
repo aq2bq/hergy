@@ -91,3 +91,24 @@ func TestFindRunningAndNames(t *testing.T) {
 		t.Errorf("RunningNames = %v", got)
 	}
 }
+
+// TestMemberAgentsKeepsAnotherTeamOut: the members of one team are the agents in
+// that team's own tab. Another team whose name starts the same way ("qw2-x"
+// beside "qw2"), and a person's tab carrying the name, keep their agents out of
+// it (the audit's D1).
+func TestMemberAgentsKeepsAnotherTeamOut(t *testing.T) {
+	tabs := []Tab{
+		{ID: "t1", Label: "qw2", Agents: []string{"qw2-m"}},
+		{ID: "t2", Label: "qw2-x", Agents: []string{"qw2-x-lead"}},
+		{ID: "t3", Label: "team:qw2@qw", Agents: []string{"qw2-old"}},
+		{ID: "t4", Label: "notes", Agents: []string{"claude-1"}},
+	}
+	got := MemberAgents(tabs, "qw2")
+	want := []string{"qw2-m", "qw2-old"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("MemberAgents = %v, want %v", got, want)
+	}
+	if got := MemberAgents(tabs, "qw2-x"); !reflect.DeepEqual(got, []string{"qw2-x-lead"}) {
+		t.Errorf("MemberAgents(qw2-x) = %v", got)
+	}
+}

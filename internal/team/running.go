@@ -120,6 +120,41 @@ func HoldsMember(tab Tab, name string) bool {
 	return false
 }
 
+// MemberAgents is the live agents hergy started for one team: the agents named
+// "<team>-<member>" that stand in a tab labelled for that team (the team's name
+// alone, or the older "team:<team>@<definition>" or "team:<team>" shape). Another
+// team whose name merely starts the same way ("qw2-x" beside "qw2") keeps its own
+// tab, so its agents are not here, and neither are the agents of a person's tab
+// that happens to carry the name.
+func MemberAgents(tabs []Tab, name string) []string {
+	var out []string
+	for _, tab := range tabs {
+		if !labelNamesTeam(tab.Label, name) {
+			continue
+		}
+		for _, agent := range tab.Agents {
+			if strings.HasPrefix(agent, name+"-") {
+				out = append(out, agent)
+			}
+		}
+	}
+	return out
+}
+
+// labelNamesTeam reports whether a tab label stands for one team: the team's name
+// alone, or the older "team:<team>@<definition>" / "team:<team>" shapes.
+func labelNamesTeam(label, name string) bool {
+	if label == name {
+		return true
+	}
+	rest, ok := strings.CutPrefix(label, "team:")
+	if !ok {
+		return false
+	}
+	before, _, _ := strings.Cut(rest, "@")
+	return before == name
+}
+
 // splitTeamLabel reads the older "<team>@<definition>" or "<team>". The older
 // form names the team definition after the team.
 func splitTeamLabel(rest string) (teamName, definition string, ok bool) {

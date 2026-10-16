@@ -795,10 +795,14 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 	}
 	indentField(stdout, 1, label("detail"), strings.Join(strings.Fields(detail), " "))
 	indentField(stdout, 1, label("note"), i18n.T("down.closes_by_name"))
+	tabs, _, err := herdrTabs()
+	if err != nil {
+		return err
+	}
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	l := newLauncher(&config.Config{Team: chosen.Team}, opts.Timeout, stdout)
 	if opts.Dry {
-		closed, err := l.DownByName(selfPane, true)
+		closed, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, true)
 		if err != nil {
 			return err
 		}
@@ -812,7 +816,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		return err
 	}
 	return runOperation(ctx, stderr, nil, func() error {
-		_, err := l.DownByName(selfPane, false)
+		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, false)
 		return err
 	})
 }
