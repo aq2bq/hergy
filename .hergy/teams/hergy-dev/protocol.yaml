@@ -1,0 +1,63 @@
+version: 1
+title: hergy-dev チームの約束
+revision: 1
+sections:
+  - heading: 進め方
+    style: ids
+    rules:
+      - id: T1
+        text: gy-loop スキルに従い、台帳（gy）から始めて台帳に書く。会話にしかない合意は無いものとして扱う。設計書と記録は .local/<日付-ニーズ>/ に置き、冒頭に書き手と読み手を書く。
+        why: セッションは切れ、担当は入れ替わる。今回の大改修は記録を全部ファイルに残したので担当が替わっても引き継げた。
+        send_why: false
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-6ddf]
+            note: PO の進め方の決定。gy-loop に沿い、どのエージェントもセッション記憶に依存しない
+      - id: T2
+        text: AI 同士の連絡は冒頭に「hergy-dev の<役割>担当の<名前>です」と自称する。人間は PO と呼ぶ。
+        why: 誰の発話か誤認すると、指示の出所が分からなくなる。
+        send_why: false
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            note: PO の全プロジェクト共通ルール（自称）
+      - id: T3
+        text: 求めることを添えて、次に動く相手へ手番を渡す。渡す文は、受け手が会話を読まずに着手できるものにする。
+        why: 誰も手番を持たないとチームが止まる。受け手は送り手の会話を見ていない。
+        send_why: false
+        origin:
+          - kind: instruction
+            date: "2026-10-16"
+            note: hergy new のひな形の C2 と L1 を 1 つにした
+      - id: T4
+        text: 仕事の終わりは「コミット（またはファイル）」と「記録（.local の md）」の 2 つがそろったとき。頼まれていない確かめや撮り直しに時間を使わず、終わったらすぐ知らせる。
+        why: 2026-10-16、直し 3 点が済んでいたのに実装担当が 8 画面すべてを撮り直し、取り込みが遅れた。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [r-bb9c]
+            note: W1〜W3 の直しのあとの撮り直し。PO「その割にはかなり時間かかってるね」
+  - heading: 境界
+    style: ids
+    rules:
+      - id: T5
+        text: 並行する要求はパッケージだけでなく共有ファイル（CSS、locale、cheat、SKILL、CHANGELOG）でも境界を引き、共有ファイルは同時には 1 人だけが触る。
+        why: 2026-10-15、画面 3 本を 3 人で並行したとき、画面ごとの CSS が同じクラス名で衝突して規則の画面の見出しが潰れた。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [d-207f]
+      - id: T6
+        text: hergy を手で動かす確かめ（serve、up、見比べの script）も、テストと同じく XDG_CONFIG_HOME と XDG_STATE_HOME を作業用に差し替えてから動かし、PO の ~/.config/hergy と ~/.local/state/hergy には読みにも行かない。非公開のプロジェクト名とPO の設定を、公開リポジトリ・テスト・ドキュメント・試作に持ち込まない。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [d-a861]
+            note: 見比べの script がPO の ~/.config/hergy に書いた
+      - id: T7
+        text: 完了は `go run ./tools/check` が exit 0 で終わり、CI が success になるところまで。公開する変更は CHANGELOG.md の Unreleased に書く。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            note: AGENTS.md の品質ゲート

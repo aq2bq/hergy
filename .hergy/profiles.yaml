@@ -1,0 +1,8 @@
+version: 1
+profiles:
+  claude:
+    kind: claude
+  codex:
+    kind: codex
+  opencode:
+    kind: opencode

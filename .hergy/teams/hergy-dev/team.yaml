@@ -1,0 +1,18 @@
+version: 1
+team: hergy-dev
+docs: [protocol.yaml]
+members:
+  - name: lead
+    role: lead
+    profile: claude
+    may_spawn:
+      workers:
+        - purpose: 実装
+          profile: opencode
+        - purpose: 試作
+          profile: claude
+        - purpose: 調査
+          profile: codex
+  - name: spec
+    role: spec
+    profile: claude

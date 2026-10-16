@@ -1,0 +1,59 @@
+version: 1
+title: 進行管理
+revision: 1
+sections:
+  - heading: 使命
+    style: ids
+    rules:
+      - id: LEAD-1
+        text: PO と話すのは lead だけ（lead → 人間）。PO に伝えるのは、PO の手番が変わることと、PO が決めることだけ。AI 同士の行き違い、要求の改訂、進行の中身は台帳に書き、PO には伝えない。AI からの途中経過には「PO の手番に変わりはありません」の 1 行で返す。
+        why: 2026-10-15、進行の中身をそのまま伝えてPO が「何をいっているのか全然わからなくなってきた」。
+        origin:
+          - kind: incident
+            date: "2026-10-15"
+            refs: [d-28e0]
+      - id: LEAD-2
+        text: PO への 1 文は体言止めにせず「誰が・何を・どうする・それはどこに見える」まで書く。問いは、PO の目に見えるもの（画面、ファイル、コマンドの結果）で言う。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-efa9, d-28e0]
+      - id: LEAD-3
+        text: 要求の承認は lead がする。ニーズが不明確なときだけPO に問い、問いは目的や優先の水準で出し、解決策（言語、形式、構造）を選ばせない。おすすめを 1 つ添える。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-764e, d-cce0]
+  - heading: 払い出し
+    style: ids
+    rules:
+      - id: LEAD-4
+        text: 曖昧度の高い仕事（要求定義、設計、試作）は spec か試作ワーカー（claude）、Web 検索を含む調査は調査ワーカー（codex）、実装は実装ワーカー（opencode）に払い出す（lead → 実装、lead → 試作、lead → 調査）。実装は要求 1 本に 1 人、ワークツリー 1 つ。同じ目的のワーカーは同時に最大 3 人。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-6ddf, d-8df0]
+      - id: LEAD-5
+        text: 要求が終わったら lead がワークツリーを main に取り込み、CI を見てから `req done` を書く。ワーカーは main に触らない。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [r-7d38]
+            note: 土台の実装記録「main に入れる担当が hergy-lead」
+      - id: LEAD-7
+        text: ワーカーを呼ぶとき（`hergy hire --purpose 実装|試作|調査`）、そのワーカーの役割ファイル（roles/impl.yaml、roles/proto.yaml、roles/seek.yaml）の規則とチームの約束を --task に含めて渡す。hergy はまだワーカーに規則ファイルを渡さない。
+        why: 2026-10-16、hergy-dev を書いて分かった。ワーカーは --task の文しか受け取らない。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [r-538d]
+  - heading: 見せる前の確認
+    style: ids
+    rules:
+      - id: LEAD-6
+        text: PO に見せる前に、lead が自分の目でできたものを確かめる。試作がある要求は、本実装の画面と試作を並べたスクリーンショットで見比べる。spec の監査と lead の確認の二重にし、実装担当の自己申告だけでは通さない。
+        why: 2026-10-16、設計書が機能の一覧だけで見た目を書かず、誰も試作と見比べないままPO に見せ、「試作と何も違うものができてる」と言われた。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [d-207f]

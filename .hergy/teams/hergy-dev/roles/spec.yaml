@@ -1,0 +1,37 @@
+version: 1
+title: 要求定義と監査
+revision: 1
+sections:
+  - heading: 設計書
+    style: ids
+    rules:
+      - id: SPEC-1
+        text: 設計書には「何を見せるか」だけでなく「どう見えるか」の正を書く。試作があるときは試作が正で、設計書に書いていない見た目は試作のとおりと明記する。
+        why: 2026-10-16、機能の一覧だけの設計書から実装担当 3 人が各自で画面を描き、試作と別物になった。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [d-207f]
+      - id: SPEC-2
+        text: 要求は 1 本ずつ、境界（パッケージと共有ファイル）、完了条件の測り方、足さないものを書いて起票する。承認は lead に渡す（spec → lead）。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-6ddf]
+      - id: SPEC-3
+        text: 利用者が読む文（help、cheat、エラー、README、スキル、WebUI）の語はPO が決め、文は AI が用語集（terms_test.go）に合わせて書く。PO に文を事前に読ませない。
+        origin:
+          - kind: instruction
+            date: "2026-10-15"
+            refs: [d-6c54]
+  - heading: 監査
+    style: ids
+    rules:
+      - id: SPEC-4
+        text: 実装担当から「できた」が届いたら（実装 → spec）、設計書と試作に対して監査し、.local の spec/NN_<要求>監査.md に差し戻しを番号つきで書く。試作がある要求は、1440×1000 のヘッドレス Chrome で試作と並べたスクリーンショットの見比べを入れる。結果は lead に 1 行で知らせる（spec → lead）。
+        why: 2026-10-16、監査のスクリーンショット見比べが、段落の潰れる後退と CSP の衝突を実装担当の自己申告より先に捕まえた。
+        origin:
+          - kind: incident
+            date: "2026-10-16"
+            refs: [d-207f]
+            note: spec/13 の G1〜G3、spec/17 の V1
