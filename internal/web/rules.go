@@ -1,7 +1,6 @@
 package web
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -167,12 +166,16 @@ type ruleForm struct {
 }
 
 // originRow is one origin as the card holds it: its kind, its date, the records
-// it points at, and a note.
+// it points at, a note, and the key its draft is kept under. The key of a row
+// the file holds is its place among the origins, and the row a person fills in
+// is always "new": adding an origin does not move another row's draft onto a
+// different origin (spec/42 T2).
 type originRow struct {
 	Kind string
 	Date string
 	Refs string
 	Note string
+	Key  string
 }
 
 // saved is the line a write shows and what a running team has to take up (設計
@@ -180,6 +183,17 @@ type originRow struct {
 type saved struct {
 	Line     string
 	Handover handover
+}
+
+// draftBase is the prefix of the keys this document's drafts are kept under: the
+// document itself, so a rule id that two documents share does not share one
+// draft (C5).
+func (p rulesPlace) draftBase() string {
+	path := p.Doc.Path
+	if path == "" {
+		path = p.parent()
+	}
+	return "rule:" + path
 }
 
 // ruleCard is the card one place draws open: the rule itself, or the card the
@@ -218,7 +232,7 @@ func (s *Server) ruleCardOf(place rulesPlace, doc *rules.Document, open ruleOpen
 		Report:    rule.Report,
 		Tests:     strings.Join(rule.Tests, ", "),
 		Origins:   originRows(rule.Origin),
-		Draft:     "rule:" + rule.ID,
+		Draft:     place.draftBase() + ":" + rule.ID,
 		Token:     s.token,
 		Hash:      s.hashOf(place.Doc.Path),
 		Action:    place.ruleURL(rule.ID),
@@ -253,7 +267,7 @@ func (s *Server) newRuleCard(place rulesPlace, doc *rules.Document, open ruleOpe
 		Section:     section,
 		SectionName: doc.Sections[section].Heading,
 		Origins:     []originRow{{}},
-		Draft:       "new:" + place.parent() + ":" + strconv.Itoa(section),
+		Draft:       place.draftBase() + ":new:" + strconv.Itoa(section),
 		Token:       s.token,
 		Hash:        s.hashOf(place.Doc.Path),
 		Action:      place.addURL(section),
@@ -317,18 +331,21 @@ func nextRuleID(id string) string {
 
 // originRows is a rule's origins as the card holds them, with one empty row at
 // the end: a person fills that one to write a new origin, and a row with no kind
-// is not an origin (3.8).
+// is not an origin (3.8). The empty row keeps its own key ("new") however many
+// origins the rule holds, so a draft in it is not moved onto an origin that a
+// save added above it (spec/42 T2).
 func originRows(origins []rules.Origin) []originRow {
 	rows := make([]originRow, 0, len(origins)+1)
-	for _, origin := range origins {
+	for i, origin := range origins {
 		rows = append(rows, originRow{
 			Kind: origin.Kind,
 			Date: origin.Date,
 			Refs: strings.Join(origin.Refs, ", "),
 			Note: origin.Note,
+			Key:  "o" + strconv.Itoa(i),
 		})
 	}
-	return append(rows, originRow{})
+	return append(rows, originRow{Key: "new"})
 }
 
 // originList is the origins a card wrote: a row with no kind stands for no
@@ -520,12 +537,11 @@ func (s *Server) takeRule(r *http.Request, place rulesPlace) (view, error) {
 // writeRules checks the written document and writes it: only the changed rule's
 // own lines are written (rules.Write, d-7b58), the written text is read back
 // with the format's own reader (so an id or a date the format refuses is refused
-// before the file is written), the definitions that read the document are
-// checked before and after, and the file is written only when it is still the
-// one the page read (設計 7.3). open is the card the page draws afterwards: the
-// rule that was written, the card that was adding, or none when a rule was taken
-// out. removed says whether the write took the rule out, which the saved line
-// says in its own words (設計 3.0 の表、spec/42 N2).
+// before the file is written), and the file goes through the one save road
+// (設計 7.3). open is the card the page draws afterwards: the rule that was
+// written, the card that was adding, or none when a rule was taken out. removed
+// says whether the write took the rule out, which the saved line says in its own
+// words (設計 3.0 の表、spec/42 N2).
 func (s *Server) writeRules(r *http.Request, place rulesPlace, text string, doc *rules.Document, edit rules.Edit, form *ruleForm, open *ruleOpen, removed bool) (view, error) {
 	written, err := rules.Write([]byte(text), doc, edit)
 	if err != nil {
@@ -541,33 +557,20 @@ func (s *Server) writeRules(r *http.Request, place rulesPlace, text string, doc 
 	if _, err := rules.Parse(string(written), s.cat.Display(place.Doc.Path)); err != nil {
 		return s.rulesPage(place, open, saved{}, s.breakLine(place.Doc.Path, err), false)
 	}
-	with := s.cat.With(place.Doc.Path, string(written))
-	if msg, ok := s.ruleStop(place, with); ok {
-		return s.rulesPage(place, open, saved{}, msg, false)
-	}
-	// The comparison runs before the write: the file still holds the text the
-	// page read, which is the "before" side of the change (設計 7.3 step 5).
-	line := s.rulesSaved(place, with, s.ruleSavedLine(place, form.ID, removed))
-	if err := source.WriteIfUnchanged(place.Doc.Path, r.PostFormValue("hash"), string(written)); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.rulesPage(place, open, saved{}, tf("web.saved.clash", s.cat.Display(place.Doc.Path)), true)
-		}
+	result, err := s.saveFile(fileWrite{
+		Path: place.Doc.Path, Hash: r.PostFormValue("hash"), Text: string(written),
+		Defs: s.ruleReaders(place.Doc.Path, s.cat), Key: tf("web.rule.key", form.ID), Removed: removed,
+	})
+	if err != nil {
 		return view{}, err
 	}
-	return s.rulesPage(place, open, line, "", false)
-}
-
-// ruleSavedLine is the line a write to a rule document shows (設計 3.0 版 5 の
-// 鍵の語の表): the path, and the rule by the word a person reads ("規則 T2"),
-// written or taken out. The rule's own keys carry the quotes the design writes
-// around the key word; the older web.saved.line has no quotes yet (the mission
-// still passes the YAML key, spec/40 N3).
-func (s *Server) ruleSavedLine(place rulesPlace, id string, removed bool) string {
-	key := tf("web.rule.key", id)
-	if removed {
-		return tf("web.rule.removed", s.cat.Display(place.Doc.Path), key)
+	if result.Stop != "" {
+		return s.rulesPage(place, open, saved{}, result.Stop, false)
 	}
-	return tf("web.rule.saved", s.cat.Display(place.Doc.Path), key)
+	if result.Clash {
+		return s.rulesPage(place, open, saved{}, tf("web.saved.clash", s.cat.Display(place.Doc.Path)), true)
+	}
+	return s.rulesPage(place, open, saved{Line: result.Line, Handover: result.Handover}, "", false)
 }
 
 // writeDocument is the write whose subject is the document itself: taking a rule
@@ -589,14 +592,20 @@ func (s *Server) makeDocument(r *http.Request, place rulesPlace) (view, error) {
 	if err != nil {
 		return view{}, err
 	}
-	if err := source.WriteIfUnchanged(place.Doc.Path, r.PostFormValue("hash"), text); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.rulesPage(place, nil, saved{}, tf("web.saved.clash", s.cat.Display(place.Doc.Path)), true)
-		}
+	result, err := s.saveFile(fileWrite{
+		Path: place.Doc.Path, Hash: r.PostFormValue("hash"), Text: text,
+		Line: tf("web.made", s.cat.Display(place.Doc.Path)),
+	})
+	if err != nil {
 		return view{}, err
 	}
-	with := s.cat.With(place.Doc.Path, text)
-	return s.rulesPage(place, nil, s.rulesSaved(place, with, tf("web.made", s.cat.Display(place.Doc.Path))), "", false)
+	if result.Stop != "" {
+		return s.rulesPage(place, nil, saved{}, result.Stop, false)
+	}
+	if result.Clash {
+		return s.rulesPage(place, nil, saved{}, tf("web.saved.clash", s.cat.Display(place.Doc.Path)), true)
+	}
+	return s.rulesPage(place, nil, saved{Line: result.Line, Handover: result.Handover}, "", false)
 }
 
 // rulesSaved is the saved line and what a running team takes up after a write to
@@ -647,24 +656,6 @@ func (s *Server) ruleFindings(path string, cat *catalog.Catalog) []check.Finding
 		out = append(out, check.Definition(check.Input{Catalog: cat, Name: name})...)
 	}
 	return out
-}
-
-// ruleStop is the sentence a write to a rule document brings in: a stop the
-// definitions that read it did not have before. A stop that was already there
-// does not stop this write (T1).
-func (s *Server) ruleStop(place rulesPlace, with *catalog.Catalog) (string, bool) {
-	had := map[string]bool{}
-	for _, finding := range s.ruleFindings(place.Doc.Path, s.cat) {
-		if finding.Stops {
-			had[finding.Field+"\x00"+finding.Text] = true
-		}
-	}
-	for _, finding := range s.ruleFindings(place.Doc.Path, with) {
-		if finding.Stops && !had[finding.Field+"\x00"+finding.Text] {
-			return finding.Text, true
-		}
-	}
-	return "", false
 }
 
 // warningTexts is what check says about one document's rules, by rule id: the

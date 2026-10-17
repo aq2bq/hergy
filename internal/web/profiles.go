@@ -358,7 +358,7 @@ func (s *Server) deleteProfile(r *http.Request) (view, error) {
 		}
 		return view{}, err
 	}
-	return s.profilesSaved(tf("web.profile.deleted", s.cat.Display(value.Path), tf("web.saved.profile", name)), nil)
+	return s.profilesSaved(tf("web.saved.removed", s.cat.Display(value.Path), tf("web.saved.profile", name)), nil)
 }
 
 // profileEdit is one profile written into the profiles.yaml it was read from:

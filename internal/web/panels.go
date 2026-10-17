@@ -58,7 +58,9 @@ func (p *panel) markSaved(key string) {
 
 // panelField is one labelled value in a panel. A writable field carries the form
 // that writes it (Edit), or the pending write a press chose (Confirm) with the
-// link that chose it (Remove) (設計 3.4 の表).
+// link that chose it (Remove) (設計 3.4 の表). Next says the value stands under
+// the same name as the one before it: the parties one node hands the turn to,
+// and the workers one member hires, are one name with a value each (walk-2 P4).
 type panelField struct {
 	Label    string
 	Value    string
@@ -68,6 +70,30 @@ type panelField struct {
 	Edit     *editForm
 	Confirm  *confirmForm
 	Remove   string
+	Next     bool
+}
+
+// fieldGroup is one name of a panel and the values under it.
+type fieldGroup struct {
+	Label  string
+	Row    bool
+	Values []panelField
+}
+
+// Groups is the panel's fields as a person reads them: one name, and every value
+// that stands under it. A field marked Next joins the group before it.
+func (p panel) Groups() []fieldGroup {
+	var out []fieldGroup
+	for _, field := range p.Fields {
+		if field.Next && len(out) > 0 {
+			group := &out[len(out)-1]
+			group.Values = append(group.Values, field)
+			group.Row = group.Row || field.Edit != nil
+			continue
+		}
+		out = append(out, fieldGroup{Label: field.Label, Row: field.Edit != nil, Values: []panelField{field}})
+	}
+	return out
 }
 
 // memberPanel is the member's field (設計 3.4 の表), with what a press has chosen
@@ -133,6 +159,7 @@ func (s *Server) turnFields(def *definition.Definition, p panel, from definition
 			Label: t("label.turns"),
 			Value: nodeLabel(edge.To),
 			Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
+			Next:  len(rows) > 0,
 		}
 		if pending.Turn == edge.To.String() {
 			confirm := p.confirm(opTurnRemove)
@@ -163,7 +190,7 @@ func (s *Server) workerFields(def *definition.Definition, p panel, member defini
 			confirm := p.confirm(opWorkerRemove)
 			confirm.Hidden = []formValue{{Name: "worker", Value: worker.Purpose}}
 			confirm.Preview, confirm.Stop = s.previewOf(def, definition.RemoveWorker(member.Name, worker.Purpose))
-			out = append(out, panelField{Label: t("label.workers"), Confirm: confirm})
+			out = append(out, panelField{Label: t("label.workers"), Confirm: confirm, Next: len(out) > 0})
 			continue
 		}
 		form := s.workerProfileForm(p, def, member.Name, worker.Purpose, worker.Profile)
@@ -174,6 +201,7 @@ func (s *Server) workerFields(def *definition.Definition, p panel, member defini
 			Href:   workerPath(def.Name, worker.From, worker.Purpose),
 			Edit:   form,
 			Remove: removeHref(p.URL, worker.Purpose),
+			Next:   len(out) > 0,
 		})
 	}
 	return out

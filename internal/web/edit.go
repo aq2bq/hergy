@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
@@ -45,12 +46,10 @@ type teamEdit struct {
 // open is the field the page opens for the edit; a page-level field (the
 // mission) has none, and its sentence stands at the page's own place.
 //
-// The edit is made on the text in memory (definition.EditYAML), laid over the
-// catalog so the check reads it, and refused when it brings in a stop the
-// definition did not have (a stop it already had does not keep a person from
-// writing). The file is then written only when it is still the one the page read
-// (source.WriteIfUnchanged), and the page shows what was written and what a
-// running team has to take up.
+// The edit is made on the text in memory (definition.EditYAML) and handed to
+// saveFile, which lays it over the catalog, refuses a stop it brings in, writes
+// only when the file is still the one the page read, and says what was written
+// and what a running team has to take up.
 func (s *Server) saveTeamYAML(name string, open panelFn, edit teamEdit) (view, error) {
 	def, err := s.readDefinition(name)
 	if err != nil {
@@ -64,22 +63,118 @@ func (s *Server) saveTeamYAML(name string, open panelFn, edit teamEdit) (view, e
 	if err != nil {
 		return s.editRefused(def, open, edit, err.Error(), false)
 	}
-	with := s.cat.With(def.TeamYAML, string(edited))
-	if msg, ok := newStop(s.findings(name), check.Definition(check.Input{Catalog: with, Name: name})); ok {
-		return s.editRefused(def, open, edit, msg, false)
-	}
-	if err := source.WriteIfUnchanged(def.TeamYAML, edit.Hash, string(edited)); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.editRefused(def, open, edit, tf("web.saved.clash", s.cat.Display(def.TeamYAML)), true)
-		}
-		return view{}, err
-	}
-	after, err := s.readDefinition(name)
+	result, err := s.saveFile(fileWrite{
+		Path: def.TeamYAML, Hash: edit.Hash, Text: string(edited),
+		Defs: []string{name}, Key: edit.Label,
+	})
 	if err != nil {
 		return view{}, err
 	}
-	changes := effect.Of(s.view(def, s.cat.Reader()), s.view(after, s.cat.Reader()))
-	return s.editSaved(after, open, edit, changes)
+	if result.Stop != "" {
+		return s.editRefused(def, open, edit, result.Stop, false)
+	}
+	if result.Clash {
+		return s.editRefused(def, open, edit, tf("web.saved.clash", s.cat.Display(def.TeamYAML)), true)
+	}
+	after, err := result.With.Read(name)
+	if err != nil {
+		return view{}, err
+	}
+	return s.editSaved(after, open, edit, result)
+}
+
+// fileWrite is one write of one settings file on the save road (設計 7.3): the
+// file the page read, the hash the page carried, the text made from it, and the
+// definitions the check reads for that file. Key is the place as a person reads
+// it ("規則 T2"), for the line a save shows; Removed says the write takes the
+// place away. Line overrides the sentence for a write that is not a place in the
+// file (a document being made).
+type fileWrite struct {
+	Path    string
+	Hash    string
+	Text    string
+	Defs    []string
+	Key     string
+	Removed bool
+	Line    string
+}
+
+// fileSaved is what the save road gives back: the catalog the page reads after
+// the write, the change it makes to the members' prompts, the line it shows, and
+// what a running team has to take up. Stop is the sentence a save was refused
+// with, and Clash says the file moved under the page; both mean nothing was
+// written.
+type fileSaved struct {
+	With     *catalog.Catalog
+	Changes  []effect.Change
+	Line     string
+	Handover handover
+	Stop     string
+	Clash    bool
+}
+
+// saveFile is the one save road of every settings file (設計 7.3 の 3〜7): the
+// written text is laid over the catalog, checked against the definitions that
+// read the file, compared with the file as it stands, and written only when it is
+// still the one the page read. The screen draws the saved line and the handover
+// from what it gives back, so no field writes a file by another road.
+func (s *Server) saveFile(write fileWrite) (fileSaved, error) {
+	with := s.cat.With(write.Path, write.Text)
+	if msg, ok := s.fileStop(write.Defs, with); ok {
+		return fileSaved{With: with, Stop: msg}, nil
+	}
+	changes := s.fileChanges(write.Defs, with)
+	line := write.Line
+	if line == "" {
+		if write.Removed {
+			line = tf("web.saved.removed", s.cat.Display(write.Path), write.Key)
+		} else {
+			line = tf("web.saved.line", s.cat.Display(write.Path), write.Key)
+		}
+	}
+	// The comparison runs before the write: the file still holds the text the
+	// page read, which is the "before" side of the change (設計 7.3 step 5).
+	running, _ := s.runningTeams()
+	handover := handoverOf(effect.Commands(changes, running))
+	if err := source.WriteIfUnchanged(write.Path, write.Hash, write.Text); err != nil {
+		if errors.Is(err, source.ErrChanged) {
+			return fileSaved{With: with, Changes: changes, Clash: true}, nil
+		}
+		return fileSaved{}, err
+	}
+	return fileSaved{With: with, Changes: changes, Line: line, Handover: handover}, nil
+}
+
+// fileStop is the sentence a write brings in: a stop one of the definitions that
+// read the file did not have before. A stop that was already there does not stop
+// this write (T1).
+func (s *Server) fileStop(defs []string, with *catalog.Catalog) (string, bool) {
+	for _, name := range defs {
+		after := check.Definition(check.Input{Catalog: with, Name: name})
+		if msg, ok := newStop(s.findings(name), after); ok {
+			return msg, true
+		}
+	}
+	return "", false
+}
+
+// fileChanges is what a write does to the members' prompts, read through every
+// definition that reads the file: the file before the write and the overlay of
+// the written text (設計 7.3 step 5).
+func (s *Server) fileChanges(defs []string, with *catalog.Catalog) []effect.Change {
+	var changes []effect.Change
+	for _, name := range defs {
+		before, err := s.cat.Read(name)
+		if err != nil {
+			continue
+		}
+		after, err := with.Read(name)
+		if err != nil {
+			continue
+		}
+		changes = append(changes, effect.Of(s.view(before, s.cat.Reader()), s.view(after, with.Reader()))...)
+	}
+	return changes
 }
 
 // editRefused draws the page with the field open again and one sentence beside
@@ -105,12 +200,11 @@ func (s *Server) editRefused(def *definition.Definition, open panelFn, edit team
 // (effect.Commands, with a copy button on each command). For a field of a panel,
 // only the form that was written is told, so the script clears its draft and
 // leaves the others (C5).
-func (s *Server) editSaved(after *definition.Definition, open panelFn, edit teamEdit, changes []effect.Change) (view, error) {
-	running, _ := s.runningTeams()
+func (s *Server) editSaved(after *definition.Definition, open panelFn, edit teamEdit, result fileSaved) (view, error) {
 	data := s.definitionData(after, open)
-	saved := tf("web.saved.line", s.cat.Display(after.TeamYAML), edit.Label)
-	handover := handoverOf(effect.Commands(changes, running))
-	preview := effect.Preview(changes)
+	saved := result.Line
+	handover := result.Handover
+	preview := effect.PreviewOf(result.Changes, humanTurnOf(edit.Op))
 	if open == nil {
 		data.Saved = saved
 		data.Preview = preview
@@ -139,14 +233,24 @@ func (s *Server) previewOf(def *definition.Definition, op definition.Op) (lines 
 		return nil, ""
 	}
 	with := s.cat.With(def.TeamYAML, string(edited))
-	if msg, ok := newStop(s.findings(def.Name), check.Definition(check.Input{Catalog: with, Name: def.Name})); ok {
+	if msg, ok := s.fileStop([]string{def.Name}, with); ok {
 		return nil, msg
 	}
-	after, err := with.Read(def.Name)
-	if err != nil {
-		return nil, ""
+	return effect.PreviewOf(s.fileChanges([]string{def.Name}, with), humanTurnOf(op)), ""
+}
+
+// humanTurnOf is the turn a save adds or takes away when the near end is the
+// human. No member's prompt moves for it, but the human may hand the turn to the
+// far end from then on, and the "保存すると" line says that rather than that
+// nothing changes (walk-3 P1).
+func humanTurnOf(op definition.Op) *effect.HumanTurn {
+	if op.Kind != definition.OpAddTurn && op.Kind != definition.OpRemoveTurn {
+		return nil
 	}
-	return effect.Preview(effect.Of(s.view(def, s.cat.Reader()), s.view(after, with.Reader()))), ""
+	if op.Turn.From.Kind != definition.KindHuman || op.Turn.To.Kind == definition.KindWorker {
+		return nil
+	}
+	return &effect.HumanTurn{To: nodeLabel(op.Turn.To), Remove: op.Kind == definition.OpRemoveTurn}
 }
 
 // pendingEdit is what a press has chosen and nothing has written yet, read from

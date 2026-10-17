@@ -25,6 +25,7 @@ import (
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/topology"
 	"go.uber.org/goleak"
 )
 
@@ -1921,8 +1922,11 @@ func TestTheHumanHandsTheTurnOnToo(t *testing.T) {
 	before := readFile(t, path)
 
 	_, body := f.get(t, server, "/definitions/demo/human?preview=turn-add&to=builder")
-	if !strings.Contains(body, "どのメンバーのプロンプトも変わりません") {
-		t.Errorf("a human's turn does not say it moves no prompt:\n%s", body)
+	if !strings.Contains(body, "人間が builder にターンを渡せるようになります（プロンプトは変わりません）") {
+		t.Errorf("a human's turn does not say what it does on the human's side:\n%s", body)
+	}
+	if strings.Contains(body, "どのメンバーのプロンプトも変わりません") {
+		t.Errorf("a human's turn says only that no prompt moves:\n%s", body)
 	}
 
 	_, body = f.post(t, server, "/definitions/demo/human", url.Values{
@@ -3309,5 +3313,156 @@ func TestProfilePreviewNamesTheDefinitionWhenTwoAreInvolved(t *testing.T) {
 	preview = between(body, `class="preview"`, "</ul>")
 	if !strings.Contains(preview, "builder の起動のしかたが変わります") || strings.Contains(preview, "other の builder") {
 		t.Errorf("one definition's change names its definition:\n%q", preview)
+	}
+}
+
+// TestTheCoarseArrowIsPressableWhereItLooks: the line a person presses is thin,
+// so each arrow carries a wider line that cannot be seen inside the same link
+// (walk-1b P1). The invisible line follows the same path, and a pending edge has
+// none (it is not written yet).
+func TestTheCoarseArrowIsPressableWhereItLooks(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	def, err := f.catalog().Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := f.get(t, server, "/definitions/demo")
+	if got := strings.Count(body, `<path class="hit"`); got != len(def.Graph.Edges) {
+		t.Errorf("the figure draws %d wide lines, want %d", got, len(def.Graph.Edges))
+	}
+	link := between(body, `<a href="`+turnHref("demo", "lead", "builder")+`"`, "</a>")
+	if !strings.Contains(link, `<path class="hit"`) || !strings.Contains(link, `class="edge"`) {
+		t.Errorf("the wide line is not in the arrow's own link:\n%s", link)
+	}
+	d := attrOf(link, `class="hit"`, "d")
+	if d == "" || !strings.Contains(link, ` d="`+d+`"`) {
+		t.Errorf("the wide line does not follow the arrow's path (%q):\n%s", d, link)
+	}
+}
+
+// attrOf is one attribute of the tag that holds a marker, or "".
+func attrOf(body, marker, name string) string {
+	i := strings.Index(body, marker)
+	if i < 0 {
+		return ""
+	}
+	tag := body[i:]
+	if end := strings.Index(tag, ">"); end >= 0 {
+		tag = tag[:end]
+	}
+	i = strings.Index(tag, name+`="`)
+	if i < 0 {
+		return ""
+	}
+	rest := tag[i+len(name)+2:]
+	if before, _, ok := strings.Cut(rest, `"`); ok {
+		return before
+	}
+	return ""
+}
+
+// TestTheMemberBoxNamesTheRoleAndTheProfile: the box's second line says which
+// name is the role and which is the profile, so "lead、planner" is not read as
+// two roles (walk-1b P3).
+func TestTheMemberBoxNamesTheRoleAndTheProfile(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(body, `>ロール lead・プロファイル coder</text>`) {
+		t.Errorf("the member's box does not name the role and the profile:\n%s", body)
+	}
+}
+
+// TestTheNamesOfTurnsAndWorkersStandOnce: the parties one node hands the turn
+// to, and the workers one member hires, are one name (dt) with a value (dd)
+// each, rather than the name repeated for every row (walk-2 P4).
+func TestTheNamesOfTurnsAndWorkersStandOnce(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+
+	turns := between(body, `<dt>ターンを渡す相手</dt>`, `<dt>ターンを足す</dt>`)
+	if got := strings.Count(body, `<dt>ターンを渡す相手</dt>`); got != 1 {
+		t.Errorf("the turn's name stands %d times, want once", got)
+	}
+	if got := strings.Count(turns, "<dd>"); got != 1 {
+		t.Errorf("the member hands the turn to %d parties, want 1", got)
+	}
+
+	workers := between(body, `<dt>ワーカー</dt>`, `<dt>ワーカーを足す</dt>`)
+	if got := strings.Count(body, `<dt>ワーカー</dt>`); got != 1 {
+		t.Errorf("the workers' name stands %d times, want once", got)
+	}
+	if got := strings.Count(workers, "<dd>"); got != 3 {
+		t.Errorf("the member hires %d workers, want 3", got)
+	}
+}
+
+// TestAChosenTurnIsDrawnInALane: the dashed edge a press chose stands in a lane
+// to the right of the members, the way the arrow will stand once it is written,
+// instead of being drawn straight through the boxes (walk-3 P2).
+func TestAChosenTurnIsDrawnInALane(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead?preview=turn-add&to=human")
+	chosen := between(body, `class="edge pending-add"`, "</path>")
+	if chosen == "" {
+		t.Fatalf("the chosen turn is not drawn:\n%s", body)
+	}
+	if !strings.Contains(chosen, " C") {
+		t.Errorf("the chosen turn is not drawn as the arrows are (no bend):\n%s", chosen)
+	}
+	def, err := f.catalog().Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := topology.LayoutGraph(def.Graph, definition.Edge{From: (definition.Human{}).ID(), To: definition.NodeID{Kind: definition.KindMember, Name: "builder"}})
+	if len(layout.Edges) != len(def.Graph.Edges) {
+		t.Errorf("the pending edge changed the graph's own arrows: %d, want %d", len(layout.Edges), len(def.Graph.Edges))
+	}
+	if len(layout.Pending) != 1 || layout.Pending[0].LaneX <= layout.MemberRight {
+		t.Errorf("the pending edge has no lane of its own: %+v", layout.Pending)
+	}
+}
+
+// TestAPreviewShowsTheButtonsWithoutScript: a preview URL picks a value before
+// anything is typed, so the page draws the save and revert buttons already shown
+// rather than hidden behind a script (設計 7.3).
+func TestAPreviewShowsTheButtonsWithoutScript(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead?preview=role&role=builder")
+	form := between(body, `data-key="role"`, "</form>")
+	if form == "" {
+		t.Fatalf("the role's field is not drawn:\n%s", body)
+	}
+	if !strings.Contains(form, `data-change>`) {
+		t.Errorf("the preview's buttons are hidden:\n%s", form)
+	}
+	if strings.Contains(form, "data-change hidden") {
+		t.Errorf("the preview's buttons are hidden:\n%s", form)
+	}
+	// A field nobody picked still hides them.
+	_, body = f.get(t, server, "/definitions/demo/members/lead")
+	if form := between(body, `data-key="role"`, "</form>"); !strings.Contains(form, "data-change hidden") {
+		t.Errorf("the unpicked field shows its buttons:\n%s", form)
+	}
+}
+
+// TestAnOriginDraftKeepsItsKeyWhenTheRowsGrow: the row a person fills in keeps
+// its own key however many origins the rule holds, so a draft is not moved onto
+// an origin a save added above it (spec/42 T2).
+func TestAnOriginDraftKeepsItsKeyWhenTheRowsGrow(t *testing.T) {
+	first := originRows([]rules.Origin{{Kind: "incident", Date: "2026-01-01"}})
+	more := originRows([]rules.Origin{{Kind: "incident", Date: "2026-01-01"}, {Kind: "instruction", Date: "2026-02-01"}})
+	if len(first) != 2 || len(more) != 3 {
+		t.Fatalf("the rows are %d and %d, want 2 and 3", len(first), len(more))
+	}
+	if first[0].Key != more[0].Key {
+		t.Errorf("the first origin's key moved: %q then %q", first[0].Key, more[0].Key)
+	}
+	if first[len(first)-1].Key != "new" || more[len(more)-1].Key != "new" {
+		t.Errorf("the row to fill in has no key of its own: %q and %q", first[len(first)-1].Key, more[len(more)-1].Key)
 	}
 }

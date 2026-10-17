@@ -29,7 +29,14 @@ const workerPairGap = 12.0
 // box and the worker's. The older Layout draws the figure that reads a
 // definition's members and its documents; it stays until the older screen is
 // gone.
-func LayoutGraph(g *definition.Graph) Figure {
+//
+// pending are edges a screen has chosen to add and nothing has written yet. They
+// are placed with the graph's own arrows — same lanes, same seats on the rows —
+// and come back in f.Pending, so a screen draws the preview where the arrow will
+// stand once it is written (設計 4 節、walk-3 P2). The graph's own arrows keep
+// the order and the count of g.Edges; a pending edge the figure cannot place is
+// left out.
+func LayoutGraph(g *definition.Graph, pending ...definition.Edge) Figure {
 	rows := graphRows(g)
 	top := topMargin + humanH + humanGap
 	bottom := stackGraphRows(rows, top)
@@ -44,14 +51,15 @@ func LayoutGraph(g *definition.Graph) Figure {
 		f.Members[i] = placeGraphMember(member, i, rows[1+i])
 	}
 	placeGraphWorkers(g.Workers, f.Members)
-	f.Edges = placeGraphEdges(g, rows, f.Members)
+	f.Edges, f.Pending = placeGraphEdges(g, pending, rows, f.Members)
 	turns := 0
 	for _, edge := range g.Edges {
 		if !workerEdge(edge) {
 			turns++
 		}
 	}
-	f.Width = graphX + memberW + laneStart + math.Max(0, float64(turns-1))*laneW + rightPad
+	lanes := turns + len(f.Pending)
+	f.Width = graphX + memberW + laneStart + math.Max(0, float64(lanes-1))*laneW + rightPad
 	f.Height = bottom + bottomPad
 	return f
 }
@@ -147,31 +155,47 @@ func workerEdge(edge definition.Edge) bool {
 
 // placeGraphEdges places every edge of the graph: a written turn in a lane to the
 // right of the members, a worker's edge between the member's box and the
-// worker's. The arrows come out in the order the graph holds its edges.
-func placeGraphEdges(g *definition.Graph, rows []row, members []MemberBox) []Arrow {
+// worker's. The arrows come out in the order the graph holds its edges. The
+// pending edges are placed with them and come out apart, in the order they were
+// given.
+func placeGraphEdges(g *definition.Graph, pending []definition.Edge, rows []row, members []MemberBox) ([]Arrow, []Arrow) {
 	index := rowIndex(rows)
 	// The written turns, with the rows their ends meet and the lane each bends
 	// in. A turn whose end is not a row of this figure is not drawn.
 	var held []heldEdge
-	for _, edge := range g.Edges {
+	hold := func(edge definition.Edge, at int) {
 		if workerEdge(edge) {
-			continue
+			return
 		}
 		from, ok := index[nodeKey(edge.From)]
 		if !ok {
-			continue
+			return
 		}
 		to, ok := index[nodeKey(edge.To)]
 		if !ok {
+			return
+		}
+		held = append(held, heldEdge{edge: edge, from: from, to: to, pending: at})
+	}
+	taken := make(map[definition.Edge]bool, len(g.Edges))
+	for _, edge := range g.Edges {
+		taken[edge] = true
+		hold(edge, -1)
+	}
+	for i, edge := range pending {
+		if taken[edge] {
+			// The edge is already written: it is drawn once, as its own.
 			continue
 		}
-		held = append(held, heldEdge{edge: edge, from: from, to: to})
+		hold(edge, i)
 	}
 	assignLanes(held)
 	fromY, toY := anchors(held, rows)
 	seat := make(map[definition.Edge]int, len(held))
 	for i, h := range held {
-		seat[h.edge] = i
+		if h.pending < 0 {
+			seat[h.edge] = i
+		}
 	}
 	out := make([]Arrow, 0, len(g.Edges))
 	for _, edge := range g.Edges {
@@ -183,15 +207,30 @@ func placeGraphEdges(g *definition.Graph, rows []row, members []MemberBox) []Arr
 		if !ok {
 			continue
 		}
-		out = append(out, Arrow{
-			FromNode: edge.From,
-			ToNode:   edge.To,
-			FromY:    fromY[i],
-			ToY:      toY[i],
-			LaneX:    graphX + memberW + laneStart + float64(held[i].lane)*laneW,
-		})
+		out = append(out, graphArrow(held[i], fromY[i], toY[i]))
 	}
-	return out
+	var extra []Arrow
+	for i := range pending {
+		for j, h := range held {
+			if h.pending != i {
+				continue
+			}
+			extra = append(extra, graphArrow(h, fromY[j], toY[j]))
+			break
+		}
+	}
+	return out, extra
+}
+
+// graphArrow is one written or pending turn placed in the figure.
+func graphArrow(h heldEdge, fromY, toY float64) Arrow {
+	return Arrow{
+		FromNode: h.edge.From,
+		ToNode:   h.edge.To,
+		FromY:    fromY,
+		ToY:      toY,
+		LaneX:    graphX + memberW + laneStart + float64(h.lane)*laneW,
+	}
 }
 
 // workerArrow places one of the two edges workers: makes (I12c): a short dotted

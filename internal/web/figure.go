@@ -25,7 +25,13 @@ type turnPending struct {
 // does not hand the turn to yet get a "＋" handle, and a chosen turn is drawn
 // before it is written.
 func (s *Server) figure(def *definition.Definition, states, problems map[string]string, openKey string, pending *turnPending) figureData {
-	layout := topology.LayoutGraph(def.Graph)
+	// An edge a press chose to add is laid out with the graph's own arrows, so
+	// the dashed line stands in a lane instead of crossing the boxes (walk-3 P2).
+	var chosen []definition.Edge
+	if pending != nil && pending.Add {
+		chosen = append(chosen, definition.Edge{From: pending.From, To: pending.To})
+	}
+	layout := topology.LayoutGraph(def.Graph, chosen...)
 	out := figureData{
 		Width:   layout.Width,
 		Height:  layout.Height,
@@ -47,7 +53,7 @@ func (s *Server) figure(def *definition.Definition, states, problems map[string]
 			nodeBox: nodeBox{
 				X: member.X, Y: member.Y, W: member.W, H: member.H,
 				Name:    member.Name,
-				Sub:     dot(member.Role, member.Profile),
+				Sub:     memberSub(member.Role, member.Profile),
 				Href:    s.openHref(def, id, openKey),
 				Class:   out.Classes[i],
 				Open:    nodeKeyOf(id) == openKey,
@@ -83,23 +89,17 @@ func (s *Server) figure(def *definition.Definition, states, problems map[string]
 		out.Edges = append(out.Edges, arrow)
 	}
 	if pending != nil && pending.Add {
-		out.Pending = append(out.Pending, pendingArrow(boxes, pending))
+		for _, edge := range layout.Pending {
+			arrow := s.arrow(def, layout, edge, openKey)
+			// The chosen edge is not written yet, so it opens nothing.
+			arrow.Href, arrow.Open, arrow.Add = "", false, true
+			out.Pending = append(out.Pending, arrow)
+		}
 	}
 	if from, ok := openSource(openKey); ok {
 		out.Handles = s.turnHandles(def, boxes, from, pending)
 	}
 	return out
-}
-
-// pendingArrow is the edge a press chose to add, drawn as one dashed line
-// between the two boxes before anything is written (4 節).
-func pendingArrow(boxes map[definition.NodeID]nodeBox, pending *turnPending) arrowFigure {
-	from, to := boxes[pending.From], boxes[pending.To]
-	return arrowFigure{
-		Path:  "M" + num(from.CX()) + " " + num(from.CY()) + " L" + num(to.CX()) + " " + num(to.CY()),
-		Label: nodeLabel(pending.From) + " → " + nodeLabel(pending.To),
-		Add:   true,
-	}
 }
 
 // openSource is the node whose field is open, when it is a party that hands the
@@ -266,6 +266,20 @@ func roleClasses(def *definition.Definition) []string {
 		out[i] = "c" + strconv.Itoa(at)
 	}
 	return out
+}
+
+// memberSub is the second line of a member's box: the role and the profile, each
+// under its own name, so a person can tell which is which (walk-1b P3). The
+// design writes the same line the member's field does (設計 3.4).
+func memberSub(role, profile string) string {
+	switch {
+	case role == "":
+		return profile
+	case profile == "":
+		return role
+	default:
+		return tf("web.figure.role_profile", role, profile)
+	}
 }
 
 // dot joins the parts of a node's second line with the list separator.
