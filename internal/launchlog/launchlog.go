@@ -60,6 +60,13 @@ type Doc struct {
 // Record is one launch: one line of log.jsonl. The texts it points at are in
 // blobs/, under Member.Prompt and Doc.SHA256. No environment value is written
 // here or in a blob — a value can be a key — and env counts toward Hash only.
+//
+// The facts the prompts were built with are written here too (Executable, the
+// project root, the language), because a prompt names this hergy's own path and
+// the language it is written in: a screen that rebuilds a prompt to see what has
+// changed since the launch builds it from these, not from how hergy is run now.
+// A record written before these were kept has neither, and nothing can be
+// rebuilt from it.
 type Record struct {
 	Time       string   `json:"time"` // RFC 3339, where hergy ran
 	Command    string   `json:"command"`
@@ -70,6 +77,8 @@ type Record struct {
 	Team       string   `json:"team"`
 	TeamYAML   string   `json:"team_yaml"`
 	Hash       string   `json:"hash"`
+	Executable string   `json:"executable,omitempty"`
+	Lang       string   `json:"lang,omitempty"`
 	Members    []Member `json:"members"`
 	Docs       []Doc    `json:"docs"`
 }

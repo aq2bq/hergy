@@ -154,6 +154,29 @@ func T(key string) string {
 // Tf is T with fmt.Sprintf.
 func Tf(key string, args ...any) string { return fmt.Sprintf(T(key), args...) }
 
+// Text is the message for a key in one language: the language a prompt is
+// rebuilt in, which is the launch record's, not the one in use now (C9). An
+// empty or unknown language falls back to the language in use, so a caller that
+// knows no language still reads hergy's own words.
+func Text(lang, key string) string {
+	if lang == "" || lang == Language() {
+		return T(key)
+	}
+	mu.RLock()
+	messages, known := catalogs[lang]
+	if known {
+		if text, ok := messages[key]; ok {
+			mu.RUnlock()
+			return text
+		}
+	}
+	mu.RUnlock()
+	return T(key)
+}
+
+// Textf is Text with fmt.Sprintf.
+func Textf(lang, key string, args ...any) string { return fmt.Sprintf(Text(lang, key), args...) }
+
 // Errorf is fmt.Errorf with the format taken from a key. It exists so callers
 // never pass a non-constant format to fmt.Errorf, which go vet rejects.
 func Errorf(key string, args ...any) error {

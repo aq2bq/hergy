@@ -78,6 +78,7 @@ func TestE2E(t *testing.T) {
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
 	t.Run("keyboard", func(t *testing.T) { e2eKeyboard(t, ctx, base) })
+	t.Run("activity", func(t *testing.T) { e2eActivity(t, ctx, base, f) })
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -462,6 +463,57 @@ func e2eKeyboard(t *testing.T, ctx context.Context, base string) {
 	}
 	e2eRun(t, ctx, chromedp.KeyEvent("\r"))
 	e2eWaitField(t, ctx, "メンバー lead")
+}
+
+// gyOf writes a fake gy and points HERGY_GY at it, so the activity reads the
+// questions it answers. It lives with the e2e run because only the run uses it.
+func gyOf(t *testing.T, f *fixture, script string) {
+	t.Helper()
+	path := filepath.Join(f.cfg, "gy")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HERGY_GY", path)
+}
+
+// e2eActivity is 段 6: the activity's section says what a stopped team is doing
+// and for how long, and gy's open question is shown at the top of the list. It
+// runs with a made-up herdr and a made-up gy (設計 8 節の E2E の行), on a serve
+// of its own, because gy is read once every thirty seconds and the earlier run
+// has already read it (設計 5.2).
+func e2eActivity(t *testing.T, ctx context.Context, first string, f *fixture) {
+	t.Helper()
+	// builder stops last and hands the turn to no one, so the section names the
+	// last turn as well as the length.
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":10},`+
+			`{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":11}`)
+	writeFile(t, filepath.Join(f.proj, "gy.toml"), "[scopes.common]\n")
+	gyOf(t, f, `#!/bin/sh
+if [ "$1" = "show" ]; then
+  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":["そのまま","戻す"]}}}]'
+  exit 0
+fi
+if [ "$2" = "--since" ]; then
+  echo '[{"seq":1,"actor":"hergy-dev-lead","node":"q-1","what":"created"}]'
+  exit 0
+fi
+echo '[{"id":"q-1","title":"E2E の問い","created":"2026-10-17T02:59:58Z"}]'
+`)
+
+	base, stop := startServe(t, f)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/activity"), chromedp.WaitReady("#activity-list"))
+	var body string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('activity-list').textContent`, &body))
+	for _, want := range []string{"前から止まっています", "最後のターンは builder", "このプロジェクトの問い", "E2E の問い", "選択肢: そのまま、戻す"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the activity does not hold %q:\n%s", want, body)
+		}
+	}
+	// Leave this serve's page before it is stopped, so its poll does not fail
+	// into the console after the socket is gone.
+	e2eRun(t, ctx, chromedp.Navigate(first+"/"), chromedp.WaitReady("main h1"))
+	stop()
 }
 
 // e2eEscape presses Escape in the page, the key the close script listens for.

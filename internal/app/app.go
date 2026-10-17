@@ -210,15 +210,22 @@ func buildResolved(cat *catalog.Catalog, reader source.Reader, base string, def 
 	}, nil
 }
 
+// executable is the hergy binary a member's prompt names in its hire command:
+// this process's own path, or "hergy" when it cannot be read. The launch record
+// keeps it, so a prompt rebuilt later names the same binary (C9).
+func executable() string {
+	path, err := os.Executable()
+	if err != nil || path == "" {
+		return "hergy"
+	}
+	return path
+}
+
 // startsOf builds the running members: the frame of each member, the engine its
 // profile names, and the prompt hergy hands it (a projection of the definition
 // and the catalog).
 func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base string, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
-	executable, err := os.Executable()
-	if err != nil || executable == "" {
-		executable = "hergy"
-	}
-	run := prompt.Run{Team: runName, Executable: executable, Base: base, Reader: reader, Sources: cat, Display: cat.Display}
+	run := prompt.Run{Team: runName, Executable: executable(), Base: base, Reader: reader, Sources: cat, Display: cat.Display}
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]

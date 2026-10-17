@@ -3,6 +3,17 @@
 {{- if .Focused}}<p class="focused">{{.Focused}}</p>{{end}}
 <div id="activity-list" data-poll="5000" hx-get="/activity" hx-trigger="hergy-tick" hx-select="#activity-list" hx-swap="outerHTML">
 {{- if .Count}}<p class="count">{{.Count}}</p>{{end}}
+{{- if .QuestionErr}}<p class="problem">{{.QuestionErr}}</p>
+{{- else if .Questions}}
+<section class="questions">
+  <h2 class="sec">{{t "web.activity.questions"}}</h2>
+  <ul class="plain">
+    {{- range .Questions}}
+    <li class="question"><span class="qt">{{.Title}}</span>{{if .Options}} <span class="qo">{{.Options}}</span>{{end}} <span class="qm muted">{{.Meta}}</span></li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
 {{- if .ErrLine}}
 <p class="problem">{{.ErrLine}}</p>
 {{- else if .Empty}}
@@ -14,6 +25,13 @@
   <h2><a href="{{.Href}}" class="mono">{{tf "web.activity.team_head" .Name}}</a>{{if .From}} <span class="muted">{{.From}}</span>{{end}}</h2>
   <p class="line">{{.Line}}</p>
   {{- if .Tail}}<pre class="tail">{{.Tail}}</pre>{{end}}
+  {{- if .Questions}}
+  <ul class="plain questions">
+    {{- range .Questions}}
+    <li class="question"><span class="qt">{{.Title}}</span>{{if .Options}} <span class="qo">{{.Options}}</span>{{end}} <span class="qm muted">{{.Meta}}</span></li>
+    {{- end}}
+  </ul>
+  {{- end}}
   {{- if .Panes}}
   <ul class="plain panes">
     {{- range .Panes}}
