@@ -2780,13 +2780,14 @@ func TestProfileSaveWritesOnlyThatProfile(t *testing.T) {
 	if !strings.Contains(body, "「プロファイル coder」を書きました") {
 		t.Errorf("the saved line does not name the file and the key:\n%s", body)
 	}
+	// The args keep the form the file wrote them in (a flow sequence on the
+	// key's line), the changed values are written, and every other line — the
+	// other profile above all — is exactly as it was (spec/41 S1).
 	want := "version: 1\n" +
 		"profiles:\n" +
 		"  coder:\n" +
 		"    kind: opencode\n" +
-		"    args:\n" +
-		"      - --y\n" +
-		"      - --z\n" +
+		"    args: [--y, --z]\n" +
 		"    env:\n" +
 		"      A: one\n" +
 		"      B: two\n" +
@@ -3161,5 +3162,152 @@ func TestTheAddFormSaysWhereItWrites(t *testing.T) {
 	form := between(body, `class="add"`, "</form>")
 	if !strings.Contains(form, f.profileFile()) {
 		t.Errorf("the add form does not say where it writes:\n%s", form)
+	}
+}
+
+// handWritten is a profiles.yaml a person wrote: a comment at the head, a blank
+// line, a comment per profile, the profiles in an order that is not by name, one
+// profile's args as a flow sequence with a comment after it, and another's env as
+// a flow mapping (spec/41 S1).
+const handWritten = "version: 1\n" +
+	"# 手で書いたファイル\n" +
+	"\n" +
+	"profiles:\n" +
+	"  planner:\n" +
+	"    # 計画と仕様\n" +
+	"    kind: claude\n" +
+	"    args: [\"--model\", \"opus\"]   # 重いほう\n" +
+	"    env:\n" +
+	"      A: one\n" +
+	"  coder:\n" +
+	"    kind: opencode\n" +
+	"    args:\n" +
+	"      - --y\n" +
+	"    env: {B: two}\n"
+
+// TestProfileSaveKeepsEveryLineItDidNotChange is spec/41 S1: a save writes the
+// place that moved, and not one byte of the rest — the comments, the blank line,
+// the order, the closing quote of a value nobody touched, and the form the file
+// wrote (a flow sequence on the key's line, a block sequence under it).
+func TestProfileSaveKeepsEveryLineItDidNotChange(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "profiles.yaml", handWritten)
+	server := f.server(t)
+	path := f.profileFile()
+
+	// The kind changes: the line above it, the value below it and the other
+	// profile are the file's own lines, byte for byte.
+	_, body := f.post(t, server, "/profiles/planner", url.Values{
+		"kind": {"codex"}, "args": {"--model\nopus"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Fatalf("the save was refused:\n%s", body)
+	}
+	want := strings.Replace(handWritten, "    kind: claude\n", "    kind: codex\n", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the save wrote\n%q\nwant\n%q", got, want)
+	}
+
+	// The args change: the flow form and its comment stay, and so does the
+	// block form of the other profile's args.
+	_, body = f.post(t, server, "/profiles/planner", url.Values{
+		"kind": {"codex"}, "args": {"--model\nsonnet"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Fatalf("the args save was refused:\n%s", body)
+	}
+	want = strings.Replace(want, `args: ["--model", "opus"]   # 重いほう`, "args: [--model, sonnet]   # 重いほう", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the args save wrote\n%q\nwant\n%q", got, want)
+	}
+}
+
+// TestProfileSaveWithTheSameValuesChangesNothing is spec/41 S1: a save that
+// changes nothing writes nothing at all, so a hand-written file comes back byte
+// for byte — even where the file's own form differs from hergy's (a flow value, a
+// quoted item, a comment).
+func TestProfileSaveWithTheSameValuesChangesNothing(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "profiles.yaml", handWritten)
+	server := f.server(t)
+	path := f.profileFile()
+	before := readFile(t, path)
+
+	_, body := f.post(t, server, "/profiles/planner", url.Values{
+		"kind": {"claude"}, "args": {"--model\nopus"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(before)},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Fatalf("the same-value save was refused:\n%s", body)
+	}
+	if got := readFile(t, path); got != before {
+		t.Errorf("a save that changed nothing wrote\n%q\nwant\n%q", got, before)
+	}
+}
+
+// TestAProfileAddGoesAfterTheLastOneAndKeepsTheFile: the new profile is appended
+// after the last one — not in name order — and every line the person wrote stays
+// (spec/41 S1).
+func TestAProfileAddGoesAfterTheLastOneAndKeepsTheFile(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "profiles.yaml", handWritten)
+	server := f.server(t)
+	path := f.profileFile()
+
+	_, body := f.post(t, server, "/profiles", url.Values{
+		"name": {"tester"}, "kind": {"gemini"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Fatalf("the add was refused:\n%s", body)
+	}
+	want := handWritten + "  tester:\n    kind: gemini\n"
+	if got := readFile(t, path); got != want {
+		t.Errorf("the add wrote\n%q\nwant\n%q", got, want)
+	}
+}
+
+// TestProfilePreviewNamesTheDefinitionWhenTwoAreInvolved is spec/41 R1: a profile
+// two definitions run says which definition's member each line is about, so the
+// same sentence twice tells two members apart; one definition's change is said the
+// way it always was.
+func TestProfilePreviewNamesTheDefinitionWhenTwoAreInvolved(t *testing.T) {
+	f := newFixture(t)
+	// A second definition whose lead runs coder too and whose builder runs
+	// planner: one profile reaches two definitions, the other one.
+	f.write(t, filepath.Join("teams", "other", "team.yaml"), "version: 1\nmission: other の使命\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: planner\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\n")
+	server := f.server(t)
+	path := f.profileFile()
+
+	_, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"gemini"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview := between(body, `class="preview"`, "</ul>")
+	for _, want := range []string{
+		"demo の lead の起動のしかたが変わります",
+		"other の lead の起動のしかたが変わります",
+	} {
+		if !strings.Contains(preview, want) {
+			t.Errorf("the line %q is not there:\n%s", want, body)
+		}
+	}
+
+	// planner reaches the second definition's builder alone: the member stands
+	// alone.
+	_, body = f.post(t, server, "/profiles/planner", url.Values{
+		"kind": {"opencode"}, "args": {""},
+		"envname": {""}, "envvalue": {""},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview = between(body, `class="preview"`, "</ul>")
+	if !strings.Contains(preview, "builder の起動のしかたが変わります") || strings.Contains(preview, "other の builder") {
+		t.Errorf("one definition's change names its definition:\n%q", preview)
 	}
 }

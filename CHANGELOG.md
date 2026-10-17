@@ -62,6 +62,100 @@
 
 ### Added
 
+- **The activity says how long a team has waited, and what gy asks**:
+  each section of `/activity` says how long the node it names has been where it
+  is (`lead が 25 分前から止まっています`), counted from when the screen first
+  saw that state — a state that was already there when `hergy serve` started
+  reads as a lower bound (`9 分以上`). When the project the screens are served
+  from keeps a `gy.toml` and `gy` is on `PATH`, gy's open questions are read
+  through gy's own command line and shown at the top of the activity as this
+  project's questions, with their options and who decides them; a question
+  asked by one of a running team's own herdr names stands on that team's
+  section too. A project without gy, or a machine without it, is unchanged: the
+  activity is made from herdr alone, and hergy keeps no ledger of its own. A
+  team whose definition this project does not hold — a team booted from another
+  project — is now read from the project its launch record names, judged and
+  counted like any other, with the place that project stands named beside its
+  definition and no link to a definition page this serve cannot answer.
+
+- **A team's detail says when it was launched and what it still has to take
+  up**: `/activity/<team>` shows the launch record's time, and, when the
+  prompts read differently now from the prompt the launch handed out, one line
+  per member whose prompt changed (`起動のあとで変わったもの: lead の
+  プロンプト`) with the command that hands the change over (`hergy reprompt
+  lead --team <team>`). The difference itself is not shown: the record keeps
+  only hashes, not the text. A prompt is rebuilt for the comparison from the
+  facts the record keeps — the hergy binary, the project root and the language
+  it was written in — so an unchanged team says nothing; a record from before
+  those were kept says nothing either, rather than something made up.
+
+- **The turns a team hands out are written from `hergy serve`**: a member's field
+  and the human's field now list who they hand the turn to, with a press to take
+  one turn away and a picker that adds one more. The picker offers the members
+  and the human the node does not hand the turn to yet — never itself and never
+  a worker, whose two edges are made by `workers:` — and, while a party's field
+  is open, the figure draws a "＋" on each of those parties, so a turn can be
+  added from the figure as well. A turn is also taken away from the arrow's own
+  field.
+
+  A choice made before the write reads the field again with it pending: the
+  figure draws the added edge dashed (the edge to be taken away, faint), and the
+  row says what a save would do to the members' prompts, so the line comes
+  before the save. Taking the last turn out of a node, or the last turn that
+  reaches the human, is refused with the sentence `hergy validate` writes, beside
+  the row. A save writes one line of `turns:` and leaves every other line as it
+  was.
+
+- **A member's role and profile, and the workers it may hire, are written from
+  `hergy serve`**: opening a member of a team definition now gives a picker for
+  its role (the roles hergy resolves, and the name the definition writes now)
+  and for its profile (the profile names alone; the kind of the picked profile
+  stands beside the pick as its attribute). The workers the member may hire are
+  written the same place: a purpose and a profile to hire one, the profile of a
+  worker to change one, and a press to take one away. That last press writes
+  nothing at once: it shows what the hire would lose ("`hergy hire --purpose
+  <purpose>` は断られます") and offers the write or the way out. The worker's own
+  field writes the same profile and takes the same worker away.
+
+  A save writes one place in `team.yaml`, leaves every other line as it was,
+  and says what was written (with the key between the language's own quotes),
+  what the change does to the members' prompts, and the command a running team
+  needs (with a copy button). A change that would stop the definition is refused
+  with the sentence `hergy validate` writes, beside the field; a file that moved
+  under the page is refused with a link that reads it again. Two fields of one
+  member are filled in and saved one at a time, and a half-written field is kept
+  while another is opened.
+
+  A pick that has not been written yet shows what it would do before it is
+  written: picking another role or profile reads the field again with the pick
+  pending and prints the same line the save would print (or the sentence the
+  save would be refused with), so the person knows what a save costs before
+  paying it. A worker taken away from its own field lands on the member that
+  hired it, and the press that takes one away says what the hire loses first.
+
+- **A profile is edited from the screens**: `/profiles/<profile>` writes a
+  profile's kind (chosen from the kinds herdr starts, the ones the profiles in
+  use run first, the one run by the most profiles before the rest), its args
+  (one to a line) and its env (a name and a value each, the value a box so a
+  line break in it survives). `/profiles` adds a profile by name and kind, and
+  says which `profiles.yaml` it will write before the button is pressed. A
+  profile that runs something is not taken away — the screen names the members
+  and workers that use it — and one nothing runs is.
+
+  A write changes only the lines it touches: the profile's own lines are written
+  where they stand, a new profile goes after the last one (not in name order),
+  args and env keep the form the file wrote them in (a flow collection on the
+  key's line, or block lines under it), and the comments, the blank lines, the
+  order of the profiles and the quoting of a value nobody touched come back byte
+  for byte — so a save that changes nothing leaves the file exactly as it was.
+  Only a file hergy makes (a new `profiles.yaml`) is written in hergy's own form.
+  A write says what it wrote, whose launch or pane environment the change moves
+  (named by its definition when the change reaches members of more than one
+  definition, so the same sentence twice tells two members apart), and what each
+  running team has to take up (`hergy refresh` for a kind or an args change,
+  `hergy down` and `hergy up` for an env change), and a name that is its kind gets
+  the warning `hergy validate` gives.
+
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way

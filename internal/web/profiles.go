@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -205,14 +206,9 @@ func (s *Server) saveProfile(r *http.Request) (view, error) {
 	if !ok {
 		return s.profileRefused(name, edited, pairs, []string{bad}, false)
 	}
-	profiles, err := profile.ParseProfiles(text, path)
+	newText, err := profileEdit(text, s.cat.Display(path), name, value, edited)
 	if err != nil {
-		return view{}, err
-	}
-	profiles[name] = edited
-	newText, err := profile.EmitProfiles(profiles)
-	if err != nil {
-		return view{}, err
+		return s.profileRefused(name, edited, nil, []string{s.breakLine(path, err)}, false)
 	}
 	// A kind or an env name the file cannot read is refused with the file's own
 	// line, the way hergy validate reports that file (設計 3.7 の「失敗の 1 行」).
@@ -276,23 +272,32 @@ func (s *Server) addProfile(r *http.Request) (view, error) {
 	if _, ok := s.cat.Profile(name); ok {
 		return s.profilesRefused(tf("web.profiles.exists", name))
 	}
-	profiles := map[string]profile.Profile{}
 	hash := source.Hash("")
+	newText := ""
 	text, err := s.cat.Reader().Read(source.Doc{Path: place})
 	switch {
 	case err == nil:
-		parsed, perr := profile.ParseProfiles(text, place)
-		if perr != nil {
+		// The file is there: the new profile is appended after the last one, and
+		// every line around it stays as the person wrote it (spec/41 S1).
+		if _, perr := profile.ParseProfiles(text, place); perr != nil {
 			return s.profilesRefused(s.breakLine(place, perr))
 		}
-		profiles, hash = parsed, source.Hash(text)
+		edited, eerr := profile.EditYAML([]byte(text), s.cat.Display(place), profile.Add(name, kind))
+		if eerr != nil {
+			return s.profilesRefused(s.breakLine(place, eerr))
+		}
+		hash, newText = source.Hash(text), string(edited)
 	case !errors.Is(err, fs.ErrNotExist):
 		return view{}, err
-	}
-	profiles[name] = profile.Profile{Name: name, Kind: kind, Path: place}
-	newText, err := profile.EmitProfiles(profiles)
-	if err != nil {
-		return view{}, err
+	default:
+		// The file is not there yet: hergy writes a new one in its own form.
+		written, eerr := profile.EmitProfiles(map[string]profile.Profile{
+			name: {Name: name, Kind: kind, Path: place},
+		})
+		if eerr != nil {
+			return view{}, eerr
+		}
+		newText = written
 	}
 	// A name or a kind the file cannot read is refused with the file's own line.
 	if _, err := profile.ParseProfiles(newText, place); err != nil {
@@ -342,15 +347,11 @@ func (s *Server) deleteProfile(r *http.Request) (view, error) {
 	if err != nil {
 		return view{}, err
 	}
-	profiles, err := profile.ParseProfiles(text, value.Path)
+	edited, err := profile.EditYAML([]byte(text), s.cat.Display(value.Path), profile.Remove(name))
 	if err != nil {
-		return view{}, err
+		return s.profileRefused(name, value, nil, []string{s.breakLine(value.Path, err)}, false)
 	}
-	delete(profiles, name)
-	newText, err := profile.EmitProfiles(profiles)
-	if err != nil {
-		return view{}, err
-	}
+	newText := string(edited)
 	if err := source.WriteIfUnchanged(value.Path, r.PostFormValue("hash"), newText); err != nil {
 		if errors.Is(err, source.ErrChanged) {
 			return s.profileRefused(name, value, nil, []string{tf("web.saved.clash", s.cat.Display(value.Path))}, true)
@@ -358,6 +359,33 @@ func (s *Server) deleteProfile(r *http.Request) (view, error) {
 		return view{}, err
 	}
 	return s.profilesSaved(tf("web.profile.deleted", s.cat.Display(value.Path), tf("web.saved.profile", name)), nil)
+}
+
+// profileEdit is one profile written into the profiles.yaml it was read from:
+// the places that moved, and nothing else (spec/41 S1). A value a person did not
+// change is not written at all, so a save that changes nothing leaves the file
+// byte for byte, and a save that changes one value leaves the lines of the
+// others — their form, their quotes, their comments — exactly as they were.
+func profileEdit(text, path, name string, before, after profile.Profile) (string, error) {
+	out := text
+	var ops []profile.Op
+	if after.Kind != before.Kind {
+		ops = append(ops, profile.SetKind(name, after.Kind))
+	}
+	if !slices.Equal(after.Args, before.Args) {
+		ops = append(ops, profile.SetArgs(name, after.Args))
+	}
+	if !maps.Equal(after.Env, before.Env) {
+		ops = append(ops, profile.SetEnv(name, after.Env))
+	}
+	for _, op := range ops {
+		edited, err := profile.EditYAML([]byte(out), path, op)
+		if err != nil {
+			return "", err
+		}
+		out = string(edited)
+	}
+	return out, nil
 }
 
 // newProfileStop is the first sentence that stops a definition and is not
