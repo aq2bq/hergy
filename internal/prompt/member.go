@@ -5,6 +5,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -57,6 +58,17 @@ type Sources interface {
 	// SharedAgreement is the agreement every team of a layer shares, and
 	// whether a layer wrote one.
 	SharedAgreement() (source.Doc, bool)
+}
+
+// MemberName is the name herdr knows a member by: "<team>-<member>". It is the
+// same name %{name} writes, so the projection and a check refuse a name that is
+// longer than herdr's pattern in one place.
+func MemberName(team string, node *definition.MemberNode) (string, error) {
+	name := team + "-" + node.Name
+	if !profile.NamePattern.MatchString(name) {
+		return "", i18n.Errorf("error.herdr_name_pattern", name)
+	}
+	return name, nil
 }
 
 // Built is one member's prompt and what it was built from.

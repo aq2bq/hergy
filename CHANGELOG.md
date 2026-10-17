@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`hergy validate` warns when a rule text names something the definition has
+  no node for**: a rule that writes `lead → impl`, where `impl` is no member, no
+  role and no human, now gets a warning that names the unknown name. It moves no
+  exit code, and it does not stop a team from booting. A name that is a worker's
+  purpose is not such a name: `workers:` ties that worker to its member, so
+  `lead → 実装` is left alone (a rule text writes a worker by its purpose, and
+  the worker is still no node of the graph).
+
 ## 0.6.0 - 2026-10-17
 
 ### Added

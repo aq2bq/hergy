@@ -616,5 +616,22 @@
   "error.profile_flag_gone": "--profile は無くなりました。プロファイルは team.yaml の workers: の組（from と目的）から決まります",
   "error.hire_purpose_nobody": "目的「%s」でワーカーを呼べるメンバーはいません。呼べる目的: %s",
   "hire.member_separator": "／",
-  "hire.member_purposes": "%s は %s"
+  "hire.member_purposes": "%s は %s",
+  "validate.turn_unknown_name": "規則 %s が %s と書いていますが、%s はこの定義のノードにありません",
+  "activity.seconds": "%d 秒",
+  "activity.minutes": "%d 分",
+  "activity.hours": "%d 時間",
+  "activity.hours_minutes": "%s %s",
+  "activity.or_more": "%s以上",
+  "activity.line_stuck": "%s が %s前から止まっています",
+  "activity.line_waiting_human": "%s が %s前から人間を待っています",
+  "activity.line_team_stuck": "チームが %s前から止まっています",
+  "activity.line_last_turn": "。最後のターンは %s",
+  "activity.working": "仕事中",
+  "activity.stopped": "止まっています",
+  "activity.node_state": "%s が%s",
+  "activity.node_separator": "・",
+  "activity.second": "1 秒",
+  "activity.minute": "1 分",
+  "activity.hour": "1 時間"
 }
