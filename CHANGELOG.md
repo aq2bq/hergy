@@ -19,7 +19,9 @@
   definition's members and workers with their profile, and a pick is written
   into that team.yaml. `/profiles/yaml` shows both files as text with line
   numbers, validate's problems beside the editor on their lines, and writes
-  the text back as typed. A profile that is in use is deleted after the confirm
+  the text back as typed. A rename that splits one name between the project's
+  file and the shared one shows both rows at once, in the order a reload
+  shows them. A profile that is in use is deleted after the confirm
   names how many people use it, and the assign tab then shows those people
   naming a profile that is not there. The environment rows are written in the
   order the person put them. The two families the screen names — IBM Plex Mono
