@@ -6,6 +6,7 @@ package protocol
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -18,6 +19,10 @@ type Agent struct {
 	Status string
 	PaneID string
 	TabID  string
+	// Seq is Herdr's state_change_seq: the greater it is, the more recently the
+	// agent changed state. The activity screen reads it to tell the last turn
+	// (設計 5.2).
+	Seq int
 	// Title is what the agent's terminal says it is doing, with Herdr's own
 	// marks stripped. It is empty when Herdr reports none.
 	Title string
@@ -54,6 +59,7 @@ func AgentFrom(object map[string]any) Agent {
 	agent.Status, _ = object["agent_status"].(string)
 	agent.PaneID, _ = object["pane_id"].(string)
 	agent.TabID, _ = object["tab_id"].(string)
+	agent.Seq = seqOf(object["state_change_seq"])
 	// Herdr reports the terminal's title twice: as it stands, and with its own
 	// marks (the working mark, the pane's app) stripped. The stripped one is what
 	// a person reads as what the agent is doing.
@@ -62,6 +68,26 @@ func AgentFrom(object map[string]any) Agent {
 		agent.Title, _ = object["terminal_title"].(string)
 	}
 	return agent
+}
+
+// seqOf reads Herdr's state_change_seq, which a JSON reply decodes as float64.
+func seqOf(value any) int {
+	switch number := value.(type) {
+	case float64:
+		return int(number)
+	case int:
+		return number
+	case int64:
+		return int(number)
+	case string:
+		n, err := strconv.Atoi(number)
+		if err != nil {
+			return 0
+		}
+		return n
+	default:
+		return 0
+	}
 }
 
 // Tab is one live tab as Herdr reports it.

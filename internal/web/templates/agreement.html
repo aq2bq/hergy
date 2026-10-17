@@ -1,0 +1,13 @@
+{{define "agreement.html"}}
+<h1 class="lead">{{t "web.common.title"}}</h1>
+{{- if .Readers}}<p class="sub">{{t "web.common.readers"}} {{range $i, $r := .Readers}}{{if $i}}、{{end}}{{$r}}{{end}}</p>{{end}}
+{{- if .Path}}<p class="muted mono path">{{.Path}}</p>{{end}}
+{{- if .Missing}}
+<p class="empty">{{t "web.common.empty"}}</p>
+{{- else if .Broken}}
+<p class="problem">{{.Broken}}</p>
+{{- else}}
+{{template "sections" .Sections}}
+{{- if .PanelOpen}}{{template "panel" .Panel}}{{end}}
+{{- end}}
+{{end}}

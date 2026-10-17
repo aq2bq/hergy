@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // missionTeam writes one local team definition whose team.yaml writes the given
@@ -54,49 +53,6 @@ func TestShowAndUpDryPrintTheMissionFirst(t *testing.T) {
 		if !strings.Contains(got, header) {
 			t.Errorf("%v does not carry the header after the mission:\n%s", argv, got)
 		}
-	}
-}
-
-// TestServePortHandsTheMissionToTheScreens: the two screens that show what the
-// team is for read it from the same definition the commands read (r-341e): the
-// team list's row and the definition screen carry the line team.yaml writes. A
-// definition that writes none does not read, so its row carries why instead.
-func TestServePortHandsTheMissionToTheScreens(t *testing.T) {
-	f := newFixture(t)
-	initLocales(t)
-	missionTeam(t, f, "mission: hergy をよくする\n")
-	port := servePort{env: serveEnv(t)}
-
-	rows := port.Teams(web.LayerLocal)
-	if len(rows) != 1 {
-		t.Fatalf("the team list has %d rows, want the one definition", len(rows))
-	}
-	if rows[0].Mission != "hergy をよくする" {
-		t.Errorf("the team list row carries the mission %q, want the one written", rows[0].Mission)
-	}
-	def, err := port.Definition(web.LayerLocal, "demo")
-	if err != nil {
-		t.Fatalf("Definition: %v", err)
-	}
-	if def.Mission != "hergy をよくする" {
-		t.Errorf("the definition screen carries the mission %q, want the one written", def.Mission)
-	}
-
-	// No mission: the definition does not read, and the row says why.
-	missionTeam(t, f, "")
-	rows = port.Teams(web.LayerLocal)
-	if rows[0].Mission != "" {
-		t.Errorf("a definition without a mission carries %q, want none", rows[0].Mission)
-	}
-	if rows[0].Broken == "" {
-		t.Errorf("a definition without a mission carries no reason, want one")
-	}
-	def, err = port.Definition(web.LayerLocal, "demo")
-	if err != nil {
-		t.Fatalf("Definition: %v", err)
-	}
-	if def.Broken == "" {
-		t.Errorf("the definition screen does not say why the file does not read")
 	}
 }
 

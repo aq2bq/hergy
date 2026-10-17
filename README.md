@@ -72,7 +72,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy ls` | List the available team definitions and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
 | `hergy validate` | Check every settings file and show each broken one. It then prints what the rules carry and the size of what each member is handed and of each team definition's rule files, warning when one is over the provisional limit; a warning does not change the exit code |
-| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows one row per team definition, with its members and how many of the rules they read have no check. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
+| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows the activity, the team definitions, the roles and the profiles: what each running team is doing, one definition with its mission, figure, members, workers and turns, and the rule documents and profiles behind them. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 

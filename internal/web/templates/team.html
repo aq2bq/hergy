@@ -1,0 +1,19 @@
+{{define "team.html"}}
+<h1 class="lead">{{tf "web.activity.team_title" .Name}}</h1>
+{{- if .From}}<p class="sub"><a href="{{.DefinitionHref}}">{{.From}}</a></p>{{end}}
+{{- if .Focused}}<p class="focused">{{.Focused}}</p>{{end}}
+{{- if .NotRunning}}
+<p class="empty">{{tf "web.activity.not_running" .Name}}</p>
+<p><a href="/activity" class="link">{{t "web.band.activity"}}</a></p>
+{{- else if .Broken}}
+<p class="problem">{{.Broken}}</p>
+{{- else}}
+<p class="line">{{.Line}}</p>
+{{- if .Tail}}<pre class="tail">{{.Tail}}</pre>{{end}}
+{{template "figure" .Figure}}
+{{- if .Hired}}
+<h2 class="sec">{{t "web.activity.hired"}}</h2>
+<ul class="plain">{{range .Hired}}<li class="mono">{{.}}</li>{{end}}</ul>
+{{- end}}
+{{- end}}
+{{end}}

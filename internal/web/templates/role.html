@@ -1,0 +1,13 @@
+{{define "role.html"}}
+<h1 class="lead">{{tf "web.role.title" .Name}}</h1>
+{{- if .Users}}<p class="sub">{{t "web.roles.users"}} {{range $i, $u := .Users}}{{if $i}}、{{end}}{{$u}}{{end}}</p>{{end}}
+{{- if .Path}}<p class="muted mono path">{{.Path}}</p>{{end}}
+{{- if .Missing}}
+{{- range .Missing}}<p class="problem">{{.}}</p>{{end}}
+{{- else if .Broken}}
+<p class="problem">{{.Broken}}</p>
+{{- else}}
+{{template "sections" .Sections}}
+{{- if .PanelOpen}}{{template "panel" .Panel}}{{end}}
+{{- end}}
+{{end}}

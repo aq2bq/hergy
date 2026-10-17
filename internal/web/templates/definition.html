@@ -1,0 +1,84 @@
+{{define "definition.html"}}
+<h1 class="lead">{{tf "web.definition.title" .Name}}</h1>
+{{- if .Broken}}
+<p class="problem">{{.Broken}}</p>
+<p class="muted mono">{{.Path}}</p>
+{{- else}}
+{{- if .Saved}}
+<div class="saved">{{.Saved}}{{template "commands" .Commands}}</div>
+{{- end}}
+<form class="mission" method="post" action="{{.Href}}" hx-post="{{.Href}}" hx-target="#main" hx-select="#main" hx-swap="outerHTML" hx-replace-url="true"{{if .Saved}} data-saved="1"{{end}}>
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <label class="fl" for="mission">{{t "label.mission"}}</label>
+  <input id="mission" class="mission-input" type="text" name="mission" value="{{.Mission}}" data-draft="{{.Draft}}" data-origin="{{.Mission}}" autocomplete="off">
+  <span class="actions" data-change hidden>
+    <button type="submit" class="btn primary">{{t "web.save"}}</button>
+    <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
+  </span>
+</form>
+{{- template "notice" .Notice}}
+<p class="muted mono path">{{.Path}}</p>
+{{- if .Unused}}<p class="muted note">{{tf "web.definition.unused" .Unused}}</p>{{end}}
+
+<div class="detail">
+  {{template "figure" .Figure}}
+  <div class="right">
+    {{- if .PanelOpen}}{{template "panel" .Panel}}{{end}}
+  </div>
+  <div class="left">
+    <h2 class="sec">{{t "label.members"}}</h2>
+    <table class="tbl">
+      <thead><tr><th>{{t "label.member"}}</th><th>{{t "label.role"}}</th><th>{{t "label.profile"}}</th><th>{{t "label.turns"}}</th></tr></thead>
+      <tbody>
+        {{- range .Members}}
+        <tr{{if eq .Href $.Panel.Key}} class="open"{{end}}>
+          <td><a href="{{.Href}}" class="mono">{{.Name}}</a></td>
+          <td>{{if .Role}}<a href="{{.RoleHref}}">{{.Role}}</a>{{end}}</td>
+          <td>{{if .Profile}}<a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a>{{if .Kind}} <span class="muted">({{.Kind}})</span>{{end}}{{end}}</td>
+          <td>{{range .Turns}}<a href="{{.Href}}">{{.Name}}</a> {{end}}</td>
+        </tr>
+        {{- end}}
+      </tbody>
+    </table>
+    {{- if .Workers}}
+    <h2 class="sec">{{t "label.workers"}}</h2>
+    <table class="tbl">
+      <thead><tr><th>{{t "web.panel.worker_calls"}}</th><th>{{t "label.purpose"}}</th><th>{{t "label.profile"}}</th></tr></thead>
+      <tbody>
+        {{- range .Workers}}
+        <tr>
+          <td><a href="{{.FromHref}}" class="mono">{{.From}}</a></td>
+          <td><a href="{{.Href}}">{{.Purpose}}</a></td>
+          <td><a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a></td>
+        </tr>
+        {{- end}}
+      </tbody>
+    </table>
+    {{- end}}
+    <h2 class="sec">{{t "label.turns"}}</h2>
+    <table class="tbl">
+      <tbody>
+        {{- range .Turns}}
+        <tr><td><a href="{{.Href}}" class="mono">{{.Label}}</a></td></tr>
+        {{- end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<section class="agreements">
+  <h2 class="sec"><a href="{{$.Href}}/agreement">{{t "web.definition.agreement"}}</a></h2>
+  {{- if .Agreement.Broken}}<p class="problem">{{.Agreement.Broken}}</p>
+  {{- else if .Agreement.Empty}}<p class="muted">{{t "web.definition.no_agreement"}}</p>
+  {{- else}}{{template "sections" .Agreement.Sections}}{{end}}
+</section>
+
+{{- if .Running}}
+<section class="running">
+  <h2 class="sec">{{t "web.definition.running"}}</h2>
+  <ul class="plain">{{range .Running}}<li><a href="{{.Href}}">{{.Name}}</a></li>{{end}}</ul>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

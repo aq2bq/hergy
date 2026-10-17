@@ -13,14 +13,15 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/activity"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// templates and static are embedded: hergy serve is one binary, and the pages
-// it serves come from it, not from wherever it is run.
+// templates and static are embedded: hergy serve is one binary, and the pages it
+// serves come from it, not from wherever it is run.
 //
 //go:embed templates/*.html static
 var files embed.FS
@@ -34,22 +35,33 @@ const (
 
 // Server answers the screens over HTTP. Build one with New and hand it to Serve.
 type Server struct {
-	port    Port
-	token   string
-	screens []Screen
-	frame   *template.Template
+	cat   *catalog.Catalog
+	port  Port
+	token string
+	tpl   *template.Template
+	// handler is the routes with the guards in front of them.
 	handler http.Handler
-	// addr is this server's own address, "127.0.0.1:8787"; it is set when the
-	// socket is open, and every request is checked against it.
+	// addr is this server's own address ("127.0.0.1:8787"), set when the socket
+	// is open; every request is checked against it.
 	addr string
+	// watcher remembers when each agent's current state was first seen, so the
+	// activity can say how long a node has waited even though herdr reports no
+	// time (設計 5.2、spec/37 N5). It is the only state this server keeps
+	// between two answers.
+	watcher *activity.Watcher
+	// focused is the pane the last "move to the pane" press went to, so the
+	// screen can say it did. It is the one thing a write records here.
+	focused string
 }
 
-// New builds the server for one run. It parses the templates here, so a broken
-// template stops hergy serve at once instead of on the first request, and it
-// takes the screens in the order the navigation shows them: the home first,
-// which is the screen hergy serve opens with. The token is made here too, fresh
-// for every run: every form carries it, and a write without it is refused.
-func New(port Port, screens ...Screen) (*Server, error) {
+// New builds the server for one run: the catalog every screen reads through, and
+// the Port the live side comes in on. The templates are parsed here, so a broken
+// one stops hergy serve at once instead of on the first request; the token is
+// made fresh for this run, and a write without it is refused.
+func New(cat *catalog.Catalog, port Port) (*Server, error) {
+	if cat == nil {
+		return nil, errors.New("web: New needs a catalog")
+	}
 	if port == nil {
 		return nil, errors.New("web: New needs a Port")
 	}
@@ -57,7 +69,7 @@ func New(port Port, screens ...Screen) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	frame, err := template.New("").Funcs(Funcs()).ParseFS(files, "templates/*.html")
+	tpl, err := template.New("").Funcs(Funcs()).ParseFS(files, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -65,27 +77,37 @@ func New(port Port, screens ...Screen) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{port: port, token: token, frame: frame, screens: screens}
-
-	mux := http.NewServeMux()
-	for _, screen := range s.screens {
-		for _, route := range screen.Routes() {
-			mux.Handle(route.Path, s.route(screen, route))
-		}
+	s := &Server{
+		cat: cat, port: port, token: token, tpl: tpl,
+		watcher: activity.NewWatcher(),
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
-	// A path no screen claims is not found, not the first screen: a screen that
-	// answers a path it was not written for would hide a mistake in a link.
-	mux.Handle("/", notFound())
-	s.handler = s.guard(mux)
+	mux := s.routes(static)
+	s.handler = s.guard(s.dropLayer(mux))
 	return s, nil
+}
+
+// dropLayer moves a request that still carries the old layer parameter to the
+// same path without it, so a bookmark from the 0.6 screens lands on the new one
+// (設計 6 節).
+func (s *Server) dropLayer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" && r.URL.Query().Has("layer") {
+			q := r.URL.Query()
+			q.Del("layer")
+			target := r.URL.Path
+			if encoded := q.Encode(); encoded != "" {
+				target += "?" + encoded
+			}
+			http.Redirect(w, r, target, http.StatusMovedPermanently) //nolint:gosec // G710: the target is this request's own path, with one query parameter removed
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Serve listens on 127.0.0.1:port and answers until ctx is done. ready, when
 // set, is called once with the URL to open, after the socket is open and before
-// the first request is answered. On ctx.Done the server takes no new request
-// and waits up to shutdownGrace for the ones in flight, so a screen halfway
-// through its answer is not cut off.
+// the first request is answered.
 func (s *Server) Serve(ctx context.Context, port int, ready func(url string)) error {
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	listener, err := net.Listen("tcp", addr)
@@ -96,10 +118,7 @@ func (s *Server) Serve(ctx context.Context, port int, ready func(url string)) er
 	if ready != nil {
 		ready(s.URL())
 	}
-	server := &http.Server{
-		Handler:           s.handler,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
+	server := &http.Server{Handler: s.handler, ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()
 	select {
@@ -114,10 +133,7 @@ func (s *Server) Serve(ctx context.Context, port int, ready func(url string)) er
 	defer cancel()
 	err = server.Shutdown(shutdownCtx)
 	<-done
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // URL is the address to open in a browser. It is set once the socket is open.
@@ -128,13 +144,126 @@ func (s *Server) URL() string {
 	return "http://" + s.addr
 }
 
-// guard holds the promises that stand in front of every request: the Host has
-// to be this server's own name, and every answer carries the policy that keeps
-// the page to this server's own files.
+// view is one answer: the body a screen built, its title, the band it stands in
+// and the trail above it.
+type view struct {
+	title  string
+	band   string
+	crumb  []crumb
+	body   template.HTML
+	status int
+}
+
+// handlerFn answers one path: it takes the request and returns the page, or the
+// reason it could not.
+type handlerFn func(*http.Request) (view, error)
+
+// routes is the whole table of the UI. Every path is a real path, and every one
+// answers the whole page; the old WebUI's paths are moved with 301 or refused
+// with 404 (設計 6 節).
+func (s *Server) routes(static fs.FS) http.Handler {
+	mux := http.NewServeMux()
+
+	get := func(pattern string, fn handlerFn) {
+		mux.Handle("GET "+pattern, s.answer(fn))
+		mux.Handle("HEAD "+pattern, s.answer(fn))
+	}
+	post := func(pattern string, fn handlerFn) {
+		mux.Handle("POST "+pattern, s.write(fn))
+	}
+
+	// チーム定義 (3.3・3.4).
+	get("/{$}", s.definitions)
+	get("/definitions", s.definitions)
+	get("/definitions/{name}", s.definition)
+	post("/definitions/{name}", s.saveMission)
+	get("/definitions/{name}/members/{member}", s.memberPanel)
+	get("/definitions/{name}/workers/{from}/{purpose}", s.workerPanel)
+	get("/definitions/{name}/human", s.humanPanel)
+	get("/definitions/{name}/turns/{from}/{to}", s.turnPanel)
+	get("/definitions/{name}/agreement", s.agreementPanel)
+	get("/definitions/{name}/agreement/{rule}", s.rulePanel)
+
+	// 活動 (3.1・3.2).
+	get("/activity", s.activityList)
+	get("/activity/{team}", s.teamActivity)
+	post("/activity/{team}/focus", s.focus)
+
+	// ロール (3.5).
+	get("/roles", s.roles)
+	get("/roles/{role}", s.role)
+	get("/roles/{role}/{rule}", s.roleRule)
+
+	// 共通の約束 (3.6).
+	get("/agreement", s.agreement)
+	get("/agreement/{rule}", s.agreementRule)
+
+	// プロファイル (3.7).
+	get("/profiles", s.profiles)
+	get("/profiles/{name}", s.profile)
+
+	// 古い URL (設計 6 節): the ones whose concept is one thing move with 301,
+	// the rest are not found.
+	mux.HandleFunc("GET /teams", redirect("/definitions"))
+	mux.HandleFunc("HEAD /teams", redirect("/definitions"))
+	mux.HandleFunc("GET /running", redirect("/activity"))
+	mux.HandleFunc("HEAD /running", redirect("/activity"))
+	mux.HandleFunc("GET /team", s.oldTeam)
+	mux.HandleFunc("HEAD /team", s.oldTeam)
+	for _, gone := range []string{"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/"} {
+		mux.HandleFunc("GET "+gone, notFound)
+		mux.HandleFunc("HEAD "+gone, notFound)
+	}
+
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.HandleFunc("/", notFound)
+	return mux
+}
+
+// answer runs one read handler inside the frame. The token of this run is put on
+// the request before the handler runs, so a screen that renders a form can write
+// it into the form (Token).
+func (s *Server) answer(fn handlerFn) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v, err := fn(r)
+		if err != nil {
+			s.problem(w, r, err)
+			return
+		}
+		s.render(w, v)
+	})
+}
+
+// write runs one write handler: it promises POST, the token of this run, and,
+// when the browser sends an Origin, this server's own. A write that fails any of
+// them is refused and its handler never runs.
+func (s *Server) write(fn handlerFn) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
+			http.Error(w, t("web.error.origin"), http.StatusForbidden)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxWrite)
+		if subtle.ConstantTimeCompare([]byte(r.PostFormValue("token")), []byte(s.token)) != 1 {
+			http.Error(w, t("web.error.token"), http.StatusForbidden)
+			return
+		}
+		v, err := fn(r)
+		if err != nil {
+			s.problem(w, r, err)
+			return
+		}
+		s.render(w, v)
+	})
+}
+
+// guard holds the promises that stand in front of every request: the Host has to
+// be this server's own name, and every answer carries the policy that keeps the
+// page to this server's own files.
 func (s *Server) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.hostOK(r) {
-			http.Error(w, i18n.T("web.error.host"), http.StatusForbidden)
+			http.Error(w, t("web.error.host"), http.StatusForbidden)
 			return
 		}
 		w.Header().Set("Content-Security-Policy", "default-src 'self'")
@@ -143,10 +272,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 	})
 }
 
-// hostOK reports whether a request was addressed to this server. A browser that
-// reached it wrote 127.0.0.1 or localhost and the port; another name, or another
-// port, is refused, so a page elsewhere cannot reach the UI through a name it
-// controls.
+// hostOK reports whether a request was addressed to this server.
 func (s *Server) hostOK(r *http.Request) bool {
 	_, bound, err := net.SplitHostPort(s.addr)
 	if err != nil {
@@ -162,307 +288,108 @@ func (s *Server) hostOK(r *http.Request) bool {
 		return false
 	}
 	if port == "" {
-		// A browser leaves the port out only for the default one.
 		return bound == "80"
 	}
 	return port == bound
 }
 
-// checkWrite is what a write promises: POST, the token of this run, and, when
-// the browser sends an Origin, this server's own. A write that fails any of them
-// is refused and its handler never runs.
-func (s *Server) checkWrite(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != http.MethodPost {
-		http.Error(w, i18n.T("web.error.method"), http.StatusMethodNotAllowed)
-		return false
-	}
-	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-		http.Error(w, i18n.T("web.error.origin"), http.StatusForbidden)
-		return false
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxWrite)
-	token := r.PostFormValue("token")
-	if subtle.ConstantTimeCompare([]byte(token), []byte(s.token)) != 1 {
-		http.Error(w, i18n.T("web.error.token"), http.StatusForbidden)
-		return false
-	}
-	return true
+// frame is what the layout is given: the bands, the trail, the token and the
+// body.
+type frame struct {
+	Lang  string
+	Title string
+	Bands []band
+	Crumb []crumb
+	Token string
+	Body  template.HTML
 }
 
-// route is one path of one screen, with the promises of its own. The token of
-// this run is put on the request before the handler runs, so a screen that
-// renders a form can write it into the form (Token).
-func (s *Server) route(screen Screen, route Route) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case route.Write:
-			if !s.checkWrite(w, r) {
-				return
-			}
-		case r.Method != http.MethodGet && r.Method != http.MethodHead:
-			http.Error(w, i18n.T("web.error.method"), http.StatusMethodNotAllowed)
-			return
-		}
-		view, err := route.Handler(r.WithContext(context.WithValue(r.Context(), tokenKey{}, s.token)))
-		if err != nil {
-			s.problem(w, r, screen, err)
-			return
-		}
-		s.write(w, r, screen, view)
-	})
-}
-
-// tokenKey is how the token of the run travels on a request.
-type tokenKey struct{}
-
-// Token is the token of this run. A screen renders it into the hidden field of
-// every form it writes, and the server refuses a write that does not carry it
-// (Route.Write). It is on the request a screen is given, and on no other.
-func Token(r *http.Request) string {
-	token, _ := r.Context().Value(tokenKey{}).(string)
-	return token
-}
-
-// notFound answers a path no screen claims.
-func notFound() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, i18n.T("web.error.not_found"), http.StatusNotFound)
-	})
-}
-
-// write renders one answer inside the frame. The page is rendered into a buffer
-// first, so a template that fails halfway is one error page and not half a page
+// render writes one page inside the frame. The page is rendered into a buffer
+// first, so a template that fails halfway is one error page, not half a page
 // followed by half an error.
-func (s *Server) write(w http.ResponseWriter, r *http.Request, screen Screen, view View) {
-	status := view.Status
+func (s *Server) render(w http.ResponseWriter, v view) {
+	status := v.status
 	if status == 0 {
 		status = http.StatusOK
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if view.Bare {
-		w.WriteHeader(status)
-		if _, err := w.Write([]byte(view.Body)); err != nil {
-			return
-		}
-		return
-	}
 	var buf bytes.Buffer
-	if err := s.frame.ExecuteTemplate(&buf, "layout.html", s.frameData(r, screen, view)); err != nil {
-		s.problem(w, r, screen, err)
+	data := frame{
+		Lang:  i18n.Language(),
+		Title: v.title,
+		Bands: bandsOf(v.band),
+		Crumb: v.crumb,
+		Token: s.token,
+		Body:  v.body,
+	}
+	if err := s.tpl.ExecuteTemplate(&buf, "layout.html", data); err != nil {
+		s.problem(w, nil, err)
 		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	if _, err := w.Write(buf.Bytes()); err != nil {
+	_, _ = w.Write(buf.Bytes())
+}
+
+// problem is what a failed screen shows: the frame, with the reason on it.
+func (s *Server) problem(w http.ResponseWriter, _ *http.Request, err error) {
+	body := problemBody(tf("web.error.internal", err))
+	page := view{title: t("web.error.title"), body: body, status: http.StatusInternalServerError}
+	var buf bytes.Buffer
+	data := frame{Lang: i18n.Language(), Title: page.title, Bands: bandsOf(""), Body: page.body}
+	if renderErr := s.tpl.ExecuteTemplate(&buf, "layout.html", data); renderErr != nil {
+		http.Error(w, tf("web.error.internal", err), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(page.status)
+	_, _ = w.Write(buf.Bytes())
 }
 
-// problem is what a screen's failure shows: the frame, with the reason on it.
-// The reason is shown because this server answers one person on their own
-// machine, and a blank page would say less than the error does.
-func (s *Server) problem(w http.ResponseWriter, r *http.Request, screen Screen, err error) {
-	view := View{
-		Title:  screen.Name(),
-		Body:   problemBody(i18n.Tf("web.error.internal", err)),
-		Status: http.StatusInternalServerError,
+// read renders one screen's template into a View body.
+func (s *Server) show(name string, data any) (template.HTML, error) {
+	var buf bytes.Buffer
+	if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
+		return "", err
 	}
-	s.write(w, r, screen, view)
+	return HTML(buf.String()), nil
 }
 
-// page is what the frame template is given: the navigation and the layer
-// toggle, the meters of the header, the left list, and the screen's own body
-// and right panel.
-type page struct {
-	Lang string
-	// Title is the page title and the name of the tab.
-	Title string
-	// View is the screen's name as the stylesheet knows it ("home", "topo").
-	View string
-	// Nav is the screens the navigation lists, in their order.
-	Nav []link
-	// Home is where the frame's logo goes: the home of the layer being shown,
-	// the same link as the navigation's Home tab. A logo that dropped the
-	// layer would take a person reading the global layer to the local home.
-	Home string
-	// Layers is the two sides of the layer toggle.
-	Layers []layerLink
-	// Layer is the layer being shown ("local"), and LayerName what a person
-	// calls it on its own ("ローカル"), which is what the layer marker writes.
-	// LayerRoot is where its files live, and LayerNote the key of the line that
-	// says whose files they are ("(this project)").
-	Layer     string
-	LayerName string
-	LayerRoot string
-	LayerNote string
-	// Meters are the three counts of the header, over the layer's rules.
-	Meters []meter
-	// Index is the left list of the layer.
-	Index Index
-	// CurrentDoc and CurrentTeam are what the left list marks: the document
-	// the screen has open, and the team definition the screens of one team
-	// have open (?name=). A screen that says which document it opened
-	// (View.Doc) wins over the ?doc= of the URL, because the screen is what
-	// the person sees.
-	CurrentDoc  string
-	CurrentTeam string
-	// DrawerID is the id of the right panel, and Drawer what it holds.
-	DrawerID string
-	Drawer   template.HTML
-	Body     template.HTML
-}
-
-// link is one path in the frame: what it is called, and whether it is the one
-// being shown.
-type link struct {
-	Name   string
-	Href   string
-	Active bool
-}
-
-// layerLink is one side of the layer toggle: what the layer is called, where
-// its files live, and where switching to it goes.
-type layerLink struct {
-	Name   string
-	Root   string
-	Href   string
-	Active bool
-}
-
-// meter is one count of the header: how many rules of the layer carry an
-// origin, a reason and a check.
-type meter struct {
-	Label string
-	N     int
-	Total int
-	// Max is what the bar fills against: 0 rules would leave it at 0.
-	Max   int
-	Class string
-}
-
-// frameData fills the frame: the screens as the navigation, the two layers as
-// the toggle, the layer being shown, the header's counts and the left list.
-func (s *Server) frameData(r *http.Request, current Screen, view View) page {
-	layer := LayerOf(r)
-	data := page{
-		Lang:        i18n.Language(),
-		Title:       view.Title,
-		View:        viewOf(current),
-		Layer:       layer,
-		LayerName:   i18n.T("label." + layer),
-		LayerRoot:   s.port.LayerRoot(layer),
-		LayerNote:   "web.frame.layer.note." + layer,
-		Meters:      metersOf(s.port.Meters(layer)),
-		Index:       s.port.Index(layer),
-		CurrentDoc:  currentDoc(r, view),
-		CurrentTeam: r.URL.Query().Get("name"),
-		DrawerID:    DrawerID,
-		Drawer:      view.Drawer,
-		Body:        view.Body,
+// pageBody renders the body template named name with data and wraps it in a
+// view.
+func (s *Server) pageBody(v view, name string, data any) (view, error) {
+	body, err := s.show(name, data)
+	if err != nil {
+		return view{}, err
 	}
-	// The logo goes to the home of the layer being shown (r-9da5): the site's
-	// root with the layer, which is the link the navigation's Home tab
-	// carries. A logo without the layer would take a person reading the
-	// global layer to the local home.
-	data.Home = "/?layer=" + layer
-	for _, screen := range s.screens {
-		if !inNav(screen) {
-			continue
-		}
-		if routes := screen.Routes(); len(routes) > 0 {
-			data.Nav = append(data.Nav, link{
-				Name:   screen.Name(),
-				Href:   hrefOf(routes[0].Path) + "?layer=" + layer,
-				Active: screen == current,
-			})
-		}
-	}
-	for _, name := range Layers {
-		data.Layers = append(data.Layers, layerLink{
-			Name:   i18n.T("label." + name),
-			Root:   s.port.LayerRoot(name),
-			Href:   r.URL.Path + "?layer=" + name,
-			Active: name == layer,
-		})
-	}
-	return data
+	v.body = body
+	return v, nil
 }
 
-// currentDoc is the document the left list marks as open: the one the screen
-// says it has open, and otherwise the one the URL names. The screen is asked
-// first because a screen that opens a document of its own (the rules screen
-// with no ?doc= opens the first of the layer) would otherwise leave the list
-// with no row marked (hergy-spec's V4).
-func currentDoc(r *http.Request, view View) string {
-	if view.Doc != "" {
-		return view.Doc
+// redirect answers an old path with a 301 to its new one.
+func redirect(to string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, to, http.StatusMovedPermanently)
 	}
-	return r.URL.Query().Get("doc")
 }
 
-// inNav reports whether the navigation lists a screen. A screen that says it
-// is not a tab (the team definition, d-207f) is opened from the left list, and
-// the navigation would otherwise show it twice.
-func inNav(screen Screen) bool {
-	nav, ok := screen.(NavScreen)
-	return !ok || nav.InNav()
+// notFound answers a path no screen claims, and every old path whose concept is
+// not one thing (設計 6 節).
+func notFound(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 }
 
-// viewOf is the name the frame puts on the page, for a stylesheet that shapes
-// one screen differently. It is the screen's own path, with the prototype's
-// names for the three that were named otherwise (d-207f).
-func viewOf(screen Screen) string {
-	routes := screen.Routes()
-	if len(routes) == 0 {
-		return ""
-	}
-	name := strings.Trim(hrefOf(routes[0].Path), "/")
-	if alias, ok := viewAlias[name]; ok {
-		return alias
-	}
+// oldTeam moves the old "/team?name=x" to the definition it named, and the bare
+// "/team" to the list.
+func (s *Server) oldTeam(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
 	if name == "" {
-		return "home"
+		http.Redirect(w, r, "/definitions", http.StatusMovedPermanently)
+		return
 	}
-	return name
+	http.Redirect(w, r, definitionPath(name), http.StatusMovedPermanently) //nolint:gosec // G710: the target is this package's own path, escaped by definitionPath
 }
 
-// viewAlias maps a screen's path to the name its stylesheet knows it by.
-var viewAlias = map[string]string{"running": "live", "figure": "topo", "bump": "version"}
-
-// metersOf turns the layer's counts into the header's three meters, in the
-// order the prototype shows them: origin, reason, check.
-func metersOf(m Meters) []meter {
-	total := m.Rules
-	if total == 0 {
-		total = 1
-	}
-	return []meter{
-		{Label: i18n.T("web.frame.meter.origin"), N: m.Origin, Total: m.Rules, Max: total, Class: "o"},
-		{Label: i18n.T("web.frame.meter.reason"), N: m.Reason, Total: m.Rules, Max: total, Class: "r"},
-		{Label: i18n.T("web.frame.meter.check"), N: m.Check, Total: m.Rules, Max: total, Class: "v"},
-	}
-}
-
-// hrefOf writes a route's pattern the way a browser asks for it: the method
-// dropped, and the exact root written as "/".
-func hrefOf(pattern string) string {
-	if i := strings.IndexByte(pattern, ' '); i >= 0 {
-		pattern = pattern[i+1:] // a "GET /x" pattern
-	}
-	return strings.Replace(pattern, "/{$}", "/", 1)
-}
-
-// LayerOf reads the layer a request asks for; without one, the local layer. The
-// layer travels in the URL (?layer=global), so a link, a form and a fragment
-// request all carry the layer they were made in.
-func LayerOf(r *http.Request) string {
-	if r.URL.Query().Get("layer") == LayerGlobal {
-		return LayerGlobal
-	}
-	return LayerLocal
-}
-
-// newToken makes the secret of one run: 32 random bytes in hex. Only this
-// process and the pages it renders know it.
+// newToken makes the secret of one run: 32 random bytes in hex.
 func newToken() (string, error) {
 	var buf [32]byte
 	if _, err := rand.Read(buf[:]); err != nil {

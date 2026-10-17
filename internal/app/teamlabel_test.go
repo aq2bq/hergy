@@ -8,7 +8,6 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // TestTeamCommandsFindATeamWhoseLabelIsOnlyItsName: the tab is labelled qw2 and
@@ -167,34 +166,40 @@ func writeLaunchRecord(t *testing.T, teamName, definition string) {
 	}
 }
 
-// TestTheWebUIScreensReadANameOnlyLabel: the running screen and the team list's
-// running mark go through the same reader, so they too find a team whose tab is
-// labelled with its name alone, and know the definition from the record.
-func TestTheWebUIScreensReadANameOnlyLabel(t *testing.T) {
+// TestTheRunningTeamsReadANameOnlyLabel: the activity's running teams go through
+// the same reader the team commands use, so a team whose tab is labelled with its
+// name alone is found, its definition is known from the record, and a member's
+// agent is told from a worker a member hired.
+func TestTheRunningTeamsReadANameOnlyLabel(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
 	mustRun(t, "new", "qw")
 	writeLaunchRecord(t, "qw2", "qw")
 	tabs := `{"tab_id":"t1","label":"qw2"}`
-	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`
+	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"},` +
+		`{"name":"qw2-hired","agent":"claude","agent_status":"working","pane_id":"p2","tab_id":"t1"}`
 	f.runningHerdr(t, tabs, agents)
 
-	p := servePort{env: serveEnv(t)}
-	if defs := p.runningDefinitions(); !defs["qw"] {
-		t.Errorf("the team list does not mark the definition as running: %v", defs)
-	}
-	running, err := p.Running(web.LayerLocal)
+	env := serveEnv(t)
+	p := servePort{env: env, cat: serveCatalog(t, env)}
+	running, err := p.Running()
 	if err != nil {
 		t.Fatalf("Running: %v", err)
 	}
-	if len(running.Teams) != 1 {
-		t.Fatalf("the running screen shows %d teams, want the one: %+v", len(running.Teams), running.Teams)
+	if len(running) != 1 || running[0].Team != "qw2" || running[0].Definition != "qw" {
+		t.Fatalf("the running teams = %+v, want qw2 from qw", running)
 	}
-	live := running.Teams[0]
-	if live.Team != "qw2" || live.Definition != "qw" || live.TabID != "t1" {
-		t.Errorf("the running team = %+v", live)
+	live, err := p.Agents("qw2")
+	if err != nil {
+		t.Fatalf("Agents: %v", err)
 	}
-	if !live.Known {
-		t.Errorf("the team's definition qw is not known: %+v", live)
+	if len(live) != 2 {
+		t.Fatalf("the agents = %+v, want the two", live)
+	}
+	if live[0].Herdr != "qw2-lead" || live[0].Node != "lead" {
+		t.Errorf("the member's agent = %+v, want node lead", live[0])
+	}
+	if live[1].Herdr != "qw2-hired" || live[1].Node != "" {
+		t.Errorf("the hired worker = %+v, want no node", live[1])
 	}
 }

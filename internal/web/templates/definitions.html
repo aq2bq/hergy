@@ -1,0 +1,22 @@
+{{define "definitions.html"}}
+<h1 class="lead">{{t "web.definitions.title"}}</h1>
+<p class="common"><a href="{{.Shared.Href}}">{{.Shared.Name}}</a> <span class="muted">{{tf "web.common.rules" .Shared.Count}}</span></p>
+{{- if .Empty}}
+<p class="empty">{{t "web.definitions.empty"}}</p>
+<p class="cmd"><code id="newcmd">{{.NewCommand}}</code><button type="button" class="btn quiet" data-copy="#newcmd" data-copied="{{t "web.copy.done"}}">{{t "web.copy"}}</button></p>
+{{- else}}
+<table class="tbl list">
+  <thead><tr><th>{{t "label.definition"}}</th><th>{{t "label.mission"}}</th><th>{{t "web.definitions.counts"}}</th><th>{{t "web.definitions.running"}}</th></tr></thead>
+  <tbody>
+    {{- range .Entries}}
+    <tr{{if .Broken}} class="broken"{{end}}>
+      <td><a href="{{.Href}}" class="mono">{{.Name}}</a>{{if .Path}} <span class="marker mono">{{.Path}}</span>{{end}}</td>
+      <td>{{range .Mission}}{{.}}{{end}}{{if .Unused}}<span class="muted note">{{tf "web.definitions.unused" .Unused}}</span>{{end}}</td>
+      <td>{{if not .Broken}}{{tf "web.definitions.counts_line" .Members .Workers .Human}}{{end}}</td>
+      <td>{{range .Running}}<a href="{{.Href}}">{{.Name}}</a> {{end}}</td>
+    </tr>
+    {{- end}}
+  </tbody>
+</table>
+{{- end}}
+{{end}}
