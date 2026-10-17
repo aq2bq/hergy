@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +14,10 @@ import (
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.uber.org/goleak"
 )
@@ -35,12 +38,16 @@ func TestMain(m *testing.M) {
 // settings directory, so every screen reads files a test wrote and never the
 // machine's own.
 type fixture struct {
-	root    string
-	proj    string
-	global  string
-	running []effect.Running
-	agents  map[string][]activity.Agent
-	port    *fakePort
+	root        string
+	proj        string
+	global      string
+	running     []effect.Running
+	agents      map[string][]activity.Agent
+	questions   []activity.Question
+	questionErr error
+	launch      map[string]Launch
+	foreign     map[string]*definition.Definition
+	port        *fakePort
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -153,6 +160,22 @@ func (p *fakePort) Tail(string, int) (string, error) { return "lead is waiting\n
 func (p *fakePort) Focus(name string) error {
 	p.focused = append(p.focused, name)
 	return nil
+}
+
+func (p *fakePort) Questions() ([]activity.Question, error) {
+	return p.f.questions, p.f.questionErr
+}
+
+func (p *fakePort) Launched(team string) (Launch, bool) {
+	launch, ok := p.f.launch[team]
+	return launch, ok
+}
+
+func (p *fakePort) LaunchedDefinition(team string) (*definition.Definition, error) {
+	if def, ok := p.f.foreign[team]; ok {
+		return def, nil
+	}
+	return nil, errors.New("no launch record")
 }
 
 // TestEveryPathAnswers: every path of the UI answers the whole page, with the
@@ -644,7 +667,7 @@ func TestTwoTeamsKeepTheirLengths(t *testing.T) {
 		}
 	}
 	// And both teams read a length of at least ten minutes.
-	known, byName, _ := server.sections(f.running, agents, errs, second, later)
+	known, byName, _ := server.sections(f.running, agents, errs, second, nil, later)
 	if len(known) != 2 {
 		t.Fatalf("the draw judged %d teams, want 2", len(known))
 	}
@@ -861,5 +884,155 @@ func TestTheDefinitionShowsWhatStopsIt(t *testing.T) {
 	// The row carries no counts: it is not a definition that reads clean.
 	if strings.Contains(body, `mission: `) {
 		t.Errorf("the list shows a broken row like a whole one")
+	}
+}
+
+// asked is one question gy holds, as the port hands it in.
+func asked(id, title, writer string, at time.Time) activity.Question {
+	return activity.Question{
+		ID: id, Title: title, Options: []string{"A 案", "B 案"},
+		Decider: "po", At: at, Writer: writer,
+	}
+}
+
+// TestActivityShowsTheProjectsQuestions: gy's open questions stand at the top of
+// the activity as this project's questions, with their options and who decides
+// them (設計 3.1・5.3). A question asked by a writer no team carries is not on
+// any team's own section.
+func TestActivityShowsTheProjectsQuestions(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}}
+	f.questions = []activity.Question{asked("q-1", "どちらへ進むか", "hergy-redesign-lead", time.Now())}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity")
+	for _, want := range []string{"このプロジェクトの問い", "どちらへ進むか", "選択肢: A 案、B 案", "決める人 po"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the activity does not hold %q:\n%s", want, body)
+		}
+	}
+	card := between(body, `class="teamcard"`, "</section>")
+	if strings.Contains(card, "どちらへ進むか") {
+		t.Errorf("a question of another writer stands on the team's own section:\n%s", card)
+	}
+}
+
+// TestATeamsOwnWriterShowsTheQuestionInItsSection: a question asked by one of a
+// team's herdr names stands on that team's own section too (W4).
+func TestATeamsOwnWriterShowsTheQuestionInItsSection(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}}
+	f.questions = []activity.Question{asked("q-1", "どちらへ進むか", "demo-lead", time.Now())}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity")
+	card := between(body, `class="teamcard"`, "</section>")
+	if !strings.Contains(card, "どちらへ進むか") {
+		t.Errorf("the team's own section does not carry the question its writer asked:\n%s", card)
+	}
+}
+
+// TestActivitySaysWhenGyCannotBeRead: a gy that is there and cannot be read is
+// one line where the questions would stand, and the teams are still drawn
+// (設計 3.1, I17).
+func TestActivitySaysWhenGyCannotBeRead(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}}
+	f.questionErr = errors.New("boom")
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity")
+	if !strings.Contains(body, "gy の問いを読めません") || !strings.Contains(body, "boom") {
+		t.Errorf("the activity does not say gy could not be read:\n%s", body)
+	}
+	if !strings.Contains(body, "チーム demo") {
+		t.Errorf("the teams are missing because gy failed:\n%s", body)
+	}
+}
+
+// TestTheTeamDetailShowsTheLaunchAndWhatIsUndelivered: the team's detail carries
+// the launch time and one line per member whose prompt changed since the launch,
+// with the handover, and shows nothing of the difference (C9, W9). A member the
+// record does not name is not named either.
+func TestTheTeamDetailShowsTheLaunchAndWhatIsUndelivered(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}}
+	f.launch = map[string]Launch{"demo": {
+		At:      time.Date(2026, 10, 17, 9, 12, 0, 0, time.Local),
+		Prompts: map[string]string{"lead": "deadbeef"},
+	}}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity/demo")
+	if !strings.Contains(body, "起動 10/17 09:12") {
+		t.Errorf("the detail does not show when the team was launched:\n%s", body)
+	}
+	if !strings.Contains(body, "起動のあとで変わったもの: lead のプロンプト") {
+		t.Errorf("the detail does not name the member whose prompt changed:\n%s", body)
+	}
+	if !strings.Contains(body, "hergy reprompt lead --team demo") {
+		t.Errorf("the detail shows no handover for the change:\n%s", body)
+	}
+	if strings.Contains(body, "deadbeef") {
+		t.Errorf("the detail shows a hash, where only the member's name belongs")
+	}
+}
+
+// foreignTeam reads one definition of another project, the way the port hands
+// one in (W16).
+func foreignTeam(t *testing.T, name, mission string) *definition.Definition {
+	t.Helper()
+	yaml := "version: 1\nmission: " + mission + "\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n"
+	def, err := definition.Read(definition.Input{
+		YAML:         yaml,
+		Name:         name,
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: "/elsewhere/.hergy/teams/" + name + "/team.yaml",
+		TeamDir:      "/elsewhere/.hergy/teams/" + name,
+		Profiles:     map[string]profile.Profile{"coder": {Name: "coder", Kind: "claude"}},
+		Base:         "/elsewhere",
+		Reader:       source.Disk{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return def
+}
+
+// TestATeamFromAnotherProjectIsJudgedAndCounted: a team whose definition this
+// place does not hold is read from the project its launch record names, judged
+// like any other and counted, with no link to a definition page this place
+// cannot answer (W16).
+func TestATeamFromAnotherProjectIsJudgedAndCounted(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "crm", Definition: "agile"}}
+	f.agents["crm"] = []activity.Agent{{Herdr: "crm-lead", Node: "lead", Status: "blocked", Seq: 5}}
+	f.foreign = map[string]*definition.Definition{"crm": foreignTeam(t, "agile", "crm の使命")}
+	server := f.server(t)
+
+	resp, body := f.get(t, server, "/activity")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /activity: status %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "人間を待っているチーム 1・動いているチーム 1") {
+		t.Errorf("the team from another project is not counted:\n%s", body)
+	}
+	if !strings.Contains(body, "止まっています") {
+		t.Errorf("the team from another project is not judged:\n%s", body)
+	}
+	if strings.Contains(body, "この場所にチーム定義") {
+		t.Errorf("the team was not read from its own project:\n%s", body)
+	}
+
+	_, body = f.get(t, server, "/activity/crm")
+	if !strings.Contains(body, "チーム crm") {
+		t.Errorf("the team's detail does not open:\n%s", body)
+	}
+	if strings.Contains(body, "/definitions/agile") {
+		t.Errorf("the detail links to a definition page this place cannot answer:\n%s", body)
 	}
 }

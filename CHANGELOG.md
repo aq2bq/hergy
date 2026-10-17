@@ -37,6 +37,30 @@
 
 ### Added
 
+- **The activity says how long a team has waited, and what gy asks**:
+  each section of `/activity` says how long the node it names has been where it
+  is (`lead が 25 分前から止まっています`), counted from when the screen first
+  saw that state — a state that was already there when `hergy serve` started
+  reads as a lower bound (`9 分以上`). When the project the screens are served
+  from keeps a `gy.toml` and `gy` is on `PATH`, gy's open questions are read
+  through gy's own command line and shown at the top of the activity as this
+  project's questions, with their options and who decides them; a question
+  asked by one of a running team's own herdr names stands on that team's
+  section too. A project without gy, or a machine without it, is unchanged: the
+  activity is made from herdr alone, and hergy keeps no ledger of its own. A
+  team whose definition this project does not hold — a team booted from another
+  project — is now read from the project its launch record names, judged and
+  counted like any other, with no link to a definition page this serve cannot
+  answer.
+
+- **A team's detail says when it was launched and what it still has to take
+  up**: `/activity/<team>` shows the launch record's time, and, when the
+  prompts read differently now from the prompt the launch handed out, one line
+  per member whose prompt changed (`起動のあとで変わったもの: lead の
+  プロンプト`) with the command that hands the change over (`hergy reprompt
+  lead --team <team>`). The difference itself is not shown: the record keeps
+  only hashes, not the text.
+
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way

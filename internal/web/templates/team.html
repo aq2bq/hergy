@@ -1,6 +1,6 @@
 {{define "team.html"}}
 <h1 class="lead">{{tf "web.activity.team_title" .Name}}</h1>
-{{- if .From}}<p class="sub"><a href="{{.DefinitionHref}}">{{.From}}</a></p>{{end}}
+{{- if or .From .Launched}}<p class="sub">{{if .From}}{{if .DefinitionHref}}<a href="{{.DefinitionHref}}">{{.From}}</a>{{else}}{{.From}}{{end}}{{end}}{{if and .From .Launched}}・{{end}}{{.Launched}}</p>{{end}}
 {{- if .NotRunning}}
 <p class="empty">{{tf "web.activity.not_running" .Name}}</p>
 <p><a href="/activity" class="link">{{t "web.band.activity"}}</a></p>
@@ -13,6 +13,20 @@
 {{- if .Hired}}
 <h2 class="sec">{{t "web.activity.hired"}}</h2>
 <ul class="plain">{{range .Hired}}<li class="mono">{{.}}</li>{{end}}</ul>
+{{- end}}
+{{- if .QuestionErr}}<p class="problem">{{.QuestionErr}}</p>{{end}}
+{{- if .Questions}}
+<section class="questions">
+  <h2 class="sec">{{t "web.activity.questions"}}</h2>
+  <ul class="plain">
+    {{- range .Questions}}
+    <li class="question"><span class="qt">{{.Title}}</span>{{if .Options}} <span class="qo">{{.Options}}</span>{{end}} <span class="qm muted">{{.Meta}}</span></li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- if .Undelivered}}
+<div class="saved">{{range .Undelivered}}<p class="undelivered">{{.}}</p>{{end}}{{template "commands" .Handover}}</div>
 {{- end}}
 {{- end}}
 {{end}}

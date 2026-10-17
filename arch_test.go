@@ -25,7 +25,7 @@ var leaves = []string{"browser", "i18n", "layout", "scaffold", "source", "versio
 // topLayer is imported by internal/app only. The name is the path under
 // internal/, so a package nested under another (internal/web/rulesview) is told
 // apart from its parent, which path.Base hid.
-var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web"}
+var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web"}
 
 // importsOf maps each non-test Go file to the module packages it imports, as
 // package names under internal/ ("app", "i18n", …); main.go is "main".

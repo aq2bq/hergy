@@ -27,16 +27,18 @@ package web
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 )
 
 // Port is the live half of what the screens read: herdr's running teams, their
-// agents and pane tails, and the one thing hergy serve changes outside its own
-// files — where herdr's focus stands. The app reads team, herdr and the launch
-// record and writes them into these types, so this package stays out of the top
-// layer.
+// agents and pane tails, gy's open questions, the launch record, and the one
+// thing hergy serve changes outside its own files — where herdr's focus stands.
+// The app reads team, herdr, launchlog and gy and writes them into these types,
+// so this package stays out of the top layer.
 type Port interface {
 	// Running lists the teams running on this machine, each with the team
 	// definition it was booted from (effect.Running).
@@ -47,6 +49,25 @@ type Port interface {
 	Tail(herdrName string, lines int) (string, error)
 	// Focus moves herdr's focus to one agent's pane.
 	Focus(herdrName string) error
+	// Questions lists gy's open questions for this project, empty when there is
+	// no gy here (段 6, I17).
+	Questions() ([]activity.Question, error)
+	// Launched is one running team's launch record: when it was launched, and
+	// the hash of each member's prompt at that time, by the member's short name
+	// (段 6). A team this machine has no record of answers false.
+	Launched(team string) (Launch, bool)
+	// LaunchedDefinition reads the definition a team was booted from, from the
+	// project the launch record names. It is how a team started from another
+	// project is judged like any other (段 6, W16).
+	LaunchedDefinition(team string) (*definition.Definition, error)
+}
+
+// Launch is one running team's launch record as a screen reads it: the time it
+// was launched, and the hash of each member's prompt at that time, by the
+// member's short name.
+type Launch struct {
+	At      time.Time
+	Prompts map[string]string
 }
 
 // partCount is how many pane lines the activity shows for a node that waits
