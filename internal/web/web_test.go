@@ -219,9 +219,9 @@ func TestEveryLinkResolves(t *testing.T) {
 					queue = append(queue, href)
 				}
 			}
-		case http.StatusMovedPermanently, http.StatusNotFound:
+		case http.StatusMovedPermanently:
 		default:
-			t.Errorf("GET %s: status %d", path, resp.StatusCode)
+			t.Errorf("GET %s: status %d, want a page or a move", path, resp.StatusCode)
 		}
 	}
 	if len(seen) < 15 {
@@ -429,5 +429,105 @@ func TestBodySizeOverHergyDev(t *testing.T) {
 	}
 	if _, body := (&fixture{}).get(t, server, "/activity"); len(body) > maxActivityBytes {
 		t.Errorf("the activity is %d bytes, over the %d ceiling", len(body), maxActivityBytes)
+	}
+}
+
+// TestPeopleReadNamesNotIdentity: a turn, its ends and the human are written the
+// way a person says them — 人間, a member's short name, a worker's purpose — and
+// never by the identity a settings file writes (L3, E1).
+func TestPeopleReadNamesNotIdentity(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	for _, path := range []string{"/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/turns/lead/builder", "/definitions/demo/human"} {
+		_, body := f.get(t, server, path)
+		for _, gone := range []string{"worker:", ">human<", "human ->", "-> lead", "-> builder"} {
+			if strings.Contains(visible(body), gone) {
+				t.Errorf("GET %s shows the identity %q", path, gone)
+			}
+		}
+	}
+	_, body := f.get(t, server, "/definitions/demo")
+	for _, want := range []string{"人間 → lead", "lead → builder", "builder → 人間"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the definition does not hold %q", want)
+		}
+	}
+	_, body = f.get(t, server, "/definitions/demo/turns/lead/builder")
+	if !strings.Contains(body, "lead → builder") {
+		t.Errorf("the edge'field is not titled lead → builder")
+	}
+}
+
+// between is the text of a page from one mark to the next, empty when either is
+// missing.
+func between(body, from, to string) string {
+	i := strings.Index(body, from)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i:]
+	before, _, ok := strings.Cut(rest, to)
+	if !ok {
+		return rest
+	}
+	return before
+}
+
+// visible is a page's text with the tags taken out, so a test can say what a
+// person reads apart from what only a machine reads (d-a347 の 7).
+func visible(body string) string {
+	var b strings.Builder
+	for i := 0; i < len(body); {
+		if body[i] == '<' {
+			if j := strings.IndexByte(body[i:], '>'); j >= 0 {
+				i += j + 1
+				continue
+			}
+		}
+		b.WriteByte(body[i])
+		i++
+	}
+	return b.String()
+}
+
+// TestActivityLeavesOutATeamItCannotJudge: a running team whose definition is
+// not here gets one line, with no find-the-file sentence and no next command,
+// and is in no count (L4).
+func TestActivityLeavesOutATeamItCannotJudge(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "crm", Definition: "agile-dev-2"}}
+	server := f.server(t)
+	resp, body := f.get(t, server, "/activity")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /activity: status %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "この場所にチーム定義 agile-dev-2 はありません") {
+		t.Errorf("the one line about the missing definition is not there:\n%s", body)
+	}
+	for _, gone := range []string{"探した場所", "next:", "人間を待っている", "動いているチーム 0"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the activity still holds %q", gone)
+		}
+	}
+}
+
+// TestSavedLineDoesNotNameATeamWithNothingToDo: a mission moves no prompt, so a
+// running team with nothing to take up is not named; the one line says it
+// instead (L5).
+func TestSavedLineDoesNotNameATeamWithNothingToDo(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "crm", Definition: "demo"}}
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
+	_, body := f.post(t, server, url.Values{
+		"mission": {"保存後の使命"},
+		"hash":    {source.Hash(readFile(t, path))},
+	})
+	saved := between(body, `class="saved"`, "</div>")
+	if !strings.Contains(saved, "動いているチームに渡すものはありません") {
+		t.Errorf("the saved line does not say nothing moved:\n%s", saved)
+	}
+	if strings.Contains(saved, "crm") {
+		t.Errorf("the saved line names a team with nothing to do:\n%s", saved)
 	}
 }

@@ -146,8 +146,30 @@ func (s *Server) definitionSaved(name string) (view, error) {
 	running, _ := s.runningTeams()
 	data := s.definitionData(def, nil)
 	data.Saved = tf("web.saved.line", s.cat.Display(def.TeamYAML), "mission")
-	data.Commands = effect.Commands(s.missionChanges(def), running)
+	data.Handover = handoverOf(effect.Commands(s.missionChanges(def), running))
 	return s.renderDefinition(data)
+}
+
+// handover is what a save tells the running teams to take up, as the screen
+// shows it: the teams that have something to type, and, when every running team
+// has nothing, the one line that says so (a team with no commands is not named,
+// so no team name stands beside a sentence about it).
+type handover struct {
+	Teams   []effect.TeamCommands
+	Nothing bool
+}
+
+// handoverOf drops the running teams with no commands to type.
+func handoverOf(commands []effect.TeamCommands) handover {
+	out := handover{Nothing: len(commands) > 0}
+	for _, team := range commands {
+		if len(team.Commands) == 0 {
+			continue
+		}
+		out.Teams = append(out.Teams, team)
+		out.Nothing = false
+	}
+	return out
 }
 
 // missionChanges is what a mission save does to the members' prompts: a mission
@@ -270,7 +292,10 @@ func (s *Server) memberRows(def *definition.Definition) []memberRow {
 			Kind:        s.kindOf(member.Profile),
 		}
 		for _, edge := range def.Graph.Out(member.ID()) {
-			row.Turns = append(row.Turns, turnEnd{Name: edge.To.String(), Href: turnHref(def.Name, edge.From.String(), edge.To.String())})
+			if !isTurn(edge) {
+				continue
+			}
+			row.Turns = append(row.Turns, turnEnd{Name: nodeLabel(edge.To), Href: turnHref(def.Name, edge.From.String(), edge.To.String())})
 		}
 		rows = append(rows, row)
 	}
@@ -322,13 +347,40 @@ type turnRow struct {
 func turnRows(def *definition.Definition) []turnRow {
 	rows := make([]turnRow, 0, len(def.Graph.Turns))
 	for _, edge := range def.Graph.Turns {
-		rows = append(rows, turnRow{Label: edge.String(), Href: turnHref(def.Name, edge.From.String(), edge.To.String())})
+		rows = append(rows, turnRow{Label: turnLabel(edge), Href: turnHref(def.Name, edge.From.String(), edge.To.String())})
 	}
 	return rows
 }
 
 // turnHref is the field of one turn.
 func turnHref(def, from, to string) string { return turnPath(def, from, to) }
+
+// isTurn reports whether an edge is one a settings file wrote in turns:. A
+// worker's two edges are made by workers: and are shown with the worker, not as
+// a turn (I12c, 設計 3.4).
+func isTurn(edge definition.Edge) bool {
+	return edge.From.Kind != definition.KindWorker && edge.To.Kind != definition.KindWorker
+}
+
+// nodeLabel is one end of a turn as a person reads it: the human, a member's
+// short name, or a worker by its purpose (d-a347 の 7, E1).
+func nodeLabel(id definition.NodeID) string {
+	switch id.Kind {
+	case definition.KindHuman:
+		return t("label.human")
+	case definition.KindWorker:
+		_, purpose := cutWorker(id.Name)
+		return tf("web.worker_name", purpose)
+	default:
+		return id.Name
+	}
+}
+
+// turnLabel is one turn as a person reads it: "lead → spec", with the arrow a
+// settings file's turns: line writes with two hyphens (設計 4 節).
+func turnLabel(edge definition.Edge) string {
+	return nodeLabel(edge.From) + " → " + nodeLabel(edge.To)
+}
 
 // teamAgreement is the team agreement as a section of cards (設計 3.4 (5)), read
 // only in this stage.
@@ -364,7 +416,7 @@ type definitionData struct {
 	Mission   string
 	Notice    []string
 	Saved     string
-	Commands  []effect.TeamCommands
+	Handover  handover
 	Token     string
 	Hash      string
 	Draft     string

@@ -36,6 +36,15 @@
     });
   }
 
+  // The page's own title travels on #page (the tab is not inside the region the
+  // server swaps, so htmx cannot carry it).
+  function setTitle() {
+    var page = document.getElementById("page");
+    if (page && page.getAttribute("data-title")) {
+      document.title = "hergy · " + page.getAttribute("data-title");
+    }
+  }
+
   document.addEventListener("input", function (event) {
     var el = event.target.closest("[data-draft]");
     if (!el) return;
@@ -64,8 +73,10 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     restore(document);
+    setTitle();
   });
   document.addEventListener("htmx:afterSwap", function (event) {
     restore(event.target);
+    setTitle();
   });
 })();

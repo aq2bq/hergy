@@ -62,9 +62,12 @@ func (s *Server) memberPanelOf(def *definition.Definition, name string) (panel, 
 	field.Fields = append(field.Fields, panelField{Label: t("label.role"), Value: member.Role, Href: rolePath(member.Role)})
 	field.Fields = append(field.Fields, panelField{Label: t("label.profile"), Value: s.profileLabel(member.Profile), Mono: true})
 	for _, edge := range def.Graph.Out(member.ID()) {
+		if !isTurn(edge) {
+			continue
+		}
 		field.Fields = append(field.Fields, panelField{
 			Label: t("label.turns"),
-			Value: edge.To.String(),
+			Value: nodeLabel(edge.To),
 			Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
 		})
 	}
@@ -171,12 +174,12 @@ func (s *Server) turnPanel(r *http.Request) (view, error) {
 				continue
 			}
 			return panel{
-				Title:  edge.String(),
+				Title:  turnLabel(edge),
 				Key:    turnKey(from, to),
 				Parent: definitionPath(def.Name),
 				Fields: []panelField{
-					{Label: t("web.panel.turn_from"), Value: from},
-					{Label: t("web.panel.turn_to"), Value: to},
+					{Label: t("web.panel.turn_from"), Value: nodeLabel(edge.From)},
+					{Label: t("web.panel.turn_to"), Value: nodeLabel(edge.To)},
 				},
 			}, true
 		}

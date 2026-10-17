@@ -74,6 +74,8 @@ main{width:100%;max-width:1320px;margin:0 auto;padding:20px max(16px,3vw) 80px}
 .mission-input{flex:1 1 320px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px}
 .mission-input:focus{border-color:var(--ink)}
 .actions{display:inline-flex;gap:6px}
+/* C1: a group the script hides must be hidden, whatever its display would be. */
+[hidden]{display:none !important}
 
 /* 表 */
 .tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}

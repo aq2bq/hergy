@@ -34,20 +34,20 @@
 {{end}}
 
 {{define "commands"}}
-{{- if .}}
+{{- if .Teams}}
 <ul class="handover">
-  {{- range $ti, $team := .}}
-  <li><b class="mono">{{$team.Team}}</b>
-    {{- if $team.Commands}}
+  {{- range $ti, $team := .Teams}}
+  <li><b>{{tf "web.handover.team" $team.Team}}</b>
     <ul class="cmds">
       {{- range $ci, $c := $team.Commands}}
       <li><code id="cmd-{{$ti}}-{{$ci}}">{{$c.Line}}</code><button type="button" class="btn quiet" data-copy="#cmd-{{$ti}}-{{$ci}}" data-copied="{{t "web.copy.done"}}">{{t "web.copy"}}</button>{{if $c.Note}}<span class="note">{{$c.Note}}</span>{{end}}</li>
       {{- end}}
     </ul>
-    {{- else}}<span class="muted">{{t "effect.handover.nothing"}}</span>{{end}}
   </li>
   {{- end}}
 </ul>
+{{- else if .Nothing}}
+<p class="handover muted">{{t "effect.handover.nothing"}}</p>
 {{- else}}
 <p class="handover muted">{{t "effect.handover.none_running"}}</p>
 {{- end}}

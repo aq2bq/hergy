@@ -198,6 +198,7 @@
   "label.role_file": "role document",
   "label.kind": "kind",
   "label.profile": "profile",
+  "label.purpose": "purpose",
   "label.args": "args",
   "label.env": "env",
   "label.cwd": "cwd",
@@ -438,5 +439,10 @@
   "web.profiles.users": "members and workers that use it",
   "web.profile.title": "profile %s",
   "web.profile.missing": "there is no profile %s",
-  "web.profile.unused": "%s holds the same name and is not used"
+  "web.profile.unused": "%s holds the same name and is not used",
+  "label.human": "human",
+  "web.worker_name": "%s (worker)",
+  "web.handover.team": "%s:",
+  "web.activity.no_definition": "team %s (started from %s). this place has no team definition %s",
+  "web.activity.no_definition_same": "team %s. this place has no team definition %s"
 }

@@ -198,6 +198,7 @@
   "label.role_file": "ロールの文書",
   "label.kind": "種類",
   "label.profile": "プロファイル",
+  "label.purpose": "目的",
   "label.args": "引数",
   "label.env": "環境変数",
   "label.cwd": "作業ディレクトリ",
@@ -438,5 +439,10 @@
   "web.profiles.users": "使っているメンバーとワーカー",
   "web.profile.title": "プロファイル %s",
   "web.profile.missing": "プロファイル %s はありません",
-  "web.profile.unused": "%s にも同じ名前があり、使われません"
+  "web.profile.unused": "%s にも同じ名前があり、使われません",
+  "label.human": "人間",
+  "web.worker_name": "%s（ワーカー）",
+  "web.handover.team": "%s:",
+  "web.activity.no_definition": "チーム %s（%s から起動）。この場所にチーム定義 %s はありません",
+  "web.activity.no_definition_same": "チーム %s。この場所にチーム定義 %s はありません"
 }

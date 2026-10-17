@@ -1,10 +1,13 @@
 package web
 
 import (
+	"errors"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 )
@@ -22,13 +25,21 @@ func (s *Server) activityList(_ *http.Request) (view, error) {
 	if err != nil {
 		data.ErrLine = tf("web.activity.herdr_error", err)
 	} else {
-		teams, byName := s.sections(running, time.Now())
-		activity.Sort(teams)
-		for _, verdict := range teams {
-			data.Teams = append(data.Teams, byName[verdict.Name])
+		known, byName, unknown := s.sections(running, time.Now())
+		activity.Sort(known)
+		sections := make([]teamSection, 0, len(running))
+		for _, verdict := range known {
+			sections = append(sections, byName[verdict.Name])
 		}
-		data.Empty = len(teams) == 0
-		data.Count = countsLine(len(teams), waitingTeams(data.Teams))
+		data.Count = ""
+		if len(known) > 0 {
+			data.Count = countsLine(len(known), waitingTeams(sections))
+		}
+		// A team whose definition is not here is listed after the judged ones
+		// and is in no count (L4): it has no state to count.
+		sections = append(sections, unknown...)
+		data.Teams = sections
+		data.Empty = len(data.Teams) == 0
 		data.UpCommand = s.upCommand()
 	}
 	return s.pageBody(view{
@@ -70,7 +81,7 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 	}
 	def, err := s.readDefinition(entry.Definition)
 	if err != nil {
-		data.Broken = s.breakLine(readErrorPath(err, s.teamYAMLOf(entry.Definition)), err)
+		data.Broken = s.noDefinition(err, entry)
 		return s.pageBody(view{title: tf("web.activity.team_title", name), band: bandActivity, crumb: crumb}, "team.html", data)
 	}
 	verdict, err := s.judge(name, def, time.Now())
@@ -97,21 +108,29 @@ func (s *Server) focus(r *http.Request) (view, error) {
 }
 
 // sections judges each running team and turns it into a section, keeping the
-// judgement so the list can be ordered by it (5.2).
-func (s *Server) sections(running []effect.Running, now time.Time) ([]activity.Team, map[string]teamSection) {
-	verdicts := make([]activity.Team, 0, len(running))
+// judgement so the list can be ordered by it (5.2). A team that cannot be judged
+// (its definition is not here, or does not read) is returned apart: it is listed
+// after the judged ones and is in no count (L4).
+func (s *Server) sections(running []effect.Running, now time.Time) ([]activity.Team, map[string]teamSection, []teamSection) {
+	known := make([]activity.Team, 0, len(running))
 	byName := make(map[string]teamSection, len(running))
+	var unknown []teamSection
 	for _, entry := range running {
-		section, verdict := s.section(entry, now)
-		verdicts = append(verdicts, verdict)
+		section, verdict, ok := s.section(entry, now)
+		if !ok {
+			unknown = append(unknown, section)
+			continue
+		}
+		known = append(known, verdict)
 		byName[entry.Team] = section
 	}
-	return verdicts, byName
+	sort.Slice(unknown, func(i, j int) bool { return unknown[i].Name < unknown[j].Name })
+	return known, byName, unknown
 }
 
 // section is one team's section in the activity list, with the judgement it was
-// built from.
-func (s *Server) section(entry effect.Running, now time.Time) (teamSection, activity.Team) {
+// built from. The judgement is absent (ok false) when the team cannot be judged.
+func (s *Server) section(entry effect.Running, now time.Time) (teamSection, activity.Team, bool) {
 	section := teamSection{Name: entry.Team, Href: teamPath(entry.Team)}
 	verdict := activity.Team{Name: entry.Team}
 	if entry.Definition != entry.Team {
@@ -119,20 +138,36 @@ func (s *Server) section(entry effect.Running, now time.Time) (teamSection, acti
 	}
 	def, err := s.readDefinition(entry.Definition)
 	if err != nil {
-		section.Line = s.breakLine(readErrorPath(err, s.teamYAMLOf(entry.Definition)), err)
-		return section, verdict
+		section.Unjudged = true
+		section.Line = s.noDefinition(err, entry)
+		return section, verdict, false
 	}
 	judged, err := s.judge(entry.Team, def, now)
 	if err != nil {
+		section.Unjudged = true
 		section.Line = tf("web.activity.herdr_error", err)
-		return section, verdict
+		return section, verdict, false
 	}
 	section.Line = judged.Line
 	section.Tail = judged.Tail
 	section.State = judged.State
 	section.Questions = judged.Questions
 	section.Panes = focusPanes(entry.Team, judged.Nodes)
-	return section, judged
+	return section, judged, true
+}
+
+// noDefinition is the one line a team whose definition this place does not hold
+// gets: the team, the definition it was started from, and that it is not here.
+// The find-the-file sentence (the paths it looked in, and the next command) is
+// for the one person who typed a name, not for the activity list (L4, E2).
+func (s *Server) noDefinition(err error, entry effect.Running) string {
+	if errors.Is(err, catalog.ErrNotFound) {
+		if entry.Definition == entry.Team {
+			return tf("web.activity.no_definition_same", entry.Team, entry.Definition)
+		}
+		return tf("web.activity.no_definition", entry.Team, entry.Definition, entry.Definition)
+	}
+	return s.breakLine(readErrorPath(err, s.teamYAMLOf(entry.Definition)), err)
 }
 
 // judge is one team's judgement: the agents as the Port reports them, the pane
@@ -281,6 +316,7 @@ type activityData struct {
 // teamSection is one running team's section.
 type teamSection struct {
 	Name      string
+	Unjudged  bool
 	Href      string
 	From      string
 	Line      string

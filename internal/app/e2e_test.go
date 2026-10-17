@@ -100,6 +100,23 @@ func e2eBands(t *testing.T, ctx context.Context, base string) {
 			t.Errorf("%s marks the band %q, want %q", c.path, band, c.band)
 		}
 	}
+
+	// L1: pressing a band moves the mark and the page's own title, even though
+	// only the region the server swaps is replaced.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/"), chromedp.WaitReady("main h1"))
+	e2eRun(t, ctx, chromedp.Click(`nav.band a[href="/activity"]`))
+	e2eWaitText(t, ctx, "main h1", "活動")
+	var band, title string
+	e2eRun(t, ctx,
+		chromedp.Evaluate(`(document.querySelector('nav.band a[aria-current="page"]')||{}).textContent.trim() || ""`, &band),
+		chromedp.Evaluate(`document.title`, &title),
+	)
+	if band != "活動" {
+		t.Errorf("after pressing the activity band the mark is %q", band)
+	}
+	if !strings.Contains(title, "活動") {
+		t.Errorf("after pressing the activity band the title is %q", title)
+	}
 }
 
 // e2eMainLine is A3: the band leads to the list, a row to the field, in two
@@ -163,15 +180,11 @@ func e2eMission(t *testing.T, ctx context.Context, base string) {
 	if before == "" {
 		t.Fatalf("the definition opens with no mission")
 	}
-	var hidden bool
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.mission [data-change]').hidden`, &hidden))
-	if !hidden {
+	if e2eChangeButtons(t, ctx) {
 		t.Errorf("the save buttons show before anything changed")
 	}
 	e2eSet(t, ctx, "E2E の使命")
-	var shown bool
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.mission [data-change]').hidden === false`, &shown))
-	if !shown {
+	if !e2eChangeButtons(t, ctx) {
 		t.Fatalf("typing the mission shows no save button")
 	}
 	// Revert puts the file's own line back.
@@ -182,6 +195,9 @@ func e2eMission(t *testing.T, ctx context.Context, base string) {
 	// Write and save.
 	e2eSet(t, ctx, "E2E の使命")
 	e2eRun(t, ctx, chromedp.Click(".mission button[type=submit]"), chromedp.WaitVisible(".saved"))
+	if e2eChangeButtons(t, ctx) {
+		t.Errorf("the save buttons still show after the save")
+	}
 	var saved string
 	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
 	if !strings.Contains(saved, "書きました") {
@@ -281,6 +297,31 @@ func e2eEscape(t *testing.T, ctx context.Context) {
 		up := input.DispatchKeyEventParams{Type: input.KeyUp, Key: "Escape", Code: "Escape", WindowsVirtualKeyCode: 27}
 		return up.Do(ctx)
 	}))
+}
+
+// e2eChangeButtons is whether the save and revert buttons are drawn (C1: their
+// being hidden is a rendering, not an attribute).
+func e2eChangeButtons(t *testing.T, ctx context.Context) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('.mission [data-change]')).display !== 'none'`, &shown))
+	return shown
+}
+
+// e2eWaitText waits until one element's text starts with one line.
+func e2eWaitText(t *testing.T, ctx context.Context, selector, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var got string
+		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
+		if strings.HasPrefix(strings.TrimSpace(got), want) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("%s never read %q", selector, want)
 }
 
 // e2eSet clears the mission field and types one line into it, firing the input

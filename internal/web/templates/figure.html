@@ -21,7 +21,7 @@
   {{- end}}
   {{- end}}
   {{- range .Edges}}
-  <a href="{{.Href}}" class="edge-link{{if .Open}} open{{end}}"><path class="edge{{if .Worker}} worker{{end}}" d="{{.Path}}" marker-end="url(#head)"><title>{{.Label}}</title></path></a>
+  <a href="{{.Href}}" class="edge-link{{if .Open}} open{{end}}"><path class="edge{{if .Worker}} worker{{end}}" d="{{.Path}}" data-from="{{.DataFrom}}" data-to="{{.DataTo}}" marker-end="url(#head)"><title>{{.Label}}</title></path></a>
   {{- end}}
 </svg>
 </figure>

@@ -63,17 +63,30 @@ func (s *Server) figure(def *definition.Definition, states map[string]string, op
 
 // arrow is one edge drawn: the path, the field it opens and what it is called.
 func (s *Server) arrow(def *definition.Definition, layout topology.Figure, edge topology.Arrow, openKey string) arrowFigure {
-	from, to := edge.FromNode.String(), edge.ToNode.String()
 	out := arrowFigure{
-		Href:   s.openEdgeHref(def, from, to, openKey),
-		Open:   turnKey(from, to) == openKey,
-		Worker: edge.Worker,
-		Label:  from + " → " + to,
+		Worker:   edge.Worker,
+		Label:    nodeLabel(edge.FromNode) + " → " + nodeLabel(edge.ToNode),
+		DataFrom: edge.FromNode.String(),
+		DataTo:   edge.ToNode.String(),
 	}
 	if edge.Worker {
+		// workers: makes these two edges; they open the worker's own field, not
+		// a turn's (設計 4 節).
+		worker := edge.FromNode
+		if worker.Kind != definition.KindWorker {
+			worker = edge.ToNode
+		}
+		from, purpose := cutWorker(worker.Name)
+		out.Href = workerPath(def.Name, from, purpose)
+		if openKey == nodeKeyOf(worker) {
+			out.Href, out.Open = definitionPath(def.Name), true
+		}
 		out.Path = "M" + num(edge.LaneX) + " " + num(edge.FromY) + " V" + num(edge.ToY)
 		return out
 	}
+	from, to := edge.FromNode.String(), edge.ToNode.String()
+	out.Href = s.openEdgeHref(def, from, to, openKey)
+	out.Open = turnKey(from, to) == openKey
 	x0 := layout.MemberRight
 	bend := (edge.LaneX - 0.25*x0) / 0.75
 	out.Path = "M" + num(x0) + " " + num(edge.FromY) +
@@ -205,13 +218,16 @@ type memberFigure struct {
 	Workers []nodeBox
 }
 
-// arrowFigure is one edge drawn as SVG.
+// arrowFigure is one edge drawn as SVG. DataFrom and DataTo are the two ends'
+// identity, for a screen to tell one arrow from another (設計 4 節).
 type arrowFigure struct {
-	Path   string
-	Href   string
-	Label  string
-	Worker bool
-	Open   bool
+	Path     string
+	Href     string
+	Label    string
+	Worker   bool
+	Open     bool
+	DataFrom string
+	DataTo   string
 }
 
 // CX is the x of a box's center.
