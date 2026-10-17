@@ -623,7 +623,7 @@ func (s *Server) rulesSaved(place rulesPlace, with *catalog.Catalog, line string
 		if err != nil {
 			continue
 		}
-		changes = append(changes, effect.Of(s.view(before, s.cat.Reader()), s.view(after, with.Reader()))...)
+		changes = append(changes, effect.Of(s.view(s.cat, before, s.cat.Reader()), s.view(with, after, with.Reader()))...)
 	}
 	running, _ := s.runningTeams()
 	return saved{Line: line, Handover: handoverOf(effect.Commands(changes, running))}

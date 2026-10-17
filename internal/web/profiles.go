@@ -13,11 +13,8 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/check"
-	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -170,12 +167,11 @@ func (s *Server) renderProfiles(data profilesData) (view, error) {
 // profilesSaved redraws the list after a profile was written or taken away, with
 // the saved line, the sentences that go with it, and what a running team has to
 // take up (設計 3.0・3.7).
-func (s *Server) profilesSaved(line string, changes []effect.Change, notice ...string) (view, error) {
-	running, _ := s.runningTeams()
+func (s *Server) profilesSaved(result fileSaved, notice ...string) (view, error) {
 	data := s.profilesData()
-	data.Saved = line
+	data.Saved = result.Line
 	data.Notice = notice
-	data.Handover = handoverOf(effect.Commands(changes, running))
+	data.Handover = result.Handover
 	data.ReplaceURL = "/profiles"
 	return s.renderProfiles(data)
 }
@@ -189,8 +185,9 @@ func (s *Server) profilesRefused(notice ...string) (view, error) {
 }
 
 // saveProfile changes one profile's kind, args and env (設計 3.7): it edits the
-// profiles.yaml the profile was read from, checks the change against the model,
-// and writes only when the file is still the one the page read (設計 7.3).
+// profiles.yaml the profile was read from and hands it to saveFile, the one save
+// road (設計 7.3), which checks the change against every definition that reads the
+// file and writes only when the file is still the one the page read.
 func (s *Server) saveProfile(r *http.Request) (view, error) {
 	name := r.PathValue("name")
 	value, ok := s.cat.Profile(name)
@@ -215,36 +212,72 @@ func (s *Server) saveProfile(r *http.Request) (view, error) {
 	if _, err := profile.ParseProfiles(newText, path); err != nil {
 		return s.profileRefused(name, edited, nil, []string{s.breakLine(path, err)}, false)
 	}
-	with := s.cat.With(path, newText)
-	if stop, ok := s.newProfileStop(with); ok {
-		return s.profileRefused(name, edited, nil, []string{stop}, false)
-	}
-	// What the change does to the prompts is read before the write: after it,
-	// the catalog would read the new file on both sides (設計 7.3).
-	changes := s.profileChanges(with)
-	if err := source.WriteIfUnchanged(path, r.PostFormValue("hash"), newText); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.profileRefused(name, edited, nil, []string{tf("web.saved.clash", s.cat.Display(path))}, true)
-		}
+	names := s.definitionNames()
+	// What a hire would start with is read before the write, like the change
+	// itself: after it, the catalog would read the new file on both sides
+	// (設計 7.3).
+	hires := s.hireLines(s.cat.With(path, newText), names)
+	result, err := s.saveFile(fileWrite{
+		Path: path, Hash: r.PostFormValue("hash"), Text: newText,
+		Defs: names, Key: tf("web.saved.profile", name),
+	})
+	if err != nil {
 		return view{}, err
+	}
+	if result.Stop != "" {
+		return s.profileRefused(name, edited, nil, []string{result.Stop}, false)
+	}
+	if result.Clash {
+		return s.profileRefused(name, edited, nil, []string{tf("web.saved.clash", s.cat.Display(path))}, true)
 	}
 	after, ok := s.cat.Profile(name)
 	if !ok {
 		return view{}, errors.New("web: the profile is gone after writing it")
 	}
 	data := s.profileData(name, after, nil)
-	data.Saved = tf("web.saved.line", s.cat.Display(after.Path), tf("web.saved.profile", name))
-	if len(changes) > 0 {
-		// Who is launched differently now (A2, 設計 3.0 の表): the engine change
-		// reaches the members that run the profile, an env change reaches their
-		// panes. A change that reaches nobody says nothing here; the handover
-		// line below says the running teams have nothing to take up.
-		data.Preview = effect.Preview(changes)
+	data.Saved = result.Line
+	// Who is launched differently now (A2, 設計 3.0 の表): the engine change
+	// reaches the members that run the profile, an env change reaches their
+	// panes, and a profile only workers use reaches the next hire of one
+	// (spec/41 T4). A change that reaches nobody says nothing here; the handover
+	// line below says the running teams have nothing to take up.
+	if len(result.Changes) > 0 {
+		data.Preview = effect.Preview(result.Changes)
 	}
-	running, _ := s.runningTeams()
-	data.Handover = handoverOf(effect.Commands(changes, running))
+	data.Preview = append(data.Preview, hires...)
+	data.Handover = result.Handover
 	data.ReplaceURL = profilePath(name)
 	return s.renderProfile(data)
+}
+
+// definitionNames is every definition this place reads, by name. One profiles.yaml
+// is the layer's, so a write into it is checked against all of them (d-7d73).
+func (s *Server) definitionNames() []string {
+	entries := s.entries()
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name)
+	}
+	return names
+}
+
+// hireLines is what a profile change does to the workers that no member runs: the
+// next hire of such a worker starts with the new kind, args or env (spec/41 T4).
+// It is read through every definition, the way the change itself is.
+func (s *Server) hireLines(with *catalog.Catalog, names []string) []string {
+	var out []string
+	for _, name := range names {
+		before, err := s.cat.Read(name)
+		if err != nil {
+			continue
+		}
+		after, err := with.Read(name)
+		if err != nil {
+			continue
+		}
+		out = append(out, effect.HireLines(s.view(s.cat, before, s.cat.Reader()), s.view(with, after, with.Reader()))...)
+	}
+	return out
 }
 
 // addProfile adds one profile to the profiles.yaml new things go into (設計 3.7,
@@ -303,20 +336,23 @@ func (s *Server) addProfile(r *http.Request) (view, error) {
 	if _, err := profile.ParseProfiles(newText, place); err != nil {
 		return s.profilesRefused(s.breakLine(place, err))
 	}
-	with := s.cat.With(place, newText)
-	if stop, ok := s.newProfileStop(with); ok {
-		return s.profilesRefused(stop)
-	}
 	// The file may not be there yet (a layer that never held one); its folder is
 	// made the way hergy new makes one.
 	if err := os.MkdirAll(filepath.Dir(place), 0o755); err != nil {
 		return view{}, err
 	}
-	if err := source.WriteIfUnchanged(place, hash, newText); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.profilesRefused(tf("web.saved.clash", s.cat.Display(place)))
-		}
+	result, err := s.saveFile(fileWrite{
+		Path: place, Hash: hash, Text: newText,
+		Defs: s.definitionNames(), Key: tf("web.saved.profile", name),
+	})
+	if err != nil {
 		return view{}, err
+	}
+	if result.Stop != "" {
+		return s.profilesRefused(result.Stop)
+	}
+	if result.Clash {
+		return s.profilesRefused(tf("web.saved.clash", s.cat.Display(place)))
 	}
 	var notice []string
 	if name == kind {
@@ -324,7 +360,7 @@ func (s *Server) addProfile(r *http.Request) (view, error) {
 		// written, and the screen says what the command line will say.
 		notice = append(notice, tf("validate.profile_named_after_kind", name))
 	}
-	return s.profilesSaved(tf("web.saved.line", s.cat.Display(place), tf("web.saved.profile", name)), nil, notice...)
+	return s.profilesSaved(result, notice...)
 }
 
 // deleteProfile takes one profile out of its profiles.yaml, but only when
@@ -351,14 +387,20 @@ func (s *Server) deleteProfile(r *http.Request) (view, error) {
 	if err != nil {
 		return s.profileRefused(name, value, nil, []string{s.breakLine(value.Path, err)}, false)
 	}
-	newText := string(edited)
-	if err := source.WriteIfUnchanged(value.Path, r.PostFormValue("hash"), newText); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.profileRefused(name, value, nil, []string{tf("web.saved.clash", s.cat.Display(value.Path))}, true)
-		}
+	result, err := s.saveFile(fileWrite{
+		Path: value.Path, Hash: r.PostFormValue("hash"), Text: string(edited),
+		Defs: s.definitionNames(), Key: tf("web.saved.profile", name), Removed: true,
+	})
+	if err != nil {
 		return view{}, err
 	}
-	return s.profilesSaved(tf("web.saved.removed", s.cat.Display(value.Path), tf("web.saved.profile", name)), nil)
+	if result.Stop != "" {
+		return s.profileRefused(name, value, nil, []string{result.Stop}, false)
+	}
+	if result.Clash {
+		return s.profileRefused(name, value, nil, []string{tf("web.saved.clash", s.cat.Display(value.Path))}, true)
+	}
+	return s.profilesSaved(result)
 }
 
 // profileEdit is one profile written into the profiles.yaml it was read from:
@@ -386,54 +428,6 @@ func profileEdit(text, path, name string, before, after profile.Profile) (string
 		out = string(edited)
 	}
 	return out, nil
-}
-
-// newProfileStop is the first sentence that stops a definition and is not
-// already there after a profiles.yaml change, so an edit that would leave a
-// definition unreadable is refused with validate's own sentence (設計 3.7・7.3).
-// Every definition is checked, because one profiles.yaml is the layer's: a file
-// that stops reading stops every team that reads it (d-7d73).
-func (s *Server) newProfileStop(with *catalog.Catalog) (string, bool) {
-	for _, entry := range s.entries() {
-		after := check.Definition(check.Input{Catalog: with, Name: entry.Name})
-		if msg, ok := newStop(s.findings(entry.Name), after); ok {
-			return msg, true
-		}
-	}
-	return "", false
-}
-
-// profileChanges is what a profiles.yaml change does to the members' prompts,
-// across every definition: an engine change is a refresh and an env change is a
-// down and up (設計 3.0 の表).
-func (s *Server) profileChanges(with *catalog.Catalog) []effect.Change {
-	var changes []effect.Change
-	for _, entry := range s.entries() {
-		def, err := s.readDefinition(entry.Name)
-		if err != nil {
-			continue
-		}
-		changes = append(changes, effect.Of(viewThrough(s.cat, def), viewThrough(with, def))...)
-	}
-	return changes
-}
-
-// viewThrough is one read state of a definition, for effect.Of, with the
-// profiles that catalog reads (the base one before the write, the overlaid one
-// after it).
-func viewThrough(cat *catalog.Catalog, def *definition.Definition) effect.View {
-	profiles, _, _ := cat.Profiles()
-	return effect.View{
-		Def:      def,
-		Profiles: profiles,
-		Run: prompt.Run{
-			Team:    def.Name,
-			Base:    cat.Base(),
-			Reader:  cat.Reader(),
-			Sources: cat,
-			Display: cat.Display,
-		},
-	}
 }
 
 // profileOfForm is the profile a person wrote into the form: the kind they

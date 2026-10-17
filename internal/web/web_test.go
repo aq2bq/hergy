@@ -1795,7 +1795,7 @@ func promptText(t *testing.T, s *Server, name, member string) string {
 	if !ok {
 		t.Fatalf("%s has no member %s", name, member)
 	}
-	built, err := prompt.Member(def, &node, s.view(def, s.cat.Reader()).Run)
+	built, err := prompt.Member(def, &node, s.view(s.cat, def, s.cat.Reader()).Run)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3464,5 +3464,81 @@ func TestAnOriginDraftKeepsItsKeyWhenTheRowsGrow(t *testing.T) {
 	}
 	if first[len(first)-1].Key != "new" || more[len(more)-1].Key != "new" {
 		t.Errorf("the row to fill in has no key of its own: %q and %q", first[len(first)-1].Key, more[len(more)-1].Key)
+	}
+}
+
+// TestAWorkerOnlyProfileChangeSaysWhatTheNextHireGets is spec/41 T4: a profile
+// that no member runs gets no member's line, but the next hire of a worker that
+// runs it is said; a profile a member runs says nothing of a hire.
+func TestAWorkerOnlyProfileChangeSaysWhatTheNextHireGets(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+
+	// planner is run by the worker 調査 and by no member.
+	_, body := f.post(t, server, "/profiles/planner", url.Values{
+		"kind": {"opencode"}, "args": {"--x"},
+		"envname": {""}, "envvalue": {""},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview := between(body, `class="preview"`, "</ul>")
+	if !strings.Contains(preview, "次の hergy hire --purpose 調査 から使われます") {
+		t.Errorf("the next hire is not said:\n%s", body)
+	}
+
+	// coder is run by members too, so its change reaches them and says nothing
+	// of a hire.
+	_, body = f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"gemini"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview = between(body, `class="preview"`, "</ul>")
+	if !strings.Contains(preview, "lead の起動のしかたが変わります") {
+		t.Errorf("the member's line is not there:\n%s", body)
+	}
+	if strings.Contains(preview, "次の hergy hire") {
+		t.Errorf("a profile a member runs says a hire:\n%s", preview)
+	}
+}
+
+// TestProfileSaveWritesAValueThatReadsAsSomethingElseQuoted is spec/41 S1-2: a
+// string that YAML would read as a number or a boolean (1, true, 1.5, 007) is
+// written quoted, so it can be saved and comes back as the text it is — in an
+// env value and in an arg.
+func TestProfileSaveWritesAValueThatReadsAsSomethingElseQuoted(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+
+	_, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"claude"}, "args": {"007\n1.5"},
+		"envname": {"A", "B"}, "envvalue": {"1", "true"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Fatalf("the save was refused:\n%s", body)
+	}
+	got := readFile(t, path)
+	for _, want := range []string{`args: ["007", "1.5"]`, `A: "1"`, `B: "true"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the file does not hold %q:\n%s", want, got)
+		}
+	}
+	profiles, err := profile.ParseProfiles(got, path)
+	if err != nil {
+		t.Fatalf("what it wrote does not read: %v", err)
+	}
+	coder := profiles["coder"]
+	if len(coder.Args) != 2 || coder.Args[0] != "007" || coder.Args[1] != "1.5" {
+		t.Errorf("the args read back as %q, want the strings that were written", coder.Args)
+	}
+	if coder.Env["A"] != "1" || coder.Env["B"] != "true" {
+		t.Errorf("the env reads back as %q, want the strings that were written", coder.Env)
+	}
+	// The page reads them back too.
+	_, body = f.get(t, server, "/profiles/coder")
+	if !strings.Contains(body, "007\n1.5</textarea>") || !strings.Contains(body, `value="B"`) {
+		t.Errorf("the field does not read the written values back:\n%s", body)
 	}
 }

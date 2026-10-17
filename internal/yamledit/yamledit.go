@@ -583,19 +583,22 @@ func ScalarLiteral(value string, style yaml.Style) string {
 }
 
 // plainSafe is whether a value written without quotes reads back as the same
-// string (a value holding " #", starting with an indicator, or reading as a
-// number is quoted instead).
+// string. A value YAML reads as something else — a number (1, 1.5, 007), a
+// boolean (true), a null — is quoted instead, so it comes back as the text it is
+// (spec/41 S1-2). A value that holds " #", or starts with an indicator, is
+// quoted too, and so is an empty one.
 func plainSafe(value string) bool {
 	if value == "" {
 		return false
 	}
 	var out struct {
-		V string `yaml:"v"`
+		V any `yaml:"v"`
 	}
 	if err := yaml.Unmarshal([]byte("v: "+value+"\n"), &out); err != nil {
 		return false
 	}
-	return out.V == value
+	text, ok := out.V.(string)
+	return ok && text == value
 }
 
 // doubleQuote is a value as a double-quoted scalar.

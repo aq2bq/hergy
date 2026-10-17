@@ -158,9 +158,10 @@
   A write changes only the lines it touches: the profile's own lines are written
   where they stand, a new profile goes after the last one (not in name order),
   args and env keep the form the file wrote them in (a flow collection on the
-  key's line, or block lines under it), and the comments, the blank lines, the
-  order of the profiles and the quoting of a value nobody touched come back byte
-  for byte — so a save that changes nothing leaves the file exactly as it was.
+  key's line, or block lines under it), a value that YAML would read as a number
+  or a boolean (`1`, `true`, `1.5`, `007`) is written quoted so it comes back as
+  the text it is, and the comments, the blank lines, the order of the profiles
+  and the quoting of a value nobody touched come back byte for byte — so a save that changes nothing leaves the file exactly as it was.
   Only a file hergy makes (a new `profiles.yaml`) is written in hergy's own form.
   A write says what it wrote, whose launch or pane environment the change moves
   (named by its definition when the change reaches members of more than one

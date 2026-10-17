@@ -38,7 +38,7 @@ func ReplaceSeq(src *Source, mapping *yaml.Node, key string, items []string) err
 		// The key is not there yet: it is written under the mapping, in hergy's
 		// own block form, lined up with the keys beside it.
 		indent := MappingIndent(mapping)
-		lines := append([]string{Spaces(indent) + key + ":"}, ItemLines(items, indent+2)...)
+		lines := append([]string{Spaces(indent) + key + ":"}, ItemLines(quoted(items), indent+2)...)
 		src.Insert(NodeEndLine(mapping), lines...)
 		return nil
 	}
@@ -47,7 +47,7 @@ func ReplaceSeq(src *Source, mapping *yaml.Node, key string, items []string) err
 			return src.Shape(key)
 		}
 		indent := v.Content[0].Column - 3
-		src.Replace(v.Line, NodeEndLine(v), ItemLines(items, indent))
+		src.Replace(v.Line, NodeEndLine(v), ItemLines(quoted(items), indent))
 		return nil
 	}
 	return KeyLineWith(src, keyNode, v, flowSeq(items))
@@ -164,11 +164,17 @@ func KeyLineWith(src *Source, keyNode *yaml.Node, v *yaml.Node, value string) er
 
 // flowSeq is a sequence's items on one line: [a, b].
 func flowSeq(items []string) string {
-	parts := make([]string, 0, len(items))
+	return "[" + strings.Join(quoted(items), ", ") + "]"
+}
+
+// quoted is a sequence's items as the file writes them: each one written so it
+// reads back as the string it is (a value that reads as a number is quoted).
+func quoted(items []string) []string {
+	out := make([]string, 0, len(items))
 	for _, item := range items {
-		parts = append(parts, ScalarLiteral(item, 0))
+		out = append(out, ScalarLiteral(item, 0))
 	}
-	return "[" + strings.Join(parts, ", ") + "]"
+	return out
 }
 
 // flowMap is a mapping's keys and values on one line: {a: b}.
