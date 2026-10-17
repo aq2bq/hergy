@@ -68,6 +68,7 @@ func TestE2E(t *testing.T) {
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
 	t.Run("keyboard", func(t *testing.T) { e2eKeyboard(t, ctx, base) })
+	t.Run("rules", func(t *testing.T) { e2eRules(t, ctx, base) })
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -230,7 +231,7 @@ func e2eDraft(t *testing.T, ctx context.Context, base string) {
 // press.
 func e2ePressable(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/roles", "/profiles"} {
+	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity", "/roles", "/roles/lead", "/agreement", "/profiles"} {
 		e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 		var dead []string
 		script := `(function(){
@@ -254,7 +255,7 @@ func e2eWidths(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	for _, size := range []int64{1440, 1000, 500} {
 		e2eRun(t, ctx, chromedp.EmulateViewport(size, 900))
-		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity"} {
+		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity"} {
 			e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 			var over bool
 			e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`, &over))
@@ -284,6 +285,90 @@ func e2eKeyboard(t *testing.T, ctx context.Context, base string) {
 	}
 	e2eRun(t, ctx, chromedp.KeyEvent("\r"))
 	e2eWaitField(t, ctx, "メンバー lead")
+}
+
+// e2eRules is 段 4: one rule's card opens from the definition, writes and saves
+// in place (C1〜C3), and 消す asks for a second press before it takes the rule
+// out (3.8, W15).
+func e2eRules(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
+	e2eWaitField(t, ctx, "規則 C1")
+
+	before := e2eRuleText(t, ctx)
+	if before == "" {
+		t.Fatalf("the card opens with no text")
+	}
+	if e2eRuleButtons(t, ctx) {
+		t.Errorf("the save buttons show before anything changed")
+	}
+	e2eSetRuleText(t, ctx, "E2E の規則。")
+	if !e2eRuleButtons(t, ctx) {
+		t.Fatalf("typing the text shows no save button")
+	}
+	e2eRun(t, ctx, chromedp.Click(".ruleform [data-revert]"))
+	if got := e2eRuleText(t, ctx); got != before {
+		t.Errorf("revert left %q, want the file's own text %q", got, before)
+	}
+	e2eSetRuleText(t, ctx, "E2E の規則。")
+	e2eRun(t, ctx, chromedp.Click(".ruleform button[type=submit]"), chromedp.WaitVisible(".saved"))
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
+	if !strings.Contains(saved, "書きました") {
+		t.Errorf("the save line is %q", saved)
+	}
+	if got := e2eRuleText(t, ctx); got != "E2E の規則。" {
+		t.Errorf("the card reads %q after the save", got)
+	}
+
+	// The card closes with Escape, and the same node pressed again closes it.
+	e2eEscape(t, ctx)
+	e2eWaitClosed(t, ctx, "Escape on a rule card")
+
+	// 消す asks once more in place: the first press writes nothing, and the
+	// second takes the rule out.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
+	e2eWaitField(t, ctx, "規則 C1")
+	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
+	e2eWaitContains(t, ctx, "#panel", "この規則を消します")
+	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
+	// The second press writes to the document's own page, so that is where the
+	// card is gone (設計 3.8).
+	e2eWaitURL(t, ctx, base+"/definitions/demo/agreement")
+	e2eWaitClosed(t, ctx, "the delete")
+	var left bool
+	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('.card a[href$="/agreement/C1"]')`, &left))
+	if left {
+		t.Errorf("the rule is still in the document's cards")
+	}
+}
+
+// e2eRuleText is what the rule card's text field shows.
+func e2eRuleText(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	var value string
+	e2eRun(t, ctx, chromedp.Evaluate(`(document.getElementById('rule-text')||{}).value || ""`, &value))
+	return value
+}
+
+// e2eSetRuleText clears the rule card's text field and types one line into it,
+// firing the events a person's typing fires.
+func e2eSetRuleText(t *testing.T, ctx context.Context, text string) {
+	t.Helper()
+	clear := `(function(){var el=document.getElementById('rule-text');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(clear, nil))
+	if text != "" {
+		e2eRun(t, ctx, chromedp.SendKeys("#rule-text", text))
+	}
+}
+
+// e2eRuleButtons is whether the rule card's save and revert buttons are drawn.
+func e2eRuleButtons(t *testing.T, ctx context.Context) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('.ruleform [data-change]')).display !== 'none'`, &shown))
+	return shown
 }
 
 // e2eEscape presses Escape in the page, the key the close script listens for.
@@ -322,6 +407,21 @@ func e2eWaitText(t *testing.T, ctx context.Context, selector, want string) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("%s never read %q", selector, want)
+}
+
+// e2eWaitContains waits until one element's text holds one line.
+func e2eWaitContains(t *testing.T, ctx context.Context, selector, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var got string
+		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
+		if strings.Contains(got, want) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("%s never held %q", selector, want)
 }
 
 // e2eSet clears the mission field and types one line into it, firing the input

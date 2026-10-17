@@ -243,6 +243,41 @@ func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 	}
 }
 
+// TestOfARuleDocumentChangeMovesTheAgreements: a screen that writes one rule of
+// a document writes the same path, so the change is read from the text both
+// sides read, not from the paths (段 4, 設計 7.3)。Both members read the shared
+// agreement, so both have an Agreements part.
+func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, oneRule("A1", "前の文"))
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := cat.With(agreement, oneRule("A1", "後の文"))
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 2 {
+		t.Fatalf("Of = %+v, want both members", changes)
+	}
+	for _, change := range changes {
+		if !hasPart(change.Parts, effect.Agreements) {
+			t.Errorf("%s's parts = %+v, want an agreements part", change.Member, change.Parts)
+		}
+	}
+}
+
 func hasPart(parts []effect.PartChange, part effect.Part) bool {
 	for _, p := range parts {
 		if p.Part == part {

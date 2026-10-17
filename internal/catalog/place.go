@@ -19,6 +19,10 @@ const (
 	// file, so adding one writes there; the file is the layer's, as every other
 	// name is looked up (K1).
 	NewProfile = "profile"
+	// NewAgreement is the agreement every team of a layer shares:
+	// agreement.yaml in the layer. A screen makes one where a team names no
+	// rules of its own (段 4, W8).
+	NewAgreement = "agreement"
 )
 
 // NewPlace is where something new of one kind goes (K2): inside a git
@@ -43,6 +47,8 @@ func (c *Catalog) NewPlace(kind, name string) string {
 		return filepath.Join(dir, "roles", name+".yaml")
 	case NewProfile:
 		return filepath.Join(dir, "profiles.yaml")
+	case NewAgreement:
+		return filepath.Join(dir, "agreement.yaml")
 	default:
 		return ""
 	}

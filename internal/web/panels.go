@@ -4,26 +4,27 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
 // panel is one open field: what it is called, the values it shows, and the field
-// it belongs to. In this stage every field is read only (設計 9 節 1b): a panel
-// shows what the model says, and writing comes with stages 2 to 5. A field the
-// URL names but the definition does not hold comes back with Missing set and the
-// one line Notice, so the page answers 404 rather than opening nothing (N2).
+// it belongs to. A rule's card carries the form that writes it (段 4); the other
+// fields show what the model says. A field the URL names but the definition does
+// not hold comes back with Missing set and the one line Notice, so the page
+// answers 404 rather than opening nothing (N2).
 type panel struct {
 	Title    string
 	Key      string
 	Parent   string
 	Crumb    string
 	Fields   []panelField
-	Rule     *ruleCard
+	Form     *ruleForm
 	Missing  bool
 	Notice   string
+	Reload   bool
 	Findings []string
 }
 
@@ -234,7 +235,8 @@ func parseNode(raw string) (definition.NodeID, bool) {
 	}
 }
 
-// agreementPanel is the team agreement's own field: its path.
+// agreementPanel is the team agreement's own field: its path and who reads it
+// (設計 1 節).
 func (s *Server) agreementPanel(r *http.Request) (view, error) {
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		if !def.HasAgreement {
@@ -245,47 +247,63 @@ func (s *Server) agreementPanel(r *http.Request) (view, error) {
 			Key:    "agreement",
 			Parent: definitionPath(def.Name),
 			Crumb:  t("web.panel.team_agreement"),
-			Fields: []panelField{{Label: t("label.path"), Value: s.cat.Display(def.Agreement.Path), Mono: true}},
+			Fields: []panelField{
+				{Label: t("label.path"), Value: s.cat.Display(def.Agreement.Path), Mono: true},
+				{Label: t("web.common.readers"), Value: readerLine(s.cat.Readers(def.Agreement.Path))},
+			},
 		}
 	})
 }
 
-// rulePanel is one rule of the team agreement (設計 3.8): the whole rule, read
-// only in this stage.
-func (s *Server) rulePanel(r *http.Request) (view, error) {
-	id := r.PathValue("rule")
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
-		missing := func() panel {
-			return missingPanel(def, "rule:"+id, tf("web.panel.rule", id), tf("web.missing.rule", def.Name, id))
-		}
-		if !def.HasAgreement {
-			return missing()
-		}
-		doc, err := s.ruleDoc(def.Agreement)
-		if err != nil {
-			return missing()
-		}
-		card, ok := cardOf(doc, id)
-		if !ok {
-			return missing()
-		}
-		return panel{
-			Title:  tf("web.panel.rule", id),
-			Key:    "rule:" + id,
-			Parent: agreementPath(def.Name),
-			Crumb:  id,
-			Rule:   &card,
-		}
-	})
+// teamRule is one rule of a team's own agreement, open (設計 3.8).
+func (s *Server) teamRule(r *http.Request) (view, error) {
+	return s.openRule(r, s.teamPlace(r.PathValue("name")))
+}
+
+// teamNew is the card a team's own agreement is adding a rule with.
+func (s *Server) teamNew(r *http.Request) (view, error) {
+	return s.addRule(r, s.teamPlace(r.PathValue("name")))
+}
+
+// saveTeamRule writes one rule of a team's own agreement.
+func (s *Server) saveTeamRule(r *http.Request) (view, error) {
+	return s.saveRule(r, s.teamPlace(r.PathValue("name")), false)
+}
+
+// addTeamRule adds a rule to the end of one section of a team's own agreement.
+func (s *Server) addTeamRule(r *http.Request) (view, error) {
+	return s.saveRule(r, s.teamPlace(r.PathValue("name")), true)
+}
+
+// writeTeamAgreement is the write of the team agreement itself: the second press
+// of 消す takes a rule out. A team agreement is made by hergy new, so this page
+// makes none.
+func (s *Server) writeTeamAgreement(r *http.Request) (view, error) {
+	return s.writeDocument(r, s.teamPlace(r.PathValue("name")))
+}
+
+// readerLine is who reads a document as one line: "hergy-dev の 2 人", the same
+// line the shared agreement shows.
+func readerLine(refs []catalog.MemberRef) string {
+	lines := readerLines(refs)
+	if len(lines) == 0 {
+		return t("web.panel.no_document")
+	}
+	return strings.Join(lines, t("list.separator"))
 }
 
 // missingPanel is the field a URL named and the definition does not hold: the
 // place's own name as the title, and the one line that says it is not there
 // (N2). The sentence is shown once, in the body (R2).
 func missingPanel(def *definition.Definition, key, title, notice string) panel {
+	return missingPanelAt(definitionPath(def.Name), key, title, notice)
+}
+
+// missingPanelAt is the same, for a field whose parent is not a definition.
+func missingPanelAt(parent, key, title, notice string) panel {
 	return panel{
 		Key:     key,
-		Parent:  definitionPath(def.Name),
+		Parent:  parent,
 		Missing: true,
 		Notice:  notice,
 		Title:   title,
@@ -301,23 +319,4 @@ func memberIndex(def *definition.Definition, name string) int {
 		}
 	}
 	return -1
-}
-
-// cardOf finds one rule in a document, as the card the panel shows.
-func cardOf(doc *rules.Document, id string) (ruleCard, bool) {
-	for _, rule := range doc.Rules() {
-		if rule.ID != id {
-			continue
-		}
-		return ruleCard{
-			ID:     rule.ID,
-			Clause: firstClause(rule.Text),
-			Text:   rule.Text,
-			Why:    rule.Why,
-			Origin: originText(rule.Origin),
-			Check:  checkText(rule),
-			Note:   rule.Note,
-		}, true
-	}
-	return ruleCard{}, false
 }

@@ -20,9 +20,31 @@
   `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
   `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
   the prompt diff, the version screen and the separate figure are no longer
-  concepts of their own. The members, the turns, the rules and the profiles are
-  read only from the screens until the rounds that give them their own editing;
-  this round writes one thing, a definition's mission.
+  concepts of their own. The members, the turns and the profiles are read only
+  from the screens until the rounds that give them their own editing; the
+  mission and the rule documents write.
+
+- **The rule screens write**: a team's own agreement, a role's document and the
+  agreement every team shares (as well as the rule documents the definitions
+  read) now write from the screens. A rule opens in place as a card carrying the
+  whole of its text, its reason, its origins, its check and its note, each
+  writable from the start; no mode has to be entered first. A rule is added at
+  the end of a section, with the id hergy proposes and the person may change,
+  and taken out with a second press of Delete in the same place — no dialog. A
+  role whose document no layer holds, and a place with no shared agreement,
+  offer to make an empty one where hergy puts something new. A save shows the
+  line it wrote and what a running team has to take up, as the commands to type:
+  a rule document reaches every member that reads it, so a role's document
+  reaches the members that play the role in every definition, and the shared
+  agreement reaches every member of the place. A rule that would break the
+  documents one member reads (an id two of them hold, a report or a rule a
+  derived origin points at that is not there) is refused with the sentence hergy
+  validate prints, beside the card that brought it in. The report shapes a rule
+  may point at are read only in this round.
+
+  A rule document is written in the one format hergy writes (see 0.5.0 below),
+  so the first save of a file a person wrote by hand rewrites the whole file:
+  the order of the rules is kept, their comments are not.
 
 - **`hergy validate` warns when a rule text names something the definition has
   no node for**: a rule that writes `lead → impl`, where `impl` is neither a

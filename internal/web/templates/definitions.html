@@ -1,6 +1,6 @@
 {{define "definitions.html"}}
 <h1 class="lead">{{t "web.definitions.title"}}</h1>
-<p class="common"><a href="{{.Shared.Href}}">{{.Shared.Name}}</a> {{if .Shared.Empty}}<span class="muted">{{t "web.common.empty"}}</span>{{else}}<span class="muted">{{tf "web.common.rules" .Shared.Count}}</span>{{end}}</p>
+<p class="common"><a href="{{.Shared.Href}}">{{.Shared.Name}}</a> {{if .Shared.Empty}}<span class="muted">{{t "web.common.empty"}}</span>{{if .Shared.Make}}{{template "make" .Shared.Make}}{{end}}{{else}}<span class="muted">{{tf "web.common.rules" .Shared.Count}}</span>{{end}}</p>
 {{- if .Empty}}
 <p class="empty">{{t "web.definitions.empty"}}</p>
 <p class="cmd"><code id="newcmd">{{.NewCommand}}</code><button type="button" class="btn quiet" data-copy="#newcmd" data-copied="{{t "web.copy.done"}}">{{t "web.copy"}}</button></p>
