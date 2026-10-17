@@ -173,10 +173,12 @@ Web UI:
     /roles        every role, the members that play it, and the rules its document holds
     /roles/<role> one role's document (the same cards; a role whose document is not there offers to make one)
     /agreement    the shared agreement every team reads (the same cards; a place with none offers to make one)
-    /profiles     the profiles: each name, its kind, and who uses it
-    /profiles/<profile>  one profile: kind, args, env and who uses it
+    /profiles     the profiles: the list (name, kind, place, args, env and who uses it), a row that opens and is written in place, and the kind chips and search above it
+    /profiles/assign  the members' and workers' profiles, one card per team definition; a pick is saved into that team.yaml
+    /profiles/yaml  both profiles.yaml files as text, line numbers and validate's problems beside the editor
+    /profiles/<profile>  the row of that profile, opened
   A definition's field is a real path under it: .../members/<member>, .../workers/<from>/<purpose>, .../human, .../turns/<from>/<to>, .../agreement and .../agreement/<rule>. Every path answers the whole page, so a deep link and a reload work; the fields open and close, and the same node pressed again closes it.
-  What the fields write today: a team definition's mission, its members' roles and profiles, the workers they may hire, the turns its members and the human hand on, and the rules of a team agreement, a role document and the agreement every team shares. The profiles read. The old paths moved: /teams to /definitions, /team?name=x to /definitions/x, /running to /activity; /rules, /diff, /bump, /figure and /panel are gone (404).
+  What the fields write today: a team definition's mission, its members' roles and profiles, the workers they may hire, the turns its members and the human hand on, the rules of a team agreement, a role document and the agreement every team shares, and the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs). The old paths moved: /teams to /definitions, /team?name=x to /definitions/x, /running to /activity; /rules, /diff, /bump, /figure and /panel are gone (404).
 
 Resolution:
   A team definition is teams/<definition>/ under the project's .hergy/, or under $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).

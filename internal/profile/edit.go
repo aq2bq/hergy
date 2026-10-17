@@ -24,6 +24,8 @@ const (
 	OpAdd
 	// OpRemove takes one profile out of the file.
 	OpRemove
+	// OpRename writes another name on one profile's key.
+	OpRename
 )
 
 // Op is one edit to a profiles.yaml: one profile, one change. Build it with the
@@ -36,6 +38,7 @@ type Op struct {
 	Kind     OpKind
 	Name     string            // the profile the op names
 	KindName string            // OpSetKind, OpAdd: the kind it runs
+	NewName  string            // OpRename: the name it is written with
 	Args     []string          // OpSetArgs
 	Env      map[string]string // OpSetEnv
 }
@@ -56,6 +59,12 @@ func Add(name, kind string) Op { return Op{Kind: OpAdd, Name: name, KindName: ki
 
 // Remove is the op that takes one profile out.
 func Remove(name string) Op { return Op{Kind: OpRemove, Name: name} }
+
+// Rename is the op that writes another name on one profile's key, keeping the
+// position, the comments and everything under it.
+func Rename(old, next string) Op {
+	return Op{Kind: OpRename, Name: old, NewName: next}
+}
 
 // EditYAML changes one place in a profiles.yaml and writes the file back
 // (spec/41 S1).
@@ -124,6 +133,8 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		}
 		yamledit.RemoveKeyLines(src, profiles, op.Name)
 		return nil
+	case OpRename:
+		return renameLines(src, profiles, op)
 	case OpSetKind, OpSetArgs, OpSetEnv:
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
@@ -140,6 +151,21 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 	default:
 		return yamledit.ReplaceMap(src, item, "env", envPairs(item, op.Env))
 	}
+}
+
+// renameLines writes another name on one profile's key, on the key's own line,
+// so the profile stays where it was and the comments above it stay with it.
+func renameLines(src *yamledit.Source, profiles *yaml.Node, op Op) error {
+	if profiles == nil || yamledit.MappingKeyNode(profiles, op.Name) == nil {
+		return i18n.Errorf("error.edit_no_profile", op.Name)
+	}
+	if op.NewName == op.Name {
+		return nil
+	}
+	if yamledit.MappingKeyNode(profiles, op.NewName) != nil {
+		return i18n.Errorf("error.edit_profile_twice", op.NewName)
+	}
+	return yamledit.ReplaceKey(src, yamledit.MappingKeyNode(profiles, op.Name), op.NewName, "profiles."+op.Name)
 }
 
 // addLines appends one profile after the last one, lined up with the profiles
@@ -275,9 +301,26 @@ func applyTree(root *yaml.Node, op Op) error {
 	case OpRemove:
 		removeMapKey(profiles, op.Name)
 		return nil
+	case OpRename:
+		return renameTree(profiles, op)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
+}
+
+// renameTree is the rename on the tree: the key keeps its place in the mapping.
+func renameTree(profiles *yaml.Node, op Op) error {
+	for i := 0; i+1 < len(profiles.Content); i += 2 {
+		key := profiles.Content[i]
+		if key.Value == op.Name {
+			if op.NewName != op.Name && yamledit.MappingKeyNode(profiles, op.NewName) != nil {
+				return i18n.Errorf("error.edit_profile_twice", op.NewName)
+			}
+			key.Value = op.NewName
+			return nil
+		}
+	}
+	return i18n.Errorf("error.edit_no_profile", op.Name)
 }
 
 // ensureMapping is the mapping a key holds, making the key and an empty mapping

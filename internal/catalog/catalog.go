@@ -422,6 +422,20 @@ func isFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// ProjectProfileFile is the project's own profiles.yaml, the one a team
+// definition in the project reads first (K1). A screen shows and writes it as
+// "プロジェクト".
+func (c *Catalog) ProjectProfileFile() string {
+	return filepath.Join(c.localDir, "profiles.yaml")
+}
+
+// SharedProfileFile is the profiles.yaml outside the project, read by every
+// definition that the project's own does not hide (K1). A screen shows and
+// writes it as "共通".
+func (c *Catalog) SharedProfileFile() string {
+	return filepath.Join(c.globalDir, "profiles.yaml")
+}
+
 // Profiles reads the profiles a team definition names: the global layer's
 // profiles.yaml, with the local layer's laid over them (K1). The files read are
 // returned local first. Either may be absent.

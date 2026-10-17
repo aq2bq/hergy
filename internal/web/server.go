@@ -217,12 +217,17 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	post("/agreement/new", s.addAgreementRule)
 	post("/agreement/{rule}", s.saveAgreementRule)
 
-	// プロファイル (3.7).
-	get("/profiles", s.profiles)
-	post("/profiles", s.addProfile)
-	get("/profiles/{name}", s.profile)
-	post("/profiles/{name}", s.saveProfile)
-	post("/profiles/{name}/delete", s.deleteProfile)
+	// プロファイル (r-c683): the three tabs, their checks and their writes.
+	mux.HandleFunc("GET /profiles", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "profiles") })
+	mux.HandleFunc("GET /profiles/assign", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "assign") })
+	mux.HandleFunc("GET /profiles/yaml", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "yaml") })
+	mux.HandleFunc("GET /profiles/{name}", s.oldProfile)
+	mux.HandleFunc("POST /profiles/check", s.p2Post(s.p2Check))
+	mux.HandleFunc("POST /profiles/yaml/check", s.p2Post(s.p2YAMLCheck))
+	mux.HandleFunc("POST /profiles/save", s.p2Post(s.p2Save))
+	mux.HandleFunc("POST /profiles/delete", s.p2Post(s.p2Delete))
+	mux.HandleFunc("POST /profiles/yaml/save", s.p2Post(s.p2YAMLSave))
+	mux.HandleFunc("POST /profiles/assign/save", s.p2Post(s.p2AssignSave))
 
 	// 古い URL (設計 6 節): the ones whose concept is one thing move with 301,
 	// the rest are not found.

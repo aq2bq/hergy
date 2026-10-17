@@ -1,0 +1,6 @@
+version: 1
+sections:
+  - style: ids
+    rules:
+      - id: S1
+        text: 出典の URL を添える。

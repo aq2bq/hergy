@@ -1,0 +1,6 @@
+version: 1
+sections:
+  - style: ids
+    rules:
+      - id: D1
+        text: 要点を三つ以内にまとめる。

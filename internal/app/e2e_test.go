@@ -96,7 +96,6 @@ func e2eBands(t *testing.T, ctx context.Context, base string) {
 		{"/", "チーム定義", "チーム定義"},
 		{"/activity", "活動", "活動"},
 		{"/roles", "ロール", "ロール"},
-		{"/profiles", "プロファイル", "プロファイル"},
 	}
 	for _, c := range cases {
 		e2eRun(t, ctx, chromedp.Navigate(base+c.path), chromedp.WaitReady("main h1"))
@@ -417,7 +416,7 @@ func e2ePressable(t *testing.T, ctx context.Context, base string) {
 			var out=[];
 			document.querySelectorAll('main *').forEach(function(el){
 				if(getComputedStyle(el).cursor!=='pointer') return;
-				if(el.closest('a,button,summary,input,select,textarea,label')) return;
+				if(el.closest('a,button,summary,input,select,textarea,label,[role=button]')) return;
 				out.push(el.tagName+'.'+(el.className||''));
 			});
 			return out;
