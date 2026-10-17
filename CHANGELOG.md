@@ -19,11 +19,16 @@
   definition's members and workers with their profile, and a pick is written
   into that team.yaml. `/profiles/yaml` shows both files as text with line
   numbers, validate's problems beside the editor on their lines, and writes
-  the text back as typed. A delete of a profile that is in use and has no
-  other file to stand in is refused. The old `/profiles/<name>` path moves to
-  the opened row. `hergy validate` reads profiles with the same one-pass
-  check, so a screen and the command line say the same sentence, and reports
-  an environment variable written twice.
+  the text back as typed. A profile that is in use is deleted after the confirm
+  names how many people use it, and the assign tab then shows those people
+  naming a profile that is not there. The environment rows are written in the
+  order the person put them. The two families the screen names — IBM Plex Mono
+  and Zen Kaku Gothic New, both under the OFL — are kept beside the page under
+  `/static` and read with `@font-face`, so the page's own policy still allows
+  them and the text shows the fonts the design asks for. The old
+  `/profiles/<name>` path moves to the opened row. `hergy validate` reads
+  profiles with the same one-pass check, so a screen and the command line say
+  the same sentence, and reports an environment variable written twice.
 
 ## 0.7.0 - 2026-10-17
 

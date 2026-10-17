@@ -180,36 +180,31 @@ func TestProfileCheckSaysValidatesSentences(t *testing.T) {
 	}
 }
 
-// TestProfileInUseIsNotDeleted: a profile the fixture's team names is refused,
-// and the file stays as it was; one nobody names goes.
-func TestProfileInUseIsNotDeleted(t *testing.T) {
+// TestProfileInUseIsDeletedAfterConfirm: a profile a team names goes once the
+// person has seen the count (J1), and the assign tab then shows the people it
+// left naming nothing.
+func TestProfileInUseIsDeletedAfterConfirm(t *testing.T) {
 	f := newFixture(t)
-	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n  spare:\n    kind: codex\n")
+	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n  planner:\n    kind: codex\n")
 	server := f.server(t)
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	before := readFile(t, path)
 
-	resp, decoded := p2PostJSON(t, f, server, "/profiles/delete", url.Values{
+	resp, body := f.post(t, server, "/profiles/delete", url.Values{
 		"file": {"project"}, "name": {"coder"}, "hash": {source.Hash(before)},
 	})
-	if resp.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("deleting a used profile answered %d, want 422", resp.StatusCode)
-	}
-	if decoded["text"] != i18n.Tf("web.profile.in_use", "coder") {
-		t.Errorf("the refusal is %q", decoded["text"])
-	}
-	if readFile(t, path) != before {
-		t.Errorf("the refused delete wrote the file")
-	}
-
-	resp, _ = f.post(t, server, "/profiles/delete", url.Values{
-		"file": {"project"}, "name": {"spare"}, "hash": {source.Hash(before)},
-	})
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("deleting an unused profile answered %d", resp.StatusCode)
+		t.Fatalf("deleting a used profile answered %d: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, path); got != "version: 1\nprofiles:\n  coder:\n    kind: claude\n" {
+	if got := readFile(t, path); got != "version: 1\nprofiles:\n  planner:\n    kind: codex\n" {
 		t.Errorf("the delete took more than the profile:\n%q", got)
+	}
+	_, assign := f.get(t, server, "/profiles/assign")
+	if !strings.Contains(assign, "members[0].profile: coder というプロファイルはありません") {
+		t.Errorf("the assign tab does not show the people left without a profile:\n%s", assign)
+	}
+	if !strings.Contains(assign, "問題 4") {
+		t.Errorf("the card does not count the four people the delete left:\n%s", assign)
 	}
 }
 
@@ -290,6 +285,74 @@ func TestProfilesPageCarriesTheFixtureScale(t *testing.T) {
 	}
 	if !strings.Contains(body, "警告 1") {
 		t.Errorf("the shared codex profile does not carry its warning")
+	}
+}
+
+// TestMissingProfilesFileStartsAtVersionOne is E1: a file that is not there
+// reads as version: 1 alone, which validate reads and an add can grow.
+func TestMissingProfilesFileStartsAtVersionOne(t *testing.T) {
+	f := newFixture(t)
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles/yaml")
+	if !strings.Contains(body, ">version: 1\n</textarea>") {
+		t.Errorf("the missing file does not read as version: 1:\n%s", body)
+	}
+	resp, answer := f.post(t, server, "/profiles/save", url.Values{
+		"file": {"project"}, "original": {""},
+		"profile": {`{"name":"fresh","kind":"claude","args":[],"env":[]}`},
+		"hash":    {source.Hash("")},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("making the file answered %d: %s", resp.StatusCode, answer)
+	}
+	if got := readFile(t, path); !strings.HasPrefix(got, "version: 1\nprofiles:\n  fresh:\n    kind: claude\n") {
+		t.Errorf("the made file reads:\n%s", got)
+	}
+}
+
+// TestProfileEnvKeepsTheScreenOrder is R7: the rows are written in the order a
+// person put them, new names after the ones the file already had.
+func TestProfileEnvKeepsTheScreenOrder(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/profiles/save", url.Values{
+		"file": {"project"}, "original": {"coder"},
+		"profile": {`{"name":"coder","kind":"claude","args":["--x"],"env":[{"key":"B_KEY","value":"2"},{"key":"A","value":"one"},{"key":"A_KEY","value":"1"}]}`},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the env save answered %d: %s", resp.StatusCode, body)
+	}
+	got := readFile(t, path)
+	b, a, aKey := strings.Index(got, "B_KEY"), strings.Index(got, "A: one"), strings.Index(got, "A_KEY")
+	if b < 0 || a < 0 || aKey < 0 || b >= a || a >= aKey {
+		t.Errorf("the env is not in the screen's order (B=%d A=%d A_KEY=%d):\n%s", b, a, aKey, got)
+	}
+}
+
+// TestProfilesPageNamesTheFileAndItsReaders is R1・R2: every panel says the file
+// it writes, and a rename on a name in both files counts the readers of that
+// panel's file (not zero because the other file has the name too).
+func TestProfilesPageNamesTheFileAndItsReaders(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles?open=sonnet-fast")
+	projectPath := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	if !strings.Contains(body, `class="path">`+projectPath) {
+		t.Errorf("the project's panel does not name its file")
+	}
+	if !strings.Contains(body, `data-file="project" data-saved="1" data-users="0" data-rename-users="3"`) {
+		t.Errorf("the project's panel does not count the three readers of its file")
+	}
+	if !strings.Contains(body, `data-file="global" data-saved="1" data-users="0" data-rename-users="0"`) {
+		t.Errorf("the shared panel counts readers it does not have")
 	}
 }
 

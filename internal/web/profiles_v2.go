@@ -114,7 +114,7 @@ func (s *Server) p2Data(r *http.Request, tab string) p2Data {
 	}
 	switch tab {
 	case "assign":
-		data = s.p2AssignData(data, project, shared, defs)
+		data = s.p2AssignData(data, project, shared, defs, r.URL.Query())
 	case "yaml":
 		data = s.p2YamlData(data, project, shared)
 	default:
@@ -264,7 +264,7 @@ func (s *Server) p2Save(r *http.Request) p2Answer {
 // that changed, and every one of them for a profile being made.
 func p2EditProfile(text, display string, entries []profile.Entry, draft profile.Draft, original string) (string, error) {
 	if strings.TrimSpace(text) == "" {
-		text = "version: 1\nprofiles:\n"
+		text = "version: 1\n"
 	}
 	ops, err := p2ProfileOps(entries, draft, original)
 	if err != nil {
@@ -291,7 +291,7 @@ func p2ProfileOps(entries []profile.Entry, draft profile.Draft, original string)
 			ops = append(ops, profile.SetArgs(draft.Name, draft.Args))
 		}
 		if len(draft.Env) > 0 {
-			ops = append(ops, profile.SetEnv(draft.Name, p2EnvMap(draft.Env)))
+			ops = append(ops, profile.SetEnvInOrder(draft.Name, draft.Env))
 		}
 		return ops, nil
 	case !found:
@@ -310,7 +310,7 @@ func p2ProfileOps(entries []profile.Entry, draft profile.Draft, original string)
 		ops = append(ops, profile.SetArgs(name, draft.Args))
 	}
 	if !p2SameEnv(draft.Env, saved.Env) {
-		ops = append(ops, profile.SetEnv(name, p2EnvMap(draft.Env)))
+		ops = append(ops, profile.SetEnvInOrder(name, draft.Env))
 	}
 	return ops, nil
 }
@@ -323,15 +323,6 @@ func p2FindEntry(entries []profile.Entry, name string) (profile.Entry, bool) {
 		}
 	}
 	return profile.Entry{}, false
-}
-
-// p2EnvMap is env pairs as the map SetEnv writes.
-func p2EnvMap(pairs []profile.EnvPair) map[string]string {
-	out := make(map[string]string, len(pairs))
-	for _, pair := range pairs {
-		out[pair.Key] = pair.Value
-	}
-	return out
 }
 
 // p2SameEnv reports whether the pairs and the file's env are the same values,
@@ -421,9 +412,6 @@ func (s *Server) p2Delete(r *http.Request) p2Answer {
 	otherText, _ := s.p2Text(otherPath)
 	otherEntries, _ := profile.ReadAll(otherText, display)
 	_, otherHas := p2FindEntry(otherEntries, name)
-	if !otherHas && len(p2Users(p2Chips(s.p2Defs()), name)) > 0 {
-		return p2TextAnswer(http.StatusUnprocessableEntity, tf("web.profile.in_use", name))
-	}
 	edited, err := profile.EditYAML([]byte(text), display, profile.Remove(name))
 	if err != nil {
 		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())

@@ -117,7 +117,7 @@
       setChanged($('[data-f=ev]', row), !before || before.value !== $('[data-f=ev]', row).value);
     });
     const hint = $('.rename', panel);
-    const users = Number(panel.dataset.users || 0);
+    const users = Number(panel.dataset.renameUsers || 0);
     const show = saved && draft.name && draft.name !== saved.name && users > 0;
     hint.hidden = !show;
     if (show) $('span', hint).textContent = `使っている ${users} 人の指定も ${draft.name} に書き換える`;
@@ -242,6 +242,7 @@
       empty.remove();
     }
     applyFilter();
+    if (tab === 'profiles') updateProfilesURL();
   }
 
   function showRefusal(box, text) {
@@ -441,7 +442,33 @@
   function initAssign() {
     $$('.team').forEach(updateTeam);
     updateKindbar();
+    applyAssignKind();
     flashHash();
+  }
+
+  // applyAssignKind draws the kind a reloaded URL carries: the other segments
+  // and people go thin, the chosen one stays plain (R6).
+  function applyAssignKind() {
+    const kind = new URLSearchParams(location.search).get('kind');
+    $$('.kseg').forEach((segment) => {
+      const on = kind !== null && segment.dataset.k === kind;
+      segment.classList.toggle('dim', kind !== null && !on);
+      segment.setAttribute('aria-pressed', String(on));
+    });
+    $$('.arow').forEach((row) => {
+      const select = $('select', row);
+      const dim = kind !== null && optionKind(select) !== kind;
+      row.classList.toggle('dim', dim);
+    });
+  }
+
+  // updateAssignURL keeps the chosen kind in the address, so a reload shows the
+  // same thinned cards (仕様 2 節).
+  function updateAssignURL(kind) {
+    const params = new URLSearchParams(location.search);
+    if (kind) params.set('kind', kind); else params.delete('kind');
+    const query = params.toString();
+    history.replaceState(null, '', location.pathname + (query ? '?' + query : ''));
   }
 
   function flashHash() {
@@ -719,6 +746,9 @@
       holder.innerHTML = panelHTML(other, { name: saved.name, kind: saved.kind, args: saved.args.slice(), env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })) }, false);
       const fresh = holder.firstElementChild;
       panels.appendChild(fresh);
+      $$('.panel', panels)
+        .sort((a, b) => (a.dataset.file === 'project' ? 0 : 1) - (b.dataset.file === 'project' ? 0 : 1))
+        .forEach((one) => panels.appendChild(one));
       panels.classList.toggle('two', $$('.panel', panels).length > 1);
       const pills = $('.c-place', row);
       if (pills && !$('.pill.pending', pills)) {
@@ -780,6 +810,7 @@
         const dim = active !== null && optionKind(select) !== active;
         el.classList.toggle('dim', dim);
       });
+      updateAssignURL(active);
       return;
     }
 

@@ -61,7 +61,7 @@
 
 {{define "p2_detail"}}
 <div class="detail"{{if not .Open}} hidden{{end}}>
-  {{if .Chips}}<div class="usage"><span class="lbl">使っている人</span>{{range .Chips}}<a class="uchip" href="/profiles/assign#{{.Def}}.{{.ID}}" data-act="goto" data-g="{{.Def}}" data-k="{{.ID}}"><span class="g">{{.Def}}</span>{{if .Worker}}<span class="wk">ワーカー</span><span class="r">{{.Role}}</span>{{else}}{{.Who}}<span class="r">{{.Role}}</span>{{end}}</a>{{end}}</div>{{end}}
+  {{if .Chips}}<div class="usage"><span class="lbl">使っている人</span>{{range .Chips}}<a class="uchip" href="/profiles/assign#{{.Def}}.{{.ID}}" data-act="goto" data-g="{{.Def}}" data-k="{{.ID}}"><span class="g">{{.Def}}</span>{{if .Worker}}<span class="wk">ワーカー</span><span class="r">{{.Role}}</span>{{else}}{{.Who}}<span class="g">{{.Role}}</span>{{end}}</a>{{end}}</div>{{end}}
   <div class="panels{{if gt (len .Panels) 1}} two{{end}}">
     {{range .Panels}}{{template "p2_panel" .}}{{end}}
   </div>
@@ -69,7 +69,7 @@
 {{end}}
 
 {{define "p2_panel"}}
-<section class="panel{{if .Shadowed}} shadowed{{end}}" data-file="{{.File}}" data-saved="1" data-users="{{.Users}}" data-saved-name="{{.SavedName}}" data-saved-kind="{{.SavedKind}}" data-saved-args="{{.SavedArgs}}" data-saved-env="{{.SavedEnv}}" data-hash="{{.Hash}}">
+<section class="panel{{if .Shadowed}} shadowed{{end}}" data-file="{{.File}}" data-saved="1" data-users="{{.Users}}" data-rename-users="{{.RenameUsers}}" data-saved-name="{{.SavedName}}" data-saved-kind="{{.SavedKind}}" data-saved-args="{{.SavedArgs}}" data-saved-env="{{.SavedEnv}}" data-hash="{{.Hash}}">
   <header class="ph">
     <span class="ln">{{.Label}}</span>
     <code class="path">{{.Path}}</code>
@@ -107,7 +107,7 @@
 {{end}}
 
 {{define "p2_body_assign"}}
-<div class="kindbar">{{range .Assign.Kinds}}<button class="kseg {{.KindClass}} {{.Grow}}{{if .Dim}} dim{{end}}" data-act="kind-hi" data-k="{{.Name}}" aria-pressed="false"><span>{{.Name}}</span><b>{{.Count}}</b></button>{{end}}</div>
+<div class="kindbar">{{range .Assign.Kinds}}<button class="kseg {{.KindClass}} {{.Grow}}{{if .Dim}} dim{{end}}" data-act="kind-hi" data-k="{{.Name}}" aria-pressed="{{if .On}}true{{else}}false{{end}}"><span>{{.Name}}</span><b>{{.Count}}</b></button>{{end}}</div>
 <div class="teams">
   {{if .Assign.Empty}}<p class="none">チーム定義はありません</p>{{end}}
   {{range .Assign.Teams}}{{template "p2_team" .}}{{end}}
@@ -126,7 +126,7 @@
 {{end}}
 
 {{define "p2_arow"}}
-<div class="arow{{if .Missing}} missing{{end}}" data-k="{{.ID}}" data-saved="{{.Profile}}">
+<div class="arow{{if .Missing}} missing{{end}}{{if .Dim}} dim{{end}}" data-k="{{.ID}}" data-saved="{{.Profile}}">
   <div class="who">{{if eq .Kind "m"}}<code>{{.Name}}</code><span class="role"><code>role {{.Role}}</code></span>{{else}}<span class="purpose">{{.Name}}</span><span class="role"><code>from {{.Role}}</code></span>{{end}}</div>
   <div class="pick"><i class="sw {{.KindCls}}"></i><span class="sel"><select data-k="{{.ID}}" aria-label="{{.Name}} のプロファイル">{{if .Missing}}<option selected value="{{.Profile}}" data-kind="">{{.Profile}}</option>{{end}}{{range $g := .Options}}<optgroup label="{{$g.Kind}}">{{range $n := $g.Names}}<option value="{{$n}}" data-kind="{{$g.Kind}}"{{if eq $n $.Profile}} selected{{end}}>{{$n}}</option>{{end}}</optgroup>{{end}}</select></span></div>
   {{if .Missing}}<ul class="vm"><li><span class="sev err">問題</span><span>{{.Error}}</span></li></ul>{{end}}

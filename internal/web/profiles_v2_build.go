@@ -124,13 +124,14 @@ func p2RowOf(name string, project, shared p2File, chips map[string][]p2UserChip,
 	}
 	row.Err, row.Warn = p2Counts(problems)
 	row.Open = open
-	row.Panels = p2Panels(projectEntry, hasProject, sharedEntry, hasShared, len(users), project, shared)
+	projectReaders, sharedReaders := p2Readers(users, hasProject)
+	row.Panels = p2Panels(projectEntry, hasProject, sharedEntry, hasShared, len(users), projectReaders, sharedReaders, project, shared)
 	return row
 }
 
 // p2Panels is one row's open panels: the project's file on the left, the shared
 // one on the right, either of them alone when only one holds the profile.
-func p2Panels(projectEntry profile.Entry, hasProject bool, sharedEntry profile.Entry, hasShared bool, users int, project, shared p2File) []p2Panel {
+func p2Panels(projectEntry profile.Entry, hasProject bool, sharedEntry profile.Entry, hasShared bool, users, projectReaders, sharedReaders int, project, shared p2File) []p2Panel {
 	both := hasProject && hasShared
 	var out []p2Panel
 	if hasProject {
@@ -138,43 +139,61 @@ func p2Panels(projectEntry profile.Entry, hasProject bool, sharedEntry profile.E
 		if hasShared {
 			shown = 0
 		}
-		out = append(out, p2PanelOf(p2Project, projectEntry, both, false, shown, project.hash, project.display))
+		out = append(out, p2PanelOf(p2Project, projectEntry, both, false, shown, projectReaders, project.hash, project.display))
 	}
 	if hasShared {
 		shown := users
 		if hasProject {
 			shown = 0
 		}
-		out = append(out, p2PanelOf(p2Shared, sharedEntry, both, hasProject, shown, shared.hash, shared.display))
+		out = append(out, p2PanelOf(p2Shared, sharedEntry, both, hasProject, shown, sharedReaders, shared.hash, shared.display))
 	}
 	return out
+}
+
+// p2Readers is how many people read one name in each file: the project's own
+// definitions read the project's file, and the definitions outside the project
+// read it too only when the project's file does not hold the name (R1).
+func p2Readers(users []p2UserChip, hasProject bool) (project, shared int) {
+	for _, chip := range users {
+		if chip.Local {
+			project++
+		} else {
+			shared++
+		}
+	}
+	if !hasProject {
+		shared = len(users)
+	}
+	return project, shared
 }
 
 // p2PanelOf is one file's panel. shadowed says the project's file hides this one;
 // users is the number of people shown on the panel, which only a file that is
 // the only one holding the name shows.
-func p2PanelOf(file string, entry profile.Entry, both, shadowed bool, users int, hash, path string) p2Panel {
+func p2PanelOf(file string, entry profile.Entry, both, shadowed bool, users, renameUsers int, hash, path string) p2Panel {
 	errs, warns := p2Counts(entry.Problems)
 	return p2Panel{
 		File: file, Label: p2Label(file), Path: path, Saved: true, Both: both, Shadowed: shadowed,
-		Other:      p2Other(file),
-		OtherLabel: p2Label(p2Other(file)),
-		Name:       entry.Name,
-		Kind:       entry.Kind,
-		KindClass:  p2KindClass(entry.Kind),
-		Args:       entry.Args,
-		Env:        entry.Env,
-		ArgsJSON:   p2JSON(entry.Args),
-		EnvJSON:    p2JSON(p2EnvPairs(entry.Env)),
-		SavedName:  entry.Name,
-		SavedKind:  entry.Kind,
-		SavedArgs:  p2JSON(entry.Args),
-		SavedEnv:   p2JSON(p2EnvPairs(entry.Env)),
-		Hash:       hash,
-		Problems:   entry.Problems,
-		Err:        errs,
-		Warn:       warns,
-		Users:      users,
+		Other:       p2Other(file),
+		OtherLabel:  p2Label(p2Other(file)),
+		Name:        entry.Name,
+		Kind:        entry.Kind,
+		KindClass:   p2KindClass(entry.Kind),
+		Args:        entry.Args,
+		Env:         entry.Env,
+		ArgsJSON:    p2JSON(entry.Args),
+		EnvJSON:     p2JSON(p2EnvPairs(entry.Env)),
+		SavedName:   entry.Name,
+		SavedKind:   entry.Kind,
+		SavedArgs:   p2JSON(entry.Args),
+		SavedEnv:    p2JSON(p2EnvPairs(entry.Env)),
+		Hash:        hash,
+		Problems:    entry.Problems,
+		Err:         errs,
+		Warn:        warns,
+		Users:       users,
+		RenameUsers: renameUsers,
 	}
 }
 
@@ -199,7 +218,7 @@ func (s *Server) p2Yed(file p2File) p2Yed {
 	text := file.text
 	missing := !file.ok
 	if missing {
-		text = "version: 1\nprofiles:\n"
+		text = "version: 1\n"
 	}
 	_, problems := profile.ReadAll(text, s.cat.Display(file.path))
 	out := p2Yed{
@@ -235,7 +254,7 @@ func clamp(value, low, high int) int {
 }
 
 // p2AssignData builds the assign tab: the kind bar and one card per definition.
-func (s *Server) p2AssignData(data p2Data, project, shared p2File, defs []p2Def) p2Data {
+func (s *Server) p2AssignData(data p2Data, project, shared p2File, defs []p2Def, q url.Values) p2Data {
 	view := &p2Assign{Empty: len(defs) == 0}
 	counts := map[string]int{}
 	for _, def := range defs {
@@ -247,8 +266,18 @@ func (s *Server) p2AssignData(data p2Data, project, shared p2File, defs []p2Def)
 		}
 		view.Teams = append(view.Teams, team)
 	}
+	kindHi := q.Get("kind")
 	for _, kind := range p2KindList(counts) {
-		view.Kinds = append(view.Kinds, p2KindBar{Name: kind, Count: counts[kind], Grow: fmt.Sprintf("g%d", clamp(counts[kind], 1, 20)), KindClass: p2KindClass(kind)})
+		bar := p2KindBar{Name: kind, Count: counts[kind], Grow: fmt.Sprintf("g%d", clamp(counts[kind], 1, 20)), KindClass: p2KindClass(kind)}
+		bar.On = kindHi != "" && kind == kindHi
+		bar.Dim = kindHi != "" && !bar.On
+		view.Kinds = append(view.Kinds, bar)
+	}
+	for i := range view.Teams {
+		for j := range view.Teams[i].Rows {
+			row := &view.Teams[i].Rows[j]
+			row.Dim = kindHi != "" && row.KindOf != kindHi
+		}
 	}
 	data.Assign = view
 	return data

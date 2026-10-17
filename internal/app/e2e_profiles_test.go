@@ -76,6 +76,7 @@ func TestE2EProfiles(t *testing.T) {
 	t.Run("usage jumps", func(t *testing.T) { e2eProfilesUsage(t, ctx, base) })
 	t.Run("yaml", func(t *testing.T) { e2eProfilesYAML(t, ctx, base) })
 	t.Run("widths and lights", func(t *testing.T) { e2eProfilesWidths(t, ctx, base) })
+	t.Run("delete a used profile", func(t *testing.T) { e2eProfilesDeleteUsed(t, ctx, base) })
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -180,6 +181,7 @@ func e2eProfilesFile(t *testing.T, path, want string) {
 func e2eProfilesStructure(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"), chromedp.WaitReady("#rows .row"))
+	e2eProfilesWait(t, ctx, `document.fonts.check('14px "Zen Kaku Gothic New"') && document.fonts.check('13px "IBM Plex Mono"')`)
 	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('#tabs .tab').length`); got != 3 {
 		t.Errorf("the page has %d tabs, want 3", got)
 	}
@@ -254,6 +256,18 @@ func e2eProfilesOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('#rows .row[data-name="sonnet-fast"] .panel .field').length`); got != 8 {
 		t.Errorf("the two panels hold %d fields, want 4 each", got)
 	}
+	for _, name := range []string{"project", "global"} {
+		script := fmt.Sprintf(`document.querySelector('#rows .row[data-name="sonnet-fast"] .panel[data-file=%s] .path').textContent`, name)
+		if got := e2eProfilesValue(t, ctx, script); !strings.HasSuffix(got, "profiles.yaml") {
+			t.Errorf("the %s panel's head reads %q, want the file's path", name, got)
+		}
+	}
+	if got := e2eProfilesValue(t, ctx, `getComputedStyle(document.querySelector('.uchip')).color`); got != e2eProfilesValue(t, ctx, `getComputedStyle(document.body).color`) {
+		t.Errorf("the name on a person's chip is %q, want the body's ink", got)
+	}
+	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('.uchip .g').length`); got == 0 {
+		t.Errorf("a member's role on a chip is not the faint mono word")
+	}
 	var visible bool
 	e2eRun(t, ctx, chromedp.Evaluate(`(function(){var d=document.querySelector('#rows .row[data-name="sonnet-fast"] .detail');var r=d.getBoundingClientRect();return r.top < window.innerHeight && r.bottom > 0;})()`, &visible))
 	if !visible {
@@ -266,15 +280,18 @@ func e2eProfilesOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eProfilesValue(t, ctx, `window.location.search`); strings.Contains(got, "open=") {
 		t.Errorf("closing the row left %q in the URL", got)
 	}
-	// P4: a name that people use offers to write them too.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=opus-deep"), chromedp.WaitReady("#rows .row[data-name=opus-deep]"))
+	// R1: a name both files hold still counts the readers of the panel's own file.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=sonnet-fast"), chromedp.WaitReady("#rows .row[data-name=sonnet-fast]"))
 	e2eRun(t, ctx, chromedp.Evaluate(`(function(){
-		var input=document.querySelector('#rows .row[data-name=opus-deep] .panel[data-file=project] [data-f=name]');
-		input.value='opus-deep-2'; input.dispatchEvent(new Event('input',{bubbles:true}));
+		var input=document.querySelector('#rows .row[data-name=sonnet-fast] .panel[data-file=project] [data-f=name]');
+		input.value='sonnet-5.5'; input.dispatchEvent(new Event('input',{bubbles:true}));
 	})()`, nil))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name=opus-deep] .panel[data-file=project] .rename').hidden`)
-	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name=opus-deep] .panel[data-file=project] .rename span').textContent`); !strings.Contains(got, "使っている 2 人の指定も opus-deep-2 に書き換える") {
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name=sonnet-fast] .panel[data-file=project] .rename').hidden`)
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name=sonnet-fast] .panel[data-file=project] .rename span').textContent`); !strings.Contains(got, "使っている 3 人の指定も sonnet-5.5 に書き換える") {
 		t.Errorf("the rename hint reads %q", got)
+	}
+	if !e2eProfilesBool(t, ctx, `document.querySelector('#rows .row[data-name=sonnet-fast] .panel[data-file=project] .rename input').checked`) {
+		t.Errorf("the rename box is not ticked at first")
 	}
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"), chromedp.WaitReady("#rows .row"))
 
@@ -328,20 +345,32 @@ func e2eProfilesSave(t *testing.T, ctx context.Context, base string, f *fixture)
 	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]').disabled`)
 	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]`))
 	e2eProfilesFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "  fresh-one:\n    kind: gemini\n")
+
+	// R5: a rename moves the name in the URL's open= too.
+	e2eRun(t, ctx, chromedp.Evaluate(`(function(){
+		var input=document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-f=name]');
+		input.value='fresh-two'; input.dispatchEvent(new Event('input',{bubbles:true}));
+	})()`, nil))
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]').disabled`)
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]`))
+	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-two"]')`)
+	if got := e2eProfilesValue(t, ctx, `window.location.search`); !strings.Contains(got, "open=fresh-two") || strings.Contains(got, "fresh-one") {
+		t.Errorf("the URL after the rename reads %q", got)
+	}
 }
 
 // e2eProfilesCopy is P8・P9・P10: a profile is duplicated, copied to the other
 // file as a panel not yet written, and taken away with a second press.
 func e2eProfilesCopy(t *testing.T, ctx context.Context, base string, f *fixture) {
 	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=fresh-one"), chromedp.WaitReady("#rows .row[data-name=fresh-one]"))
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act="dup"]`))
-	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-one-2"]')`)
-	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name="fresh-one-2"] [data-f=name]').value`); got != "fresh-one-2" {
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=fresh-two"), chromedp.WaitReady("#rows .row[data-name=fresh-two]"))
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two"] .panel[data-file=project] [data-act="dup"]`))
+	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-two-2"]')`)
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name="fresh-two-2"] [data-f=name]').value`); got != "fresh-two-2" {
 		t.Errorf("the duplicate is named %q", got)
 	}
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one-2"] [data-act="discard"]`))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one-2"]')`)
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two-2"] [data-act="discard"]`))
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-two-2"]')`)
 
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=codex-high"), chromedp.WaitReady("#rows .row[data-name=codex-high]"))
 	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="codex-high"] .panel[data-file=project] [data-act="copy"]`))
@@ -353,18 +382,27 @@ func e2eProfilesCopy(t *testing.T, ctx context.Context, base string, f *fixture)
 	e2eProfilesWait(t, ctx, `document.querySelectorAll('#rows .row[data-name="codex-high"] .panel').length===1`)
 
 	// P10: the first press asks, the second writes; やめる keeps the row.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=fresh-one"), chromedp.WaitReady("#rows .row[data-name=fresh-one]"))
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act="del"]`))
-	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-one"] [data-act="del-yes"]')`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] [data-act="del-no"]`))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] [data-act="del-yes"]')`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act="del"]`))
-	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-one"] [data-act="del-yes"]')`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] [data-act="del-yes"]`))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"]')`)
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); strings.Contains(got, "fresh-one") {
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=fresh-two"), chromedp.WaitReady("#rows .row[data-name=fresh-two]"))
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two"] .panel[data-file=project] [data-act="del"]`))
+	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-two"] [data-act="del-yes"]')`)
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two"] [data-act="del-no"]`))
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-two"] [data-act="del-yes"]')`)
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two"] .panel[data-file=project] [data-act="del"]`))
+	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-two"] [data-act="del-yes"]')`)
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-two"] [data-act="del-yes"]`))
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-two"]')`)
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); strings.Contains(got, "fresh-two") {
 		t.Errorf("the deleted profile is still in the file:\n%s", got)
 	}
+
+	// R4: a copy into the project puts the project's panel first.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=opus-plan"), chromedp.WaitReady("#rows .row[data-name=opus-plan]"))
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="opus-plan"] .panel[data-file=global] [data-act="copy"]`))
+	e2eProfilesWait(t, ctx, `document.querySelectorAll('#rows .row[data-name="opus-plan"] .panel').length===2`)
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name="opus-plan"] .panel').dataset.file`); got != "project" {
+		t.Errorf("after a copy the left panel is %q, want the project's", got)
+	}
+
 }
 
 // e2eProfilesAssign is P12・P13・V2: one row is picked, the card's head and the
@@ -396,14 +434,43 @@ func e2eProfilesAssign(t *testing.T, ctx context.Context, base string, f *fixtur
 		t.Errorf("the pick was not written:\n%s", got)
 	}
 
-	// P13: a kind dims the rest.
+	// P13・R6: a kind dims the rest, and the address keeps the choice.
 	e2eRun(t, ctx, chromedp.Click(`.kseg[data-k="codex"]`))
 	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('.arow.dim').length`); got == 0 {
 		t.Errorf("picking a kind dims no row")
 	}
+	if got := e2eProfilesValue(t, ctx, `window.location.search`); got != "?kind=codex" {
+		t.Errorf("picking a kind left the address as %q", got)
+	}
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/assign?kind=codex"), chromedp.WaitReady(".team"))
+	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('.arow.dim').length`); got == 0 {
+		t.Errorf("the reloaded address does not keep the kind thinned")
+	}
 	e2eRun(t, ctx, chromedp.Click(`.kseg[data-k="codex"]`))
 	if got := e2eProfilesInt(t, ctx, `document.querySelectorAll('.arow.dim').length`); got != 0 {
 		t.Errorf("pressing the kind again left %d rows dim", got)
+	}
+}
+
+// e2eProfilesDeleteUsed is J1: a profile a team names goes after the second
+// press, and the assign tab then shows the people left naming nothing.
+func e2eProfilesDeleteUsed(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles?open=fable-review"), chromedp.WaitReady("#rows .row[data-name=fable-review]"))
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fable-review"] .panel[data-file=project] [data-act="del"]`))
+	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fable-review"] [data-act="del-yes"]')`)
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name="fable-review"] [data-act="del-yes"]').textContent`); got != "削除する（1 人が使っている）" {
+		t.Errorf("the confirm reads %q", got)
+	}
+	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fable-review"] [data-act="del-yes"]`))
+	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fable-review"]')`)
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/assign"), chromedp.WaitReady(".team"))
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('.team[data-g=core] .arow.missing .vm').textContent`); !strings.Contains(got, "members[4].profile: fable-review というプロファイルはありません") {
+		t.Errorf("the assign tab does not show the person left without a profile: %q", got)
+	}
+	if got := e2eProfilesValue(t, ctx, `document.querySelector('.team[data-g=core] .tside').textContent`); !strings.Contains(got, "問題 1") {
+		t.Errorf("the core card does not say 問題 1: %q", got)
 	}
 }
 

@@ -69,36 +69,38 @@ type p2UserChip struct {
 	Who    string
 	Role   string
 	Worker bool
+	Local  bool // the definition is the project's own, so it reads the project's file
 }
 
 // p2Panel is one file's panel of an expanded row: the values a save would write
 // and the values the file holds now.
 type p2Panel struct {
-	File       string
-	Label      string
-	Path       string
-	Saved      bool
-	Shadowed   bool
-	Both       bool
-	Other      string
-	OtherLabel string
-	Name       string
-	Kind       string
-	KindClass  string
-	Args       []string
-	Env        []profile.EnvPair
-	ArgsJSON   string
-	EnvJSON    string
-	SavedName  string
-	SavedKind  string
-	SavedArgs  string
-	SavedEnv   string
-	Hash       string
-	Users      int
-	Problems   []profile.Problem
-	Err        int
-	Warn       int
-	SavedLine  bool
+	File        string
+	Label       string
+	Path        string
+	Saved       bool
+	Shadowed    bool
+	Both        bool
+	Other       string
+	OtherLabel  string
+	Name        string
+	Kind        string
+	KindClass   string
+	Args        []string
+	Env         []profile.EnvPair
+	ArgsJSON    string
+	EnvJSON     string
+	SavedName   string
+	SavedKind   string
+	SavedArgs   string
+	SavedEnv    string
+	Hash        string
+	Users       int
+	RenameUsers int
+	Problems    []profile.Problem
+	Err         int
+	Warn        int
+	SavedLine   bool
 }
 
 // p2Row is one profile of the list.
@@ -127,6 +129,7 @@ type p2KindBar struct {
 	Grow      string
 	KindClass string
 	Dim       bool
+	On        bool
 }
 
 // p2Assign is the assign tab.
@@ -160,6 +163,7 @@ type p2ARow struct {
 	Options []p2OptionGroup
 	KindOf  string
 	KindCls string
+	Dim     bool
 }
 
 // p2OptionGroup is one kind's choices of a select.
@@ -248,7 +252,7 @@ func (s *Server) p2Read() (p2File, p2File, []p2Def) {
 // its hash is the hash of the empty text, which is what a save that makes the
 // file carries.
 func (s *Server) p2ReadFile(file, path string) p2File {
-	out := p2File{file: file, label: p2Label(file), path: path, hash: source.Hash("")}
+	out := p2File{file: file, label: p2Label(file), path: path, display: s.cat.Display(path), hash: source.Hash("")}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
 		_ = err
@@ -257,7 +261,7 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 	out.ok = true
 	out.text = text
 	out.hash = source.Hash(text)
-	out.entries, out.problems = profile.ReadAll(text, s.cat.Display(path))
+	out.entries, out.problems = profile.ReadAll(text, out.display)
 	return out
 }
 
@@ -325,7 +329,7 @@ func p2Chips(defs []p2Def) map[string][]p2UserChip {
 				continue
 			}
 			out[member.Profile] = append(out[member.Profile], p2UserChip{
-				Def: def.name, ID: fmt.Sprintf("m-%d", i), Who: member.Name, Role: member.Role,
+				Def: def.name, ID: fmt.Sprintf("m-%d", i), Who: member.Name, Role: member.Role, Local: def.local,
 			})
 		}
 		for i, worker := range def.workers {
@@ -333,7 +337,7 @@ func p2Chips(defs []p2Def) map[string][]p2UserChip {
 				continue
 			}
 			out[worker.Profile] = append(out[worker.Profile], p2UserChip{
-				Def: def.name, ID: fmt.Sprintf("w-%d", i), Who: worker.From, Role: worker.Purpose, Worker: true,
+				Def: def.name, ID: fmt.Sprintf("w-%d", i), Who: worker.From, Role: worker.Purpose, Worker: true, Local: def.local,
 			})
 		}
 	}
