@@ -32,23 +32,54 @@ func TestNewPlaceInsideTheProject(t *testing.T) {
 // hergy makes goes into the global layer (C13, K2).
 func TestNewPlaceOutsideTheProject(t *testing.T) {
 	l := newLayers(t)
-	for _, cat := range []*Catalog{l.catalog().InRepo(false), l.catalog()} {
-		if got, want := cat.NewPlace(NewTeam, "t"), filepath.Join(l.global, "teams", "t"); got != want {
-			t.Errorf("NewPlace(NewTeam, t) = %q, want %q", got, want)
+	cat := l.catalog().InRepo(false)
+	if got, want := cat.NewPlace(NewTeam, "t"), filepath.Join(l.global, "teams", "t"); got != want {
+		t.Errorf("NewPlace(NewTeam, t) = %q, want %q", got, want)
+	}
+	if got, want := cat.NewPlace(NewRole, "watcher"), filepath.Join(l.global, "roles", "watcher.yaml"); got != want {
+		t.Errorf("NewPlace(NewRole, watcher) = %q, want %q", got, want)
+	}
+	if got, want := cat.NewPlace(NewProfile, "builder"), filepath.Join(l.global, "profiles.yaml"); got != want {
+		t.Errorf("NewPlace(NewProfile, builder) = %q, want %q", got, want)
+	}
+}
+
+// TestNewPlaceWithoutInRepoAnswersNothing: a catalog nobody told whether the
+// project is a repository answers no place, rather than writing outside the
+// project by default (spec/38 T3).
+func TestNewPlaceWithoutInRepoAnswersNothing(t *testing.T) {
+	cat := newLayers(t).catalog()
+	for _, kind := range []string{NewTeam, NewRole, NewProfile, "something-else"} {
+		if got := cat.NewPlace(kind, "x"); got != "" {
+			t.Errorf("NewPlace(%q, x) = %q, want none", kind, got)
 		}
-		if got, want := cat.NewPlace(NewRole, "watcher"), filepath.Join(l.global, "roles", "watcher.yaml"); got != want {
-			t.Errorf("NewPlace(NewRole, watcher) = %q, want %q", got, want)
-		}
-		if got, want := cat.NewPlace(NewProfile, "builder"), filepath.Join(l.global, "profiles.yaml"); got != want {
-			t.Errorf("NewPlace(NewProfile, builder) = %q, want %q", got, want)
-		}
+	}
+}
+
+// TestInRepoLeavesTheCatalogItWasCalledOn: InRepo answers a copy, so a catalog
+// that was built once is not quietly told a fact by another caller (spec/38 T3).
+func TestInRepoLeavesTheCatalogItWasCalledOn(t *testing.T) {
+	l := newLayers(t)
+	was := l.catalog()
+	inside := was.InRepo(true)
+	if got := was.NewPlace(NewTeam, "t"); got != "" {
+		t.Errorf("the catalog InRepo was called on answers %q, want none", got)
+	}
+	if got, want := inside.NewPlace(NewTeam, "t"), filepath.Join(l.local, "teams", "t"); got != want {
+		t.Errorf("the catalog InRepo answered = %q, want %q", got, want)
+	}
+	if got, want := was.InRepo(false).NewPlace(NewTeam, "t"), filepath.Join(l.global, "teams", "t"); got != want {
+		t.Errorf("InRepo(false) = %q, want %q", got, want)
+	}
+	if got := was.NewPlace(NewTeam, "t"); got != "" {
+		t.Errorf("the catalog InRepo was called on answers %q, want none", got)
 	}
 }
 
 // TestNewPlaceOfAnUnknownKind answers nothing: a thing hergy does not make has
 // no place (C13).
 func TestNewPlaceOfAnUnknownKind(t *testing.T) {
-	if got := newLayers(t).catalog().NewPlace("something-else", "x"); got != "" {
+	if got := newLayers(t).catalog().InRepo(true).NewPlace("something-else", "x"); got != "" {
 		t.Errorf("NewPlace of an unknown kind = %q, want none", got)
 	}
 }

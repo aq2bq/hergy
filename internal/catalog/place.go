@@ -27,9 +27,14 @@ const (
 // profile write in the same place. What it returns is the thing itself: the
 // definition's directory, the role document's file, the profiles.yaml.
 //
-// A kind it does not know answers "": the caller asked for a thing hergy does
-// not make, and a path that stands for nothing would be worse than none.
+// A kind it does not know answers "", and so does a catalog that was never told
+// whether the project is a repository (InRepo): the caller asked for a thing
+// hergy does not make, or the catalog cannot know where it goes, and to write
+// outside the project by default would be worse than no answer (spec/38 T3).
 func (c *Catalog) NewPlace(kind, name string) string {
+	if !c.inRepoKnown {
+		return ""
+	}
 	dir := c.LayerDir(c.newLayer())
 	switch kind {
 	case NewTeam:

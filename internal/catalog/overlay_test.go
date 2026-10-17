@@ -57,9 +57,9 @@ func TestWithReadsAProfilesYAMLThatIsNotThere(t *testing.T) {
 	}
 }
 
-// TestWithOverlaysOneFileOnly: the overlay is one file. Everything else reads
-// from disk (C3b).
-func TestWithOverlaysOneFileOnly(t *testing.T) {
+// TestWithLeavesOtherPathsToDisk: a text stands in for one path. Everything else
+// reads from disk (C3b).
+func TestWithLeavesOtherPathsToDisk(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "before")
 	l.writeFullTeam(t, source.LayerGlobal, "other", "the other mission")

@@ -33,14 +33,16 @@ type Catalog struct {
 	// inRepo says the project root is a git repository, which is what tells
 	// NewPlace where something new goes (K2). It is the environment's fact
 	// (team.Env), not something a path can be read back from, so the catalog is
-	// told once, when it is built.
-	inRepo bool
-	// overlayPath and overlayText are one file the catalog reads as something
-	// else (C3b): the path and the text that stands in for what is on disk. A
-	// screen reads its own edit through With, so a text it has not written yet
-	// reads back. The zero value reads every file from disk.
-	overlayPath string
-	overlayText string
+	// told once, when it is built. inRepoKnown says whether it was told at all:
+	// a catalog nobody told answers no place, rather than writing outside the
+	// project by default (spec/38 T3).
+	inRepo      bool
+	inRepoKnown bool
+	// overlays are the files the catalog reads as something else (C3b): the
+	// path and the text that stands in for what is on disk. A screen reads its
+	// own edit through With, so a text it has not written yet reads back. The
+	// zero value reads every file from disk.
+	overlays map[string]string
 }
 
 // New builds a catalog over the two layer directories and the project root.
@@ -54,87 +56,103 @@ func New(globalDir, localDir, base string, reader source.Reader, display func(st
 	}
 }
 
-// InRepo tells the catalog that the project root is a git repository, which is
-// the fact K2 reads: something new goes into the project's own layer inside one,
-// and into the global layer outside one. It returns the catalog, so an
-// environment can hand it over as it is built (team.Env.Catalog).
+// InRepo returns a catalog that knows whether the project root is a git
+// repository, which is the fact K2 reads: something new goes into the project's
+// own layer inside one, and into the global layer outside one (team.Env.Catalog
+// hands it the environment's answer). The receiver is left as it was; NewPlace
+// answers nothing until a catalog has been told.
 func (c *Catalog) InRepo(inRepo bool) *Catalog {
-	c.inRepo = inRepo
-	return c
+	out := *c
+	out.inRepo = inRepo
+	out.inRepoKnown = true
+	return &out
 }
 
-// With returns a catalog that reads one file as text, whatever is on disk: it is
+// With returns a catalog that reads files as texts, whatever is on disk: it is
 // how a screen reads a change it has not written yet, whether the file is a
-// team.yaml, an agreement, a role document or a profiles.yaml (C3b). The file at
+// team.yaml, an agreement, a role document or a profiles.yaml (C3b). A file at
 // any other path reads from disk, and a file that is not there yet reads as the
 // text, exactly as the profiles edit did (ProfilesEdit).
 //
-// One file at a time is overlaid: another call replaces the first, which is all
-// a screen's single edit needs.
+// Calls add up: a screen that is checking two files at once (a definition's
+// role changed, and the new role's document) overlays both, and both read back.
+// Overlaying the same path twice takes the later text. The receiver is left as
+// it was; the returned catalog carries the texts.
 func (c *Catalog) With(path, text string) *Catalog {
 	out := *c
-	out.overlayPath = path
-	out.overlayText = text
-	out.reader = overlayReader{base: c.reader, path: path, text: text}
+	out.overlays = make(map[string]string, len(c.overlays)+1)
+	maps.Copy(out.overlays, c.overlays)
+	out.overlays[filepath.Clean(path)] = text
+	out.reader = overlayReader{base: c.reader, overlays: out.overlays}
 	return &out
 }
 
 // Reader is the reader the catalog reads through: the disk, or, after With, the
-// disk with one file's text laid over it (C3b). A caller that reads a rule
-// document's text to check an edit hands this to whatever reads it (the
-// prompt.Run.Reader of a preview, the check), so the text that is read is the
-// text the screen is editing.
+// disk with the texts the catalog carries laid over it (C3b). A caller that
+// reads a rule document's text to check an edit hands this to whatever reads it
+// (the prompt.Run.Reader of a preview, the check), so the text that is read is
+// the text the screen is editing.
 func (c *Catalog) Reader() source.Reader { return c.reader }
 
-// overlayReader is a reader with one Doc answered by a text rather than by disk
-// (C3b): the file the screen is editing.
+// readThrough is the text an overlay carries for a path, if one does.
+func (c *Catalog) readThrough(path string) (string, bool) {
+	text, ok := c.overlays[filepath.Clean(path)]
+	return text, ok
+}
+
+// overlayReader is a reader with the files a catalog carries answered by their
+// texts rather than by disk (C3b): the files the screen is editing.
 type overlayReader struct {
-	base source.Reader
-	path string
-	text string
+	base     source.Reader
+	overlays map[string]string
+}
+
+func (r overlayReader) text(path string) (string, bool) {
+	text, ok := r.overlays[filepath.Clean(path)]
+	return text, ok
 }
 
 func (r overlayReader) Read(d source.Doc) (string, error) {
-	if d.Path == r.path {
-		return r.text, nil
+	if text, ok := r.text(d.Path); ok {
+		return text, nil
 	}
 	return r.base.Read(d)
 }
 
 func (r overlayReader) IsFile(d source.Doc) bool {
-	if d.Path == r.path {
+	if _, ok := r.text(d.Path); ok {
 		return true
 	}
 	return r.base.IsFile(d)
 }
 
 func (r overlayReader) IsDir(d source.Doc) bool {
-	if d.Path == r.path {
+	if _, ok := r.text(d.Path); ok {
 		return false
 	}
 	return r.base.IsDir(d)
 }
 
 func (r overlayReader) YAMLIn(d source.Doc) ([]source.Doc, error) {
-	if d.Path == r.path {
+	if _, ok := r.text(d.Path); ok {
 		return nil, nil
 	}
 	return r.base.YAMLIn(d)
 }
 
 func (r overlayReader) MarkdownIn(d source.Doc) ([]source.Doc, error) {
-	if d.Path == r.path {
+	if _, ok := r.text(d.Path); ok {
 		return nil, nil
 	}
 	return r.base.MarkdownIn(d)
 }
 
-// readText reads one settings file, answering the overlay's text when it stands
-// in for this path (C3b). A file that is not there is an error, as it is for a
-// read from disk.
+// readText reads one settings file, answering a carried text when there is one
+// for this path (C3b). A file that is not there is an error, as it is for a read
+// from disk.
 func (c *Catalog) readText(path string) (string, error) {
-	if c.overlayPath == path {
-		return c.overlayText, nil
+	if text, ok := c.readThrough(path); ok {
+		return text, nil
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -143,10 +161,13 @@ func (c *Catalog) readText(path string) (string, error) {
 	return string(b), nil
 }
 
-// hasFile reports whether a settings file is there to read: on disk, or as the
-// overlay standing in for it (C3b).
+// hasFile reports whether a settings file is there to read: on disk, or as a
+// carried text standing in for it (C3b).
 func (c *Catalog) hasFile(path string) bool {
-	return c.overlayPath == path || isFile(path)
+	if _, ok := c.readThrough(path); ok {
+		return true
+	}
+	return isFile(path)
 }
 
 // ErrNotFound says a team definition name has none: in the layer asked for, or
@@ -452,12 +473,12 @@ func (c *Catalog) ProfilesEdit(edit ProfilesEdit) (map[string]profile.Profile, s
 	return c.With(edit.Path, edit.Text).Profiles()
 }
 
-// fileText is one settings file's text: the overlay's when it stands in for the
-// path (C3b), the file's when it is there, and ok=false when there is nothing to
-// read.
+// fileText is one settings file's text: the carried text's when there is one for
+// the path (C3b), the file's when it is there, and ok=false when there is
+// nothing to read.
 func (c *Catalog) fileText(path string) (text string, ok bool, err error) {
-	if c.overlayPath == path {
-		return c.overlayText, true, nil
+	if text, carried := c.readThrough(path); carried {
+		return text, true, nil
 	}
 	if !isFile(path) {
 		return "", false, nil
