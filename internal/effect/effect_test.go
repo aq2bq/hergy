@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -151,7 +150,8 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 
 	changes := effect.Of(l.view(t, before), l.view(t, after))
 	want := []effect.Change{{
-		Member: "lead",
+		Member:     "lead",
+		Definition: "demo",
 		Parts: []effect.PartChange{{
 			Part:    effect.Turns,
 			Removed: []effect.Named{{Name: "spec", Role: "spec"}},
@@ -207,7 +207,7 @@ func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 	after := l.read(t, string(edited))
 
 	changes := effect.Of(l.view(t, before), l.view(t, after))
-	want := []effect.Change{{Member: "lead", Parts: []effect.PartChange{{Part: effect.Launch}}}}
+	want := []effect.Change{{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Launch}}}}
 	if !reflect.DeepEqual(changes, want) {
 		t.Fatalf("Of = %+v, want %+v", changes, want)
 	}
@@ -277,7 +277,7 @@ func TestPreviewNamesThePartyTheWorkerAndThePart(t *testing.T) {
 			changes: []effect.Change{{Member: "lead", Parts: []effect.PartChange{{
 				Part: effect.Turns, Added: []effect.Named{{}},
 			}}}},
-			want: []string{"lead のプロンプトの『ターンを渡す相手』に 人間 が入ります"},
+			want: []string{"lead のプロンプトの『ターンを渡す相手』に人間が入ります"},
 		},
 		{
 			name: "a worker leaves",
@@ -313,12 +313,12 @@ func TestHandoverSaysWhatToDoPerRunningTeam(t *testing.T) {
 		},
 		{
 			name:    "a turn moves",
-			changes: turnChange("lead"),
+			changes: turnChange(),
 			want:    "hergy reprompt lead --team demo",
 		},
 		{
 			name:    "a worker moves",
-			changes: workerChange("spec"),
+			changes: workerChange(),
 			want:    "hergy reprompt spec --team demo",
 		},
 		{
@@ -350,65 +350,181 @@ func TestHandoverSaysWhatToDoPerRunningTeam(t *testing.T) {
 // TestHandoverWithoutARunningTeam: no running team gives the line that says the
 // next hergy up uses the change.
 func TestHandoverWithoutARunningTeam(t *testing.T) {
-	got := effect.Handover(turnChange("lead"), nil)
+	got := effect.Handover(turnChange(), nil)
 	want := "動いているチームはありません。次の hergy up から使われます"
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("Handover = %q, want [%q]", got, want)
 	}
 }
 
-// commandPattern is a hergy command as the handover lines write one: the word
-// hergy, then ASCII words, up to the Japanese note after it.
-var commandPattern = regexp.MustCompile(`hergy(?: [\x21-\x7e]+)+`)
-
-// TestHandoverCommandsAreRealCommands: every command a handover line prints is
-// taken apart by the real command definitions (internal/options), so a line that
-// drifts from hergy's own command line fails here (d-a8b1 追加の決め 5).
+// TestHandoverCommandsAreRealCommands: every command a handover holds is taken
+// apart by the real command definitions (internal/options), so a command that
+// drifts from hergy's own command line fails here (d-a8b1 追加の決め 5). The
+// commands come from Commands, which is what a copy button is given: the note
+// after a command is not part of it.
 func TestHandoverCommandsAreRealCommands(t *testing.T) {
 	running := []effect.Running{{Team: "demo", Definition: "demo"}}
 	changesList := [][]effect.Change{
-		turnChange("lead"),
-		workerChange("spec"),
+		turnChange(),
+		workerChange(),
 		rosterChange("spec"),
 		launchChange("lead"),
 		envChange("lead"),
+		append(launchChange("lead"), rosterChange("spec")...),
 	}
 	for _, changes := range changesList {
-		for _, line := range effect.Handover(changes, running) {
-			commands := commandPattern.FindAllString(line, -1)
-			if len(commands) == 0 {
-				t.Errorf("no command in %q", line)
+		for _, team := range effect.Commands(changes, running) {
+			if len(team.Commands) == 0 {
+				t.Errorf("no command for %s", team.Team)
 			}
-			for _, command := range commands {
-				argv := strings.Fields(command)[1:] // drop the word hergy
+			for _, command := range team.Commands {
+				argv := strings.Fields(command.Line)[1:] // drop the word hergy
 				if _, err := options.Parse(argv); err != nil {
-					t.Errorf("the command %q in %q does not parse: %v", command, line, err)
+					t.Errorf("the command %q does not parse: %v", command.Line, err)
 				}
 			}
 		}
 	}
 }
 
-func turnChange(member string) []effect.Change {
-	return []effect.Change{{Member: member, Parts: []effect.PartChange{{
+// TestCommandsGiveTheCommandAndItsNoteApart: the note after a command is not
+// part of the command, so a screen can copy the command alone (N4).
+func TestCommandsGiveTheCommandAndItsNoteApart(t *testing.T) {
+	got := effect.Commands(launchChange("lead"), []effect.Running{{Team: "demo", Definition: "demo"}})
+	want := []effect.TeamCommands{{Team: "demo", Commands: []effect.Command{
+		{Line: "hergy refresh lead --team demo", Note: "会話は消えます"},
+	}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Commands = %+v, want %+v", got, want)
+	}
+	got = effect.Commands(envChange("lead"), []effect.Running{{Team: "demo", Definition: "demo"}})
+	want = []effect.TeamCommands{{Team: "demo", Commands: []effect.Command{
+		{Line: "hergy down demo"},
+		{Line: "hergy up demo --as demo"},
+	}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Commands = %+v, want %+v", got, want)
+	}
+}
+
+// TestOfLeavesOutAPartTheBuiltPromptDoesNotShow is N1: a definition whose
+// prompt: writes no %{turns} reads the same text after a turn leaves, so Of
+// does not say lead's turns moved, "保存すると" says nothing moves, and 渡し方 says
+// there is nothing to hand over.
+func TestOfLeavesOutAPartTheBuiltPromptDoesNotShow(t *testing.T) {
+	l := newLayer(t)
+	text := strings.Replace(teamText(), "team: demo\n", "team: demo\nprompt: \"%{role_doc}%{docs}\"\n", 1)
+	before := l.read(t, text)
+	edited, err := definition.EditYAML([]byte(text), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := l.read(t, string(edited))
+
+	changes := effect.Of(l.view(t, before), l.view(t, after))
+	if len(changes) != 0 {
+		t.Fatalf("Of = %+v, want no change (the prompt text does not move)", changes)
+	}
+	preview := effect.Preview(changes)
+	if len(preview) != 1 || preview[0] != "どのメンバーのプロンプトも変わりません" {
+		t.Errorf("Preview = %q, want the one line that says nothing moves", preview)
+	}
+	running := []effect.Running{{Team: "demo", Definition: "demo"}}
+	handover := effect.Handover(changes, running)
+	if len(handover) != 1 || handover[0] != "動いているチームに渡すものはありません" {
+		t.Errorf("Handover = %q, want the one line that says nothing is handed over", handover)
+	}
+}
+
+// TestHandoverUsesOnlyTheChangesOfTheTeamsOwnDefinition is N2: a change to
+// another definition's team.yaml is not a team's to take up.
+func TestHandoverUsesOnlyTheChangesOfTheTeamsOwnDefinition(t *testing.T) {
+	changes := turnChange()
+	running := []effect.Running{
+		{Team: "demo", Definition: "demo"},
+		{Team: "other", Definition: "zzz"},
+	}
+	want := []string{
+		"hergy reprompt lead --team demo",
+		"動いているチームに渡すものはありません",
+	}
+	if got := effect.Handover(changes, running); !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+}
+
+// TestHandoverDoesNotAlsoRefreshWhenEnvMoves is N3: a down and up starts every
+// member afresh, so nothing is put beside it.
+func TestHandoverDoesNotAlsoRefreshWhenEnvMoves(t *testing.T) {
+	changes := []effect.Change{{Member: "lead", Definition: "demo", Parts: []effect.PartChange{
+		{Part: effect.Launch},
+		{Part: effect.Env},
+	}}}
+	running := []effect.Running{{Team: "x2", Definition: "demo"}}
+	got := effect.Handover(changes, running)
+	want := []string{"hergy down x2 のあと、hergy up demo --as x2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+}
+
+// TestHandoverRefreshesFirstAndDoesNotRepromptARefreshedMember is T3: a member
+// that is refreshed gets its bootstrap prompt again, so it is not also
+// reprompted, and the refresh comes first.
+func TestHandoverRefreshesFirstAndDoesNotRepromptARefreshedMember(t *testing.T) {
+	changes := []effect.Change{{Member: "lead", Definition: "demo", Parts: []effect.PartChange{
+		{Part: effect.Turns, Removed: []effect.Named{{Name: "peer", Role: "peer"}}},
+		{Part: effect.Launch},
+	}}}
+	running := []effect.Running{{Team: "demo", Definition: "demo"}}
+	got := effect.Handover(changes, running)
+	want := []string{"hergy refresh lead --team demo（会話は消えます）"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+
+	both := append(launchChange("spec"), rosterChange("lead")...)
+	got = effect.Handover(both, running)
+	want = []string{"hergy refresh spec --team demo（会話は消えます）、hergy reprompt --all --team demo"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+}
+
+// TestPreviewSaysTheRosterMovedForEveryoneInOneLine is T1: when the roster
+// moves it moves for every member, so one line says so.
+func TestPreviewSaysTheRosterMovedForEveryoneInOneLine(t *testing.T) {
+	changes := []effect.Change{
+		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}}},
+		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.RoleDocument}, {Part: effect.Roster}}},
+	}
+	want := []string{"全員のプロンプトの『名簿』が変わります", "spec のプロンプトの『ロールの文書』が変わります"}
+	got := effect.Preview(changes)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Preview = %q, want %q", got, want)
+	}
+}
+
+func turnChange() []effect.Change {
+	return []effect.Change{{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{
 		Part: effect.Turns, Removed: []effect.Named{{Name: "peer", Role: "peer"}},
 	}}}}
 }
 
-func workerChange(member string) []effect.Change {
-	return []effect.Change{{Member: member, Parts: []effect.PartChange{{
+func workerChange() []effect.Change {
+	return []effect.Change{{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{
 		Part: effect.Workers, Removed: []effect.Named{{Name: "試作"}},
 	}}}}
 }
 
 func rosterChange(member string) []effect.Change {
-	return []effect.Change{{Member: member, Parts: []effect.PartChange{{Part: effect.Roster}}}}
+	return []effect.Change{{Member: member, Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}}}}
 }
 
 func launchChange(member string) []effect.Change {
-	return []effect.Change{{Member: member, Parts: []effect.PartChange{{Part: effect.Launch}}}}
+	return []effect.Change{{Member: member, Definition: "demo", Parts: []effect.PartChange{{Part: effect.Launch}}}}
 }
 
 func envChange(member string) []effect.Change {
-	return []effect.Change{{Member: member, Parts: []effect.PartChange{{Part: effect.Env}}}}
+	return []effect.Change{{Member: member, Definition: "demo", Parts: []effect.PartChange{{Part: effect.Env}}}}
 }

@@ -1,0 +1,32 @@
+# 手で書いた team.yaml。空行・4 字下げ・そろえた行末のコメント
+---
+version: 1
+
+mission: "いまの使命" # 使命は 1 行
+
+members:
+    # 進行を見る lead
+    - name: lead
+      role: "lead" # ロールは引用してある
+      profile: planner
+
+    # 仕様を書く spec
+    - name: spec
+      role: spec
+      profile: reviewer
+
+# 誰が誰に渡すか
+turns:
+    - human -> lead
+    - spec -> lead
+    - lead -> human
+
+# 呼べるワーカー
+workers:
+    - from: lead
+      purpose: 実装
+      profile: coder
+
+    - from: spec
+      purpose: 調査
+      profile: reader

@@ -63,10 +63,13 @@ type PartChange struct {
 	Changed []Named
 }
 
-// Change is one member whose prompt a definition change moves.
+// Change is one member whose prompt a definition change moves, and the
+// definition it belongs to: a change to one definition's team.yaml is only that
+// definition's teams' to take up (I16).
 type Change struct {
-	Member string
-	Parts  []PartChange
+	Member     string
+	Definition string
+	Parts      []PartChange
 }
 
 // View is one read state of a definition, as the effects are read from it: the
@@ -82,11 +85,14 @@ type View struct {
 // Of is what an edit does to the members' prompts: for each member whose prompt
 // moves, which parts move and what left or came in (I13, I16).
 //
-// The parts the prompt itself is made of come from prompt's own view of the
-// graph (prompt.Member for the documents, prompt.TurnsOf, prompt.WorkersOf and
+// The parts are read from the prompts the member would be given, before and
+// after (prompt.Member for the documents, prompt.TurnsOf, prompt.WorkersOf and
 // prompt.RosterOf for the rest), and the launch and env parts come from the
-// profile the member names. A member that reads the same on both sides has no
-// Change, so a screen shows nothing for it.
+// profile the member names. When the two prompts read the same text, the parts
+// that live in that text (the turns, the workers, the roster) are left out: a
+// definition that writes no %{turns} does not move the text when a turn moves,
+// so a screen should say nothing (C4). A member that reads the same on both
+// sides has no Change.
 func Of(before, after View) []Change {
 	team := before.Run.Team
 	if team == "" {
@@ -106,8 +112,10 @@ func Of(before, after View) []Change {
 			// roster part still says the roster moved.
 			continue
 		}
+		bb, bErr := prompt.Member(before.Def, &bm, before.Run)
+		ab, aErr := prompt.Member(after.Def, &am, after.Run)
 		var parts []PartChange
-		parts = append(parts, documentParts(before, after, bm, am)...)
+		parts = append(parts, documentParts(bb, bErr, ab, aErr, bm, am)...)
 		if p := diffTurns(prompt.TurnsOf(before.Def, bm.Name, team), prompt.TurnsOf(after.Def, am.Name, team), team); p != nil {
 			parts = append(parts, *p)
 		}
@@ -118,20 +126,36 @@ func Of(before, after View) []Change {
 			parts = append(parts, PartChange{Part: Roster})
 		}
 		parts = append(parts, profileParts(before, after, bm, am)...)
+		if bErr == nil && aErr == nil && bb.Text == ab.Text {
+			parts = promptPartsOnly(parts)
+		}
 		if len(parts) > 0 {
-			changes = append(changes, Change{Member: bm.Name, Parts: parts})
+			changes = append(changes, Change{Member: bm.Name, Definition: before.Def.Name, Parts: parts})
 		}
 	}
 	return changes
 }
 
+// promptPartsOnly is the parts that stay when the two prompts read the same
+// text: the ones that do not live in the text. A launch or an env reaches a
+// pane, not the sentences, so it is reported either way.
+func promptPartsOnly(parts []PartChange) []PartChange {
+	out := parts[:0:0]
+	for _, part := range parts {
+		switch part.Part {
+		case Turns, Workers, Roster:
+		default:
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 // documentParts is the role document and the agreements a member's prompt reads,
 // from prompt.Member's build of that prompt. A prompt that does not build (a
 // document is missing) still compares the role, so a role change is not lost.
-func documentParts(before, after View, bm, am definition.MemberNode) []PartChange {
+func documentParts(bb *prompt.Built, bErr error, ab *prompt.Built, aErr error, bm, am definition.MemberNode) []PartChange {
 	var parts []PartChange
-	bb, bErr := prompt.Member(before.Def, &bm, before.Run)
-	ab, aErr := prompt.Member(after.Def, &am, after.Run)
 	if bErr == nil && aErr == nil {
 		if bb.HasRole != ab.HasRole || bb.Role != ab.Role {
 			parts = append(parts, PartChange{Part: RoleDocument})

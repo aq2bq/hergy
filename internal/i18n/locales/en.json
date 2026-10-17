@@ -622,8 +622,7 @@
   "error.edit_no_member": "team.yaml's members: has no %s",
   "error.edit_turn_twice": "team.yaml's turns: already holds %s",
   "error.edit_no_turn": "team.yaml's turns: has no %s",
-  "error.edit_turn_end": "turns: names %s, which is neither a member nor the human",
-  "error.edit_worker_from": "workers: from: %s is not a member",
+  "error.edit_shape": "team.yaml's %s cannot be rewritten on this screen. Edit the file itself",
   "error.edit_worker_twice": "team.yaml's workers: already holds %s (from: %s)",
   "error.edit_no_worker": "team.yaml's workers: has no %s (from: %s)",
   "error.edit_unknown_op": "unknown edit to team.yaml",
@@ -636,6 +635,7 @@
   "effect.preview.worker_added": "%[1]s's prompt offers the worker %[2]s",
   "effect.preview.worker_profile": "%[1]s's prompt hires the worker %[2]s with a different profile",
   "effect.preview.roster": "%s's prompt's roster changes",
+  "effect.preview.roster_all": "Every member's prompt's roster changes",
   "effect.preview.role_document": "%s reads a different role document",
   "effect.preview.agreements": "%s's prompt's agreements change",
   "effect.preview.launch": "%s is started a different way (the conversation is lost)",
@@ -644,6 +644,10 @@
   "effect.handover.nothing": "A running team takes nothing up",
   "effect.handover.reprompt_all": "hergy reprompt --all --team %s",
   "effect.handover.reprompt_member": "hergy reprompt %s --team %s",
-  "effect.handover.refresh_member": "hergy refresh %s --team %s (the conversation is lost)",
-  "effect.handover.down_up": "hergy down %s, then hergy up %s --as %s"
+  "effect.handover.refresh_member": "hergy refresh %s --team %s",
+  "effect.handover.refresh_note": "the conversation is lost",
+  "effect.handover.down": "hergy down %s",
+  "effect.handover.up": "hergy up %s --as %s",
+  "effect.handover.after": ", then ",
+  "effect.handover.note": " (%s)"
 }
