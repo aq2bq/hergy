@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -19,19 +20,28 @@ func (s *Server) definition(r *http.Request) (view, error) {
 	return s.definitionPage(r.PathValue("name"), nil)
 }
 
-// definitionPage draws the detail, with one field open when open says so.
+// definitionPage draws the detail, with one field open when open names one. A
+// field URL that names something the definition does not hold is a 404: the
+// page says so in the field's place, rather than opening nothing (N2).
 func (s *Server) definitionPage(name string, open panelFn) (view, error) {
 	def, err := s.readDefinition(name)
 	if err != nil {
 		return s.brokenDefinition(name, err)
 	}
 	data := s.definitionData(def, open)
-	return s.renderDefinition(data)
+	v, err := s.renderDefinition(data)
+	if err != nil {
+		return v, err
+	}
+	if data.Panel.Missing {
+		v.status = http.StatusNotFound
+	}
+	return v, nil
 }
 
-// panelFn fills the open field of one definition, and whether the field's own
-// URL named something this definition holds.
-type panelFn func(*definition.Definition) (panel, bool)
+// panelFn fills the open field of one definition. A field the definition does
+// not hold comes back with Missing set, so the page can be a 404 (N2).
+type panelFn func(*definition.Definition) panel
 
 // definitionData fills the detail's data from a definition that read.
 func (s *Server) definitionData(def *definition.Definition, open panelFn) definitionData {
@@ -55,11 +65,9 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 	data.Unused = s.unusedFor(def.Name)
 	openKey := ""
 	if open != nil {
-		if field, ok := open(def); ok {
-			data.Panel = field
-			data.PanelOpen = true
-			openKey = field.Key
-		}
+		data.Panel = open(def)
+		data.PanelOpen = true
+		openKey = data.Panel.Key
 	}
 	data.Figure = s.figure(def, nil, openKey)
 	return data
@@ -71,8 +79,17 @@ func (s *Server) renderDefinition(data definitionData) (view, error) {
 	if err != nil {
 		return view{}, err
 	}
-	crumb := []crumb{{Name: t("web.band.definitions"), Href: "/definitions"}, {Name: data.Name}}
-	return view{title: tf("web.definition.title", data.Name), band: bandDefinitions, crumb: crumb, body: body}, nil
+	trail := []crumb{
+		{Name: t("web.band.definitions"), Href: "/definitions"},
+		{Name: data.Name, Href: definitionPath(data.Name)},
+	}
+	if data.PanelOpen && data.Panel.Crumb != "" && !data.Panel.Missing {
+		// The trail names the open field, and the step before it closes it (N3).
+		trail = append(trail, crumb{Name: data.Panel.Crumb})
+	} else {
+		trail[len(trail)-1].Href = ""
+	}
+	return view{title: tf("web.definition.title", data.Name), band: bandDefinitions, crumb: trail, body: body}, nil
 }
 
 // brokenDefinition is the detail of a definition that cannot be read: the
@@ -86,7 +103,9 @@ func (s *Server) brokenDefinition(name string, err error) (view, error) {
 		Broken: s.breakLine(readErrorPath(err, path), err),
 	}
 	if errors.Is(err, catalog.ErrNotFound) {
-		data.Broken = err.Error()
+		// The find-the-file sentence is for the one who typed a name; the
+		// screen shows the sentence without the CLI's next line (N7).
+		data.Broken = withoutNext(err.Error())
 	}
 	return s.renderDefinition(data)
 }
@@ -107,38 +126,59 @@ func (s *Server) saveMission(r *http.Request) (view, error) {
 	mission := r.PostFormValue("mission")
 	edited, err := definition.EditYAML([]byte(text), definition.Mission(mission))
 	if err != nil {
-		return s.definitionRefused(def, mission, err.Error())
+		return s.definitionRefused(def, mission, err.Error(), false)
 	}
 	with := s.cat.With(def.TeamYAML, string(edited))
-	findings := check.Definition(check.Input{Catalog: with, Name: name})
-	if msg, ok := stops(findings, "mission"); ok {
-		return s.definitionRefused(def, mission, msg)
-	}
-	if msg, ok := stops(findings, ""); ok {
-		return s.definitionRefused(def, mission, msg)
+	// A stop the change brings in refuses the save; one the definition already
+	// had does not (設計 7.3、spec/39 T1).
+	if msg, ok := newStop(s.findings(name), check.Definition(check.Input{Catalog: with, Name: name})); ok {
+		return s.definitionRefused(def, mission, msg, false)
 	}
 	if err := source.WriteIfUnchanged(def.TeamYAML, r.PostFormValue("hash"), string(edited)); err != nil {
 		if errors.Is(err, source.ErrChanged) {
-			return s.definitionRefused(def, mission, tf("web.saved.clash", s.cat.Display(def.TeamYAML)))
+			return s.definitionRefused(def, mission, tf("web.saved.clash", s.cat.Display(def.TeamYAML)), true)
 		}
 		return view{}, err
 	}
-	return s.definitionSaved(name)
+	after, err := s.readDefinition(name)
+	if err != nil {
+		return view{}, err
+	}
+	changes := effect.Of(s.view(def, s.cat.Reader()), s.view(after, with.Reader()))
+	return s.definitionSaved(name, changes)
+}
+
+// newStop is the first sentence that stops a save and is not already there: the
+// change brings it in, so it is what to show beside the field (設計 7.3、T1).
+func newStop(before, after []check.Finding) (string, bool) {
+	had := make(map[string]bool, len(before))
+	for _, finding := range before {
+		if finding.Stops {
+			had[finding.Text] = true
+		}
+	}
+	for _, finding := range after {
+		if finding.Stops && !had[finding.Text] {
+			return finding.Text, true
+		}
+	}
+	return "", false
 }
 
 // definitionRefused draws the detail with one sentence beside the mission field
 // and the change not written. The field keeps the text the person wrote, so
 // nothing is lost (設計 3.0 の「書きかけ」).
-func (s *Server) definitionRefused(def *definition.Definition, mission, notice string) (view, error) {
+func (s *Server) definitionRefused(def *definition.Definition, mission, notice string, reload bool) (view, error) {
 	data := s.definitionData(def, nil)
 	data.Mission = mission
 	data.Notice = append([]string{notice}, data.Notice...)
+	data.NoticeReload = reload
 	return s.renderDefinition(data)
 }
 
 // definitionSaved draws the detail after a save: the new value, the saved line,
 // and what a running team has to take up.
-func (s *Server) definitionSaved(name string) (view, error) {
+func (s *Server) definitionSaved(name string, changes []effect.Change) (view, error) {
 	def, err := s.readDefinition(name)
 	if err != nil {
 		return view{}, err
@@ -146,7 +186,7 @@ func (s *Server) definitionSaved(name string) (view, error) {
 	running, _ := s.runningTeams()
 	data := s.definitionData(def, nil)
 	data.Saved = tf("web.saved.line", s.cat.Display(def.TeamYAML), "mission")
-	data.Handover = handoverOf(effect.Commands(s.missionChanges(def), running))
+	data.Handover = handoverOf(effect.Commands(changes, running))
 	return s.renderDefinition(data)
 }
 
@@ -170,14 +210,6 @@ func handoverOf(commands []effect.TeamCommands) handover {
 		out.Nothing = false
 	}
 	return out
-}
-
-// missionChanges is what a mission save does to the members' prompts: a mission
-// is in no prompt, so nothing moves. The call is made rather than assumed, so
-// the saved line's handover is the model's answer, not this package's.
-func (s *Server) missionChanges(def *definition.Definition) []effect.Change {
-	view := s.view(def, s.cat.Reader())
-	return effect.Of(view, view)
 }
 
 // view is one read state of a definition, for effect.Of.
@@ -252,6 +284,20 @@ func runningLinks(running []effect.Running) []turnEnd {
 		out = append(out, turnEnd{Name: entry.Team, Href: teamPath(entry.Team)})
 	}
 	return out
+}
+
+// withoutNext drops the "next: <command>" line a CLI error carries: a screen
+// shows no next command (E2, N7).
+func withoutNext(text string) string {
+	lines := strings.Split(text, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "next:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 // missionFindings is the sentences beside the mission field.
@@ -408,24 +454,25 @@ type agreementSection struct {
 
 // definitionData is what the detail template is given.
 type definitionData struct {
-	Name      string
-	Href      string
-	Path      string
-	Unused    string
-	Broken    string
-	Mission   string
-	Notice    []string
-	Saved     string
-	Handover  handover
-	Token     string
-	Hash      string
-	Draft     string
-	Figure    figureData
-	Members   []memberRow
-	Workers   []workerRow
-	Turns     []turnRow
-	Agreement *agreementSection
-	Running   []turnEnd
-	Panel     panel
-	PanelOpen bool
+	Name         string
+	Href         string
+	Path         string
+	Unused       string
+	Broken       string
+	Mission      string
+	Notice       []string
+	Saved        string
+	NoticeReload bool
+	Handover     handover
+	Token        string
+	Hash         string
+	Draft        string
+	Figure       figureData
+	Members      []memberRow
+	Workers      []workerRow
+	Turns        []turnRow
+	Agreement    *agreementSection
+	Running      []turnEnd
+	Panel        panel
+	PanelOpen    bool
 }

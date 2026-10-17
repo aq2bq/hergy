@@ -49,9 +49,6 @@ type Server struct {
 	// time (設計 5.2、spec/37 N5). It is the only state this server keeps
 	// between two answers.
 	watcher *activity.Watcher
-	// focused is the pane the last "move to the pane" press went to, so the
-	// screen can say it did. It is the one thing a write records here.
-	focused string
 }
 
 // New builds the server for one run: the catalog every screen reads through, and

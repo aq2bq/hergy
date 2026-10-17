@@ -79,4 +79,14 @@
     restore(event.target);
     setTitle();
   });
+
+  // The activity redraws itself every few seconds, but only while its tab is
+  // visible (設計 5.2): the server cannot know that, so the tick comes from the
+  // one place that can. The element is looked up each time, so a swap does not
+  // stop it.
+  window.setInterval(function () {
+    if (document.visibilityState !== "visible") return;
+    var list = document.getElementById("activity-list");
+    if (list && window.htmx) window.htmx.trigger(list, "hergy-tick");
+  }, 5000);
 })();

@@ -13,6 +13,7 @@
 <aside class="panel" id="panel" data-parent="{{.Parent}}" aria-label="{{.Title}}">
   <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
   <h2 class="panel-title">{{.Title}}</h2>
+  {{- if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
   {{- if .Rule}}{{template "rule" .Rule}}{{else}}
   <dl class="fields">
     {{- range .Fields}}
@@ -54,9 +55,9 @@
 {{end}}
 
 {{define "notice"}}
-{{- if .}}
+{{- if .Notice}}
 <ul class="findings">
-  {{- range .}}<li>{{.}}</li>{{end}}
+  {{- range .Notice}}<li>{{.}}{{if $.NoticeReload}} <a class="link" href="{{$.Href}}">{{t "web.reload"}}</a>{{end}}</li>{{end}}
 </ul>
 {{- end}}
 {{end}}

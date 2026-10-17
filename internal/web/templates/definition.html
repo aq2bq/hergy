@@ -17,7 +17,7 @@
     <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
   </span>
 </form>
-{{- template "notice" .Notice}}
+{{- template "notice" .}}
 <p class="muted mono path">{{.Path}}</p>
 {{- if .Unused}}<p class="muted note">{{tf "web.definition.unused" .Unused}}</p>{{end}}
 
@@ -35,7 +35,7 @@
         <tr{{if eq .Href $.Panel.Key}} class="open"{{end}}>
           <td><a href="{{.Href}}" class="mono">{{.Name}}</a></td>
           <td>{{if .Role}}<a href="{{.RoleHref}}">{{.Role}}</a>{{end}}</td>
-          <td>{{if .Profile}}<a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a>{{if .Kind}} <span class="muted">({{.Kind}})</span>{{end}}{{end}}</td>
+          <td>{{if .Profile}}<a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a>{{if .Kind}} <span class="muted">（{{.Kind}}）</span>{{end}}{{end}}</td>
           <td>{{range .Turns}}<a href="{{.Href}}">{{.Name}}</a> {{end}}</td>
         </tr>
         {{- end}}

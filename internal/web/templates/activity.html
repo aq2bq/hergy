@@ -1,8 +1,8 @@
 {{define "activity.html"}}
 <h1 class="lead">{{t "web.activity.title"}}</h1>
-{{- if .Count}}<p class="count">{{.Count}}</p>{{end}}
 {{- if .Focused}}<p class="focused">{{.Focused}}</p>{{end}}
-<div id="activity-list" hx-get="/activity" hx-trigger="every 5s" hx-select="#activity-list" hx-swap="outerHTML">
+<div id="activity-list" data-poll="5000" hx-get="/activity" hx-trigger="hergy-tick" hx-select="#activity-list" hx-swap="outerHTML">
+{{- if .Count}}<p class="count">{{.Count}}</p>{{end}}
 {{- if .ErrLine}}
 <p class="problem">{{.ErrLine}}</p>
 {{- else if .Empty}}

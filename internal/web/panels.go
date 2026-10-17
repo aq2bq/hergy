@@ -2,11 +2,36 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
+
+// panel is one open field: what it is called, the values it shows, and the field
+// it belongs to. In this stage every field is read only (設計 9 節 1b): a panel
+// shows what the model says, and writing comes with stages 2 to 5. A field the
+// URL names but the definition does not hold comes back with Missing set and the
+// one line Notice, so the page answers 404 rather than opening nothing (N2).
+type panel struct {
+	Title   string
+	Key     string
+	Parent  string
+	Crumb   string
+	Fields  []panelField
+	Rule    *ruleCard
+	Missing bool
+	Notice  string
+}
+
+// panelField is one labelled value in a panel.
+type panelField struct {
+	Label string
+	Value string
+	Href  string
+	Mono  bool
+}
 
 // profileLabel is one profile as a panel shows it: its name, with the kind it
 // starts beside it (I7: the choice is the name, the kind is an attribute).
@@ -21,43 +46,25 @@ func (s *Server) profileLabel(name string) string {
 	return tf("web.panel.profile_kind", name, kind)
 }
 
-// panel is one open field: what it is called, the values it shows, and the field
-// it belongs to. In this stage every field is read only (設計 9 節 1b): a panel
-// shows what the model says, and writing comes with stages 2 to 5.
-type panel struct {
-	Title  string
-	Key    string
-	Parent string
-	Fields []panelField
-	Rule   *ruleCard
-}
-
-// panelField is one labelled value in a panel.
-type panelField struct {
-	Label string
-	Value string
-	Href  string
-	Mono  bool
-}
-
 // memberPanel is the member's field (設計 3.4 の表).
 func (s *Server) memberPanel(r *http.Request) (view, error) {
 	member := r.PathValue("member")
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		return s.memberPanelOf(def, member)
 	})
 }
 
 // memberPanelOf builds one member's field.
-func (s *Server) memberPanelOf(def *definition.Definition, name string) (panel, bool) {
+func (s *Server) memberPanelOf(def *definition.Definition, name string) panel {
 	member, ok := def.Graph.Member(name)
 	if !ok {
-		return panel{}, false
+		return missingPanel(def, "member:"+name, tf("web.missing.member", def.Name, name))
 	}
 	field := panel{
 		Title:  tf("web.panel.member", name),
 		Key:    "member:" + name,
 		Parent: definitionPath(def.Name),
+		Crumb:  name,
 	}
 	field.Fields = append(field.Fields, panelField{Label: t("label.role"), Value: member.Role, Href: rolePath(member.Role)})
 	field.Fields = append(field.Fields, panelField{Label: t("label.profile"), Value: s.profileLabel(member.Profile), Mono: true})
@@ -82,7 +89,7 @@ func (s *Server) memberPanelOf(def *definition.Definition, name string) (panel, 
 		})
 	}
 	field.Fields = append(field.Fields, s.memberDocs(def, member)...)
-	return field, true
+	return field
 }
 
 // memberDocs is the three documents a member reads, in the order the prompt
@@ -117,36 +124,40 @@ func (s *Server) docField(label string, find func() (source.Doc, bool), href str
 // workerPanel is the worker's field (設計 3.4 の表).
 func (s *Server) workerPanel(r *http.Request) (view, error) {
 	from, purpose := r.PathValue("from"), r.PathValue("purpose")
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		for _, worker := range def.Graph.Workers {
 			if worker.From != from || worker.Purpose != purpose {
 				continue
 			}
+			title := tf("web.panel.worker", purpose, from)
 			return panel{
-				Title:  tf("web.panel.worker", purpose, from),
+				Title:  title,
 				Key:    "worker:" + from + "/" + purpose,
 				Parent: definitionPath(def.Name),
+				Crumb:  title,
 				Fields: []panelField{
 					{Label: t("web.panel.worker_calls"), Value: from, Href: memberPath(def.Name, from)},
 					{Label: t("label.purpose"), Value: purpose},
 					{Label: t("label.profile"), Value: worker.Profile, Mono: true},
 					{Label: t("web.panel.worker_returns"), Value: from},
 				},
-			}, true
+			}
 		}
-		return panel{}, false
+		key := "worker:" + from + "/" + purpose
+		return missingPanel(def, key, tf("web.missing.worker", def.Name, purpose, from))
 	})
 }
 
-// humanPanel is the human's field (設計 3.4 の表).
+// humanPanel is the human's field (設計 3.4 の表). The human is always a node of
+// the graph, so this field is never missing.
 func (s *Server) humanPanel(r *http.Request) (view, error) {
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		human := (definition.Human{}).ID()
-		field := panel{Title: t("label.human"), Key: "human", Parent: definitionPath(def.Name)}
+		field := panel{Title: t("label.human"), Key: "human", Parent: definitionPath(def.Name), Crumb: t("label.human")}
 		for _, edge := range def.Graph.Out(human) {
 			field.Fields = append(field.Fields, panelField{
 				Label: t("web.panel.human_hands"),
-				Value: edge.To.String(),
+				Value: nodeLabel(edge.To),
 				Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
 			})
 		}
@@ -156,11 +167,11 @@ func (s *Server) humanPanel(r *http.Request) (view, error) {
 			}
 			field.Fields = append(field.Fields, panelField{
 				Label: t("web.panel.human_receives"),
-				Value: edge.From.String(),
+				Value: nodeLabel(edge.From),
 				Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
 			})
 		}
-		return field, true
+		return field
 	})
 }
 
@@ -168,35 +179,65 @@ func (s *Server) humanPanel(r *http.Request) (view, error) {
 // the field says which turn it is.
 func (s *Server) turnPanel(r *http.Request) (view, error) {
 	from, to := r.PathValue("from"), r.PathValue("to")
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		for _, edge := range def.Graph.Turns {
 			if edge.From.String() != from || edge.To.String() != to {
 				continue
 			}
+			title := turnLabel(edge)
 			return panel{
-				Title:  turnLabel(edge),
+				Title:  title,
 				Key:    turnKey(from, to),
 				Parent: definitionPath(def.Name),
+				Crumb:  title,
 				Fields: []panelField{
 					{Label: t("web.panel.turn_from"), Value: nodeLabel(edge.From)},
 					{Label: t("web.panel.turn_to"), Value: nodeLabel(edge.To)},
 				},
-			}, true
+			}
 		}
-		return panel{}, false
+		label := turnEndLabel(from) + " → " + turnEndLabel(to)
+		return missingPanel(def, turnKey(from, to), tf("web.missing.turn", def.Name, label))
 	})
 }
 
-// agreementPanel is the team agreement's own field: its path and its sections.
+// turnEndLabel is one end of a turn as it stands in a URL, read the way a person
+// says it.
+func turnEndLabel(raw string) string {
+	if node, ok := parseNode(raw); ok {
+		return nodeLabel(node)
+	}
+	return raw
+}
+
+// parseNode reads a node identity as a settings file writes it ("human",
+// "worker:<from>/<purpose>", a member name).
+func parseNode(raw string) (definition.NodeID, bool) {
+	switch {
+	case raw == (definition.Human{}).ID().String():
+		return (definition.Human{}).ID(), true
+	case strings.HasPrefix(raw, string(definition.KindWorker)+":"):
+		return definition.NodeID{Kind: definition.KindWorker, Name: strings.TrimPrefix(raw, string(definition.KindWorker)+":")}, true
+	case raw == "":
+		return definition.NodeID{}, false
+	default:
+		return definition.NodeID{Kind: definition.KindMember, Name: raw}, true
+	}
+}
+
+// agreementPanel is the team agreement's own field: its path.
 func (s *Server) agreementPanel(r *http.Request) (view, error) {
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
-		field := panel{
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
+		if !def.HasAgreement {
+			return missingPanel(def, "agreement", tf("web.missing.agreement", def.Name))
+		}
+		return panel{
 			Title:  t("web.panel.team_agreement"),
 			Key:    "agreement",
 			Parent: definitionPath(def.Name),
+			Crumb:  t("web.panel.team_agreement"),
 			Fields: []panelField{{Label: t("label.path"), Value: s.cat.Display(def.Agreement.Path), Mono: true}},
 		}
-		return field, true
 	})
 }
 
@@ -204,25 +245,38 @@ func (s *Server) agreementPanel(r *http.Request) (view, error) {
 // only in this stage.
 func (s *Server) rulePanel(r *http.Request) (view, error) {
 	id := r.PathValue("rule")
-	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) (panel, bool) {
+	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		if !def.HasAgreement {
-			return panel{}, false
+			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
 		}
 		doc, err := s.ruleDoc(def.Agreement)
 		if err != nil {
-			return panel{}, false
+			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
 		}
 		card, ok := cardOf(doc, id)
 		if !ok {
-			return panel{}, false
+			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
 		}
 		return panel{
 			Title:  tf("web.panel.rule", id),
 			Key:    "rule:" + id,
 			Parent: agreementPath(def.Name),
+			Crumb:  id,
 			Rule:   &card,
-		}, true
+		}
 	})
+}
+
+// missingPanel is the field a URL named and the definition does not hold: the
+// key it tried to open, and the one line that says so (N2).
+func missingPanel(def *definition.Definition, key, notice string) panel {
+	return panel{
+		Key:     key,
+		Parent:  definitionPath(def.Name),
+		Missing: true,
+		Notice:  notice,
+		Title:   notice,
+	}
 }
 
 // cardOf finds one rule in a document, as the card the panel shows.

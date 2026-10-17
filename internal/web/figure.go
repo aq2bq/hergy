@@ -64,10 +64,8 @@ func (s *Server) figure(def *definition.Definition, states map[string]string, op
 // arrow is one edge drawn: the path, the field it opens and what it is called.
 func (s *Server) arrow(def *definition.Definition, layout topology.Figure, edge topology.Arrow, openKey string) arrowFigure {
 	out := arrowFigure{
-		Worker:   edge.Worker,
-		Label:    nodeLabel(edge.FromNode) + " → " + nodeLabel(edge.ToNode),
-		DataFrom: edge.FromNode.String(),
-		DataTo:   edge.ToNode.String(),
+		Worker: edge.Worker,
+		Label:  nodeLabel(edge.FromNode) + " → " + nodeLabel(edge.ToNode),
 	}
 	if edge.Worker {
 		// workers: makes these two edges; they open the worker's own field, not
@@ -87,6 +85,10 @@ func (s *Server) arrow(def *definition.Definition, layout topology.Figure, edge 
 	from, to := edge.FromNode.String(), edge.ToNode.String()
 	out.Href = s.openEdgeHref(def, from, to, openKey)
 	out.Open = turnKey(from, to) == openKey
+	// The two ends' identity, for the edge's own screen and stage 3. A worker's
+	// two edges carry none: their ends are the worker, whose identity a person
+	// must not read anywhere on the page (S1, 設計 3.4).
+	out.DataFrom, out.DataTo = from, to
 	x0 := layout.MemberRight
 	bend := (edge.LaneX - 0.25*x0) / 0.75
 	out.Path = "M" + num(x0) + " " + num(edge.FromY) +

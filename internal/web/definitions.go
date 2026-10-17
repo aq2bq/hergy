@@ -18,6 +18,9 @@ func (s *Server) definitions(_ *http.Request) (view, error) {
 	data.Shared = definitionRow{Name: t("web.common.title"), Href: "/agreement"}
 	if shared, ok := s.cat.SharedAgreement(); ok {
 		data.Shared.Count = s.ruleCount(shared.Path)
+	} else {
+		// The row and the page agree: there is no shared agreement (N8).
+		data.Shared.Empty = true
 	}
 	for _, entry := range entries {
 		row := definitionRow{Name: entry.Name, Href: definitionPath(entry.Name)}
@@ -92,5 +95,6 @@ type definitionRow struct {
 	Workers int
 	Human   int
 	Broken  bool
+	Empty   bool
 	Running []turnEnd
 }

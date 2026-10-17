@@ -18,30 +18,47 @@ func (s *Server) agreementRule(r *http.Request) (view, error) {
 }
 
 // agreementPage draws the shared agreement, with one rule open when open names
-// it.
+// it. A rule the document does not hold is a 404 (N2). A place with no shared
+// agreement keeps its page: the one line says there is none (段 4 adds "make
+// one").
 func (s *Server) agreementPage(open string) (view, error) {
-	crumb := []crumb{{Name: t("web.band.definitions"), Href: "/definitions"}, {Name: t("web.common.title")}}
-	data := agreementData{Crumb: crumb}
+	data := agreementData{}
+	trail := []crumb{{Name: t("web.band.definitions"), Href: "/definitions"}, {Name: t("web.common.title"), Href: "/agreement"}}
 	doc, ok := s.cat.SharedAgreement()
 	if !ok {
 		data.Missing = true
-		return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: crumb}, "agreement.html", data)
+		if open != "" {
+			data.MissingOne = tf("web.missing.shared_rule", open)
+			trail[len(trail)-1].Href = ""
+			return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: trail, status: http.StatusNotFound}, "agreement.html", data)
+		}
+		trail[len(trail)-1].Href = ""
+		data.Crumb = trail
+		return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: trail}, "agreement.html", data)
 	}
 	data.Path = s.cat.Display(doc.Path)
 	data.Readers = readerLines(s.cat.Readers(doc.Path))
 	parsed, err := s.ruleDoc(doc)
 	if err != nil {
 		data.Broken = s.breakLine(doc.Path, err)
-		return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: crumb}, "agreement.html", data)
+		trail[len(trail)-1].Href = ""
+		data.Crumb = trail
+		return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: trail}, "agreement.html", data)
 	}
 	data.Sections = s.sectionsOf(parsed, func(id string) string { return "/agreement/" + id })
 	if open != "" {
-		if card, ok := cardOf(parsed, open); ok {
-			data.Panel = panel{Title: tf("web.panel.rule", open), Key: "rule:" + open, Parent: "/agreement", Rule: &card}
-			data.PanelOpen = true
+		card, found := cardOf(parsed, open)
+		if !found {
+			data.MissingOne = tf("web.missing.shared_rule", open)
+			trail[len(trail)-1].Href = ""
+			return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: trail, status: http.StatusNotFound}, "agreement.html", data)
 		}
+		data.Panel = panel{Title: tf("web.panel.rule", open), Key: "rule:" + open, Parent: "/agreement", Crumb: open, Rule: &card}
+		data.PanelOpen = true
+		trail = append(trail, crumb{Name: open})
 	}
-	return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: crumb}, "agreement.html", data)
+	data.Crumb = trail
+	return s.pageBody(view{title: t("web.common.title"), band: bandDefinitions, crumb: trail}, "agreement.html", data)
 }
 
 // readerLines is who reads one document, one line per definition with how many
@@ -64,13 +81,13 @@ func readerLines(refs []catalog.MemberRef) []string {
 
 // agreementData is what the shared agreement page is given.
 type agreementData struct {
-	Crumb     []crumb
-	Path      string
-	Readers   []string
-	Sections  []ruleSection
-	Missing   bool
-	Broken    string
-	Panel     panel
-	PanelOpen bool
-	Token     string
+	Crumb      []crumb
+	Path       string
+	Readers    []string
+	Sections   []ruleSection
+	Missing    bool
+	MissingOne string
+	Broken     string
+	Panel      panel
+	PanelOpen  bool
 }

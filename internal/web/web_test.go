@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -82,7 +83,7 @@ func (f *fixture) write(t *testing.T, rel, text string) {
 func (f *fixture) writeTeam(t *testing.T, name, mission string) {
 	t.Helper()
 	f.write(t, filepath.Join("teams", name, "team.yaml"), "version: 1\nmission: "+mission+"\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 試作\n    profile: coder\n")
-	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n")
+	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n        origin:\n          - kind: incident\n            date: \"2026-01-01\"\n")
 }
 
 // catalog is the catalog the screens read through.
@@ -116,9 +117,8 @@ func (f *fixture) get(t *testing.T, server *Server, target string) (*http.Respon
 }
 
 // post runs one POST with the token of the run.
-func (f *fixture) post(t *testing.T, server *Server, form url.Values) (*http.Response, string) {
+func (f *fixture) post(t *testing.T, server *Server, target string, form url.Values) (*http.Response, string) {
 	t.Helper()
-	const target = "/definitions/demo"
 	server.addr = "127.0.0.1:8787"
 	if form == nil {
 		form = url.Values{}
@@ -137,8 +137,12 @@ func (f *fixture) post(t *testing.T, server *Server, form url.Values) (*http.Res
 	return resp, string(body)
 }
 
-// fakePort is the live half the screens read, made up by the test.
-type fakePort struct{ f *fixture }
+// fakePort is the live half the screens read, made up by the test. It records
+// the panes a press moved to, so a test can say whether focus was called.
+type fakePort struct {
+	f       *fixture
+	focused []string
+}
 
 func (p *fakePort) Running() ([]effect.Running, error) { return p.f.running, nil }
 
@@ -146,7 +150,10 @@ func (p *fakePort) Agents(team string) ([]activity.Agent, error) { return p.f.ag
 
 func (p *fakePort) Tail(string, int) (string, error) { return "lead is waiting\n", nil }
 
-func (p *fakePort) Focus(string) error { return nil }
+func (p *fakePort) Focus(name string) error {
+	p.focused = append(p.focused, name)
+	return nil
+}
 
 // TestEveryPathAnswers: every path of the UI answers the whole page, with the
 // heading and the band of the screen it is (設計 8 節).
@@ -187,6 +194,9 @@ func TestEveryPathAnswers(t *testing.T) {
 		}
 		if !strings.Contains(body, `aria-current="page"`) {
 			t.Errorf("GET %s marks no band as where the person is", test.path)
+		}
+		if strings.Contains(body, "[[") {
+			t.Errorf("GET %s shows an unheld locale key (N1)", test.path)
 		}
 	}
 }
@@ -298,7 +308,7 @@ func TestMissionSavesRefusesAndKeepsEveryOtherLine(t *testing.T) {
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	before := readFile(t, path)
 
-	resp, body := f.post(t, server, url.Values{
+	resp, body := f.post(t, server, "/definitions/demo", url.Values{
 		"mission": {"新しい使命です"},
 		"hash":    {source.Hash(before)},
 	})
@@ -318,7 +328,7 @@ func TestMissionSavesRefusesAndKeepsEveryOtherLine(t *testing.T) {
 
 	// A mission over one line cannot be written into this shape, and the file
 	// is left alone.
-	resp, body = f.post(t, server, url.Values{
+	resp, body = f.post(t, server, "/definitions/demo", url.Values{
 		"mission": {"one\ntwo"},
 		"hash":    {source.Hash(after)},
 	})
@@ -343,16 +353,16 @@ func TestMissionSavesRefusesAndKeepsEveryOtherLine(t *testing.T) {
 	}
 
 	// A file that moved under the page is refused too.
-	_, body = f.post(t, server, url.Values{
+	_, body = f.post(t, server, "/definitions/demo", url.Values{
 		"mission": {"x"},
 		"hash":    {"deadbeef"},
 	})
-	if !strings.Contains(body, "変わりました") {
-		t.Errorf("a stale page was not refused with the clash line:\n%s", body)
+	if !strings.Contains(body, "変わりました") || !strings.Contains(body, "読み直す") {
+		t.Errorf("a stale page was not refused with the clash line and a reload link:\n%s", body)
 	}
 
 	// No token: the handler never runs.
-	resp, _ = f.post(t, server, url.Values{"mission": {"x"}, "token": {""}})
+	resp, _ = f.post(t, server, "/definitions/demo", url.Values{"mission": {"x"}, "token": {""}})
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("a write without the token answered %d, want 403", resp.StatusCode)
 	}
@@ -441,7 +451,7 @@ func TestPeopleReadNamesNotIdentity(t *testing.T) {
 	for _, path := range []string{"/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/turns/lead/builder", "/definitions/demo/human"} {
 		_, body := f.get(t, server, path)
 		for _, gone := range []string{"worker:", ">human<", "human ->", "-> lead", "-> builder"} {
-			if strings.Contains(visible(body), gone) {
+			if strings.Contains(body, gone) {
 				t.Errorf("GET %s shows the identity %q", path, gone)
 			}
 		}
@@ -473,23 +483,6 @@ func between(body, from, to string) string {
 	return before
 }
 
-// visible is a page's text with the tags taken out, so a test can say what a
-// person reads apart from what only a machine reads (d-a347 の 7).
-func visible(body string) string {
-	var b strings.Builder
-	for i := 0; i < len(body); {
-		if body[i] == '<' {
-			if j := strings.IndexByte(body[i:], '>'); j >= 0 {
-				i += j + 1
-				continue
-			}
-		}
-		b.WriteByte(body[i])
-		i++
-	}
-	return b.String()
-}
-
 // TestActivityLeavesOutATeamItCannotJudge: a running team whose definition is
 // not here gets one line, with no find-the-file sentence and no next command,
 // and is in no count (L4).
@@ -519,7 +512,7 @@ func TestSavedLineDoesNotNameATeamWithNothingToDo(t *testing.T) {
 	f.running = []effect.Running{{Team: "crm", Definition: "demo"}}
 	server := f.server(t)
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
-	_, body := f.post(t, server, url.Values{
+	_, body := f.post(t, server, "/definitions/demo", url.Values{
 		"mission": {"保存後の使命"},
 		"hash":    {source.Hash(readFile(t, path))},
 	})
@@ -529,5 +522,282 @@ func TestSavedLineDoesNotNameATeamWithNothingToDo(t *testing.T) {
 	}
 	if strings.Contains(saved, "crm") {
 		t.Errorf("the saved line names a team with nothing to do:\n%s", saved)
+	}
+}
+
+// TestMissingFieldsAreNotFound: a field URL that names something the definition
+// does not hold answers 404 with the definition and one line where the field
+// would be, rather than a page that opens nothing (N2). The shared agreement and
+// a role have their own lines.
+func TestMissingFieldsAreNotFound(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	cases := []struct{ path, line string }{
+		{"/definitions/demo/members/nosuch", "メンバー nosuch はありません"},
+		{"/definitions/demo/workers/lead/nosuch", "ワーカー nosuch（lead が呼ぶ）はありません"},
+		{"/definitions/demo/turns/lead/nosuch", "ターン lead → nosuch はありません"},
+		{"/definitions/demo/agreement/NOPE", "規則 NOPE はありません"},
+		{"/definitions/demo/agreement2", ""},
+		{"/roles/nosuch", "ロール nosuch はありません"},
+		{"/roles/lead/NOPE", "ロール lead に規則 NOPE はありません"},
+		{"/agreement/NOPE", "共通の約束に規則 NOPE はありません"},
+	}
+	for _, test := range cases {
+		resp, body := f.get(t, server, test.path)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s: status %d, want 404", test.path, resp.StatusCode)
+			continue
+		}
+		if test.line != "" && !strings.Contains(body, test.line) {
+			t.Errorf("GET %s does not say %q", test.path, test.line)
+		}
+	}
+}
+
+// TestTheTrailNamesTheOpenField: a field's page carries the field in the trail,
+// with the step before it closing the field (N3).
+func TestTheTrailNamesTheOpenField(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	cases := []struct{ path, last string }{
+		{"/definitions/demo", "demo"},
+		{"/definitions/demo/members/lead", "lead"},
+		{"/definitions/demo/turns/lead/builder", "lead → builder"},
+		{"/definitions/demo/human", "人間"},
+		{"/definitions/demo/agreement/TEAM-1", "TEAM-1"},
+		{"/roles/lead/LEAD-1", "LEAD-1"},
+	}
+	for _, test := range cases {
+		_, body := f.get(t, server, test.path)
+		trail := between(body, `class="crumb"`, "</nav>")
+		if !strings.Contains(trail, "<b>"+test.last+"</b>") {
+			t.Errorf("GET %s: the trail %q does not end at %q", test.path, strings.TrimSpace(trail), test.last)
+		}
+	}
+	// The step before the field closes it: it links to the definition's page.
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+	trail := between(body, `class="crumb"`, "</nav>")
+	if !strings.Contains(trail, `href="/definitions/demo"`) {
+		t.Errorf("the trail does not link back to the definition: %q", trail)
+	}
+}
+
+// TestFocusMovesOnlyAKnownPane: a press moves herdr's focus only to a pane the
+// team's own agents hold, and the line it shows belongs to that answer alone
+// (N4).
+func TestFocusMovesOnlyAKnownPane(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{
+		{Herdr: "demo-lead", Node: "lead", Status: "blocked", Seq: 3},
+		{Herdr: "demo-hired", Node: "", Status: "working", Seq: 4},
+	}
+	server := f.server(t)
+
+	resp, body := f.post(t, server, "/activity/demo/focus", url.Values{"pane": {"demo-lead"}})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "チーム demo の lead のペインに移りました") {
+		t.Fatalf("the press did not move: %d\n%s", resp.StatusCode, body)
+	}
+	if len(f.port.focused) != 1 || f.port.focused[0] != "demo-lead" {
+		t.Errorf("focus was called with %v, want demo-lead once", f.port.focused)
+	}
+	// A hired worker is named by its herdr name.
+	if _, body := f.post(t, server, "/activity/demo/focus", url.Values{"pane": {"demo-hired"}}); !strings.Contains(body, "チーム demo の demo-hired のペインに移りました") {
+		t.Errorf("a hired worker's pane is not named by its herdr name:\n%s", body)
+	}
+	// A pane that is not the team's is refused, and no focus is moved.
+	before := len(f.port.focused)
+	_, body = f.post(t, server, "/activity/demo/focus", url.Values{"pane": {"elsewhere"}})
+	if !strings.Contains(body, "そのペインはありません") {
+		t.Errorf("an unknown pane is not refused:\n%s", body)
+	}
+	if len(f.port.focused) != before {
+		t.Errorf("an unknown pane moved the focus")
+	}
+	// The moved line is not kept: the next plain read does not carry it.
+	if _, body := f.get(t, server, "/activity"); strings.Contains(body, "のペインに移りました") {
+		t.Errorf("the moved line was kept on the server:\n%s", body)
+	}
+}
+
+// TestTwoTeamsKeepTheirLengths: the watcher is handed every running team's
+// agents in one call per draw, so reading a second team does not take the first
+// team's length again on the next draw (S2).
+func TestTwoTeamsKeepTheirLengths(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "a", Definition: "demo"}, {Team: "b", Definition: "demo"}}
+	f.agents["a"] = []activity.Agent{{Herdr: "a-lead", Node: "lead", Status: "idle", Seq: 1}}
+	f.agents["b"] = []activity.Agent{{Herdr: "b-lead", Node: "lead", Status: "idle", Seq: 1}}
+	server := f.server(t)
+
+	start := time.Now()
+	_, _, first := server.observeAll(f.running, start)
+	later := start.Add(10 * time.Minute)
+	agents, errs, second := server.observeAll(f.running, later)
+
+	for _, name := range []string{"a-lead", "b-lead"} {
+		if _, ok := first[name]; !ok {
+			t.Fatalf("the first draw did not watch %s: %v", name, first)
+		}
+		if !second[name].At.Equal(start) {
+			t.Errorf("the second draw took %s's length again: seen at %s, want %s", name, second[name].At, start)
+		}
+	}
+	// And both teams read a length of at least ten minutes.
+	known, byName, _ := server.sections(f.running, agents, errs, second, later)
+	if len(known) != 2 {
+		t.Fatalf("the draw judged %d teams, want 2", len(known))
+	}
+	for _, verdict := range known {
+		section := byName[verdict.Name]
+		if section.Unjudged {
+			t.Errorf("team %s was not judged", verdict.Name)
+		}
+		if verdict.Stalled < 10*time.Minute {
+			t.Errorf("team %s reads %s, want at least 10 minutes", verdict.Name, verdict.Stalled)
+		}
+		if !verdict.Lower {
+			t.Errorf("team %s lost the lower-bound mark", verdict.Name)
+		}
+	}
+}
+
+// TestASaveIsRefusedOnlyForANewStop: a stop the definition already had does not
+// keep a person from writing the mission (設計 7.3、T1).
+func TestASaveIsRefusedOnlyForANewStop(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	// The role document is gone, so the definition already has a stop; the
+	// mission can still be written.
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
+	resp, body := f.post(t, server, "/definitions/demo", url.Values{
+		"mission": {"それでも書ける使命"},
+		"hash":    {source.Hash(readFile(t, path))},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "書きました") {
+		t.Errorf("the save was refused for a stop that was already there:\n%s", body)
+	}
+	if !strings.Contains(readFile(t, path), "mission: それでも書ける使命") {
+		t.Errorf("the mission was not written")
+	}
+}
+
+// TestTheKindIsAnAttributeInFullWidthParentheses: the profile's kind is written
+// the same way wherever it stands (T3).
+func TestTheKindIsAnAttributeInFullWidthParentheses(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(body, "（claude）") {
+		t.Errorf("the kind is not in full-width parentheses:\n%s", body)
+	}
+	if strings.Contains(body, "(claude)") {
+		t.Errorf("the kind is in half-width parentheses somewhere")
+	}
+}
+
+// TestTheActivityCountRedrawsWithTheList: the numbers sit inside the region the
+// tick replaces, and the region asks for its tick from the script rather than
+// polling while the tab is hidden (N9).
+func TestTheActivityCountRedrawsWithTheList(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "blocked", Seq: 3}}
+	server := f.server(t)
+	_, body := f.get(t, server, "/activity")
+	start := strings.Index(body, `id="activity-list"`)
+	if start < 0 {
+		t.Fatalf("the activity list is not there")
+	}
+	end := strings.Index(body[start:], "</div>")
+	if end < 0 {
+		t.Fatalf("the activity list is not closed")
+	}
+	region := body[start : start+end]
+	if !strings.Contains(region, `class="count"`) {
+		t.Errorf("the numbers are outside the region that redraws:\n%s", region)
+	}
+	if !strings.Contains(region, `hx-trigger="hergy-tick"`) || !strings.Contains(region, `data-poll="5000"`) {
+		t.Errorf("the region does not redraw on the visible tick:\n%s", region)
+	}
+}
+
+// TestWordsComeFromTheGlossary: the kind is a profile's attribute and is called
+// kind, and an origin's kind is said the way validate counts it (N5, N6).
+func TestWordsComeFromTheGlossary(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles")
+	if !strings.Contains(body, ">kind<") {
+		t.Errorf("the profiles list does not call the kind kind:\n%s", body)
+	}
+	if strings.Contains(body, "種類") {
+		t.Errorf("the profiles list says 種類 for kind")
+	}
+	_, body = f.get(t, server, "/definitions/demo/agreement/TEAM-1")
+	if !strings.Contains(body, "インシデント") {
+		t.Errorf("an origin of the incident kind is not said as インシデント:\n%s", body)
+	}
+	if strings.Contains(body, "incident") {
+		t.Errorf("an origin shows its kind raw")
+	}
+}
+
+// TestAMissingDefinitionSaysItWithoutTheNextCommand: the find-the-file sentence
+// is shown, without the CLI's next line (N7).
+func TestAMissingDefinitionSaysItWithoutTheNextCommand(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	resp, body := f.get(t, server, "/definitions/nosuch")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET a missing definition: status %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "チーム定義 nosuch") {
+		t.Errorf("the page does not name the missing definition")
+	}
+	if strings.Contains(body, "next:") {
+		t.Errorf("the page shows the CLI's next line")
+	}
+}
+
+// TestNoSharedAgreementSaysSoInTheListToo: the list's first row and the shared
+// agreement's page agree that there is none (N8).
+func TestNoSharedAgreementSaysSoInTheListToo(t *testing.T) {
+	f := newFixture(t)
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "agreement.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+	_, body := f.get(t, server, "/")
+	if !strings.Contains(body, "共通の約束はありません") {
+		t.Errorf("the list does not say there is no shared agreement:\n%s", body)
+	}
+	if strings.Contains(body, "規則 0 件") {
+		t.Errorf("the list says the shared agreement holds no rules")
+	}
+}
+
+// TestTheFigureCarriesTheEdgeEnds: a turn's arrow carries its two ends, for the
+// edge's own screen and stage 3 (設計 4 節、T2).
+func TestTheFigureCarriesTheEdgeEnds(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(body, `data-from="lead" data-to="builder"`) {
+		t.Errorf("the turn's arrow does not carry its ends")
+	}
+	if !strings.Contains(body, `data-from="builder" data-to="human"`) {
+		t.Errorf("the turn to the human does not carry its ends")
+	}
+	// Every arrow links to a field that opens: walking the links is what
+	// TestEveryLinkResolves does (S1).
+	if !strings.Contains(body, `href="/definitions/demo/workers/lead/`) {
+		t.Errorf("a worker's arrow does not open the worker's field")
 	}
 }

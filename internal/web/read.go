@@ -81,13 +81,3 @@ func fieldTexts(findings []check.Finding, field string) []string {
 	}
 	return out
 }
-
-// stops is the first sentence that stops a save, and whether there was one.
-func stops(findings []check.Finding, field string) (string, bool) {
-	for _, finding := range findings {
-		if finding.Stops && (field == "" || finding.Field == field) {
-			return finding.Text, true
-		}
-	}
-	return "", false
-}

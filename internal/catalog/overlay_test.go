@@ -164,39 +164,3 @@ func TestWithFindsASharedAgreementThatIsNotWritten(t *testing.T) {
 
 // TestDefinitionEditAndProfilesEditAreWith: the two older mouths are thin covers
 // over With (C3b), so a caller that still uses them reads the same text.
-func TestDefinitionEditAndProfilesEditAreWith(t *testing.T) {
-	l := newLayers(t)
-	l.writeFullTeam(t, source.LayerLocal, "t", "before")
-	teamYAML := filepath.Join(l.local, "teams", "t", "team.yaml")
-	after := strings.Replace(readFile(t, teamYAML), "mission: before", "mission: after", 1)
-	cat := l.catalog()
-
-	viaEdit, err := cat.DefinitionEdit("t", source.LayerLocal, ProfilesEdit{Path: teamYAML, Text: after})
-	if err != nil {
-		t.Fatal(err)
-	}
-	viaWith, err := cat.With(teamYAML, after).Definition("t", source.LayerLocal)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if viaEdit.Mission != viaWith.Mission || viaEdit.Mission != "after" {
-		t.Errorf("DefinitionEdit = %q, With = %q, want the edit's", viaEdit.Mission, viaWith.Mission)
-	}
-
-	profilesYAML := filepath.Join(l.local, "profiles.yaml")
-	text := readFile(t, profilesYAML) + "  extra:\n    kind: claude\n"
-	viaProfilesEdit, _, err := cat.ProfilesEdit(ProfilesEdit{Path: profilesYAML, Text: text})
-	if err != nil {
-		t.Fatal(err)
-	}
-	viaProfilesWith, _, err := cat.With(profilesYAML, text).Profiles()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := viaProfilesEdit["extra"]; !ok {
-		t.Error("ProfilesEdit does not read the edit's profile")
-	}
-	if len(viaProfilesEdit) != len(viaProfilesWith) {
-		t.Errorf("ProfilesEdit read %d profiles, With read %d", len(viaProfilesEdit), len(viaProfilesWith))
-	}
-}

@@ -3,12 +3,12 @@
 {{- if .Missing}}
 <p class="empty">{{tf "web.profile.missing" .Name}}</p>
 {{- else}}
-<p class="sub mono">{{t "label.kind"}} {{.Kind}}</p>
+<p class="sub mono">{{t "web.profile.kind"}} {{.Kind}}</p>
 <p class="muted mono path">{{.Path}}</p>
 {{- if .Unused}}<p class="muted note">{{tf "web.profile.unused" .Unused}}</p>{{end}}
-<h2 class="sec">{{t "label.args"}}</h2>
+<h2 class="sec">{{t "web.profile.args"}}</h2>
 <ul class="plain">{{range .Args}}<li class="mono">{{.}}</li>{{end}}</ul>
-<h2 class="sec">{{t "label.env"}}</h2>
+<h2 class="sec">{{t "web.profile.env"}}</h2>
 <table class="tbl"><tbody>{{range .Env}}<tr><td class="mono">{{.Name}}</td><td class="mono">{{.Value}}</td></tr>{{end}}</tbody></table>
 <h2 class="sec">{{t "web.profiles.users"}}</h2>
 <ul class="plain">{{range .Users}}<li>{{.}}</li>{{end}}</ul>

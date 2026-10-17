@@ -61,11 +61,12 @@ type ruleSection struct {
 	Rules   []ruleCard
 }
 
-// originText writes a rule's origins as one line.
+// originText writes a rule's origins as one line, with the kinds said the way
+// validate counts them (設計 3.8、spec/39 N6).
 func originText(origins []rules.Origin) string {
 	parts := make([]string, 0, len(origins))
 	for _, origin := range origins {
-		text := origin.Kind
+		text := originKind(origin.Kind)
 		if origin.Date != "" {
 			text += " " + origin.Date
 		}
@@ -75,6 +76,21 @@ func originText(origins []rules.Origin) string {
 		parts = append(parts, text)
 	}
 	return strings.Join(parts, t("list.separator"))
+}
+
+// originKind is one origin's kind as a person reads it, the same words validate
+// uses for its tally.
+func originKind(kind string) string {
+	switch kind {
+	case rules.KindIncident:
+		return t("web.origin.incident")
+	case rules.KindInstruction:
+		return t("web.origin.instruction")
+	case rules.KindDerived:
+		return t("web.origin.derived")
+	default:
+		return kind
+	}
 }
 
 // checkText writes a rule's check: the report field it names and the tests it

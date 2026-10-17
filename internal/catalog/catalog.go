@@ -72,7 +72,7 @@ func (c *Catalog) InRepo(inRepo bool) *Catalog {
 // how a screen reads a change it has not written yet, whether the file is a
 // team.yaml, an agreement, a role document or a profiles.yaml (C3b). A file at
 // any other path reads from disk, and a file that is not there yet reads as the
-// text, exactly as the profiles edit did (ProfilesEdit).
+// text, exactly as an edit of a file that is not there yet.
 //
 // Calls add up: a screen that is checking two files at once (a definition's
 // role changed, and the new role's document) overlays both, and both read back.
@@ -261,17 +261,6 @@ func (c *Catalog) Definition(name, layer string) (*definition.Definition, error)
 	return c.definitionIn(name, layer)
 }
 
-// DefinitionEdit reads a team definition with edit's profiles.yaml in place of
-// what is on disk, with layer forced ("local" or "global"). It is how a screen
-// checks an edit before it writes it (r-daf8). It is a thin cover over With
-// (C3b): one file's text laid over the catalog.
-func (c *Catalog) DefinitionEdit(name, layer string, edit ProfilesEdit) (*definition.Definition, error) {
-	if edit.Path == "" {
-		return c.definitionIn(name, layer)
-	}
-	return c.With(edit.Path, edit.Text).definitionIn(name, layer)
-}
-
 func (c *Catalog) definitionIn(name, layer string) (*definition.Definition, error) {
 	local := c.TeamYAML(name, source.LayerLocal)
 	global := c.TeamYAML(name, source.LayerGlobal)
@@ -433,14 +422,6 @@ func isFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// ProfilesEdit is one layer's profiles.yaml as an edit that is not on disk yet:
-// the file's path and the text a screen would write there. The zero value is
-// "no edit", which is what every reader but a screen's check passes.
-type ProfilesEdit struct {
-	Path string
-	Text string
-}
-
 // Profiles reads the profiles a team definition names: the global layer's
 // profiles.yaml, with the local layer's laid over them (K1). The files read are
 // returned local first. Either may be absent.
@@ -464,17 +445,6 @@ func (c *Catalog) Profiles() (map[string]profile.Profile, string, error) {
 		paths = append([]string{path}, paths...)
 	}
 	return profiles, strings.Join(paths, ", "), nil
-}
-
-// ProfilesEdit is Profiles with one profiles.yaml replaced by an edit: the file
-// at the edit's path answers with the edit's text whether or not it is on disk,
-// so a layer whose profiles.yaml does not exist yet is built as if the screen
-// had already written it. It is a thin cover over With (C3b).
-func (c *Catalog) ProfilesEdit(edit ProfilesEdit) (map[string]profile.Profile, string, error) {
-	if edit.Path == "" {
-		return c.Profiles()
-	}
-	return c.With(edit.Path, edit.Text).Profiles()
 }
 
 // fileText is one settings file's text: the carried text's when there is one for

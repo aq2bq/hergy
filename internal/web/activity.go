@@ -16,16 +16,21 @@ import (
 // waiting teams first, with what each is doing and how to reach the pane that
 // waits.
 func (s *Server) activityList(_ *http.Request) (view, error) {
-	data := activityData{Crumb: []crumb{{Name: t("web.band.activity")}}, Token: s.token}
-	if s.focused != "" {
-		data.Focused = tf("web.activity.focused", s.focused)
-		s.focused = ""
-	}
+	return s.activityView("")
+}
+
+// activityView draws the activity with one line the response alone shows: the
+// pane a press moved to, or the reason it could not (N4). Nothing is kept on the
+// server, so another tab or the next redraw does not repeat it.
+func (s *Server) activityView(focused string) (view, error) {
+	data := activityData{Crumb: []crumb{{Name: t("web.band.activity")}}, Token: s.token, Focused: focused}
 	running, err := s.port.Running()
 	if err != nil {
 		data.ErrLine = tf("web.activity.herdr_error", err)
 	} else {
-		known, byName, unknown := s.sections(running, time.Now())
+		now := time.Now()
+		agents, agentErrs, seen := s.observeAll(running, now)
+		known, byName, unknown := s.sections(running, agents, agentErrs, seen, now)
 		activity.Sort(known)
 		sections := make([]teamSection, 0, len(running))
 		for _, verdict := range known {
@@ -66,10 +71,6 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 		}
 	}
 	data := teamData{Name: name, Href: teamPath(name)}
-	if s.focused != "" {
-		data.Focused = tf("web.activity.focused", s.focused)
-		s.focused = ""
-	}
 	crumb := []crumb{{Name: t("web.band.activity"), Href: "/activity"}, {Name: tf("web.activity.team_crumb", name)}}
 	if !found {
 		data.NotRunning = true
@@ -84,10 +85,12 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 		data.Broken = s.noDefinition(err, entry)
 		return s.pageBody(view{title: tf("web.activity.team_title", name), band: bandActivity, crumb: crumb}, "team.html", data)
 	}
-	verdict, err := s.judge(name, def, time.Now())
-	if err != nil {
+	now := time.Now()
+	agents, agentErrs, seen := s.observeAll(running, now)
+	if err := agentErrs[name]; err != nil {
 		return view{}, err
 	}
+	verdict := s.judge(name, def, agents[name], seen, now)
 	data.Line = verdict.Line
 	data.Tail = verdict.Tail
 	data.States = stateClasses(verdict.Nodes)
@@ -97,26 +100,62 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 }
 
 // focus is the one thing the activity writes: where herdr's focus stands. It
-// changes no file (P6).
+// changes no file (P6). The pane has to be one of the team's own agents: a name
+// from the form is not trusted, and a name that is not there is one line rather
+// than a focus moved somewhere else (N4).
 func (s *Server) focus(r *http.Request) (view, error) {
+	team := r.PathValue("team")
 	pane := r.PostFormValue("pane")
-	if err := s.port.Focus(pane); err != nil {
-		return view{}, err
+	agents, err := s.port.Agents(team)
+	if err != nil {
+		return s.activityView(tf("web.activity.herdr_error", err))
 	}
-	s.focused = pane
-	return s.activityList(r)
+	for _, agent := range agents {
+		if agent.Herdr != pane {
+			continue
+		}
+		if err := s.port.Focus(pane); err != nil {
+			return view{}, err
+		}
+		node := agent.Node
+		if node == "" {
+			node = agent.Herdr
+		}
+		return s.activityView(tf("web.activity.moved", team, node))
+	}
+	return s.activityView(t("web.activity.no_pane"))
+}
+
+// observeAll reads every running team's agents and hands them to the watcher once
+// per redraw: the watcher forgets the agents it is not handed, so observing one
+// team at a time would take every other team's length again on the next draw
+// (設計 5.2、spec/39 S2). The result is shared by every section of this answer.
+func (s *Server) observeAll(running []effect.Running, now time.Time) (map[string][]activity.Agent, map[string]error, map[string]activity.Watch) {
+	byTeam := make(map[string][]activity.Agent, len(running))
+	errs := make(map[string]error, len(running))
+	var all []activity.Agent
+	for _, entry := range running {
+		agents, err := s.port.Agents(entry.Team)
+		if err != nil {
+			errs[entry.Team] = err
+			continue
+		}
+		byTeam[entry.Team] = agents
+		all = append(all, agents...)
+	}
+	return byTeam, errs, s.watcher.Observe(all, now)
 }
 
 // sections judges each running team and turns it into a section, keeping the
 // judgement so the list can be ordered by it (5.2). A team that cannot be judged
 // (its definition is not here, or does not read) is returned apart: it is listed
 // after the judged ones and is in no count (L4).
-func (s *Server) sections(running []effect.Running, now time.Time) ([]activity.Team, map[string]teamSection, []teamSection) {
+func (s *Server) sections(running []effect.Running, agents map[string][]activity.Agent, agentErrs map[string]error, seen map[string]activity.Watch, now time.Time) ([]activity.Team, map[string]teamSection, []teamSection) {
 	known := make([]activity.Team, 0, len(running))
 	byName := make(map[string]teamSection, len(running))
 	var unknown []teamSection
 	for _, entry := range running {
-		section, verdict, ok := s.section(entry, now)
+		section, verdict, ok := s.section(entry, agents[entry.Team], agentErrs[entry.Team], seen, now)
 		if !ok {
 			unknown = append(unknown, section)
 			continue
@@ -130,7 +169,7 @@ func (s *Server) sections(running []effect.Running, now time.Time) ([]activity.T
 
 // section is one team's section in the activity list, with the judgement it was
 // built from. The judgement is absent (ok false) when the team cannot be judged.
-func (s *Server) section(entry effect.Running, now time.Time) (teamSection, activity.Team, bool) {
+func (s *Server) section(entry effect.Running, agents []activity.Agent, agentsErr error, seen map[string]activity.Watch, now time.Time) (teamSection, activity.Team, bool) {
 	section := teamSection{Name: entry.Team, Href: teamPath(entry.Team)}
 	verdict := activity.Team{Name: entry.Team}
 	if entry.Definition != entry.Team {
@@ -142,12 +181,12 @@ func (s *Server) section(entry effect.Running, now time.Time) (teamSection, acti
 		section.Line = s.noDefinition(err, entry)
 		return section, verdict, false
 	}
-	judged, err := s.judge(entry.Team, def, now)
-	if err != nil {
+	if agentsErr != nil {
 		section.Unjudged = true
-		section.Line = tf("web.activity.herdr_error", err)
+		section.Line = tf("web.activity.herdr_error", agentsErr)
 		return section, verdict, false
 	}
+	judged := s.judge(entry.Team, def, agents, seen, now)
 	section.Line = judged.Line
 	section.Tail = judged.Tail
 	section.State = judged.State
@@ -170,15 +209,11 @@ func (s *Server) noDefinition(err error, entry effect.Running) string {
 	return s.breakLine(readErrorPath(err, s.teamYAMLOf(entry.Definition)), err)
 }
 
-// judge is one team's judgement: the agents as the Port reports them, the pane
-// tail of the node that waits, and the watcher's memory of how long it has been
-// there (設計 5.2).
-func (s *Server) judge(team string, def *definition.Definition, now time.Time) (activity.Team, error) {
-	agents, err := s.port.Agents(team)
-	if err != nil {
-		return activity.Team{}, err
-	}
-	seen := s.watcher.Observe(agents, now)
+// judge is one team's judgement: the agents the caller read, the pane tail of
+// the node that waits, and the watcher's memory of how long it has been there
+// (設計 5.2). The watcher is not called here: the caller observed every team's
+// agents once (S2).
+func (s *Server) judge(team string, def *definition.Definition, agents []activity.Agent, seen map[string]activity.Watch, now time.Time) activity.Team {
 	verdict := activity.Of(activity.Input{
 		Team:   team,
 		Graph:  def.Graph,
@@ -193,7 +228,7 @@ func (s *Server) judge(team string, def *definition.Definition, now time.Time) (
 			}
 		}
 	}
-	return verdict, nil
+	return verdict
 }
 
 // herdrNameOf is the herdr name of the agent that is one node.
@@ -346,5 +381,4 @@ type teamData struct {
 	Hired          []string
 	NotRunning     bool
 	Broken         string
-	Focused        string
 }

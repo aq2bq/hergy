@@ -47,29 +47,53 @@ func (s *Server) roleRule(r *http.Request) (view, error) {
 	return s.rolePage(r.PathValue("role"), r.PathValue("rule"))
 }
 
-// rolePage draws one role, with one rule open when open names it.
+// rolePage draws one role, with one rule open when open names it. A role no layer
+// holds and no member plays is a 404 (N2); a role a member plays without a
+// document keeps its page and shows what validate says.
 func (s *Server) rolePage(name, open string) (view, error) {
-	data := roleData{Name: name, Href: rolePath(name), Crumb: []crumb{{Name: t("web.band.roles"), Href: "/roles"}, {Name: name}}}
+	data := roleData{Name: name, Href: rolePath(name)}
 	data.Users = refLines(s.cat.RoleUsers(name))
 	doc, ok := s.cat.Role(name)
 	if !ok {
-		data.Missing = s.roleSentences()[name]
-		return s.pageBody(view{title: tf("web.role.title", name), band: bandRoles, crumb: data.Crumb}, "role.html", data)
+		sentences := s.roleSentences()[name]
+		if len(sentences) == 0 {
+			data.MissingOne = tf("web.missing.role", name)
+			return s.roleView(data, http.StatusNotFound)
+		}
+		data.Missing = sentences
+		return s.roleView(data, 0)
 	}
 	parsed, err := s.ruleDoc(doc)
 	if err != nil {
 		data.Broken = s.breakLine(doc.Path, err)
-		return s.pageBody(view{title: tf("web.role.title", name), band: bandRoles, crumb: data.Crumb}, "role.html", data)
+		return s.roleView(data, 0)
 	}
 	data.Path = s.cat.Display(doc.Path)
 	data.Sections = s.sectionsOf(parsed, func(id string) string { return roleRulePath(name, id) })
 	if open != "" {
-		if card, ok := cardOf(parsed, open); ok {
-			data.Panel = panel{Title: tf("web.panel.rule", open), Key: "rule:" + open, Parent: rolePath(name), Rule: &card}
-			data.PanelOpen = true
+		card, found := cardOf(parsed, open)
+		if !found {
+			data.MissingOne = tf("web.missing.role_rule", name, open)
+			return s.roleView(data, http.StatusNotFound)
 		}
+		data.Panel = panel{Title: tf("web.panel.rule", open), Key: "rule:" + open, Parent: rolePath(name), Crumb: open, Rule: &card}
+		data.PanelOpen = true
 	}
-	return s.pageBody(view{title: tf("web.role.title", name), band: bandRoles, crumb: data.Crumb}, "role.html", data)
+	return s.roleView(data, 0)
+}
+
+// roleView draws one role's page: the trail names the open rule when there is
+// one (N3), and the status is 404 when the URL named something that is not there
+// (N2).
+func (s *Server) roleView(data roleData, status int) (view, error) {
+	trail := []crumb{{Name: t("web.band.roles"), Href: "/roles"}, {Name: data.Name, Href: rolePath(data.Name)}}
+	if data.PanelOpen && data.Panel.Crumb != "" {
+		trail = append(trail, crumb{Name: data.Panel.Crumb})
+	} else {
+		trail[len(trail)-1].Href = ""
+	}
+	data.Crumb = trail
+	return s.pageBody(view{title: tf("web.role.title", data.Name), band: bandRoles, crumb: trail, status: status}, "role.html", data)
 }
 
 // roleSentences is the sentence validate writes for every role whose document a
@@ -156,14 +180,15 @@ type roleRow struct {
 
 // roleData is what one role's page is given.
 type roleData struct {
-	Name      string
-	Href      string
-	Users     []string
-	Path      string
-	Sections  []ruleSection
-	Missing   []string
-	Broken    string
-	Crumb     []crumb
-	Panel     panel
-	PanelOpen bool
+	Name       string
+	Href       string
+	Users      []string
+	Path       string
+	Sections   []ruleSection
+	Missing    []string
+	MissingOne string
+	Broken     string
+	Crumb      []crumb
+	Panel      panel
+	PanelOpen  bool
 }
