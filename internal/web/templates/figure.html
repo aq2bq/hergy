@@ -23,7 +23,13 @@
   {{- end}}
   {{- end}}
   {{- range .Edges}}
-  <a href="{{.Href}}" class="edge-link{{if .Open}} open{{end}}"><path class="edge{{if .Worker}} worker{{end}}" d="{{.Path}}" data-from="{{.DataFrom}}" data-to="{{.DataTo}}" marker-end="url(#head)"><title>{{.Label}}</title></path></a>
+  <a href="{{.Href}}" class="edge-link{{if .Open}} open{{end}}"><path class="edge{{if .Worker}} worker{{end}}{{if .Fade}} pending-remove{{end}}" d="{{.Path}}" data-from="{{.DataFrom}}" data-to="{{.DataTo}}" marker-end="url(#head)"><title>{{.Label}}</title></path></a>
+  {{- end}}
+  {{- range .Pending}}
+  <path class="edge pending-add" d="{{.Path}}" marker-end="url(#head)"><title>{{.Label}}</title></path>
+  {{- end}}
+  {{- range .Handles}}
+  <a class="handle" href="{{.Href}}" aria-label="{{.Title}}"><circle cx="{{.X}}" cy="{{.Y}}" r="10"/><text x="{{.X}}" y="{{.Y}}" text-anchor="middle" dominant-baseline="central">{{.Label}}</text><title>{{.Title}}</title></a>
   {{- end}}
 </svg>
 </figure>

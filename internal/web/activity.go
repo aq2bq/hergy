@@ -94,7 +94,7 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 	data.Line = verdict.Line
 	data.Tail = verdict.Tail
 	data.States = stateClasses(verdict.Nodes)
-	data.Figure = s.figure(def, data.States, nil, "")
+	data.Figure = s.figure(def, data.States, nil, "", nil)
 	data.Hired = hiredLines(verdict.Hired)
 	return s.pageBody(view{title: tf("web.activity.team_title", name), band: bandActivity, crumb: crumb}, "team.html", data)
 }
