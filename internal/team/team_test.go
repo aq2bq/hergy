@@ -5,6 +5,9 @@ import (
 	"os/exec" // the test makes a real git repository, to see K2's answer
 	"path/filepath"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 func write(t *testing.T, path, text string) {
@@ -68,5 +71,31 @@ func TestInRepoFollowsTheGitRoot(t *testing.T) {
 		t.Fatal(err)
 	} else if !env.InRepo() {
 		t.Error("InRepo() = false inside a git repository")
+	}
+}
+
+// TestNewPlaceFollowsK2: where the catalog puts something new is the layer K2
+// reads, and the same place the environment names (C13). The environment is
+// what tells the catalog whether the project is inside a repository, so the two
+// answers agree.
+func TestNewPlaceFollowsK2(t *testing.T) {
+	env := newEnv(t)
+	in := env
+	in.inRepo = true
+	out := env
+	out.inRepo = false
+
+	if got, want := in.Catalog(source.Disk{}).NewPlace(catalog.NewTeam, "t"), in.TeamDir("t", source.LayerLocal); got != want {
+		t.Errorf("inside a repository NewPlace = %q, want %q", got, want)
+	}
+	if got, want := out.Catalog(source.Disk{}).NewPlace(catalog.NewTeam, "t"), out.TeamDir("t", source.LayerGlobal); got != want {
+		t.Errorf("outside a repository NewPlace = %q, want %q", got, want)
+	}
+	cat := in.Catalog(source.Disk{})
+	if got, want := cat.NewPlace(catalog.NewRole, "lead"), filepath.Join(env.LocalDir, "roles", "lead.yaml"); got != want {
+		t.Errorf("NewPlace(NewRole, lead) = %q, want %q", got, want)
+	}
+	if got, want := cat.NewPlace(catalog.NewProfile, "lead"), filepath.Join(env.LocalDir, "profiles.yaml"); got != want {
+		t.Errorf("NewPlace(NewProfile, lead) = %q, want %q", got, want)
 	}
 }

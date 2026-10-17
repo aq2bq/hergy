@@ -3,6 +3,8 @@ package topology
 import (
 	"math"
 	"sort"
+
+	"github.com/aq2bq/hergy/internal/definition"
 )
 
 // The figure's fixed sizes, in pixels. The columns run left to right: the
@@ -74,6 +76,10 @@ type MemberBox struct {
 	Role        string
 	RoleFile    *Box
 	RoleFileKey string
+	// Profile is the engine the member runs, by profile name (I7): a figure of
+	// the graph names it under the role. It is the zero value for the older
+	// figure, which draws the profile from the screen's own reading.
+	Profile string
 	// RoleSlot is where a role file box sits on this member's row, whether or
 	// not the member reads one: a screen draws an empty box there to say the
 	// member reads no role file.
@@ -103,6 +109,15 @@ type Arrow struct {
 	FromY float64
 	ToY   float64
 	LaneX float64
+	// FromNode and ToNode are the two ends of a graph edge (C7): the node
+	// identity a screen links from and writes as data-from and data-to. They are
+	// the zero value for an arrow of the older figure, whose turns were read
+	// from a rule's text and whose ends are the Turn.
+	FromNode definition.NodeID
+	ToNode   definition.NodeID
+	// Worker says the arrow is one of the two edges workers: makes (I12c), which
+	// a figure draws dotted.
+	Worker bool
 }
 
 // Figure is one team definition laid out for drawing.
@@ -121,6 +136,9 @@ type Figure struct {
 
 // Layout lays out one team definition: the boxes, and the arrows the graph's
 // turns make. It reads no rule text: the turns are the definition's own (段 5).
+// It is the older figure, which draws the documents and the roles beside the
+// members; LayoutGraph draws the figure a screen shows from the graph alone. It
+// stays until the older screen is gone.
 func Layout(members []Member, docs []Doc, turns []Turn) Figure {
 	rows := buildRows(members)
 	top := topMargin + humanH + humanGap
@@ -148,6 +166,10 @@ func Layout(members []Member, docs []Doc, turns []Turn) Figure {
 type row struct {
 	key  string
 	Y, H float64
+	// anchorH is the height the arrow ends spread over, when it is not the
+	// row's own height: a member's row is taller than its box when a worker is
+	// drawn under it, and the arrows meet the box. Zero means the whole row.
+	anchorH float64
 }
 
 // buildRows is the rows in drawn order: the human, then the members.
@@ -268,6 +290,14 @@ func placeEdges(turns []Turn, rows []row, index map[string]int) []Arrow {
 		}
 		held = append(held, heldEdge{turn: turn, from: from, to: to})
 	}
+	assignLanes(held)
+	fromY, toY := anchors(held, rows)
+	return assemble(held, fromY, toY)
+}
+
+// assignLanes sorts the arrows and gives each its lane: the short ones bend
+// nearest the members, and the long ones outside them.
+func assignLanes(held []heldEdge) {
 	sort.SliceStable(held, func(i, j int) bool {
 		si, sj := held[i].span(), held[j].span()
 		if si != sj {
@@ -278,13 +308,14 @@ func placeEdges(turns []Turn, rows []row, index map[string]int) []Arrow {
 	for i := range held {
 		held[i].lane = i
 	}
-	fromY, toY := anchors(held, rows)
-	return assemble(held, fromY, toY)
 }
 
-// heldEdge is one arrow with the rows its ends meet.
+// heldEdge is one arrow with the rows its ends meet. turn is set for an arrow of
+// the older figure and edge for one of a graph (C7); each caller sets the one it
+// has.
 type heldEdge struct {
 	turn     Turn
+	edge     definition.Edge
 	from, to int
 	lane     int
 }
@@ -297,6 +328,10 @@ func (h heldEdge) first() int { return min(h.from, h.to) }
 // row and on its to row.
 func anchors(held []heldEdge, rows []row) (fromY, toY []float64) {
 	fromY, toY = make([]float64, len(held)), make([]float64, len(held))
+	lanes := make([]int, len(held))
+	for i, h := range held {
+		lanes[i] = h.lane
+	}
 	ends := make([][]end, len(rows))
 	for i, h := range held {
 		ends[h.from] = append(ends[h.from], end{at: i, side: 's', other: h.to})
@@ -306,7 +341,7 @@ func anchors(held []heldEdge, rows []row) (fromY, toY []float64) {
 		if len(list) == 0 {
 			continue
 		}
-		placeEnds(list, held, rows[r], r, fromY, toY)
+		placeEnds(list, lanes, rows[r], r, fromY, toY)
 	}
 	return fromY, toY
 }
@@ -318,8 +353,9 @@ type end struct {
 	other int
 }
 
-// placeEnds distributes one row's arrow ends along the row's height.
-func placeEnds(list []end, held []heldEdge, r row, index int, fromY, toY []float64) {
+// placeEnds distributes one row's arrow ends along the row's height. lanes is
+// each arrow's lane, in the order the arrows are held.
+func placeEnds(list []end, lanes []int, r row, index int, fromY, toY []float64) {
 	sort.SliceStable(list, func(i, j int) bool {
 		if list[i].other != list[j].other {
 			return list[i].other < list[j].other
@@ -327,12 +363,16 @@ func placeEnds(list []end, held []heldEdge, r row, index int, fromY, toY []float
 		// The same far row: take the farther lane first from the near side, so
 		// the curves nest.
 		if list[i].other < index {
-			return held[list[i].at].lane > held[list[j].at].lane
+			return lanes[list[i].at] > lanes[list[j].at]
 		}
-		return held[list[i].at].lane < held[list[j].at].lane
+		return lanes[list[i].at] < lanes[list[j].at]
 	})
 	limit := r.H - anchorPad
 	center := r.Y + r.H/2
+	if r.anchorH > 0 {
+		limit = r.anchorH - anchorPad
+		center = r.Y + r.anchorH/2
+	}
 	for j, e := range list {
 		offset := 0.0
 		if len(list) > 1 {

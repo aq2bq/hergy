@@ -1,0 +1,202 @@
+package catalog
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/aq2bq/hergy/internal/source"
+)
+
+// TestWithReadsATeamYAMLThatIsNotWritten: a screen reads a change it has not
+// saved (C3b). The file on disk is untouched.
+func TestWithReadsATeamYAMLThatIsNotWritten(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "before")
+
+	path := filepath.Join(l.local, "teams", "t", "team.yaml")
+	after := strings.Replace(readFile(t, path), "mission: before", "mission: after", 1)
+	overlaid := l.catalog().With(path, after)
+
+	def, err := overlaid.Read("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Mission != "after" {
+		t.Errorf("mission = %q, want the edit's", def.Mission)
+	}
+	onDisk, err := l.catalog().Read("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if onDisk.Mission != "before" {
+		t.Errorf("mission = %q, want the file's", onDisk.Mission)
+	}
+}
+
+// TestWithReadsAProfilesYAMLThatIsNotThere reads a profiles.yaml that is not on
+// disk at all: the first save of a layer writes one (C3b, r-daf8).
+func TestWithReadsAProfilesYAMLThatIsNotThere(t *testing.T) {
+	l := newLayers(t)
+	path := filepath.Join(l.global, "profiles.yaml")
+	text := "version: 1\nprofiles:\n  made:\n    kind: claude\n"
+
+	profiles, paths, err := l.catalog().With(path, text).Profiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := profiles["made"]; !ok {
+		t.Fatalf("profiles = %v, want the edit's", profiles)
+	}
+	if paths != path {
+		t.Errorf("paths = %q, want %q", paths, path)
+	}
+	if _, _, err := l.catalog().Profiles(); err != nil {
+		t.Errorf("reading the layers without the edit: %v", err)
+	}
+}
+
+// TestWithLeavesOtherPathsToDisk: a text stands in for one path. Everything else
+// reads from disk (C3b).
+func TestWithLeavesOtherPathsToDisk(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "before")
+	l.writeFullTeam(t, source.LayerGlobal, "other", "the other mission")
+
+	path := filepath.Join(l.local, "teams", "t", "team.yaml")
+	after := strings.Replace(readFile(t, path), "mission: before", "mission: after", 1)
+	overlaid := l.catalog().With(path, after)
+
+	def, err := overlaid.Read("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Mission != "after" {
+		t.Errorf("t = %q, want the edit's", def.Mission)
+	}
+	other, err := overlaid.Read("other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.Mission != "the other mission" {
+		t.Errorf("other = %q, want the file's", other.Mission)
+	}
+}
+
+// TestWithFindsARoleDocumentThatIsNotWritten: a role document the screen is
+// about to make is found, and its text reads back (C3b).
+func TestWithFindsARoleDocumentThatIsNotWritten(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "m")
+	path := filepath.Join(l.local, "roles", "new-role.yaml")
+	text := "a role document the screen made\n"
+
+	cat := l.catalog()
+	if _, ok := cat.Role("new-role"); ok {
+		t.Fatal("the role document is there before the edit")
+	}
+	overlaid := cat.With(path, text)
+	doc, ok := overlaid.Role("new-role")
+	if !ok {
+		t.Fatal("the edit's role document is not found")
+	}
+	if doc.Path != path || doc.Layer != source.LayerLocal {
+		t.Errorf("doc = %+v, want %q in the project's layer", doc, path)
+	}
+	read, err := overlaid.Reader().Read(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read != text {
+		t.Errorf("read %q, want the edit's text", read)
+	}
+}
+
+// TestWithFindsAnAgreementThatIsNotWritten: a team's own agreement the screen is
+// about to make is read as the team's (C3b). Whether a definition has one is
+// asked of the reader, so it is answered by the edit.
+func TestWithFindsAnAgreementThatIsNotWritten(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "m")
+	path := filepath.Join(l.local, "teams", "t", "agreement.yaml")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+
+	cat := l.catalog()
+	before, err := cat.Read("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.HasAgreement {
+		t.Fatal("the team has an agreement before the edit")
+	}
+	after, err := cat.With(path, "the agreement the screen wrote\n").Read("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.HasAgreement || after.Agreement.Path != path {
+		t.Errorf("agreement = %+v (has %v), want the edit's", after.Agreement, after.HasAgreement)
+	}
+}
+
+// TestWithFindsASharedAgreementThatIsNotWritten: the agreement every team of a
+// layer shares, made by the same edit (C3b).
+func TestWithFindsASharedAgreementThatIsNotWritten(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "m")
+	path := filepath.Join(l.local, "agreement.yaml")
+
+	cat := l.catalog()
+	if _, ok := cat.SharedAgreement(); ok {
+		t.Fatal("the shared agreement is there before the edit")
+	}
+	overlaid := cat.With(path, "the agreement every team shares\n")
+	doc, ok := overlaid.SharedAgreement()
+	if !ok {
+		t.Fatal("the edit's shared agreement is not found")
+	}
+	if doc.Path != path {
+		t.Errorf("doc = %+v, want %q", doc, path)
+	}
+}
+
+// TestDefinitionEditAndProfilesEditAreWith: the two older mouths are thin covers
+// over With (C3b), so a caller that still uses them reads the same text.
+func TestDefinitionEditAndProfilesEditAreWith(t *testing.T) {
+	l := newLayers(t)
+	l.writeFullTeam(t, source.LayerLocal, "t", "before")
+	teamYAML := filepath.Join(l.local, "teams", "t", "team.yaml")
+	after := strings.Replace(readFile(t, teamYAML), "mission: before", "mission: after", 1)
+	cat := l.catalog()
+
+	viaEdit, err := cat.DefinitionEdit("t", source.LayerLocal, ProfilesEdit{Path: teamYAML, Text: after})
+	if err != nil {
+		t.Fatal(err)
+	}
+	viaWith, err := cat.With(teamYAML, after).Definition("t", source.LayerLocal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viaEdit.Mission != viaWith.Mission || viaEdit.Mission != "after" {
+		t.Errorf("DefinitionEdit = %q, With = %q, want the edit's", viaEdit.Mission, viaWith.Mission)
+	}
+
+	profilesYAML := filepath.Join(l.local, "profiles.yaml")
+	text := readFile(t, profilesYAML) + "  extra:\n    kind: claude\n"
+	viaProfilesEdit, _, err := cat.ProfilesEdit(ProfilesEdit{Path: profilesYAML, Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	viaProfilesWith, _, err := cat.With(profilesYAML, text).Profiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := viaProfilesEdit["extra"]; !ok {
+		t.Error("ProfilesEdit does not read the edit's profile")
+	}
+	if len(viaProfilesEdit) != len(viaProfilesWith) {
+		t.Errorf("ProfilesEdit read %d profiles, With read %d", len(viaProfilesEdit), len(viaProfilesWith))
+	}
+}
