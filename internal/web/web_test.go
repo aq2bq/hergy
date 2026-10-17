@@ -15,6 +15,8 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/effect"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.uber.org/goleak"
 )
@@ -58,7 +60,7 @@ func newFixture(t *testing.T) *fixture {
 		}
 	}
 	f.writeTeam(t, "demo", "demo の使命")
-	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n")
+	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n  reader:\n    kind: codex\n")
 	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead は最初に動く。\n")
 	f.write(t, "roles/builder.yaml", "version: 1\nsections:\n  - rules:\n      - id: BUILD-1\n        text: builder は作る。\n")
 	f.write(t, "agreement.yaml", "version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n        why: だから。\n")
@@ -861,5 +863,313 @@ func TestTheDefinitionShowsWhatStopsIt(t *testing.T) {
 	// The row carries no counts: it is not a definition that reads clean.
 	if strings.Contains(body, `mission: `) {
 		t.Errorf("the list shows a broken row like a whole one")
+	}
+}
+
+// profileFile is the profiles.yaml the fixture's screens read and write.
+func (f *fixture) profileFile() string {
+	return filepath.Join(f.proj, ".hergy", "profiles.yaml")
+}
+
+// commandLines is every command a rendered handover holds, as the copy button's
+// code element writes it (設計 3.0: Command.Line is the command alone).
+func commandLines(body string) []string {
+	var out []string
+	for _, part := range strings.Split(body, `<code id="cmd-`)[1:] {
+		_, rest, ok := strings.Cut(part, ">")
+		if !ok {
+			continue
+		}
+		line, _, ok := strings.Cut(rest, "</code>")
+		if !ok {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// optionValues is the value of every <option> a page writes, in order.
+func optionValues(body string) []string {
+	var out []string
+	for _, part := range strings.Split(body, `<option value="`)[1:] {
+		value, _, ok := strings.Cut(part, `"`)
+		if !ok {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
+// TestProfileSaveWritesOnlyThatProfile: the kind, the args and the env are
+// written into the profiles.yaml the profile was read from, in hergy's one
+// written form, and no other profile moves (設計 3.7・7.3).
+func TestProfileSaveWritesOnlyThatProfile(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+	resp, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind":     {"opencode"},
+		"args":     {"--y\n--z"},
+		"envname":  {"A", "B"},
+		"envvalue": {"one", "two"},
+		"hash":     {source.Hash(readFile(t, path))},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "profiles.coder を書きました") {
+		t.Errorf("the saved line does not name the file and the key:\n%s", body)
+	}
+	want := "version: 1\n" +
+		"profiles:\n" +
+		"  coder:\n" +
+		"    kind: opencode\n" +
+		"    args:\n" +
+		"      - --y\n" +
+		"      - --z\n" +
+		"    env:\n" +
+		"      A: one\n" +
+		"      B: two\n" +
+		"  reader:\n" +
+		"    kind: codex\n"
+	if got := readFile(t, path); got != want {
+		t.Errorf("the save wrote\n%q\nwant\n%q", got, want)
+	}
+	// The field shows what was written, one arg to a line.
+	if !strings.Contains(body, "--y\n--z</textarea>") {
+		t.Errorf("the args box does not hold the written args:\n%s", body)
+	}
+	// The same profile read again still holds them.
+	_, body = f.get(t, server, "/profiles/coder")
+	if !strings.Contains(body, "--y\n--z</textarea>") {
+		t.Errorf("the args box does not read them back:\n%s", body)
+	}
+	if !strings.Contains(body, `value="B"`) || !strings.Contains(body, "two</textarea>") {
+		t.Errorf("the env rows do not read the written pair back:\n%s", body)
+	}
+}
+
+// TestProfileSaveRefused: a save that cannot be written is refused with one
+// sentence beside the field, the values a person wrote stay, and the file does
+// not move (設計 3.7 の「失敗の 1 行」, C4).
+func TestProfileSaveRefused(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+	before := readFile(t, path)
+
+	// An env row with a value and no name is not something to write; the values
+	// the person wrote stay on the page (C4).
+	resp, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind":     {"claude"},
+		"args":     {"typed-arg"},
+		"envname":  {"", "A"},
+		"envvalue": {"a-value", "one"},
+		"hash":     {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "env の組を直してください") {
+		t.Errorf("a nameless env row was not refused: %d\n%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "typed-arg</textarea>") || !strings.Contains(body, "a-value</textarea>") {
+		t.Errorf("the refused save did not keep what the person wrote:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused save wrote the file")
+	}
+
+	// A kind the file cannot read stops every definition that reads it, so the
+	// save is refused with validate's own sentence.
+	resp, body = f.post(t, server, "/profiles/coder", url.Values{
+		"kind":     {""},
+		"args":     {"--x"},
+		"envname":  {"A"},
+		"envvalue": {"one"},
+		"hash":     {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the refused save answered %d", resp.StatusCode)
+	}
+	if strings.Contains(body, "書きました") {
+		t.Errorf("a save that stops a definition was written:\n%s", body)
+	}
+	if !strings.Contains(body, `class="findings"`) {
+		t.Errorf("the refusal shows no sentence:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused save wrote the file")
+	}
+
+	// A file that moved under the page is refused with the clash line and the
+	// reload link.
+	_, body = f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"claude"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {"deadbeef"},
+	})
+	if !strings.Contains(body, "変わりました") || !strings.Contains(body, "読み直す") {
+		t.Errorf("a stale page was not refused with the clash line and a reload link:\n%s", body)
+	}
+}
+
+// TestProfileChangeHandsOverRealCommands: a kind or args change is a refresh of
+// the members that run the profile, an env change is a down and an up, and every
+// command is taken apart by the real command definitions (設計 3.0 の表,
+// d-a8b1 追加の決め 5).
+func TestProfileChangeHandsOverRealCommands(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := f.profileFile()
+
+	check := func(body string) []string {
+		t.Helper()
+		lines := commandLines(body)
+		for _, line := range lines {
+			if _, err := options.Parse(strings.Fields(line)[1:]); err != nil {
+				t.Errorf("the command %q does not parse: %v", line, err)
+			}
+		}
+		return lines
+	}
+
+	_, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"opencode"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	lines := check(body)
+	if !strings.Contains(strings.Join(lines, "\n"), "hergy refresh builder --team demo") {
+		t.Errorf("a kind change does not refresh a member that runs the profile:\n%s", strings.Join(lines, "\n"))
+	}
+
+	_, body = f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"opencode"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"two"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	lines = check(body)
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "hergy down demo") || !strings.Contains(joined, "hergy up demo --as demo") {
+		t.Errorf("an env change does not hand over a down and an up:\n%s", joined)
+	}
+}
+
+// TestProfileKindChoicesPutTheUsedKindsFirst: the kinds the profiles.yaml
+// already uses come first, then herdr's own order (設計 3.7, spec/38 T4).
+func TestProfileKindChoicesPutTheUsedKindsFirst(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles/coder")
+	choices := optionValues(body)
+	if len(choices) != len(profile.Kinds()) {
+		t.Fatalf("the kinds offered are %d, want %d", len(choices), len(profile.Kinds()))
+	}
+	if choices[0] != "claude" || choices[1] != "codex" {
+		t.Errorf("the kind choices start %v, want the used kinds first", choices[:2])
+	}
+}
+
+// TestAProfileNamedAfterItsKindWarns: a profile whose name is its kind gets
+// validate's warning on its own page (d-a477).
+func TestAProfileNamedAfterItsKindWarns(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n  claude:\n    kind: claude\n")
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles/claude")
+	if !strings.Contains(body, i18n.Tf("validate.profile_named_after_kind", "claude")) {
+		t.Errorf("a profile named after its kind does not warn:\n%s", body)
+	}
+	_, body = f.get(t, server, "/profiles/coder")
+	if strings.Contains(body, i18n.Tf("validate.profile_named_after_kind", "coder")) {
+		t.Errorf("a profile not named after its kind warns")
+	}
+}
+
+// TestAProfileInUseIsShownAndNotDeleted: a profile a member or a worker runs
+// names who uses it and is not taken away; an unused one goes, and the others
+// stay (設計 3.7, I8).
+func TestAProfileInUseIsShownAndNotDeleted(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+	before := readFile(t, path)
+
+	// The detail shows a member and a worker that run it (I8).
+	_, body := f.get(t, server, "/profiles/coder")
+	for _, want := range []string{"demo の lead", "demo の lead が呼ぶ 試作"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the profile does not name the user %q:\n%s", want, body)
+		}
+	}
+	// And it cannot be taken away while they name it.
+	resp, body := f.post(t, server, "/profiles/coder/delete", url.Values{"hash": {source.Hash(before)}})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "demo の lead が使っています") {
+		t.Errorf("the delete of a used profile does not say who uses it: %d\n%s", resp.StatusCode, body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused delete wrote the file")
+	}
+
+	// One nothing runs goes, and the rest of the file stays.
+	resp, body = f.post(t, server, "/profiles/reader/delete", url.Values{"hash": {source.Hash(before)}})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "profiles.reader を消しました") {
+		t.Errorf("the delete of an unused profile was not written: %d\n%s", resp.StatusCode, body)
+	}
+	after := readFile(t, path)
+	if strings.Contains(after, "reader") {
+		t.Errorf("the deleted profile is still in the file:\n%s", after)
+	}
+	if !strings.Contains(after, "  coder:") {
+		t.Errorf("the delete took another profile with it:\n%s", after)
+	}
+}
+
+// TestAddingAProfileWritesItAtTheNewPlace: the list's 足す writes a new profile
+// where K2 says (C13), keeps the others, and refuses a name hergy already
+// resolves (設計 3.7).
+func TestAddingAProfileWritesItAtTheNewPlace(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+	resp, body := f.post(t, server, "/profiles", url.Values{
+		"name": {"tester"}, "kind": {"gemini"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "profiles.tester を書きました") {
+		t.Fatalf("the new profile was not written: %d\n%s", resp.StatusCode, body)
+	}
+	after := readFile(t, path)
+	if !strings.Contains(after, "  tester:\n    kind: gemini\n") {
+		t.Errorf("the new profile is not in the file:\n%s", after)
+	}
+	if !strings.Contains(after, "  coder:") {
+		t.Errorf("the add took another profile with it:\n%s", after)
+	}
+
+	// A name hergy already resolves is refused, and nothing is written.
+	_, body = f.post(t, server, "/profiles", url.Values{
+		"name": {"coder"}, "kind": {"claude"},
+		"hash": {source.Hash(after)},
+	})
+	if !strings.Contains(body, "もうあります") {
+		t.Errorf("adding a name that is already there was not refused:\n%s", body)
+	}
+	if readFile(t, path) != after {
+		t.Errorf("a refused add wrote the file")
+	}
+
+	// A name that is its kind is written, and validates' warning comes with it
+	// (d-a477).
+	_, body = f.post(t, server, "/profiles", url.Values{
+		"name": {"gemini"}, "kind": {"gemini"},
+		"hash": {source.Hash(after)},
+	})
+	if !strings.Contains(body, "書きました") {
+		t.Errorf("a profile named after its kind was not written:\n%s", body)
+	}
+	if !strings.Contains(body, i18n.Tf("validate.profile_named_after_kind", "gemini")) {
+		t.Errorf("the add of a name that is its kind does not warn:\n%s", body)
 	}
 }

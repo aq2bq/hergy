@@ -77,6 +77,24 @@ main{width:100%;max-width:1320px;margin:0 auto;padding:20px max(16px,3vw) 80px}
 /* C1: a group the script hides must be hidden, whatever its display would be. */
 [hidden]{display:none !important}
 
+/* プロファイルの欄 (3.7): kind・args・env。どの欄も最初から書ける */
+.profile{display:flex;flex-direction:column;gap:6px;margin:0 0 10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.profile .fl{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.kind-input{max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 8px}
+.args-input{width:100%;min-height:4.5em;resize:vertical;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;white-space:pre;overflow:auto}
+.kind-input:focus,.args-input:focus,.env-name:focus,.env-value:focus{border-color:var(--ink)}
+.env{display:flex;flex-direction:column;gap:4px}
+.env-head,.env-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:8px;align-items:start}
+.env-head{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.env-name,.env-value{width:100%;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 8px}
+.env-value{min-height:2.4em;resize:vertical;overflow:auto;white-space:pre-wrap}
+.delete{margin:0 0 6px}
+.add{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.add .fl{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.add-name{flex:1 1 200px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px}
+.add-kind{max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 8px}
+.add-name:focus{border-color:var(--ink)}
+
 /* 表 */
 .tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .tbl th,.tbl td{text-align:left;vertical-align:top;padding:7px 12px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
@@ -150,4 +168,6 @@ a.node.open .box{stroke:var(--focus);stroke-width:2.5}
   .tbl tr{display:block;border:1px solid var(--line);border-radius:8px;margin:0 0 8px;background:var(--surface);padding:4px 10px}
   .tbl td{display:block;border:0;padding:2px 0}
   .mission-input{flex-basis:100%}
+  .env-head{display:none}
+  .env-row{grid-template-columns:minmax(0,1fr)}
 }

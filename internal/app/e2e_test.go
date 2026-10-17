@@ -64,6 +64,7 @@ func TestE2E(t *testing.T) {
 	t.Run("main line", func(t *testing.T) { e2eMainLine(t, ctx, base) })
 	t.Run("close again escape back", func(t *testing.T) { e2eClose(t, ctx, base) })
 	t.Run("mission", func(t *testing.T) { e2eMission(t, ctx, base) })
+	t.Run("profile", func(t *testing.T) { e2eProfile(t, ctx, base, f) })
 	t.Run("draft", func(t *testing.T) { e2eDraft(t, ctx, base) })
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
@@ -212,6 +213,96 @@ func e2eMission(t *testing.T, ctx context.Context, base string) {
 	}
 }
 
+// e2eProfile is 段 5's main line (設計 3.7): a profile's kind is chosen and
+// saved with the one line, an arg is added and saved, and a change is taken back
+// before that (C1〜C3).
+func e2eProfile(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/claude-default"), chromedp.WaitReady(".profile"))
+	if e2eProfileChange(t, ctx) {
+		t.Errorf("the save buttons show before anything changed")
+	}
+	// A kind chosen, taken back, chosen again and saved.
+	e2eSelect(t, ctx, "codex")
+	if !e2eProfileChange(t, ctx) {
+		t.Fatalf("choosing a kind shows no save button")
+	}
+	e2eRun(t, ctx, chromedp.Click(".profile [data-revert]"))
+	if got := e2eSelectValue(t, ctx, "kind"); got != "claude" {
+		t.Errorf("revert left the kind %q", got)
+	}
+	e2eSelect(t, ctx, "codex")
+	e2eRun(t, ctx, chromedp.Click(".profile button[type=submit]"), chromedp.WaitVisible(".saved"))
+	if e2eProfileChange(t, ctx) {
+		t.Errorf("the save buttons still show after the save")
+	}
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
+	if !strings.Contains(saved, "書きました") {
+		t.Errorf("the save line is %q", saved)
+	}
+	if got := e2eURL(t, ctx); got != base+"/profiles/claude-default" {
+		t.Errorf("the save moved to %q, want to stay", got)
+	}
+	if got := e2eSelectValue(t, ctx, "kind"); got != "codex" {
+		t.Errorf("the kind the page shows is %q, want the saved one", got)
+	}
+
+	// An arg added and saved, and the file holds it. The saved line is already
+	// drawn from the kind's save, so the wait is for the form the answer draws
+	// again (its change buttons are gone).
+	e2eRun(t, ctx, chromedp.Evaluate(`(function(){var el=document.getElementById('args');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`, nil))
+	e2eRun(t, ctx, chromedp.SendKeys("#args", "--verbose"))
+	e2eRun(t, ctx, chromedp.Click(".profile button[type=submit]"))
+	e2eWait(t, "the args save", func() bool { return !e2eProfileChange(t, ctx) })
+	var box string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('args').value`, &box))
+	if !strings.Contains(box, "--verbose") {
+		t.Errorf("the args box reads %q", box)
+	}
+	written := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
+	if !strings.Contains(written, "- --verbose") {
+		t.Errorf("the args were not written:\n%s", written)
+	}
+}
+
+// e2eWait polls until one condition holds, failing the test when it never does.
+func e2eWait(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("%s never happened", what)
+}
+
+// e2eProfileChange is whether the profile form's save buttons are drawn.
+func e2eProfileChange(t *testing.T, ctx context.Context) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('.profile [data-change]')).display !== 'none'`, &shown))
+	return shown
+}
+
+// e2eSelect chooses one option of a select and fires the events a person's
+// choosing fires.
+func e2eSelect(t *testing.T, ctx context.Context, value string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Evaluate(`(function(){var el=document.getElementById('kind');el.value='`+value+`';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`, nil))
+}
+
+// e2eSelectValue is what one select shows.
+func e2eSelectValue(t *testing.T, ctx context.Context, id string) string {
+	t.Helper()
+	var value string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('`+id+`').value`, &value))
+	return value
+}
+
 // e2eDraft is C5: a change not saved survives opening another field and coming
 // back.
 func e2eDraft(t *testing.T, ctx context.Context, base string) {
@@ -230,7 +321,7 @@ func e2eDraft(t *testing.T, ctx context.Context, base string) {
 // press.
 func e2ePressable(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/roles", "/profiles"} {
+	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/roles", "/profiles", "/profiles/claude-default"} {
 		e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 		var dead []string
 		script := `(function(){
@@ -254,7 +345,7 @@ func e2eWidths(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	for _, size := range []int64{1440, 1000, 500} {
 		e2eRun(t, ctx, chromedp.EmulateViewport(size, 900))
-		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity"} {
+		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/profiles/claude-default"} {
 			e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 			var over bool
 			e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`, &over))

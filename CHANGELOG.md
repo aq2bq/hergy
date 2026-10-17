@@ -20,9 +20,9 @@
   `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
   `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
   the prompt diff, the version screen and the separate figure are no longer
-  concepts of their own. The members, the turns, the rules and the profiles are
-  read only from the screens until the rounds that give them their own editing;
-  this round writes one thing, a definition's mission.
+  concepts of their own. The members, the turns and the rules are read only
+  from the screens until the rounds that give them their own editing; this round
+  writes one thing, a definition's mission.
 
 - **`hergy validate` warns when a rule text names something the definition has
   no node for**: a rule that writes `lead → impl`, where `impl` is neither a
@@ -37,6 +37,18 @@
 
 ### Added
 
+- **A profile is edited from the screens**: `/profiles/<profile>` writes a
+  profile's kind (chosen from the kinds herdr starts, the ones the file already
+  uses first), its args (one to a line) and its env (a name and a value each,
+  the value a box so a line break in it survives). `/profiles` adds a profile by
+  name and kind. A profile that runs something is not taken away — the screen
+  names the members and workers that use it — and one nothing runs is. Every
+  write goes through the one written form of `profiles.yaml` (the profiles by
+  name, an empty args and env left out), says what it wrote and what each running
+  team has to take up (`hergy refresh` for a kind or an args change, `hergy down`
+  and `hergy up` for an env change), and a name that is its kind gets the warning
+  `hergy validate` gives.
+
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way
@@ -45,6 +57,7 @@
   cursor never standing on something unpressable, the three widths scrolling
   neither way, Tab and Enter reaching a field, and no console errors. A machine
   with no Chrome fails the gate in CI and skips it with one line on a laptop.
+  The profile screen's kind, args and env writes are walked too.
 
 
 ## 0.6.0 - 2026-10-17
