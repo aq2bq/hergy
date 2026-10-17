@@ -356,6 +356,41 @@ func TestProfilesPageNamesTheFileAndItsReaders(t *testing.T) {
 	}
 }
 
+// TestRenameThatSplitsAnswersWithBothRows is N1: renaming the project's profile
+// while the shared file keeps the old name answers with both rows, in the order
+// a reload shows them.
+func TestRenameThatSplitsAnswersWithBothRows(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/profiles/save", url.Values{
+		"file": {"project"}, "original": {"sonnet-fast"}, "open": {"sonnet-fast"},
+		"profile": {`{"name":"sonnet-fast2","kind":"claude","args":["--model","claude-sonnet-5-5"],"env":[{"key":"MAX_THINKING_TOKENS","value":"8000"}]}`},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the rename answered %d: %s", resp.StatusCode, body)
+	}
+	if got := strings.Count(body, `<div class="row`); got != 12 {
+		t.Errorf("the answer holds %d rows, want the split's 12", got)
+	}
+	newRow := strings.Index(body, `data-name="sonnet-fast2"`)
+	lastProject := strings.Index(body, `data-name="gemini-pro"`)
+	oldRow := strings.Index(body, `data-name="sonnet-fast"`)
+	firstSharedOnly := strings.Index(body, `data-name="opus-plan"`)
+	if newRow < 0 || oldRow < 0 || newRow >= lastProject || lastProject >= oldRow || oldRow >= firstSharedOnly {
+		t.Errorf("the split rows are not in the reload's order (new=%d lastProject=%d old=%d firstShared=%d)", newRow, lastProject, oldRow, firstSharedOnly)
+	}
+	if !strings.Contains(body, `data-name="sonnet-fast2"`) || !strings.Contains(body, `data-name="sonnet-fast"`) {
+		t.Errorf("the answer does not hold both rows")
+	}
+	if got := readFile(t, path); !strings.Contains(got, "  sonnet-fast2:\n") {
+		t.Errorf("the project's file was not renamed:\n%s", got)
+	}
+}
+
 // fixtureProject copies the real-scale fixture into a working project and an
 // outside settings directory, and answers a fixture whose server reads it.
 func fixtureProject(t *testing.T) (*fixture, func()) {

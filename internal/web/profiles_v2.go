@@ -257,7 +257,7 @@ func (s *Server) p2Save(r *http.Request) p2Answer {
 	if original != "" && original != draft.Name && r.PostFormValue("renameUsers") == "1" {
 		s.p2RenameUsers(file, original, draft.Name)
 	}
-	return s.p2SavedRow(draft.Name, true, file)
+	return s.p2SavedRows(p2OpenSet(r.PostFormValue("open")), draft.Name, file)
 }
 
 // p2EditProfile is the ops one panel's save writes: the name, kind, args and env
@@ -374,6 +374,34 @@ func (s *Server) p2SavedRow(name string, savedLine bool, file string) p2Answer {
 		}
 	}
 	html, err := s.p2Render("p2_row", row)
+	if err != nil {
+		return p2TextAnswer(http.StatusInternalServerError, err.Error())
+	}
+	return p2HTMLAnswer(html, project, shared, defs)
+}
+
+// p2SavedRows is the list a save answers with: every row as it now reads, so a
+// rename that splits one row into two answers with both in the order a reload
+// shows them (audit N1). The names the page has open stay open, and the row that
+// was written is open at its panel.
+func (s *Server) p2SavedRows(open map[string]bool, savedName, file string) p2Answer {
+	project, shared, defs := s.p2Read()
+	chips := p2Chips(defs)
+	open[savedName] = true
+	names := p2Names(project, shared)
+	rows := make([]p2Row, 0, len(names))
+	for _, name := range names {
+		row := p2RowOf(name, project, shared, chips, open[name])
+		if name == savedName {
+			for i := range row.Panels {
+				if row.Panels[i].File == file {
+					row.Panels[i].SavedLine = true
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	html, err := s.p2Render("p2_rows", rows)
 	if err != nil {
 		return p2TextAnswer(http.StatusInternalServerError, err.Error())
 	}

@@ -210,6 +210,16 @@
     if (row.classList.contains('open')) $$('.panel', row).forEach(initPanel);
   }
 
+  // replaceRows puts the list a save answered with in place of the rows, so a
+  // rename that split one row into two shows both, in the list's order (N1).
+  function replaceRows(html) {
+    const rows = $('#rows');
+    $$('.row', rows).forEach((row) => row.remove());
+    rows.insertAdjacentHTML('beforeend', html || '');
+    $$('.row', rows).forEach(initRow);
+    afterRowsChanged();
+  }
+
   function replaceRow(old, html) {
     const holder = document.createElement('div');
     holder.innerHTML = (html || '').trim();
@@ -856,10 +866,11 @@
       profile: JSON.stringify(draft),
       renameUsers: hint && hint.checked ? '1' : '0',
       hash: hashOf(panel.dataset.file),
+      open: $$('#rows .row.open').map((row) => row.dataset.name).filter(Boolean).join(','),
     });
     if (!answer.ok) { showRefusal(panel, (answer.json && answer.json.text) || '保存できませんでした'); return; }
     updateCounts(answer.headers);
-    replaceRow(panel.closest('.row'), answer.html);
+    replaceRows(answer.html);
   }
 
   async function saveYaml(section) {

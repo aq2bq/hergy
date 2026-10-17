@@ -39,10 +39,12 @@
   <div id="rows">
     {{if .Empty}}<p class="none">プロファイルはありません</p>{{end}}
     <p class="none" id="no-match" hidden>合うプロファイルはありません</p>
-    {{range .Rows}}{{template "p2_row" .}}{{end}}
+    {{template "p2_rows" .Rows}}
   </div>
 </div>
 {{end}}
+
+{{define "p2_rows"}}{{range .}}{{template "p2_row" .}}{{end}}{{end}}
 
 {{define "p2_row"}}
 <div class="row{{if .Open}} open{{end}}" data-name="{{.Name}}" data-kind="{{.Kind}}">
