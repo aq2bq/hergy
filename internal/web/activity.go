@@ -119,7 +119,7 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 	data.Line = verdict.Line
 	data.Tail = verdict.Tail
 	data.States = stateClasses(verdict.Nodes)
-	data.Figure = s.figure(def, data.States, nil, "")
+	data.Figure = s.figure(def, data.States, nil, "", nil)
 	if foreign {
 		// A team from another project has no definition or field pages here, so
 		// its figure opens nothing (W16).

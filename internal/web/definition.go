@@ -79,7 +79,7 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 		data.PanelOpen = true
 		openKey = data.Panel.Key
 	}
-	data.Figure = s.figure(def, nil, nodeProblems(findings), openKey)
+	data.Figure = s.figure(def, nil, nodeProblems(findings), openKey, data.Panel.Pending)
 	return data
 }
 
@@ -157,44 +157,6 @@ func (s *Server) brokenDefinition(name string, err error) (view, error) {
 	return s.renderDefinition(data)
 }
 
-// saveMission writes the mission (設計 3.4): the one field this stage writes.
-// It edits one key, checks the change against the model, and writes only when
-// the file is still the one the page read (設計 7.3).
-func (s *Server) saveMission(r *http.Request) (view, error) {
-	name := r.PathValue("name")
-	def, err := s.readDefinition(name)
-	if err != nil {
-		return view{}, err
-	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: def.TeamYAML})
-	if err != nil {
-		return view{}, err
-	}
-	mission := r.PostFormValue("mission")
-	edited, err := definition.EditYAML([]byte(text), definition.Mission(mission))
-	if err != nil {
-		return s.definitionRefused(def, mission, err.Error(), false)
-	}
-	with := s.cat.With(def.TeamYAML, string(edited))
-	// A stop the change brings in refuses the save; one the definition already
-	// had does not (設計 7.3、spec/39 T1).
-	if msg, ok := newStop(s.findings(name), check.Definition(check.Input{Catalog: with, Name: name})); ok {
-		return s.definitionRefused(def, mission, msg, false)
-	}
-	if err := source.WriteIfUnchanged(def.TeamYAML, r.PostFormValue("hash"), string(edited)); err != nil {
-		if errors.Is(err, source.ErrChanged) {
-			return s.definitionRefused(def, mission, tf("web.saved.clash", s.cat.Display(def.TeamYAML)), true)
-		}
-		return view{}, err
-	}
-	after, err := s.readDefinition(name)
-	if err != nil {
-		return view{}, err
-	}
-	changes := effect.Of(s.view(def, s.cat.Reader()), s.view(after, with.Reader()))
-	return s.definitionSaved(name, changes)
-}
-
 // newStop is the first sentence that stops a save and is not already there: the
 // change brings it in, so it is what to show beside the field (設計 7.3、T1).
 func newStop(before, after []check.Finding) (string, bool) {
@@ -210,31 +172,6 @@ func newStop(before, after []check.Finding) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// definitionRefused draws the detail with one sentence beside the mission field
-// and the change not written. The field keeps the text the person wrote, so
-// nothing is lost (設計 3.0 の「書きかけ」).
-func (s *Server) definitionRefused(def *definition.Definition, mission, notice string, reload bool) (view, error) {
-	data := s.definitionData(def, nil)
-	data.Mission = mission
-	data.Notice = append([]string{notice}, data.Notice...)
-	data.NoticeReload = reload
-	return s.renderDefinition(data)
-}
-
-// definitionSaved draws the detail after a save: the new value, the saved line,
-// and what a running team has to take up.
-func (s *Server) definitionSaved(name string, changes []effect.Change) (view, error) {
-	def, err := s.readDefinition(name)
-	if err != nil {
-		return view{}, err
-	}
-	running, _ := s.runningTeams()
-	data := s.definitionData(def, nil)
-	data.Saved = tf("web.saved.line", s.cat.Display(def.TeamYAML), "mission")
-	data.Handover = handoverOf(effect.Commands(changes, running))
-	return s.renderDefinition(data)
 }
 
 // handover is what a save tells the running teams to take up, as the screen
@@ -518,6 +455,7 @@ type definitionData struct {
 	Mission      string
 	Notice       []string
 	Saved        string
+	Preview      []string
 	NoticeReload bool
 	Handover     handover
 	Token        string
