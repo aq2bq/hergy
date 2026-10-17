@@ -143,11 +143,11 @@ func (p servePort) ReadProfiles(layer string) profileview.Source {
 	case err != nil:
 		return profileview.Source{Broken: breakLine(p.env, path, err)}
 	}
-	source := profileview.Source{Text: string(text), Hash: hashText(string(text)), Exists: true}
+	out := profileview.Source{Text: string(text), Hash: hashText(string(text)), Exists: true}
 	if _, err := profile.ParseProfiles(string(text), path); err != nil {
-		source.Broken = breakLine(p.env, path, err)
+		out.Broken = breakLine(p.env, path, err)
 	}
-	return source
+	return out
 }
 
 // CheckProfiles is the check hergy validate runs on one layer's profiles.yaml
@@ -248,23 +248,26 @@ func firstProfileLeftOut(r *resolved, profiles map[string]profile.Profile) (name
 func (p servePort) WriteProfiles(layer, text, hash string) error {
 	path := p.profilesPath(layer)
 	display := p.env.Display(path)
-	before, err := os.ReadFile(path)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	// A layer whose profiles.yaml is not there yet is being made (r-daf8): the
+	// screen read nothing, so the hash it holds is the empty text's, and the
+	// layer's own directory has to be there for the file to land in.
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		if hash != hashText("") {
 			return i18n.Errorf("error.profiles_file_changed", display)
 		}
 		if _, err := os.Stat(p.layerDir(layer)); err != nil {
 			return i18n.Errorf("error.profiles_no_layer", p.env.Display(p.layerDir(layer)))
 		}
-	case err != nil:
-		return err
-	default:
-		if hashText(string(before)) != hash {
+	}
+	if err := source.WriteIfUnchanged(path, hash, text); err != nil {
+		// A file that is not there and was read as something else is a file that
+		// moved under the screen: the same sentence as one that changed.
+		if errors.Is(err, source.ErrChanged) || errors.Is(err, fs.ErrNotExist) {
 			return i18n.Errorf("error.profiles_file_changed", display)
 		}
+		return err
 	}
-	return writeFileBeside(path, text)
+	return nil
 }
 
 // sortedProfileNames is the names of a read profiles.yaml, in order: the map is

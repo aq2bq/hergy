@@ -57,9 +57,11 @@ func globalDir() string {
 // writes to the local layer then, and to the global layer otherwise (K2).
 func (e Env) InRepo() bool { return e.inRepo }
 
-// Catalog builds the lookup over this environment's two layers.
+// Catalog builds the lookup over this environment's two layers. It carries
+// whether the project root is a git repository, which is where NewPlace reads
+// K2 from (C13).
 func (e Env) Catalog(reader source.Reader) *catalog.Catalog {
-	return catalog.New(e.GlobalDir, e.LocalDir, e.ProjectRoot, reader, e.Display)
+	return catalog.New(e.GlobalDir, e.LocalDir, e.ProjectRoot, reader, e.Display).InRepo(e.inRepo)
 }
 
 // Display is how a path is shown to a person: relative to the project root when

@@ -30,6 +30,17 @@ type Catalog struct {
 	base      string
 	reader    source.Reader
 	display   func(string) string
+	// inRepo says the project root is a git repository, which is what tells
+	// NewPlace where something new goes (K2). It is the environment's fact
+	// (team.Env), not something a path can be read back from, so the catalog is
+	// told once, when it is built.
+	inRepo bool
+	// overlayPath and overlayText are one file the catalog reads as something
+	// else (C3b): the path and the text that stands in for what is on disk. A
+	// screen reads its own edit through With, so a text it has not written yet
+	// reads back. The zero value reads every file from disk.
+	overlayPath string
+	overlayText string
 }
 
 // New builds a catalog over the two layer directories and the project root.
@@ -41,6 +52,101 @@ func New(globalDir, localDir, base string, reader source.Reader, display func(st
 		reader:    reader,
 		display:   display,
 	}
+}
+
+// InRepo tells the catalog that the project root is a git repository, which is
+// the fact K2 reads: something new goes into the project's own layer inside one,
+// and into the global layer outside one. It returns the catalog, so an
+// environment can hand it over as it is built (team.Env.Catalog).
+func (c *Catalog) InRepo(inRepo bool) *Catalog {
+	c.inRepo = inRepo
+	return c
+}
+
+// With returns a catalog that reads one file as text, whatever is on disk: it is
+// how a screen reads a change it has not written yet, whether the file is a
+// team.yaml, an agreement, a role document or a profiles.yaml (C3b). The file at
+// any other path reads from disk, and a file that is not there yet reads as the
+// text, exactly as the profiles edit did (ProfilesEdit).
+//
+// One file at a time is overlaid: another call replaces the first, which is all
+// a screen's single edit needs.
+func (c *Catalog) With(path, text string) *Catalog {
+	out := *c
+	out.overlayPath = path
+	out.overlayText = text
+	out.reader = overlayReader{base: c.reader, path: path, text: text}
+	return &out
+}
+
+// Reader is the reader the catalog reads through: the disk, or, after With, the
+// disk with one file's text laid over it (C3b). A caller that reads a rule
+// document's text to check an edit hands this to whatever reads it (the
+// prompt.Run.Reader of a preview, the check), so the text that is read is the
+// text the screen is editing.
+func (c *Catalog) Reader() source.Reader { return c.reader }
+
+// overlayReader is a reader with one Doc answered by a text rather than by disk
+// (C3b): the file the screen is editing.
+type overlayReader struct {
+	base source.Reader
+	path string
+	text string
+}
+
+func (r overlayReader) Read(d source.Doc) (string, error) {
+	if d.Path == r.path {
+		return r.text, nil
+	}
+	return r.base.Read(d)
+}
+
+func (r overlayReader) IsFile(d source.Doc) bool {
+	if d.Path == r.path {
+		return true
+	}
+	return r.base.IsFile(d)
+}
+
+func (r overlayReader) IsDir(d source.Doc) bool {
+	if d.Path == r.path {
+		return false
+	}
+	return r.base.IsDir(d)
+}
+
+func (r overlayReader) YAMLIn(d source.Doc) ([]source.Doc, error) {
+	if d.Path == r.path {
+		return nil, nil
+	}
+	return r.base.YAMLIn(d)
+}
+
+func (r overlayReader) MarkdownIn(d source.Doc) ([]source.Doc, error) {
+	if d.Path == r.path {
+		return nil, nil
+	}
+	return r.base.MarkdownIn(d)
+}
+
+// readText reads one settings file, answering the overlay's text when it stands
+// in for this path (C3b). A file that is not there is an error, as it is for a
+// read from disk.
+func (c *Catalog) readText(path string) (string, error) {
+	if c.overlayPath == path {
+		return c.overlayText, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// hasFile reports whether a settings file is there to read: on disk, or as the
+// overlay standing in for it (C3b).
+func (c *Catalog) hasFile(path string) bool {
+	return c.overlayPath == path || isFile(path)
 }
 
 // ErrNotFound says a team definition name has none: in the layer asked for, or
@@ -121,25 +227,31 @@ func (c *Catalog) Definitions() []Listing {
 
 // Definition reads a team definition by name. layer forces one layer ("local" or
 // "global", for a screen that shows one); empty means the one way, local first.
+// It is the read validate and the screens that show one layer take; a screen
+// reads by name alone (Read).
 func (c *Catalog) Definition(name, layer string) (*definition.Definition, error) {
 	if name == "" {
 		return c.defaultDefinition(layer)
 	}
-	return c.definitionIn(name, layer, ProfilesEdit{})
+	return c.definitionIn(name, layer)
 }
 
 // DefinitionEdit reads a team definition with edit's profiles.yaml in place of
 // what is on disk, with layer forced ("local" or "global"). It is how a screen
-// checks an edit before it writes it (r-daf8).
+// checks an edit before it writes it (r-daf8). It is a thin cover over With
+// (C3b): one file's text laid over the catalog.
 func (c *Catalog) DefinitionEdit(name, layer string, edit ProfilesEdit) (*definition.Definition, error) {
-	return c.definitionIn(name, layer, edit)
+	if edit.Path == "" {
+		return c.definitionIn(name, layer)
+	}
+	return c.With(edit.Path, edit.Text).definitionIn(name, layer)
 }
 
-func (c *Catalog) definitionIn(name, layer string, edit ProfilesEdit) (*definition.Definition, error) {
+func (c *Catalog) definitionIn(name, layer string) (*definition.Definition, error) {
 	local := c.TeamYAML(name, source.LayerLocal)
 	global := c.TeamYAML(name, source.LayerGlobal)
-	hasLocal := isFile(local)
-	hasGlobal := isFile(global)
+	hasLocal := c.hasFile(local)
+	hasGlobal := c.hasFile(global)
 
 	var chosen, chosenLayer string
 	switch layer {
@@ -163,7 +275,7 @@ func (c *Catalog) definitionIn(name, layer string, edit ProfilesEdit) (*definiti
 			return nil, c.missing(name)
 		}
 	}
-	return c.readDefinition(name, chosen, chosenLayer, edit)
+	return c.readDefinition(name, chosen, chosenLayer)
 }
 
 // defaultDefinition is what a missing name does: the single local definition, or
@@ -173,29 +285,29 @@ func (c *Catalog) defaultDefinition(layer string) (*definition.Definition, error
 	case source.LayerGlobal:
 		names := teamNames(c.globalDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerGlobal, ProfilesEdit{})
+			return c.definitionIn(names[0], source.LayerGlobal)
 		}
 	case source.LayerLocal:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerLocal, ProfilesEdit{})
+			return c.definitionIn(names[0], source.LayerLocal)
 		}
 	default:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerLocal, ProfilesEdit{})
+			return c.definitionIn(names[0], source.LayerLocal)
 		}
 	}
 	return nil, c.candidates(layer)
 }
 
 // readDefinition reads one team.yaml with the profiles its layer reads.
-func (c *Catalog) readDefinition(name, path, layer string, edit ProfilesEdit) (*definition.Definition, error) {
-	text, err := os.ReadFile(path)
+func (c *Catalog) readDefinition(name, path, layer string) (*definition.Definition, error) {
+	text, err := c.readText(path)
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
 	}
-	profiles, _, err := c.ProfilesEdit(edit)
+	profiles, _, err := c.Profiles()
 	if err != nil {
 		return nil, err
 	}
@@ -308,29 +420,15 @@ type ProfilesEdit struct {
 // profiles.yaml, with the local layer's laid over them (K1). The files read are
 // returned local first. Either may be absent.
 func (c *Catalog) Profiles() (map[string]profile.Profile, string, error) {
-	return c.ProfilesEdit(ProfilesEdit{})
-}
-
-// ProfilesEdit is Profiles with one profiles.yaml replaced by an edit: the file
-// at the edit's path answers with the edit's text whether or not it is on disk,
-// so a layer whose profiles.yaml does not exist yet is built as if the screen
-// had already written it.
-func (c *Catalog) ProfilesEdit(edit ProfilesEdit) (map[string]profile.Profile, string, error) {
 	profiles := map[string]profile.Profile{}
 	var paths []string
 	for _, dir := range []string{c.globalDir, c.localDir} {
 		path := filepath.Join(dir, "profiles.yaml")
-		var text string
-		switch {
-		case edit.Path != "" && path == edit.Path:
-			text = edit.Text
-		case isFile(path):
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return nil, "", err
-			}
-			text = string(b)
-		default:
+		text, ok, err := c.fileText(path)
+		if err != nil {
+			return nil, "", err
+		}
+		if !ok {
 			continue
 		}
 		more, err := profile.ParseProfiles(text, path)
@@ -341,6 +439,34 @@ func (c *Catalog) ProfilesEdit(edit ProfilesEdit) (map[string]profile.Profile, s
 		paths = append([]string{path}, paths...)
 	}
 	return profiles, strings.Join(paths, ", "), nil
+}
+
+// ProfilesEdit is Profiles with one profiles.yaml replaced by an edit: the file
+// at the edit's path answers with the edit's text whether or not it is on disk,
+// so a layer whose profiles.yaml does not exist yet is built as if the screen
+// had already written it. It is a thin cover over With (C3b).
+func (c *Catalog) ProfilesEdit(edit ProfilesEdit) (map[string]profile.Profile, string, error) {
+	if edit.Path == "" {
+		return c.Profiles()
+	}
+	return c.With(edit.Path, edit.Text).Profiles()
+}
+
+// fileText is one settings file's text: the overlay's when it stands in for the
+// path (C3b), the file's when it is there, and ok=false when there is nothing to
+// read.
+func (c *Catalog) fileText(path string) (text string, ok bool, err error) {
+	if c.overlayPath == path {
+		return c.overlayText, true, nil
+	}
+	if !isFile(path) {
+		return "", false, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", false, err
+	}
+	return string(b), true, nil
 }
 
 // Profile returns the named profile, and whether a team definition sees it.
