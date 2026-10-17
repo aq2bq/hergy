@@ -113,6 +113,15 @@ main{width:100%;max-width:1320px;margin:0 auto;padding:20px max(16px,3vw) 80px}
 .fig .sub{fill:var(--muted);font-size:11px}
 .fig .edge{fill:none;stroke:var(--muted);stroke-width:1.6}
 .fig .edge.worker{stroke-dasharray:4 3}
+/* A turn chosen but not written yet: an added edge dashed, an edge to be taken
+   away faint (設計 4 節). */
+.fig .edge.pending-add{stroke:var(--link);stroke-dasharray:6 4}
+.fig .edge.pending-remove{opacity:.35;stroke-dasharray:2 3}
+/* The "＋" the open node's field offers on the parties it does not hand the
+   turn to yet (4 節). */
+.fig .handle circle{fill:var(--surface);stroke:var(--link);stroke-width:1.5}
+.fig .handle text{fill:var(--link);font-size:13px;font-weight:700}
+.fig .handle:hover circle,.fig .handle:focus-visible circle{fill:var(--link-soft);stroke-width:2.5}
 .fig .head{fill:var(--muted);stroke:none}
 a.node,a.edge-link{text-decoration:none;cursor:pointer}
 a.node:hover .box,a.node:focus-visible .box{stroke:var(--focus);stroke-width:2.5}

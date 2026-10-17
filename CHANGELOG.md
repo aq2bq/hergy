@@ -37,6 +37,23 @@
 
 ### Added
 
+- **The turns a team hands out are written from `hergy serve`**: a member's field
+  and the human's field now list who they hand the turn to, with a press to take
+  one turn away and a picker that adds one more. The picker offers the members
+  and the human the node does not hand the turn to yet — never itself and never
+  a worker, whose two edges are made by `workers:` — and, while a party's field
+  is open, the figure draws a "＋" on each of those parties, so a turn can be
+  added from the figure as well. A turn is also taken away from the arrow's own
+  field.
+
+  A choice made before the write reads the field again with it pending: the
+  figure draws the added edge dashed (the edge to be taken away, faint), and the
+  row says what a save would do to the members' prompts, so the line comes
+  before the save. Taking the last turn out of a node, or the last turn that
+  reaches the human, is refused with the sentence `hergy validate` writes, beside
+  the row. A save writes one line of `turns:` and leaves every other line as it
+  was.
+
 - **A member's role and profile, and the workers it may hire, are written from
   `hergy serve`**: opening a member of a team definition now gives a picker for
   its role (the roles hergy resolves, and the name the definition writes now)

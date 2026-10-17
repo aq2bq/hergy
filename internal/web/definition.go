@@ -79,7 +79,7 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 		data.PanelOpen = true
 		openKey = data.Panel.Key
 	}
-	data.Figure = s.figure(def, nil, nodeProblems(findings), openKey)
+	data.Figure = s.figure(def, nil, nodeProblems(findings), openKey, data.Panel.Pending)
 	return data
 }
 

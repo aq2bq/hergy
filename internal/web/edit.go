@@ -24,6 +24,8 @@ const (
 	opWorkerAdd     = "worker-add"
 	opWorkerRemove  = "worker-remove"
 	opWorkerProfile = "worker-profile"
+	opTurnAdd       = "turn-add"
+	opTurnRemove    = "turn-remove"
 )
 
 // teamEdit is one edit a form writes: the op, the form's own key (so a save
@@ -152,6 +154,7 @@ func (s *Server) previewOf(def *definition.Definition, op definition.Op) (lines 
 // pick is being looked at before it is written (T1).
 type pendingEdit struct {
 	Remove  string // a worker's purpose, for the removal that was chosen
+	Turn    string // one end of a turn, for the removal that was chosen
 	Preview string // the op whose pick is being looked at
 	Value   string // the value that was picked
 	Worker  string // the worker the picked value belongs to
@@ -160,35 +163,43 @@ type pendingEdit struct {
 // pendingOf reads the pending state out of a field's URL.
 func pendingOf(r *http.Request) pendingEdit {
 	q := r.URL.Query()
-	out := pendingEdit{Remove: q.Get("remove"), Preview: q.Get("preview"), Worker: q.Get("worker")}
+	out := pendingEdit{Remove: q.Get("remove"), Turn: q.Get("turn"), Preview: q.Get("preview"), Worker: q.Get("worker")}
 	switch out.Preview {
 	case opMemberRole:
 		out.Value = q.Get("role")
 	case opMemberProfile, opWorkerProfile:
 		out.Value = q.Get("profile")
+	case opTurnAdd:
+		out.Value = q.Get("to")
 	}
 	return out
 }
 
 // pendingOp is the edit a pending preview would write, and the field it belongs
-// to. A pending state that names nothing this member writes has no op.
-func (p pendingEdit) pendingOp(member string) (definition.Op, string, bool) {
+// to. A pending state that names nothing this node writes has no op.
+func (p pendingEdit) pendingOp(from definition.NodeID) (definition.Op, string, bool) {
 	switch p.Preview {
 	case opMemberRole:
 		if p.Value == "" {
 			return definition.Op{}, "", false
 		}
-		return definition.MemberRole(member, p.Value), "role", true
+		return definition.MemberRole(from.Name, p.Value), "role", true
 	case opMemberProfile:
 		if p.Value == "" {
 			return definition.Op{}, "", false
 		}
-		return definition.MemberProfile(member, p.Value), "profile", true
+		return definition.MemberProfile(from.Name, p.Value), "profile", true
 	case opWorkerProfile:
 		if p.Value == "" || p.Worker == "" {
 			return definition.Op{}, "", false
 		}
-		return definition.WorkerProfile(member, p.Worker, p.Value), workerKey(member, p.Worker), true
+		return definition.WorkerProfile(from.Name, p.Worker, p.Value), workerKey(from.Name, p.Worker), true
+	case opTurnAdd:
+		to, ok := parseNode(p.Value)
+		if !ok {
+			return definition.Op{}, "", false
+		}
+		return definition.AddTurn(from, to), "turn-add", true
 	default:
 		return definition.Op{}, "", false
 	}
@@ -198,14 +209,19 @@ func (p pendingEdit) pendingOp(member string) (definition.Op, string, bool) {
 // before anything is written (T1): the lines effect.Preview writes, or the stop a
 // save would be refused with. The field reads the picked value, so the pick is
 // kept and the way out is at hand. Nothing is written.
-func (s *Server) applyPreview(def *definition.Definition, member string, field panel, pending pendingEdit) panel {
-	op, key, ok := pending.pendingOp(member)
+func (s *Server) applyPreview(def *definition.Definition, from definition.NodeID, field panel, pending pendingEdit) panel {
+	op, key, ok := pending.pendingOp(from)
 	if !ok {
 		return field
 	}
 	lines, stop := s.previewOf(def, op)
 	if len(lines) == 0 && stop == "" {
 		return field
+	}
+	if op.Kind == definition.OpAddTurn {
+		// The figure draws the chosen edge dashed until it is written, and the
+		// handle on that party goes back to the field (4 節).
+		field.Pending = &turnPending{From: op.Turn.From, To: op.Turn.To, Add: true}
 	}
 	for i := range field.Fields {
 		form := field.Fields[i].Edit
@@ -251,6 +267,23 @@ func (s *Server) memberEdit(r *http.Request) (view, error) {
 		return s.definitionPage(name, open)
 	}
 	edit, err := memberOp(node, r)
+	if err != nil {
+		return s.editRefused(def, open, edit, err.Error(), false)
+	}
+	edit.Hash = r.PostFormValue("hash")
+	return s.saveTeamYAML(name, open, edit)
+}
+
+// humanEdit writes the turns the human hands on (設計 3.4 の表). The human is
+// always a node of the graph, so the field this writes is never missing.
+func (s *Server) humanEdit(r *http.Request) (view, error) {
+	name := r.PathValue("name")
+	def, err := s.readDefinition(name)
+	if err != nil {
+		return view{}, err
+	}
+	open := s.humanOpen()
+	edit, err := turnOp((definition.Human{}).ID(), r)
 	if err != nil {
 		return s.editRefused(def, open, edit, err.Error(), false)
 	}
@@ -317,6 +350,27 @@ func memberOp(member definition.MemberNode, r *http.Request) (teamEdit, error) {
 		return teamEdit{Op: definition.RemoveWorker(member.Name, purpose), Key: workerKey(member.Name, purpose), Label: t("label.workers"), Value: purpose}, nil
 	case opWorkerProfile:
 		return workerProfileOp(member.Name, r.PostFormValue("worker"), r.PostFormValue("profile"))
+	case opTurnAdd, opTurnRemove:
+		return turnOp(member.ID(), r)
+	default:
+		return teamEdit{}, i18n.Errorf("error.edit_unknown_op")
+	}
+}
+
+// turnOp is one turn from a node (a member or the human) to the end the form
+// names (設計 3.4 の表、4 節). The human may hand the turn on as well, so the
+// source is the node's identity, not a member name.
+func turnOp(from definition.NodeID, r *http.Request) (teamEdit, error) {
+	to, ok := parseNode(r.PostFormValue("to"))
+	if !ok {
+		return teamEdit{}, i18n.Errorf("web.need.turn")
+	}
+	label := tf("web.saved.turn", nodeLabel(from), nodeLabel(to))
+	switch r.PostFormValue("op") {
+	case opTurnAdd:
+		return teamEdit{Op: definition.AddTurn(from, to), Key: "turn-add", Label: label, Value: r.PostFormValue("to")}, nil
+	case opTurnRemove:
+		return teamEdit{Op: definition.RemoveTurn(from, to), Key: turnKey(from.String(), to.String()), Label: label, Value: r.PostFormValue("to")}, nil
 	default:
 		return teamEdit{}, i18n.Errorf("error.edit_unknown_op")
 	}
@@ -353,5 +407,13 @@ func (s *Server) memberOpen(member string) panelFn {
 func (s *Server) workerOpen(from, purpose string) panelFn {
 	return func(def *definition.Definition) panel {
 		return s.workerPanelOf(def, from, purpose, pendingEdit{})
+	}
+}
+
+// humanOpen is the human's field, for the handlers that draw a page after a
+// write.
+func (s *Server) humanOpen() panelFn {
+	return func(def *definition.Definition) panel {
+		return s.humanPanelOf(def, s.findings(def.Name), pendingEdit{})
 	}
 }

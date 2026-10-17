@@ -38,6 +38,9 @@ type panel struct {
 	Preview  []string
 	Handover handover
 	SavedKey string
+	// Pending is the turn a press chose to add or take away, for the figure
+	// (4 節). Nil when no turn is being looked at.
+	Pending *turnPending
 }
 
 // markSaved tells the one form a save wrote, so the script clears just its
@@ -101,22 +104,47 @@ func (s *Server) memberPanelOf(def *definition.Definition, name string, findings
 		panelField{Label: t("label.role"), Edit: s.roleForm(field, def, member, roleFindings)},
 		panelField{Label: t("label.profile"), Edit: s.profileForm(field, def, member, profileFindings)},
 	)
-	for _, edge := range def.Graph.Out(member.ID()) {
-		if !isTurn(edge) {
-			continue
-		}
-		field.Fields = append(field.Fields, panelField{
-			Label: t("label.turns"),
-			Value: nodeLabel(edge.To),
-			Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
-		})
+	rows, figurePending := s.turnFields(def, field, member.ID(), pending)
+	field.Fields = append(field.Fields, rows...)
+	field.Pending = figurePending
+	if add := s.addTurnForm(field, def, member.ID(), pending); add != nil {
+		field.Fields = append(field.Fields, panelField{Label: t("web.panel.turn_add"), Edit: add})
 	}
 	field.Fields = append(field.Fields, s.workerFields(def, field, member, findings, pending)...)
 	if add := s.addWorkerForm(field, def, member); add != nil {
 		field.Fields = append(field.Fields, panelField{Label: t("web.panel.worker_add"), Edit: add})
 	}
 	field.Fields = append(field.Fields, s.memberDocs(def, member)...)
-	return s.applyPreview(def, name, field, pending)
+	return s.applyPreview(def, member.ID(), field, pending)
+}
+
+// turnFields is the parties one node hands the turn to (設計 3.4 の表、4 節):
+// each row opens the turn's own field and offers the press that takes it away.
+// A press that chose the removal turns the row into the line about what the
+// removal would do, and the write (I12a, I12b).
+func (s *Server) turnFields(def *definition.Definition, p panel, from definition.NodeID, pending pendingEdit) (rows []panelField, chosen *turnPending) {
+	for _, edge := range def.Graph.Out(from) {
+		if !isTurn(edge) {
+			continue
+		}
+		row := panelField{
+			Label: t("label.turns"),
+			Value: nodeLabel(edge.To),
+			Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
+		}
+		if pending.Turn == edge.To.String() {
+			confirm := p.confirm(opTurnRemove)
+			confirm.Hidden = []formValue{{Name: "to", Value: edge.To.String()}}
+			confirm.Preview, confirm.Stop = s.previewOf(def, definition.RemoveTurn(from, edge.To))
+			row.Confirm = confirm
+			// The figure draws the edge being taken away faint (4 節).
+			chosen = &turnPending{From: from, To: edge.To}
+		} else {
+			row.Remove = turnRemoveHref(p.URL, edge.To.String())
+		}
+		rows = append(rows, row)
+	}
+	return rows, chosen
 }
 
 // workerFields is the workers one member may hire, each written from the field
@@ -224,7 +252,7 @@ func (s *Server) workerPanelOf(def *definition.Definition, from, purpose string,
 			})
 		}
 		field.Fields = append(field.Fields, panelField{Label: t("web.panel.worker_returns"), Value: from})
-		return s.applyPreview(def, from, field, pending)
+		return s.applyPreview(def, definition.NodeID{Kind: definition.KindMember, Name: from}, field, pending)
 	}
 	key := "worker:" + from + "/" + purpose
 	return missingPanel(def, key, tf("web.panel.worker", purpose, from), tf("web.missing.worker", def.Name, purpose, from))
@@ -233,50 +261,85 @@ func (s *Server) workerPanelOf(def *definition.Definition, from, purpose string,
 // humanPanel is the human's field (設計 3.4 の表). The human is always a node of
 // the graph, so this field is never missing.
 func (s *Server) humanPanel(r *http.Request) (view, error) {
+	pending := pendingOf(r)
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
-		human := (definition.Human{}).ID()
-		field := panel{Title: t("label.human"), Key: "human", Parent: definitionPath(def.Name), Crumb: t("label.human")}
-		for _, edge := range def.Graph.Out(human) {
-			field.Fields = append(field.Fields, panelField{
-				Label: t("web.panel.human_hands"),
-				Value: nodeLabel(edge.To),
-				Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
-			})
-		}
-		for _, edge := range def.Graph.Edges {
-			if edge.To != human {
-				continue
-			}
-			field.Fields = append(field.Fields, panelField{
-				Label: t("web.panel.human_receives"),
-				Value: nodeLabel(edge.From),
-				Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
-			})
-		}
-		return field
+		return s.humanPanelOf(def, s.findings(def.Name), pending)
 	})
 }
 
-// turnPanel is one edge's field (設計 3.4 の表). Editing an edge is stage 3; here
-// the field says which turn it is.
+// humanPanelOf builds the human's field: the parties it hands the turn to (and
+// may take one away from), the members that hand it the turn, and the form that
+// adds one more party (設計 3.4 の表、4 節).
+func (s *Server) humanPanelOf(def *definition.Definition, findings []check.Finding, pending pendingEdit) panel {
+	human := (definition.Human{}).ID()
+	field := panel{
+		Title:  t("label.human"),
+		Key:    "human",
+		Parent: definitionPath(def.Name),
+		Crumb:  t("label.human"),
+		URL:    humanPath(def.Name),
+		Token:  s.token,
+		Hash:   s.hashOf(def.TeamYAML),
+	}
+	field.Findings = append(field.Findings, fieldTexts(findings, "node:human")...)
+	rows, chosen := s.turnFields(def, field, human, pending)
+	field.Fields = append(field.Fields, rows...)
+	field.Pending = chosen
+	if add := s.addTurnForm(field, def, human, pending); add != nil {
+		field.Fields = append(field.Fields, panelField{Label: t("web.panel.turn_add"), Edit: add})
+	}
+	for _, edge := range def.Graph.Edges {
+		if edge.To != human || edge.From.Kind == definition.KindWorker {
+			continue
+		}
+		field.Fields = append(field.Fields, panelField{
+			Label: t("web.panel.human_receives"),
+			Value: nodeLabel(edge.From),
+			Href:  turnHref(def.Name, edge.From.String(), edge.To.String()),
+		})
+	}
+	return s.applyPreview(def, human, field, pending)
+}
+
+// turnPanel is one edge's field (設計 3.4 の表): which turn it is, what taking it
+// away would do, and the press that chooses the removal (4 節). The write goes
+// to the field of the party that hands the turn on, because the edge's own
+// field is gone once the turn is (N1).
 func (s *Server) turnPanel(r *http.Request) (view, error) {
 	from, to := r.PathValue("from"), r.PathValue("to")
+	pending := pendingOf(r)
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		for _, edge := range def.Graph.Turns {
 			if edge.From.String() != from || edge.To.String() != to {
 				continue
 			}
 			title := turnLabel(edge)
-			return panel{
+			field := panel{
 				Title:  title,
 				Key:    turnKey(from, to),
 				Parent: definitionPath(def.Name),
 				Crumb:  title,
-				Fields: []panelField{
-					{Label: t("web.panel.turn_from"), Value: nodeLabel(edge.From)},
-					{Label: t("web.panel.turn_to"), Value: nodeLabel(edge.To)},
-				},
+				URL:    turnPath(def.Name, from, to),
+				Token:  s.token,
+				Hash:   s.hashOf(def.TeamYAML),
 			}
+			row := panelField{Label: t("web.panel.turn_edge"), Value: title}
+			if pending.Turn == to {
+				confirm := field.confirm(opTurnRemove)
+				confirm.Action = s.nodeHref(def, edge.From)
+				confirm.Hidden = []formValue{{Name: "to", Value: to}}
+				confirm.Preview, confirm.Stop = s.previewOf(def, definition.RemoveTurn(edge.From, edge.To))
+				row.Confirm = confirm
+				field.Pending = &turnPending{From: edge.From, To: edge.To}
+			} else {
+				row.Remove = turnRemoveHref(field.URL, to)
+			}
+			field.Fields = []panelField{
+				{Label: t("web.panel.turn_from"), Value: nodeLabel(edge.From)},
+				{Label: t("web.panel.turn_to"), Value: nodeLabel(edge.To)},
+				row,
+			}
+			return field
 		}
 		label := turnEndLabel(from) + " → " + turnEndLabel(to)
 		return missingPanel(def, turnKey(from, to), label, tf("web.missing.turn", def.Name, label))

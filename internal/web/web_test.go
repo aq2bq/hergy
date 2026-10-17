@@ -1,6 +1,7 @@
 package web
 
 import (
+	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/aq2bq/hergy/internal/effect"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.uber.org/goleak"
 )
@@ -1469,4 +1471,461 @@ func firstStopText(findings []check.Finding) string {
 		}
 	}
 	return ""
+}
+
+// turnTeam writes the demo definition as the I13 example: a lead that hands the
+// turn to spec and back to the human, and spec that hands it back to lead.
+func (f *fixture) turnTeam(t *testing.T) {
+	t.Helper()
+	f.write(t, filepath.Join("teams", "demo", "team.yaml"),
+		"version: 1\nmission: demo の使命\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: coder\n"+
+			"  - name: spec\n    role: spec\n    profile: coder\n"+
+			"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n")
+	f.write(t, filepath.Join("roles", "spec.yaml"), "version: 1\nsections:\n  - rules:\n      - id: SPEC-1\n        text: spec は確かめる。\n")
+}
+
+// lastHumanTeam writes a demo definition where one member hands the turn to the
+// human, so taking that one turn away leaves the human unreached (I12b) while
+// every node keeps a turn out.
+func (f *fixture) lastHumanTeam(t *testing.T) {
+	t.Helper()
+	f.write(t, filepath.Join("teams", "demo", "team.yaml"),
+		"version: 1\nmission: demo の使命\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: coder\n"+
+			"  - name: builder\n    role: builder\n    profile: coder\n"+
+			"turns:\n  - human -> lead\n  - lead -> builder\n  - builder -> lead\n  - builder -> human\n")
+}
+
+// memberNode is one member's identity, for an edit made by hand in a test.
+func memberNode(name string) definition.NodeID {
+	return definition.NodeID{Kind: definition.KindMember, Name: name}
+}
+
+// promptText is the bootstrap prompt one member is handed, the text `hergy up
+// --dry` prints: it is built from the definition on disk.
+func promptText(t *testing.T, s *Server, name, member string) string {
+	t.Helper()
+	def, err := s.cat.Read(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, ok := def.Graph.Member(member)
+	if !ok {
+		t.Fatalf("%s has no member %s", name, member)
+	}
+	built, err := prompt.Member(def, &node, s.view(def, s.cat.Reader()).Run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return built.Text
+}
+
+// leadTurns is the 「ターンを渡す相手」 part of lead's bootstrap prompt: the part
+// a turn change moves (I13).
+func leadTurns(t *testing.T, s *Server) string {
+	t.Helper()
+	def, err := s.cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return prompt.TurnsNote(prompt.TurnsOf(def, "lead", "demo"))
+}
+
+// TestATurnIsAddedFromTheFieldAndKeepsEveryOtherLine: a member's field hands the
+// turn to one more party (設計 3.4・4 節). The save adds one line of turns: and
+// leaves every other line as it was, and the saved line names the turn and what
+// it does to the prompt.
+func TestATurnIsAddedFromTheFieldAndKeepsEveryOtherLine(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"turn-add"},
+		"to":   {"human"},
+		"hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the add answered %d", resp.StatusCode)
+	}
+	want := strings.Replace(before, "  - builder -> human\n", "  - builder -> human\n  - lead -> human\n", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the add changed more than the one turn:\n got %q\nwant %q", got, want)
+	}
+	saved := savedLine(body)
+	if !strings.Contains(saved, "の「ターン lead → 人間」を書きました。") {
+		t.Errorf("the saved line does not name the turn: %q", saved)
+	}
+	if !strings.Contains(saved, "lead のプロンプトの『ターンを渡す相手』に人間が入ります") {
+		t.Errorf("the saved line does not say what the change does: %q", saved)
+	}
+	if !strings.Contains(body, `<h2 class="panel-title">メンバー lead</h2>`) {
+		t.Errorf("the add did not stay on the member's field:\n%s", body)
+	}
+	if !strings.Contains(body, `<a href="/definitions/demo/turns/lead/human">人間</a>`) {
+		t.Errorf("the new turn does not stand in the field as a person reads it:\n%s", body)
+	}
+
+	// A form that names no party is refused in the field's own words, and the
+	// file is left alone (N2).
+	resp, body = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"turn-add"},
+		"to":   {""},
+		"hash": {source.Hash(want)},
+	})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "ターンを渡す相手を選んでください") {
+		t.Errorf("a blank party was not refused in the field's own words: %d\n%s", resp.StatusCode, body)
+	}
+	if readFile(t, path) != want {
+		t.Errorf("a refused add wrote the file")
+	}
+}
+
+// TestATurnIsTakenAwayFromItsRowAndFromItsOwnField: the row's press and the
+// edge's own field choose the same removal, and the write lands on the field of
+// the party that hands the turn on, because the edge's own field is gone once
+// the turn is (設計 3.4・4 節、N1).
+func TestATurnIsTakenAwayFromItsRowAndFromItsOwnField(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	// The row's press shows what the removal would do and writes nothing.
+	_, body := f.get(t, server, "/definitions/demo/members/lead?turn=builder")
+	if !strings.Contains(body, "lead のプロンプトの『ターンを渡す相手』から builder（ロール builder）が消えます") {
+		t.Errorf("the removal does not say what it would do:\n%s", body)
+	}
+	if !strings.Contains(body, `class="confirm"`) {
+		t.Errorf("the removal offers no way to write it:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the press wrote the file")
+	}
+
+	// The edge's own field chooses the same removal, and writes to the party's
+	// field.
+	_, body = f.get(t, server, "/definitions/demo/turns/lead/builder?turn=builder")
+	confirm := between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, `action="/definitions/demo/members/lead"`) {
+		t.Errorf("the edge's removal does not write to the party's field:\n%s", confirm)
+	}
+	if !strings.Contains(confirm, "から builder（ロール builder）が消えます") {
+		t.Errorf("the edge's removal says nothing about the prompt:\n%s", confirm)
+	}
+
+	// Writing it takes out the one line and leaves the rest.
+	_, body = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"turn-remove"},
+		"to":   {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	want := strings.Replace(before, "  - lead -> builder\n", "", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the removal changed more than the one turn:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(savedLine(body), "の「ターン lead → builder」を書きました。") {
+		t.Errorf("the saved line does not name the turn: %q", savedLine(body))
+	}
+}
+
+// TestTheHumanHandsTheTurnOnToo: the human's own field adds and takes away the
+// turns the human hands on, and a human's turn moves no member's prompt (設計
+// 3.4 の表、4 節).
+func TestTheHumanHandsTheTurnOnToo(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.get(t, server, "/definitions/demo/human?preview=turn-add&to=builder")
+	if !strings.Contains(body, "どのメンバーのプロンプトも変わりません") {
+		t.Errorf("a human's turn does not say it moves no prompt:\n%s", body)
+	}
+
+	_, body = f.post(t, server, "/definitions/demo/human", url.Values{
+		"op":   {"turn-add"},
+		"to":   {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	want := strings.Replace(before, "  - builder -> human\n", "  - builder -> human\n  - human -> builder\n", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the human's add changed more than the one turn:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(savedLine(body), "の「ターン 人間 → builder」を書きました。") {
+		t.Errorf("the saved line does not name the human's turn: %q", savedLine(body))
+	}
+
+	// The removal is chosen from the human's field and writes to it, because
+	// the field is the one that still holds the human's turns.
+	_, body = f.get(t, server, "/definitions/demo/human?turn=builder")
+	confirm := between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, `action="/definitions/demo/human"`) {
+		t.Errorf("the human's removal does not write to the human's field:\n%s", confirm)
+	}
+	_, body = f.post(t, server, "/definitions/demo/human", url.Values{
+		"op":   {"turn-remove"},
+		"to":   {"builder"},
+		"hash": {source.Hash(want)},
+	})
+	if readFile(t, path) != before {
+		t.Errorf("the human's removal did not leave the file as it was:\n%s", readFile(t, path))
+	}
+	if !strings.Contains(savedLine(body), "の「ターン 人間 → builder」を書きました。") {
+		t.Errorf("the saved line does not name the human's turn: %q", savedLine(body))
+	}
+}
+
+// TestRemovingATurnMovesOnlyThePartyThatHandsIt is the I13 golden on the
+// screens: taking lead -> spec away says so beside the row, and the prompt the
+// party is handed (`hergy up --dry`) no longer names spec, while every other
+// member's prompt is one byte the same.
+func TestRemovingATurnMovesOnlyThePartyThatHandsIt(t *testing.T) {
+	f := newFixture(t)
+	f.turnTeam(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	specBefore := promptText(t, server, "demo", "spec")
+	beforeTurns := leadTurns(t, server)
+	if !strings.Contains(beforeTurns, "spec") {
+		t.Fatalf("lead's prompt does not name spec before the change:\n%s", beforeTurns)
+	}
+
+	_, body := f.get(t, server, "/definitions/demo/members/lead?turn=spec")
+	if !strings.Contains(body, "lead のプロンプトの『ターンを渡す相手』から spec（ロール spec）が消えます") {
+		t.Errorf("the removal does not say what leaves:\n%s", body)
+	}
+
+	_, body = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"turn-remove"},
+		"to":   {"spec"},
+		"hash": {source.Hash(before)},
+	})
+	if want := strings.Replace(before, "  - lead -> spec\n", "", 1); readFile(t, path) != want {
+		t.Errorf("the removal changed more than the one turn:\n got %q\nwant %q", readFile(t, path), want)
+	}
+	if !strings.Contains(savedLine(body), "の「ターン lead → spec」を書きました。") {
+		t.Errorf("the saved line does not name the turn: %q", savedLine(body))
+	}
+	if afterTurns := leadTurns(t, server); strings.Contains(afterTurns, "spec") {
+		t.Errorf("lead's prompt still hands the turn to spec:\n%s", afterTurns)
+	}
+	if specAfter := promptText(t, server, "demo", "spec"); specAfter != specBefore {
+		t.Errorf("spec's prompt moved, but nothing says so:\n got %q\nwant %q", specAfter, specBefore)
+	}
+}
+
+// TestTheLastTurnIsRefusedWithValidatesSentence: taking the last turn out of a
+// node, or the last turn that reaches the human, is refused before anything is
+// written, with the sentence `hergy validate` writes, and the field offers no
+// write (4 節、I12a・I12b).
+func TestTheLastTurnIsRefusedWithValidatesSentence(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	// The last turn out of a member: the choice shows the sentence and takes the
+	// write away.
+	_, body := f.get(t, server, "/definitions/demo/members/builder?turn=human")
+	confirm := between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, "メンバー builder から出るターンがありません") {
+		t.Errorf("the choice does not say the last turn cannot go:\n%s", confirm)
+	}
+	if strings.Contains(confirm, `type="submit"`) {
+		t.Errorf("a choice that would stop the definition still offers the write:\n%s", confirm)
+	}
+	if !strings.Contains(confirm, "取り消す") {
+		t.Errorf("a refused choice leaves no way out:\n%s", confirm)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused choice wrote the file")
+	}
+
+	// A hand-sent write is refused with the same sentence, and writes nothing.
+	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := f.catalog().With(path, string(edited))
+	want := firstStopText(check.Definition(check.Input{Catalog: with, Name: "demo"}))
+	if want == "" {
+		t.Fatal("the check wrote no stop for the change")
+	}
+	resp, body := f.post(t, server, "/definitions/demo/members/builder", url.Values{
+		"op":   {"turn-remove"},
+		"to":   {"human"},
+		"hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the refused write answered %d", resp.StatusCode)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused write wrote the file")
+	}
+	if !strings.Contains(body, html.EscapeString(want)) {
+		t.Errorf("the field does not say what validate says (%q):\n%s", want, body)
+	}
+
+	// The human's own last turn out is refused the same way.
+	_, body = f.get(t, server, "/definitions/demo/human?turn=lead")
+	confirm = between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, "人間から出るターンがありません") {
+		t.Errorf("the human's last turn is not refused with validate's sentence:\n%s", confirm)
+	}
+	if strings.Contains(confirm, `type="submit"`) {
+		t.Errorf("the human's refused choice still offers the write:\n%s", confirm)
+	}
+}
+
+// TestTheLastTurnToTheHumanIsRefused: taking away the one turn that reaches the
+// human is refused with validate's sentence (I12b), even though every node still
+// hands the turn on.
+func TestTheLastTurnToTheHumanIsRefused(t *testing.T) {
+	f := newFixture(t)
+	f.lastHumanTeam(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.get(t, server, "/definitions/demo/members/builder?turn=human")
+	confirm := between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, "人間へ届くターンがありません") {
+		t.Errorf("the choice does not say the human would be unreached:\n%s", confirm)
+	}
+	if strings.Contains(confirm, `type="submit"`) {
+		t.Errorf("a choice that would stop the definition still offers the write:\n%s", confirm)
+	}
+
+	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := f.catalog().With(path, string(edited))
+	want := firstStopText(check.Definition(check.Input{Catalog: with, Name: "demo"}))
+	if !strings.Contains(want, "人間へ届くターンがありません") {
+		t.Fatalf("the check's first stop is %q, want the one about the human", want)
+	}
+	_, body = f.post(t, server, "/definitions/demo/members/builder", url.Values{
+		"op":   {"turn-remove"},
+		"to":   {"human"},
+		"hash": {source.Hash(before)},
+	})
+	if readFile(t, path) != before {
+		t.Errorf("a refused write wrote the file")
+	}
+	if !strings.Contains(body, html.EscapeString(want)) {
+		t.Errorf("the field does not say what validate says (%q):\n%s", want, body)
+	}
+}
+
+// TestTheFigureCountsOneArrowPerEdge: the figure draws one arrow for each edge
+// of the graph, whether or not a field is open (設計 4 節).
+func TestTheFigureCountsOneArrowPerEdge(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	def, err := f.catalog().Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/human"} {
+		_, body := f.get(t, server, path)
+		if got := strings.Count(body, `<path class="edge`); got != len(def.Graph.Edges) {
+			t.Errorf("GET %s: the figure draws %d arrows, want %d", path, got, len(def.Graph.Edges))
+		}
+	}
+}
+
+// TestTheHandlesStandOnlyOnTheOpenNodesOtherSide: the "＋" handle is on the
+// parties the open node does not hand the turn to yet, on the members and the
+// human only, and nowhere when no such field is open (設計 4 節).
+func TestTheHandlesStandOnlyOnTheOpenNodesOtherSide(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	cases := []struct {
+		path, want, gone string
+	}{
+		{"/definitions/demo", "", ""},
+		{"/definitions/demo/members/lead", `to=human`, `to=builder`},
+		{"/definitions/demo/members/builder", `to=lead`, `to=human`},
+		{"/definitions/demo/human", `to=builder`, `to=lead`},
+		{"/definitions/demo/workers/lead/実装", "", ""},
+	}
+	for _, test := range cases {
+		_, body := f.get(t, server, test.path)
+		handles := strings.Count(body, `class="handle"`)
+		if test.want == "" {
+			if handles != 0 {
+				t.Errorf("GET %s: the figure offers %d handles with no party's field open", test.path, handles)
+			}
+			continue
+		}
+		if handles != 1 {
+			t.Errorf("GET %s: the figure offers %d handles, want one", test.path, handles)
+		}
+		handle := between(body, `class="handle"`, `<circle`)
+		if !strings.Contains(handle, test.want) {
+			t.Errorf("GET %s: the handle does not lead to %q (%s)", test.path, test.want, handle)
+		}
+		if test.gone != "" && strings.Contains(handle, test.gone) {
+			t.Errorf("GET %s: a handle stands on a party the node already hands the turn to (%s)", test.path, handle)
+		}
+		if strings.Contains(body, "to=worker") {
+			t.Errorf("GET %s: the figure offers a handle to a worker", test.path)
+		}
+	}
+}
+
+// TestTheTurnPickerPicksNothingUntilAPartyIs: the field that hands the turn on
+// offers an empty first choice, so a field that is just drawn writes nothing,
+// and names the human the way a person says it (設計 4 節).
+func TestTheTurnPickerPicksNothingUntilAPartyIs(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+	form := between(body, `data-key="turn-add"`, "</form>")
+	if !strings.Contains(form, `<option value="" selected>相手を選ぶ</option>`) {
+		t.Errorf("the picker does not start on no party:\n%s", form)
+	}
+	if !strings.Contains(form, `data-origin=""`) {
+		t.Errorf("the picker does not carry an empty origin:\n%s", form)
+	}
+	if !strings.Contains(form, `<option value="human">人間</option>`) {
+		t.Errorf("the picker does not name the human as a person says it:\n%s", form)
+	}
+	if strings.Contains(form, `value="builder"`) {
+		t.Errorf("the picker offers a party the node already hands the turn to:\n%s", form)
+	}
+}
+
+// TestTheHandleAndThePickMakeTheSameChoice: the handle leads to the same choice
+// the pick makes, showing the line a save would print, the edge dashed, and
+// nothing written; a second press goes back to the field without the choice
+// (設計 4 節).
+func TestTheHandleAndThePickMakeTheSameChoice(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.get(t, server, "/definitions/demo/members/lead?preview=turn-add&to=human")
+	form := between(body, `data-key="turn-add"`, "</form>")
+	if !strings.Contains(form, `value="human" selected`) {
+		t.Errorf("the pick's form does not read the chosen party:\n%s", form)
+	}
+	if !strings.Contains(form, "lead のプロンプトの『ターンを渡す相手』に人間が入ります") {
+		t.Errorf("the pick shows no line about what a save would do:\n%s", form)
+	}
+	if !strings.Contains(body, `<path class="edge pending-add"`) {
+		t.Errorf("the chosen edge is not drawn dashed before the write:\n%s", body)
+	}
+	if !strings.Contains(body, `<a class="handle" href="/definitions/demo/members/lead"`) {
+		t.Errorf("a second press would not go back to the field without the choice:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the pick wrote the file")
+	}
 }
