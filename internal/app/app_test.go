@@ -140,6 +140,9 @@ func newFixture(t *testing.T) *fixture {
 	t.Setenv("HERDR_ENV", "")
 	t.Setenv("HERDR_PANE_ID", "")
 	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-herdr"))
+	// gy is reached the same way: a test that wants the questions writes a fake
+	// gy and points HERGY_GY at it (段 6).
+	t.Setenv("HERGY_GY", filepath.Join(f.cfg, "no-gy"))
 	return f
 }
 

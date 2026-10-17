@@ -20,9 +20,34 @@
   `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
   `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
   the prompt diff, the version screen and the separate figure are no longer
-  concepts of their own. The members, the turns and the rules are read only
-  from the screens until the rounds that give them their own editing; this round
-  writes one thing, a definition's mission.
+  concepts of their own. The members, the turns, the profiles and the rules each
+  write from their own round below; this first round writes one thing, a
+  definition's mission.
+
+- **The rule screens write**: a team's own agreement, a role's document and the
+  agreement every team shares (as well as the rule documents the definitions
+  read) now write from the screens. A rule opens in place as a card carrying the
+  whole of its text, its reason, its origins, its check and its note, each
+  writable from the start; no mode has to be entered first. A rule is added at
+  the end of a section, with the id hergy proposes and the person may change,
+  and taken out with a second press of Delete in the same place — no dialog. A
+  role whose document no layer holds, and a place with no shared agreement,
+  offer to make an empty one where hergy puts something new. A save shows the
+  line it wrote and what a running team has to take up, as the commands to type:
+  a rule document reaches every member that reads it, so a role's document
+  reaches the members that play the role in every definition, and the shared
+  agreement reaches every member of the place. A rule that would break the
+  documents one member reads (an id two of them hold, a report or a rule a
+  derived origin points at that is not there) is refused with the sentence hergy
+  validate prints, beside the card that brought it in. The report shapes a rule
+  may point at are read only in this round.
+
+  A rule document is written a rule at a time: a save writes the lines of the
+  one rule it changed, in the shape hergy writes a rule with, and every other
+  line — the blank lines, the comments, the quoting a person used, and another
+  rule's `refs: [a, b]` — comes back byte for byte. The document hergy makes
+  from nothing (a role's document, and the agreement every team shares, when no
+  layer holds one) is written whole, as it always was.
 
 - **`hergy validate` warns when a rule text names something the definition has
   no node for**: a rule that writes `lead → impl`, where `impl` is neither a
@@ -37,29 +62,17 @@
 
 ### Added
 
-- **A profile is edited from the screens**: `/profiles/<profile>` writes a
-  profile's kind (chosen from the kinds herdr starts, the ones the profiles in
-  use run first, the one run by the most profiles before the rest), its args
-  (one to a line) and its env (a name and a value each, the value a box so a
-  line break in it survives). `/profiles` adds a profile by name and kind, and
-  says which `profiles.yaml` it will write before the button is pressed. A
-  profile that runs something is not taken away — the screen names the members
-  and workers that use it — and one nothing runs is. Every write goes through
-  the one written form of `profiles.yaml` (the profiles by name, an empty args
-  and env left out), says what it wrote, whose launch or pane environment the
-  change moves, and what each running team has to take up (`hergy refresh` for
-  a kind or an args change, `hergy down` and `hergy up` for an env change), and
-  a name that is its kind gets the warning `hergy validate` gives.
-
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way
   into a field in two presses, closing a field three ways, the mission being
-  written and the saved line, a draft surviving another field, the pointer
-  cursor never standing on something unpressable, the three widths scrolling
-  neither way, Tab and Enter reaching a field, and no console errors. A machine
-  with no Chrome fails the gate in CI and skips it with one line on a laptop.
-  The profile screen's kind, args and env writes are walked too.
+  written and the saved line, a member's role being written from its field with
+  the profile kind following the pick and a worker's removal saying what the
+  hire loses first, a draft surviving another field, the pointer cursor never
+  standing on something unpressable, the three widths scrolling neither way, Tab
+  and Enter reaching a field, and no console errors. A machine with no Chrome
+  fails the gate in CI and skips it with one line on a laptop. The profile
+  screen's kind, args and env writes are walked too.
 
 
 ## 0.6.0 - 2026-10-17

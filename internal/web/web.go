@@ -27,16 +27,18 @@ package web
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 )
 
 // Port is the live half of what the screens read: herdr's running teams, their
-// agents and pane tails, and the one thing hergy serve changes outside its own
-// files — where herdr's focus stands. The app reads team, herdr and the launch
-// record and writes them into these types, so this package stays out of the top
-// layer.
+// agents and pane tails, gy's open questions, the launch record, and the one
+// thing hergy serve changes outside its own files — where herdr's focus stands.
+// The app reads team, herdr, launchlog and gy and writes them into these types,
+// so this package stays out of the top layer.
 type Port interface {
 	// Running lists the teams running on this machine, each with the team
 	// definition it was booted from (effect.Running).
@@ -47,6 +49,37 @@ type Port interface {
 	Tail(herdrName string, lines int) (string, error)
 	// Focus moves herdr's focus to one agent's pane.
 	Focus(herdrName string) error
+	// Questions lists gy's open questions for this project, empty when there is
+	// no gy here (段 6, I17).
+	Questions() ([]activity.Question, error)
+	// Launched is one running team's launch record: when it was launched, the
+	// hash of each member's prompt at that time, and the facts those prompts
+	// were built with (段 6, C9). A team this machine has no record of answers
+	// false.
+	Launched(team string) (Launch, bool)
+	// LaunchedDefinition reads the definition a team was booted from, from the
+	// project the launch record names: it is how a team started from another
+	// project is judged like any other (段 6, W16).
+	LaunchedDefinition(team string) (*definition.Definition, error)
+	// LaunchedView is one running team as effect reads it to compare a prompt
+	// with the one the launch handed out: the definition and the facts it was
+	// built with, read from the record's project, with that project's catalog
+	// (C9, T1). A record from before those facts were kept answers false.
+	LaunchedView(team string) (effect.View, bool)
+}
+
+// Launch is one running team's launch record as a screen reads it: the time it
+// was launched, the hash of each member's prompt at that time (by the member's
+// short name), and the facts those prompts were built with — the hergy binary,
+// the project root and the language — so a prompt can be rebuilt the way the
+// launch built it (C9). A record from before the facts were kept carries none of
+// them.
+type Launch struct {
+	At         time.Time
+	Prompts    map[string]string
+	Executable string
+	Project    string
+	Lang       string
 }
 
 // partCount is how many pane lines the activity shows for a node that waits
@@ -117,6 +150,8 @@ func turnPath(def, from, to string) string {
 func agreementPath(def string) string { return definitionPath(def) + "/agreement" }
 
 func rulePath(def, id string) string { return agreementPath(def) + "/" + url.PathEscape(id) }
+
+func agreementRulePath(id string) string { return "/agreement/" + url.PathEscape(id) }
 
 func rolePath(role string) string { return "/roles/" + url.PathEscape(role) }
 

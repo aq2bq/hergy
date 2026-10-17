@@ -223,6 +223,14 @@ func teamCommands(changes []Change, team Running) []Command {
 		env        bool
 	)
 	for _, change := range changes {
+		if len(change.Parts) == 0 {
+			// A change with no parts is a prompt the launch record no longer
+			// holds (C9): the record has only hashes, so nothing of the prompt
+			// can be named, and a reprompt is what makes the member read the
+			// prompt again.
+			members = appendUnique(members, change.Member)
+			continue
+		}
 		for _, part := range change.Parts {
 			switch part.Part {
 			case Launch:

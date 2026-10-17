@@ -1,38 +1,140 @@
 {{define "sections"}}
 {{- range .}}
-<h3 class="sec">{{.Heading}}</h3>
+{{- if .Heading}}<h3 class="sec">{{.Heading}}</h3>{{end}}
 <ul class="cards">
   {{- range .Rules}}
-  <li class="card"><a href="{{.Href}}"><span class="rid mono">{{.ID}}</span> <span class="clause">{{.Clause}}</span></a></li>
+  <li class="card"><a href="{{.Href}}"><span class="rid mono">{{.ID}}</span> <span class="clause">{{.Clause}}</span></a>{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</li>
   {{- end}}
+  {{- if .AddHref}}<li class="card add"><a href="{{.AddHref}}">{{t "web.rule.add"}}</a></li>{{end}}
 </ul>
 {{- end}}
 {{end}}
 
 {{define "panel"}}
-<aside class="panel" id="panel" data-parent="{{.Parent}}" aria-label="{{.Title}}">
+<aside class="panel" id="panel" data-parent="{{.Parent}}" data-url="{{.URL}}" aria-label="{{.Title}}">
   <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
   <h2 class="panel-title">{{.Title}}</h2>
-  {{- if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
+  {{- if .Notice}}<p class="problem">{{.Notice}}{{if .Reload}} <a class="link" href="{{.URL}}">{{t "web.reload"}}</a>{{end}}</p>{{end}}
   {{- range .Findings}}<p class="problem">{{.}}</p>{{end}}
-  {{- if .Rule}}{{template "rule" .Rule}}{{else}}
+  {{- if .Saved}}<div class="saved">{{.Saved}}{{range .Preview}} <span class="note">{{.}}</span>{{end}}{{template "commands" .Handover}}</div>{{end}}
+  {{- if .Form}}{{template "ruleform" .Form}}{{else}}
   <dl class="fields">
     {{- range .Fields}}
-    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
+    <div class="field{{if .Edit}} row{{end}}"><dt>{{.Label}}</dt><dd>{{if .Value}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Edit}} {{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{end}}{{if .Remove}} <a class="btn quiet remove" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
     {{- end}}
   </dl>
   {{- end}}
 </aside>
 {{end}}
 
-{{define "rule"}}
-<dl class="fields">
-  <div class="field"><dt>{{t "web.rule.text"}}</dt><dd>{{inline .Text}}</dd></div>
-  {{- if .Why}}<div class="field"><dt>{{t "web.rule.why"}}</dt><dd>{{inline .Why}}</dd></div>{{end}}
-  {{- if .Origin}}<div class="field"><dt>{{t "web.rule.origin"}}</dt><dd>{{.Origin}}</dd></div>{{end}}
-  {{- if .Check}}<div class="field"><dt>{{t "web.rule.check"}}</dt><dd class="mono">{{.Check}}</dd></div>{{end}}
-  {{- if .Note}}<div class="field"><dt>{{t "web.rule.note"}}</dt><dd>{{inline .Note}}</dd></div>{{end}}
-</dl>
+{{define "ruleform"}}
+<form class="ruleform" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-push-url="false" hx-replace-url="true"{{if .Saved}} data-saved="1"{{end}}>
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  {{- if .Add}}
+  <div class="field"><label class="fl" for="rule-id">{{t "web.rule.id"}}</label>
+    <input id="rule-id" class="input mono" type="text" name="id" value="{{.ID}}" data-draft="{{printf "%s:id" .Draft}}" data-origin="{{.ID}}" spellcheck="false" autocomplete="off"></div>
+  {{- else}}
+  <div class="field"><span class="fl">{{t "web.rule.id"}}</span> <span class="mono">{{.ID}}</span></div>
+  {{- end}}
+  {{- if .SectionName}}<p class="sub">{{t "web.rule.section"}} {{.SectionName}}</p>{{end}}
+  <div class="field"><label class="fl" for="rule-text">{{t "web.rule.text"}}</label>
+    <textarea id="rule-text" class="input" name="text" rows="6" data-draft="{{printf "%s:text" .Draft}}" data-origin="{{.Text}}">{{.Text}}</textarea></div>
+  <div class="field"><label class="fl" for="rule-why">{{t "web.rule.why"}}</label>
+    <textarea id="rule-why" class="input" name="why" rows="3" data-draft="{{printf "%s:why" .Draft}}" data-origin="{{.Why}}">{{.Why}}</textarea></div>
+  <div class="field"><span class="fl">{{t "web.rule.origin"}}</span>
+    {{- range $i, $o := .Origins}}
+    <div class="orow">
+      <select name="origin_kind" aria-label="{{t "web.rule.origin"}}" data-draft="{{printf "%s:o%d:k" $.Draft $i}}" data-origin="{{$o.Kind}}">
+        <option value=""{{if eq $o.Kind ""}} selected{{end}}>{{t "web.rule.origin_none"}}</option>
+        <option value="incident"{{if eq $o.Kind "incident"}} selected{{end}}>{{t "web.origin.incident"}}</option>
+        <option value="instruction"{{if eq $o.Kind "instruction"}} selected{{end}}>{{t "web.origin.instruction"}}</option>
+        <option value="derived"{{if eq $o.Kind "derived"}} selected{{end}}>{{t "web.origin.derived"}}</option>
+      </select>
+      <input class="input" type="date" name="origin_date" aria-label="{{t "web.rule.origin_date"}}" value="{{$o.Date}}" data-draft="{{printf "%s:o%d:d" $.Draft $i}}" data-origin="{{$o.Date}}">
+      <input class="input mono" type="text" name="origin_refs" aria-label="{{t "web.rule.origin_refs"}}" value="{{$o.Refs}}" data-draft="{{printf "%s:o%d:r" $.Draft $i}}" data-origin="{{$o.Refs}}" autocomplete="off">
+      <input class="input" type="text" name="origin_note" aria-label="{{t "label.note"}}" value="{{$o.Note}}" data-draft="{{printf "%s:o%d:n" $.Draft $i}}" data-origin="{{$o.Note}}" autocomplete="off">
+    </div>
+    {{- end}}
+  </div>
+  <div class="field"><label class="fl" for="rule-check">{{t "web.rule.check"}}</label>
+    {{- if .Report}} <span class="mono">{{.Report}}</span>{{end}}
+    <input id="rule-check" class="input" type="text" name="tests" value="{{.Tests}}" data-draft="{{printf "%s:tests" .Draft}}" data-origin="{{.Tests}}" autocomplete="off"></div>
+  <div class="field"><label class="fl" for="rule-note">{{t "web.rule.note"}}</label>
+    <textarea id="rule-note" class="input" name="note" rows="2" data-draft="{{printf "%s:note" .Draft}}" data-origin="{{.Note}}">{{.Note}}</textarea></div>
+  <span class="actions" data-change hidden>
+    <button type="submit" class="btn primary">{{t "web.save"}}</button>
+    <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
+  </span>
+</form>
+{{- if not .Add}}
+<form class="ruleform del" method="post" action="{{if .AskDelete}}{{.DelAction}}{{else}}{{.Action}}{{end}}" hx-post="{{if .AskDelete}}{{.DelAction}}{{else}}{{.Action}}{{end}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML">
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  {{- if .AskDelete}}
+  <input type="hidden" name="rule" value="{{.ID}}">
+  <input type="hidden" name="action" value="delete-now">
+  <button type="submit" class="btn primary">{{t "web.rule.delete"}}</button>
+  <a class="btn quiet" href="{{.Parent}}">{{t "web.rule.delete_cancel"}}</a>
+  {{- else}}
+  <input type="hidden" name="action" value="delete">
+  <button type="submit" class="btn quiet">{{tf "web.rule.delete_named" .ID}}</button>
+  {{- end}}
+</form>
+{{- end}}
+{{end}}
+
+{{define "make"}}
+<form class="make" method="post" action="{{.Href}}" hx-post="{{.Href}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML">
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <input type="hidden" name="make" value="1">
+  <button type="submit" class="btn quiet">{{t "web.make"}}</button>
+  {{- if .Path}}<span class="muted path">{{.Path}}</span>{{end}}
+</form>
+{{end}}
+
+{{define "edit"}}
+<form class="edit" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-replace-url="true" data-key="{{.Key}}"{{if .Saved}} data-saved="1"{{end}}>
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <input type="hidden" name="op" value="{{.Op}}">
+  {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- if .PendingStop}}<span class="problem">{{.PendingStop}}</span>{{end}}
+  {{- range .Pending}}<span class="save-to">{{.}}</span>{{end}}
+  {{- range .Controls}}{{template "control" .}}{{end}}
+  {{- if .PendingStop}}<span class="actions"><a class="btn quiet" href="{{.Action}}">{{t "web.revert"}}</a></span>
+  {{- else}}<span class="actions" data-change hidden>
+    <button type="submit" class="btn primary">{{.Submit}}</button>
+    <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
+  </span>
+  {{- end}}
+</form>
+{{end}}
+
+{{define "control"}}
+{{- if eq .Type "select"}}
+<select name="{{.Name}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}"{{if .KindOf}} data-kind-of{{end}}{{if .Preview}} data-preview="{{.Preview}}"{{end}}>
+  {{- range .Choices}}<option value="{{.Value}}"{{if .Kind}} data-kind="{{.Kind}}"{{end}}{{if .Chosen}} selected{{end}}>{{if .Text}}{{.Text}}{{else}}{{.Value}}{{end}}</option>{{end}}
+</select>{{if .KindOf}} <span class="kind" data-kind-show>{{.Kind}}</span>{{end}}
+{{- else}}
+<label class="fl">{{.Label}} <input type="text" name="{{.Name}}" value="{{.Value}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}" autocomplete="off" size="10"></label>
+{{- end}}
+{{end}}
+
+{{define "confirm"}}
+<form class="confirm" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-replace-url="true">
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <input type="hidden" name="op" value="{{.Op}}">
+  {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- if .Stop}}<span class="problem">{{.Stop}}</span>{{end}}
+  {{- range .Preview}}<span class="save-to">{{.}}</span>{{end}}
+  <span class="actions">
+    {{- if not .Stop}}<button type="submit" class="btn primary">{{.Submit}}</button>{{end}}
+    <a class="btn quiet" href="{{.Cancel}}">{{t "web.revert"}}</a>
+  </span>
+</form>
 {{end}}
 
 {{define "commands"}}

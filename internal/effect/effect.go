@@ -115,7 +115,7 @@ func Of(before, after View) []Change {
 		bb, bErr := prompt.Member(before.Def, &bm, before.Run)
 		ab, aErr := prompt.Member(after.Def, &am, after.Run)
 		var parts []PartChange
-		parts = append(parts, documentParts(bb, bErr, ab, aErr, bm, am)...)
+		parts = append(parts, documentParts(before, after, bb, bErr, ab, aErr, bm, am)...)
 		if p := diffTurns(prompt.TurnsOf(before.Def, bm.Name, team), prompt.TurnsOf(after.Def, am.Name, team), team); p != nil {
 			parts = append(parts, *p)
 		}
@@ -137,13 +137,17 @@ func Of(before, after View) []Change {
 }
 
 // promptPartsOnly is the parts that stay when the two prompts read the same
-// text: the ones that do not live in the text. A launch or an env reaches a
-// pane, not the sentences, so it is reported either way.
+// text: the ones that do not live in the text. The parts that do live in it —
+// the turns, the workers, the roster, the role document and the agreements —
+// are left out, because a change they carry reaches no member of this team
+// (spec/42 N1: a document written back with the same values reads the same, so
+// a team is not told to take it up). A launch or an env reaches a pane, not the
+// sentences, so it is reported either way.
 func promptPartsOnly(parts []PartChange) []PartChange {
 	out := parts[:0:0]
 	for _, part := range parts {
 		switch part.Part {
-		case Turns, Workers, Roster:
+		case Turns, Workers, Roster, RoleDocument, Agreements:
 		default:
 			out = append(out, part)
 		}
@@ -152,15 +156,18 @@ func promptPartsOnly(parts []PartChange) []PartChange {
 }
 
 // documentParts is the role document and the agreements a member's prompt reads,
-// from prompt.Member's build of that prompt. A prompt that does not build (a
-// document is missing) still compares the role, so a role change is not lost.
-func documentParts(bb *prompt.Built, bErr error, ab *prompt.Built, aErr error, bm, am definition.MemberNode) []PartChange {
+// from prompt.Member's build of that prompt. The documents are compared by the
+// text each side reads, not by their paths alone: a screen that edits one rule
+// of a document writes the same path, and the member's prompt moves all the same
+// (段 4). A prompt that does not build (a document is missing) still compares the
+// role, so a role change is not lost.
+func documentParts(before, after View, bb *prompt.Built, bErr error, ab *prompt.Built, aErr error, bm, am definition.MemberNode) []PartChange {
 	var parts []PartChange
 	if bErr == nil && aErr == nil {
-		if bb.HasRole != ab.HasRole || bb.Role != ab.Role {
+		if bb.HasRole != ab.HasRole || bb.Role != ab.Role || !sameDocText(before.Run.Reader, bb.Role, after.Run.Reader, ab.Role) {
 			parts = append(parts, PartChange{Part: RoleDocument})
 		}
-		if !sameDocs(bb.Read, ab.Read) {
+		if !sameDocs(bb.Read, ab.Read) || !sameDocListText(before.Run.Reader, bb.Read, after.Run.Reader, ab.Read) {
 			parts = append(parts, PartChange{Part: Agreements})
 		}
 		return parts
@@ -169,6 +176,42 @@ func documentParts(bb *prompt.Built, bErr error, ab *prompt.Built, aErr error, b
 		parts = append(parts, PartChange{Part: RoleDocument})
 	}
 	return parts
+}
+
+// sameDocText is whether two reads of one document carry the same text. A view
+// with no reader is not compared: the paths stand for the reading, as they did
+// before the texts were read.
+func sameDocText(before source.Reader, bDoc source.Doc, after source.Reader, aDoc source.Doc) bool {
+	if before == nil || after == nil {
+		return true
+	}
+	return docText(before, bDoc) == docText(after, aDoc)
+}
+
+// sameDocListText is whether two lists of documents carry the same texts, in the
+// same order.
+func sameDocListText(before source.Reader, bDocs []source.Doc, after source.Reader, aDocs []source.Doc) bool {
+	if before == nil || after == nil || len(bDocs) != len(aDocs) {
+		return len(bDocs) == len(aDocs)
+	}
+	for i := range bDocs {
+		if !sameDocText(before, bDocs[i], after, aDocs[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// docText is one document's text, or nothing when it cannot be read.
+func docText(reader source.Reader, doc source.Doc) string {
+	if doc.Path == "" {
+		return ""
+	}
+	text, err := reader.Read(doc)
+	if err != nil {
+		return ""
+	}
+	return text
 }
 
 // sameDocs is whether two prompt builds read the same documents, in the same

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 )
 
@@ -14,13 +15,15 @@ func (s *Server) definitions(_ *http.Request) (view, error) {
 	running, _ := s.runningTeams()
 	byDefinition := runningByDefinition(running)
 	entries := s.entries()
-	data := definitionsData{Crumb: []crumb{{Name: t("web.band.definitions")}}}
+	data := definitionsData{Crumb: []crumb{{Name: t("web.band.definitions")}}, Token: s.token}
 	data.Shared = definitionRow{Name: t("web.common.title"), Href: "/agreement"}
 	if shared, ok := s.cat.SharedAgreement(); ok {
 		data.Shared.Count = s.ruleCount(shared.Path)
 	} else {
-		// The row and the page agree: there is no shared agreement (N8).
+		// The row and the page agree: there is no shared agreement (N8), and
+		// the row offers to make one (W8).
 		data.Shared.Empty = true
+		data.Shared.Make = s.makeForm(catalog.NewAgreement, "", "/agreement")
 	}
 	for _, entry := range entries {
 		row := definitionRow{Name: entry.Name, Href: definitionPath(entry.Name)}
@@ -89,6 +92,7 @@ type definitionsData struct {
 	Entries    []definitionRow
 	Empty      bool
 	NewCommand string
+	Token      string
 }
 
 // definitionRow is one row of the list: one team definition, or the shared
@@ -105,5 +109,6 @@ type definitionRow struct {
 	Human   int
 	Broken  bool
 	Empty   bool
+	Make    *makeForm
 	Running []turnEnd
 }

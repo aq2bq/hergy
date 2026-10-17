@@ -2,17 +2,29 @@ package web
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/topology"
 )
 
-// figureOf lays one definition's graph out for drawing (設計 4 節): the human at
+// turnPending is a turn a press chose to add or take away and nothing has
+// written yet: the two ends, and which way the change goes (設計 4 節). The
+// figure draws an added edge dashed and an edge being taken away faint.
+type turnPending struct {
+	From definition.NodeID
+	To   definition.NodeID
+	Add  bool
+}
+
+// figure lays one definition's graph out for drawing (設計 4 節): the human at
 // the top, the members with the workers under them, and one arrow per edge. The
 // positions come from topology.LayoutGraph; the state overlay comes from the
 // activity, the sentences a node's field carries from the check, and the links
-// from the fields the nodes open.
-func (s *Server) figure(def *definition.Definition, states, problems map[string]string, openKey string) figureData {
+// from the fields the nodes open. When a party's field is open, the parties it
+// does not hand the turn to yet get a "＋" handle, and a chosen turn is drawn
+// before it is written.
+func (s *Server) figure(def *definition.Definition, states, problems map[string]string, openKey string, pending *turnPending) figureData {
 	layout := topology.LayoutGraph(def.Graph)
 	out := figureData{
 		Width:   layout.Width,
@@ -27,20 +39,23 @@ func (s *Server) figure(def *definition.Definition, states, problems map[string]
 		NameX: layout.Human.X + 14, NameY: layout.Human.Y + layout.Human.H/2 + 5,
 		Problem: problems["human"],
 	}
+	boxes := map[definition.NodeID]nodeBox{(definition.Human{}).ID(): out.Human}
 	for i := range layout.Members {
 		member := layout.Members[i]
+		id := definition.NodeID{Kind: definition.KindMember, Name: member.Name}
 		box := memberFigure{
 			nodeBox: nodeBox{
 				X: member.X, Y: member.Y, W: member.W, H: member.H,
 				Name:    member.Name,
 				Sub:     dot(member.Role, member.Profile),
-				Href:    s.openHref(def, definition.NodeID{Kind: definition.KindMember, Name: member.Name}, openKey),
+				Href:    s.openHref(def, id, openKey),
 				Class:   out.Classes[i],
-				Open:    nodeKeyOf(definition.NodeID{Kind: definition.KindMember, Name: member.Name}) == openKey,
+				Open:    nodeKeyOf(id) == openKey,
 				State:   states[member.Name],
 				Problem: problems[member.Name],
 			},
 		}
+		boxes[id] = box.nodeBox
 		box.NameX, box.NameY = member.X+14, member.Y+24
 		box.SubX, box.SubY = member.X+14, member.Y+42
 		for _, worker := range member.Workers {
@@ -59,7 +74,88 @@ func (s *Server) figure(def *definition.Definition, states, problems map[string]
 		out.Members = append(out.Members, box)
 	}
 	for _, edge := range layout.Edges {
-		out.Edges = append(out.Edges, s.arrow(def, layout, edge, openKey))
+		arrow := s.arrow(def, layout, edge, openKey)
+		if pending != nil && !pending.Add && edge.FromNode == pending.From && edge.ToNode == pending.To {
+			// The edge a press chose to take away is drawn faint until the
+			// write (4 節).
+			arrow.Fade = true
+		}
+		out.Edges = append(out.Edges, arrow)
+	}
+	if pending != nil && pending.Add {
+		out.Pending = append(out.Pending, pendingArrow(boxes, pending))
+	}
+	if from, ok := openSource(openKey); ok {
+		out.Handles = s.turnHandles(def, boxes, from, pending)
+	}
+	return out
+}
+
+// pendingArrow is the edge a press chose to add, drawn as one dashed line
+// between the two boxes before anything is written (4 節).
+func pendingArrow(boxes map[definition.NodeID]nodeBox, pending *turnPending) arrowFigure {
+	from, to := boxes[pending.From], boxes[pending.To]
+	return arrowFigure{
+		Path:  "M" + num(from.CX()) + " " + num(from.CY()) + " L" + num(to.CX()) + " " + num(to.CY()),
+		Label: nodeLabel(pending.From) + " → " + nodeLabel(pending.To),
+		Add:   true,
+	}
+}
+
+// openSource is the node whose field is open, when it is a party that hands the
+// turn on (a member or the human): only then does the figure offer the "＋"
+// handles (4 節). A worker's field, an edge's field or no field at all has none.
+func openSource(openKey string) (definition.NodeID, bool) {
+	if openKey == nodeKeyOf((definition.Human{}).ID()) {
+		return (definition.Human{}).ID(), true
+	}
+	if name, ok := strings.CutPrefix(openKey, "member:"); ok {
+		return definition.NodeID{Kind: definition.KindMember, Name: name}, true
+	}
+	return definition.NodeID{}, false
+}
+
+// turnHandles is the "＋" handle on every party the open node does not hand the
+// turn to yet: the members and the human, never a worker (a worker's edges are
+// made by workers:), and never the node itself. A handle whose party is already
+// the chosen one goes back to the field without the choice, so a second press
+// undoes the pick (4 節).
+func (s *Server) turnHandles(def *definition.Definition, boxes map[definition.NodeID]nodeBox, from definition.NodeID, pending *turnPending) []handleFigure {
+	taken := map[definition.NodeID]bool{}
+	for _, edge := range def.Graph.Out(from) {
+		if isTurn(edge) {
+			taken[edge.To] = true
+		}
+	}
+	var out []handleFigure
+	add := func(id definition.NodeID) {
+		box, ok := boxes[id]
+		if !ok || id == from {
+			return
+		}
+		handle := handleFigure{
+			X:     box.X + box.W - 10,
+			Y:     box.Y + 10,
+			Label: t("web.figure.add"),
+			Title: nodeLabel(from) + " → " + nodeLabel(id),
+		}
+		if pending != nil && pending.Add && pending.To == id {
+			handle.Href = s.nodeHref(def, from)
+		} else {
+			handle.Href = previewHref(s.nodeHref(def, from), opTurnAdd, formValue{Name: "to", Value: id.String()})
+		}
+		out = append(out, handle)
+	}
+	for i := range def.Graph.Members {
+		id := def.Graph.Members[i].ID()
+		if taken[id] {
+			continue
+		}
+		add(id)
+	}
+	human := (definition.Human{}).ID()
+	if !taken[human] {
+		add(human)
 	}
 	return out
 }
@@ -198,7 +294,20 @@ type figureData struct {
 	Human         nodeBox
 	Members       []memberFigure
 	Edges         []arrowFigure
-	Classes       []string
+	// Pending is the edge a press chose to add, dashed until it is written;
+	// Handles are the "＋" marks the open node's field offers (4 節).
+	Pending []arrowFigure
+	Handles []handleFigure
+	Classes []string
+}
+
+// handleFigure is one "＋" mark on a node of the figure: where it stands, the
+// field it leads to, and what it does (4 節).
+type handleFigure struct {
+	X, Y  float64
+	Href  string
+	Label string
+	Title string
 }
 
 // nodeBox is one box of the figure and the lines it writes.
@@ -234,6 +343,8 @@ type arrowFigure struct {
 	Label    string
 	Worker   bool
 	Open     bool
+	Fade     bool // the edge a press chose to take away, until it is written
+	Add      bool // the edge a press chose to add, before it is written
 	DataFrom string
 	DataTo   string
 }

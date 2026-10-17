@@ -35,6 +35,10 @@ func TestE2E(t *testing.T) {
 	// screens both print the words the test walks.
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	mustRun(t, "new", "demo")
+	// A second profile, so the kind beside the profile pick has something to
+	// follow (I7).
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  e2e-kind:\n    kind: codex\n")
 	f.runningHerdr(t, "", "")
 
 	base, stop := startServe(t, f)
@@ -50,8 +54,12 @@ func TestE2E(t *testing.T) {
 	var console []string
 	chromedp.ListenTarget(browserCtx, func(event any) {
 		if called, ok := event.(*runtime.EventConsoleAPICalled); ok && called.Type == "error" {
+			var parts []string
+			for _, arg := range called.Args {
+				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
+			}
 			mu.Lock()
-			console = append(console, fmt.Sprint(called.Args))
+			console = append(console, strings.Join(parts, " | "))
 			mu.Unlock()
 		}
 	})
@@ -64,11 +72,14 @@ func TestE2E(t *testing.T) {
 	t.Run("main line", func(t *testing.T) { e2eMainLine(t, ctx, base) })
 	t.Run("close again escape back", func(t *testing.T) { e2eClose(t, ctx, base) })
 	t.Run("mission", func(t *testing.T) { e2eMission(t, ctx, base) })
-	t.Run("profile", func(t *testing.T) { e2eProfile(t, ctx, base, f) })
+	t.Run("members and workers", func(t *testing.T) { e2eMembers(t, ctx, base) })
+	t.Run("turns", func(t *testing.T) { e2eTurns(t, ctx, base) })
 	t.Run("draft", func(t *testing.T) { e2eDraft(t, ctx, base) })
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
 	t.Run("keyboard", func(t *testing.T) { e2eKeyboard(t, ctx, base) })
+	t.Run("rules", func(t *testing.T) { e2eRules(t, ctx, base) })
+	t.Run("activity", func(t *testing.T) { e2eActivity(t, ctx, base, f) })
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -213,94 +224,172 @@ func e2eMission(t *testing.T, ctx context.Context, base string) {
 	}
 }
 
-// e2eProfile is 段 5's main line (設計 3.7): a profile's kind is chosen and
-// saved with the one line, an arg is added and saved, and a change is taken back
-// before that (C1〜C3).
-func e2eProfile(t *testing.T, ctx context.Context, base string, f *fixture) {
+// e2eMembers is the writable field of this round (C1〜C3, I6・I7): a member's
+// role is picked from the start, a change shows the buttons, revert puts the
+// file's own value back, and a save writes it and shows the saved line without
+// moving the place. The kind follows the profile pick, and the press that takes
+// a worker away says what the hire loses before anything is written.
+func e2eMembers(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/claude-default"), chromedp.WaitReady(".profile"))
-	if e2eProfileChange(t, ctx) {
+	role := `form.edit[data-key="role"]`
+	profile := `form.edit[data-key="profile"]`
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(role))
+	if e2eActions(t, ctx, role) {
 		t.Errorf("the save buttons show before anything changed")
 	}
-	// A kind chosen, taken back, chosen again and saved.
-	e2eSelect(t, ctx, "codex")
-	if !e2eProfileChange(t, ctx) {
-		t.Fatalf("choosing a kind shows no save button")
+	if got := e2eKind(t, ctx, role); got != "" {
+		t.Errorf("a role field shows a kind: %q", got)
 	}
-	e2eRun(t, ctx, chromedp.Click(".profile [data-revert]"))
-	if got := e2eSelectValue(t, ctx, "kind"); got != "claude" {
-		t.Errorf("revert left the kind %q", got)
+
+	// T1: a pick says what it would do before it is written.
+	e2ePick(t, ctx, `select[name="role"]`, "builder")
+	e2eWaitText(t, ctx, role+" .save-to", "lead のプロンプトの『ロールの文書』が変わります")
+	if !e2eActions(t, ctx, role) {
+		t.Fatalf("picking another role shows no save button")
 	}
-	e2eSelect(t, ctx, "codex")
-	e2eRun(t, ctx, chromedp.Click(".profile button[type=submit]"), chromedp.WaitVisible(".saved"))
-	if e2eProfileChange(t, ctx) {
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
+		t.Errorf("the field reads %q after the pick, want the pick", got)
+	}
+
+	// 取り消す leaves the pick: the field is read again without it, so the line
+	// about it does not stand over a value that is no longer chosen.
+	e2eRun(t, ctx, chromedp.Click(role+` [data-revert]`), chromedp.WaitReady(role))
+	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
+		t.Errorf("revert left %q, want the file's own role", got)
+	}
+	var pending bool
+	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('`+role+` .save-to')`, &pending))
+	if pending {
+		t.Errorf("the line about the pick is still there after 取り消す")
+	}
+
+	// The kind of the profile follows the pick, as its attribute (I7).
+	if got := e2eKind(t, ctx, profile); got != "claude" {
+		t.Errorf("the kind beside the profile is %q, want claude", got)
+	}
+	e2ePick(t, ctx, `select[name="profile"]`, "e2e-kind")
+	e2eWaitText(t, ctx, profile+" .save-to", "lead の起動のしかたが変わります")
+	if got := e2eKind(t, ctx, profile); got != "codex" {
+		t.Errorf("the kind beside the picked profile is %q, want codex", got)
+	}
+	e2eRun(t, ctx, chromedp.Click(profile+` [data-revert]`), chromedp.WaitReady(profile))
+
+	e2ePick(t, ctx, `select[name="role"]`, "builder")
+	e2eRun(t, ctx, chromedp.Click(role+` button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	if e2eActions(t, ctx, role) {
 		t.Errorf("the save buttons still show after the save")
 	}
 	var saved string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
-	if !strings.Contains(saved, "書きました") {
-		t.Errorf("the save line is %q", saved)
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
+	if !strings.Contains(saved, "書きました") || !strings.Contains(saved, "プロンプト") {
+		t.Errorf("the saved line is %q", saved)
 	}
-	if got := e2eURL(t, ctx); got != base+"/profiles/claude-default" {
+	if got := e2eURL(t, ctx); got != base+"/definitions/demo/members/lead" {
 		t.Errorf("the save moved to %q, want to stay", got)
 	}
-	if got := e2eSelectValue(t, ctx, "kind"); got != "codex" {
-		t.Errorf("the kind the page shows is %q, want the saved one", got)
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
+		t.Errorf("the field reads %q after the save, want the written role", got)
 	}
 
-	// An arg added and saved, and the file holds it. The saved line is already
-	// drawn from the kind's save, so the wait is for the form the answer draws
-	// again (its change buttons are gone).
-	e2eRun(t, ctx, chromedp.Evaluate(`(function(){var el=document.getElementById('args');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`, nil))
-	e2eRun(t, ctx, chromedp.SendKeys("#args", "--verbose"))
-	e2eRun(t, ctx, chromedp.Click(".profile button[type=submit]"))
-	e2eWait(t, "the args save", func() bool { return !e2eProfileChange(t, ctx) })
-	var box string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('args').value`, &box))
-	if !strings.Contains(box, "--verbose") {
-		t.Errorf("the args box reads %q", box)
+	// Hiring a worker, and the press that takes it away: the line comes first.
+	e2eType(t, ctx, `form.edit[data-key="worker-add"] input[name="purpose"]`, "e2e")
+	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="worker-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/members/lead?remove=e2e"]`), chromedp.WaitVisible(".panel .confirm"))
+	e2eWaitText(t, ctx, ".panel .save-to", "lead のプロンプトの『呼べるワーカー』から e2e が消えます")
+	if got := e2eURL(t, ctx); !strings.Contains(got, "remove=e2e") {
+		t.Errorf("the press moved to %q, want the field with the removal pending", got)
 	}
-	written := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
-	if !strings.Contains(written, "- --verbose") {
-		t.Errorf("the args were not written:\n%s", written)
+	e2eRun(t, ctx, chromedp.Click(".panel .confirm a.btn"))
+	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
+	e2eRun(t, ctx, chromedp.WaitReady(`form.edit[data-key="worker-add"]`))
+
+	// A half-written pick survives opening another field (C5).
+	e2ePick(t, ctx, `select[name="role"]`, "lead")
+	e2eRun(t, ctx, chromedp.Click(`.detail a[href="/definitions/demo/members/builder"]`), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
+		t.Errorf("the half-written pick was lost: the field reads %q", got)
 	}
 }
 
-// e2eWait polls until one condition holds, failing the test when it never does.
-func e2eWait(t *testing.T, what string, cond func() bool) {
+// e2eTurns is the turn round (設計 4 節): opening a party's field offers the "＋"
+// handle on the parties it does not hand the turn to yet; pressing it shows the
+// line and the dashed edge; saving adds the arrow; the new arrow's own field
+// chooses the removal, which shows what leaves and takes the arrow away again.
+func e2eTurns(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
+	arrows := func(t *testing.T) int {
+		t.Helper()
+		var n int
+		e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.edge[data-from]:not([data-from=""])').length`, &n))
+		return n
 	}
-	t.Fatalf("%s never happened", what)
-}
 
-// e2eProfileChange is whether the profile form's save buttons are drawn.
-func e2eProfileChange(t *testing.T, ctx context.Context) bool {
-	t.Helper()
-	var shown bool
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/builder"), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	before := arrows(t)
+	if before != 4 {
+		t.Fatalf("the demo definition draws %d turn arrows, want 4", before)
+	}
+	// The handle stands on the human (builder does not hand the turn to it yet)
+	// and not on lead (it already does).
+	var handle string
+	e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('.fig a.handle[href*="to=human"]')||{}).getAttribute('href')||""`, &handle))
+	if handle == "" {
+		t.Fatalf("the open party's field offers no handle to the human")
+	}
+	var toLead int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig a.handle[href*="to=lead"]').length`, &toLead))
+	if toLead != 0 {
+		t.Errorf("the figure offers a handle to a party the node already hands the turn to")
+	}
+	// D3: the handle can be reached with the keyboard.
+	var focusable bool
 	e2eRun(t, ctx, chromedp.Evaluate(
-		`getComputedStyle(document.querySelector('.profile [data-change]')).display !== 'none'`, &shown))
-	return shown
-}
+		`(function(){var h=document.querySelector('.fig a.handle');h.focus();return document.activeElement===h;})()`, &focusable))
+	if !focusable {
+		t.Errorf("the handle cannot be reached with the keyboard")
+	}
 
-// e2eSelect chooses one option of a select and fires the events a person's
-// choosing fires.
-func e2eSelect(t *testing.T, ctx context.Context, value string) {
-	t.Helper()
-	e2eRun(t, ctx, chromedp.Evaluate(`(function(){var el=document.getElementById('kind');el.value='`+value+`';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`, nil))
-}
+	e2eRun(t, ctx, chromedp.Click(`.fig a.handle[href*="to=human"]`))
+	e2eWaitText(t, ctx, `form.edit[data-key="turn-add"] .save-to`, "builder のプロンプトの『ターンを渡す相手』に人間が入ります")
+	var pending int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-add').length`, &pending))
+	if pending != 1 {
+		t.Fatalf("the chosen edge is not drawn dashed before the write")
+	}
+	if !e2eActions(t, ctx, `form.edit[data-key="turn-add"]`) {
+		t.Fatalf("the chosen turn shows no save button")
+	}
 
-// e2eSelectValue is what one select shows.
-func e2eSelectValue(t *testing.T, ctx context.Context, id string) string {
-	t.Helper()
-	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('`+id+`').value`, &value))
-	return value
+	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="turn-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	if got := arrows(t); got != before+1 {
+		t.Errorf("after the save the figure draws %d arrows, want %d", got, before+1)
+	}
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
+	if !strings.Contains(saved, "ターン builder → 人間") {
+		t.Errorf("the saved line is %q", saved)
+	}
+
+	// The new arrow's own field chooses the removal, which lands on the party's
+	// field once it is written. The arrow is pressed the way a person presses
+	// it (the click goes to the path's own link).
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`document.querySelector('.fig path[data-from="builder"][data-to="human"]').parentElement.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}))`, nil))
+	e2eWaitField(t, ctx, "builder → 人間")
+	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/turns/builder/human?turn=human"]`), chromedp.WaitVisible(".panel .confirm"))
+	e2eWaitText(t, ctx, ".panel .confirm .save-to", "builder のプロンプトの『ターンを渡す相手』から人間が消えます")
+	var faded int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-remove').length`, &faded))
+	if faded != 1 {
+		t.Fatalf("the edge chosen to be taken away is not drawn faint")
+	}
+	e2eRun(t, ctx, chromedp.Click(".panel .confirm button[type=submit]"), chromedp.WaitVisible(".panel .saved"))
+	e2eWaitField(t, ctx, "メンバー builder")
+	if got := arrows(t); got != before {
+		t.Errorf("after the removal the figure draws %d arrows, want %d", got, before)
+	}
 }
 
 // e2eDraft is C5: a change not saved survives opening another field and coming
@@ -321,7 +410,7 @@ func e2eDraft(t *testing.T, ctx context.Context, base string) {
 // press.
 func e2ePressable(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/roles", "/profiles", "/profiles/claude-default"} {
+	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity", "/roles", "/roles/lead", "/agreement", "/profiles"} {
 		e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 		var dead []string
 		script := `(function(){
@@ -345,7 +434,7 @@ func e2eWidths(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	for _, size := range []int64{1440, 1000, 500} {
 		e2eRun(t, ctx, chromedp.EmulateViewport(size, 900))
-		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/activity", "/profiles/claude-default"} {
+		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity"} {
 			e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 			var over bool
 			e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`, &over))
@@ -377,6 +466,143 @@ func e2eKeyboard(t *testing.T, ctx context.Context, base string) {
 	e2eWaitField(t, ctx, "メンバー lead")
 }
 
+// e2eRules is 段 4: one rule's card opens from the definition, writes and saves
+// in place (C1〜C3), and 消す asks for a second press before it takes the rule
+// out (3.8, W15).
+func e2eRules(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
+	e2eWaitField(t, ctx, "規則 C1")
+
+	before := e2eRuleText(t, ctx)
+	if before == "" {
+		t.Fatalf("the card opens with no text")
+	}
+	if e2eRuleButtons(t, ctx) {
+		t.Errorf("the save buttons show before anything changed")
+	}
+	e2eSetRuleText(t, ctx, "E2E の規則。")
+	if !e2eRuleButtons(t, ctx) {
+		t.Fatalf("typing the text shows no save button")
+	}
+	e2eRun(t, ctx, chromedp.Click(".ruleform [data-revert]"))
+	if got := e2eRuleText(t, ctx); got != before {
+		t.Errorf("revert left %q, want the file's own text %q", got, before)
+	}
+	e2eSetRuleText(t, ctx, "E2E の規則。")
+	e2eRun(t, ctx, chromedp.Click(".ruleform button[type=submit]"), chromedp.WaitVisible(".saved"))
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
+	if !strings.Contains(saved, "書きました") {
+		t.Errorf("the save line is %q", saved)
+	}
+	if got := e2eRuleText(t, ctx); got != "E2E の規則。" {
+		t.Errorf("the card reads %q after the save", got)
+	}
+
+	// The card closes with Escape, and the same node pressed again closes it.
+	e2eEscape(t, ctx)
+	e2eWaitClosed(t, ctx, "Escape on a rule card")
+
+	// 消す asks once more in place: the first press writes nothing, and the
+	// second takes the rule out.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
+	e2eWaitField(t, ctx, "規則 C1")
+	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
+	// The first press asks once more in place: the way out appears beside the
+	// button that writes (spec/42 T3).
+	e2eWaitContains(t, ctx, "#panel", "やめる")
+	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
+	// The second press writes to the document's own page, so that is where the
+	// card is gone (設計 3.8).
+	e2eWaitURL(t, ctx, base+"/definitions/demo/agreement")
+	e2eWaitClosed(t, ctx, "the delete")
+	var left bool
+	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('.card a[href$="/agreement/C1"]')`, &left))
+	if left {
+		t.Errorf("the rule is still in the document's cards")
+	}
+}
+
+// e2eRuleText is what the rule card's text field shows.
+func e2eRuleText(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	var value string
+	e2eRun(t, ctx, chromedp.Evaluate(`(document.getElementById('rule-text')||{}).value || ""`, &value))
+	return value
+}
+
+// e2eSetRuleText clears the rule card's text field and types one line into it,
+// firing the events a person's typing fires.
+func e2eSetRuleText(t *testing.T, ctx context.Context, text string) {
+	t.Helper()
+	clear := `(function(){var el=document.getElementById('rule-text');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(clear, nil))
+	if text != "" {
+		e2eRun(t, ctx, chromedp.SendKeys("#rule-text", text))
+	}
+}
+
+// e2eRuleButtons is whether the rule card's save and revert buttons are drawn.
+func e2eRuleButtons(t *testing.T, ctx context.Context) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('.ruleform [data-change]')).display !== 'none'`, &shown))
+	return shown
+}
+
+// gyOf writes a fake gy and points HERGY_GY at it, so the activity reads the
+// questions it answers. It lives with the e2e run because only the run uses it.
+func gyOf(t *testing.T, f *fixture, script string) {
+	t.Helper()
+	path := filepath.Join(f.cfg, "gy")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HERGY_GY", path)
+}
+
+// e2eActivity is 段 6: the activity's section says what a stopped team is doing
+// and for how long, and gy's open question is shown at the top of the list. It
+// runs with a made-up herdr and a made-up gy (設計 8 節の E2E の行), on a serve
+// of its own, because gy is read once every thirty seconds and the earlier run
+// has already read it (設計 5.2).
+func e2eActivity(t *testing.T, ctx context.Context, first string, f *fixture) {
+	t.Helper()
+	// builder stops last and hands the turn to no one, so the section names the
+	// last turn as well as the length.
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":10},`+
+			`{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":11}`)
+	writeFile(t, filepath.Join(f.proj, "gy.toml"), "[scopes.common]\n")
+	gyOf(t, f, `#!/bin/sh
+if [ "$1" = "show" ]; then
+  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":["そのまま","戻す"]}}}]'
+  exit 0
+fi
+if [ "$2" = "--since" ]; then
+  echo '[{"seq":1,"actor":"hergy-dev-lead","node":"q-1","what":"created"}]'
+  exit 0
+fi
+echo '[{"id":"q-1","title":"E2E の問い","created":"2026-10-17T02:59:58Z"}]'
+`)
+
+	base, stop := startServe(t, f)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/activity"), chromedp.WaitReady("#activity-list"))
+	var body string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('activity-list').textContent`, &body))
+	for _, want := range []string{"前から止まっています", "最後のターンは builder", "このプロジェクトの問い", "E2E の問い", "選択肢: そのまま、戻す"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the activity does not hold %q:\n%s", want, body)
+		}
+	}
+	// Leave this serve's page before it is stopped, so its poll does not fail
+	// into the console after the socket is gone.
+	e2eRun(t, ctx, chromedp.Navigate(first+"/"), chromedp.WaitReady("main h1"))
+	stop()
+}
+
 // e2eEscape presses Escape in the page, the key the close script listens for.
 func e2eEscape(t *testing.T, ctx context.Context) {
 	t.Helper()
@@ -400,19 +626,76 @@ func e2eChangeButtons(t *testing.T, ctx context.Context) bool {
 	return shown
 }
 
+// e2eActions is whether one form's save group is drawn (C1).
+func e2eActions(t *testing.T, ctx context.Context, form string) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('`+form+` [data-change]')).display !== 'none'`, &shown))
+	return shown
+}
+
+// e2ePick picks one option of a select and fires the event a person's picking
+// fires.
+func e2ePick(t *testing.T, ctx context.Context, selector, value string) {
+	t.Helper()
+	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + value + `";el.dispatchEvent(new Event("change",{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eType writes one line into a text field and fires the event a person's
+// typing fires.
+func e2eType(t *testing.T, ctx context.Context, selector, text string) {
+	t.Helper()
+	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + text + `";el.dispatchEvent(new Event("input",{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eValue is what one control reads.
+func e2eValue(t *testing.T, ctx context.Context, selector string) string {
+	t.Helper()
+	var value string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('`+selector+`').value`, &value))
+	return value
+}
+
+// e2eKind is the kind shown beside one form's profile pick (I7).
+func e2eKind(t *testing.T, ctx context.Context, form string) string {
+	t.Helper()
+	var kind string
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`((document.querySelector('`+form+` [data-kind-show]')||{}).textContent||"").trim()`, &kind))
+	return kind
+}
+
 // e2eWaitText waits until one element's text starts with one line.
 func e2eWaitText(t *testing.T, ctx context.Context, selector, want string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		var got string
-		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
+		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('`+selector+`')||{}).textContent || ""`, &got))
 		if strings.HasPrefix(strings.TrimSpace(got), want) {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("%s never read %q", selector, want)
+}
+
+// e2eWaitContains waits until one element's text holds one line.
+func e2eWaitContains(t *testing.T, ctx context.Context, selector, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var got string
+		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
+		if strings.Contains(got, want) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("%s never held %q", selector, want)
 }
 
 // e2eSet clears the mission field and types one line into it, firing the input

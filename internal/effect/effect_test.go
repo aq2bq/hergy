@@ -142,7 +142,7 @@ func teamText() string {
 func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 			t.Errorf("%s's prompt moved, but no Change says so", bm.Name)
 		}
 	}
-	leadTurns := prompt.TurnsNote(prompt.TurnsOf(after, "lead", "demo"))
+	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
 	if strings.Contains(leadTurns, "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}
@@ -200,7 +200,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberProfile("lead", "codex-default"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberProfile("lead", "codex-default"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberRole("spec", "lead"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,6 +240,73 @@ func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 		if !hasPart(byMember[member], effect.Roster) {
 			t.Errorf("%s's parts = %+v, want a roster part", member, byMember[member])
 		}
+	}
+}
+
+// TestOfARuleDocumentChangeMovesTheAgreements: a screen that writes one rule of
+// a document writes the same path, so the change is read from the text both
+// sides read, not from the paths (段 4, 設計 7.3)。Both members read the shared
+// agreement, so both have an Agreements part.
+func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, oneRule("A1", "前の文"))
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := cat.With(agreement, oneRule("A1", "後の文"))
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 2 {
+		t.Fatalf("Of = %+v, want both members", changes)
+	}
+	for _, change := range changes {
+		if !hasPart(change.Parts, effect.Agreements) {
+			t.Errorf("%s's parts = %+v, want an agreements part", change.Member, change.Parts)
+		}
+	}
+}
+
+// TestOfTheSameValuesInAnotherShapeChangesNothing is spec/42 N1: a document
+// written back with the same values reads the same, so no member's prompt moves
+// and no team is told to take it up. The two texts differ only in the shape the
+// file was written with (a quoted reason, a blank line).
+func TestOfTheSameValuesInAnotherShapeChangesNothing(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: 'だから'\n")
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same document, in the shape Emit writes: the quoting and the blank
+	// line differ, the values do not.
+	with := cat.With(agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: だから\n")
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 0 {
+		t.Fatalf("Of = %+v, want no change: the prompts read the same", changes)
 	}
 }
 
@@ -415,7 +482,7 @@ func TestOfLeavesOutAPartTheBuiltPromptDoesNotShow(t *testing.T) {
 	l := newLayer(t)
 	text := strings.Replace(teamText(), "team: demo\n", "team: demo\nprompt: \"%{role_doc}%{docs}\"\n", 1)
 	before := l.read(t, text)
-	edited, err := definition.EditYAML([]byte(text), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(text), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,4 +617,89 @@ func launchChange(member string) []effect.Change {
 
 func envChange(member string) []effect.Change {
 	return []effect.Change{{Member: member, Definition: "demo", Parts: []effect.PartChange{{Part: effect.Env}}}}
+}
+
+// launchedHashes is each member's prompt hash as one launch handed it, by the
+// member's short name.
+func launchedHashes(t *testing.T, l layer, def *definition.Definition) map[string]string {
+	t.Helper()
+	run := l.run(t)
+	out := map[string]string{}
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		built, err := prompt.Member(def, member, run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[member.Name] = source.Hash(built.Text)
+	}
+	return out
+}
+
+// TestUndeliveredNamesTheMembersWhosePromptMoved is C9: comparing the launch
+// record's hashes with the prompt as it reads now names the members that moved,
+// with no parts (the record holds no text) and a reprompt as the handover
+// (設計 10.2, W9).
+func TestUndeliveredNamesTheMembersWhosePromptMoved(t *testing.T) {
+	l := newLayer(t)
+	launched := l.read(t, teamText())
+	hashes := launchedHashes(t, l, launched)
+
+	// Nothing changed: a team that took the launch up has nothing to take up.
+	if changes := effect.Undelivered(hashes, l.view(t, launched)); len(changes) != 0 {
+		t.Errorf("Undelivered on an unchanged definition = %+v, want none", changes)
+	}
+
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := l.read(t, string(edited))
+	changes := effect.Undelivered(hashes, l.view(t, now))
+	if len(changes) == 0 {
+		t.Fatalf("a moved prompt was not named")
+	}
+	for _, change := range changes {
+		if len(change.Parts) != 0 {
+			t.Errorf("%s carries parts: %+v (the record holds only hashes)", change.Member, change.Parts)
+		}
+		if change.Definition != "demo" {
+			t.Errorf("%s belongs to %q, want demo", change.Member, change.Definition)
+		}
+	}
+
+	lines := effect.UndeliveredLines(changes)
+	if len(lines) != len(changes) {
+		t.Fatalf("UndeliveredLines = %q, want one line per member", lines)
+	}
+	for i, line := range lines {
+		want := "起動のあとで変わったもの: " + changes[i].Member + " のプロンプト"
+		if line != want {
+			t.Errorf("line %d = %q, want %q", i, line, want)
+		}
+	}
+
+	// The handover reprompts the members that moved: nothing of the prompt can
+	// be named, but a reprompt is what makes them read it again.
+	running := []effect.Running{{Team: "demo", Definition: "demo"}}
+	commands := effect.Commands(changes, running)
+	if len(commands) != 1 {
+		t.Fatalf("Commands = %+v, want one team", commands)
+	}
+	for _, command := range commands[0].Commands {
+		if !strings.HasPrefix(command.Line, "hergy reprompt ") {
+			t.Errorf("the handover says %q, want a reprompt", command.Line)
+		}
+	}
+}
+
+// TestUndeliveredLeavesOutAMemberTheRecordDoesNotName: a member added since the
+// launch is not this round's change (W7).
+func TestUndeliveredLeavesOutAMemberTheRecordDoesNotName(t *testing.T) {
+	l := newLayer(t)
+	now := l.read(t, teamText())
+	hashes := map[string]string{"nosuch": "deadbeef"}
+	if changes := effect.Undelivered(hashes, l.view(t, now)); len(changes) != 0 {
+		t.Errorf("Undelivered = %+v, want none for a member the record does not name", changes)
+	}
 }
