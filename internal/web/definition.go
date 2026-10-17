@@ -71,7 +71,7 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 		Turns:   turnRows(def),
 		Running: runningFor(running, def.Name),
 	}
-	data.Agreement = s.teamAgreement(def)
+	data.Agreement = s.teamAgreement(def, findings)
 	data.Unused = s.unusedFor(def.Name)
 	openKey := ""
 	if open != nil {
@@ -420,9 +420,10 @@ func turnLabel(edge definition.Edge) string {
 	return nodeLabel(edge.From) + " → " + nodeLabel(edge.To)
 }
 
-// teamAgreement is the team agreement as a section of cards (設計 3.4 (5)), read
-// only in this stage.
-func (s *Server) teamAgreement(def *definition.Definition) *agreementSection {
+// teamAgreement is the team agreement as a section of cards (設計 3.4 (5)), with
+// the way to add a rule at the end of each section and the sentences check
+// writes about each rule's text (3.8).
+func (s *Server) teamAgreement(def *definition.Definition, findings []check.Finding) *agreementSection {
 	if !def.HasAgreement {
 		return &agreementSection{Empty: true}
 	}
@@ -430,9 +431,10 @@ func (s *Server) teamAgreement(def *definition.Definition) *agreementSection {
 	if err != nil {
 		return &agreementSection{Broken: s.breakLine(def.Agreement.Path, err)}
 	}
+	place := rulesPlace{Doc: def.Agreement, Def: def.Name, Page: pageDefinition}
 	return &agreementSection{
 		Path:     s.cat.Display(def.Agreement.Path),
-		Sections: s.sectionsOf(doc, func(id string) string { return rulePath(def.Name, id) }),
+		Sections: s.sectionsOf(doc, func(id string) string { return rulePath(def.Name, id) }, place.addURL, warningTexts(findings, def.Agreement.Path)),
 	}
 }
 

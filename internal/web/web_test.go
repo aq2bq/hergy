@@ -23,6 +23,7 @@ import (
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.uber.org/goleak"
 )
@@ -207,13 +208,16 @@ func TestEveryPathAnswers(t *testing.T) {
 		{"/definitions/demo/turns/lead/builder", "渡す側"},
 		{"/definitions/demo/agreement", "チームの約束"},
 		{"/definitions/demo/agreement/TEAM-1", "規則 TEAM-1"},
+		{"/definitions/demo/agreement/new?section=0", "新しい規則"},
 		{"/activity", "活動"},
 		{"/activity/demo", "チーム demo"},
 		{"/roles", "ロール"},
 		{"/roles/lead", "ロール lead"},
 		{"/roles/lead/LEAD-1", "規則 LEAD-1"},
+		{"/roles/lead/new?section=0", "新しい規則"},
 		{"/agreement", "共通の約束"},
 		{"/agreement/SHARED-1", "規則 SHARED-1"},
+		{"/agreement/new?section=0", "新しい規則"},
 		{"/profiles", "プロファイル"},
 		{"/profiles/coder", "プロファイル coder"},
 	}
@@ -775,10 +779,12 @@ func TestWordsComeFromTheGlossary(t *testing.T) {
 		t.Errorf("the profiles list says 種類 for kind")
 	}
 	_, body = f.get(t, server, "/definitions/demo/agreement/TEAM-1")
-	if !strings.Contains(body, "インシデント") {
+	if !strings.Contains(body, ">インシデント</option>") {
 		t.Errorf("an origin of the incident kind is not said as インシデント:\n%s", body)
 	}
-	if strings.Contains(body, "incident") {
+	// The kind a settings file writes travels as the value of the card's own
+	// choice; what a person reads is the word beside it (N6, 段 4).
+	if strings.Contains(body, ">incident<") {
 		t.Errorf("an origin shows its kind raw")
 	}
 }
@@ -1601,7 +1607,7 @@ func TestARoleWithoutADocumentIsRefusedWithValidatesSentence(t *testing.T) {
 	if readFile(t, path) != before {
 		t.Errorf("a refused save wrote the file")
 	}
-	edited, err := definition.EditYAML([]byte(before), definition.MemberRole("lead", "builder"))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.MemberRole("lead", "builder"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2020,7 +2026,7 @@ func TestTheLastTurnIsRefusedWithValidatesSentence(t *testing.T) {
 	}
 
 	// A hand-sent write is refused with the same sentence, and writes nothing.
-	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2074,7 +2080,7 @@ func TestTheLastTurnToTheHumanIsRefused(t *testing.T) {
 		t.Errorf("a choice that would stop the definition still offers the write:\n%s", confirm)
 	}
 
-	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2201,5 +2207,504 @@ func TestTheHandleAndThePickMakeTheSameChoice(t *testing.T) {
 	}
 	if readFile(t, path) != before {
 		t.Errorf("the pick wrote the file")
+	}
+}
+
+// TestTheRuleCardWritesEveryField: one rule's card carries the five things a
+// rule holds — the whole text, its reason, its origins, its check and its note —
+// each writable from the start, with the buttons a change shows (C1, 設計 3.8).
+func TestTheRuleCardWritesEveryField(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/agreement/TEAM-1")
+	for _, want := range []string{
+		`name="text"`, `name="why"`, `name="origin_kind"`, `name="origin_date"`,
+		`name="origin_refs"`, `name="origin_note"`, `name="tests"`, `name="note"`,
+		`data-change`, `data-revert`, `name="action" value="delete"`,
+		// The button that takes the rule out names it (spec/42 T3).
+		"TEAM-1 を消す",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the card does not carry %s:\n%s", want, body)
+		}
+	}
+	// The card in the document is the id and the first clause of the text, never
+	// the id alone (E1).
+	_, list := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(list, "TEAM-1") || !strings.Contains(list, "このチームの約束。") {
+		t.Errorf("the card is not its id and its first clause:\n%s", list)
+	}
+	if !strings.Contains(list, "/definitions/demo/agreement/new?section=0") {
+		t.Errorf("the section offers no card to add a rule:\n%s", list)
+	}
+}
+
+// TestARuleIsWrittenAndKeepsTheRestOfTheDocument: a save writes the one rule and
+// leaves the document's other rules as they were, and the saved line names the
+// file, the rule and what a running team has to type (設計 7.3、3.0 の表).
+func TestARuleIsWrittenAndKeepsTheRestOfTheDocument(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"書き換えた本文。"},
+		"why":         {"理由も書く。"},
+		"note":        {"メモ。"},
+		"tests":       {"go test ./internal/web, 目で見る"},
+		"hash":        {source.Hash(before)},
+		"origin_kind": {"incident", ""},
+		"origin_date": {"2026-02-02", ""},
+		"origin_refs": {"d-1, d-2", ""},
+		"origin_note": {"何が起きたか", ""},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	want := "version: 1\nsections:\n  - rules:\n" +
+		"      - id: TEAM-1\n" +
+		"        text: 書き換えた本文。\n" +
+		"        why: 理由も書く。\n" +
+		"        note: メモ。\n" +
+		"        origin:\n" +
+		"          - kind: incident\n" +
+		"            date: \"2026-02-02\"\n" +
+		"            refs:\n" +
+		"              - d-1\n" +
+		"              - d-2\n" +
+		"            note: 何が起きたか\n" +
+		"        tests:\n" +
+		"          - go test ./internal/web\n" +
+		"          - 目で見る\n"
+	if after := readFile(t, path); after != want {
+		t.Errorf("the document is\n%q\nwant\n%q", after, want)
+	}
+	if !strings.Contains(body, "の「規則 TEAM-1」を書きました。") {
+		t.Errorf("the saved line does not name the file and the rule:\n%s", body)
+	}
+	if !strings.Contains(body, "hergy reprompt --all --team demo") {
+		t.Errorf("the saved line does not say what the running team types:\n%s", body)
+	}
+	// The card that was written is drawn from the file, and its form carries the
+	// mark that tells the script to drop the draft it kept (C5, 3.0).
+	if !strings.Contains(body, `class="ruleform"`) || !strings.Contains(body, `data-saved="1"`) {
+		t.Errorf("the written card does not drop its draft:\n%s", body)
+	}
+}
+
+// TestASaveWithNothingChangedLeavesTheFile: a card saved as it stands writes
+// nothing — the values are the ones the file already holds — and the line says
+// so (spec/42 R1).
+func TestASaveWithNothingChangedLeavesTheFile(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	_, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"このチームの約束。"},
+		"hash":        {source.Hash(before)},
+		"origin_kind": {"incident", ""},
+		"origin_date": {"2026-01-01", ""},
+	})
+	if after := readFile(t, path); after != before {
+		t.Errorf("a save that changed nothing rewrote the file:\n%q\nwant\n%q", after, before)
+	}
+	if !strings.Contains(body, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the save does not say nothing changed:\n%s", body)
+	}
+	if strings.Contains(between(body, `class="saved"`, "</div>"), "書きました") {
+		t.Errorf("a save that changed nothing says it wrote:\n%s", body)
+	}
+	// A file that moved under the page is refused (3.0 のぶつかり).
+	_, body = f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text": {"x"}, "hash": {"deadbeef"},
+	})
+	if !strings.Contains(body, "変わりました") || !strings.Contains(body, "読み直す") {
+		t.Errorf("a stale page was not refused with the clash line:\n%s", body)
+	}
+}
+
+// TestARuleSaveIsRefusedWithTheValidateSentence: a rule that takes an id another
+// document of a reader holds is refused with the sentence hergy validate prints,
+// and the file is left as it was (設計 3.8 の断る、I18).
+func TestARuleSaveIsRefusedWithTheValidateSentence(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "agreement.yaml")
+	before := readFile(t, path)
+
+	// The same edit, read through the catalog, is what the check judges: the
+	// sentence the screen shows is the one check writes.
+	doc, err := rules.Parse(before, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.AddRule(0, rules.Rule{ID: "LEAD-1", Text: "重なった ID。"}); err != nil {
+		t.Fatal(err)
+	}
+	edited, err := rules.Emit(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want string
+	for _, finding := range check.Definition(check.Input{Catalog: f.catalog().With(path, edited), Name: "demo"}) {
+		if finding.Stops {
+			want = finding.Text
+			break
+		}
+	}
+	if want == "" {
+		t.Fatalf("the overlap stops nothing; the test cannot tell what the screen should say")
+	}
+
+	resp, body := f.post(t, server, "/agreement/new?section=0", url.Values{
+		"id": {"LEAD-1"}, "text": {"重なった ID。"}, "hash": {source.Hash(before)},
+		"origin_kind": {""},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the refused save answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, want) {
+		t.Errorf("the refusal does not say what validate says (%q):\n%s", want, body)
+	}
+	if after := readFile(t, path); after != before {
+		t.Errorf("the refused save wrote the document:\n%q", after)
+	}
+}
+
+// TestTheCardCarriesTheRuleWarning: a rule whose text writes a turn the graph
+// does not hold gets validate's warning on its own card, and the same sentence
+// stands with the card in the document (設計 3.8、spec/33 H2).
+func TestTheCardCarriesTheRuleWarning(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "teams/demo/agreement.yaml", "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: lead → impl に渡す。\n")
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	var want string
+	for _, finding := range check.Definition(check.Input{Catalog: f.catalog(), Name: "demo"}) {
+		if finding.Field == "rule:"+path+"#TEAM-1" {
+			want = finding.Text
+		}
+	}
+	if want == "" {
+		t.Fatalf("the rule text claims no unknown turn; the test cannot tell what the card should say")
+	}
+	_, body := f.get(t, server, "/definitions/demo/agreement/TEAM-1")
+	if !strings.Contains(body, want) {
+		t.Errorf("the card does not carry validate's warning %q:\n%s", want, body)
+	}
+	_, list := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(list, want) {
+		t.Errorf("the card in the document does not carry validate's warning:\n%s", list)
+	}
+	// The same warning reaches a role document's card, through the definitions
+	// that read it.
+	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead → impl に渡す。\n")
+	_, body = f.get(t, server, "/roles/lead/LEAD-1")
+	if !strings.Contains(body, "impl") {
+		t.Errorf("a role document's card does not carry the warning:\n%s", body)
+	}
+}
+
+// TestTheNewRuleGoesAtTheEndOfTheSection: 足す opens a card with the id the core
+// proposes, and saving it puts the rule at the end of its section (設計 3.8).
+func TestTheNewRuleGoesAtTheEndOfTheSection(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/agreement/new?section=0")
+	if !strings.Contains(body, `value="TEAM-2"`) {
+		t.Errorf("the core's proposal is not offered:\n%s", body)
+	}
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/definitions/demo/agreement/new?section=0", url.Values{
+		"id": {"TEAM-2"}, "text": {"足した規則。"}, "hash": {source.Hash(before)},
+		"origin_kind": {""},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the add answered %d", resp.StatusCode)
+	}
+	want := before + "      - id: TEAM-2\n        text: 足した規則。\n"
+	if after := readFile(t, path); after != want {
+		t.Errorf("the document is\n%q\nwant\n%q", after, want)
+	}
+	if !strings.Contains(body, "TEAM-2") || !strings.Contains(body, "を書きました") {
+		t.Errorf("the saved line does not name the new rule:\n%s", body)
+	}
+	// 足す without text is refused with the reader's own sentence.
+	if after := readFile(t, path); after != want {
+		t.Fatalf("the document moved")
+	}
+	// 本文 that is empty, and a date the format cannot hold, are said by the
+	// field's own name, not by the file's numbering (spec/42 N3).
+	_, body = f.post(t, server, "/definitions/demo/agreement/new?section=0", url.Values{
+		"id": {"TEAM-3"}, "hash": {source.Hash(want)}, "origin_kind": {""},
+	})
+	if !strings.Contains(body, "本文を書いてください") {
+		t.Errorf("a rule with no text is not refused by its field's name:\n%s", body)
+	}
+	if strings.Contains(body, "sections[") {
+		t.Errorf("the refusal shows the file's own numbering:\n%s", body)
+	}
+	_, body = f.post(t, server, "/definitions/demo/agreement/new?section=0", url.Values{
+		"id": {"TEAM-3"}, "text": {"日付の壊れた規則。"}, "hash": {source.Hash(want)},
+		"origin_kind": {"incident"}, "origin_date": {"2026-13-99"},
+	})
+	if !strings.Contains(body, "日付は YYYY-MM-DD で書いてください") {
+		t.Errorf("a date the format refuses is not refused by its field's name:\n%s", body)
+	}
+	// The card the person was writing in stays open, with the add form.
+	if !strings.Contains(body, `class="ruleform"`) || !strings.Contains(body, `name="id"`) {
+		t.Errorf("the refusal closed the card the person was writing in:\n%s", body)
+	}
+	if after := readFile(t, path); after != want {
+		t.Errorf("a refused add wrote the document:\n%q", after)
+	}
+}
+
+// TestTheRuleIsDeletedOnTheSecondPress: 消す asks once more in place and writes
+// nothing on the first press; the second press takes the rule out and leaves the
+// document's other rules (設計 3.8、W15).
+func TestTheRuleIsDeletedOnTheSecondPress(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	_, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{"action": {"delete"}})
+	// The first press asks once more in place: the card's button becomes the one
+	// that writes, beside the way out, and no sentence is needed (spec/42 T3).
+	if !strings.Contains(body, `name="action" value="delete-now"`) || !strings.Contains(body, "やめる") {
+		t.Errorf("the first press does not ask again:\n%s", body)
+	}
+	if strings.Contains(body, "もう一度押すと消えます") {
+		t.Errorf("the first press still writes the ask sentence")
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the first press wrote the document")
+	}
+	resp, body := f.post(t, server, "/definitions/demo/agreement", url.Values{
+		"rule": {"TEAM-1"}, "action": {"delete-now"}, "hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the delete answered %d", resp.StatusCode)
+	}
+	if after := readFile(t, path); after == before || strings.Contains(after, "TEAM-1") {
+		t.Errorf("the second press did not take the rule out:\n%q", after)
+	}
+	// A rule that is taken out says so, not 書きました (spec/42 N2).
+	if !strings.Contains(body, "の「規則 TEAM-1」を消しました。") {
+		t.Errorf("the delete shows no saved line:\n%s", body)
+	}
+}
+
+// TestADocumentThatIsNotThereIsMade: a role a member plays whose document no
+// layer holds offers 作る, which writes an empty document at the place K2 names
+// (W8). The shared agreement is made the same way.
+func TestADocumentThatIsNotThereIsMade(t *testing.T) {
+	f := newFixture(t)
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
+	if err := os.Remove(rolePath); err != nil {
+		t.Fatal(err)
+	}
+	agreementPath := filepath.Join(f.proj, ".hergy", "agreement.yaml")
+	if err := os.Remove(agreementPath); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/roles")
+	if !strings.Contains(body, `action="/roles/builder"`) {
+		t.Errorf("the roles list offers no way to make the document:\n%s", body)
+	}
+	// The place is written beside 作る, before it is pressed (spec/42 T1).
+	if !strings.Contains(body, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")) {
+		t.Errorf("the roles list does not say where the document is made:\n%s", body)
+	}
+	_, body = f.get(t, server, "/")
+	if !strings.Contains(body, `action="/agreement"`) {
+		t.Errorf("the definitions list offers no way to make the shared agreement:\n%s", body)
+	}
+	for _, made := range []struct{ path, action string }{
+		{rolePath, "/roles/builder"},
+		{agreementPath, "/agreement"},
+	} {
+		resp, body := f.post(t, server, made.action, url.Values{"hash": {source.Hash("")}, "make": {"1"}})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST %s answered %d", made.action, resp.StatusCode)
+		}
+		if got := readFile(t, made.path); got != "version: 1\nsections:\n  - heading: 規則\n" {
+			t.Errorf("%s is\n%q\nwant an empty document with the heading 規則", made.path, got)
+		}
+		if !strings.Contains(body, "を作りました") {
+			t.Errorf("%s shows no made line:\n%s", made.action, body)
+		}
+	}
+	// The document that was made reads: the role's page holds the empty section
+	// with the card to add the first rule to.
+	_, body = f.get(t, server, "/roles/builder")
+	if !strings.Contains(body, "/roles/builder/new?section=0") {
+		t.Errorf("the made role document offers no way to add a rule:\n%s", body)
+	}
+}
+
+// TestTheHandoverNamesEveryTeamThatReadsTheDocument: a role document is read by
+// the members that play the role in every definition, so every running team is
+// told to take the change up (設計 3.0 の表、C8).
+func TestTheHandoverNamesEveryTeamThatReadsTheDocument(t *testing.T) {
+	f := newFixture(t)
+	f.writeTeam(t, "other", "other の使命")
+	f.running = []effect.Running{{Team: "a", Definition: "demo"}, {Team: "b", Definition: "other"}}
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	before := readFile(t, path)
+	_, body := f.post(t, server, "/roles/lead/LEAD-1", url.Values{
+		"text": {"lead は最初に動く（直した）。"}, "hash": {source.Hash(before)},
+		"origin_kind": {""},
+	})
+	for _, team := range []string{"a", "b"} {
+		if !strings.Contains(body, "<b>"+team+":</b>") {
+			t.Errorf("the handover does not name team %s:\n%s", team, body)
+		}
+	}
+	if got := strings.Count(body, "hergy reprompt --all --team"); got != 2 {
+		t.Errorf("the handover holds %d reprompts, want one per reading team:\n%s", got, body)
+	}
+}
+
+// TestRuleSaveKeepsTheLinesTheFileWrote: a document a person wrote by hand keeps
+// its blank lines, its comment, its quoting and its flow refs when one rule is
+// written; only that rule's own lines move (K1=B, d-7b58).
+func TestRuleSaveKeepsTheLinesTheFileWrote(t *testing.T) {
+	f := newFixture(t)
+	hand := "version: 1\n" +
+		"title: 手で書いた文書\n" +
+		"\n" +
+		"# 約束\n" +
+		"sections:\n" +
+		"  - heading: 約束\n" +
+		"    rules:\n" +
+		"      - id: TEAM-1\n" +
+		"        text: | -\n" +
+		"          1 行目の本文。\n" +
+		"          2 行目の本文。\n" +
+		"        why: '理由はシングルクォート'\n" +
+		"        origin:\n" +
+		"          - kind: incident\n" +
+		"            date: \"2026-01-01\"\n" +
+		"            refs: [d-1, d-2]\n" +
+		"      - id: TEAM-2\n" +
+		"        text: TEAM-2 の本文。\n" +
+		"        note: TEAM-2 のメモ\n"
+	hand = strings.Replace(hand, "text: | -", "text: |-", 1)
+	f.write(t, "teams/demo/agreement.yaml", hand)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-2", url.Values{
+		"text": {"TEAM-2 の本文。"}, "note": {"書き換えたメモ"}, "hash": {source.Hash(hand)},
+		"origin_kind": {""},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "の「規則 TEAM-2」を書きました。") {
+		t.Errorf("the saved line does not name the rule:\n%s", body)
+	}
+	after := readFile(t, path)
+	want := strings.Replace(hand, "        note: TEAM-2 のメモ", "        note: 書き換えたメモ", 1)
+	if after != want {
+		t.Errorf("the document is\n%q\nwant\n%q", after, want)
+	}
+	for _, kept := range []string{"why: '理由はシングルクォート'", "refs: [d-1, d-2]", "# 約束", "\n\n# 約束"} {
+		if !strings.Contains(after, kept) {
+			t.Errorf("the save changed %q:\n%s", kept, after)
+		}
+	}
+}
+
+// TestASaveWithTheSameValuesTellsNoTeamToTakeItUp: a rule written back with the
+// values the file already holds reads the same to every member, so no running
+// team is told to type anything (spec/42 N1).
+func TestASaveWithTheSameValuesTellsNoTeamToTakeItUp(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	_, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"このチームの約束。"},
+		"hash":        {source.Hash(before)},
+		"origin_kind": {"incident"},
+		"origin_date": {"2026-01-01"},
+	})
+	saved := between(body, `class="saved"`, "</div>")
+	if !strings.Contains(saved, "動いているチームに渡すものはありません") {
+		t.Errorf("a save with the same values tells a team to take it up:\n%s", saved)
+	}
+	if !strings.Contains(saved, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the saved line does not say nothing changed:\n%s", saved)
+	}
+}
+
+// TestAHandWrittenSavesNothingWhenTheValuesAreTheSame is spec/42 R1: a rule a
+// person wrote with a quoted text and a flow sequence for its refs is not
+// rewritten when the save changes no value — the field's values are the ones the
+// file holds — and the line says the document did not change.
+func TestAHandWrittenSavesNothingWhenTheValuesAreTheSame(t *testing.T) {
+	f := newFixture(t)
+	hand := "version: 1\ntitle: 手で書いた文書\n\nsections:\n" +
+		"  - heading: 約束\n" +
+		"    rules:\n" +
+		"      - id: TEAM-1\n" +
+		"        text: '台帳から始めて台帳に書く。'\n" +
+		"        origin:\n" +
+		"          - kind: incident\n" +
+		"            date: \"2026-01-01\"\n" +
+		"            refs: [d-1, d-2]\n"
+	f.write(t, "teams/demo/agreement.yaml", hand)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"台帳から始めて台帳に書く。"},
+		"hash":        {source.Hash(hand)},
+		"origin_kind": {"incident"},
+		"origin_date": {"2026-01-01"},
+		"origin_refs": {"d-1, d-2"},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if after := readFile(t, path); after != hand {
+		t.Errorf("a save with the same values rewrote the file:\n%q\nwant\n%q", after, hand)
+	}
+	if !strings.Contains(body, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the save does not say nothing changed:\n%s", body)
+	}
+}
+
+// TestAShapeTheScreenCannotWriteNamesTheDocument: a rule document whose sections
+// are one flow sequence cannot be written, and the sentence names that document
+// rather than team.yaml (spec/42 R2).
+func TestAShapeTheScreenCannotWriteNamesTheDocument(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "teams/demo/agreement.yaml", "version: 1\nsections: [{rules: [{id: TEAM-1, text: x}]}]\n")
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text": {"y"}, "hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the refused save answered %d", resp.StatusCode)
+	}
+	panel := between(body, `<h2 class="panel-title">`, "</aside>")
+	if !strings.Contains(panel, path+" の sections は、この画面では書き換えられない形です") {
+		t.Errorf("the refusal does not name the document:\n%s", panel)
+	}
+	if strings.Contains(panel, "team.yaml") {
+		t.Errorf("the refusal names team.yaml:\n%s", panel)
+	}
+	if after := readFile(t, path); after != before {
+		t.Errorf("the refused save wrote the document:\n%q", after)
 	}
 }

@@ -142,7 +142,7 @@ func teamText() string {
 func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberProfile("lead", "codex-default"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberProfile("lead", "codex-default"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberRole("spec", "lead"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,6 +240,73 @@ func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 		if !hasPart(byMember[member], effect.Roster) {
 			t.Errorf("%s's parts = %+v, want a roster part", member, byMember[member])
 		}
+	}
+}
+
+// TestOfARuleDocumentChangeMovesTheAgreements: a screen that writes one rule of
+// a document writes the same path, so the change is read from the text both
+// sides read, not from the paths (段 4, 設計 7.3)。Both members read the shared
+// agreement, so both have an Agreements part.
+func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, oneRule("A1", "前の文"))
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := cat.With(agreement, oneRule("A1", "後の文"))
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 2 {
+		t.Fatalf("Of = %+v, want both members", changes)
+	}
+	for _, change := range changes {
+		if !hasPart(change.Parts, effect.Agreements) {
+			t.Errorf("%s's parts = %+v, want an agreements part", change.Member, change.Parts)
+		}
+	}
+}
+
+// TestOfTheSameValuesInAnotherShapeChangesNothing is spec/42 N1: a document
+// written back with the same values reads the same, so no member's prompt moves
+// and no team is told to take it up. The two texts differ only in the shape the
+// file was written with (a quoted reason, a blank line).
+func TestOfTheSameValuesInAnotherShapeChangesNothing(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: 'だから'\n")
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same document, in the shape Emit writes: the quoting and the blank
+	// line differ, the values do not.
+	with := cat.With(agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: だから\n")
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 0 {
+		t.Fatalf("Of = %+v, want no change: the prompts read the same", changes)
 	}
 }
 
@@ -415,7 +482,7 @@ func TestOfLeavesOutAPartTheBuiltPromptDoesNotShow(t *testing.T) {
 	l := newLayer(t)
 	text := strings.Replace(teamText(), "team: demo\n", "team: demo\nprompt: \"%{role_doc}%{docs}\"\n", 1)
 	before := l.read(t, text)
-	edited, err := definition.EditYAML([]byte(text), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(text), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -583,7 +650,7 @@ func TestUndeliveredNamesTheMembersWhosePromptMoved(t *testing.T) {
 		t.Errorf("Undelivered on an unchanged definition = %+v, want none", changes)
 	}
 
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberRole("spec", "lead"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
 	if err != nil {
 		t.Fatal(err)
 	}

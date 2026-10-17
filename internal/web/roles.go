@@ -1,18 +1,24 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 )
 
 // roles is the roles list (設計 3.5): every role a name resolves to, who plays
-// it, and how many rules its document holds.
+// it, and how many rules its document holds. A role a member names and no layer
+// holds a document for keeps its row and offers to make one (W8).
 func (s *Server) roles(_ *http.Request) (view, error) {
 	missing := s.roleSentences()
-	data := rolesData{Crumb: []crumb{{Name: t("web.band.roles")}}}
+	data := rolesData{
+		Crumb: []crumb{{Name: t("web.band.roles")}},
+		Token: s.token,
+	}
 	for _, entry := range s.cat.Roles() {
 		row := roleRow{Name: entry.Name, Href: rolePath(entry.Name)}
 		row.Users = refLines(s.cat.RoleUsers(entry.Name))
@@ -26,6 +32,7 @@ func (s *Server) roles(_ *http.Request) (view, error) {
 			}
 		} else {
 			row.Missing = missing[entry.Name]
+			row.Make = s.makeForm(catalog.NewRole, entry.Name, "/roles/"+url.PathEscape(entry.Name))
 		}
 		data.Rows = append(data.Rows, row)
 	}
@@ -37,25 +44,66 @@ func (s *Server) roles(_ *http.Request) (view, error) {
 	}, "roles.html", data)
 }
 
-// role is one role's document (設計 3.5): its rules, read only in this stage.
+// role is one role's document (設計 3.5).
 func (s *Server) role(r *http.Request) (view, error) {
-	return s.rolePage(r.PathValue("role"), "")
+	return s.rulesPage(s.rolePlace(r.PathValue("role")), nil, saved{}, "", false)
 }
 
-// roleRule is one rule of a role's document, as a panel.
+// roleRule is one rule of a role's document, open.
 func (s *Server) roleRule(r *http.Request) (view, error) {
-	return s.rolePage(r.PathValue("role"), r.PathValue("rule"))
+	return s.openRule(r, s.rolePlace(r.PathValue("role")))
 }
 
-// rolePage draws one role, with one rule open when open names it. A role no layer
-// holds and no member plays is a 404 (N2); a role a member plays without a
-// document keeps its page and shows what validate says.
-func (s *Server) rolePage(name, open string) (view, error) {
-	data := roleData{Name: name, Href: rolePath(name)}
+// roleNew is the card a role's document is adding a rule with.
+func (s *Server) roleNew(r *http.Request) (view, error) {
+	return s.addRule(r, s.rolePlace(r.PathValue("role")))
+}
+
+// saveRoleRule writes one rule of a role's document.
+func (s *Server) saveRoleRule(r *http.Request) (view, error) {
+	return s.saveRule(r, s.rolePlace(r.PathValue("role")), false)
+}
+
+// addRoleRule adds a rule to the end of one section of a role's document.
+func (s *Server) addRoleRule(r *http.Request) (view, error) {
+	return s.saveRule(r, s.rolePlace(r.PathValue("role")), true)
+}
+
+// writeRole is the write of the document itself (its own page): the second press
+// of 消す takes a rule out, and 作る writes the document where it is not there yet
+// (W8). A place with no way to make one answers the internal error page, which a
+// run never reaches: the app always tells the catalog where its project is.
+func (s *Server) writeRole(r *http.Request) (view, error) {
+	role := r.PathValue("role")
+	if r.PostFormValue("make") != "" {
+		place := s.madeRolePlace(role)
+		if place.Doc.Path == "" {
+			return view{}, errors.New("web: the catalog does not say where a new document goes")
+		}
+		return s.writeDocument(r, place)
+	}
+	return s.writeDocument(r, s.rolePlace(role))
+}
+
+// rolePage draws one role's document: its sections of cards, the members that
+// play it, the card that is open, and, after a write, the saved line (3.5). A
+// role no member plays and no layer holds is a 404 (N2); a role a member plays
+// without a document keeps its page and says what validate says (3.5).
+func (s *Server) rolePage(place rulesPlace, open *ruleOpen, line saved, notice string, reload bool) (view, error) {
+	name := place.Role
+	data := roleData{
+		Name:         name,
+		Href:         rolePath(name),
+		Saved:        line.Line,
+		Handover:     line.Handover,
+		Notice:       notice,
+		NoticeReload: reload,
+	}
 	data.Users = refLines(s.cat.RoleUsers(name))
 	doc, ok := s.cat.Role(name)
 	if !ok {
 		sentences := s.roleSentences()[name]
+		data.Make = s.makeForm(catalog.NewRole, name, rolePath(name))
 		if len(sentences) == 0 {
 			data.MissingOne = tf("web.missing.role", name)
 			return s.roleView(data, http.StatusNotFound)
@@ -63,26 +111,27 @@ func (s *Server) rolePage(name, open string) (view, error) {
 		data.Missing = sentences
 		return s.roleView(data, 0)
 	}
+	place.Doc = doc
 	parsed, err := s.ruleDoc(doc)
 	if err != nil {
 		data.Broken = s.breakLine(doc.Path, err)
 		return s.roleView(data, 0)
 	}
 	data.Path = s.cat.Display(doc.Path)
-	data.Sections = s.sectionsOf(parsed, func(id string) string { return roleRulePath(name, id) })
-	if open != "" {
-		card, found := cardOf(parsed, open)
-		if !found {
-			data.MissingOne = tf("web.missing.role_rule", name, open)
+	warnings := s.ruleTexts(place)
+	data.Sections = s.sectionsOf(parsed, func(id string) string { return roleRulePath(name, id) }, place.addURL, warnings)
+	if open != nil {
+		data.Panel = s.ruleCard(place, *open, notice, reload, line.Line != "", warnings)
+		data.PanelOpen = true
+		data.Notice = ""
+		if data.Panel.Missing {
 			return s.roleView(data, http.StatusNotFound)
 		}
-		data.Panel = panel{Title: tf("web.panel.rule", open), Key: "rule:" + open, Parent: rolePath(name), Crumb: open, Rule: &card}
-		data.PanelOpen = true
 	}
 	return s.roleView(data, 0)
 }
 
-// roleView draws one role's page: the trail names the open rule when there is
+// roleView draws one role's page: the trail names the open card when there is
 // one (N3), and the status is 404 when the URL named something that is not there
 // (N2).
 func (s *Server) roleView(data roleData, status int) (view, error) {
@@ -160,11 +209,32 @@ func sortedKeys[V any](m map[string]V) []string {
 	return out
 }
 
+// makeForm is the one button that makes a document a place does not have yet
+// (W8): where the write goes, the token of this run, and the hash of nothing.
+func (s *Server) makeForm(kind, name, action string) *makeForm {
+	place := s.cat.NewPlace(kind, name)
+	if place == "" {
+		return nil
+	}
+	return &makeForm{Href: action, Token: s.token, Hash: s.hashOf(place), Path: s.cat.Display(place)}
+}
+
+// makeForm is what the 作る button sends: where the write goes, the token of this
+// run, the hash of nothing, and the place the document is made, so the person
+// reads where it goes before pressing (spec/42 T1).
+type makeForm struct {
+	Href  string
+	Token string
+	Hash  string
+	Path  string
+}
+
 // rolesData is what the roles list is given.
 type rolesData struct {
 	Crumb []crumb
 	Rows  []roleRow
 	Empty bool
+	Token string
 }
 
 // roleRow is one row of the roles list.
@@ -174,21 +244,27 @@ type roleRow struct {
 	Users   []string
 	Rules   int
 	Missing []string
+	Make    *makeForm
 	Path    string
 	Unused  string
 }
 
 // roleData is what one role's page is given.
 type roleData struct {
-	Name       string
-	Href       string
-	Users      []string
-	Path       string
-	Sections   []ruleSection
-	Missing    []string
-	MissingOne string
-	Broken     string
-	Crumb      []crumb
-	Panel      panel
-	PanelOpen  bool
+	Name         string
+	Href         string
+	Users        []string
+	Path         string
+	Sections     []ruleSection
+	Missing      []string
+	MissingOne   string
+	Broken       string
+	Make         *makeForm
+	Notice       string
+	NoticeReload bool
+	Saved        string
+	Handover     handover
+	Crumb        []crumb
+	Panel        panel
+	PanelOpen    bool
 }

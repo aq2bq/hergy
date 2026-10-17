@@ -161,9 +161,11 @@ type handlerFn func(*http.Request) (view, error)
 func (s *Server) routes(static fs.FS) http.Handler {
 	mux := http.NewServeMux()
 
+	// A GET pattern answers HEAD too (net/http), so one registration is enough:
+	// a second, explicit HEAD pattern beside a literal path (…/agreement/new)
+	// and a wildcard one (…/agreement/{rule}) would not be comparable.
 	get := func(pattern string, fn handlerFn) {
 		mux.Handle("GET "+pattern, s.answer(fn))
-		mux.Handle("HEAD "+pattern, s.answer(fn))
 	}
 	post := func(pattern string, fn handlerFn) {
 		mux.Handle("POST "+pattern, s.write(fn))
@@ -182,7 +184,11 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	post("/definitions/{name}/human", s.humanEdit)
 	get("/definitions/{name}/turns/{from}/{to}", s.turnPanel)
 	get("/definitions/{name}/agreement", s.agreementPanel)
-	get("/definitions/{name}/agreement/{rule}", s.rulePanel)
+	get("/definitions/{name}/agreement/new", s.teamNew)
+	get("/definitions/{name}/agreement/{rule}", s.teamRule)
+	post("/definitions/{name}/agreement", s.writeTeamAgreement)
+	post("/definitions/{name}/agreement/new", s.addTeamRule)
+	post("/definitions/{name}/agreement/{rule}", s.saveTeamRule)
 
 	// 活動 (3.1・3.2).
 	get("/activity", s.activityList)
@@ -192,11 +198,19 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	// ロール (3.5).
 	get("/roles", s.roles)
 	get("/roles/{role}", s.role)
+	get("/roles/{role}/new", s.roleNew)
 	get("/roles/{role}/{rule}", s.roleRule)
+	post("/roles/{role}", s.writeRole)
+	post("/roles/{role}/new", s.addRoleRule)
+	post("/roles/{role}/{rule}", s.saveRoleRule)
 
 	// 共通の約束 (3.6).
 	get("/agreement", s.agreement)
+	get("/agreement/new", s.agreementNew)
 	get("/agreement/{rule}", s.agreementRule)
+	post("/agreement", s.writeShared)
+	post("/agreement/new", s.addAgreementRule)
+	post("/agreement/{rule}", s.saveAgreementRule)
 
 	// プロファイル (3.7).
 	get("/profiles", s.profiles)

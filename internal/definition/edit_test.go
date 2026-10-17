@@ -228,7 +228,7 @@ func TestEditYAMLKeepsEveryLineItDoesNotTouch(t *testing.T) {
 	before := editGolden(t, "before.yaml")
 	for _, tc := range editCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(before), tc.op)
+			got, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -252,7 +252,7 @@ func TestEditYAMLKeepsEveryLineItDoesNotTouch(t *testing.T) {
 // line the op does not touch can come back unchanged.
 func TestEditYAMLLeavesAFileInItsOwnForm(t *testing.T) {
 	before := editGolden(t, "before.yaml")
-	got, err := definition.EditYAML([]byte(before), definition.Mission("いまの使命"))
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Mission("いまの使命"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestEditYAMLStopsOnANameTheFileDoesNotHold(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(before), tc.op)
+			got, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
 			if err == nil {
 				t.Fatalf("EditYAML wrote %q, want an error", got)
 			}
@@ -340,7 +340,7 @@ func TestEditYAMLKeepsTheLinesOfAHandWrittenFile(t *testing.T) {
 	}
 	for _, tc := range handCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(before), tc.op)
+			got, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -369,7 +369,7 @@ func TestEditYAMLKeepsTheLinesOfAHandWrittenFile(t *testing.T) {
 // a person wrote it in.
 func TestEditYAMLLeavesAHandWrittenFileInItsOwnForm(t *testing.T) {
 	before := editGolden(t, "before_hand.yaml")
-	got, err := definition.EditYAML([]byte(before), definition.Mission("いまの使命"))
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Mission("いまの使命"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,11 +431,11 @@ func TestEditYAMLRefusesAShapeItCannotRewrite(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(tc.before), tc.op)
+			got, err := definition.EditYAML([]byte(tc.before), "team.yaml", tc.op)
 			if err == nil {
 				t.Fatalf("EditYAML wrote %q, want an error", got)
 			}
-			if want := i18n.Tf("error.edit_shape", tc.label); err.Error() != want {
+			if want := i18n.Tf("error.edit_shape", "team.yaml", tc.label); err.Error() != want {
 				t.Errorf("error = %q, want %q", err, want)
 			}
 		})
@@ -460,7 +460,7 @@ func TestEditYAMLRemovesAnItemsCommentWhateverTheLineEnding(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(tc.before), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+			got, err := definition.EditYAML([]byte(tc.before), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -485,7 +485,7 @@ func TestEditShapeNamesAYAMLKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := "base: &b\n  role: lead\nversion: 1\nmission: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n"
-	got, err := definition.EditYAML([]byte(before), definition.MemberRole("lead", "spec"))
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.MemberRole("lead", "spec"))
 	if err == nil {
 		t.Fatalf("EditYAML wrote %q, want an error", got)
 	}
@@ -544,7 +544,7 @@ func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(tc.before), tc.op)
+			got, err := definition.EditYAML([]byte(tc.before), "team.yaml", tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -606,7 +606,7 @@ func TestEditYAMLKeepsTheShapeTheFileWroteASequenceIn(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(tc.before), tc.op)
+			got, err := definition.EditYAML([]byte(tc.before), "team.yaml", tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}

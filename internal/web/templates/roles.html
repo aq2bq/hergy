@@ -11,7 +11,7 @@
     <tr>
       <td><a href="{{.Href}}">{{.Name}}</a>{{if .Path}} <span class="marker mono">{{.Path}}</span>{{end}}</td>
       <td>{{range .Users}}<span class="ref">{{.}}</span> {{end}}</td>
-      <td>{{if .Missing}}{{range .Missing}}<span class="problem">{{.}}</span>{{end}}{{else}}{{.Rules}}{{end}}</td>
+      <td>{{if .Missing}}{{range .Missing}}<span class="problem">{{.}}</span>{{end}}{{if .Make}}{{template "make" .Make}}{{end}}{{else}}{{.Rules}}{{end}}</td>
     </tr>
     {{- end}}
   </tbody>

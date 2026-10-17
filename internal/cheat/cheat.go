@@ -112,7 +112,7 @@ var behavior = map[options.Kind]string{
       It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
       It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
-	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings and herdr's state the way the commands do; it changes only the files the screens edit (a team definition's mission, its members' roles and profiles, the workers they may hire, and the turns its members and the human hand on) and herdr's focus.
+	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST that must carry the token of this run and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings and herdr's state the way the commands do; it changes nothing but the files the screens edit (a team definition's mission, its members' roles and profiles, the workers they may hire, the turns its members and the human hand on, its own agreement, a role document, and the agreement every team shares) and herdr's focus.
 `,
 	options.Version: `      Print the commit and time of this hergy. It takes no other flags.
 `,
@@ -167,16 +167,16 @@ Web UI:
   The screens, one line each:
     /             the team definitions: the shared agreement above, then each definition with its mission, its counts and the teams running from it
     /definitions  the same list
-    /definitions/<definition>  one definition: its mission (edited here), the figure, the members, the workers and the turns, the team agreement, and the teams running from it
+    /definitions/<definition>  one definition: its mission, the figure, the members (their roles and profiles are edited here), the workers, the turns, the team agreement, and the teams running from it; each rule is a card that opens and is written in place, and a rule is added at the end of a section or taken out with a second press
     /activity     the activity: one section per running team, what it is doing, the pane tail of the node that waits, and the button that moves herdr's focus to a pane; it reads herdr again every 5 seconds
     /activity/<team>  one running team: the same figure with each node's state, and the workers a member hired
     /roles        every role, the members that play it, and the rules its document holds
-    /roles/<role> one role's document
-    /agreement    the shared agreement every team reads
+    /roles/<role> one role's document (the same cards; a role whose document is not there offers to make one)
+    /agreement    the shared agreement every team reads (the same cards; a place with none offers to make one)
     /profiles     the profiles: each name, its kind, and who uses it
     /profiles/<profile>  one profile: kind, args, env and who uses it
   A definition's field is a real path under it: .../members/<member>, .../workers/<from>/<purpose>, .../human, .../turns/<from>/<to>, .../agreement and .../agreement/<rule>. Every path answers the whole page, so a deep link and a reload work; the fields open and close, and the same node pressed again closes it.
-  What the fields write today: a team definition's mission, its members' roles and profiles, the workers they may hire, and the turns its members and the human hand on. The rules and the profiles read. The old paths moved: /teams to /definitions, /team?name=x to /definitions/x, /running to /activity; /rules, /diff, /bump, /figure and /panel are gone (404).
+  What the fields write today: a team definition's mission, its members' roles and profiles, the workers they may hire, the turns its members and the human hand on, and the rules of a team agreement, a role document and the agreement every team shares. The profiles read. The old paths moved: /teams to /definitions, /team?name=x to /definitions/x, /running to /activity; /rules, /diff, /bump, /figure and /panel are gone (404).
 
 Resolution:
   A team definition is teams/<definition>/ under the project's .hergy/, or under $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).

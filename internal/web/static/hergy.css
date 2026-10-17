@@ -156,8 +156,23 @@ a.node.open .box{stroke:var(--focus);stroke-width:2.5}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
 .card a{text-decoration:none;display:flex;gap:10px;flex-wrap:wrap}
 .card a:hover{text-decoration:underline}
+.card .problem{display:block;font-size:12px;margin:2px 0 0}
+.card.add{background:transparent;border-style:dashed;padding:4px 12px}
+.card.add a{color:var(--muted);font-size:13px}
 .rid{font-weight:700;color:var(--muted);min-width:5em}
 .clause{color:var(--ink)}
+
+/* 規則の欄（本文・理由・由来・検証方法・メモ） */
+.ruleform{margin:0}
+.ruleform .field{margin:0 0 10px}
+.ruleform .fl{display:block;font-size:12px;color:var(--muted);letter-spacing:.04em}
+.ruleform .input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px}
+.ruleform .input:focus{border-color:var(--ink)}
+.ruleform textarea.input{resize:vertical;line-height:1.6}
+.ruleform .orow{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0}
+.ruleform .orow select,.ruleform .orow input{min-width:0}
+.ruleform.del{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.make{display:inline}
 
 /* 活動 */
 .teamcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 0 12px}
