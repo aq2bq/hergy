@@ -1,12 +1,14 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -39,7 +41,7 @@ func (s *Server) profile(r *http.Request) (view, error) {
 // profilesData is the list, with the fields of one new profile.
 func (s *Server) profilesData() profilesData {
 	place := s.cat.NewPlace(catalog.NewProfile, "")
-	kinds := s.kindChoices(place)
+	kinds := s.kindChoices()
 	data := profilesData{
 		Crumb: []crumb{{Name: t("web.band.profiles")}},
 		Token: s.token,
@@ -47,12 +49,16 @@ func (s *Server) profilesData() profilesData {
 		Kinds: kinds,
 		Href:  "/profiles",
 	}
+	if place != "" {
+		// Where the new profile goes, so a person knows before pressing 足す
+		// whether this writes the file every project shares (T2, K2).
+		data.Place = s.cat.Display(place)
+	}
 	if len(kinds) > 0 {
 		data.AddKind = kinds[0]
 	}
 	for _, entry := range s.cat.ProfileEntries() {
-		row := profileRow{Name: entry.Name, Href: profilePath(entry.Name)}
-		row.Kind = s.kindOf(entry.Name)
+		row := profileRow{Name: entry.Name, Href: profilePath(entry.Name), Kind: entry.Kind}
 		members, workers := s.cat.ProfileUsers(entry.Name)
 		row.Users = append(refLines(members), workerRefLines(workers)...)
 		if entry.UnusedPath != "" {
@@ -81,7 +87,7 @@ func (s *Server) profileData(name string, value profile.Profile, pairs []envPair
 		Href:      profilePath(name),
 		Path:      s.cat.Display(path),
 		Kind:      value.Kind,
-		Kinds:     s.kindChoices(path),
+		Kinds:     s.kindChoices(),
 		ArgsText:  strings.Join(value.Args, "\n"),
 		ArgsRows:  argsRows(value.Args),
 		Users:     s.userLines(name),
@@ -231,7 +237,14 @@ func (s *Server) saveProfile(r *http.Request) (view, error) {
 		return view{}, errors.New("web: the profile is gone after writing it")
 	}
 	data := s.profileData(name, after, nil)
-	data.Saved = tf("web.saved.line", s.cat.Display(after.Path), "profiles."+name)
+	data.Saved = tf("web.saved.line", s.cat.Display(after.Path), tf("web.saved.profile", name))
+	if len(changes) > 0 {
+		// Who is launched differently now (A2, 設計 3.0 の表): the engine change
+		// reaches the members that run the profile, an env change reaches their
+		// panes. A change that reaches nobody says nothing here; the handover
+		// line below says the running teams have nothing to take up.
+		data.Preview = effect.Preview(changes)
+	}
 	running, _ := s.runningTeams()
 	data.Handover = handoverOf(effect.Commands(changes, running))
 	data.ReplaceURL = profilePath(name)
@@ -249,6 +262,16 @@ func (s *Server) addProfile(r *http.Request) (view, error) {
 	place := s.cat.NewPlace(catalog.NewProfile, "")
 	if place == "" {
 		return view{}, errors.New("web: no place for a new profile")
+	}
+	if name == "" {
+		// A name the file cannot hold is refused beside the field, not with the
+		// file's own sentence (N4).
+		return s.profilesRefused(t("web.profile.name_needed"))
+	}
+	if kind == "" {
+		// The list offers an empty choice when nothing runs a kind (N1): an add
+		// that leaves it empty has no kind to write.
+		return s.profilesRefused(t("web.profile.kind_needed"))
 	}
 	if _, ok := s.cat.Profile(name); ok {
 		return s.profilesRefused(tf("web.profiles.exists", name))
@@ -296,7 +319,7 @@ func (s *Server) addProfile(r *http.Request) (view, error) {
 		// written, and the screen says what the command line will say.
 		notice = append(notice, tf("validate.profile_named_after_kind", name))
 	}
-	return s.profilesSaved(tf("web.saved.line", s.cat.Display(place), "profiles."+name), nil, notice...)
+	return s.profilesSaved(tf("web.saved.line", s.cat.Display(place), tf("web.saved.profile", name)), nil, notice...)
 }
 
 // deleteProfile takes one profile out of its profiles.yaml, but only when
@@ -334,7 +357,7 @@ func (s *Server) deleteProfile(r *http.Request) (view, error) {
 		}
 		return view{}, err
 	}
-	return s.profilesSaved(tf("web.profile.deleted", s.cat.Display(value.Path), "profiles."+name), nil)
+	return s.profilesSaved(tf("web.profile.deleted", s.cat.Display(value.Path), tf("web.saved.profile", name)), nil)
 }
 
 // newProfileStop is the first sentence that stops a definition and is not
@@ -499,44 +522,77 @@ func (s *Server) envRows(name string, pairs []envPair) []envRow {
 	return rows
 }
 
-// kindChoices is the kinds a screen offers for one profiles.yaml (設計 3.7,
-// spec/38 T4): the kinds the file already uses first, then the rest, both in
-// herdr's order (profile.Kinds). A kind the file uses that herdr's list does not
-// know is offered too, so opening a profile never changes it by itself. The
-// order is the screen's own; the list itself is not changed.
-func (s *Server) kindChoices(path string) []string {
+// kindChoices is the kinds a screen offers (設計 3.7, spec/38 T4, spec/41 N1):
+// the kinds the profiles this catalog resolves run, the ones run by most
+// profiles first and, where the counts are equal, in herdr's own order; then the
+// kinds nothing runs, in herdr's order. A kind herdr's list does not know is
+// offered too, so opening a profile never changes it by itself (I7).
+//
+// The count is over every profile a name resolves to, the project's file and the
+// global one together (K1): a default read from one file alone would offer a
+// kind nothing uses.
+//
+// When nothing runs a kind, the list leads with an empty choice: the add form
+// asks which kind rather than guessing herdr's first (N1).
+func (s *Server) kindChoices() []string {
+	used := s.usedKinds()
 	kinds := profile.Kinds()
-	used := map[string]bool{}
-	if path != "" {
-		if text, err := s.cat.Reader().Read(source.Doc{Path: path}); err == nil {
-			if profiles, err := profile.ParseProfiles(text, path); err == nil {
-				for _, value := range profiles {
-					used[value.Kind] = true
-				}
-			}
-		}
+	rank := map[string]int{}
+	for i, kind := range kinds {
+		rank[kind] = i
 	}
-	known := map[string]bool{}
+	names := make([]string, 0, len(used))
+	for kind := range used {
+		names = append(names, kind)
+	}
+	slices.SortFunc(names, func(a, b string) int {
+		if d := cmp.Compare(used[b], used[a]); d != 0 {
+			return d
+		}
+		if d := cmp.Compare(kindRank(rank, a), kindRank(rank, b)); d != 0 {
+			return d
+		}
+		return cmp.Compare(a, b)
+	})
+	out := make([]string, 0, len(kinds)+len(names)+1)
+	if len(names) == 0 {
+		// Nothing is in use, so no kind is a sensible default: the empty choice
+		// stands first and an add that leaves it empty is refused.
+		out = append(out, "")
+	}
+	out = append(out, names...)
 	for _, kind := range kinds {
-		known[kind] = true
-	}
-	var first, rest, extra []string
-	for _, kind := range kinds {
-		if used[kind] {
-			first = append(first, kind)
-		} else {
-			rest = append(rest, kind)
+		if used[kind] == 0 {
+			out = append(out, kind)
 		}
 	}
-	for _, kind := range sortedKeys(used) {
-		if !known[kind] {
-			extra = append(extra, kind)
+	return out
+}
+
+// kindRank is where a kind stands in herdr's own order; a kind herdr does not
+// list stands after them all, so the two go after the kinds it knows.
+func kindRank(rank map[string]int, kind string) int {
+	if at, ok := rank[kind]; ok {
+		return at
+	}
+	return len(rank)
+}
+
+// usedKinds is how many of the profiles this catalog resolves run each kind. A
+// profiles.yaml that cannot be read contributes none: what cannot be read is not
+// something to name a default from (N1).
+func (s *Server) usedKinds() map[string]int {
+	out := map[string]int{}
+	profiles, _, err := s.cat.Profiles()
+	if err != nil {
+		return out
+	}
+	for _, value := range profiles {
+		if value.Kind != "" {
+			out[value.Kind]++
 		}
 	}
-	out := make([]string, 0, len(kinds)+len(extra))
-	out = append(out, first...)
-	out = append(out, extra...)
-	return append(out, rest...)
+	return out
 }
 
 // userLines is who runs one profile, as lines: a member, or a worker by the
@@ -564,6 +620,7 @@ type profilesData struct {
 	Hash         string
 	Kinds        []string
 	AddKind      string
+	Place        string
 	Saved        string
 	Handover     handover
 	Notice       []string
@@ -601,6 +658,7 @@ type profileData struct {
 	Notice       []string
 	NoticeReload bool
 	Saved        string
+	Preview      []string
 	Handover     handover
 	Token        string
 	Hash         string

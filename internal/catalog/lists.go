@@ -78,6 +78,9 @@ func (c *Catalog) Roles() []RoleEntry {
 type ProfileEntry struct {
 	// Name is the profile's name, the key under profiles:.
 	Name string
+	// Kind is the kind the profile runs (hergy keeps no closed list), read from
+	// the same file the name resolves to.
+	Kind string
 	// Path is the profiles.yaml hergy reads this profile from: the project's
 	// layer first, then the global one (K1).
 	Path string
@@ -108,7 +111,7 @@ func (c *Catalog) ProfileEntries() []ProfileEntry {
 		if err != nil {
 			continue
 		}
-		for name := range profiles {
+		for name, value := range profiles {
 			row, ok := byName[name]
 			if !ok {
 				row = &ProfileEntry{Name: name}
@@ -116,6 +119,7 @@ func (c *Catalog) ProfileEntries() []ProfileEntry {
 			}
 			if row.Path == "" {
 				row.Path = path
+				row.Kind = value.Kind
 				row.Outside = one.name == source.LayerGlobal
 				continue
 			}

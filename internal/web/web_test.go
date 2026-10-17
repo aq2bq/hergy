@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -72,6 +73,18 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) write(t *testing.T, rel, text string) {
 	t.Helper()
 	path := filepath.Join(f.proj, ".hergy", rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeGlobal writes one file under the outside settings directory.
+func (f *fixture) writeGlobal(t *testing.T, rel, text string) {
+	t.Helper()
+	path := filepath.Join(f.global, rel)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -919,7 +932,7 @@ func TestProfileSaveWritesOnlyThatProfile(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the save answered %d", resp.StatusCode)
 	}
-	if !strings.Contains(body, "profiles.coder を書きました") {
+	if !strings.Contains(body, "「プロファイル coder」を書きました") {
 		t.Errorf("the saved line does not name the file and the key:\n%s", body)
 	}
 	want := "version: 1\n" +
@@ -1114,7 +1127,7 @@ func TestAProfileInUseIsShownAndNotDeleted(t *testing.T) {
 
 	// One nothing runs goes, and the rest of the file stays.
 	resp, body = f.post(t, server, "/profiles/reader/delete", url.Values{"hash": {source.Hash(before)}})
-	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "profiles.reader を消しました") {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "「プロファイル reader」を消しました") {
 		t.Errorf("the delete of an unused profile was not written: %d\n%s", resp.StatusCode, body)
 	}
 	after := readFile(t, path)
@@ -1137,7 +1150,7 @@ func TestAddingAProfileWritesItAtTheNewPlace(t *testing.T) {
 		"name": {"tester"}, "kind": {"gemini"},
 		"hash": {source.Hash(readFile(t, path))},
 	})
-	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "profiles.tester を書きました") {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "「プロファイル tester」を書きました") {
 		t.Fatalf("the new profile was not written: %d\n%s", resp.StatusCode, body)
 	}
 	after := readFile(t, path)
@@ -1171,5 +1184,124 @@ func TestAddingAProfileWritesItAtTheNewPlace(t *testing.T) {
 	}
 	if !strings.Contains(body, i18n.Tf("validate.profile_named_after_kind", "gemini")) {
 		t.Errorf("the add of a name that is its kind does not warn:\n%s", body)
+	}
+}
+
+// TestProfileKindChoicesCountEveryResolvedProfile is N1: the kinds offered come
+// from every profile this catalog resolves, the project's file and the outside
+// one together, and the kinds used by the most profiles come first (spec/41 N1,
+// spec/38 T4).
+func TestProfileKindChoicesCountEveryResolvedProfile(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n")
+	f.writeGlobal(t, "profiles.yaml", "version: 1\nprofiles:\n  outside-one:\n    kind: codex\n  outside-two:\n    kind: codex\n")
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/profiles")
+	choices := optionValues(body)
+	if len(choices) != len(profile.Kinds()) {
+		t.Fatalf("the kinds offered are %d, want %d", len(choices), len(profile.Kinds()))
+	}
+	if choices[0] != "codex" {
+		t.Errorf("the kinds start %v, want codex: two profiles outside the project run it", choices[:2])
+	}
+	if choices[1] != "claude" {
+		t.Errorf("the kinds start %v, want claude next: one profile runs it", choices[:2])
+	}
+}
+
+// TestProfileKindChoicesAskWhenNothingIsUsed is N1: when no profile runs a kind,
+// the list leads with an empty choice, and adding with it left empty is refused
+// rather than guessed at.
+func TestProfileKindChoicesAskWhenNothingIsUsed(t *testing.T) {
+	f := newFixture(t)
+	if err := os.Remove(f.profileFile()); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/profiles")
+	choices := optionValues(body)
+	if len(choices) != len(profile.Kinds())+1 || choices[0] != "" {
+		t.Fatalf("the kinds start %v, want an empty choice first", choices[:1])
+	}
+	if !strings.Contains(body, "kind を選ぶ") {
+		t.Errorf("the empty choice carries no label:\n%s", body)
+	}
+	_, body = f.post(t, server, "/profiles", url.Values{
+		"name": {"newp"}, "kind": {""}, "hash": {source.Hash("")},
+	})
+	if !strings.Contains(body, "kind を選んでください") {
+		t.Errorf("an add with no kind was not refused:\n%s", body)
+	}
+	if _, err := os.Stat(f.profileFile()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a refused add wrote the file")
+	}
+}
+
+// TestAddingAProfileWithNoNameIsRefused is N4: an empty name is refused beside
+// the field, not with the file's own sentence (spec/41 N4).
+func TestAddingAProfileWithNoNameIsRefused(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	before := readFile(t, f.profileFile())
+
+	_, body := f.post(t, server, "/profiles", url.Values{
+		"name": {"  "}, "kind": {"claude"},
+		"hash": {source.Hash(before)},
+	})
+	if !strings.Contains(body, "プロファイルの名前を書いてください") {
+		t.Errorf("an add with no name is not refused with the screen's own line:\n%s", body)
+	}
+	if strings.Contains(body, "profiles.:") {
+		t.Errorf("the file's own sentence is shown for an empty name:\n%s", body)
+	}
+	if readFile(t, f.profileFile()) != before {
+		t.Errorf("a refused add wrote the file")
+	}
+}
+
+// TestProfileSaveSaysWhoIsLaunchedDifferently is walk-5 A2: a change to a
+// profile the members run says whose launch (or whose pane's env) moves, with
+// effect's own line (設計 3.0 の表, I16).
+func TestProfileSaveSaysWhoIsLaunchedDifferently(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.profileFile()
+
+	// A kind change moves how the members that run the profile are started.
+	_, body := f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"opencode"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"one"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview := between(body, `class="preview"`, "</ul>")
+	for _, want := range []string{"lead の起動のしかたが変わります", "builder の起動のしかたが変わります"} {
+		if !strings.Contains(preview, want) {
+			t.Errorf("the saved line does not say %q:\n%s", want, body)
+		}
+	}
+
+	// An env change moves the panes the members are made with.
+	_, body = f.post(t, server, "/profiles/coder", url.Values{
+		"kind": {"opencode"}, "args": {"--x"},
+		"envname": {"A"}, "envvalue": {"two"},
+		"hash": {source.Hash(readFile(t, path))},
+	})
+	preview = between(body, `class="preview"`, "</ul>")
+	if !strings.Contains(preview, "ペインの環境変数が変わります") {
+		t.Errorf("the saved line does not say the pane env moved:\n%s", body)
+	}
+}
+
+// TestTheAddFormSaysWhereItWrites is T2: the file a new profile goes into stands
+// beside the add form, before it is pressed (K2).
+func TestTheAddFormSaysWhereItWrites(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/profiles")
+	form := between(body, `class="add"`, "</form>")
+	if !strings.Contains(form, f.profileFile()) {
+		t.Errorf("the add form does not say where it writes:\n%s", form)
 	}
 }

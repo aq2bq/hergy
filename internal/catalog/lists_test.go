@@ -267,6 +267,27 @@ func TestProfileEntriesTakesWhatOneLayerHolds(t *testing.T) {
 	}
 }
 
+// TestProfileEntriesCarriesTheKind: a row holds the kind the name resolves to,
+// read from the same file the name was read from (spec/41 N2, spec/40 T4).
+func TestProfileEntriesCarriesTheKind(t *testing.T) {
+	l := newLayers(t)
+	write(t, filepath.Join(l.global, "profiles.yaml"), "version: 1\nprofiles:\n  shared:\n    kind: codex\n  outside:\n    kind: claude\n")
+	write(t, filepath.Join(l.local, "profiles.yaml"), "version: 1\nprofiles:\n  shared:\n    kind: claude\n")
+
+	entries := l.catalog().ProfileEntries()
+	if len(entries) != 2 {
+		t.Fatalf("profiles = %d, want 2: %+v", len(entries), entries)
+	}
+	if got := entries[0]; got.Name != "outside" || got.Kind != "claude" {
+		t.Errorf("outside = %+v, want kind claude", got)
+	}
+	// The project's file is the one the name resolves to, so its kind is the
+	// row's, and the other file is the unused one.
+	if got := entries[1]; got.Name != "shared" || got.Kind != "claude" || got.UnusedPath == "" {
+		t.Errorf("shared = %+v, want the project's kind and the other file unused", got)
+	}
+}
+
 // TestProfileEntriesReadsTheTextAScreenIsEditing: a layer whose profiles.yaml is
 // not there yet contributes the rows of the text the screen is writing (C3b).
 func TestProfileEntriesReadsTheTextAScreenIsEditing(t *testing.T) {

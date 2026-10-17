@@ -12,10 +12,11 @@
   <label class="fl" for="add-kind">{{t "web.profile.kind"}}</label>
   <select id="add-kind" class="add-kind mono" name="kind" data-draft="profiles:add:kind" data-origin="{{.AddKind}}">
     {{- range .Kinds}}
-    <option value="{{.}}"{{if eq . $.AddKind}} selected{{end}}>{{.}}</option>
+    <option value="{{.}}"{{if eq . $.AddKind}} selected{{end}}>{{if .}}{{.}}{{else}}{{t "web.profile.kind_choose"}}{{end}}</option>
     {{- end}}
   </select>
   <button type="submit" class="btn">{{t "web.profiles.add"}}</button>
+  {{- if .Place}}<span class="muted mono place">{{.Place}}</span>{{end}}
 </form>
 {{- if .Empty}}
 <p class="empty">{{t "web.profiles.empty"}}</p>

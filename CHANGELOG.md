@@ -38,16 +38,18 @@
 ### Added
 
 - **A profile is edited from the screens**: `/profiles/<profile>` writes a
-  profile's kind (chosen from the kinds herdr starts, the ones the file already
-  uses first), its args (one to a line) and its env (a name and a value each,
-  the value a box so a line break in it survives). `/profiles` adds a profile by
-  name and kind. A profile that runs something is not taken away — the screen
-  names the members and workers that use it — and one nothing runs is. Every
-  write goes through the one written form of `profiles.yaml` (the profiles by
-  name, an empty args and env left out), says what it wrote and what each running
-  team has to take up (`hergy refresh` for a kind or an args change, `hergy down`
-  and `hergy up` for an env change), and a name that is its kind gets the warning
-  `hergy validate` gives.
+  profile's kind (chosen from the kinds herdr starts, the ones the profiles in
+  use run first, the one run by the most profiles before the rest), its args
+  (one to a line) and its env (a name and a value each, the value a box so a
+  line break in it survives). `/profiles` adds a profile by name and kind, and
+  says which `profiles.yaml` it will write before the button is pressed. A
+  profile that runs something is not taken away — the screen names the members
+  and workers that use it — and one nothing runs is. Every write goes through
+  the one written form of `profiles.yaml` (the profiles by name, an empty args
+  and env left out), says what it wrote, whose launch or pane environment the
+  change moves, and what each running team has to take up (`hergy refresh` for
+  a kind or an args change, `hergy down` and `hergy up` for an env change), and
+  a name that is its kind gets the warning `hergy validate` gives.
 
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp

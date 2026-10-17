@@ -232,7 +232,7 @@ func (s *Server) definitionSaved(name string, changes []effect.Change) (view, er
 	}
 	running, _ := s.runningTeams()
 	data := s.definitionData(def, nil)
-	data.Saved = tf("web.saved.line", s.cat.Display(def.TeamYAML), "mission")
+	data.Saved = tf("web.saved.line", s.cat.Display(def.TeamYAML), t("label.mission"))
 	data.Handover = handoverOf(effect.Commands(changes, running))
 	return s.renderDefinition(data)
 }

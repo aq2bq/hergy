@@ -5,7 +5,9 @@
 {{- else}}
 <p class="sub mono">{{t "web.profile.kind"}} {{.Kind}}</p>
 {{- if .Saved}}
-<div class="saved">{{.Saved}}{{template "commands" .Handover}}</div>
+<div class="saved">{{.Saved}}
+{{- if .Preview}}<ul class="preview">{{range .Preview}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{template "commands" .Handover}}</div>
 {{- end}}
 <p class="muted mono path">{{.Path}}</p>
 {{- if .Unused}}<p class="muted note">{{tf "web.profile.unused" .Unused}}</p>{{end}}
