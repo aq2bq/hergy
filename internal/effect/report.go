@@ -31,8 +31,15 @@ func Preview(changes []Change) []string {
 // PreviewOf is Preview, with the one line a turn the human hands on gets: that
 // line says what changes on the human's side, because "no member's prompt
 // changes" alone reads as if the turn did nothing (walk-3 P1).
+//
+// When the changes name members of two or more definitions — a profile, a role
+// document or a shared agreement reaches every definition that reads it — the
+// definition's name stands before the member ("hergy-dev の lead …"), so the same
+// sentence twice says which team's member it is about (spec/41 R1). One
+// definition's change is said the way it always was.
 func PreviewOf(changes []Change, human *HumanTurn) []string {
-	allRoster := len(changes) > 1
+	named := definitionsIn(changes) > 1
+	allRoster := len(changes) > 1 && !named
 	for _, change := range changes {
 		if !hasPart(change.Parts, Roster) {
 			allRoster = false
@@ -41,6 +48,10 @@ func PreviewOf(changes []Change, human *HumanTurn) []string {
 	var lines []string
 	rosterSaid := false
 	for _, change := range changes {
+		member := change.Member
+		if named {
+			member = i18n.Tf("effect.member_of_definition", change.Definition, change.Member)
+		}
 		for _, part := range change.Parts {
 			if part.Part == Roster && allRoster {
 				if !rosterSaid {
@@ -49,7 +60,7 @@ func PreviewOf(changes []Change, human *HumanTurn) []string {
 				}
 				continue
 			}
-			lines = append(lines, previewPart(change.Member, part)...)
+			lines = append(lines, previewPart(member, part)...)
 		}
 	}
 	if len(lines) == 0 {
@@ -62,6 +73,17 @@ func PreviewOf(changes []Change, human *HumanTurn) []string {
 		lines = append(lines, humanTurnLine(*human))
 	}
 	return lines
+}
+
+// definitionsIn is how many definitions the changes name.
+func definitionsIn(changes []Change) int {
+	seen := map[string]bool{}
+	for _, change := range changes {
+		if change.Definition != "" {
+			seen[change.Definition] = true
+		}
+	}
+	return len(seen)
 }
 
 // humanTurnLine is what a turn the human hands on does, in the human's words.

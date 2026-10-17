@@ -20,9 +20,9 @@
   `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
   `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
   the prompt diff, the version screen and the separate figure are no longer
-  concepts of their own. The members, the turns and the profiles are read only
-  from the screens until the rounds that give them their own editing; the
-  mission and the rule documents write.
+  concepts of their own. The members, the turns, the profiles and the rules each
+  write from their own round below; this first round writes one thing, a
+  definition's mission.
 
 - **The rule screens write**: a team's own agreement, a role's document and the
   agreement every team shares (as well as the rule documents the definitions
@@ -146,6 +146,30 @@
   paying it. A worker taken away from its own field lands on the member that
   hired it, and the press that takes one away says what the hire loses first.
 
+- **A profile is edited from the screens**: `/profiles/<profile>` writes a
+  profile's kind (chosen from the kinds herdr starts, the ones the profiles in
+  use run first, the one run by the most profiles before the rest), its args
+  (one to a line) and its env (a name and a value each, the value a box so a
+  line break in it survives). `/profiles` adds a profile by name and kind, and
+  says which `profiles.yaml` it will write before the button is pressed. A
+  profile that runs something is not taken away — the screen names the members
+  and workers that use it — and one nothing runs is.
+
+  A write changes only the lines it touches: the profile's own lines are written
+  where they stand, a new profile goes after the last one (not in name order),
+  args and env keep the form the file wrote them in (a flow collection on the
+  key's line, or block lines under it), a value that YAML would read as a number
+  or a boolean (`1`, `true`, `1.5`, `007`) is written quoted so it comes back as
+  the text it is, and the comments, the blank lines, the order of the profiles
+  and the quoting of a value nobody touched come back byte for byte — so a save that changes nothing leaves the file exactly as it was.
+  Only a file hergy makes (a new `profiles.yaml`) is written in hergy's own form.
+  A write says what it wrote, whose launch or pane environment the change moves
+  (named by its definition when the change reaches members of more than one
+  definition, so the same sentence twice tells two members apart), and what each
+  running team has to take up (`hergy refresh` for a kind or an args change,
+  `hergy down` and `hergy up` for an env change), and a name that is its kind gets
+  the warning `hergy validate` gives.
+
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way
@@ -155,7 +179,8 @@
   hire loses first, a draft surviving another field, the pointer cursor never
   standing on something unpressable, the three widths scrolling neither way, Tab
   and Enter reaching a field, and no console errors. A machine with no Chrome
-  fails the gate in CI and skips it with one line on a laptop.
+  fails the gate in CI and skips it with one line on a laptop. The profile
+  screen's kind, args and env writes are walked too.
 
 
 ## 0.6.0 - 2026-10-17

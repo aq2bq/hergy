@@ -197,17 +197,17 @@ func handoverOf(commands []effect.TeamCommands) handover {
 }
 
 // view is one read state of a definition, for effect.Of.
-func (s *Server) view(def *definition.Definition, reader source.Reader) effect.View {
-	profiles, _, _ := s.cat.Profiles()
+func (s *Server) view(cat *catalog.Catalog, def *definition.Definition, reader source.Reader) effect.View {
+	profiles, _, _ := cat.Profiles()
 	return effect.View{
 		Def:      def,
 		Profiles: profiles,
 		Run: prompt.Run{
 			Team:    def.Name,
-			Base:    s.cat.Base(),
+			Base:    cat.Base(),
 			Reader:  reader,
-			Sources: s.cat,
-			Display: s.cat.Display,
+			Sources: cat,
+			Display: cat.Display,
 		},
 	}
 }

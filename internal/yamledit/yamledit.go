@@ -101,16 +101,16 @@ func ReplaceScalar(src *Source, val *yaml.Node, value, label string, flow bool) 
 	if val.Anchor != "" {
 		// The value is referred to from elsewhere by an alias; rewriting it
 		// here would move what every alias reads, so the file is left alone.
-		return src.shape(label)
+		return src.Shape(label)
 	}
 	if val.Kind != yaml.ScalarNode || val.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
-		return src.shape(label)
+		return src.Shape(label)
 	}
 	line := src.Line(val.Line)
 	start := ByteColumn(line, val.Column)
 	end, ok := ScalarEnd(line, start, flow)
 	if !ok {
-		return src.shape(label)
+		return src.Shape(label)
 	}
 	src.lines[val.Line-1] = line[:start] + ScalarLiteral(value, val.Style) + line[end:]
 	return nil
@@ -121,7 +121,7 @@ func ReplaceScalar(src *Source, val *yaml.Node, value, label string, flow bool) 
 // rather than rewritten on a guess.
 func (s *Source) Writable(value, label string) error {
 	if strings.ContainsAny(value, "\n\r") {
-		return s.shape(label)
+		return s.Shape(label)
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ type SeqPlace struct {
 func BlockPlace(src *Source, root *yaml.Node, key string, v *yaml.Node) (SeqPlace, error) {
 	keyNode := MappingKeyNode(root, key)
 	if keyNode == nil {
-		return SeqPlace{}, src.shape(key)
+		return SeqPlace{}, src.Shape(key)
 	}
 	keyLine := src.Line(keyNode.Line)
 	keyIndent := LeadingSpaces(keyLine)
@@ -156,7 +156,7 @@ func BlockPlace(src *Source, root *yaml.Node, key string, v *yaml.Node) (SeqPlac
 		return SeqPlace{DashCol: keyIndent + 2, AfterLast: keyNode.Line}, nil
 	}
 	if v.Kind != yaml.SequenceNode {
-		return SeqPlace{}, src.shape(key)
+		return SeqPlace{}, src.Shape(key)
 	}
 	if v.Style&yaml.FlowStyle != 0 {
 		items := make([]string, 0, len(v.Content))
@@ -210,7 +210,7 @@ func (s *Source) FlowItem(item *yaml.Node, key string) (string, error) {
 		}
 		return "{" + strings.Join(parts, ", ") + "}", nil
 	default:
-		return "", s.shape(key)
+		return "", s.Shape(key)
 	}
 }
 
@@ -257,13 +257,21 @@ func RemoveFlowItem(src *Source, root *yaml.Node, key string, v, item *yaml.Node
 }
 
 // RemoveKeyLines takes a key and its value out of a file, with the comment
-// lines the key had above it (they are the key's, and the key is going).
+// lines the key had above it (they are the key's, and the key is going). The
+// value's own lines come out with it, whether the file wrote the value on the
+// key's line or as block lines under it.
 func RemoveKeyLines(src *Source, root *yaml.Node, key string) {
 	keyNode := MappingKeyNode(root, key)
 	if keyNode == nil {
 		return
 	}
-	src.Remove(src.ItemStartLine(keyNode), NodeEndLine(keyNode))
+	end := NodeEndLine(keyNode)
+	if v := MappingValue(root, key); v != nil {
+		if e := NodeEndLine(v); e > end {
+			end = e
+		}
+	}
+	src.Remove(src.ItemStartLine(keyNode), end)
 }
 
 // MappingValue is the value a mapping writes for a key, or nil. The first key
@@ -379,9 +387,10 @@ func New(text []byte, path string) *Source {
 	}
 }
 
-// shape is the refusal of a shape a line write cannot place, in the file's own
-// name.
-func (s *Source) shape(key string) error {
+// Shape is the refusal of a shape a line write cannot place, in the file's own
+// name. A caller that finds such a shape itself (a value it cannot rewrite) says
+// it with this.
+func (s *Source) Shape(key string) error {
 	return i18n.Errorf("error.edit_shape", s.path, key)
 }
 
@@ -574,19 +583,22 @@ func ScalarLiteral(value string, style yaml.Style) string {
 }
 
 // plainSafe is whether a value written without quotes reads back as the same
-// string (a value holding " #", starting with an indicator, or reading as a
-// number is quoted instead).
+// string. A value YAML reads as something else — a number (1, 1.5, 007), a
+// boolean (true), a null — is quoted instead, so it comes back as the text it is
+// (spec/41 S1-2). A value that holds " #", or starts with an indicator, is
+// quoted too, and so is an empty one.
 func plainSafe(value string) bool {
 	if value == "" {
 		return false
 	}
 	var out struct {
-		V string `yaml:"v"`
+		V any `yaml:"v"`
 	}
 	if err := yaml.Unmarshal([]byte("v: "+value+"\n"), &out); err != nil {
 		return false
 	}
-	return out.V == value
+	text, ok := out.V.(string)
+	return ok && text == value
 }
 
 // doubleQuote is a value as a double-quoted scalar.

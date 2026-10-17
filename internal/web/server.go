@@ -149,6 +149,11 @@ type view struct {
 	crumb  []crumb
 	body   template.HTML
 	status int
+	// replaceURL, when set, is where the address bar goes after a write: the
+	// answer itself, told to htmx, so a write that lands somewhere else (a
+	// profile added at the list, a profile deleted from its own page) keeps one
+	// place rather than pushing the request's own path (設計 3.0 の「保存の後」).
+	replaceURL string
 }
 
 // handlerFn answers one path: it takes the request and returns the page, or the
@@ -214,7 +219,10 @@ func (s *Server) routes(static fs.FS) http.Handler {
 
 	// プロファイル (3.7).
 	get("/profiles", s.profiles)
+	post("/profiles", s.addProfile)
 	get("/profiles/{name}", s.profile)
+	post("/profiles/{name}", s.saveProfile)
+	post("/profiles/{name}/delete", s.deleteProfile)
 
 	// 古い URL (設計 6 節): the ones whose concept is one thing move with 301,
 	// the rest are not found.
@@ -338,6 +346,11 @@ func (s *Server) render(w http.ResponseWriter, v view) {
 	if err := s.tpl.ExecuteTemplate(&buf, "layout.html", data); err != nil {
 		s.problem(w, nil, err)
 		return
+	}
+	if v.replaceURL != "" {
+		// htmx reads this before the form's own push/replace attributes, so a
+		// write says where it landed and the address bar follows (設計 2 節).
+		w.Header().Set("HX-Replace-Url", v.replaceURL)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)

@@ -172,7 +172,7 @@ func (s *Server) fileChanges(defs []string, with *catalog.Catalog) []effect.Chan
 		if err != nil {
 			continue
 		}
-		changes = append(changes, effect.Of(s.view(before, s.cat.Reader()), s.view(after, with.Reader()))...)
+		changes = append(changes, effect.Of(s.view(s.cat, before, s.cat.Reader()), s.view(with, after, with.Reader()))...)
 	}
 	return changes
 }

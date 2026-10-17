@@ -1,5 +1,23 @@
 {{define "profiles.html"}}
 <h1 class="lead">{{t "web.profiles.title"}}</h1>
+{{- if .Saved}}
+<div class="saved">{{.Saved}}{{template "commands" .Handover}}</div>
+{{- end}}
+{{- template "notice" .}}
+<form class="add" method="post" action="/profiles" hx-post="/profiles" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-push-url="false"{{if .Saved}} data-saved="1"{{end}}>
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <label class="fl" for="add-name">{{t "label.profile"}}</label>
+  <input id="add-name" class="add-name" type="text" name="name" data-draft="profiles:add:name" data-origin="" autocomplete="off" spellcheck="false">
+  <label class="fl" for="add-kind">{{t "web.profile.kind"}}</label>
+  <select id="add-kind" class="add-kind mono" name="kind" data-draft="profiles:add:kind" data-origin="{{.AddKind}}">
+    {{- range .Kinds}}
+    <option value="{{.}}"{{if eq . $.AddKind}} selected{{end}}>{{if .}}{{.}}{{else}}{{t "web.profile.kind_choose"}}{{end}}</option>
+    {{- end}}
+  </select>
+  <button type="submit" class="btn">{{t "web.profiles.add"}}</button>
+  {{- if .Place}}<span class="muted mono place">{{.Place}}</span>{{end}}
+</form>
 {{- if .Empty}}
 <p class="empty">{{t "web.profiles.empty"}}</p>
 {{- else}}
