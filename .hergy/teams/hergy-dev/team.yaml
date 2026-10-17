@@ -8,13 +8,6 @@ members:
   - name: designer
     role: designer
     profile: planner
-workers:
-  - from: lead
-    purpose: 実装
-    profile: coder
-  - from: lead
-    purpose: 調査
-    profile: researcher
 turns:
   - human -> lead
   - human -> designer
