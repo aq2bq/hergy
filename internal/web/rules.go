@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -436,13 +437,23 @@ func (s *Server) saveRule(r *http.Request, place rulesPlace, add bool) (view, er
 
 	form := formOf(r)
 	open := &ruleOpen{ID: r.PathValue("rule")}
+	edit := rules.Edit{}
 	if add {
 		section := sectionOf(r)
 		if section < 0 || section >= len(doc.Sections) {
 			section = len(doc.Sections) - 1
 		}
 		open = &ruleOpen{Add: true, Section: section}
-		if err := doc.AddRule(section, writtenRule(rules.Rule{}, form)); err != nil {
+		edit = rules.Edit{Section: section, Rule: len(doc.Sections[section].Rules), Added: true}
+	}
+	// What the person's own fields say, before the file's own reading is asked
+	// (spec/42 N3): the screen's sentence names the field, and the card the
+	// person was writing in stays open.
+	if msg := fieldNotice(form); msg != "" {
+		return s.rulesPage(place, open, saved{}, msg, false)
+	}
+	if add {
+		if err := doc.AddRule(edit.Section, writtenRule(rules.Rule{}, form)); err != nil {
 			return s.rulesPage(place, open, saved{}, err.Error(), false)
 		}
 	} else {
@@ -454,11 +465,31 @@ func (s *Server) saveRule(r *http.Request, place rulesPlace, add bool) (view, er
 		// The card shows the id as its name, so the id it writes is the one it
 		// was opened with.
 		form.ID = id
+		edit = rules.Edit{Section: section, Rule: index}
 		if err := doc.SetRule(section, index, writtenRule(doc.Sections[section].Rules[index], form)); err != nil {
 			return s.rulesPage(place, open, saved{}, err.Error(), false)
 		}
 	}
-	return s.writeRules(r, place, doc, form, open)
+	return s.writeRules(r, place, text, doc, edit, form, open, false)
+}
+
+// fieldNotice is the sentence the screen itself says about the fields a person
+// wrote (spec/42 N3): an empty text, and a date the format cannot hold. Both are
+// said by the field's name rather than by the file's own numbering
+// (sections[0].rules[2]).
+func fieldNotice(form *ruleForm) string {
+	if strings.TrimSpace(form.Text) == "" {
+		return t("web.rule.need_text")
+	}
+	for _, row := range form.Origins {
+		if strings.TrimSpace(row.Kind) == "" || strings.TrimSpace(row.Date) == "" {
+			continue
+		}
+		if _, err := time.Parse("2006-01-02", strings.TrimSpace(row.Date)); err != nil {
+			return t("web.rule.need_date")
+		}
+	}
+	return ""
 }
 
 // takeRule is the write whose subject is the document itself: the second press
@@ -479,40 +510,57 @@ func (s *Server) takeRule(r *http.Request, place rulesPlace) (view, error) {
 	if !ok {
 		return s.rulesPage(place, nil, saved{}, place.missingRule(id), false)
 	}
+	edit := rules.Edit{Section: section, Rule: index, Removed: true}
 	if err := doc.DeleteRule(section, index); err != nil {
 		return s.rulesPage(place, &ruleOpen{ID: id}, saved{}, err.Error(), false)
 	}
-	return s.writeRules(r, place, doc, &ruleForm{ID: id}, nil)
+	return s.writeRules(r, place, text, doc, edit, &ruleForm{ID: id}, nil, true)
 }
 
-// writeRules checks the edited document and writes it: the text is read back
-// (the format's own reading, so an id or a date the format refuses is refused
-// before the file is written), the definitions that read it are checked before
-// and after, and the file is written only when it is still the one the page
-// read (設計 7.3). open is the card the page draws afterwards: the rule that was
-// written, the card that was adding, or none when a rule was taken out.
-func (s *Server) writeRules(r *http.Request, place rulesPlace, doc *rules.Document, form *ruleForm, open *ruleOpen) (view, error) {
-	emitted, err := rules.Emit(doc)
+// writeRules checks the written document and writes it: only the changed rule's
+// own lines are written (rules.Write, d-7b58), the written text is read back
+// with the format's own reader (so an id or a date the format refuses is refused
+// before the file is written), the definitions that read the document are
+// checked before and after, and the file is written only when it is still the
+// one the page read (設計 7.3). open is the card the page draws afterwards: the
+// rule that was written, the card that was adding, or none when a rule was taken
+// out. removed says whether the write took the rule out, which the saved line
+// says in its own words (設計 3.0 の表、spec/42 N2).
+func (s *Server) writeRules(r *http.Request, place rulesPlace, text string, doc *rules.Document, edit rules.Edit, form *ruleForm, open *ruleOpen, removed bool) (view, error) {
+	written, err := rules.Write([]byte(text), doc, edit)
 	if err != nil {
-		return view{}, err
+		return s.rulesPage(place, open, saved{}, err.Error(), false)
 	}
-	if _, err := rules.Parse(emitted, place.Doc.Path); err != nil {
+	if _, err := rules.Parse(string(written), place.Doc.Path); err != nil {
 		return s.rulesPage(place, open, saved{}, s.breakLine(place.Doc.Path, err), false)
 	}
-	with := s.cat.With(place.Doc.Path, emitted)
+	with := s.cat.With(place.Doc.Path, string(written))
 	if msg, ok := s.ruleStop(place, with); ok {
 		return s.rulesPage(place, open, saved{}, msg, false)
 	}
 	// The comparison runs before the write: the file still holds the text the
 	// page read, which is the "before" side of the change (設計 7.3 step 5).
-	line := s.rulesSaved(place, with, tf("web.saved.line", s.cat.Display(place.Doc.Path), form.ID))
-	if err := source.WriteIfUnchanged(place.Doc.Path, r.PostFormValue("hash"), emitted); err != nil {
+	line := s.rulesSaved(place, with, s.ruleSavedLine(place, form.ID, removed))
+	if err := source.WriteIfUnchanged(place.Doc.Path, r.PostFormValue("hash"), string(written)); err != nil {
 		if errors.Is(err, source.ErrChanged) {
 			return s.rulesPage(place, open, saved{}, tf("web.saved.clash", s.cat.Display(place.Doc.Path)), true)
 		}
 		return view{}, err
 	}
 	return s.rulesPage(place, open, line, "", false)
+}
+
+// ruleSavedLine is the line a write to a rule document shows (設計 3.0 版 5 の
+// 鍵の語の表): the path, and the rule by the word a person reads ("規則 T2"),
+// written or taken out. The rule's own keys carry the quotes the design writes
+// around the key word; the older web.saved.line has no quotes yet (the mission
+// still passes the YAML key, spec/40 N3).
+func (s *Server) ruleSavedLine(place rulesPlace, id string, removed bool) string {
+	key := tf("web.rule.key", id)
+	if removed {
+		return tf("web.rule.removed", s.cat.Display(place.Doc.Path), key)
+	}
+	return tf("web.rule.saved", s.cat.Display(place.Doc.Path), key)
 }
 
 // writeDocument is the write whose subject is the document itself: taking a rule
@@ -528,7 +576,9 @@ func (s *Server) writeDocument(r *http.Request, place rulesPlace) (view, error) 
 // makeDocument writes one empty rule document (W8): a document with one section
 // and no rule, which is a document a person can add the first rule to.
 func (s *Server) makeDocument(r *http.Request, place rulesPlace) (view, error) {
-	text, err := rules.Emit(&rules.Document{Sections: []rules.Section{{}}})
+	// The section an empty document gets carries a heading, so the first rule a
+	// person adds stands under one (spec/42 N4).
+	text, err := rules.Emit(&rules.Document{Sections: []rules.Section{{Heading: t("web.rule.heading")}}})
 	if err != nil {
 		return view{}, err
 	}

@@ -278,6 +278,38 @@ func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
 	}
 }
 
+// TestOfTheSameValuesInAnotherShapeChangesNothing is spec/42 N1: a document
+// written back with the same values reads the same, so no member's prompt moves
+// and no team is told to take it up. The two texts differ only in the shape the
+// file was written with (a quoted reason, a blank line).
+func TestOfTheSameValuesInAnotherShapeChangesNothing(t *testing.T) {
+	l := newLayer(t)
+	write(t, filepath.Join(l.team, "team.yaml"), teamText())
+	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	agreement := filepath.Join(l.root, "agreement.yaml")
+	write(t, agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: 'だから'\n")
+	cat := l.catalog(t)
+	before, err := cat.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same document, in the shape Emit writes: the quoting and the blank
+	// line differ, the values do not.
+	with := cat.With(agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: だから\n")
+	after, err := with.Read("demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changes := effect.Of(
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+	)
+	if len(changes) != 0 {
+		t.Fatalf("Of = %+v, want no change: the prompts read the same", changes)
+	}
+}
+
 func hasPart(parts []effect.PartChange, part effect.Part) bool {
 	for _, p := range parts {
 		if p.Part == part {

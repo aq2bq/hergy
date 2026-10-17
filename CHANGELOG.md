@@ -42,9 +42,12 @@
   validate prints, beside the card that brought it in. The report shapes a rule
   may point at are read only in this round.
 
-  A rule document is written in the one format hergy writes (see 0.5.0 below),
-  so the first save of a file a person wrote by hand rewrites the whole file:
-  the order of the rules is kept, their comments are not.
+  A rule document is written a rule at a time: a save writes the lines of the
+  one rule it changed, in the shape hergy writes a rule with, and every other
+  line — the blank lines, the comments, the quoting a person used, and another
+  rule's `refs: [a, b]` — comes back byte for byte. The document hergy makes
+  from nothing (a role's document, and the agreement every team shares, when no
+  layer holds one) is written whole, as it always was.
 
 - **`hergy validate` warns when a rule text names something the definition has
   no node for**: a rule that writes `lead → impl`, where `impl` is neither a

@@ -882,6 +882,8 @@ func TestTheRuleCardWritesEveryField(t *testing.T) {
 		`name="text"`, `name="why"`, `name="origin_kind"`, `name="origin_date"`,
 		`name="origin_refs"`, `name="origin_note"`, `name="tests"`, `name="note"`,
 		`data-change`, `data-revert`, `name="action" value="delete"`,
+		// The button that takes the rule out names it (spec/42 T3).
+		"TEAM-1 を消す",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the card does not carry %s:\n%s", want, body)
@@ -939,7 +941,7 @@ func TestARuleIsWrittenAndKeepsTheRestOfTheDocument(t *testing.T) {
 	if after := readFile(t, path); after != want {
 		t.Errorf("the document is\n%q\nwant\n%q", after, want)
 	}
-	if !strings.Contains(body, "を書きました") || !strings.Contains(body, "TEAM-1") {
+	if !strings.Contains(body, "の「規則 TEAM-1」を書きました。") {
 		t.Errorf("the saved line does not name the file and the rule:\n%s", body)
 	}
 	if !strings.Contains(body, "hergy reprompt --all --team demo") {
@@ -1091,20 +1093,27 @@ func TestTheNewRuleGoesAtTheEndOfTheSection(t *testing.T) {
 	if after := readFile(t, path); after != want {
 		t.Fatalf("the document moved")
 	}
+	// 本文 that is empty, and a date the format cannot hold, are said by the
+	// field's own name, not by the file's numbering (spec/42 N3).
 	_, body = f.post(t, server, "/definitions/demo/agreement/new?section=0", url.Values{
 		"id": {"TEAM-3"}, "hash": {source.Hash(want)}, "origin_kind": {""},
 	})
-	if !strings.Contains(body, "text") {
-		t.Errorf("a rule with no text is not refused with the reader's sentence:\n%s", body)
+	if !strings.Contains(body, "本文を書いてください") {
+		t.Errorf("a rule with no text is not refused by its field's name:\n%s", body)
 	}
-	// A date the format refuses is refused before the file is written, with the
-	// reader's own sentence (設計 7.3).
+	if strings.Contains(body, "sections[") {
+		t.Errorf("the refusal shows the file's own numbering:\n%s", body)
+	}
 	_, body = f.post(t, server, "/definitions/demo/agreement/new?section=0", url.Values{
 		"id": {"TEAM-3"}, "text": {"日付の壊れた規則。"}, "hash": {source.Hash(want)},
 		"origin_kind": {"incident"}, "origin_date": {"2026-13-99"},
 	})
-	if !strings.Contains(body, "YYYY-MM-DD") {
-		t.Errorf("a date the format refuses is not refused with the reader's sentence:\n%s", body)
+	if !strings.Contains(body, "日付は YYYY-MM-DD で書いてください") {
+		t.Errorf("a date the format refuses is not refused by its field's name:\n%s", body)
+	}
+	// The card the person was writing in stays open, with the add form.
+	if !strings.Contains(body, `class="ruleform"`) || !strings.Contains(body, `name="id"`) {
+		t.Errorf("the refusal closed the card the person was writing in:\n%s", body)
 	}
 	if after := readFile(t, path); after != want {
 		t.Errorf("a refused add wrote the document:\n%q", after)
@@ -1120,8 +1129,13 @@ func TestTheRuleIsDeletedOnTheSecondPress(t *testing.T) {
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	before := readFile(t, path)
 	_, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{"action": {"delete"}})
-	if !strings.Contains(body, "もう一度押すと消えます") {
+	// The first press asks once more in place: the card's button becomes the one
+	// that writes, beside the way out, and no sentence is needed (spec/42 T3).
+	if !strings.Contains(body, `name="action" value="delete-now"`) || !strings.Contains(body, "やめる") {
 		t.Errorf("the first press does not ask again:\n%s", body)
+	}
+	if strings.Contains(body, "もう一度押すと消えます") {
+		t.Errorf("the first press still writes the ask sentence")
 	}
 	if readFile(t, path) != before {
 		t.Errorf("the first press wrote the document")
@@ -1135,7 +1149,8 @@ func TestTheRuleIsDeletedOnTheSecondPress(t *testing.T) {
 	if after := readFile(t, path); after == before || strings.Contains(after, "TEAM-1") {
 		t.Errorf("the second press did not take the rule out:\n%q", after)
 	}
-	if !strings.Contains(body, "を書きました") {
+	// A rule that is taken out says so, not 書きました (spec/42 N2).
+	if !strings.Contains(body, "の「規則 TEAM-1」を消しました。") {
 		t.Errorf("the delete shows no saved line:\n%s", body)
 	}
 }
@@ -1159,6 +1174,10 @@ func TestADocumentThatIsNotThereIsMade(t *testing.T) {
 	if !strings.Contains(body, `action="/roles/builder"`) {
 		t.Errorf("the roles list offers no way to make the document:\n%s", body)
 	}
+	// The place is written beside 作る, before it is pressed (spec/42 T1).
+	if !strings.Contains(body, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")) {
+		t.Errorf("the roles list does not say where the document is made:\n%s", body)
+	}
 	_, body = f.get(t, server, "/")
 	if !strings.Contains(body, `action="/agreement"`) {
 		t.Errorf("the definitions list offers no way to make the shared agreement:\n%s", body)
@@ -1171,8 +1190,8 @@ func TestADocumentThatIsNotThereIsMade(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("POST %s answered %d", made.action, resp.StatusCode)
 		}
-		if got := readFile(t, made.path); got != "version: 1\nsections:\n  - {}\n" {
-			t.Errorf("%s is\n%q\nwant an empty document", made.path, got)
+		if got := readFile(t, made.path); got != "version: 1\nsections:\n  - heading: 規則\n" {
+			t.Errorf("%s is\n%q\nwant an empty document with the heading 規則", made.path, got)
 		}
 		if !strings.Contains(body, "を作りました") {
 			t.Errorf("%s shows no made line:\n%s", made.action, body)
@@ -1207,5 +1226,79 @@ func TestTheHandoverNamesEveryTeamThatReadsTheDocument(t *testing.T) {
 	}
 	if got := strings.Count(body, "hergy reprompt --all --team"); got != 2 {
 		t.Errorf("the handover holds %d reprompts, want one per reading team:\n%s", got, body)
+	}
+}
+
+// TestRuleSaveKeepsTheLinesTheFileWrote: a document a person wrote by hand keeps
+// its blank lines, its comment, its quoting and its flow refs when one rule is
+// written; only that rule's own lines move (K1=B, d-7b58).
+func TestRuleSaveKeepsTheLinesTheFileWrote(t *testing.T) {
+	f := newFixture(t)
+	hand := "version: 1\n" +
+		"title: 手で書いた文書\n" +
+		"\n" +
+		"# 約束\n" +
+		"sections:\n" +
+		"  - heading: 約束\n" +
+		"    rules:\n" +
+		"      - id: TEAM-1\n" +
+		"        text: | -\n" +
+		"          1 行目の本文。\n" +
+		"          2 行目の本文。\n" +
+		"        why: '理由はシングルクォート'\n" +
+		"        origin:\n" +
+		"          - kind: incident\n" +
+		"            date: \"2026-01-01\"\n" +
+		"            refs: [d-1, d-2]\n" +
+		"      - id: TEAM-2\n" +
+		"        text: TEAM-2 の本文。\n" +
+		"        note: TEAM-2 のメモ\n"
+	hand = strings.Replace(hand, "text: | -", "text: |-", 1)
+	f.write(t, "teams/demo/agreement.yaml", hand)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-2", url.Values{
+		"text": {"TEAM-2 の本文。"}, "note": {"書き換えたメモ"}, "hash": {source.Hash(hand)},
+		"origin_kind": {""},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "の「規則 TEAM-2」を書きました。") {
+		t.Errorf("the saved line does not name the rule:\n%s", body)
+	}
+	after := readFile(t, path)
+	want := strings.Replace(hand, "        note: TEAM-2 のメモ", "        note: 書き換えたメモ", 1)
+	if after != want {
+		t.Errorf("the document is\n%q\nwant\n%q", after, want)
+	}
+	for _, kept := range []string{"why: '理由はシングルクォート'", "refs: [d-1, d-2]", "# 約束", "\n\n# 約束"} {
+		if !strings.Contains(after, kept) {
+			t.Errorf("the save changed %q:\n%s", kept, after)
+		}
+	}
+}
+
+// TestASaveWithTheSameValuesTellsNoTeamToTakeItUp: a rule written back with the
+// values the file already holds reads the same to every member, so no running
+// team is told to type anything (spec/42 N1).
+func TestASaveWithTheSameValuesTellsNoTeamToTakeItUp(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	_, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"このチームの約束。"},
+		"hash":        {source.Hash(before)},
+		"origin_kind": {"incident"},
+		"origin_date": {"2026-01-01"},
+	})
+	saved := between(body, `class="saved"`, "</div>")
+	if !strings.Contains(saved, "動いているチームに渡すものはありません") {
+		t.Errorf("a save with the same values tells a team to take it up:\n%s", saved)
+	}
+	if !strings.Contains(saved, "の「規則 TEAM-1」を書きました。") {
+		t.Errorf("the saved line does not name the rule:\n%s", saved)
 	}
 }

@@ -330,7 +330,9 @@ func e2eRules(t *testing.T, ctx context.Context, base string) {
 	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
 	e2eWaitField(t, ctx, "規則 C1")
 	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
-	e2eWaitContains(t, ctx, "#panel", "この規則を消します")
+	// The first press asks once more in place: the way out appears beside the
+	// button that writes (spec/42 T3).
+	e2eWaitContains(t, ctx, "#panel", "やめる")
 	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
 	// The second press writes to the document's own page, so that is where the
 	// card is gone (設計 3.8).

@@ -73,12 +73,11 @@
   {{- if .AskDelete}}
   <input type="hidden" name="rule" value="{{.ID}}">
   <input type="hidden" name="action" value="delete-now">
-  <p class="problem">{{t "web.rule.delete_ask"}}</p>
   <button type="submit" class="btn primary">{{t "web.rule.delete"}}</button>
   <a class="btn quiet" href="{{.Parent}}">{{t "web.rule.delete_cancel"}}</a>
   {{- else}}
   <input type="hidden" name="action" value="delete">
-  <button type="submit" class="btn quiet">{{t "web.rule.delete"}}</button>
+  <button type="submit" class="btn quiet">{{tf "web.rule.delete_named" .ID}}</button>
   {{- end}}
 </form>
 {{- end}}
@@ -90,6 +89,7 @@
   <input type="hidden" name="hash" value="{{.Hash}}">
   <input type="hidden" name="make" value="1">
   <button type="submit" class="btn quiet">{{t "web.make"}}</button>
+  {{- if .Path}}<span class="muted path">{{.Path}}</span>{{end}}
 </form>
 {{end}}
 

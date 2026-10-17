@@ -137,13 +137,17 @@ func Of(before, after View) []Change {
 }
 
 // promptPartsOnly is the parts that stay when the two prompts read the same
-// text: the ones that do not live in the text. A launch or an env reaches a
-// pane, not the sentences, so it is reported either way.
+// text: the ones that do not live in the text. The parts that do live in it —
+// the turns, the workers, the roster, the role document and the agreements —
+// are left out, because a change they carry reaches no member of this team
+// (spec/42 N1: a document written back with the same values reads the same, so
+// a team is not told to take it up). A launch or an env reaches a pane, not the
+// sentences, so it is reported either way.
 func promptPartsOnly(parts []PartChange) []PartChange {
 	out := parts[:0:0]
 	for _, part := range parts {
 		switch part.Part {
-		case Turns, Workers, Roster:
+		case Turns, Workers, Roster, RoleDocument, Agreements:
 		default:
 			out = append(out, part)
 		}
