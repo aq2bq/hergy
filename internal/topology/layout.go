@@ -131,6 +131,9 @@ type Figure struct {
 	// arrows leave from and come back to. The screen draws the curves; this is
 	// where they start.
 	MemberRight float64
+	// Pending are the edges a screen has chosen to add and nothing has written
+	// yet, placed with the graph's own arrows (LayoutGraph's pending argument).
+	Pending []Arrow
 }
 
 // row is one horizontal band of the figure: a party's key, and where it sits.
@@ -173,6 +176,7 @@ type heldEdge struct {
 	edge     definition.Edge
 	from, to int
 	lane     int
+	pending  int // -1 for the graph's own edge, else its place in the pending edges
 }
 
 func (h heldEdge) span() int  { return abs(h.from - h.to) }

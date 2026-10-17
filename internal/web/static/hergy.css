@@ -112,6 +112,9 @@ main{width:100%;max-width:1320px;margin:0 auto;padding:20px max(16px,3vw) 80px}
 .fig .nm{fill:var(--ink);font-size:13px;font-weight:600}
 .fig .sub{fill:var(--muted);font-size:11px}
 .fig .edge{fill:none;stroke:var(--muted);stroke-width:1.6}
+/* The line a person presses is thin, so a wider invisible one lies over it in
+   the same link (walk-1b P1). */
+.fig .hit{fill:none;stroke:transparent;stroke-width:12;pointer-events:stroke}
 .fig .edge.worker{stroke-dasharray:4 3}
 /* A turn chosen but not written yet: an added edge dashed, an edge to be taken
    away faint (設計 4 節). */

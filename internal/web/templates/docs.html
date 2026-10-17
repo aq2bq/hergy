@@ -19,13 +19,15 @@
   {{- if .Saved}}<div class="saved">{{.Saved}}{{range .Preview}} <span class="note">{{.}}</span>{{end}}{{template "commands" .Handover}}</div>{{end}}
   {{- if .Form}}{{template "ruleform" .Form}}{{else}}
   <dl class="fields">
-    {{- range .Fields}}
-    <div class="field{{if .Edit}} row{{end}}"><dt>{{.Label}}</dt><dd>{{if .Value}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Edit}} {{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{end}}{{if .Remove}} <a class="btn quiet remove" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
+    {{- range .Groups}}
+    <div class="field{{if .Row}} row{{end}}"><dt>{{.Label}}</dt>{{range .Values}}{{template "dd" .}}{{end}}</div>
     {{- end}}
   </dl>
   {{- end}}
 </aside>
 {{end}}
+
+{{define "dd"}}<dd>{{if .Value}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Edit}} {{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{end}}{{if .Remove}} <a class="btn quiet remove" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd>{{end}}
 
 {{define "ruleform"}}
 <form class="ruleform" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-push-url="false" hx-replace-url="true"{{if .Saved}} data-saved="1"{{end}}>
@@ -45,15 +47,15 @@
   <div class="field"><span class="fl">{{t "web.rule.origin"}}</span>
     {{- range $i, $o := .Origins}}
     <div class="orow">
-      <select name="origin_kind" aria-label="{{t "web.rule.origin"}}" data-draft="{{printf "%s:o%d:k" $.Draft $i}}" data-origin="{{$o.Kind}}">
+      <select name="origin_kind" aria-label="{{t "web.rule.origin"}}" data-draft="{{printf "%s:%s:k" $.Draft $o.Key}}" data-origin="{{$o.Kind}}">
         <option value=""{{if eq $o.Kind ""}} selected{{end}}>{{t "web.rule.origin_none"}}</option>
         <option value="incident"{{if eq $o.Kind "incident"}} selected{{end}}>{{t "web.origin.incident"}}</option>
         <option value="instruction"{{if eq $o.Kind "instruction"}} selected{{end}}>{{t "web.origin.instruction"}}</option>
         <option value="derived"{{if eq $o.Kind "derived"}} selected{{end}}>{{t "web.origin.derived"}}</option>
       </select>
-      <input class="input" type="date" name="origin_date" aria-label="{{t "web.rule.origin_date"}}" value="{{$o.Date}}" data-draft="{{printf "%s:o%d:d" $.Draft $i}}" data-origin="{{$o.Date}}">
-      <input class="input mono" type="text" name="origin_refs" aria-label="{{t "web.rule.origin_refs"}}" value="{{$o.Refs}}" data-draft="{{printf "%s:o%d:r" $.Draft $i}}" data-origin="{{$o.Refs}}" autocomplete="off">
-      <input class="input" type="text" name="origin_note" aria-label="{{t "label.note"}}" value="{{$o.Note}}" data-draft="{{printf "%s:o%d:n" $.Draft $i}}" data-origin="{{$o.Note}}" autocomplete="off">
+      <input class="input" type="date" name="origin_date" aria-label="{{t "web.rule.origin_date"}}" value="{{$o.Date}}" data-draft="{{printf "%s:%s:d" $.Draft $o.Key}}" data-origin="{{$o.Date}}">
+      <input class="input mono" type="text" name="origin_refs" aria-label="{{t "web.rule.origin_refs"}}" value="{{$o.Refs}}" data-draft="{{printf "%s:%s:r" $.Draft $o.Key}}" data-origin="{{$o.Refs}}" autocomplete="off">
+      <input class="input" type="text" name="origin_note" aria-label="{{t "label.note"}}" value="{{$o.Note}}" data-draft="{{printf "%s:%s:n" $.Draft $o.Key}}" data-origin="{{$o.Note}}" autocomplete="off">
     </div>
     {{- end}}
   </div>
@@ -104,7 +106,7 @@
   {{- range .Pending}}<span class="save-to">{{.}}</span>{{end}}
   {{- range .Controls}}{{template "control" .}}{{end}}
   {{- if .PendingStop}}<span class="actions"><a class="btn quiet" href="{{.Action}}">{{t "web.revert"}}</a></span>
-  {{- else}}<span class="actions" data-change hidden>
+  {{- else}}<span class="actions" data-change{{if not .Changed}} hidden{{end}}>
     <button type="submit" class="btn primary">{{.Submit}}</button>
     <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
   </span>
