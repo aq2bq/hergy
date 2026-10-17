@@ -165,10 +165,12 @@ func BreakLine(display func(string) string, path string, err error) string {
 // rule id two documents of one member both hold, and a herdr name that is too
 // long. The definition reads, but no prompt can be handed out, so it stops, as
 // it always has. Every member that cannot be built is reported, so a screen
-// shows the whole list at once (N1).
+// shows the whole list at once (N1). Each prompt is built through the catalog, so
+// a text the screen is editing (C3b, With) is the text that is judged, rather
+// than the file on disk.
 func promptFindings(in Input, def *definition.Definition) []Finding {
 	run := prompt.Run{
-		Team: def.Name, Reader: source.Disk{}, Sources: in.Catalog,
+		Team: def.Name, Reader: in.Catalog.Reader(), Sources: in.Catalog,
 		Display: in.Catalog.Display, Base: in.Catalog.Base(),
 	}
 	var out []Finding
@@ -431,9 +433,11 @@ func graphHasTurn(g *definition.Graph, from, to definition.NodeID) bool {
 // (段 4: the agreement every team of the layer shares, the team's own agreement,
 // and each member's role document), with the rules parsed. It reads what the
 // definition names, not what one prompt happened to ask for, so a team whose
-// prompt drops %{docs} still has its rule texts compared with turns:. A file that
-// cannot be read is left out: the definition was built a moment ago with the same
-// reading, so the break was already reported.
+// prompt drops %{docs} still has its rule texts compared with turns:. It reads
+// through the catalog, so a text the screen is editing (C3b, With) is the text
+// that is compared, rather than the file on disk. A file that cannot be read is
+// left out: the definition was built a moment ago with the same reading, so the
+// break was already reported.
 func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.Member, []topology.Doc) {
 	members := make([]topology.Member, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
@@ -448,12 +452,13 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 	}
 	var docs []topology.Doc
 	seen := map[string]bool{}
+	reader := cat.Reader()
 	add := func(doc source.Doc, role string) {
 		if seen[doc.Path] {
 			return
 		}
 		seen[doc.Path] = true
-		text, err := os.ReadFile(doc.Path)
+		text, err := reader.Read(doc)
 		if err != nil {
 			return
 		}

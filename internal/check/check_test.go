@@ -63,9 +63,9 @@ func (f *fixture) teamPath() string {
 	return filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 }
 
-// rolePath is where one role document sits.
-func (f *fixture) rolePath(name string) string {
-	return filepath.Join(f.proj, ".hergy", "roles", name+".yaml")
+// leadRolePath is where the fixture's lead role document sits.
+func (f *fixture) leadRolePath() string {
+	return filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
 }
 
 // teamHead is the part of a team.yaml before its members: everything the
@@ -186,7 +186,7 @@ func TestTurnFindings(t *testing.T) {
 		if finding.Kind != KindTurn {
 			t.Errorf("finding %+v is not about a turn", finding)
 		}
-		if want := "rule:" + f.rolePath("lead") + "#"; !strings.HasPrefix(finding.Field, want) {
+		if want := "rule:" + f.leadRolePath() + "#"; !strings.HasPrefix(finding.Field, want) {
 			t.Errorf("finding %+v does not name the rule it is about (want %s...)", finding, want)
 		}
 		texts = append(texts, finding.Text)
@@ -475,7 +475,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 				f.role("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
 				f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 			},
-			want: func(f *fixture) []string { return []string{"rule:" + f.rolePath("lead") + "#LEAD-1"} },
+			want: func(f *fixture) []string { return []string{"rule:" + f.leadRolePath() + "#LEAD-1"} },
 		},
 		{
 			name: "the file as a whole",
@@ -519,6 +519,110 @@ func fields(findings []Finding) []string {
 	return slices.Compact(out)
 }
 
+// stopFields is the fields of the findings that stop the definition.
+func stopFields(findings []Finding) []string {
+	var out []string
+	for _, finding := range findings {
+		if finding.Stops {
+			out = append(out, finding.Field)
+		}
+	}
+	return out
+}
+
+// TestADraftRuleIdIsCheckedAgainstTheAgreement: the check builds every prompt and
+// reads every rule document through the catalog, so a role document's draft (C3b,
+// With) that carries an id the team's agreement already has stops the definition
+// before it is saved, while the same files on disk are accepted (N1). The draft
+// is not written: the file keeps the text it had.
+func TestADraftRuleIdIsCheckedAgainstTheAgreement(t *testing.T) {
+	f := newFixture(t)
+	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+	// The agreement holds an id the draft of the lead's role document takes.
+	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
+		"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n"+
+			"      - id: DUP-1\n        text: 何かをする。\n")
+
+	if got := stopFields(f.findings()); len(got) != 0 {
+		t.Fatalf("the definition stops on the files as they are: %v", got)
+	}
+
+	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+		"      - id: LEAD-1\n        text: 何かをする。\n" +
+		"      - id: DUP-1\n        text: 書きかけの規則。\n"
+	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
+	var stops []Finding
+	for _, finding := range got {
+		if finding.Stops {
+			stops = append(stops, finding)
+		}
+	}
+	if len(stops) != 1 {
+		t.Fatalf("stops = %+v, want the one member whose draft holds the id twice", stops)
+	}
+	if stops[0].Field != "members[0]" || stops[0].Kind != KindPrompt {
+		t.Errorf("stop = %+v, want the member whose documents hold the id twice", stops[0])
+	}
+	if !strings.Contains(stops[0].Text, "DUP-1") {
+		t.Errorf("the stop does not name the id that stands twice: %s", stops[0].Text)
+	}
+
+	onDisk, err := os.ReadFile(f.leadRolePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(onDisk), "DUP-1") {
+		t.Errorf("the check wrote the draft to disk:\n%s", onDisk)
+	}
+}
+
+// TestATurnWarningReadsTheDraft: the comparison of a rule text's arrows reads the
+// draft too (N1), so a rule the screen is editing, which writes a turn the graph
+// does not have, warns before it is saved. The same file on disk writes a turn
+// turns: has, so it warns about nothing, and it is left as it was.
+func TestATurnWarningReadsTheDraft(t *testing.T) {
+	f := newFixture(t)
+	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.role("lead", "      - id: LEAD-1\n        text: 設計は spec の話を聞く（spec → human）。\n")
+	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+
+	for _, finding := range f.findings() {
+		if finding.Kind == KindTurn {
+			t.Fatalf("the file on disk warns about a turn: %+v", finding)
+		}
+	}
+
+	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+		"      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n"
+	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
+	var warned int
+	for _, finding := range got {
+		if finding.Kind != KindTurn {
+			continue
+		}
+		warned++
+		if want := "rule:" + f.leadRolePath() + "#LEAD-1"; finding.Field != want {
+			t.Errorf("the warning names %q, want %q", finding.Field, want)
+		}
+		if want := i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl"); finding.Text != want {
+			t.Errorf("the warning reads %q, want %q", finding.Text, want)
+		}
+	}
+	if warned != 1 {
+		t.Errorf("the draft warned %d times about a turn, want the one arrow it writes", warned)
+	}
+
+	onDisk, err := os.ReadFile(f.leadRolePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(onDisk), "spec → human") {
+		t.Errorf("the check wrote the draft to disk:\n%s", onDisk)
+	}
+}
+
 // TestTurnWarningNamesItsRule: a warning about a rule's text names the document
 // and the rule, so a screen puts the sentence on that rule's slip (N3). A rule
 // of the role document and one of the team's agreement each name their own
@@ -534,7 +638,7 @@ func TestTurnWarningNamesItsRule(t *testing.T) {
 
 	got := f.findings()
 	want := map[string]string{
-		"LEAD-1":  "rule:" + f.rolePath("lead") + "#LEAD-1",
+		"LEAD-1":  "rule:" + f.leadRolePath() + "#LEAD-1",
 		"AGREE-1": "rule:" + agreement + "#AGREE-1",
 	}
 	seen := map[string]bool{}
