@@ -703,3 +703,57 @@ func TestUndeliveredLeavesOutAMemberTheRecordDoesNotName(t *testing.T) {
 		t.Errorf("Undelivered = %+v, want none for a member the record does not name", changes)
 	}
 }
+
+// TestPreviewSaysWhatAHumanTurnDoes is walk-3 P1: a turn the human hands on
+// moves no member's prompt, so the line says what changes on the human's side
+// instead of saying that nothing changes.
+func TestPreviewSaysWhatAHumanTurnDoes(t *testing.T) {
+	cases := []struct {
+		human effect.HumanTurn
+		want  string
+	}{
+		{human: effect.HumanTurn{To: "spec"}, want: "人間が spec にターンを渡せるようになります（プロンプトは変わりません）"},
+		{human: effect.HumanTurn{To: "spec", Remove: true}, want: "人間が spec にターンを渡さなくなります（プロンプトは変わりません）"},
+	}
+	for _, test := range cases {
+		got := effect.PreviewOf(nil, &test.human)
+		if !reflect.DeepEqual(got, []string{test.want}) {
+			t.Errorf("PreviewOf(%+v) = %q, want %q", test.human, got, test.want)
+		}
+	}
+	// Without a human turn the line stays the one that says nothing moves.
+	if got := effect.Preview(nil); !reflect.DeepEqual(got, []string{"どのメンバーのプロンプトも変わりません"}) {
+		t.Errorf("Preview = %q", got)
+	}
+}
+
+// TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes is spec/41 T4: a profile no
+// member runs moves no prompt, so the line says that the next hire starts with
+// it. A profile a member runs says nothing here.
+func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
+	l := newLayer(t)
+	text := "version: 1\nmission: a mission for the test\nteam: demo\n" +
+		"members:\n" +
+		"  - name: lead\n    role: lead\n    profile: claude-default\n" +
+		"  - name: spec\n    role: spec\n    profile: claude-default\n" +
+		"workers:\n  - from: lead\n    purpose: 試作\n    profile: codex-default\n" +
+		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n"
+	before := l.view(t, l.read(t, text))
+	after := before
+	after.Profiles = l.profiles()
+	after.Profiles["codex-default"] = profile.Profile{Name: "codex-default", Kind: "pi"}
+
+	want := []string{"次の hergy hire --purpose 試作 から使われます"}
+	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
+		t.Errorf("HireLines = %q, want %q", got, want)
+	}
+
+	// The profile every member runs is not a hire's business.
+	after.Profiles["claude-default"] = profile.Profile{Name: "claude-default", Kind: "pi"}
+	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
+		t.Errorf("HireLines with a member's profile = %q, want %q", got, want)
+	}
+	if got := effect.HireLines(before, before); len(got) != 0 {
+		t.Errorf("HireLines with no change = %q", got)
+	}
+}

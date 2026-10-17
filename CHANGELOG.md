@@ -62,6 +62,19 @@
 
 ### Added
 
+- **The screens read a little more easily**: an arrow in the figure is pressed
+  where it looks, with a wider line that cannot be seen inside the same link; a
+  member's box names its second line (`ロール lead・プロファイル planner`), so
+  the role and the profile are told apart; the parties one node hands the turn
+  to, and the workers one member hires, stand under one name with a value each
+  rather than repeating the name; the edge a press chose to add is drawn in a
+  lane beside the members, where the arrow will stand once it is written; and a
+  turn the human hands on says what changes on the human's side (`人間が spec に
+  ターンを渡せるようになります（プロンプトは変わりません）`) instead of only
+  that no prompt moves. A preview chosen with a URL (`?preview=role&role=spec`)
+  draws the save and revert buttons without a script, and a draft in a rule's
+  origin row keeps its own place when another origin is written above it.
+
 - **The activity says how long a team has waited, and what gy asks**:
   each section of `/activity` says how long the node it names has been where it
   is (`lead が 25 分前から止まっています`), counted from when the screen first

@@ -66,8 +66,19 @@ type editForm struct {
 	Saved       bool
 }
 
-// confirmForm is a write a press has chosen but nothing has written yet: the
-// "保存すると" line that says what the write would do, and the two ways out (I6).
+// Changed reports whether a control reads a value other than the one the file
+// writes: a preview URL picks a value before anything is typed, and the page has
+// to show the save and revert buttons for it even with no script (設計 7.3).
+func (f *editForm) Changed() bool {
+	for _, control := range f.Controls {
+		if control.Value != control.Origin {
+			return true
+		}
+	}
+	return false
+}
+
+// confirmForm is a write a press has chosen but nothing has written yet: the// "保存すると" line that says what the write would do, and the two ways out (I6).
 // Stop is the stop the write would bring in, which takes the write away.
 type confirmForm struct {
 	Action  string

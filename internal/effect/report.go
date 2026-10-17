@@ -1,11 +1,21 @@
 package effect
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 )
+
+// HumanTurn is a turn a screen adds or takes away where the near end is the
+// human. No member's prompt moves for it, but the human's own side does: from
+// then on it hands the turn to that member (walk-3 P1).
+type HumanTurn struct {
+	To     string // the member the human hands the turn to
+	Remove bool   // the turn is being taken away rather than added
+}
 
 // Preview is the "保存すると" lines of design 4: one line for each party, worker
 // or part a change moves, or the one line that says no member's prompt moves.
@@ -15,6 +25,13 @@ import (
 // The roster is every member's line when it moves, so when it moves for all of
 // them one line says so instead of one line per member (T1).
 func Preview(changes []Change) []string {
+	return PreviewOf(changes, nil)
+}
+
+// PreviewOf is Preview, with the one line a turn the human hands on gets: that
+// line says what changes on the human's side, because "no member's prompt
+// changes" alone reads as if the turn did nothing (walk-3 P1).
+func PreviewOf(changes []Change, human *HumanTurn) []string {
 	allRoster := len(changes) > 1
 	for _, change := range changes {
 		if !hasPart(change.Parts, Roster) {
@@ -36,9 +53,59 @@ func Preview(changes []Change) []string {
 		}
 	}
 	if len(lines) == 0 {
+		if human != nil && human.To != "" {
+			return []string{humanTurnLine(*human)}
+		}
 		return []string{i18n.T("effect.preview.none")}
 	}
+	if human != nil && human.To != "" {
+		lines = append(lines, humanTurnLine(*human))
+	}
 	return lines
+}
+
+// humanTurnLine is what a turn the human hands on does, in the human's words.
+func humanTurnLine(human HumanTurn) string {
+	if human.Remove {
+		return i18n.Tf("effect.preview.human_turn_removed", human.To)
+	}
+	return i18n.Tf("effect.preview.human_turn_added", human.To)
+}
+
+// HireLines is the "保存すると" line of a profile change that only workers use:
+// no member's prompt moves (no member runs that profile), but the next hire of
+// such a worker starts with the new kind, args or env (spec/41 T4). A profile a
+// member names says nothing here: its change already reaches that member's
+// prompt.
+func HireLines(before, after View) []string {
+	if before.Def == nil || after.Def == nil {
+		return nil
+	}
+	named := make(map[string]bool, len(after.Def.Graph.Members))
+	for _, member := range after.Def.Graph.Members {
+		named[member.Profile] = true
+	}
+	var out []string
+	said := map[string]bool{}
+	for _, worker := range after.Def.Graph.Workers {
+		if named[worker.Profile] || said[worker.Purpose] {
+			continue
+		}
+		old, had := before.Profiles[worker.Profile]
+		next, ok := after.Profiles[worker.Profile]
+		if !had || !ok || sameProfile(old, next) {
+			continue
+		}
+		said[worker.Purpose] = true
+		out = append(out, i18n.Tf("effect.preview.hire", worker.Purpose))
+	}
+	return out
+}
+
+// sameProfile reports whether two readings of one profile start a pane the same
+// way: the kind, the args and the env are what a launch reads.
+func sameProfile(a, b profile.Profile) bool {
+	return a.Kind == b.Kind && slices.Equal(a.Args, b.Args) && maps.Equal(a.Env, b.Env)
 }
 
 // hasPart is whether a member's parts hold a part.
