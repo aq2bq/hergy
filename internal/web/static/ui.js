@@ -2,6 +2,7 @@
  *
  * 書きかけ (C5, W10): [data-draft] の欄は sessionStorage に残し、欄が戻ったときに書き戻す。
  * 変えたら [data-change] を現す (C1)。[data-revert] は元の値 (data-origin) に戻す。
+ * 選んだプロファイルの kind は、選び直すたびに横に出す (I7)。
  * Esc は開いている欄 (#panel[data-parent]) を閉じる (B3)。保存が通った頁 (data-saved) では
  * その欄の書きかけを捨てる。script が無くても、欄はそのまま書けて送れる。
  */
@@ -36,6 +37,20 @@
     });
   }
 
+  // The kind of the profile a person picked stands beside the pick, as an
+  // attribute of the profile and never inside the choice (I7).
+  function kindBeside(select) {
+    var out = select.parentElement && select.parentElement.querySelector("[data-kind-show]");
+    if (!out) return;
+    var opt = select.options[select.selectedIndex];
+    out.textContent = (opt && opt.getAttribute("data-kind")) || "";
+  }
+
+  function showKinds(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll("select[data-kind-of]").forEach(kindBeside);
+  }
+
   // The page's own title travels on #page (the tab is not inside the region the
   // server swaps, so htmx cannot carry it).
   function setTitle() {
@@ -52,6 +67,16 @@
     mark(el.closest("form"));
   });
 
+  // A select fires change rather than input for the pick itself: keep the same
+  // draft, and show the picked profile's kind.
+  document.addEventListener("change", function (event) {
+    var el = event.target;
+    if (!el.matches || !el.matches("select[data-draft]")) return;
+    sessionStorage.setItem(draftKey(el), el.value);
+    mark(el.closest("form"));
+    kindBeside(el);
+  });
+
   document.addEventListener("click", function (event) {
     var revert = event.target.closest("[data-revert]");
     if (!revert) return;
@@ -61,6 +86,7 @@
       el.value = el.getAttribute("data-origin") || "";
     });
     mark(form);
+    showKinds(form);
   });
 
   document.addEventListener("keydown", function (event) {
@@ -73,10 +99,12 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     restore(document);
+    showKinds(document);
     setTitle();
   });
   document.addEventListener("htmx:afterSwap", function (event) {
     restore(event.target);
+    showKinds(event.target);
     setTitle();
   });
 

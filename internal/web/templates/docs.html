@@ -13,16 +13,55 @@
 <aside class="panel" id="panel" data-parent="{{.Parent}}" aria-label="{{.Title}}">
   <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
   <h2 class="panel-title">{{.Title}}</h2>
-  {{- if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
+  {{- if .Notice}}<p class="problem">{{.Notice}}{{if .Reload}} <a class="link" href="{{.URL}}">{{t "web.reload"}}</a>{{end}}</p>{{end}}
   {{- range .Findings}}<p class="problem">{{.}}</p>{{end}}
+  {{- if .Saved}}<div class="saved">{{.Saved}}{{range .Preview}} <span class="note">{{.}}</span>{{end}}{{template "commands" .Handover}}</div>{{end}}
   {{- if .Rule}}{{template "rule" .Rule}}{{else}}
   <dl class="fields">
     {{- range .Fields}}
-    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
+    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Edit}}{{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{else}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Remove}} <a class="btn quiet" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
     {{- end}}
   </dl>
   {{- end}}
 </aside>
+{{end}}
+
+{{define "edit"}}
+<form class="edit" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-replace-url="true" data-key="{{.Key}}"{{if .Saved}} data-saved="1"{{end}}>
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <input type="hidden" name="op" value="{{.Op}}">
+  {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- range .Controls}}{{template "control" .}}{{end}}
+  <span class="actions" data-change hidden>
+    <button type="submit" class="btn primary">{{.Submit}}</button>
+    <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
+  </span>
+</form>
+{{end}}
+
+{{define "control"}}
+{{- if eq .Type "select"}}
+<select name="{{.Name}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}"{{if .KindOf}} data-kind-of{{end}}>
+  {{- range .Choices}}<option value="{{.Value}}"{{if .Kind}} data-kind="{{.Kind}}"{{end}}{{if .Chosen}} selected{{end}}>{{.Value}}</option>{{end}}
+</select>{{if .KindOf}} <span class="kind" data-kind-show>{{.Kind}}</span>{{end}}
+{{- else}}
+<input type="text" name="{{.Name}}" value="{{.Value}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}" autocomplete="off" size="10">
+{{- end}}
+{{end}}
+
+{{define "confirm"}}
+<form class="confirm" method="post" action="{{.Action}}" hx-post="{{.Action}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-replace-url="true">
+  <input type="hidden" name="token" value="{{.Token}}">
+  <input type="hidden" name="hash" value="{{.Hash}}">
+  <input type="hidden" name="op" value="{{.Op}}">
+  {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- range .Preview}}<span class="save-to">{{.}}</span>{{end}}
+  <span class="actions">
+    <button type="submit" class="btn primary">{{.Submit}}</button>
+    <a class="btn quiet" href="{{.Cancel}}">{{t "web.revert"}}</a>
+  </span>
+</form>
 {{end}}
 
 {{define "rule"}}

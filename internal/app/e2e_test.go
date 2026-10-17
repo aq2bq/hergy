@@ -35,6 +35,10 @@ func TestE2E(t *testing.T) {
 	// screens both print the words the test walks.
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	mustRun(t, "new", "demo")
+	// A second profile, so the kind beside the profile pick has something to
+	// follow (I7).
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  e2e-kind:\n    kind: codex\n")
 	f.runningHerdr(t, "", "")
 
 	base, stop := startServe(t, f)
@@ -64,6 +68,7 @@ func TestE2E(t *testing.T) {
 	t.Run("main line", func(t *testing.T) { e2eMainLine(t, ctx, base) })
 	t.Run("close again escape back", func(t *testing.T) { e2eClose(t, ctx, base) })
 	t.Run("mission", func(t *testing.T) { e2eMission(t, ctx, base) })
+	t.Run("members and workers", func(t *testing.T) { e2eMembers(t, ctx, base) })
 	t.Run("draft", func(t *testing.T) { e2eDraft(t, ctx, base) })
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
@@ -212,6 +217,80 @@ func e2eMission(t *testing.T, ctx context.Context, base string) {
 	}
 }
 
+// e2eMembers is the writable field of this round (C1〜C3, I6・I7): a member's
+// role is picked from the start, a change shows the buttons, revert puts the
+// file's own value back, and a save writes it and shows the saved line without
+// moving the place. The kind follows the profile pick, and the press that takes
+// a worker away says what the hire loses before anything is written.
+func e2eMembers(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	role := `form.edit[data-key="role"]`
+	profile := `form.edit[data-key="profile"]`
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(role))
+	if e2eActions(t, ctx, role) {
+		t.Errorf("the save buttons show before anything changed")
+	}
+	if got := e2eKind(t, ctx, role); got != "" {
+		t.Errorf("a role field shows a kind: %q", got)
+	}
+	e2ePick(t, ctx, `select[name="role"]`, "builder")
+	if !e2eActions(t, ctx, role) {
+		t.Fatalf("picking another role shows no save button")
+	}
+	e2eRun(t, ctx, chromedp.Click(role+` [data-revert]`))
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
+		t.Errorf("revert left %q, want the file's own role", got)
+	}
+
+	// The kind of the profile follows the pick, as its attribute (I7).
+	if got := e2eKind(t, ctx, profile); got != "claude" {
+		t.Errorf("the kind beside the profile is %q, want claude", got)
+	}
+	e2ePick(t, ctx, `select[name="profile"]`, "e2e-kind")
+	if got := e2eKind(t, ctx, profile); got != "codex" {
+		t.Errorf("the kind beside the picked profile is %q, want codex", got)
+	}
+	e2eRun(t, ctx, chromedp.Click(profile+` [data-revert]`))
+
+	e2ePick(t, ctx, `select[name="role"]`, "builder")
+	e2eRun(t, ctx, chromedp.Click(role+` button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	if e2eActions(t, ctx, role) {
+		t.Errorf("the save buttons still show after the save")
+	}
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
+	if !strings.Contains(saved, "書きました") || !strings.Contains(saved, "プロンプト") {
+		t.Errorf("the saved line is %q", saved)
+	}
+	if got := e2eURL(t, ctx); got != base+"/definitions/demo/members/lead" {
+		t.Errorf("the save moved to %q, want to stay", got)
+	}
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
+		t.Errorf("the field reads %q after the save, want the written role", got)
+	}
+
+	// Hiring a worker, and the press that takes it away: the line comes first.
+	e2eType(t, ctx, `form.edit[data-key="worker-add"] input[name="purpose"]`, "e2e")
+	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="worker-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/members/lead?remove=e2e"]`), chromedp.WaitVisible(".panel .confirm"))
+	e2eWaitText(t, ctx, ".panel .save-to", "lead のプロンプトの『呼べるワーカー』から e2e が消えます")
+	if got := e2eURL(t, ctx); !strings.Contains(got, "remove=e2e") {
+		t.Errorf("the press moved to %q, want the field with the removal pending", got)
+	}
+	e2eRun(t, ctx, chromedp.Click(".panel .confirm a.btn"), chromedp.WaitReady(`form.edit[data-key="worker-add"]`))
+	if got := e2eURL(t, ctx); got != base+"/definitions/demo/members/lead" {
+		t.Errorf("cancelling the removal landed on %q", got)
+	}
+
+	// A half-written pick survives opening another field (C5).
+	e2ePick(t, ctx, `select[name="role"]`, "lead")
+	e2eRun(t, ctx, chromedp.Click(`.detail a[href="/definitions/demo/members/builder"]`), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
+		t.Errorf("the half-written pick was lost: the field reads %q", got)
+	}
+}
+
 // e2eDraft is C5: a change not saved survives opening another field and coming
 // back.
 func e2eDraft(t *testing.T, ctx context.Context, base string) {
@@ -307,6 +386,48 @@ func e2eChangeButtons(t *testing.T, ctx context.Context) bool {
 	e2eRun(t, ctx, chromedp.Evaluate(
 		`getComputedStyle(document.querySelector('.mission [data-change]')).display !== 'none'`, &shown))
 	return shown
+}
+
+// e2eActions is whether one form's save group is drawn (C1).
+func e2eActions(t *testing.T, ctx context.Context, form string) bool {
+	t.Helper()
+	var shown bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`getComputedStyle(document.querySelector('`+form+` [data-change]')).display !== 'none'`, &shown))
+	return shown
+}
+
+// e2ePick picks one option of a select and fires the event a person's picking
+// fires.
+func e2ePick(t *testing.T, ctx context.Context, selector, value string) {
+	t.Helper()
+	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + value + `";el.dispatchEvent(new Event("change",{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eType writes one line into a text field and fires the event a person's
+// typing fires.
+func e2eType(t *testing.T, ctx context.Context, selector, text string) {
+	t.Helper()
+	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + text + `";el.dispatchEvent(new Event("input",{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eValue is what one control reads.
+func e2eValue(t *testing.T, ctx context.Context, selector string) string {
+	t.Helper()
+	var value string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('`+selector+`').value`, &value))
+	return value
+}
+
+// e2eKind is the kind shown beside one form's profile pick (I7).
+func e2eKind(t *testing.T, ctx context.Context, form string) string {
+	t.Helper()
+	var kind string
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`((document.querySelector('`+form+` [data-kind-show]')||{}).textContent||"").trim()`, &kind))
+	return kind
 }
 
 // e2eWaitText waits until one element's text starts with one line.
