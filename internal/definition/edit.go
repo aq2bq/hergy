@@ -99,38 +99,39 @@ func WorkerProfile(from, purpose, profile string) Op {
 // means, so a line the edit placed on the wrong line is caught here rather than
 // written. The shapes a line edit cannot rewrite (a value written as a block
 // scalar, a `<<:` merge, an anchored value or a `*` alias) are refused with
-// error.edit_shape instead of being rewritten whole.
+// error.edit_shape instead of being rewritten whole; that sentence names the
+// file as path writes it, so a screen hands in the path it shows (spec/42 R2).
 //
 // It does not check the definition: whether the result still reads is another
 // gate's to stop (C2), and a screen checks before it writes rather than after.
-func EditYAML(text []byte, op Op) ([]byte, error) {
+func EditYAML(text []byte, path string, op Op) ([]byte, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(text, &doc); err != nil {
-		return nil, i18n.Errorf("error.edit_yaml", err)
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, i18n.Errorf("error.edit_not_mapping")
+		return nil, i18n.Errorf("error.edit_not_mapping", path)
 	}
 	root := doc.Content[0]
 	if key, ok := yamledit.ShapeKeyOf(root); ok {
-		return nil, i18n.Errorf("error.edit_shape", key)
+		return nil, i18n.Errorf("error.edit_shape", path, key)
 	}
 
-	src := yamledit.New(text)
+	src := yamledit.New(text, path)
 	if err := applyLines(src, root, op); err != nil {
 		return nil, err
 	}
 
 	var want yaml.Node
 	if err := yaml.Unmarshal(text, &want); err != nil {
-		return nil, i18n.Errorf("error.edit_yaml", err)
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if err := applyTree(want.Content[0], op); err != nil {
 		return nil, err
 	}
 
 	out := src.Bytes()
-	if err := yamledit.SameValues(&want, out); err != nil {
+	if err := yamledit.SameValues(&want, out, path); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -194,7 +195,7 @@ func setMissionLines(src *yamledit.Source, root *yaml.Node, value string) error 
 	if v := yamledit.MappingValue(root, "mission"); v != nil {
 		return yamledit.ReplaceScalar(src, v, value, "mission", false)
 	}
-	if err := yamledit.WritableValue(value, "mission"); err != nil {
+	if err := src.Writable(value, "mission"); err != nil {
 		return err
 	}
 	at := 0
@@ -222,7 +223,7 @@ func putKeyLines(src *yamledit.Source, item *yaml.Node, key, value string) error
 	if v := yamledit.MappingValue(item, key); v != nil {
 		return yamledit.ReplaceScalar(src, v, value, key, item.Style&yaml.FlowStyle != 0)
 	}
-	if err := yamledit.WritableValue(value, key); err != nil {
+	if err := src.Writable(value, key); err != nil {
 		return err
 	}
 	src.Insert(yamledit.NodeEndLine(item), yamledit.Spaces(yamledit.MappingIndent(item))+key+": "+yamledit.ScalarLiteral(value, 0))
@@ -313,7 +314,7 @@ func addWorkerLines(src *yamledit.Source, root *yaml.Node, from, purpose, profil
 	if err := checkWorkerNew(root, from, purpose); err != nil {
 		return err
 	}
-	if err := yamledit.WritableValue(purpose, "workers"); err != nil {
+	if err := src.Writable(purpose, "workers"); err != nil {
 		return err
 	}
 	v := yamledit.MappingValue(root, "workers")

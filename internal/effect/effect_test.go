@@ -142,7 +142,7 @@ func teamText() string {
 func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberProfile("lead", "codex-default"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberProfile("lead", "codex-default"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestOfProfileChangeMovesTheLaunch(t *testing.T) {
 func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 	l := newLayer(t)
 	before := l.read(t, teamText())
-	edited, err := definition.EditYAML([]byte(teamText()), definition.MemberRole("spec", "lead"))
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -482,7 +482,7 @@ func TestOfLeavesOutAPartTheBuiltPromptDoesNotShow(t *testing.T) {
 	l := newLayer(t)
 	text := strings.Replace(teamText(), "team: demo\n", "team: demo\nprompt: \"%{role_doc}%{docs}\"\n", 1)
 	before := l.read(t, text)
-	edited, err := definition.EditYAML([]byte(text), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+	edited, err := definition.EditYAML([]byte(text), "team.yaml", definition.RemoveTurn(memberID("lead"), memberID("spec")))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,8 @@ package rules
 import (
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // handWritten is a rule document as a person writes it: a blank line, a comment
@@ -195,10 +197,11 @@ func TestWriteWithTheSameValuesChangesNothing(t *testing.T) {
 
 // TestWriteRefusesAShapeItCannotWrite: a document whose sections are one flow
 // sequence has no line of one rule's own, so the write is refused with
-// error.edit_shape rather than written somewhere else.
+// error.edit_shape rather than written somewhere else. The sentence names the
+// document, not team.yaml (spec/42 R2).
 func TestWriteRefusesAShapeItCannotWrite(t *testing.T) {
 	const text = "version: 1\nsections: [{rules: [{id: T1, text: x}]}]\n"
-	doc, err := Parse(text, "x.yaml")
+	doc, err := Parse(text, "roles/lead.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,8 +210,26 @@ func TestWriteRefusesAShapeItCannotWrite(t *testing.T) {
 	if err := doc.SetRule(0, 0, next); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Write([]byte(text), doc, Edit{Section: 0, Rule: 0}); err == nil {
+	_, err = Write([]byte(text), doc, Edit{Section: 0, Rule: 0})
+	if err == nil {
 		t.Fatal("a flow-shaped document was written")
+	}
+	if want := i18n.Tf("error.edit_shape", "roles/lead.yaml", "sections"); err.Error() != want {
+		t.Errorf("error = %q, want %q", err, want)
+	}
+}
+
+// TestWriteWithTheSameValuesKeepsAHandWrittenShape is spec/42 R1: a rule written
+// by hand (a quoted text, a flow sequence for its refs) is left as the file
+// wrote it when the values the write means are the ones the file holds.
+func TestWriteWithTheSameValuesKeepsAHandWrittenShape(t *testing.T) {
+	doc := parseHand(t)
+	out, err := Write([]byte(handWritten), doc, Edit{Section: 0, Rule: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != handWritten {
+		t.Errorf("Write rewrote a hand-written document:\n%q\nwant\n%q", string(out), handWritten)
 	}
 }
 

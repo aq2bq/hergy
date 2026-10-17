@@ -39,23 +39,27 @@ type Edit struct {
 // write. An added rule is written after the section's last item — or under the
 // section itself when the section has no rules: key yet — and the key's line is
 // turned into a block sequence when the file wrote the rules in flow.
+//
+// The sentence of a refusal names the document as doc.Path writes it, so the
+// caller hands in the path it shows (spec/42 R2).
 func Write(text []byte, doc *Document, edit Edit) ([]byte, error) {
-	root, err := readRoot(text)
+	path := doc.Path
+	root, err := readRoot(text, path)
 	if err != nil {
 		return nil, err
 	}
 	sections := yamledit.MappingValue(root, "sections")
 	if sections == nil || sections.Kind != yaml.SequenceNode || sections.Style&yaml.FlowStyle != 0 {
-		return nil, i18n.Errorf("error.edit_shape", "sections")
+		return nil, i18n.Errorf("error.edit_shape", path, "sections")
 	}
 	if edit.Section < 0 || edit.Section >= len(sections.Content) {
-		return nil, i18n.Errorf("error.edit_shape", "sections")
+		return nil, i18n.Errorf("error.edit_shape", path, "sections")
 	}
 	section := sections.Content[edit.Section]
 	if section.Kind != yaml.MappingNode {
-		return nil, i18n.Errorf("error.edit_shape", "sections")
+		return nil, i18n.Errorf("error.edit_shape", path, "sections")
 	}
-	src := yamledit.New(text)
+	src := yamledit.New(text, path)
 
 	switch {
 	case edit.Added:
@@ -63,15 +67,15 @@ func Write(text []byte, doc *Document, edit Edit) ([]byte, error) {
 			return nil, err
 		}
 	case edit.Removed:
-		if err := removeRuleLines(src, section, edit.Rule); err != nil {
+		if err := removeRuleLines(src, section, edit.Rule, path); err != nil {
 			return nil, err
 		}
 	default:
-		item, err := ruleItem(section, edit.Rule)
+		item, err := ruleItem(section, edit.Rule, path)
 		if err != nil {
 			return nil, err
 		}
-		lines, err := ruleLines(ruleOf(doc, edit.Section, edit.Rule), item.Column-3)
+		lines, err := ruleLines(ruleOf(doc, edit.Section, edit.Rule), item.Column-3, path)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +83,13 @@ func Write(text []byte, doc *Document, edit Edit) ([]byte, error) {
 	}
 
 	out := src.Bytes()
-	if err := sameDocument(doc, out); err != nil {
+	// A write whose values are the ones the file already holds writes nothing:
+	// a save that changed no value must not rewrite a shape a person wrote (a
+	// quoted value, a flow sequence) into hergy's own (spec/42 R1).
+	if err := sameValuesAs(doc, text); err == nil {
+		return text, nil
+	}
+	if err := sameValuesAs(doc, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -88,35 +98,35 @@ func Write(text []byte, doc *Document, edit Edit) ([]byte, error) {
 // readRoot is the file's own tree, refusing the shapes a line write cannot
 // place: a file that is not one mapping, or one that holds a `<<:` merge, an
 // anchor or a `*` alias (the same refusal team.yaml gets).
-func readRoot(text []byte) (*yaml.Node, error) {
+func readRoot(text []byte, path string) (*yaml.Node, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(text, &doc); err != nil {
-		return nil, i18n.Errorf("error.edit_yaml", err)
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, i18n.Errorf("error.edit_not_mapping")
+		return nil, i18n.Errorf("error.edit_not_mapping", path)
 	}
 	root := doc.Content[0]
 	if key, ok := yamledit.ShapeKeyOf(root); ok {
-		return nil, i18n.Errorf("error.edit_shape", key)
+		return nil, i18n.Errorf("error.edit_shape", path, key)
 	}
 	return root, nil
 }
 
-// sameDocument reads the written text back and compares it with the document the
-// write means, so lines placed on the wrong place are caught here rather than
-// written. Only the values are compared: the order the file keeps its keys in is
-// the file's own.
-func sameDocument(doc *Document, out []byte) error {
+// sameValuesAs reads the text back and compares it with the document the write
+// means, so lines placed on the wrong place are caught here rather than written.
+// Only the values are compared: the order the file keeps its keys in is the
+// file's own.
+func sameValuesAs(doc *Document, out []byte) error {
 	text, err := Emit(doc)
 	if err != nil {
 		return err
 	}
-	want, err := readRoot([]byte(text))
+	want, err := readRoot([]byte(text), doc.Path)
 	if err != nil {
 		return err
 	}
-	return yamledit.SameValues(want, out)
+	return yamledit.SameValues(want, out, doc.Path)
 }
 
 // ruleOf is one rule of the document the write means.
@@ -131,13 +141,13 @@ func ruleOf(doc *Document, section, rule int) Rule {
 }
 
 // ruleItem is the node of one rule of a section, or the refusal its place gets.
-func ruleItem(section *yaml.Node, rule int) (*yaml.Node, error) {
+func ruleItem(section *yaml.Node, rule int, path string) (*yaml.Node, error) {
 	v := yamledit.MappingValue(section, "rules")
 	if v == nil || v.Kind != yaml.SequenceNode || v.Style&yaml.FlowStyle != 0 {
-		return nil, i18n.Errorf("error.edit_shape", "rules")
+		return nil, i18n.Errorf("error.edit_shape", path, "rules")
 	}
 	if rule < 0 || rule >= len(v.Content) {
-		return nil, i18n.Errorf("error.edit_shape", "rules")
+		return nil, i18n.Errorf("error.edit_shape", path, "rules")
 	}
 	return v.Content[rule], nil
 }
@@ -147,8 +157,8 @@ func ruleItem(section *yaml.Node, rule int) (*yaml.Node, error) {
 // which Emit writes without a rules: key. A section that was nothing but its
 // rules becomes the empty section Emit writes ({}) — the one shape where the
 // key cannot go on its own.
-func removeRuleLines(src *yamledit.Source, section *yaml.Node, rule int) error {
-	item, err := ruleItem(section, rule)
+func removeRuleLines(src *yamledit.Source, section *yaml.Node, rule int, path string) error {
+	item, err := ruleItem(section, rule, path)
 	if err != nil {
 		return err
 	}
@@ -173,9 +183,10 @@ func removeRuleLines(src *yamledit.Source, section *yaml.Node, rule int) error {
 // section itself. A section written as one empty flow mapping ({}) is the one
 // shape with no line to write under: it becomes the section's own item.
 func addRuleLines(src *yamledit.Source, section *yaml.Node, doc *Document, at int) error {
+	path := doc.Path
 	rules := doc.Sections[at].Rules
 	if len(rules) == 0 {
-		return i18n.Errorf("error.edit_shape", "rules")
+		return i18n.Errorf("error.edit_shape", path, "rules")
 	}
 	rule := rules[len(rules)-1]
 
@@ -184,10 +195,10 @@ func addRuleLines(src *yamledit.Source, section *yaml.Node, doc *Document, at in
 	case section.Style&yaml.FlowStyle != 0:
 		if len(section.Content) != 0 {
 			// {heading: …} has no line of its own to write the key under.
-			return i18n.Errorf("error.edit_shape", "sections")
+			return i18n.Errorf("error.edit_shape", path, "sections")
 		}
 		dash := section.Column - 3
-		lines, err := ruleLines(rule, dash+4)
+		lines, err := ruleLines(rule, dash+4, path)
 		if err != nil {
 			return err
 		}
@@ -195,10 +206,10 @@ func addRuleLines(src *yamledit.Source, section *yaml.Node, doc *Document, at in
 		return nil
 	case v == nil:
 		if len(section.Content) == 0 {
-			return i18n.Errorf("error.edit_shape", "sections")
+			return i18n.Errorf("error.edit_shape", path, "sections")
 		}
 		indent := yamledit.MappingIndent(section)
-		lines, err := ruleLines(rule, indent+2)
+		lines, err := ruleLines(rule, indent+2, path)
 		if err != nil {
 			return err
 		}
@@ -210,7 +221,7 @@ func addRuleLines(src *yamledit.Source, section *yaml.Node, doc *Document, at in
 		if err != nil {
 			return err
 		}
-		lines, err := ruleLines(rule, place.DashCol)
+		lines, err := ruleLines(rule, place.DashCol, path)
 		if err != nil {
 			return err
 		}
@@ -222,12 +233,12 @@ func addRuleLines(src *yamledit.Source, section *yaml.Node, doc *Document, at in
 // ruleLines is one rule written the way Emit writes it, as the lines of a block
 // sequence item whose "- " stands at dashCol: the item's first line, and the
 // lines under it, moved to where the file writes that section's rules.
-func ruleLines(rule Rule, dashCol int) ([]string, error) {
+func ruleLines(rule Rule, dashCol int, path string) ([]string, error) {
 	text, err := Emit(&Document{Sections: []Section{{Rules: []Rule{rule}}}})
 	if err != nil {
 		return nil, err
 	}
-	root, err := readRoot([]byte(text))
+	root, err := readRoot([]byte(text), path)
 	if err != nil {
 		return nil, err
 	}

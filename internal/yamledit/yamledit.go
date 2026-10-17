@@ -57,20 +57,20 @@ func RemoveNode(src *Source, n *yaml.Node) {
 // values are compared (the order of a mapping's keys is not the file's promise),
 // so a value put on the wrong line, dropped, or written unquoted where it needs
 // quotes is caught.
-func SameValues(want *yaml.Node, out []byte) error {
-	encoded, err := encode(want)
+func SameValues(want *yaml.Node, out []byte, path string) error {
+	encoded, err := encode(want, path)
 	if err != nil {
 		return err
 	}
 	var wanted, got any
 	if err := yaml.Unmarshal(encoded, &wanted); err != nil {
-		return i18n.Errorf("error.edit_yaml", err)
+		return i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if err := yaml.Unmarshal(out, &got); err != nil {
-		return i18n.Errorf("error.edit_yaml", err)
+		return i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if !reflect.DeepEqual(wanted, got) {
-		return i18n.Errorf("error.edit_yaml", fmt.Errorf("書き換えた行が、意図した変更と読み取れません"))
+		return i18n.Errorf("error.edit_yaml", path, fmt.Errorf("書き換えた行が、意図した変更と読み取れません"))
 	}
 	return nil
 }
@@ -78,15 +78,15 @@ func SameValues(want *yaml.Node, out []byte) error {
 // encode writes the document the way hergy writes its own settings: a
 // two-space indent, so a file already in that form is not re-indented. It is
 // used to compare values, not to write the file.
-func encode(doc *yaml.Node) ([]byte, error) {
+func encode(doc *yaml.Node, path string) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	if err := enc.Encode(doc); err != nil {
-		return nil, i18n.Errorf("error.edit_yaml", err)
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if err := enc.Close(); err != nil {
-		return nil, i18n.Errorf("error.edit_yaml", err)
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	return buf.Bytes(), nil
 }
@@ -95,33 +95,33 @@ func encode(doc *yaml.Node) ([]byte, error) {
 // key, the indent, the comment after it and the line ending. The new value is
 // written the way the old one was (a quoted value stays quoted).
 func ReplaceScalar(src *Source, val *yaml.Node, value, label string, flow bool) error {
-	if err := WritableValue(value, label); err != nil {
+	if err := src.Writable(value, label); err != nil {
 		return err
 	}
 	if val.Anchor != "" {
 		// The value is referred to from elsewhere by an alias; rewriting it
 		// here would move what every alias reads, so the file is left alone.
-		return i18n.Errorf("error.edit_shape", label)
+		return src.shape(label)
 	}
 	if val.Kind != yaml.ScalarNode || val.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
-		return i18n.Errorf("error.edit_shape", label)
+		return src.shape(label)
 	}
 	line := src.Line(val.Line)
 	start := ByteColumn(line, val.Column)
 	end, ok := ScalarEnd(line, start, flow)
 	if !ok {
-		return i18n.Errorf("error.edit_shape", label)
+		return src.shape(label)
 	}
 	src.lines[val.Line-1] = line[:start] + ScalarLiteral(value, val.Style) + line[end:]
 	return nil
 }
 
-// WritableValue is a value this editor can put on one line. A value with a line
-// break in it cannot be a one-line scalar, so the file is left for a person to
-// edit rather than rewritten on a guess.
-func WritableValue(value, label string) error {
+// Writable is a value this editor can put on one line. A value with a line break
+// in it cannot be a one-line scalar, so the file is left for a person to edit
+// rather than rewritten on a guess.
+func (s *Source) Writable(value, label string) error {
 	if strings.ContainsAny(value, "\n\r") {
-		return i18n.Errorf("error.edit_shape", label)
+		return s.shape(label)
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ type SeqPlace struct {
 func BlockPlace(src *Source, root *yaml.Node, key string, v *yaml.Node) (SeqPlace, error) {
 	keyNode := MappingKeyNode(root, key)
 	if keyNode == nil {
-		return SeqPlace{}, i18n.Errorf("error.edit_shape", key)
+		return SeqPlace{}, src.shape(key)
 	}
 	keyLine := src.Line(keyNode.Line)
 	keyIndent := LeadingSpaces(keyLine)
@@ -156,12 +156,12 @@ func BlockPlace(src *Source, root *yaml.Node, key string, v *yaml.Node) (SeqPlac
 		return SeqPlace{DashCol: keyIndent + 2, AfterLast: keyNode.Line}, nil
 	}
 	if v.Kind != yaml.SequenceNode {
-		return SeqPlace{}, i18n.Errorf("error.edit_shape", key)
+		return SeqPlace{}, src.shape(key)
 	}
 	if v.Style&yaml.FlowStyle != 0 {
 		items := make([]string, 0, len(v.Content))
 		for _, item := range v.Content {
-			text, err := FlowItem(item, key)
+			text, err := src.FlowItem(item, key)
 			if err != nil {
 				return SeqPlace{}, err
 			}
@@ -199,7 +199,7 @@ func ItemLines(items []string, indent int) []string {
 
 // FlowItem is one item written as a block sequence entry holds it: its value, or
 // a flow mapping ({from: …}) so a worker written either way keeps its shape.
-func FlowItem(item *yaml.Node, key string) (string, error) {
+func (s *Source) FlowItem(item *yaml.Node, key string) (string, error) {
 	switch item.Kind {
 	case yaml.ScalarNode:
 		return ScalarLiteral(item.Value, item.Style), nil
@@ -210,7 +210,7 @@ func FlowItem(item *yaml.Node, key string) (string, error) {
 		}
 		return "{" + strings.Join(parts, ", ") + "}", nil
 	default:
-		return "", i18n.Errorf("error.edit_shape", key)
+		return "", s.shape(key)
 	}
 }
 
@@ -239,7 +239,7 @@ func RemoveFlowItem(src *Source, root *yaml.Node, key string, v, item *yaml.Node
 		if other == item {
 			continue
 		}
-		text, err := FlowItem(other, key)
+		text, err := src.FlowItem(other, key)
 		if err != nil {
 			return err
 		}
@@ -352,15 +352,18 @@ func named(at, self string) string {
 
 // Source is a file split into lines, remembering the line ending it uses and
 // whether it ends with one, so an edit can put back the lines it did not change
-// byte for byte.
+// byte for byte. It carries the file's path as a person reads it (the caller's
+// Display), so a refusal says which file it is about (spec/42 R2).
 type Source struct {
 	lines    []string
+	path     string
 	nl       string
 	trailing bool
 }
 
-// New splits text into lines, with the line ending kept aside.
-func New(text []byte) *Source {
+// New splits text into lines, with the line ending kept aside. path is the file
+// as a person reads it, and it is what an error names.
+func New(text []byte, path string) *Source {
 	s := string(text)
 	nl := "\n"
 	if strings.Contains(s, "\r\n") {
@@ -370,9 +373,16 @@ func New(text []byte) *Source {
 	trailing := strings.HasSuffix(body, "\n")
 	return &Source{
 		lines:    strings.Split(strings.TrimSuffix(body, "\n"), "\n"),
+		path:     path,
 		nl:       nl,
 		trailing: trailing,
 	}
+}
+
+// shape is the refusal of a shape a line write cannot place, in the file's own
+// name.
+func (s *Source) shape(key string) error {
+	return i18n.Errorf("error.edit_shape", s.path, key)
 }
 
 // Bytes is the file back, with the line ending it came with.

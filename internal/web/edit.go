@@ -60,7 +60,7 @@ func (s *Server) saveTeamYAML(name string, open panelFn, edit teamEdit) (view, e
 	if err != nil {
 		return view{}, err
 	}
-	edited, err := definition.EditYAML([]byte(text), edit.Op)
+	edited, err := definition.EditYAML([]byte(text), s.cat.Display(def.TeamYAML), edit.Op)
 	if err != nil {
 		return s.editRefused(def, open, edit, err.Error(), false)
 	}
@@ -134,7 +134,7 @@ func (s *Server) previewOf(def *definition.Definition, op definition.Op) (lines 
 	if err != nil {
 		return nil, ""
 	}
-	edited, err := definition.EditYAML([]byte(text), op)
+	edited, err := definition.EditYAML([]byte(text), s.cat.Display(def.TeamYAML), op)
 	if err != nil {
 		return nil, ""
 	}

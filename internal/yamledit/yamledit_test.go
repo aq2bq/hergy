@@ -46,7 +46,7 @@ func item(t *testing.T, root *yaml.Node, key string, i int) *yaml.Node {
 // sequence — comes back as it was.
 func TestReplaceNodeWritesOneItem(t *testing.T) {
 	root := nodes(t, tree)
-	src := New([]byte(tree))
+	src := New([]byte(tree), "x.yaml")
 	ReplaceNode(src, item(t, root, "items", 1), []string{"  - B", "    note: 書き換えた"})
 	out := string(src.Bytes())
 	want := strings.Replace(tree, "  - b\n", "  - B\n    note: 書き換えた\n", 1)
@@ -64,7 +64,7 @@ func TestReplaceNodeWritesOneItem(t *testing.T) {
 // lines, before the blank line that follows.
 func TestInsertAfterNodePutsLinesAfterOneItem(t *testing.T) {
 	root := nodes(t, tree)
-	src := New([]byte(tree))
+	src := New([]byte(tree), "x.yaml")
 	InsertAfterNode(src, item(t, root, "items", 0), "  - a2")
 	out := string(src.Bytes())
 	want := strings.Replace(tree, "  - a\n", "  - a\n  - a2\n", 1)
@@ -77,7 +77,7 @@ func TestInsertAfterNodePutsLinesAfterOneItem(t *testing.T) {
 // file wrote above it at its own indent; the blank line stays.
 func TestRemoveNodeTakesTheCommentWithIt(t *testing.T) {
 	root := nodes(t, tree)
-	src := New([]byte(tree))
+	src := New([]byte(tree), "x.yaml")
 	RemoveNode(src, item(t, root, "items", 2))
 	out := string(src.Bytes())
 	want := strings.Replace(tree, "\n  # c は最後\n  - c\n", "\n", 1)
@@ -96,7 +96,7 @@ func TestNodeRangeIsTheNodesOwnLines(t *testing.T) {
 	if from != 2 || to != 5 {
 		t.Errorf("NodeRange = %d..%d, want 2..5", from, to)
 	}
-	src := New([]byte(text))
+	src := New([]byte(text), "x.yaml")
 	ReplaceNode(src, item(t, root, "a", 0), []string{"  - id: T9", "    text: 書き換えた"})
 	want := "a:\n  - id: T9\n    text: 書き換えた\n  - id: T2\n"
 	if string(src.Bytes()) != want {
@@ -108,10 +108,10 @@ func TestNodeRangeIsTheNodesOwnLines(t *testing.T) {
 // intended tree is refused rather than written.
 func TestSameValuesCatchesAWrongWrite(t *testing.T) {
 	want := nodes(t, "a: 1\n")
-	if err := SameValues(want, []byte("a: 2\n")); err == nil {
+	if err := SameValues(want, []byte("a: 2\n"), "x.yaml"); err == nil {
 		t.Error("a write that reads as another value was accepted")
 	}
-	if err := SameValues(want, []byte("a: 1\n")); err != nil {
+	if err := SameValues(want, []byte("a: 1\n"), "x.yaml"); err != nil {
 		t.Errorf("a write that reads as the intended tree was refused: %v", err)
 	}
 }

@@ -426,7 +426,7 @@ func (s *Server) saveRule(r *http.Request, place rulesPlace, add bool) (view, er
 	if err != nil {
 		return view{}, err
 	}
-	doc, err := rules.Parse(text, place.Doc.Path)
+	doc, err := rules.Parse(text, s.cat.Display(place.Doc.Path))
 	if err != nil {
 		return s.rulesPage(place, nil, saved{}, s.breakLine(place.Doc.Path, err), false)
 	}
@@ -502,7 +502,7 @@ func (s *Server) takeRule(r *http.Request, place rulesPlace) (view, error) {
 	if err != nil {
 		return view{}, err
 	}
-	doc, err := rules.Parse(text, place.Doc.Path)
+	doc, err := rules.Parse(text, s.cat.Display(place.Doc.Path))
 	if err != nil {
 		return s.rulesPage(place, nil, saved{}, s.breakLine(place.Doc.Path, err), false)
 	}
@@ -531,7 +531,14 @@ func (s *Server) writeRules(r *http.Request, place rulesPlace, text string, doc 
 	if err != nil {
 		return s.rulesPage(place, open, saved{}, err.Error(), false)
 	}
-	if _, err := rules.Parse(string(written), place.Doc.Path); err != nil {
+	if string(written) == text {
+		// The values did not change: the file is left as it is and the line says
+		// so, rather than writing a hand-written shape into hergy's own
+		// (spec/42 R1).
+		line := s.rulesSaved(place, s.cat.With(place.Doc.Path, text), tf("web.rule.unchanged", tf("web.rule.key", form.ID)))
+		return s.rulesPage(place, open, line, "", false)
+	}
+	if _, err := rules.Parse(string(written), s.cat.Display(place.Doc.Path)); err != nil {
 		return s.rulesPage(place, open, saved{}, s.breakLine(place.Doc.Path, err), false)
 	}
 	with := s.cat.With(place.Doc.Path, string(written))

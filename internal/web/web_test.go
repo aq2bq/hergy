@@ -1342,7 +1342,7 @@ func TestARoleWithoutADocumentIsRefusedWithValidatesSentence(t *testing.T) {
 	if readFile(t, path) != before {
 		t.Errorf("a refused save wrote the file")
 	}
-	edited, err := definition.EditYAML([]byte(before), definition.MemberRole("lead", "builder"))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.MemberRole("lead", "builder"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1761,7 +1761,7 @@ func TestTheLastTurnIsRefusedWithValidatesSentence(t *testing.T) {
 	}
 
 	// A hand-sent write is refused with the same sentence, and writes nothing.
-	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1815,7 +1815,7 @@ func TestTheLastTurnToTheHumanIsRefused(t *testing.T) {
 		t.Errorf("a choice that would stop the definition still offers the write:\n%s", confirm)
 	}
 
-	edited, err := definition.EditYAML([]byte(before), definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
+	edited, err := definition.EditYAML([]byte(before), "team.yaml", definition.RemoveTurn(memberNode("builder"), (definition.Human{}).ID()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2028,8 +2028,9 @@ func TestARuleIsWrittenAndKeepsTheRestOfTheDocument(t *testing.T) {
 	}
 }
 
-// TestASaveWithNothingChangedLeavesTheFile: the format is written one way, so a
-// card saved as it stands writes the same file (設計 7.3 の golden、d-cbac).
+// TestASaveWithNothingChangedLeavesTheFile: a card saved as it stands writes
+// nothing — the values are the ones the file already holds — and the line says
+// so (spec/42 R1).
 func TestASaveWithNothingChangedLeavesTheFile(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
@@ -2044,8 +2045,11 @@ func TestASaveWithNothingChangedLeavesTheFile(t *testing.T) {
 	if after := readFile(t, path); after != before {
 		t.Errorf("a save that changed nothing rewrote the file:\n%q\nwant\n%q", after, before)
 	}
-	if !strings.Contains(body, "を書きました") {
-		t.Errorf("the save shows no saved line:\n%s", body)
+	if !strings.Contains(body, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the save does not say nothing changed:\n%s", body)
+	}
+	if strings.Contains(between(body, `class="saved"`, "</div>"), "書きました") {
+		t.Errorf("a save that changed nothing says it wrote:\n%s", body)
 	}
 	// A file that moved under the page is refused (3.0 のぶつかり).
 	_, body = f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
@@ -2372,7 +2376,70 @@ func TestASaveWithTheSameValuesTellsNoTeamToTakeItUp(t *testing.T) {
 	if !strings.Contains(saved, "動いているチームに渡すものはありません") {
 		t.Errorf("a save with the same values tells a team to take it up:\n%s", saved)
 	}
-	if !strings.Contains(saved, "の「規則 TEAM-1」を書きました。") {
-		t.Errorf("the saved line does not name the rule:\n%s", saved)
+	if !strings.Contains(saved, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the saved line does not say nothing changed:\n%s", saved)
+	}
+}
+
+// TestAHandWrittenSavesNothingWhenTheValuesAreTheSame is spec/42 R1: a rule a
+// person wrote with a quoted text and a flow sequence for its refs is not
+// rewritten when the save changes no value — the field's values are the ones the
+// file holds — and the line says the document did not change.
+func TestAHandWrittenSavesNothingWhenTheValuesAreTheSame(t *testing.T) {
+	f := newFixture(t)
+	hand := "version: 1\ntitle: 手で書いた文書\n\nsections:\n" +
+		"  - heading: 約束\n" +
+		"    rules:\n" +
+		"      - id: TEAM-1\n" +
+		"        text: '台帳から始めて台帳に書く。'\n" +
+		"        origin:\n" +
+		"          - kind: incident\n" +
+		"            date: \"2026-01-01\"\n" +
+		"            refs: [d-1, d-2]\n"
+	f.write(t, "teams/demo/agreement.yaml", hand)
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text":        {"台帳から始めて台帳に書く。"},
+		"hash":        {source.Hash(hand)},
+		"origin_kind": {"incident"},
+		"origin_date": {"2026-01-01"},
+		"origin_refs": {"d-1, d-2"},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if after := readFile(t, path); after != hand {
+		t.Errorf("a save with the same values rewrote the file:\n%q\nwant\n%q", after, hand)
+	}
+	if !strings.Contains(body, "「規則 TEAM-1」は変わっていません。") {
+		t.Errorf("the save does not say nothing changed:\n%s", body)
+	}
+}
+
+// TestAShapeTheScreenCannotWriteNamesTheDocument: a rule document whose sections
+// are one flow sequence cannot be written, and the sentence names that document
+// rather than team.yaml (spec/42 R2).
+func TestAShapeTheScreenCannotWriteNamesTheDocument(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "teams/demo/agreement.yaml", "version: 1\nsections: [{rules: [{id: TEAM-1, text: x}]}]\n")
+	server := f.server(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	before := readFile(t, path)
+	resp, body := f.post(t, server, "/definitions/demo/agreement/TEAM-1", url.Values{
+		"text": {"y"}, "hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the refused save answered %d", resp.StatusCode)
+	}
+	panel := between(body, `<h2 class="panel-title">`, "</aside>")
+	if !strings.Contains(panel, path+" の sections は、この画面では書き換えられない形です") {
+		t.Errorf("the refusal does not name the document:\n%s", panel)
+	}
+	if strings.Contains(panel, "team.yaml") {
+		t.Errorf("the refusal names team.yaml:\n%s", panel)
+	}
+	if after := readFile(t, path); after != before {
+		t.Errorf("the refused save wrote the document:\n%q", after)
 	}
 }
