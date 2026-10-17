@@ -47,7 +47,7 @@
 {{define "control"}}
 {{- if eq .Type "select"}}
 <select name="{{.Name}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}"{{if .KindOf}} data-kind-of{{end}}{{if .Preview}} data-preview="{{.Preview}}"{{end}}>
-  {{- range .Choices}}<option value="{{.Value}}"{{if .Kind}} data-kind="{{.Kind}}"{{end}}{{if .Chosen}} selected{{end}}>{{.Value}}</option>{{end}}
+  {{- range .Choices}}<option value="{{.Value}}"{{if .Kind}} data-kind="{{.Kind}}"{{end}}{{if .Chosen}} selected{{end}}>{{if .Text}}{{.Text}}{{else}}{{.Value}}{{end}}</option>{{end}}
 </select>{{if .KindOf}} <span class="kind" data-kind-show>{{.Kind}}</span>{{end}}
 {{- else}}
 <label class="fl">{{.Label}} <input type="text" name="{{.Name}}" value="{{.Value}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}" autocomplete="off" size="10"></label>

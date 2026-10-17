@@ -19,6 +19,7 @@ import (
 // stands beside the pick as an attribute, never inside a choice (I7、po-r6 の 4).
 type choice struct {
 	Value  string
+	Text   string // what a person reads, when it is not the value (the human)
 	Kind   string
 	Chosen bool
 }
@@ -105,6 +106,13 @@ func workerKey(from, purpose string) string { return "worker/" + from + "/" + pu
 // written (I6).
 func removeHref(panelURL, purpose string) string {
 	return panelURL + "?" + url.Values{"remove": {purpose}}.Encode()
+}
+
+// turnRemoveHref is where a press chooses one turn's removal, before anything is
+// written (4 節). The far end travels in the URL, so the row itself shows the
+// line about what the removal would do.
+func turnRemoveHref(panelURL, to string) string {
+	return panelURL + "?" + url.Values{"turn": {to}}.Encode()
 }
 
 // previewHref is where a pick shows what it would do before it is written (T1):
@@ -206,6 +214,58 @@ func (s *Server) addWorkerForm(p panel, def *definition.Definition, member defin
 		},
 	}
 	return form
+}
+
+// addTurnForm is the form that hands the turn to one more party (設計 3.4 の表、
+// 4 節): the members and the human this node does not hand the turn to yet, and
+// not itself. A turn to a worker is made by workers:, so a worker is never a
+// choice. The form is there only when there is a party to pick.
+func (s *Server) addTurnForm(p panel, def *definition.Definition, from definition.NodeID, pending pendingEdit) *editForm {
+	choices := turnChoices(def, from)
+	if len(choices) < 2 {
+		return nil
+	}
+	form := p.form("turn-add", opTurnAdd)
+	form.Submit = t("web.add")
+	form.Controls = []control{{
+		Name:    "to",
+		Type:    "select",
+		Draft:   draftKey(def.Name, "turns/"+nodeLabel(from), "add"),
+		Origin:  "",
+		Value:   pending.Value,
+		Choices: choices,
+		Preview: previewHref(p.URL, opTurnAdd),
+	}}
+	return form
+}
+
+// turnChoices is who one node may hand the turn to next: the members in the
+// order the definition writes them, and the human last, without the node itself
+// and without the parties its turns: already name (4 節). The choice is the
+// node's identity, which is what a turn is written with.
+func turnChoices(def *definition.Definition, from definition.NodeID) []choice {
+	taken := map[definition.NodeID]bool{}
+	for _, edge := range def.Graph.Out(from) {
+		if isTurn(edge) {
+			taken[edge.To] = true
+		}
+	}
+	// The first choice is empty, so a field that is just drawn writes nothing
+	// until a party is picked (the value the file writes for it is "not
+	// chosen").
+	out := []choice{{Text: t("web.panel.turn_pick"), Chosen: true}}
+	for i := range def.Graph.Members {
+		id := def.Graph.Members[i].ID()
+		if id == from || taken[id] {
+			continue
+		}
+		out = append(out, choice{Value: id.String()})
+	}
+	human := (definition.Human{}).ID()
+	if from != human && !taken[human] {
+		out = append(out, choice{Value: human.String(), Text: nodeLabel(human)})
+	}
+	return out
 }
 
 // roleChoices is the roles a person may pick for a member: the names hergy

@@ -179,6 +179,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	get("/definitions/{name}/workers/{from}/{purpose}", s.workerPanel)
 	post("/definitions/{name}/workers/{from}/{purpose}", s.workerEdit)
 	get("/definitions/{name}/human", s.humanPanel)
+	post("/definitions/{name}/human", s.humanEdit)
 	get("/definitions/{name}/turns/{from}/{to}", s.turnPanel)
 	get("/definitions/{name}/agreement", s.agreementPanel)
 	get("/definitions/{name}/agreement/{rule}", s.rulePanel)

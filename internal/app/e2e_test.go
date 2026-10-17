@@ -73,6 +73,7 @@ func TestE2E(t *testing.T) {
 	t.Run("close again escape back", func(t *testing.T) { e2eClose(t, ctx, base) })
 	t.Run("mission", func(t *testing.T) { e2eMission(t, ctx, base) })
 	t.Run("members and workers", func(t *testing.T) { e2eMembers(t, ctx, base) })
+	t.Run("turns", func(t *testing.T) { e2eTurns(t, ctx, base) })
 	t.Run("draft", func(t *testing.T) { e2eDraft(t, ctx, base) })
 	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
 	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
@@ -307,6 +308,85 @@ func e2eMembers(t *testing.T, ctx context.Context, base string) {
 	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(`form.edit[data-key="role"]`))
 	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
 		t.Errorf("the half-written pick was lost: the field reads %q", got)
+	}
+}
+
+// e2eTurns is the turn round (設計 4 節): opening a party's field offers the "＋"
+// handle on the parties it does not hand the turn to yet; pressing it shows the
+// line and the dashed edge; saving adds the arrow; the new arrow's own field
+// chooses the removal, which shows what leaves and takes the arrow away again.
+func e2eTurns(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	arrows := func(t *testing.T) int {
+		t.Helper()
+		var n int
+		e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.edge[data-from]:not([data-from=""])').length`, &n))
+		return n
+	}
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/builder"), chromedp.WaitReady(`form.edit[data-key="role"]`))
+	before := arrows(t)
+	if before != 4 {
+		t.Fatalf("the demo definition draws %d turn arrows, want 4", before)
+	}
+	// The handle stands on the human (builder does not hand the turn to it yet)
+	// and not on lead (it already does).
+	var handle string
+	e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('.fig a.handle[href*="to=human"]')||{}).getAttribute('href')||""`, &handle))
+	if handle == "" {
+		t.Fatalf("the open party's field offers no handle to the human")
+	}
+	var toLead int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig a.handle[href*="to=lead"]').length`, &toLead))
+	if toLead != 0 {
+		t.Errorf("the figure offers a handle to a party the node already hands the turn to")
+	}
+	// D3: the handle can be reached with the keyboard.
+	var focusable bool
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`(function(){var h=document.querySelector('.fig a.handle');h.focus();return document.activeElement===h;})()`, &focusable))
+	if !focusable {
+		t.Errorf("the handle cannot be reached with the keyboard")
+	}
+
+	e2eRun(t, ctx, chromedp.Click(`.fig a.handle[href*="to=human"]`))
+	e2eWaitText(t, ctx, `form.edit[data-key="turn-add"] .save-to`, "builder のプロンプトの『ターンを渡す相手』に人間が入ります")
+	var pending int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-add').length`, &pending))
+	if pending != 1 {
+		t.Fatalf("the chosen edge is not drawn dashed before the write")
+	}
+	if !e2eActions(t, ctx, `form.edit[data-key="turn-add"]`) {
+		t.Fatalf("the chosen turn shows no save button")
+	}
+
+	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="turn-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
+	if got := arrows(t); got != before+1 {
+		t.Errorf("after the save the figure draws %d arrows, want %d", got, before+1)
+	}
+	var saved string
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
+	if !strings.Contains(saved, "ターン builder → 人間") {
+		t.Errorf("the saved line is %q", saved)
+	}
+
+	// The new arrow's own field chooses the removal, which lands on the party's
+	// field once it is written. The arrow is pressed the way a person presses
+	// it (the click goes to the path's own link).
+	e2eRun(t, ctx, chromedp.Evaluate(
+		`document.querySelector('.fig path[data-from="builder"][data-to="human"]').parentElement.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}))`, nil))
+	e2eWaitField(t, ctx, "builder → 人間")
+	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/turns/builder/human?turn=human"]`), chromedp.WaitVisible(".panel .confirm"))
+	e2eWaitText(t, ctx, ".panel .confirm .save-to", "builder のプロンプトの『ターンを渡す相手』から人間が消えます")
+	var faded int
+	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-remove').length`, &faded))
+	if faded != 1 {
+		t.Fatalf("the edge chosen to be taken away is not drawn faint")
+	}
+	e2eRun(t, ctx, chromedp.Click(".panel .confirm button[type=submit]"), chromedp.WaitVisible(".panel .saved"))
+	e2eWaitField(t, ctx, "メンバー builder")
+	if got := arrows(t); got != before {
+		t.Errorf("after the removal the figure draws %d arrows, want %d", got, before)
 	}
 }
 
