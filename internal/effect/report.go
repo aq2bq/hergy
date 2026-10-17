@@ -216,10 +216,11 @@ func afterTheOther(previous, next Command) bool {
 // else is put beside it.
 func teamCommands(changes []Change, team Running) []Command {
 	var (
-		all       bool
-		members   []string
-		refreshed []string
-		env       bool
+		all        bool
+		allMembers []string
+		members    []string
+		refreshed  []string
+		env        bool
 	)
 	for _, change := range changes {
 		for _, part := range change.Parts {
@@ -230,6 +231,7 @@ func teamCommands(changes []Change, team Running) []Command {
 				env = true
 			case Roster, RoleDocument, Agreements:
 				all = true
+				allMembers = appendUnique(allMembers, change.Member)
 			case Turns, Workers:
 				members = appendUnique(members, change.Member)
 			}
@@ -248,9 +250,20 @@ func teamCommands(changes []Change, team Running) []Command {
 			Note: i18n.T("effect.handover.refresh_note"),
 		})
 	}
-	if all {
+	switch {
+	case all && len(refreshed) == 0:
 		commands = append(commands, Command{Line: i18n.Tf("effect.handover.reprompt_all", team.Team)})
-	} else {
+	case all:
+		// Not everyone is reprompted: a refreshed member gets its bootstrap
+		// prompt again, so --all would name it too. Only the members that are
+		// not refreshed are reprompted, one by one (R3).
+		for _, member := range allMembers {
+			if slices.Contains(refreshed, member) {
+				continue
+			}
+			commands = append(commands, Command{Line: i18n.Tf("effect.handover.reprompt_member", member, team.Team)})
+		}
+	default:
 		for _, member := range members {
 			if slices.Contains(refreshed, member) {
 				continue

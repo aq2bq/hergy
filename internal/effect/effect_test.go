@@ -485,8 +485,31 @@ func TestHandoverRefreshesFirstAndDoesNotRepromptARefreshedMember(t *testing.T) 
 
 	both := append(launchChange("spec"), rosterChange("lead")...)
 	got = effect.Handover(both, running)
-	want = []string{"hergy refresh spec --team demo（会話は消えます）、hergy reprompt --all --team demo"}
+	want = []string{"hergy refresh spec --team demo（会話は消えます）、hergy reprompt lead --team demo"}
 	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+}
+
+// TestHandoverDoesNotRepromptMembersItRefreshed is R3: when everyone is
+// refreshed there is no reprompt at all, and when some are, they are reprompted
+// one by one rather than with --all (which would name the refreshed ones too).
+func TestHandoverDoesNotRepromptMembersItRefreshed(t *testing.T) {
+	running := []effect.Running{{Team: "demo", Definition: "demo"}}
+	everyone := []effect.Change{
+		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
+		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
+	}
+	want := []string{"hergy refresh lead --team demo（会話は消えます）、hergy refresh spec --team demo（会話は消えます）"}
+	if got := effect.Handover(everyone, running); !reflect.DeepEqual(got, want) {
+		t.Errorf("Handover = %q, want %q", got, want)
+	}
+	some := []effect.Change{
+		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
+		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}}},
+	}
+	want = []string{"hergy refresh lead --team demo（会話は消えます）、hergy reprompt spec --team demo"}
+	if got := effect.Handover(some, running); !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
 }

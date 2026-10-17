@@ -101,8 +101,8 @@ func WorkerProfile(from, purpose, profile string) Op {
 // The value of the written text is read back and compared with the tree the op
 // means, so a line the edit placed on the wrong line is caught here rather than
 // written. The shapes a line edit cannot rewrite (a value written as a block
-// scalar, a `<<:` merge) are refused with error.edit_shape instead of being
-// rewritten whole.
+// scalar, a `<<:` merge, an anchored value or a `*` alias) are refused with
+// error.edit_shape instead of being rewritten whole.
 //
 // It does not check the definition: whether the result still reads is another
 // gate's to stop (C2), and a screen checks before it writes rather than after.
@@ -115,8 +115,8 @@ func EditYAML(text []byte, op Op) ([]byte, error) {
 		return nil, i18n.Errorf("error.edit_not_mapping")
 	}
 	root := doc.Content[0]
-	if mergeKeyOf(root) {
-		return nil, i18n.Errorf("error.edit_shape", "メンバーの合成")
+	if key, ok := shapeKeyOf(root); ok {
+		return nil, i18n.Errorf("error.edit_shape", key)
 	}
 
 	src := newEditSource(text)
@@ -354,7 +354,7 @@ func addWorkerLines(src *editSource, root *yaml.Node, from, purpose, profile str
 	if err := checkWorkerNew(root, from, purpose); err != nil {
 		return err
 	}
-	if err := writableValue(purpose, "workers:"); err != nil {
+	if err := writableValue(purpose, "workers"); err != nil {
 		return err
 	}
 	v := mappingValue(root, "workers")
@@ -445,6 +445,11 @@ func replaceScalarLine(src *editSource, val *yaml.Node, value, label string, flo
 	if err := writableValue(value, label); err != nil {
 		return err
 	}
+	if val.Anchor != "" {
+		// The value is referred to from elsewhere by an alias; rewriting it
+		// here would move what every alias reads, so the file is left alone.
+		return i18n.Errorf("error.edit_shape", label)
+	}
 	if val.Kind != yaml.ScalarNode || val.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
 		return i18n.Errorf("error.edit_shape", label)
 	}
@@ -503,7 +508,7 @@ func blockPlace(src *editSource, root *yaml.Node, key string, v *yaml.Node) (seq
 	if v.Style&yaml.FlowStyle != 0 {
 		items := make([]string, 0, len(v.Content))
 		for _, item := range v.Content {
-			text, err := flowItem(item)
+			text, err := flowItem(item, key)
 			if err != nil {
 				return seqPlace{}, err
 			}
@@ -541,7 +546,7 @@ func itemLines(items []string, indent int) []string {
 
 // flowItem is one item written as a block sequence entry holds it: its value, or
 // a flow mapping ({from: …}) so a worker written either way keeps its shape.
-func flowItem(item *yaml.Node) (string, error) {
+func flowItem(item *yaml.Node, key string) (string, error) {
 	switch item.Kind {
 	case yaml.ScalarNode:
 		return scalarLiteral(item.Value, item.Style), nil
@@ -552,7 +557,7 @@ func flowItem(item *yaml.Node) (string, error) {
 		}
 		return "{" + strings.Join(parts, ", ") + "}", nil
 	default:
-		return "", i18n.Errorf("error.edit_shape", "並び")
+		return "", i18n.Errorf("error.edit_shape", key)
 	}
 }
 
@@ -569,7 +574,7 @@ func removeItemLines(src *editSource, root *yaml.Node, key string, v, item *yaml
 			src.lines[keyNode.Line-1] = spaces(leadingSpaces(src.line(keyNode.Line))) + key + ": []"
 		}
 	}
-	src.remove(itemStartLine(item), nodeEndLine(item))
+	src.remove(src.itemStartLine(item), nodeEndLine(item))
 	return nil
 }
 
@@ -581,7 +586,7 @@ func removeFlowItem(src *editSource, root *yaml.Node, key string, v, item *yaml.
 		if other == item {
 			continue
 		}
-		text, err := flowItem(other)
+		text, err := flowItem(other, key)
 		if err != nil {
 			return err
 		}
@@ -605,7 +610,7 @@ func removeKeyLines(src *editSource, root *yaml.Node, key string) {
 	if keyNode == nil {
 		return
 	}
-	src.remove(itemStartLine(keyNode), nodeEndLine(keyNode))
+	src.remove(src.itemStartLine(keyNode), nodeEndLine(keyNode))
 }
 
 // editMember changes one key of the member named, or stops when the file has no
@@ -803,29 +808,52 @@ func mappingIndent(mapping *yaml.Node) int {
 	return 0
 }
 
-// mergeKeyOf is whether the tree carries a `<<:` merge. A merge gives a mapping
-// keys it does not write, so a line edit cannot say what the mapping holds.
-func mergeKeyOf(root *yaml.Node) bool {
-	found := false
-	var walk func(*yaml.Node)
-	walk = func(n *yaml.Node) {
+// shapeKeyOf is the key of a shape a line edit cannot rewrite, if the file has
+// one: a `<<:` merge, which gives a mapping keys it does not write, or a `*`
+// alias, whose value is written elsewhere in the file. The key is the
+// language-neutral yaml key the shape sits under (`members`, `turns`, …), so
+// the refusal reads the same in every locale; a shape at the top of the file
+// names itself (`<<`, `*`).
+func shapeKeyOf(root *yaml.Node) (string, bool) {
+	owner, found := "", false
+	var walk func(n *yaml.Node, at string)
+	walk = func(n *yaml.Node, at string) {
 		if n == nil || found {
+			return
+		}
+		if n.Kind == yaml.AliasNode {
+			owner, found = named(at, "*"), true
 			return
 		}
 		if n.Kind == yaml.MappingNode {
 			for i := 0; i+1 < len(n.Content); i += 2 {
-				if n.Content[i].Tag == "!!merge" || n.Content[i].Value == "<<" {
-					found = true
+				if k := n.Content[i]; k.Tag == "!!merge" || k.Value == "<<" {
+					owner, found = named(at, "<<"), true
 					return
 				}
 			}
+			for i := 0; i+1 < len(n.Content); i += 2 {
+				walk(n.Content[i+1], n.Content[i].Value)
+				if found {
+					return
+				}
+			}
+			return
 		}
 		for _, c := range n.Content {
-			walk(c)
+			walk(c, at)
 		}
 	}
-	walk(root)
-	return found
+	walk(root, "")
+	return owner, found
+}
+
+// named is a shape's own key when it has no key above it.
+func named(at, self string) string {
+	if at == "" {
+		return self
+	}
+	return at
 }
 
 // sequenceOf is the items a key writes as a sequence, or nil when the key is
@@ -1015,13 +1043,23 @@ func nodeEndLine(n *yaml.Node) int {
 }
 
 // itemStartLine is where an item starts: its line, pulled up by the comment
-// lines yaml.v3 attached to it above (they are the item's, and the item is
-// going).
-func itemStartLine(n *yaml.Node) int {
-	if n.HeadComment == "" {
-		return n.Line
+// lines the file writes above it at the item's own indent (they are the item's,
+// and the item is going). The comment is read off the text, not yaml.v3's
+// HeadComment, which it does not attach in a CRLF file; a line that is not such
+// a comment stops the walk.
+func (e *editSource) itemStartLine(n *yaml.Node) int {
+	indent := leadingSpaces(e.line(n.Line))
+	start := n.Line
+	for start > 1 && isCommentLine(e.line(start-1), indent) {
+		start--
 	}
-	return n.Line - (strings.Count(n.HeadComment, "\n") + 1)
+	return start
+}
+
+// isCommentLine is whether a line is a comment at an indent (a "#" after
+// exactly that many spaces).
+func isCommentLine(line string, indent int) bool {
+	return leadingSpaces(line) == indent && strings.HasPrefix(strings.TrimLeft(line, " "), "#")
 }
 
 // byteColumn is where a 1-based yaml column starts in a line, as a byte index

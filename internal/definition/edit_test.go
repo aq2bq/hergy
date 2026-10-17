@@ -408,7 +408,19 @@ func TestEditYAMLRefusesAShapeItCannotRewrite(t *testing.T) {
 			name:   "a merge key",
 			before: "base: &b\n  role: lead\nversion: 1\nmission: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n",
 			op:     definition.MemberRole("lead", "spec"),
-			label:  "メンバーの合成",
+			label:  "members",
+		},
+		{
+			name:   "an anchored value",
+			before: "version: 1\nmission: &m いまの使命\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Mission("あたらしい使命"),
+			label:  "mission",
+		},
+		{
+			name:   "an alias elsewhere",
+			before: "version: 1\nmission: m\nanchor: &a x\nother: *a\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Mission("あたらしい使命"),
+			label:  "other",
 		},
 		{
 			name:   "a value with a line break",
@@ -427,6 +439,64 @@ func TestEditYAMLRefusesAShapeItCannotRewrite(t *testing.T) {
 				t.Errorf("error = %q, want %q", err, want)
 			}
 		})
+	}
+}
+
+// TestEditYAMLRemovesAnItemsCommentWhateverTheLineEnding is R1: the comment
+// above an item goes with it. yaml.v3 does not attach that comment in a CRLF
+// file, so the line is read off the text; the LF and the CRLF file come out the
+// same except for the line ending.
+func TestEditYAMLRemovesAnItemsCommentWhateverTheLineEnding(t *testing.T) {
+	lf := "version: 1\nmission: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n  - name: spec\n    role: spec\n    profile: reviewer\n" +
+		"turns:\n  - human -> lead\n  # このターンは残す\n  - lead -> spec\n  - lead -> human\n"
+	want := strings.Replace(lf, "  # このターンは残す\n  - lead -> spec\n", "", 1)
+	cases := []struct {
+		name   string
+		before string
+		want   string
+	}{
+		{"LF", lf, want},
+		{"CRLF", strings.ReplaceAll(lf, "\n", "\r\n"), strings.ReplaceAll(want, "\n", "\r\n")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := definition.EditYAML([]byte(tc.before), definition.RemoveTurn(memberID("lead"), memberID("spec")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tc.want {
+				t.Errorf("EditYAML = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEditShapeNamesAYAMLKey is R2: the refusal names the yaml key the shape
+// sits under, so the sentence reads in every language (an English refusal holds
+// no Japanese word where the key goes).
+func TestEditShapeNamesAYAMLKey(t *testing.T) {
+	lang := i18n.Language()
+	defer func() {
+		if err := i18n.Use(lang); err != nil {
+			t.Errorf("cannot put the language back: %v", err)
+		}
+	}()
+	if err := i18n.Use("en"); err != nil {
+		t.Fatal(err)
+	}
+	before := "base: &b\n  role: lead\nversion: 1\nmission: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n"
+	got, err := definition.EditYAML([]byte(before), definition.MemberRole("lead", "spec"))
+	if err == nil {
+		t.Fatalf("EditYAML wrote %q, want an error", got)
+	}
+	if !strings.Contains(err.Error(), "members") {
+		t.Errorf("error = %q, want it to name the key members", err)
+	}
+	for _, r := range err.Error() {
+		if r > 0x2e80 {
+			t.Errorf("error = %q holds a word that is not the key", err)
+			break
+		}
 	}
 }
 
