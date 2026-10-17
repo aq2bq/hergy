@@ -5,21 +5,20 @@ members:
   - name: lead
     role: lead
     profile: planner
-  - name: spec
-    role: spec
+  - name: designer
+    role: designer
     profile: planner
 workers:
   - from: lead
     purpose: 実装
     profile: coder
   - from: lead
-    purpose: 試作
-    profile: planner
-  - from: lead
     purpose: 調査
     profile: researcher
 turns:
   - human -> lead
-  - lead -> spec
-  - spec -> lead
+  - human -> designer
+  - lead -> designer
+  - designer -> lead
+  - designer -> human
   - lead -> human

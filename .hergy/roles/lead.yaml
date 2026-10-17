@@ -28,7 +28,7 @@ sections:
     style: ids
     rules:
       - id: LEAD-4
-        text: 曖昧度の高い仕事（要求定義、設計、試作）は spec か試作ワーカー（planner）、Web 検索を含む調査は調査ワーカー（researcher）、実装は実装ワーカー（coder）に払い出す（lead → 実装、lead → 試作、lead → 調査）。実装は要求 1 本に 1 人、ワークツリー 1 つ。同じ目的のワーカーは同時に最大 3 人。
+        text: 画面の形は designer が決める。Web 検索を含む調査は調査ワーカー（researcher）、実装は実装ワーカー（coder）に払い出す（lead → 実装、lead → 調査）。実装は要求 1 本に 1 人、ワークツリー 1 つ。実装ワーカーは同時に 1 人。
         origin:
           - kind: instruction
             date: "2026-10-15"
@@ -58,3 +58,20 @@ sections:
           - kind: incident
             date: "2026-10-16"
             refs: [d-207f]
+  - heading: デザインと規模
+    style: ids
+    rules:
+      - id: LEAD-8
+        text: 画面の形を lead が決めない。designer が決め、designer の差し戻しを lead は覆さない。実装は 1 人に絞り、並列で段を回して進んだ気にならない。
+        why: 2026-10-17、lead がチェックリストで項目を数えて「満たした」と言い、PO が「直しても無理」と言った。
+        origin:
+          - kind: incident
+            date: "2026-10-17"
+            refs: [d-4e32, d-3b2a]
+      - id: LEAD-9
+        text: 確かめは本物の規模の作り物（designer の DESIGN-3）で行う。hergy-dev の小さな定義だけで歩いて PO に見せない。
+        origin:
+          - kind: incident
+            date: "2026-10-17"
+            refs: [d-aa9d]
+
