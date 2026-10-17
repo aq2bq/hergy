@@ -139,15 +139,15 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			}
 			return "\n" + strings.Join(texts, "\n\n") + "\n"
 		},
-		"roster": func() string { return Roster(rosterOf(def, run.Team), memberName) },
+		"roster": func() string { return Roster(RosterOf(def, run.Team), memberName) },
 		"herdr": func() string {
 			return HerdrMember(i18n.Tf("prompt.self_intro_member", run.Team, node.Role, memberName))
 		},
 		"turns": func() string {
-			return TurnsNote(turnsOf(def, node.Name, run.Team))
+			return TurnsNote(TurnsOf(def, node.Name, run.Team))
 		},
 		"workers": func() string {
-			workers := workersOf(def, node.Name)
+			workers := WorkersOf(def, node.Name)
 			if len(workers) == 0 {
 				return ""
 			}
@@ -175,9 +175,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	return built, nil
 }
 
-// rosterOf is the team's members as the roster shows them: the herdr name each
-// one answers to, and the role it reads.
-func rosterOf(def *definition.Definition, team string) []RosterEntry {
+// RosterOf is the team's members as the roster shows them: the herdr name each
+// one answers to, and the role it reads. It is the roster the prompt and the
+// figure are both made of.
+func RosterOf(def *definition.Definition, team string) []RosterEntry {
 	out := make([]RosterEntry, len(def.Graph.Members))
 	for i, member := range def.Graph.Members {
 		out[i] = RosterEntry{Name: team + "-" + member.Name, Role: member.Role}
@@ -185,10 +186,11 @@ func rosterOf(def *definition.Definition, team string) []RosterEntry {
 	return out
 }
 
-// turnsOf is who a member hands the turn to, from the graph's edges out of it
+// TurnsOf is who a member hands the turn to, from the graph's edges out of it
 // (I13): the human, or another member with the role it reads. The order is the
-// order turns: writes them.
-func turnsOf(def *definition.Definition, member, team string) []TurnPart {
+// order turns: writes them. It is the projection a member's prompt and the
+// "保存すると" line are both made from.
+func TurnsOf(def *definition.Definition, member, team string) []TurnPart {
 	var out []TurnPart
 	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
 		// A worker's edge is made by workers: and is not a turn the member
@@ -217,8 +219,8 @@ func turnsOf(def *definition.Definition, member, team string) []TurnPart {
 	return out
 }
 
-// workersOf is what a member may hire, from the graph's edges out of it (I12c).
-func workersOf(def *definition.Definition, member string) []WorkerPair {
+// WorkersOf is what a member may hire, from the graph's edges out of it (I12c).
+func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 	var out []WorkerPair
 	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
 		if edge.To.Kind != definition.KindWorker {
