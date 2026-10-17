@@ -60,6 +60,44 @@ type Sources interface {
 	SharedAgreement() (source.Doc, bool)
 }
 
+// Where is what a prompt error is about: the team.yaml field a screen puts the
+// sentence beside (C2, N2). The sentence a person reads is the error's own, and
+// the key's form is check.Finding.Field's.
+type Where int
+
+const (
+	// WhereFile is a rule file that is not the member's own: the agreement every
+	// team of the layer shares, or the team's own. The sentence names the file.
+	WhereFile Where = iota
+	// WhereRole is the member's role document: not there, still Markdown, or
+	// unreadable.
+	WhereRole
+	// WhereTemplate is the template that drops a door (I4).
+	WhereTemplate
+	// WhereRules is the member's documents taken together: two of them hold one
+	// rule id.
+	WhereRules
+)
+
+// Error is a prompt error that knows what it is about, so check can put it
+// beside the right field. Error and Unwrap pass the sentence and the cause
+// through unchanged, so every reader of the error reads what it always said.
+type Error struct {
+	Where Where
+	Err   error
+}
+
+func (e *Error) Error() string { return e.Err.Error() }
+func (e *Error) Unwrap() error { return e.Err }
+
+// withWhere wraps err with what it is about.
+func withWhere(what Where, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &Error{Where: what, Err: err}
+}
+
 // MemberName is the name herdr knows a member by: "<team>-<member>". It is the
 // same name %{name} writes, so the projection and a check refuse a name that is
 // longer than herdr's pattern in one place.
@@ -106,11 +144,11 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	var read []source.Doc
 	var parsed []*rules.Document
 
-	readDoc := func(doc source.Doc) string {
+	readDoc := func(doc source.Doc, what Where) string {
 		document, err := readRuleFile(run.Reader, doc)
 		if err != nil {
 			if buildErr == nil {
-				buildErr = err
+				buildErr = withWhere(what, err)
 			}
 			return ""
 		}
@@ -129,12 +167,12 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			}
 			doc, err := memberRole(node, run)
 			if err != nil {
-				buildErr = err
+				buildErr = withWhere(WhereRole, err)
 				return ""
 			}
 			found := doc
 			roleDoc = &found
-			return readDoc(doc)
+			return readDoc(doc, WhereRole)
 		},
 		"docs": func() string {
 			if buildErr != nil {
@@ -143,7 +181,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			docs := documentsOf(def, run)
 			texts := make([]string, 0, len(docs))
 			for _, doc := range docs {
-				texts = append(texts, readDoc(doc))
+				texts = append(texts, readDoc(doc, WhereFile))
 			}
 			read = append(read, docs...)
 			if len(texts) == 0 {
@@ -177,7 +215,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		return nil, buildErr
 	}
 	if err := rules.Check(parsed); err != nil {
-		return nil, err
+		return nil, withWhere(WhereRules, err)
 	}
 	built := &Built{Text: text, Read: read}
 	if roleDoc != nil {
@@ -298,7 +336,7 @@ func checkTemplate(run Run, def *definition.Definition, node *definition.MemberN
 	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return i18n.Errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part)
+			return withWhere(WhereTemplate, i18n.Errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part))
 		}
 	}
 	return nil

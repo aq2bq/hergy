@@ -604,6 +604,37 @@ func TestValidateNamesTheFileAndMemberForATemplateMissingADoor(t *testing.T) {
 	}
 }
 
+// TestValidatePrintsOnePromptBreakAtATime: a definition whose two members have no
+// role document stops, and hergy validate prints the first stop alone with a
+// problems count of one, as it always has, while a check hands over one stop for
+// each member so a screen shows them all at once (N1).
+func TestValidatePrintsOnePromptBreakAtATime(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: absent\n    profile: claude-default\n"+
+			"  - name: spec\n    role: gone\n    profile: claude-default\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+
+	got, _, code := run("validate")
+	if code == 0 {
+		t.Fatalf("validate accepted two members with no role document:\n%s", got)
+	}
+	if count := strings.Count(got, "  detail: "); count != 1 {
+		t.Errorf("validate printed %d details, want the first stop alone:\n%s", count, got)
+	}
+	if !strings.Contains(got, "problems: 1\n") {
+		t.Errorf("validate does not count one problem, as it always has:\n%s", got)
+	}
+	if !strings.Contains(got, "the role absent") {
+		t.Errorf("validate does not print the first member's stop:\n%s", got)
+	}
+	if strings.Contains(got, "the role gone") {
+		t.Errorf("validate printed the second member's stop too:\n%s", got)
+	}
+}
+
 // TestUpStopsOnAGraphTheDefinitionCannotHold: a definition whose turns cannot
 // hold stops hergy up the way a file that does not read does, with every
 // sentence hergy validate prints, rather than booting a team whose turns the

@@ -1,6 +1,7 @@
 package definition
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -99,9 +100,12 @@ func (g *Graph) ReachesHuman() bool {
 // Problem is one thing the graph says that cannot be: where it is, and the
 // message to show, which comes from the locale (the key and its arguments).
 type Problem struct {
-	At   string // where, as a person reads it ("workers: 実装 (from: lead)")
-	Key  string // the locale key of the message
-	Args []any
+	// Field is the team.yaml field the sentence belongs beside: the key a screen
+	// places it by, in the one form check.Finding.Field writes (N2). A problem
+	// about a node names the node, and one about a line of turns: names turns:.
+	Field string
+	Key   string // the locale key of the message
+	Args  []any
 }
 
 // Message is the problem as a person reads it.
@@ -144,39 +148,39 @@ func (g *Graph) Check() []Problem {
 	for _, edge := range g.Edges {
 		if _, ok := g.nodes[edge.From]; !ok {
 			problems = append(problems, Problem{
-				At:   edge.String(),
-				Key:  "error.graph_edge_from",
-				Args: []any{edge.String(), edge.From.String()},
+				Field: "turns",
+				Key:   "error.graph_edge_from",
+				Args:  []any{edge.String(), edge.From.String()},
 			})
 		}
 		if _, ok := g.nodes[edge.To]; !ok {
 			problems = append(problems, Problem{
-				At:   edge.String(),
-				Key:  "error.graph_edge_to",
-				Args: []any{edge.String(), edge.To.String()},
+				Field: "turns",
+				Key:   "error.graph_edge_to",
+				Args:  []any{edge.String(), edge.To.String()},
 			})
 		}
 		if edge.From == edge.To {
-			problems = append(problems, Problem{At: edge.String(), Key: "error.graph_self_loop", Args: []any{edge.String()}})
+			problems = append(problems, Problem{Field: "turns", Key: "error.graph_self_loop", Args: []any{edge.String()}})
 		}
 		if seen[edge] {
-			problems = append(problems, Problem{At: edge.String(), Key: "error.graph_edge_twice", Args: []any{edge.String()}})
+			problems = append(problems, Problem{Field: "turns", Key: "error.graph_edge_twice", Args: []any{edge.String()}})
 			continue
 		}
 		seen[edge] = true
 	}
-	for _, worker := range g.Workers {
+	for i, worker := range g.Workers {
 		if _, ok := g.nodes[memberID(worker.From)]; !ok {
 			problems = append(problems, Problem{
-				At:   worker.ID().String(),
-				Key:  "error.graph_worker_from",
-				Args: []any{worker.From},
+				Field: fmt.Sprintf("workers[%d].from", i),
+				Key:   "error.graph_worker_from",
+				Args:  []any{worker.From},
 			})
 		}
 	}
 	problems = append(problems, g.noTurnProblems()...)
 	if !g.ReachesHuman() {
-		problems = append(problems, Problem{At: "turns:", Key: "error.graph_no_turn_reaches_human"})
+		problems = append(problems, Problem{Field: "node:human", Key: "error.graph_no_turn_reaches_human"})
 	}
 	return problems
 }
@@ -195,7 +199,7 @@ func (g *Graph) noTurnProblems() []Problem {
 		for i := range args {
 			args[i] = id.String()
 		}
-		problems = append(problems, Problem{At: id.String(), Key: kind.noTurnKey, Args: args})
+		problems = append(problems, Problem{Field: "node:" + id.String(), Key: kind.noTurnKey, Args: args})
 	}
 	return problems
 }

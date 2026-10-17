@@ -617,7 +617,7 @@
   "error.hire_purpose_nobody": "目的「%s」でワーカーを呼べるメンバーはいません。呼べる目的: %s",
   "hire.member_separator": "／",
   "hire.member_purposes": "%s は %s",
-  "validate.turn_unknown_name": "規則 %s が %s と書いていますが、%s はこの定義のノードにありません",
+  "validate.turn_unknown_name": "規則 %s が %s と書いていますが、%s はこの定義のメンバーにも workers: の目的にもありません",
   "activity.seconds": "%d 秒",
   "activity.minutes": "%d 分",
   "activity.hours": "%d 時間",
@@ -633,5 +633,7 @@
   "activity.node_separator": "・",
   "activity.second": "1 秒",
   "activity.minute": "1 分",
-  "activity.hour": "1 時間"
+  "activity.hour": "1 時間",
+  "activity.unknown_length": "しばらく",
+  "activity.line_no_agent": "チーム %s のエージェントがいません"
 }

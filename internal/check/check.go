@@ -24,17 +24,58 @@ import (
 
 // Finding is one thing a check found about a definition.
 type Finding struct {
-	// Field is the key of the team.yaml field the sentence is about: "mission",
-	// "members[1].profile", a turns: line, and "" when it is about the file as a
-	// whole. A screen puts the sentence beside that field.
+	// Field is the key of the team.yaml field the sentence belongs beside, so a
+	// screen can put it next to what the person writes. The form is the same in
+	// both languages (N2):
+	//
+	//	mission, team, prompt, docs, roles, members  a top-level key
+	//	members[i]                                   the member at i (0-based)
+	//	members[i].name  .role  .profile  .prompt    one of the member's keys
+	//	members[i].kind  .args  .env                 the engine the member writes
+	//	turns                                        turns: as a whole
+	//	turns[i]                                     the i-th line of turns:
+	//	workers[i]                                   the worker at i (0-based)
+	//	workers[i].from                              the worker's from:
+	//	node:human, node:<member>                    a sentence about a node
+	//	rule:<document path>#<rule id>               a sentence about a rule's text
+	//	""                                           the file as a whole
 	Field string
 	// Text is the sentence, as a person reads it, with the paths written the way
 	// the catalog writes them.
 	Text string
+	// Kind is what the finding is about. A reader that has to print one sort
+	// differently from another reads this (the command line does, N1).
+	Kind Kind
 	// Stops says the definition does not read (a break) rather than a warning. A
 	// definition with a finding that stops is one hergy will not run.
 	Stops bool
 }
+
+// Kind is what a finding is about.
+type Kind int
+
+const (
+	// KindRead is a file hergy could not read: broken YAML, a value that does
+	// not hold, a key that is not there.
+	KindRead Kind = iota
+	// KindGraph is a graph the definition cannot hold (I12a, I12b).
+	KindGraph
+	// KindPrompt is a prompt that cannot be built: a role document that is not
+	// there, a template that drops a door (I4).
+	KindPrompt
+	// KindOldFile is the warning about a file hergy no longer reads a team's
+	// rules from (段 4).
+	KindOldFile
+	// KindMission is the warning about a mission still written as the starter's
+	// example (d-3cae).
+	KindMission
+	// KindTurn is the warning about a turn a rule's text writes and turns: does
+	// not hold (段 5, spec/33 H2).
+	KindTurn
+	// KindHidden is the warning that a global definition of this name is hidden
+	// by the project's own (I11).
+	KindHidden
+)
 
 // Input is what one check needs: the catalog to read through, the definition's
 // name, and the layer to read. An empty layer is the one way a name is looked up
@@ -49,20 +90,22 @@ type Input struct {
 // Definition checks one team definition and returns what it found, in the order
 // a person reads it: what stops it (one finding per thing to fix), then the
 // warnings.
+//
+// A definition that reads is reported whole: every member whose prompt cannot be
+// built, and every warning, so a screen shows the list at once rather than one
+// more sentence per fixing (N1). A definition that does not read reports what
+// stopped it and the warnings about old files, as it always has. The command
+// line prints a part of what a reading definition gets, so its own output does
+// not change (see internal/app).
 func Definition(in Input) []Finding {
-	var breaks, warnings []Finding
 	def, err := in.Catalog.Definition(in.Name, in.Layer)
 	// The places hergy no longer reads a team's files from are the filesystem's,
 	// not the reading's: they are named whether or not the file reads.
-	warnings = append(warnings, oldFileFindings(in)...)
+	warnings := oldFileFindings(in)
 	if err != nil {
-		breaks = breakFindings(in, err)
-		return append(breaks, warnings...)
+		return append(breakFindings(in, err), warnings...)
 	}
-	breaks = promptFindings(in, def)
-	if len(breaks) > 0 {
-		return append(breaks, warnings...)
-	}
+	breaks := promptFindings(in, def)
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
 	warnings = append(warnings, hiddenGlobalFindings(in)...)
@@ -78,8 +121,9 @@ func breakFindings(in Input, err error) []Finding {
 		out := make([]Finding, 0, len(gerr.Problems))
 		for _, problem := range gerr.Problems {
 			out = append(out, Finding{
-				Field: problem.At,
+				Field: problem.Field,
 				Text:  BreakLine(in.Catalog.Display, gerr.Path, errors.New(problem.Message())),
+				Kind:  KindGraph,
 				Stops: true,
 			})
 		}
@@ -88,6 +132,7 @@ func breakFindings(in Input, err error) []Finding {
 	return []Finding{{
 		Field: definition.Field(err),
 		Text:  BreakLine(in.Catalog.Display, breakPath(in, err), err),
+		Kind:  KindRead,
 		Stops: true,
 	}}
 }
@@ -117,24 +162,74 @@ func BreakLine(display func(string) string, path string, err error) string {
 
 // promptFindings is the break a member's prompt cannot be built from: a role
 // document that is not there (spec/32 D2), a template that drops a door (I4), a
-// report or a rule id two documents of one member both hold, and a herdr name
-// that is too long. The definition reads, but no prompt can be handed out, so it
-// stops, as it always has.
+// rule id two documents of one member both hold, and a herdr name that is too
+// long. The definition reads, but no prompt can be handed out, so it stops, as
+// it always has. Every member that cannot be built is reported, so a screen
+// shows the whole list at once (N1).
 func promptFindings(in Input, def *definition.Definition) []Finding {
 	run := prompt.Run{
 		Team: def.Name, Reader: source.Disk{}, Sources: in.Catalog,
 		Display: in.Catalog.Display, Base: in.Catalog.Base(),
 	}
+	var out []Finding
+	seen := map[string]bool{}
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		if _, err := prompt.MemberName(run.Team, node); err != nil {
-			return []Finding{{Text: BreakLine(in.Catalog.Display, def.TeamYAML, err), Stops: true}}
+		key, err := memberPromptError(def, node, run, i)
+		if err == nil {
+			continue
 		}
-		if _, err := prompt.Member(def, node, run); err != nil {
-			return []Finding{{Text: BreakLine(in.Catalog.Display, def.TeamYAML, err), Stops: true}}
+		finding := Finding{
+			Field: key,
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Kind:  KindPrompt,
+			Stops: true,
 		}
+		// A template the whole team writes fails for every member with one
+		// sentence beside one field: it is reported once.
+		one := finding.Field + "\x00" + finding.Text
+		if seen[one] {
+			continue
+		}
+		seen[one] = true
+		out = append(out, finding)
 	}
-	return nil
+	return out
+}
+
+// memberPromptError is what stops one member's prompt from being built, and the
+// field it is about.
+func memberPromptError(def *definition.Definition, node *definition.MemberNode, run prompt.Run, i int) (string, error) {
+	if _, err := prompt.MemberName(run.Team, node); err != nil {
+		return fmt.Sprintf("members[%d].name", i), err
+	}
+	if _, err := prompt.Member(def, node, run); err != nil {
+		return promptField(err, node, i), err
+	}
+	return "", nil
+}
+
+// promptField is the field a prompt error is about (N2): the member's role
+// document, the template that dropped a door (the team's own or the member's
+// own), or the member's documents taken together.
+func promptField(err error, node *definition.MemberNode, i int) string {
+	var perr *prompt.Error
+	if !errors.As(err, &perr) {
+		return ""
+	}
+	switch perr.Where {
+	case prompt.WhereRole:
+		return fmt.Sprintf("members[%d].role", i)
+	case prompt.WhereTemplate:
+		if node.HasPrompt {
+			return fmt.Sprintf("members[%d].prompt", i)
+		}
+		return "prompt"
+	case prompt.WhereRules:
+		return fmt.Sprintf("members[%d]", i)
+	default:
+		return ""
+	}
 }
 
 // oldFileFindings warns about files a team definition used to keep where hergy
@@ -152,14 +247,14 @@ func oldFileFindings(in Input) []Finding {
 	var out []Finding
 	old := filepath.Join(dir, "teams", in.Name, "protocol.yaml")
 	if isFile(old) {
-		out = append(out, Finding{Text: i18n.Tf("validate.old_team_agreement",
+		out = append(out, Finding{Kind: KindOldFile, Text: i18n.Tf("validate.old_team_agreement",
 			in.Catalog.Display(old), in.Catalog.Display(filepath.Join(dir, "teams", in.Name, "agreement.yaml")))})
 	}
 	matches, _ := filepath.Glob(filepath.Join(dir, "teams", in.Name, "roles", "*.yaml"))
 	slices.Sort(matches)
 	for _, path := range matches {
 		role := strings.TrimSuffix(filepath.Base(path), ".yaml")
-		out = append(out, Finding{Text: i18n.Tf("validate.old_team_role",
+		out = append(out, Finding{Kind: KindOldFile, Text: i18n.Tf("validate.old_team_role",
 			in.Catalog.Display(path), in.Catalog.Display(filepath.Join(dir, "roles", role+".yaml")))})
 	}
 	return out
@@ -181,7 +276,7 @@ func missionPlaceholderFindings(def *definition.Definition) []Finding {
 	if !scaffold.IsPlaceholderMission(def.Mission) {
 		return nil
 	}
-	return []Finding{{Field: "mission", Text: i18n.T("validate.mission_placeholder")}}
+	return []Finding{{Field: "mission", Text: i18n.T("validate.mission_placeholder"), Kind: KindMission}}
 }
 
 // hiddenGlobalFindings says that a global definition of this name is hidden by
@@ -190,7 +285,7 @@ func hiddenGlobalFindings(in Input) []Finding {
 	if in.Layer != source.LayerGlobal || !isFile(in.Catalog.TeamYAML(in.Name, source.LayerLocal)) {
 		return nil
 	}
-	return []Finding{{Text: i18n.Tf("validate.global_hidden", in.Name)}}
+	return []Finding{{Text: i18n.Tf("validate.global_hidden", in.Name), Kind: KindHidden}}
 }
 
 // TurnFindings is the turn directions a team's rule texts claim: the ones turns:
@@ -213,7 +308,7 @@ func TurnFindings(in Input, def *definition.Definition) []Finding {
 				continue
 			}
 			seen[key] = true
-			out = append(out, Finding{Field: "turns:", Text: i18n.Tf("validate.turn_unknown_name",
+			out = append(out, Finding{Field: ruleField(edge), Kind: KindTurn, Text: i18n.Tf("validate.turn_unknown_name",
 				edge.RuleID, edgeText(edge, members), word)})
 			continue
 		}
@@ -226,11 +321,18 @@ func TurnFindings(in Input, def *definition.Definition) []Finding {
 				continue
 			}
 			seen[key] = true
-			out = append(out, Finding{Field: "turns:", Text: i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
+			out = append(out, Finding{Field: ruleField(edge), Kind: KindTurn, Text: i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
 				pair[0].String()+" → "+pair[1].String())})
 		}
 	}
 	return out
+}
+
+// ruleField is the field a sentence about a rule's text belongs beside: the
+// document the rule is written in, and the rule's id, so a screen puts the
+// sentence on that rule's slip (N3).
+func ruleField(edge topology.Edge) string {
+	return "rule:" + edge.DocKey + "#" + edge.RuleID
 }
 
 // edgeText is the arrow of a rule text as a person reads it: the names it

@@ -769,8 +769,9 @@ func reportFile(stdout io.Writer, env team.Env, path string, err error) {
 // what the problems count adds.
 func printFindings(stdout io.Writer, env team.Env, path string, findings []check.Finding) int {
 	field(stdout, label("file"), env.Display(path))
+	printed := cliFindings(findings)
 	stops := 0
-	for _, finding := range findings {
+	for _, finding := range printed {
 		if finding.Stops {
 			stops++
 		}
@@ -780,7 +781,7 @@ func printFindings(stdout io.Writer, env team.Env, path string, findings []check
 	} else {
 		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
 	}
-	for _, finding := range findings {
+	for _, finding := range printed {
 		if finding.Stops {
 			indentField(stdout, 1, label("detail"), finding.Text)
 			continue
@@ -788,6 +789,31 @@ func printFindings(stdout io.Writer, env team.Env, path string, findings []check
 		indentField(stdout, 1, label("warning"), finding.Text)
 	}
 	return stops
+}
+
+// cliFindings is what hergy validate prints of what a check found. It is
+// everything, except that a prompt that cannot be built shows its first stop
+// alone and the warnings about the files hergy no longer reads (N1): the command
+// line's own output stays as it was, while a screen shows every finding a
+// definition that reads gets.
+func cliFindings(findings []check.Finding) []check.Finding {
+	var first *check.Finding
+	for i := range findings {
+		if findings[i].Kind == check.KindPrompt && findings[i].Stops {
+			first = &findings[i]
+			break
+		}
+	}
+	if first == nil {
+		return findings
+	}
+	printed := []check.Finding{*first}
+	for _, finding := range findings {
+		if finding.Kind == check.KindOldFile {
+			printed = append(printed, finding)
+		}
+	}
+	return printed
 }
 
 // reportOldCommon warns about the layer's common/ directory, where the agreement

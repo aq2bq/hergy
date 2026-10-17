@@ -133,6 +133,10 @@ type Team struct {
 	Nodes []Node
 	// Tail is the pane tail of the node the line is about, empty when none.
 	Tail string
+	// Hired is the live agents that are no node of the graph, by the herdr name
+	// herdr knows them by: the workers a member hired (3.2). The screen lists
+	// each under the workers: node of the member that hired it.
+	Hired []Node
 	// Questions are gy's open questions (段 6).
 	Questions []Question
 }
@@ -151,33 +155,36 @@ func Of(in Input) Team {
 		// A node that waits for the human is what the human is asked for, even
 		// when another node is working.
 		last := newest(blocked)
+		length := since(in, last)
 		team.State = WaitingAnswer
 		team.Last = last.name
-		team.Stalled, team.Lower = since(in, last)
+		team.Stalled, team.Lower = length.d, length.lower
 		team.Tail = in.Tails[last.name]
-		team.Line = i18n.Tf("activity.line_stuck", last.name, durationText(team.Stalled, team.Lower))
+		team.Line = i18n.Tf("activity.line_stuck", last.name, length.words())
 	case len(working) > 0:
 		team.State = Working
 		team.Line = workingLine(lives)
-	default:
-		// Every agent is stopped (or there is none). The team's own line needs
-		// the last turn; the node that stopped last decides which wait it is.
+	case len(stopped) == 0:
+		// No agent is live at all: nothing has been running, so there is no
+		// length to say and no last turn to name (N4).
 		team.State = Stalled
-		line := i18n.Tf("activity.line_team_stuck", durationText(0, false))
-		if len(stopped) > 0 {
-			last := newest(stopped)
-			team.Last = last.name
-			team.Stalled, team.Lower = since(in, last)
-			team.Tail = in.Tails[last.name]
-			if last.human {
-				team.State = WaitingTurn
-				team.Line = i18n.Tf("activity.line_waiting_human", last.name, durationText(team.Stalled, team.Lower))
-				break
-			}
-			line = i18n.Tf("activity.line_team_stuck", durationText(team.Stalled, team.Lower)) +
-				i18n.Tf("activity.line_last_turn", last.name)
+		team.Line = i18n.Tf("activity.line_no_agent", in.Team)
+	default:
+		// Every live agent is stopped. The node that stopped last decides which
+		// wait it is.
+		last := newest(stopped)
+		length := since(in, last)
+		team.Last = last.name
+		team.Stalled, team.Lower = length.d, length.lower
+		team.Tail = in.Tails[last.name]
+		if last.human {
+			team.State = WaitingTurn
+			team.Line = i18n.Tf("activity.line_waiting_human", last.name, length.words())
+			break
 		}
-		team.Line = line
+		team.State = Stalled
+		team.Line = i18n.Tf("activity.line_team_stuck", length.words()) +
+			i18n.Tf("activity.line_last_turn", last.name)
 	}
 	if team.State == WaitingTurn {
 		// The node that handed the turn over is the one the human answers, so
@@ -189,7 +196,55 @@ func Of(in Input) Team {
 		}
 	}
 	team.Nodes = nodesOf(in, lives)
+	team.Hired = hiredOf(lives)
 	return team
+}
+
+// Watcher remembers when each agent's current state was first seen: the part of
+// 5.2 that has to be remembered between two reads, so a screen only reads herdr
+// and hands the agents over (N5). It holds nothing across a program's life
+// except what it was told, and it uses no goroutine: the caller calls Observe
+// whenever it has read the agents (every 5 seconds on the team screen).
+type Watcher struct {
+	seen map[string]watcherEntry
+	// began says Observe has been called before, so the agents of the first read
+	// are the ones that were already there.
+	began bool
+}
+
+// watcherEntry is one agent as the watcher last saw it.
+type watcherEntry struct {
+	seq   int
+	watch Watch
+}
+
+// NewWatcher makes a watcher that has seen nothing yet.
+func NewWatcher() *Watcher {
+	return &Watcher{seen: map[string]watcherEntry{}}
+}
+
+// Observe takes the agents as they were just read and returns, for each of them,
+// when its current state was first seen. An agent the first read saw was already
+// in its state when the watching began, so its length is a lower bound; an agent
+// that appeared later, or whose state_change_seq moved, is taken from now on. An
+// agent that is gone is forgotten.
+func (w *Watcher) Observe(agents []Agent, now time.Time) map[string]Watch {
+	next := make(map[string]watcherEntry, len(agents))
+	out := make(map[string]Watch, len(agents))
+	for _, agent := range agents {
+		seen, ok := w.seen[agent.Herdr]
+		switch {
+		case ok && seen.seq == agent.Seq:
+			next[agent.Herdr] = seen
+			out[agent.Herdr] = seen.watch
+		default:
+			watch := Watch{At: now, Lower: !w.began}
+			next[agent.Herdr] = watcherEntry{seq: agent.Seq, watch: watch}
+			out[agent.Herdr] = watch
+		}
+	}
+	w.seen, w.began = next, true
+	return out
 }
 
 // Sort puts teams in the order of 5.2: the teams waiting for a human first, the
@@ -231,6 +286,7 @@ type live struct {
 	seq   int
 	state NodeState
 	human bool // the node hands the turn to the human
+	hired bool // the agent is no node of the graph: a worker a member hired
 }
 
 // livesOf is the live agents, the graph's members first (in the graph's order,
@@ -256,10 +312,27 @@ func livesOf(in Input) []live {
 	}
 	for _, agent := range others {
 		lives = append(lives, live{
-			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq, state: stateOf(agent.Status),
+			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq,
+			state: stateOf(agent.Status), hired: true,
 		})
 	}
 	return lives
+}
+
+// hiredOf is the live agents that are no node of the graph, by their herdr
+// names: the workers a member hired, which the team screen lists under the
+// member that hired them (3.2). The order is by name, so it holds still between
+// one read and the next.
+func hiredOf(lives []live) []Node {
+	var out []Node
+	for _, l := range lives {
+		if !l.hired {
+			continue
+		}
+		out = append(out, Node{Name: l.name, State: l.state, Herdr: l.herdr, Seq: l.seq})
+	}
+	slices.SortFunc(out, func(a, b Node) int { return cmp.Compare(a.Name, b.Name) })
+	return out
 }
 
 // nodesOf is the graph's members as nodes, with their states, in the order 5.2
@@ -367,18 +440,37 @@ func newest(lives []live) live {
 	return best
 }
 
+// lasted is how long a state has lasted: the length, whether it is a lower bound
+// (the state was already there when the watching began), and whether the caller
+// knows at all. Nothing is made up when it does not: a line never says a time it
+// does not have (N4).
+type lasted struct {
+	d     time.Duration
+	lower bool
+	known bool
+}
+
+// words is how the length reads in a line.
+func (l lasted) words() string {
+	if !l.known {
+		return i18n.T("activity.unknown_length")
+	}
+	return durationText(l.d, l.lower)
+}
+
 // since is how long the agent has been where it is: from when the caller first
-// saw this state, and a lower bound when the caller began watching in that
-// state (the agent was already there).
-func since(in Input, l live) (time.Duration, bool) {
+// saw this state, and a lower bound when the caller began watching in that state
+// (the agent was already there). A caller that handed no watch for the agent
+// knows nothing about the length, and says nothing.
+func since(in Input, l live) lasted {
 	watch, ok := in.Seen[l.herdr]
 	if !ok {
-		return 0, true
+		return lasted{}
 	}
 	if !in.Now.After(watch.At) {
-		return 0, watch.Lower
+		return lasted{lower: watch.Lower, known: true}
 	}
-	return in.Now.Sub(watch.At), watch.Lower
+	return lasted{d: in.Now.Sub(watch.At), lower: watch.Lower, known: true}
 }
 
 // durationText is how long a state has lasted, as a person reads it ("25 分",
@@ -404,9 +496,11 @@ func durationText(d time.Duration, lower bool) string {
 }
 
 // count is one number with the word for it: the singular word when it is one.
+// The singular words carry the number themselves ("1 minute"), so nothing is
+// formatted into them.
 func count(n int, singular, plural string) string {
 	if n == 1 {
-		return i18n.Tf(singular, n)
+		return i18n.T(singular)
 	}
 	return i18n.Tf(plural, n)
 }

@@ -183,8 +183,9 @@ func TestOfLowerBound(t *testing.T) {
 }
 
 // TestOfNoAgents: a team with no live agent is stopped, with no last turn to
-// name. The design names no state for it; it is not working, and nothing waits
-// for the human.
+// name and no length at all: nothing has been running, so any time would be made
+// up (N4). The design names no state for it; it is not working, and nothing
+// waits for the human.
 func TestOfNoAgents(t *testing.T) {
 	got := Of(Input{
 		Team:  "demo",
@@ -197,8 +198,115 @@ func TestOfNoAgents(t *testing.T) {
 	if got.Last != "" {
 		t.Errorf("Last = %q, want no last turn", got.Last)
 	}
-	if want := i18n.Tf("activity.line_team_stuck", durationText(0, false)); got.Line != want {
+	if got.Stalled != 0 || got.Lower {
+		t.Errorf("Stalled = %v (lower %v), want no length", got.Stalled, got.Lower)
+	}
+	if want := i18n.Tf("activity.line_no_agent", "demo"); got.Line != want {
 		t.Errorf("Line = %q, want %q", got.Line, want)
+	}
+	if len(got.Hired) != 0 {
+		t.Errorf("Hired = %+v, want none", got.Hired)
+	}
+}
+
+// TestOfUnknownLength: an agent the caller handed no watch for has no length the
+// judgement can know, and no line says a time it does not have (N4): the line
+// says the wait with the words for an unknown length rather than a made-up
+// second. There is no lower bound either, because nothing was watched.
+func TestOfUnknownLength(t *testing.T) {
+	got := Of(Input{
+		Team:   "demo",
+		Graph:  graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
+		Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}},
+		Now:    now,
+	})
+	if got.State != WaitingTurn {
+		t.Fatalf("State = %v, want the wait for the human's turn", got.State)
+	}
+	want := i18n.Tf("activity.line_waiting_human", "lead", i18n.T("activity.unknown_length"))
+	if got.Line != want {
+		t.Errorf("Line = %q, want %q", got.Line, want)
+	}
+	if got.Stalled != 0 || got.Lower {
+		t.Errorf("Stalled = %v (lower %v), want no length", got.Stalled, got.Lower)
+	}
+}
+
+// TestWatcher: the watcher remembers when each agent's current state was first
+// seen (N5), which is the part of 5.2 a screen must not have to keep itself. The
+// agents of the first read were already there (a lower bound); an agent that
+// appears later, or whose state_change_seq moved, is taken from that call on; an
+// agent that is gone is forgotten.
+func TestWatcher(t *testing.T) {
+	watcher := NewWatcher()
+	lead := Agent{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}
+	spec := Agent{Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 1}
+
+	first := watcher.Observe([]Agent{lead, spec}, now)
+	if got, want := first["demo-lead"], (Watch{At: now, Lower: true}); got != want {
+		t.Errorf("the first read = %+v, want %+v", got, want)
+	}
+	if got, want := first["demo-spec"], (Watch{At: now, Lower: true}); got != want {
+		t.Errorf("the second agent of the first read = %+v, want %+v", got, want)
+	}
+
+	// Five minutes on, lead is in the same state: the watch it was given holds.
+	later := now.Add(5 * time.Minute)
+	held := watcher.Observe([]Agent{lead}, later)
+	if got, want := held["demo-lead"], (Watch{At: now, Lower: true}); got != want {
+		t.Errorf("a state that did not move = %+v, want %+v", got, want)
+	}
+
+	// lead moved, spec went away, and a worker appeared.
+	moved := lead
+	moved.Seq = 9
+	worker := Agent{Herdr: "demo-coder", Status: "working", Seq: 1}
+	next := watcher.Observe([]Agent{moved, worker}, later)
+	if got, want := next["demo-lead"], (Watch{At: later}); got != want {
+		t.Errorf("a state that moved = %+v, want %+v (not a lower bound)", got, want)
+	}
+	if _, ok := next["demo-spec"]; ok {
+		t.Errorf("demo-spec is gone and still watched: %+v", next)
+	}
+	if got, want := next["demo-coder"], (Watch{At: later}); got != want {
+		t.Errorf("an agent that appeared = %+v, want %+v", got, want)
+	}
+
+	// The one that is gone comes back: it is taken from this call on.
+	back := watcher.Observe([]Agent{lead, spec}, later)
+	if got, want := back["demo-spec"], (Watch{At: later}); got != want {
+		t.Errorf("an agent that came back = %+v, want %+v", got, want)
+	}
+}
+
+// TestTeamHired: a live agent that is no node of the graph is handed over as one
+// of the hired workers, by the herdr name herdr knows it by and in a fixed order,
+// so the team screen lists each under the member that hired it (3.2). It stays
+// out of the graph's nodes.
+func TestTeamHired(t *testing.T) {
+	got := Of(Input{
+		Team:  "demo",
+		Graph: graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
+		Agents: []Agent{
+			{Herdr: "demo-lead", Node: "lead", Status: "working", Seq: 1},
+			{Herdr: "demo-zoe", Status: "idle", Seq: 2},
+			{Herdr: "demo-coder", Status: "working", Seq: 3},
+		},
+		Now: now,
+	})
+	if len(got.Hired) != 2 {
+		t.Fatalf("Hired = %+v, want the two workers", got.Hired)
+	}
+	if got.Hired[0].Name != "demo-coder" || got.Hired[1].Name != "demo-zoe" {
+		t.Errorf("Hired = %+v, want demo-coder then demo-zoe", got.Hired)
+	}
+	if got.Hired[0].Herdr != "demo-coder" || got.Hired[0].State != Active || got.Hired[0].Human {
+		t.Errorf("hired[0] = %+v, want the working agent by its herdr name", got.Hired[0])
+	}
+	for _, node := range got.Nodes {
+		if node.Name == "demo-coder" || node.Name == "demo-zoe" {
+			t.Errorf("a hired worker is among the graph's nodes: %+v", got.Nodes)
+		}
 	}
 }
 
@@ -308,6 +416,11 @@ func TestLinesReadInJapanese(t *testing.T) {
 				},
 			},
 			want: "lead が仕事中・spec が止まっています",
+		},
+		{
+			name: "no live agent",
+			in:   Input{Graph: twoWay},
+			want: "チーム demo のエージェントがいません",
 		},
 	}
 	for _, c := range cases {
