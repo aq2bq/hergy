@@ -344,10 +344,10 @@ func memberOp(member definition.MemberNode, r *http.Request) (teamEdit, error) {
 		if profile == "" {
 			return teamEdit{}, i18n.Errorf("web.need.profile")
 		}
-		return teamEdit{Op: definition.AddWorker(member.Name, purpose, profile), Key: "worker-add", Label: t("label.workers"), Value: purpose}, nil
+		return teamEdit{Op: definition.AddWorker(member.Name, purpose, profile), Key: "worker-add", Label: tf("web.saved.worker", purpose), Value: purpose}, nil
 	case opWorkerRemove:
 		purpose := r.PostFormValue("worker")
-		return teamEdit{Op: definition.RemoveWorker(member.Name, purpose), Key: workerKey(member.Name, purpose), Label: t("label.workers"), Value: purpose}, nil
+		return teamEdit{Op: definition.RemoveWorker(member.Name, purpose), Key: workerKey(member.Name, purpose), Label: tf("web.saved.worker", purpose), Value: purpose}, nil
 	case opWorkerProfile:
 		return workerProfileOp(member.Name, r.PostFormValue("worker"), r.PostFormValue("profile"))
 	case opTurnAdd, opTurnRemove:
@@ -382,7 +382,7 @@ func workerOp(from, purpose string, r *http.Request) (teamEdit, error) {
 	case opWorkerProfile:
 		return workerProfileOp(from, purpose, r.PostFormValue("profile"))
 	case opWorkerRemove:
-		return teamEdit{Op: definition.RemoveWorker(from, purpose), Key: workerKey(from, purpose), Label: t("label.workers"), Value: purpose}, nil
+		return teamEdit{Op: definition.RemoveWorker(from, purpose), Key: workerKey(from, purpose), Label: tf("web.saved.worker", purpose), Value: purpose}, nil
 	default:
 		return teamEdit{}, i18n.Errorf("error.edit_unknown_op")
 	}
@@ -393,7 +393,7 @@ func workerProfileOp(from, purpose, profile string) (teamEdit, error) {
 	if profile == "" {
 		return teamEdit{}, i18n.Errorf("web.need.profile")
 	}
-	return teamEdit{Op: definition.WorkerProfile(from, purpose, profile), Key: workerKey(from, purpose), Label: t("label.profile"), Value: profile}, nil
+	return teamEdit{Op: definition.WorkerProfile(from, purpose, profile), Key: workerKey(from, purpose), Label: tf("web.saved.worker", purpose), Value: profile}, nil
 }
 
 // memberOpen and workerOpen are the panel one definition's page opens, for the

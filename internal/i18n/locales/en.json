@@ -371,6 +371,7 @@
   "web.remove": "Remove",
   "web.saved.line": "wrote \"%[2]s\" in %[1]s.",
   "web.saved.turn": "turn %s → %s",
+  "web.saved.worker": "worker %s",
   "web.saved.clash": "%s changed after this screen was opened. Reload before writing.",
   "web.need.role": "Pick a role.",
   "web.need.profile": "Pick a profile.",

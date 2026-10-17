@@ -971,6 +971,9 @@ func TestAddingAndRemovingAWorker(t *testing.T) {
 	if !strings.HasSuffix(added, "  - from: lead\n    purpose: 検証\n    profile: planner\n") {
 		t.Errorf("the hire did not write the entry in the file's own shape:\n%s", added)
 	}
+	if !strings.Contains(savedLine(body), "の「ワーカー 検証」を書きました。") {
+		t.Errorf("the saved line does not name the worker's key by its purpose: %q", savedLine(body))
+	}
 	if !strings.Contains(savedLine(body), "『呼べるワーカー』に 検証 が入ります") {
 		t.Errorf("the saved line does not say the worker was added: %q", savedLine(body))
 	}
@@ -996,6 +999,9 @@ func TestAddingAndRemovingAWorker(t *testing.T) {
 	})
 	if got := readFile(t, path); got != before {
 		t.Errorf("the removal left\n got %q\nwant %q", got, before)
+	}
+	if !strings.Contains(savedLine(body), "の「ワーカー 検証」を書きました。") {
+		t.Errorf("the saved line does not name the worker's key by its purpose: %q", savedLine(body))
 	}
 	if !strings.Contains(savedLine(body), "『呼べるワーカー』から 検証 が消えます") {
 		t.Errorf("the saved line does not say the worker was taken away: %q", savedLine(body))
@@ -1049,7 +1055,7 @@ func TestRemovingAWorkerFromItsOwnFieldLandsOnTheMember(t *testing.T) {
 	if !strings.Contains(body, `<h2 class="panel-title">メンバー lead</h2>`) {
 		t.Fatalf("the removal did not land on the member's field:\n%s", body)
 	}
-	if !strings.Contains(savedLine(body), "の「ワーカー」を書きました。") {
+	if !strings.Contains(savedLine(body), "の「ワーカー 試作」を書きました。") {
 		t.Errorf("the member's field shows no saved line: %q", savedLine(body))
 	}
 	if strings.Contains(body, "にワーカー 試作") {
@@ -1236,6 +1242,9 @@ func TestAWorkersProfileIsWrittenFromItsOwnField(t *testing.T) {
 	want := strings.Replace(before, "purpose: 試作\n    profile: coder", "purpose: 試作\n    profile: planner", 1)
 	if got := readFile(t, path); got != want {
 		t.Errorf("the save changed more than the worker's profile:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(savedLine(body), "の「ワーカー 試作」を書きました。") {
+		t.Errorf("the saved line does not name the worker's key by its purpose: %q", savedLine(body))
 	}
 	if !strings.Contains(savedLine(body), "『呼べるワーカー』の 試作 のプロファイルが変わります") {
 		t.Errorf("the saved line does not say the profile moved: %q", savedLine(body))

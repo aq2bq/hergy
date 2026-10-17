@@ -371,6 +371,7 @@
   "web.remove": "消す",
   "web.saved.line": "%[1]s の「%[2]s」を書きました。",
   "web.saved.turn": "ターン %s → %s",
+  "web.saved.worker": "ワーカー %s",
   "web.saved.clash": "%s は、この画面を開いたあとで変わりました。読み直してから書いてください",
   "web.need.role": "ロールを選んでください",
   "web.need.profile": "プロファイルを選んでください",
