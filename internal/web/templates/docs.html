@@ -10,7 +10,7 @@
 {{end}}
 
 {{define "panel"}}
-<aside class="panel" id="panel" data-parent="{{.Parent}}" aria-label="{{.Title}}">
+<aside class="panel" id="panel" data-parent="{{.Parent}}" data-url="{{.URL}}" aria-label="{{.Title}}">
   <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
   <h2 class="panel-title">{{.Title}}</h2>
   {{- if .Notice}}<p class="problem">{{.Notice}}{{if .Reload}} <a class="link" href="{{.URL}}">{{t "web.reload"}}</a>{{end}}</p>{{end}}
@@ -19,7 +19,7 @@
   {{- if .Rule}}{{template "rule" .Rule}}{{else}}
   <dl class="fields">
     {{- range .Fields}}
-    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Edit}}{{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{else}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Remove}} <a class="btn quiet" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
+    <div class="field{{if .Edit}} row{{end}}"><dt>{{.Label}}</dt><dd>{{if .Value}}{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{end}}{{if .Edit}} {{template "edit" .Edit}}{{else if .Confirm}}{{template "confirm" .Confirm}}{{end}}{{if .Remove}} <a class="btn quiet remove" href="{{.Remove}}">{{t "web.remove"}}</a>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
     {{- end}}
   </dl>
   {{- end}}
@@ -32,21 +32,25 @@
   <input type="hidden" name="hash" value="{{.Hash}}">
   <input type="hidden" name="op" value="{{.Op}}">
   {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- if .PendingStop}}<span class="problem">{{.PendingStop}}</span>{{end}}
+  {{- range .Pending}}<span class="save-to">{{.}}</span>{{end}}
   {{- range .Controls}}{{template "control" .}}{{end}}
-  <span class="actions" data-change hidden>
+  {{- if .PendingStop}}<span class="actions"><a class="btn quiet" href="{{.Action}}">{{t "web.revert"}}</a></span>
+  {{- else}}<span class="actions" data-change hidden>
     <button type="submit" class="btn primary">{{.Submit}}</button>
     <button type="button" class="btn quiet" data-revert>{{t "web.revert"}}</button>
   </span>
+  {{- end}}
 </form>
 {{end}}
 
 {{define "control"}}
 {{- if eq .Type "select"}}
-<select name="{{.Name}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}"{{if .KindOf}} data-kind-of{{end}}>
+<select name="{{.Name}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}"{{if .KindOf}} data-kind-of{{end}}{{if .Preview}} data-preview="{{.Preview}}"{{end}}>
   {{- range .Choices}}<option value="{{.Value}}"{{if .Kind}} data-kind="{{.Kind}}"{{end}}{{if .Chosen}} selected{{end}}>{{.Value}}</option>{{end}}
 </select>{{if .KindOf}} <span class="kind" data-kind-show>{{.Kind}}</span>{{end}}
 {{- else}}
-<input type="text" name="{{.Name}}" value="{{.Value}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}" autocomplete="off" size="10">
+<label class="fl">{{.Label}} <input type="text" name="{{.Name}}" value="{{.Value}}" data-draft="{{.Draft}}" data-origin="{{.Origin}}" autocomplete="off" size="10"></label>
 {{- end}}
 {{end}}
 
@@ -56,9 +60,10 @@
   <input type="hidden" name="hash" value="{{.Hash}}">
   <input type="hidden" name="op" value="{{.Op}}">
   {{- range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+  {{- if .Stop}}<span class="problem">{{.Stop}}</span>{{end}}
   {{- range .Preview}}<span class="save-to">{{.}}</span>{{end}}
   <span class="actions">
-    <button type="submit" class="btn primary">{{.Submit}}</button>
+    {{- if not .Stop}}<button type="submit" class="btn primary">{{.Submit}}</button>{{end}}
     <a class="btn quiet" href="{{.Cancel}}">{{t "web.revert"}}</a>
   </span>
 </form>

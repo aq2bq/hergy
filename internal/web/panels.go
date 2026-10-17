@@ -65,11 +65,12 @@ type panelField struct {
 	Remove   string
 }
 
-// memberPanel is the member's field (設計 3.4 の表), with one worker's removal
-// pending when the press that chose it is still unwritten (I6).
+// memberPanel is the member's field (設計 3.4 の表), with what a press has chosen
+// and nothing has written yet: a worker's removal (I6), or a picked value whose
+// preview is being shown (T1).
 func (s *Server) memberPanel(r *http.Request) (view, error) {
 	name, member := r.PathValue("name"), r.PathValue("member")
-	pending := r.URL.Query().Get("remove")
+	pending := pendingOf(r)
 	return s.definitionPage(name, func(def *definition.Definition) panel {
 		return s.memberPanelOf(def, member, s.findings(def.Name), pending)
 	})
@@ -77,7 +78,7 @@ func (s *Server) memberPanel(r *http.Request) (view, error) {
 
 // memberPanelOf builds one member's field, with the sentences the check writes
 // about the member and its role and profile fields (R1).
-func (s *Server) memberPanelOf(def *definition.Definition, name string, findings []check.Finding, pending string) panel {
+func (s *Server) memberPanelOf(def *definition.Definition, name string, findings []check.Finding, pending pendingEdit) panel {
 	member, ok := def.Graph.Member(name)
 	if !ok {
 		return missingPanel(def, "member:"+name, tf("web.panel.member", name), tf("web.missing.member", def.Name, name))
@@ -115,22 +116,23 @@ func (s *Server) memberPanelOf(def *definition.Definition, name string, findings
 		field.Fields = append(field.Fields, panelField{Label: t("web.panel.worker_add"), Edit: add})
 	}
 	field.Fields = append(field.Fields, s.memberDocs(def, member)...)
-	return field
+	return s.applyPreview(def, name, field, pending)
 }
 
 // workerFields is the workers one member may hire, each written from the field
-// (設計 3.4 の表): its profile, and the press that takes it away, which shows
-// what the hire would lose before anything is written (I6).
-func (s *Server) workerFields(def *definition.Definition, p panel, member definition.MemberNode, findings []check.Finding, pending string) []panelField {
+// (設計 3.4 の表): the purpose it is hired for, as a link to its own field, its
+// profile, and the press that takes it away, which shows what the hire would
+// lose before anything is written (S1, I6).
+func (s *Server) workerFields(def *definition.Definition, p panel, member definition.MemberNode, findings []check.Finding, pending pendingEdit) []panelField {
 	var out []panelField
 	for _, worker := range def.Graph.Workers {
 		if worker.From != member.Name {
 			continue
 		}
-		if worker.Purpose == pending {
+		if worker.Purpose == pending.Remove {
 			confirm := p.confirm(opWorkerRemove)
 			confirm.Hidden = []formValue{{Name: "worker", Value: worker.Purpose}}
-			confirm.Preview = s.previewOf(def, definition.RemoveWorker(member.Name, worker.Purpose))
+			confirm.Preview, confirm.Stop = s.previewOf(def, definition.RemoveWorker(member.Name, worker.Purpose))
 			out = append(out, panelField{Label: t("label.workers"), Confirm: confirm})
 			continue
 		}
@@ -138,6 +140,8 @@ func (s *Server) workerFields(def *definition.Definition, p panel, member defini
 		form.Findings = fieldTexts(findings, fmt.Sprintf("workers[%d]", workerIndex(def, member.Name, worker.Purpose)))
 		out = append(out, panelField{
 			Label:  t("label.workers"),
+			Value:  worker.Purpose,
+			Href:   workerPath(def.Name, worker.From, worker.Purpose),
 			Edit:   form,
 			Remove: removeHref(p.URL, worker.Purpose),
 		})
@@ -178,7 +182,7 @@ func (s *Server) docField(label string, find func() (source.Doc, bool), href str
 // and the worker can be taken away; adding one is the member's field's to do.
 func (s *Server) workerPanel(r *http.Request) (view, error) {
 	from, purpose := r.PathValue("from"), r.PathValue("purpose")
-	pending := r.URL.Query().Get("remove")
+	pending := pendingOf(r)
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		return s.workerPanelOf(def, from, purpose, pending)
 	})
@@ -186,7 +190,7 @@ func (s *Server) workerPanel(r *http.Request) (view, error) {
 
 // workerPanelOf builds one worker's field, with the removal pending when the
 // press that chose it is still unwritten (I6).
-func (s *Server) workerPanelOf(def *definition.Definition, from, purpose, pending string) panel {
+func (s *Server) workerPanelOf(def *definition.Definition, from, purpose string, pending pendingEdit) panel {
 	for _, worker := range def.Graph.Workers {
 		if worker.From != from || worker.Purpose != purpose {
 			continue
@@ -205,9 +209,12 @@ func (s *Server) workerPanelOf(def *definition.Definition, from, purpose, pendin
 			panelField{Label: t("web.panel.worker_calls"), Value: from, Href: memberPath(def.Name, from)},
 			panelField{Label: t("label.purpose"), Value: purpose},
 		)
-		if pending == purpose {
+		if pending.Remove == purpose {
 			confirm := field.confirm(opWorkerRemove)
-			confirm.Preview = s.previewOf(def, definition.RemoveWorker(from, purpose))
+			// The worker is gone once this is written, so the write goes to the
+			// member's field: the field that still holds the workers (N1).
+			confirm.Action = memberPath(def.Name, from)
+			confirm.Preview, confirm.Stop = s.previewOf(def, definition.RemoveWorker(from, purpose))
 			field.Fields = append(field.Fields, panelField{Label: t("label.profile"), Confirm: confirm})
 		} else {
 			field.Fields = append(field.Fields, panelField{
@@ -217,7 +224,7 @@ func (s *Server) workerPanelOf(def *definition.Definition, from, purpose, pendin
 			})
 		}
 		field.Fields = append(field.Fields, panelField{Label: t("web.panel.worker_returns"), Value: from})
-		return field
+		return s.applyPreview(def, from, field, pending)
 	}
 	key := "worker:" + from + "/" + purpose
 	return missingPanel(def, key, tf("web.panel.worker", purpose, from), tf("web.missing.worker", def.Name, purpose, from))

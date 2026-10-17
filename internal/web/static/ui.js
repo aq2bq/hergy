@@ -2,7 +2,9 @@
  *
  * 書きかけ (C5, W10): [data-draft] の欄は sessionStorage に残し、欄が戻ったときに書き戻す。
  * 変えたら [data-change] を現す (C1)。[data-revert] は元の値 (data-origin) に戻す。
- * 選んだプロファイルの kind は、選び直すたびに横に出す (I7)。
+ * 選んだプロファイルの kind は、選び直すたびに横に出す (I7)。選んだ値が何をするかは、
+ * 書く前に欄のそばに出す (T1): 選びが落ち着いてから欄の URL を読み直すので、下見は
+ * URL に出る (消すの ?remove= と同じ)。
  * Esc は開いている欄 (#panel[data-parent]) を閉じる (B3)。保存が通った頁 (data-saved) では
  * その欄の書きかけを捨てる。script が無くても、欄はそのまま書けて送れる。
  */
@@ -68,14 +70,37 @@
   });
 
   // A select fires change rather than input for the pick itself: keep the same
-  // draft, and show the picked profile's kind.
+  // draft, show the picked profile's kind, and look at what the pick would do
+  // before it is written (T1).
   document.addEventListener("change", function (event) {
     var el = event.target;
     if (!el.matches || !el.matches("select[data-draft]")) return;
     sessionStorage.setItem(draftKey(el), el.value);
     mark(el.closest("form"));
     kindBeside(el);
+    if (el.matches("select[data-preview]")) lookAtPick(el);
   });
+
+  // A person browsing the list of choices settles on one first, so the read
+  // waits for the picking to stop. A swap or a write takes the pick's place, so
+  // a line about a pick never stands over a value that is not there any more.
+  var pickTimer = null;
+
+  function lookAtPick(el) {
+    forgetPick();
+    pickTimer = window.setTimeout(function () {
+      pickTimer = null;
+      if (!el.isConnected) return;
+      var target = new URL(el.getAttribute("data-preview"), window.location.href);
+      target.searchParams.set(el.name, el.value);
+      window.location.href = target.toString();
+    }, 350);
+  }
+
+  function forgetPick() {
+    if (pickTimer) window.clearTimeout(pickTimer);
+    pickTimer = null;
+  }
 
   document.addEventListener("click", function (event) {
     var revert = event.target.closest("[data-revert]");
@@ -87,7 +112,21 @@
     });
     mark(form);
     showKinds(form);
+    forgetPick();
+    leavePendings();
   });
+
+  // A write that has been chosen but not written lives in the field's URL (the
+  // removal of a worker, or a pick being looked at). 取り消す leaves it: the field
+  // is read again without the pending state, so the line about it does not stand
+  // over a value that is no longer chosen.
+  function leavePendings() {
+    var panel = document.getElementById("panel");
+    var url = panel && panel.getAttribute("data-url");
+    if (!url || !window.location.search) return;
+    if (new URL(url, window.location.href).pathname !== window.location.pathname) return;
+    window.location.href = url;
+  }
 
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
@@ -103,10 +142,12 @@
     setTitle();
   });
   document.addEventListener("htmx:afterSwap", function (event) {
+    forgetPick();
     restore(event.target);
     showKinds(event.target);
     setTitle();
   });
+  document.addEventListener("submit", forgetPick);
 
   // The activity redraws itself every few seconds, but only while its tab is
   // visible (設計 5.2): the server cannot know that, so the tick comes from the

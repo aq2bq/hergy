@@ -54,8 +54,12 @@ func TestE2E(t *testing.T) {
 	var console []string
 	chromedp.ListenTarget(browserCtx, func(event any) {
 		if called, ok := event.(*runtime.EventConsoleAPICalled); ok && called.Type == "error" {
+			var parts []string
+			for _, arg := range called.Args {
+				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
+			}
 			mu.Lock()
-			console = append(console, fmt.Sprint(called.Args))
+			console = append(console, strings.Join(parts, " | "))
 			mu.Unlock()
 		}
 	})
@@ -233,13 +237,28 @@ func e2eMembers(t *testing.T, ctx context.Context, base string) {
 	if got := e2eKind(t, ctx, role); got != "" {
 		t.Errorf("a role field shows a kind: %q", got)
 	}
+
+	// T1: a pick says what it would do before it is written.
 	e2ePick(t, ctx, `select[name="role"]`, "builder")
+	e2eWaitText(t, ctx, role+" .save-to", "lead のプロンプトの『ロールの文書』が変わります")
 	if !e2eActions(t, ctx, role) {
 		t.Fatalf("picking another role shows no save button")
 	}
-	e2eRun(t, ctx, chromedp.Click(role+` [data-revert]`))
+	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
+		t.Errorf("the field reads %q after the pick, want the pick", got)
+	}
+
+	// 取り消す leaves the pick: the field is read again without it, so the line
+	// about it does not stand over a value that is no longer chosen.
+	e2eRun(t, ctx, chromedp.Click(role+` [data-revert]`), chromedp.WaitReady(role))
+	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
 	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
 		t.Errorf("revert left %q, want the file's own role", got)
+	}
+	var pending bool
+	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('`+role+` .save-to')`, &pending))
+	if pending {
+		t.Errorf("the line about the pick is still there after 取り消す")
 	}
 
 	// The kind of the profile follows the pick, as its attribute (I7).
@@ -247,10 +266,11 @@ func e2eMembers(t *testing.T, ctx context.Context, base string) {
 		t.Errorf("the kind beside the profile is %q, want claude", got)
 	}
 	e2ePick(t, ctx, `select[name="profile"]`, "e2e-kind")
+	e2eWaitText(t, ctx, profile+" .save-to", "lead の起動のしかたが変わります")
 	if got := e2eKind(t, ctx, profile); got != "codex" {
 		t.Errorf("the kind beside the picked profile is %q, want codex", got)
 	}
-	e2eRun(t, ctx, chromedp.Click(profile+` [data-revert]`))
+	e2eRun(t, ctx, chromedp.Click(profile+` [data-revert]`), chromedp.WaitReady(profile))
 
 	e2ePick(t, ctx, `select[name="role"]`, "builder")
 	e2eRun(t, ctx, chromedp.Click(role+` button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
@@ -277,10 +297,9 @@ func e2eMembers(t *testing.T, ctx context.Context, base string) {
 	if got := e2eURL(t, ctx); !strings.Contains(got, "remove=e2e") {
 		t.Errorf("the press moved to %q, want the field with the removal pending", got)
 	}
-	e2eRun(t, ctx, chromedp.Click(".panel .confirm a.btn"), chromedp.WaitReady(`form.edit[data-key="worker-add"]`))
-	if got := e2eURL(t, ctx); got != base+"/definitions/demo/members/lead" {
-		t.Errorf("cancelling the removal landed on %q", got)
-	}
+	e2eRun(t, ctx, chromedp.Click(".panel .confirm a.btn"))
+	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
+	e2eRun(t, ctx, chromedp.WaitReady(`form.edit[data-key="worker-add"]`))
 
 	// A half-written pick survives opening another field (C5).
 	e2ePick(t, ctx, `select[name="role"]`, "lead")
@@ -436,7 +455,7 @@ func e2eWaitText(t *testing.T, ctx context.Context, selector, want string) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		var got string
-		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
+		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('`+selector+`')||{}).textContent || ""`, &got))
 		if strings.HasPrefix(strings.TrimSpace(got), want) {
 			return
 		}

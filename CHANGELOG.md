@@ -49,12 +49,20 @@
   field writes the same profile and takes the same worker away.
 
   A save writes one place in `team.yaml`, leaves every other line as it was,
-  and says what was written, what the change does to the members' prompts, and
-  the command a running team needs (with a copy button). A change that would
-  stop the definition is refused with the sentence `hergy validate` writes,
-  beside the field; a file that moved under the page is refused with a link that
-  reads it again. Two fields of one member are filled in and saved one at a
-  time, and a half-written field is kept while another is opened.
+  and says what was written (with the key between the language's own quotes),
+  what the change does to the members' prompts, and the command a running team
+  needs (with a copy button). A change that would stop the definition is refused
+  with the sentence `hergy validate` writes, beside the field; a file that moved
+  under the page is refused with a link that reads it again. Two fields of one
+  member are filled in and saved one at a time, and a half-written field is kept
+  while another is opened.
+
+  A pick that has not been written yet shows what it would do before it is
+  written: picking another role or profile reads the field again with the pick
+  pending and prints the same line the save would print (or the sentence the
+  save would be refused with), so the person knows what a save costs before
+  paying it. A worker taken away from its own field lands on the member that
+  hired it, and the press that takes one away says what the hire loses first.
 
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
