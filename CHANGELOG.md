@@ -20,9 +20,8 @@
   `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
   `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
   the prompt diff, the version screen and the separate figure are no longer
-  concepts of their own. The members, the turns, the profiles and the rules each
-  write from their own round below; this first round writes one thing, a
-  definition's mission.
+  concepts of their own. The mission, the members, the turns, the rules and
+  the profiles are written from the screens, as the entries below say.
 
 - **The rule screens write**: a team's own agreement, a role's document and the
   agreement every team shares (as well as the rule documents the definitions
