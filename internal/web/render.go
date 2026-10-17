@@ -7,40 +7,39 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// Funcs are the template functions a screen renders with: t (one message of the
-// locale in use), tf (a message with its values), inline (a rule's text or a
-// prompt, as HTML) and lang (the language code). A screen outside this package
-// parses its templates with these, so the words come from the locales and text
-// is rendered by the one rule below, wherever it is written.
+// t is one message of the locale in use.
+func t(key string) string { return i18n.T(key) }
+
+// tf is one message with its values.
+func tf(key string, args ...any) string { return i18n.Tf(key, args...) }
+
+// Funcs are the template functions the frame and the screens render with: t and
+// tf (the words), inline (a rule's text or a prompt, as HTML), lang and html.
 func Funcs() template.FuncMap {
 	return template.FuncMap{
 		"t":      i18n.T,
 		"tf":     i18n.Tf,
 		"inline": Inline,
 		"lang":   i18n.Language,
-		"guide":  Guide,
+		"html":   HTML,
 	}
 }
 
-// HTML marks a string this package already rendered as HTML for a View's Body.
-// A screen builds its body with a template, or with this package's rendering, so
-// the string passed here is HTML hergy made. Nothing else goes through it.
+// HTML marks a string this package already rendered as HTML. Only this package's
+// own rendering goes through it.
 func HTML(rendered string) template.HTML {
 	//nolint:gosec // G203: the caller passes this package's own rendering
 	return template.HTML(rendered)
 }
 
-// Inline turns the text of a rule or of a prompt into HTML for a page. The whole
-// text is escaped first; only then are two marks replaced, and nothing else of
-// Markdown is drawn (spec/10 の 4 節):
+// Inline turns a rule's text or a prompt into HTML: the whole text is escaped
+// first; then only two marks are replaced.
 //
 //	**bold**  ->  <strong>bold</strong>
 //	`code`    ->  <code>code</code>
 //
-// Everything else stays the characters it is: a link, an image, a raw tag and an
-// unpaired mark all come out escaped and visible. Line breaks are kept as they
-// are, and the stylesheet lets them show (white-space: pre-wrap), so a prompt
-// reads the way it is sent.
+// Everything else stays the characters it is, and line breaks are kept (the
+// stylesheet shows them with white-space: pre-wrap).
 func Inline(text string) template.HTML {
 	escaped := template.HTMLEscapeString(text)
 	escaped = replacePairs(escaped, "**", "<strong>", "</strong>")
@@ -48,14 +47,8 @@ func Inline(text string) template.HTML {
 	return HTML(escaped)
 }
 
-// problemBody is the one paragraph a failed screen shows, with the reason on it.
-func problemBody(reason string) template.HTML {
-	return HTML(`<p class="problem">` + template.HTMLEscapeString(reason) + `</p>`)
-}
-
 // replacePairs turns every pair of one mark into an open and a close tag. An
-// unpaired mark is left as the character it is: text that opens ** and never
-// closes it shows the marks rather than swallowing what follows.
+// unpaired mark is left as the character it is.
 func replacePairs(text, mark, open, end string) string {
 	if mark == "" {
 		return text
@@ -79,4 +72,25 @@ func replacePairs(text, mark, open, end string) string {
 		b.WriteString(end)
 		text = after
 	}
+}
+
+// firstClause is the first sentence of a rule's text, shown on its card beside
+// its id so a card never stands for its id alone (bar.md E1). It cuts at the
+// first sentence end, and falls back to the whole text when there is none.
+func firstClause(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	for _, mark := range []string{"。", ". "} {
+		if i := strings.Index(line, mark); i >= 0 {
+			if mark == ". " {
+				return line[:i+1]
+			}
+			return line[:i+len(mark)]
+		}
+	}
+	return line
+}
+
+// problemBody is the one paragraph a failed screen shows, with the reason on it.
+func problemBody(reason string) template.HTML {
+	return HTML(`<p class="problem">` + template.HTMLEscapeString(reason) + `</p>`)
 }

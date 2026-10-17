@@ -1,589 +1,153 @@
-/* Layout: 左に文書と チームの索引、中央に規則の台、右から編集票が出る。つながりは 由来 → 規則 → 確かめ方 の三段 */
+/* hergy の画面のスタイル。試作 proto6（d-4dbb）の見た目: OS のフォント、OS の明暗、
+   色の意味（人間を待っている・止まっている・仕事中・断る文・書きかけ）。色だけで意味を
+   伝えず、文か印を必ず添える。CSP (default-src 'self') なので、スタイルはこの 1 ファイルだけ。 */
 :root{
   --bg:#EDF0EE; --surface:#FFFFFF; --sunken:#E3E8E5; --ink:#161B1F; --muted:#56616A; --faint:#8D979D; --line:#D2D9D5;
-  --origin:#C2462A; --origin-soft:#F7E0D7; --reason:#3A50B8; --reason-soft:#DFE4F7; --verify:#1F7F47; --verify-soft:#D5ECDD;
-  --warn:#9A6200; --warn-soft:#F6E8C8; --danger:#B3261E; --focus:#3A50B8;
+  --origin:#C2462A; --wait:#9A6200; --wait-soft:#F6E8C8; --ok:#1F7F47; --ok-soft:#D5ECDD; --link:#3A50B8; --link-soft:#DFE4F7;
+  --danger:#B3261E; --focus:#3A50B8;
   --font-body:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,-apple-system,sans-serif;
   --font-mono:ui-monospace,"SFMono-Regular","SF Mono",Menlo,Consolas,monospace;
   --r:6px;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#111518; --surface:#181E21; --sunken:#0C1012; --ink:#E5EAEC; --muted:#A0ABB1; --faint:#6E7980; --line:#2A3337;
-  --origin:#F08462; --origin-soft:#3D231B; --reason:#8EA0F3; --reason-soft:#222A48; --verify:#5CC487; --verify-soft:#163222;
-  --warn:#E2B04C; --warn-soft:#382C12; --danger:#F2867E; --focus:#8EA0F3; color-scheme:dark;
+  --origin:#F08462; --wait:#E2B04C; --wait-soft:#382C12; --ok:#5CC487; --ok-soft:#163222; --link:#8EA0F3; --link-soft:#222A48;
+  --danger:#F2867E; --focus:#8EA0F3; color-scheme:dark;
 }}
-:root[data-theme="dark"]{
-  --bg:#111518; --surface:#181E21; --sunken:#0C1012; --ink:#E5EAEC; --muted:#A0ABB1; --faint:#6E7980; --line:#2A3337;
-  --origin:#F08462; --origin-soft:#3D231B; --reason:#8EA0F3; --reason-soft:#222A48; --verify:#5CC487; --verify-soft:#163222;
-  --warn:#E2B04C; --warn-soft:#382C12; --danger:#F2867E; --focus:#8EA0F3; color-scheme:dark;
-}
-html,body{height:100%}
+*{box-sizing:border-box}
+html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.7}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.mono{font-family:var(--font-mono)}
-code{font-family:var(--font-mono);font-size:.9em;background:var(--sunken);padding:1px 5px;border-radius:4px}
-strong{font-weight:700}
-a.ref{color:var(--reason);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;font-family:var(--font-mono);font-size:.92em}
-
-.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
-.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 28px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--surface);border-bottom:1px solid var(--line)}
-/* ロゴ (r-9da5、d-fb33)。SVG は layout.html に直接書いてあり、CSP (default-src 'self') では
-   SVG の中の <style> が効かないので、色のクラスはここに置く。色はページの変数に従うので、
-   明暗の切り替えは :root の --ink / --origin がやる。高さは前の枠と同じ 26px */
-.brand{display:flex;align-items:center;white-space:nowrap}
-.brand svg{display:block;width:72.7px;height:26px}
-.hg-ink{fill:none;stroke:var(--ink)}
-.hg-dot{fill:var(--ink)}
-.hg-lead{fill:var(--origin)}
-.views{display:flex;gap:2px;background:var(--sunken);padding:3px;border-radius:8px}
-.views a{border:0;background:transparent;padding:5px 14px;border-radius:6px;color:var(--muted);font-weight:500}
-.views a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
-.meters{display:flex;gap:18px;margin-left:auto;flex-wrap:wrap}
-.meter{border:0;background:transparent;padding:0;display:grid;grid-template-columns:auto auto;gap:2px 10px;align-items:baseline;text-align:left}
-.meter .ml{font-size:12px;color:var(--muted);letter-spacing:.04em}
-.meter .mv{font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums;justify-self:end}
-.meter .mb{grid-column:1/-1;width:120px;height:5px;border-radius:3px;background:var(--sunken);overflow:hidden}
-.meter .mb i{display:block;height:100%;border-radius:3px;transition:width .5s ease}
-
-.body{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:0}
-.index{overflow:auto;border-right:1px solid var(--line);padding-block:18px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:14px;display:flex;flex-direction:column;gap:18px}
-.ix-group{display:flex;flex-direction:column;gap:4px}
-.ix-label{font-size:11px;letter-spacing:.1em;color:var(--faint);font-weight:500;padding-left:8px}
-.ix-item{border:1px solid transparent;background:transparent;text-align:left;padding:7px 8px;border-radius:var(--r);display:flex;flex-direction:column;gap:5px}
-.ix-item:hover{background:var(--sunken)}
-.ix-item[aria-current="true"]{background:var(--surface);border-color:var(--line)}
-.ix-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.ix-name{font-weight:500}
-.ix-rev{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap}
-.ix-rev .dirty{color:var(--warn)}
-.linkbtn{border:0;background:none;padding:0;color:var(--reason);text-decoration:underline;text-underline-offset:2px;font-size:12px;text-align:left}
-
-main{overflow:auto;min-width:0;padding-block:26px 80px;padding-left:32px;padding-right:max(16px,env(safe-area-inset-right,0px))}
-.wrap{max-width:940px}
-.kicker{font-size:12px;color:var(--muted);letter-spacing:.06em;display:flex;gap:10px;flex-wrap:wrap}
-.kicker .mono{letter-spacing:0}
-h1{font-size:24px;line-height:1.35;margin:4px 0 10px;text-wrap:balance}
-h2{font-size:17px;margin:0;text-wrap:balance}
-.lede{color:var(--muted);max-width:62ch;margin:0 0 18px}
-.mission{font-size:15px;font-weight:600;max-width:62ch;margin:0 0 8px}
-.mission.empty{font-weight:400;color:var(--muted)}
-.doc-meta{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:16px;font-size:13px;color:var(--muted)}
-.rev{font-family:var(--font-mono);font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--ink);background:var(--surface)}
-.rev.dirty{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
-.subtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
-.subtabs a{border:0;background:none;padding:8px 0;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.subtabs a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
-
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
-.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 11px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
-.chip[aria-pressed="true"],.chip[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.chip .n{font-family:var(--font-mono);font-size:11.5px;opacity:.75}
-.search{margin-left:auto;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:4px 10px;width:200px;max-width:100%}
-
-.sec{margin-bottom:26px}
-.sec-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.sec-h .hash{font-family:var(--font-mono);color:var(--faint);font-size:13px}
-.sec-h .cont{font-size:12px;color:var(--faint)}
-.tag{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 6px;white-space:nowrap}
-.intro{color:var(--muted);margin:0 0 8px;font-size:13.5px}
-
-.rules{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
-.rule{border-top:1px solid var(--line)}
-.rule:first-child{border-top:0}
-.rule.del .rtext{text-decoration:line-through;text-decoration-color:var(--danger);opacity:.7}
-.rid{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--muted);padding-top:2px;overflow-wrap:anywhere}
-.rtext{min-width:0;overflow-wrap:anywhere}
-.rwhy{color:var(--reason);font-size:13px;margin-top:4px}
-.rwhy::before{content:"理由  ";font-size:11px;letter-spacing:.06em;opacity:.8}
-.rtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.rtags:empty{display:none}
-.t-o{color:var(--origin);background:var(--origin-soft);border-color:transparent}
-.t-v{color:var(--verify);background:var(--verify-soft);border-color:transparent}
-.t-w{color:var(--warn);background:var(--warn-soft);border-color:transparent}
-.t-d{color:var(--danger);border-color:var(--danger)}
-.add-rule{margin-top:6px;border:1px dashed var(--line);background:transparent;border-radius:var(--r);padding:5px 12px;color:var(--muted);font-size:12.5px}
-.add-rule:hover{color:var(--ink);border-color:var(--faint)}
-.empty-note{color:var(--faint);font-size:13px;padding:10px 14px;border:1px dashed var(--line);border-radius:8px}
-
-/* 送られる形 */
-.render{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:22px 26px 22px 110px;position:relative}
-.render.raw{padding:18px}
-.render pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--font-mono);font-size:12.5px;line-height:1.75}
-.r-h{font-weight:700;margin:18px 0 8px;display:flex;gap:8px;align-items:baseline}
-.r-h:first-child{margin-top:0}
-.r-h1{font-size:20px}.r-h2{font-size:16px}.r-h3{font-size:15px}.r-h4{font-size:14px}
-.r-h .hash{font-family:var(--font-mono);color:var(--faint);font-weight:400;font-size:12px}
-.r-p{margin:0 0 10px}
-.r-intro{color:var(--muted)}
-.r-list{margin:0 0 12px;padding-left:22px}
-.r-list li{margin-bottom:6px}
-.r-list.ids{list-style:none;padding-left:0}
-.r-rule{position:relative;border-radius:4px}
-.gut{position:absolute;left:-96px;top:2px;width:80px;text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--faint)}
-.r-list .gut{left:-118px}
-.r-list.ids .gut{left:-96px}
-.unsent{display:block;margin:4px 0 8px;font-size:12px;color:var(--muted);border-left:2px dashed var(--faint);padding:2px 0 2px 10px}
-.unsent b{font-weight:500;color:var(--faint);margin-right:6px;letter-spacing:.04em}
-.render-bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:12px;font-size:13px;color:var(--muted)}
-.toggle{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
-
-/* バージョン */
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:16px}
-.panel h3{margin:0 0 10px;font-size:14px}
-.changes{list-style:none;padding:0;margin:0 0 12px;display:flex;flex-direction:column;gap:10px}
-.changes li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;font-size:13px}
-.ck{font-size:11.5px;font-weight:500;letter-spacing:.04em}
-.ck.added{color:var(--verify)}.ck.removed{color:var(--danger)}.ck.changed,.ck.section,.ck.reports,.ck.meta{color:var(--warn)}
-.diff{display:grid;gap:4px;margin-top:4px}
-.diff del{text-decoration:none;background:color-mix(in srgb,var(--danger) 12%,transparent);padding:2px 6px;border-radius:4px;display:block}
-.diff ins{text-decoration:none;background:var(--verify-soft);padding:2px 6px;border-radius:4px;display:block}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 14px;font-weight:500}
-.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.btn.primary:disabled{opacity:.35;cursor:not-allowed}
-.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
-.btn.danger.armed{background:var(--danger);color:var(--surface);border-color:var(--danger)}
-.input{box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 9px;min-width:0}
-textarea.input{width:100%;resize:vertical;line-height:1.6}
-
-/* YAML と検査 */
-.code{background:var(--sunken);border-radius:8px;padding:14px 16px;overflow:auto;max-height:560px}
-.code pre{margin:0;font-family:var(--font-mono);font-size:12.5px;line-height:1.65;white-space:pre}
-.check pre{white-space:pre-wrap}
-.copy-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap}
-
-/* 編集票 */
-/* 編集パネルの幅 (d-498c の 3): 横に長い画面では、編集パネルを右の列に置き、ウィンドウ幅に合わせて広げる。広いときは 2 列にして縦の視線移動を減らす */
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-12px 0 32px rgb(0 0 0 / .10);overflow:auto;z-index:30;padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));padding-right:env(safe-area-inset-right,0px);container-type:inline-size}
-@media (min-width:1100px){
-  .body:has(> .drawer:not([hidden])){grid-template-columns:248px minmax(0,1fr) clamp(480px,44vw,920px)}
-  .drawer{position:static;width:auto;min-height:0;box-shadow:none;padding-top:0}
-}
-@container (min-width:620px){
-  .drawer .dr-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
-  .drawer .dr-body > *{grid-column:1/-1}
-  .drawer .dr-body > .zone{grid-column:auto}
-}
-.dr-head{position:sticky;top:0;background:var(--surface);display:flex;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);z-index:1}
-.dr-crumb{font-size:12px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
-.x{border:0;background:none;font-size:20px;line-height:1;padding:0 4px;color:var(--muted)}
-.dr-body{padding:16px 18px;display:flex;flex-direction:column;gap:18px}
-.dr-id{display:flex;gap:10px;align-items:center;justify-content:space-between}
-.dr-id input{font-family:var(--font-mono);font-weight:600;font-size:15px;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;width:12em}
-.dr-id input:hover,.dr-id input:focus{border-color:var(--line);background:var(--bg)}
-.err{color:var(--danger);font-size:12px}
-.err:empty{display:none}
-.zone{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:8px}
-.zone.send{background:color-mix(in srgb,var(--reason-soft) 45%,var(--surface));border:1px solid color-mix(in srgb,var(--reason) 25%,var(--line))}
-.zone.keep{border:1px dashed var(--faint)}
-.zone h4{margin:0;font-size:12px;letter-spacing:.08em;display:flex;justify-content:space-between;gap:8px}
-.zone h4 span{font-weight:400;color:var(--muted);letter-spacing:0}
-.fld{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
-.fld > span{display:flex;gap:6px;align-items:center}
-.fld .dot{width:8px;height:8px;border-radius:50%}
-.preview{font-size:13px;background:var(--surface);border-radius:6px;padding:8px 10px;border:1px solid var(--line)}
-.preview .pl{font-size:11px;color:var(--faint);letter-spacing:.06em;margin-bottom:2px}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;flex-wrap:wrap}
-.seg button{border:0;background:var(--surface);padding:4px 12px;font-size:12.5px;color:var(--muted);border-left:1px solid var(--line)}
-.seg button:first-child{border-left:0}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
-.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-.grid2 .input{width:100%}
-[hidden]{display:none!important}
-.hints{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
-.hints li{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:6px 10px}
-.hints li.gap{background:var(--sunken);color:var(--muted)}
-.mini{display:grid;gap:8px;padding:10px;background:var(--sunken);border-radius:6px}
-
-.caveat{font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:6px 10px}
-
-.stack{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px;counter-reset:st}
-.stack li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-.stack li::before{counter-increment:st;content:counter(st);font-family:var(--font-mono);font-size:12px;color:var(--faint);text-align:center}
-.stack li.md{border-style:dashed;background:var(--warn-soft)}
-.stack .sn{display:flex;flex-direction:column;gap:3px;min-width:0}
-.stack .sn small{color:var(--muted);font-size:12px}
-.warnline{color:var(--warn);font-size:12px}
-.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
-details.panel summary{cursor:pointer;font-weight:500}
-
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-
-/* 由来の 1 件 (試作の oitem。編集票で使う) */
-.oitem{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
-.oitem-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
-
-.sec-h.only{border-bottom:1px solid var(--line);padding-bottom:4px}
-.saved{color:var(--verify)}
-.changes li .row{margin-top:4px}
-
-.guide{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:18px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
-.gstep{border:0;background:transparent;border-radius:7px;padding:6px 12px;display:inline-flex;gap:8px;align-items:center;color:var(--muted);font-weight:500}
-.gstep:hover{background:var(--sunken)}
-.gstep.cur{background:var(--ink);color:var(--bg)}
-.gstep.past{color:var(--ink)}
-.gnum{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-mono);font-size:11.5px;border:1.5px solid currentColor}
-.garrow{color:var(--faint)}
-.btn.big{padding:10px 20px;font-size:15px}
-.lay{font-size:11px;border-radius:4px;padding:0 6px;white-space:nowrap;font-weight:500;border:1px solid var(--ink);line-height:1.6;display:inline-block}
-.lay.local{background:var(--ink);color:var(--bg)}
-.lay.global{color:var(--ink);background:transparent}
-.chip[aria-pressed="true"] .lay.local,.chip[aria-current="true"] .lay.local{background:var(--bg);color:var(--ink);border-color:var(--bg)}
-.chip[aria-pressed="true"] .lay.global,.chip[aria-current="true"] .lay.global{color:var(--bg);border-color:var(--bg)}
-.difflines{font-family:var(--font-mono);font-size:12.5px;line-height:1.65;min-width:0}
-.dl{white-space:pre-wrap;overflow-wrap:anywhere;padding:0 8px;display:grid;grid-template-columns:16px minmax(0,1fr)}
-.dl .dm{color:var(--faint)}
-.dl.add{background:var(--verify-soft)}
-.dl.add .dm{color:var(--verify)}
-.dl.del{background:color-mix(in srgb,var(--danger) 14%,transparent)}
-.dl.del .dm{color:var(--danger)}
-.dl.skip{color:var(--faint);display:block;padding:4px 24px}
-.ev{font-size:11.5px;border-radius:4px;padding:0 6px;white-space:nowrap;border:1px dashed var(--faint);color:var(--muted)}
-.ev.on.o{background:var(--origin-soft);color:var(--origin);border:1px solid transparent}
-.ev.on.r{background:var(--reason-soft);color:var(--reason);border:1px solid transparent}
-.ev.on.v{background:var(--verify-soft);color:var(--verify);border:1px solid transparent}
-.evs{display:inline-flex;gap:4px;flex-wrap:wrap}
-.banner{border:1px solid var(--warn);background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;display:flex;flex-direction:column;gap:2px}
-.ix-layer{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.ix-layer:last-of-type{border-bottom:0}
-.ix-layer-h{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding-left:8px}
-.ix-layer-h small{font-family:var(--font-mono);color:var(--muted);font-size:11px}
-.mtable{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden;margin-bottom:12px}
-.mhead,.mline{display:grid;grid-template-columns:140px 160px minmax(0,1fr) 170px auto;gap:10px;align-items:center;padding:8px 12px}
-.mhead{font-size:11.5px;color:var(--muted);background:var(--sunken)}
-.mgroup{border-top:1px solid var(--line)}
-.mgroup[aria-current="true"]{background:color-mix(in srgb,var(--reason-soft) 40%,var(--surface))}
-.mline .mname{font-family:var(--font-mono);font-weight:600;border:1px solid transparent;background:transparent;padding:2px 4px;border-radius:4px;width:100%;box-sizing:border-box}
-.mline .mname:hover,.mline .mname:focus{border-color:var(--line)}
-.mline select{width:100%}
-.mcount{font-size:12px;color:var(--muted)}
-.wrows{padding:0 12px 10px 36px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
-.wrow{display:grid;grid-template-columns:110px minmax(0,1fr) 220px 28px;gap:8px;align-items:center}
-.wrow .wl{color:var(--muted)}
-@media (max-width:760px){
-  .mhead{display:none}
-  .mline{grid-template-columns:1fr 1fr}
-  .wrows{padding-left:16px}
-  .wrow{grid-template-columns:1fr 1fr 28px}
-  .wrow .wl{grid-column:1/-1}
-}
-
-/* 層のトグル (d-498c の 2) */
-.layer-toggle{display:inline-flex;border:1px solid var(--ink);border-radius:8px;overflow:hidden}
-.layer-toggle a{border:0;border-left:1px solid var(--ink);background:var(--surface);padding:4px 14px;display:flex;flex-direction:column;align-items:flex-start;line-height:1.35;color:var(--muted)}
-.layer-toggle a:first-child{border-left:0}
-.layer-toggle a b{font-weight:600;font-size:13px}
-.layer-toggle a small{font-family:var(--font-mono);font-size:10.5px}
-.layer-toggle a[aria-current="true"]{background:var(--ink);color:var(--bg)}
-.app[data-layer="global"] .top{box-shadow:inset 0 3px 0 var(--warn)}
-/* 由来の説明 (d-498c の 4)、メンバーとワーカーの説明 (d-498c の 5) */
-.explain{border-left:3px solid var(--origin);background:var(--origin-soft);padding:8px 12px;border-radius:0 6px 6px 0;font-size:13px;color:var(--ink);margin:0 0 14px;max-width:76ch;display:grid;gap:2px}
-.explain p{margin:0}
-.explain b{color:var(--origin);margin-right:6px}
-.explain.mw{border-left-color:var(--reason);background:var(--reason-soft)}
-.explain.mw b{color:var(--reason)}
-.whead,.wline{display:grid;grid-template-columns:140px minmax(0,1fr) 260px 60px;gap:10px;align-items:center;padding:8px 12px}
-.whead{font-size:11.5px;color:var(--muted);background:var(--sunken)}
-.wline{border-top:1px solid var(--line)}
-.wline .wm{font-family:var(--font-mono);font-weight:600}
-.wline.more .wm{visibility:hidden}
-.wadd{padding:0 12px 8px 162px}
-/* チーム一覧 (d-498c の 6) */
-.tlist{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden;margin-bottom:12px}
-.thead,.tline{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr) 84px minmax(170px,240px) 130px 16px;gap:12px;align-items:center;padding:10px 14px;text-align:left}
-.thead{font-size:11.5px;color:var(--muted);background:var(--sunken)}
-.tline{width:100%;border:0;border-top:1px solid var(--line);background:none}
-.tline:hover{background:color-mix(in srgb,var(--sunken) 55%,var(--surface))}
-.tline .tn{font-family:var(--font-mono);font-weight:600;font-size:15px}
-.tline .ts{display:block;font-size:12px;color:var(--muted)}
-.tline .tw{color:var(--warn)}
-.tline .tgo{color:var(--faint);font-size:18px}
-.tline .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-@media (max-width:760px){
-  .thead,.whead{display:none}
-  .tline{grid-template-columns:1fr 1fr}
-  .tline .tabout{grid-column:1/-1}
-  .tline .tgo{display:none}
-  .wline{grid-template-columns:1fr 1fr}
-  .wline .wm{grid-column:1/-1}
-  .wline.more .wm{display:none}
-  .wadd{padding-left:12px}
-}
-
-@media (max-width:760px){
-  .app{height:auto}
-  .body{grid-template-columns:1fr}
-  .index{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:14px}
-  .ix-group{flex-direction:row;align-items:center;flex:none}
-  .ix-label{writing-mode:vertical-rl;padding:0;font-size:10px}
-  .ix-item{min-width:132px}
-  main{overflow:visible;padding-left:max(16px,env(safe-area-inset-left,0px))}
-  .meters{margin-left:0}
-  .views{overflow-x:auto;max-width:100%}
-  .views a{white-space:nowrap}
-  .layer-toggle a{padding:4px 10px}
-  .layer-toggle a small{display:none}
-  .meter .mb{width:90px}
-  .rid{grid-column:1/-1;padding:0}
-  .render{padding:18px}
-  .gut{position:static;display:block;text-align:left;width:auto}
-  .search{margin-left:0;width:100%}
-  .grid2{grid-template-columns:1fr}
-}
-/* 6 版 (d-ab1d): 動いているチームと、チームの構成図 */
-:root{ --tp0:#F6DE9A; --tp0-ink:#A87A0C; --tp1:#C6E0F4; --tp1-ink:#2F72A8; --tp2:#DED2F4; --tp2-ink:#6A4BAA; --tp3:#F4D0CB; --tp3-ink:#AA4A42; }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --tp0:#43371A; --tp0-ink:#E2B04C; --tp1:#1C3346; --tp1-ink:#7FB6E0; --tp2:#30264A; --tp2-ink:#B49BE6; --tp3:#46241F; --tp3-ink:#E8968D; }}
-:root[data-theme="dark"]{ --tp0:#43371A; --tp0-ink:#E2B04C; --tp1:#1C3346; --tp1-ink:#7FB6E0; --tp2:#30264A; --tp2-ink:#B49BE6; --tp3:#46241F; --tp3-ink:#E8968D; }
-@keyframes beat{50%{opacity:.25}}
-@keyframes flash{from{background:var(--warn-soft)}to{background:transparent}}
-.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;line-height:1.6;padding:0 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
-.pill i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
-.st-working{color:var(--verify);background:var(--verify-soft)}
-.st-working i{animation:beat 1.4s ease-in-out infinite}
-.st-blocked{color:var(--danger);background:var(--origin-soft)}
-.st-idle{color:var(--muted);background:var(--sunken)}
-.st-done{color:var(--reason);background:var(--reason-soft)}
-.st-gone{color:var(--faint);border-color:var(--line);border-style:dashed;font-family:var(--font-body)}
-.livebar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:4px 0 16px;font-size:13px;color:var(--muted)}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin:0 0 16px;padding:0;list-style:none}
-.legend li{display:flex;gap:6px;align-items:center}
-.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:16px;margin-bottom:16px}
-.lcard{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
-.lcard.blocked{border-color:var(--danger)}
-.lhead{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
-.lhead .tn{font-family:var(--font-mono);font-weight:600;font-size:17px}
-.lhead .ts{font-size:12px;color:var(--muted)}
-.verdict{font-size:13px;font-weight:500}
-.verdict.warn{color:var(--danger)}
-.verdict.calm{color:var(--muted)}
-.lrow{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:9px 16px;border-top:1px solid var(--line)}
-.lrow:first-of-type{border-top:0}
-.lrow.chg{animation:flash 2.4s ease-out}
-.lrow .hn{font-family:var(--font-mono);font-weight:500;overflow-wrap:anywhere}
-.lrow .sub{grid-column:2/-1;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
-.lrow .wk{font-size:11px;color:var(--muted);border:1px dashed var(--muted);border-radius:4px;padding:0 5px;margin-left:6px;font-family:var(--font-body)}
-.lfoot{padding:10px 16px;border-top:1px solid var(--line);background:var(--bg);display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12.5px}
-.ldot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--verify);animation:beat 1.4s ease-in-out infinite}
-.fine{font-size:12.5px;color:var(--muted)}
-.json{max-height:320px;overflow:auto}
-.tp-pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px}
-.topo-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:12px}
-.topo{display:block;width:100%;height:auto;max-width:var(--tw);min-width:var(--tmin)}
-/* 構成図の画面で右のパネルを開いたときは、パネルを細くし、図は縮めて全体を見せる */
-@media (min-width:1100px){
-  .app[data-view="topo"] .body:has(> .drawer:not([hidden])){grid-template-columns:248px minmax(0,1fr) clamp(380px,30vw,560px)}
-  .body:has(> .drawer:not([hidden])) .topo{min-width:0}
-}
-.topo text{font-family:var(--font-body);fill:var(--ink);font-size:13px}
-.topo .tp-name{font-family:var(--font-mono);font-weight:600;font-size:15px}
-.topo .tp-sub,.topo .tp-cap{fill:var(--muted);font-size:12px}
-.topo .tp-shared{fill:var(--sunken);stroke:var(--line)}
-.topo .tp-doc,.topo .tp-role{fill:var(--surface);stroke:var(--muted)}
-.topo .tp-role.none{stroke:var(--faint);stroke-dasharray:4 3}
-.topo .tp-feed{stroke:var(--faint);stroke-width:1.2}
-.topo .tp-human{fill:var(--surface);stroke:var(--ink);stroke-width:1.6}
-.topo .tp-mem{stroke-width:1.6}
-.topo .c0{fill:var(--tp0);stroke:var(--tp0-ink)} .topo .c1{fill:var(--tp1);stroke:var(--tp1-ink)} .topo .c2{fill:var(--tp2);stroke:var(--tp2-ink)} .topo .c3{fill:var(--tp3);stroke:var(--tp3-ink)}
-.topo .tp-mem.sel{stroke-width:3.2}
-.topo .tp-mem.st-blocked{stroke:var(--danger);stroke-width:3}
-.topo .tp-worker{fill:var(--surface);stroke:var(--muted);stroke-dasharray:5 4}
-.topo .tp-hire{stroke:var(--muted);stroke-dasharray:3 3}
-.topo .tp-edge path{fill:none;stroke:var(--reason);stroke-width:1.8;transition:opacity .2s,stroke-width .2s}
-.topo .tp-edge.any path{stroke-dasharray:6 4}
-.topo marker path{fill:var(--reason)}
-.topo .tp-lab rect{fill:var(--surface);stroke:var(--reason)}
-.topo .tp-lab text{fill:var(--reason);font-family:var(--font-mono);font-size:12px}
-.topo .tp-lab:hover rect,.topo .tp-lab:focus-visible rect{fill:var(--reason-soft)}
-.topo .tp-node,.topo .tp-lab{cursor:pointer;outline:none}
-.topo .tp-node:hover > rect:first-of-type,.topo .tp-node:focus-visible > rect:first-of-type{stroke-width:3}
-.topo .tp-pill text{fill:currentColor;font-family:var(--font-mono);font-size:12px}
-.topo .tp-pill rect{fill:var(--surface);stroke:currentColor}
-.topo .tp-pill circle{fill:currentColor}
-.topo .tp-pill.st-working circle{animation:beat 1.4s ease-in-out infinite}
-.topo .tp-pill.st-gone text{font-family:var(--font-body)}
-.topo.focusing .tp-edge:not(.hl){opacity:.12}
-.topo.focusing .tp-edge.hl path{stroke-width:2.8}
-.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin:10px 0 0;font-size:13px}
-.kv dt{color:var(--muted)}
-.kv dd{margin:0;overflow-wrap:anywhere}
-@media (max-width:760px){ .lrow{grid-template-columns:minmax(0,1fr) auto} .lrow .sub{grid-column:1/-1} }
-/* 右のパネルを開くと中央の列が狭くなるので、表の折り返しは画面の幅ではなく中央の列の幅で決める */
-main{container-type:inline-size}
-@container (max-width:700px){
-  .mhead,.whead{display:none}
-  .mline,.wline{grid-template-columns:1fr 1fr}
-  .mline > :last-child{grid-column:1/-1}
-  .wline .wm{grid-column:1/-1}
-  .wline.more .wm{display:none}
-}
-@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
-
-/* ---------------------------------------------------------------------------
-   ここから下は、この実装だけの足し算 (d-207f)。
-   試作は 1 枚の HTML にボタンと script を書いていた。この実装は CSP が
-   default-src 'self' だけなので、inline の style と script を使わない。
-   その置き換えと、ブラウザの初期値をここで決める。
-   --------------------------------------------------------------------------- */
-
-/* 試作はホストのページに埋め込まれる前提だったので、ブラウザの初期値を決めていない */
-*,*::before,*::after{box-sizing:border-box}
-html,body{margin:0}
-
-/* 試作のボタンは、この実装ではリンクと form のボタンになる。見た目は試作のまま */
-.app a{color:inherit;text-decoration:none}
-.app a.linkbtn,.app a.ref{color:var(--reason);text-decoration:underline;text-underline-offset:2px}
-.app a.ref{text-decoration-thickness:1px;font-family:var(--font-mono);font-size:.92em}
-.app a.linkbtn:hover,.app a.ref:hover{color:var(--ink)}
-.app a.linkbtn:focus-visible,.app a.ref:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.lkform{display:contents}
-
-/* 検索: 試作は input.search を toolbar の直の子にしている。本実装は、script が
-   無くても Enter で絞れるよう form で包む。form が toolbar の子のままだと
-   input.search の margin-left:auto が効かないので、form を layout から外す */
-.search-form{display:contents}
-/* 右のパネルの「関連する規則」: 試作は inline の style で並べていた */
-.related{display:grid;gap:2px;font-size:13px;color:var(--ink)}
-.linkbtn.big,.fs14{font-size:14px}
+.mono,pre,code{font-family:var(--font-mono)}
+code{background:var(--sunken);padding:1px 5px;border-radius:4px;font-size:.92em}
+a{color:var(--link);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+a:hover{text-decoration-thickness:2px}
 .muted{color:var(--muted)}
-.fine-only{border:0;background:var(--surface);border-radius:var(--r);padding:2px 6px}
+.faint{color:var(--faint)}
+.note{display:block;font-size:12px}
+.ref{font-size:13px;color:var(--muted)}
+.link{color:var(--link)}
+.path{font-size:12px}
+.marker{font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.problem{color:var(--danger)}
+.focused{background:var(--ok-soft);border-radius:var(--r);padding:4px 10px}
 
-/* メーターの棒: 試作は内側の i の幅を JS で決める。この実装は <progress> に割合を任せる */
-.meter .mb{appearance:none;-webkit-appearance:none;border:0;padding:0;width:120px;height:5px}
-.meter .mb::-webkit-progress-bar{background:var(--sunken);border-radius:3px}
-.meter .mb::-webkit-progress-value{border-radius:3px;transition:width .5s ease}
-.meter .mb.o::-webkit-progress-value{background:var(--origin)}
-.meter .mb.r::-webkit-progress-value{background:var(--reason)}
-.meter .mb.v::-webkit-progress-value{background:var(--verify)}
+/* 枠 */
+.app{min-height:100%;display:flex;flex-direction:column}
+header.top{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px;padding:12px max(16px,3vw);background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;color:inherit;text-decoration:none}
+.brand svg{display:block;width:72.7px;height:26px}
+.hg-ink{fill:none;stroke:var(--ink)} .hg-dot{fill:var(--ink)} .hg-lead{fill:var(--origin)}
+nav.band{display:flex;gap:2px;background:var(--sunken);padding:3px;border-radius:8px;flex-wrap:wrap}
+nav.band a{color:var(--muted);text-decoration:none;padding:5px 14px;border-radius:6px;font-weight:600;white-space:nowrap}
+nav.band a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+nav.band a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -2px 0 var(--origin)}
+main{width:100%;max-width:1320px;margin:0 auto;padding:20px max(16px,3vw) 80px}
+.crumb{color:var(--muted);font-size:13px;margin:0 0 10px}
+.crumb b{color:var(--ink);font-family:var(--font-mono)}
+.crumb .sep{color:var(--faint)}
 
-/* 左の一覧: 文書の行の 2 行目は左寄せ (試作は style 属性で直に書いている) */
-.ix-item .ix-sub{text-align:left}
+.lead{font-size:20px;font-weight:700;margin:0 0 6px;line-height:1.5}
+.sub{color:var(--muted);margin:0 0 14px}
+.count{font-size:16px;font-weight:600;margin:0 0 16px}
+.empty{color:var(--muted)}
+.sec{font-size:15px;margin:22px 0 8px}
 
-/* 中央の列の幅 (試作は style="max-width:…" を直に書いている) */
-.wrap.w1080{max-width:1080px}
-.wrap.w1100{max-width:1100px}
-.wrap.w1180{max-width:1180px}
-.wrap.w1240{max-width:1240px}
+/* ボタンとコマンド */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 12px;cursor:pointer;font-weight:600;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9}
+.btn.quiet{font-weight:500;color:var(--muted)}
+.cmd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.cmds{list-style:none;margin:4px 0;padding:0}
+.cmds li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}
+.handover{list-style:none;margin:6px 0;padding:0}
+.handover>li{margin:6px 0}
+.saved{border-left:3px solid var(--ok);background:var(--ok-soft);border-radius:0 8px 8px 0;padding:8px 14px;margin:0 0 12px}
+.findings{list-style:none;margin:6px 0;padding:0;color:var(--danger)}
 
-/* 余白 (同上) */
-.m0{margin:0}
-.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt14{margin-top:14px}
-.mt16{margin-top:16px}.mt18{margin-top:18px}.mt22{margin-top:22px}.mt26{margin-top:26px}
-.mb0{margin-bottom:0}.mb4{margin-bottom:4px}.mb6{margin-bottom:6px}.mb8{margin-bottom:8px}
-.mb10{margin-bottom:10px}.mb12{margin-bottom:12px}.mb26{margin-bottom:26px}
-.sect{margin:22px 0 8px}
-.sect-sm{margin:18px 0 8px}
-.rows-end{justify-content:flex-end}
-.rows-between{justify-content:space-between}
-.rows-top{border-top:1px solid var(--line);padding-top:14px}
-.nowrap-gap{gap:6px;flex-wrap:nowrap}
+/* 使命の欄 */
+.mission{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+.mission .fl{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.mission-input{flex:1 1 320px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px}
+.mission-input:focus{border-color:var(--ink)}
+.actions{display:inline-flex;gap:6px}
+/* C1: a group the script hides must be hidden, whatever its display would be. */
+[hidden]{display:none !important}
 
-/* 右のパネル: プレビューの中の Markdown を、箱に収まる大きさにする */
-.preview h1,.preview h2,.preview h3,.preview h4{font-size:13px;margin:8px 0 4px}
-.preview p{margin:4px 0}
-.preview ol,.preview ul{margin:4px 0;padding-left:18px}
+/* 表 */
+.tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.tbl th,.tbl td{text-align:left;vertical-align:top;padding:7px 12px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.tbl th{font-size:12px;color:var(--muted);letter-spacing:.04em;background:var(--sunken)}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.broken td{background:var(--wait-soft)}
+.common{margin:0 0 10px}
+.common a{font-weight:600}
 
-/* 規則: 文書の見出しの数字は、由来・理由・検証方法の色 (試作は style 属性で直に書いている) */
-.doc-meta .o{color:var(--origin)}
-.doc-meta .r{color:var(--reason)}
-.doc-meta .v{color:var(--verify)}
+/* 図 */
+.fig{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto}
+.fig svg{display:block;width:100%;max-width:100%;height:auto}
+.fig .box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.fig .human .box{fill:var(--sunken)}
+.fig .member.c0 .box{stroke:var(--origin)} .fig .member.c1 .box{stroke:var(--link)}
+.fig .member.c2 .box{stroke:var(--ok)} .fig .member.c3 .box{stroke:var(--wait)}
+.fig .worker .box{fill:var(--sunken);stroke-dasharray:4 3}
+.fig .nm{fill:var(--ink);font-size:13px;font-weight:600}
+.fig .sub{fill:var(--muted);font-size:11px}
+.fig .edge{fill:none;stroke:var(--muted);stroke-width:1.6}
+.fig .edge.worker{stroke-dasharray:4 3}
+.fig .head{fill:var(--muted);stroke:none}
+a.node,a.edge-link{text-decoration:none;cursor:pointer}
+a.node:hover .box,a.node:focus-visible .box{stroke:var(--focus);stroke-width:2.5}
+a.node.open .box{stroke:var(--focus);stroke-width:2.5}
+.fig .node.active .box{fill:var(--ok-soft)}
+.fig .node.blocked .box{fill:var(--wait-soft)}
+.fig .node.handed .box{fill:var(--link-soft)}
+.fig .node.idle .box{fill:var(--sunken)}
 
-/* 右のパネル: 送る形と、その中の見張りを、dr-body の格子に直接置く。
-   試作は 2 つの section を dr-body の直下に置いている */
-.drawer .dr-body > form{display:contents}
-.drawer .dr-body > form > .dr-watch{display:contents}
-/* 格子に直接置いた中身にも、全幅の指定を当てる。当たるのは form と .dr-watch の
-   直下だけで、格子の外 (dr-body が縦 1 列のとき) では効かない (V2) */
-.drawer .dr-body > form > *,
-.drawer .dr-body > form > .dr-watch > *{grid-column:1/-1}
-.drawer .dr-body > form > .zone,
-.drawer .dr-body > form > .dr-watch > .zone{grid-column:auto}
-
-/* 断られたことの 1 行 (試作に無い。本実装の問題の文) */
-.problem,.banner.danger{color:var(--danger)}
-.banner.danger{border-color:var(--danger);background:var(--origin-soft)}
-
-/* 動いているチーム: ペインに移る form を行の 3 列目に置く (lkform は上) */
-
-/* 規則の行: 試作は li.rule の中に (ID | 本文) の 2 列を持つ。
-   この実装は開くボタンの中に入れているので、ボタンを grid の入れ物にする。
-   箱 (余白・列・押せる印) はボタンの側に置く: 行の余白を押しても開く (r-06a1) */
-.rule > .rule-open{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:start;width:100%;padding:11px 14px;border:0;background:transparent;cursor:pointer;font:inherit;color:inherit;text-align:left}
-.rule > .rule-open:hover{background:color-mix(in srgb,var(--sunken) 55%,var(--surface))}
-.rule[aria-current="true"] > .rule-open{background:color-mix(in srgb,var(--reason-soft) 60%,var(--surface))}
-/* プロンプトのタブの規則も同じ: 押せる印と背景はボタンの側に置く */
-.r-rule > .rule-open{display:block;width:100%;border:0;background:transparent;cursor:pointer;font:inherit;color:inherit;text-align:left}
-.r-rule > .rule-open:hover{background:var(--sunken)}
-
-/* 狭い画面: 規則の行は ID と本文を縦に積む */
-@media (max-width:760px){ .rule > .rule-open{grid-template-columns:minmax(0,1fr);gap:6px 10px} }
-
-/* チーム一覧: team.yaml に目的の欄が無いので 5 列 (試作は 6 列) */
-.tlist.no-about .thead,.tlist.no-about .tline{grid-template-columns:minmax(120px,180px) 84px minmax(170px,240px) minmax(150px,1fr) 16px}
-/* チーム一覧: 動いている印と、検証方法の数の色 (試作は style 属性で直に書いている) */
-.tline .ts.ok{color:var(--verify)}
-.tline .num.warn{color:var(--warn)}
-.tline .num.ok{color:var(--verify)}
-
-/* 構成図: 試作は style で --tw/--tmin を渡す。この実装は <svg> の width 属性で渡す */
-.topo{width:auto;max-width:none;min-width:0}
+/* 詳細の 2 列 */
+.detail{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.detail .fig{grid-column:1;grid-row:1}
+.detail .right{grid-column:1;grid-row:2}
+.detail .left{grid-column:1;grid-row:3;min-width:0}
 @media (min-width:1100px){
-  .app[data-view="topo"] .body:has(> .drawer:not([hidden])) .topo{width:100%;max-width:100%}
+  .detail{grid-template-columns:minmax(0,1fr) 380px}
+  .detail .right{grid-column:2;grid-row:1 / span 2}
 }
+.left .sec{margin-top:18px}
 
-/* 構成図: 定義に無いのに動いているメンバー (試作に無い) */
-.topo .tp-stranger{fill:var(--surface);stroke:var(--faint);stroke-dasharray:5 4}
-/* 構成図: 名前と小さな字の大きさ (試作は style 属性で直に書いている) */
-.topo .tp-human-name{font-weight:700}
-.topo .tp-doc-name{font-size:12px}
-.topo .tp-role-name{font-size:12.5px}
-.topo .tp-worker-name{font-size:12px;font-weight:500}
-.topo .tp-cap.xs{font-size:11px}
-/* 構成図: 読めない向きの一覧 (spec/12 で増えたので h2 の大きさに合わせる) */
-.unread h2{font-size:17px}
-.unread .rule-text{color:var(--ink);margin-left:6px}
-.plain{list-style:none;margin:8px 0 0;padding:0}
-.plain li{font-size:12.5px;color:var(--muted)}
+/* 開いた欄 */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.panel .close{float:right}
+.panel-title{font-size:16px;margin:0 0 10px}
+.fields{margin:0}
+.field{margin:0 0 10px}
+.fields dt{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.fields dd{margin:2px 0 0;overflow-wrap:anywhere}
 
-/* 動いているチーム: ペインの id は折り返さない (試作は inline style で直に書いている) */
-.lpane{white-space:nowrap}
+/* 規則の札 */
+.cards{list-style:none;margin:6px 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+.card a{text-decoration:none;display:flex;gap:10px;flex-wrap:wrap}
+.card a:hover{text-decoration:underline}
+.rid{font-weight:700;color:var(--muted);min-width:5em}
+.clause{color:var(--ink)}
 
-/* HTMX の読み込み中の印 (試作には無い) */
-.htmx-indicator{opacity:0;transition:opacity 200ms ease-in}
-.htmx-request .htmx-indicator,.htmx-request.htmx-indicator{opacity:1}
+/* 活動 */
+.teamcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 0 12px}
+.teamcard h2{font-size:16px;margin:0 0 6px}
+.line{margin:0 0 6px}
+.tail{background:var(--sunken);border-radius:6px;padding:8px 10px;font-size:12px;white-space:pre-wrap;overflow:auto;margin:6px 0}
+.plain{list-style:none;margin:6px 0;padding:0}
+.plain li{margin:4px 0}
+.panes{display:flex;flex-direction:column;gap:4px}
 
-/* 層のトグルの副題: ホームの外を指す設定でも 1 段目を押し出さない
-   (試作は ~/.config/hergy と決め打ちなので、この規則は要らない。
-   2026-10-16 の見比べで hergy-lead が見つけた) */
-.layer-toggle a small{max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ホームの文書の見出し: 「前回の起動: …」は h3 の中で太字にしない
-   (試作は style="font-weight:400" を直に書いている) */
-.copy-row h3 .fine{font-weight:400}
-
-/* ホームの「たまにする作業」: 試作は ul に style="margin:0;padding-left:20px" を直に書いている */
-.lede-list{margin:0;padding-left:20px}
-
-/* プロンプトのタブの切り替え: 試作は checkbox を JS が読み、
-   本実装は script の無いリンクなので、押されていることを aria-pressed で示す (r-bb9c) */
-.toggle[aria-pressed]::before{font-family:var(--font-mono)}
-.toggle[aria-pressed="true"]::before{content:"\2611 "}
-.toggle[aria-pressed="false"]::before{content:"\2610 "}
-.toggle[aria-disabled="true"]{color:var(--faint);cursor:default}
-
-/* プロファイル: 名前は入力欄、kind・args・env と行ごとの「削除」で 5 列
-   (試作の .pline と同じ。r-bb9c が読み取りだけの画面にしたときに外した 5 列目を、
-   r-daf8 でこの画面が編集するようになったので戻した) */
-.pline{display:grid;grid-template-columns:130px 110px minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 12px}
-.mhead.pline{grid-template-columns:130px 110px minmax(0,1fr) minmax(0,1fr) auto}
-.mgroup.shadowed .pline{opacity:.6}
-/* プロファイルの名前は識別子なので、ほかの欄と同じ入力欄を code の書体で出す */
-.pline .mname{font-family:var(--font-mono);font-weight:600}
-/* env は 1 変数を 1 組にして積む: 名前の欄と値の textarea. 値は textarea なの
-   で、改行を含む値もそのまま出て、そのまま編集できる (d-c60f) */
-.envlist{display:flex;flex-direction:column;gap:6px}
-.envlist .add-rule{align-self:flex-start;margin-top:0;padding:2px 8px;font-size:11.5px}
-.envpair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) auto;gap:6px;align-items:start}
-.envpair .x{font-size:16px;line-height:1.5;padding:0 2px}
-@media (max-width:760px){ .pline{grid-template-columns:1fr 1fr} .mhead.pline{display:none} }
+@media (max-width:640px){
+  .tbl thead{display:none}
+  .tbl{border:0;background:transparent}
+  .tbl tr{display:block;border:1px solid var(--line);border-radius:8px;margin:0 0 8px;background:var(--surface);padding:4px 10px}
+  .tbl td{display:block;border:0;padding:2px 0}
+  .mission-input{flex-basis:100%}
+}

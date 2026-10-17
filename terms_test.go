@@ -27,9 +27,8 @@ type ban struct {
 	// rules the wording; a ban with no instead says the word is out and leaves
 	// the way to say it to whoever rewrites the sentence.
 	instead string
-	// except is a locale key prefix left unchecked. The Web UI's own strings
-	// (web.*) still name the layer until the Web UI is rebuilt (r-5f80); every
-	// string the commands, the cheatsheet and the docs read is checked.
+	// except is a locale key prefix left unchecked. Nothing uses it now: the
+	// Web UI's own strings (web.*) name no layer either (設計 6 節).
 	except string
 }
 
@@ -112,9 +111,10 @@ var glossary = []term{
 		meaning:  "one of the two settings roots: the project (<project>/.hergy) and outside it ($XDG_CONFIG_HOME/hergy). It stays inside hergy: it is not a word a person reads (I11)",
 		banned: []ban{
 			// The layer is hergy's own word. A person reads the place by its
-			// path, never by this name (I11, 段 7).
-			{lang: "ja", word: "層", except: "web."},
-			{lang: "en", word: "layer", except: "web."},
+			// path, never by this name (I11, 段 7). The Web UI is checked too:
+			// its rebuilt screens name no layer (設計 6 節).
+			{lang: "ja", word: "層"},
+			{lang: "en", word: "layer"},
 		},
 	},
 	{

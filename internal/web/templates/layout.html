@@ -4,70 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
-<title>{{tf "web.frame.title" .Title}}</title>
+<title>hergy · {{.Title}}</title>
 <link rel="stylesheet" href="/static/hergy.css">
 <script src="/static/htmx-2.0.4.min.js" defer></script>
 <script src="/static/copy.js" defer></script>
+<script src="/static/ui.js" defer></script>
 </head>
-<body>
-<div class="app" data-layer="{{.Layer}}" data-view="{{.View}}">
-  <header class="top">
-    <a class="brand" href="{{.Home}}">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72.7 26" width="72.7" height="26" role="img" aria-label="hergy"><title>hergy</title><g class="hg-mark" transform="translate(1 0)"><rect class="hg-dot" x="0" y="6" width="4" height="4"/><rect class="hg-dot" x="0" y="18" width="4" height="4"/><rect class="hg-dot" x="6" y="9" width="4" height="4"/><rect class="hg-dot" x="6" y="15" width="4" height="4"/><rect class="hg-lead" x="12" y="12" width="4" height="4"/></g><path class="hg-ink" d="M25.0 3V19M25.0 10H32.0V19M42.3 18H35.3V10H42.3V14H35.3M45.599999999999994 19V9M45.599999999999994 10H51.099999999999994M61.39999999999999 10H54.39999999999999V18H61.39999999999999M61.39999999999999 9V23H54.39999999999999M64.69999999999999 9V18H71.69999999999999M71.69999999999999 9V23H64.69999999999999" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"/></svg>
-    </a>
-    <div class="layer-toggle" role="group" aria-label="{{t "web.frame.layer"}}">
-      {{- range .Layers}}
-      <a href="{{.Href}}"{{if .Active}} aria-current="true"{{end}}><b>{{.Name}}</b><small>{{.Root}}</small></a>
-      {{- end}}
-    </div>
-    <nav class="views" aria-label="{{t "web.frame.nav"}}">
-      {{- range .Nav}}
-      <a href="{{.Href}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}</a>
-      {{- end}}
-    </nav>
-    <div class="meters">
-      {{- range .Meters}}
-      <div class="meter"><span class="ml">{{.Label}}</span><span class="mv">{{.N}} / {{.Total}}</span><progress class="mb {{.Class}}" value="{{.N}}" max="{{.Max}}"></progress></div>
-      {{- end}}
-    </div>
-  </header>
-  <div class="body">
-    <aside class="index" id="index" aria-label="{{t "web.frame.index"}}">
-      <div class="ix-layer">
-        <div class="ix-layer-h"><span class="lay {{.Layer}}">{{.LayerName}}</span><small>{{.LayerRoot}}{{t .LayerNote}}</small></div>
-        {{- if .Index.Teams}}
-        <div class="ix-group">
-          <div class="ix-label">{{t "web.frame.index.group.teams"}}</div>
-          {{- range .Index.Teams}}
-          <a class="ix-item" href="{{.Href}}"{{if eq .Name $.CurrentTeam}} aria-current="true"{{end}}>
-            <span class="ix-row"><span class="ix-name mono">{{.Name}}</span><span class="ix-rev">{{tf "web.frame.index.people" .Members}}</span></span>
-            {{- if .Shadowed}}<span class="ix-rev">{{t "web.frame.index.shadowed"}}</span>{{end}}
-            {{- if .Broken}}<span class="ix-rev">{{.Broken}}</span>{{end}}
-          </a>
-          {{- end}}
-        </div>
-        {{- end}}
-        {{- range .Index.Groups}}
-        <div class="ix-group">
-          <div class="ix-label">{{.Label}}</div>
-          {{- range .Rows}}
-          <a class="ix-item" href="{{.Href}}"{{if eq .Path $.CurrentDoc}} aria-current="true"{{end}}>
-            <span class="ix-row"><span class="ix-name{{if .Mono}} mono{{end}}">{{.Name}}</span><span class="ix-rev">{{if .Changed}}<span class="dirty">{{tf "web.frame.index.changed" .Changed}}</span>{{else if .Whole}}<span class="dirty">{{t "web.frame.index.changed_any"}}</span>{{end}}</span></span>
-            <span class="ix-rev ix-sub">{{tf "web.frame.index.tally" .Rules .Origin}}</span>
-          </a>
-          {{- end}}
-        </div>
-        {{- end}}
-        <div class="ix-group">
-          <a class="ix-item" href="{{.Index.ProfilesHref}}"{{if eq $.View "profiles"}} aria-current="true"{{end}}><span class="ix-row"><span class="ix-name">{{t "web.frame.index.group.profiles"}}</span><span class="ix-rev">{{tf "web.frame.index.count" .Index.Profiles}}</span></span></a>
-        </div>
-      </div>
-    </aside>
-    <main id="main">
-{{.Body}}
-    </main>
-    {{if .Drawer}}{{.Drawer}}{{else}}<aside class="drawer" id="{{.DrawerID}}" hidden aria-label="{{t "web.frame.drawer"}}"></aside>{{end}}
-  </div>
+<body hx-boost="true" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-push-url="true">
+<div class="app" id="page" data-title="{{.Title}}">
+<header class="top">
+  <a class="brand" href="/" aria-label="hergy">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72.7 26" width="72.7" height="26" role="img"><title>hergy</title><g transform="translate(1 0)"><rect class="hg-dot" x="0" y="6" width="4" height="4"/><rect class="hg-dot" x="0" y="18" width="4" height="4"/><rect class="hg-dot" x="6" y="9" width="4" height="4"/><rect class="hg-dot" x="6" y="15" width="4" height="4"/><rect class="hg-lead" x="12" y="12" width="4" height="4"/></g><path class="hg-ink" d="M25.0 3V19M25.0 10H32.0V19M42.3 18H35.3V10H42.3V14H35.3M45.599999999999994 19V9M45.599999999999994 10H51.099999999999994M61.39999999999999 10H54.39999999999999V18H61.39999999999999M61.39999999999999 9V23H54.39999999999999M64.69999999999999 9V18H71.69999999999999M71.69999999999999 9V23H64.69999999999999" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"/></svg>
+  </a>
+  <nav class="band" aria-label="{{t "web.band"}}">
+    {{- range .Bands}}
+    <a href="{{.Href}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}}</a>
+    {{- end}}
+  </nav>
+</header>
+<main id="main">
+  {{- if .Crumb}}
+  <nav class="crumb" aria-label="{{t "web.crumb"}}">
+    {{- range $i, $c := .Crumb}}{{if $i}} <span class="sep" aria-hidden="true">›</span> {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Name}}</a>{{else}}<b>{{$c.Name}}</b>{{end}}{{end}}
+  </nav>
+  {{- end}}
+  {{.Body}}
+</main>
 </div>
+<input type="hidden" id="run-token" value="{{.Token}}">
 </body>
 </html>

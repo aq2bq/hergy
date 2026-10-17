@@ -4,7 +4,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -23,13 +22,13 @@ const modulePath = "github.com/aq2bq/hergy"
 // leaves import no package of this module.
 var leaves = []string{"browser", "i18n", "layout", "scaffold", "source", "version"}
 
-// topLayer is imported by internal/app only. A package nested under one of
-// these (internal/web/rulesview) is a part of it and may import its parent; the
-// nested package itself is listed too, so nothing but app reaches it.
-var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web", "web/rulesview", "web/teamview"}
+// topLayer is imported by internal/app only. The name is the path under
+// internal/, so a package nested under another (internal/web/rulesview) is told
+// apart from its parent, which path.Base hid.
+var topLayer = []string{"cheat", "herdrcli", "launcher", "spawn", "team", "web"}
 
-// importsOf maps each non-test Go file to the module packages it imports,
-// as package names under internal/ ("app", "i18n", …); main.go is "main".
+// importsOf maps each non-test Go file to the module packages it imports, as
+// package names under internal/ ("app", "i18n", …); main.go is "main".
 func importsOf(t *testing.T) map[string][]string {
 	t.Helper()
 	out := map[string][]string{}
@@ -50,8 +49,13 @@ func importsOf(t *testing.T) map[string][]string {
 			if err != nil {
 				return err
 			}
-			if p == modulePath || strings.HasPrefix(p, modulePath+"/") {
-				imports = append(imports, path.Base(p))
+			switch {
+			case p == modulePath:
+				imports = append(imports, "main")
+			case strings.HasPrefix(p, modulePath+"/internal/"):
+				imports = append(imports, strings.TrimPrefix(p, modulePath+"/internal/"))
+			case strings.HasPrefix(p, modulePath+"/"):
+				imports = append(imports, strings.TrimPrefix(p, modulePath+"/"))
 			}
 		}
 		sort.Strings(imports)
@@ -78,7 +82,7 @@ func packageOf(file string) string {
 	if file == "main.go" {
 		return "main"
 	}
-	return strings.TrimPrefix(path.Dir(file), "internal/")
+	return strings.TrimPrefix(filepath.ToSlash(filepath.Dir(file)), "internal/")
 }
 
 func TestImportDirection(t *testing.T) {

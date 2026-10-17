@@ -1,7 +1,6 @@
 package topology
 
 import (
-	"math"
 	"sort"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -134,34 +133,6 @@ type Figure struct {
 	MemberRight float64
 }
 
-// Layout lays out one team definition: the boxes, and the arrows the graph's
-// turns make. It reads no rule text: the turns are the definition's own (段 5).
-// It is the older figure, which draws the documents and the roles beside the
-// members; LayoutGraph draws the figure a screen shows from the graph alone. It
-// stays until the older screen is gone.
-func Layout(members []Member, docs []Doc, turns []Turn) Figure {
-	rows := buildRows(members)
-	top := topMargin + humanH + humanGap
-	bottom := stackRows(rows, top, len(sharedDocs(docs)))
-	f := Figure{
-		Shared:  Box{X: sharedX, Y: top, W: sharedW, H: bottom - top},
-		Docs:    placeDocs(docs, top),
-		Human:   Box{X: memberX, Y: rows[0].Y, W: memberW, H: humanH},
-		Members: make([]MemberBox, len(members)),
-		// The arrows leave the member column: its right edge is fixed, so the
-		// screen can draw the curves without knowing the sizes.
-		MemberRight: memberX + memberW,
-	}
-	for i := range members {
-		f.Members[i] = placeMember(members[i], i, rows[1+i], docs)
-	}
-	index := rowIndex(rows)
-	f.Edges = placeEdges(turns, rows, index)
-	f.Width = memberX + memberW + laneStart + math.Max(0, float64(len(f.Edges)-1))*laneW + rightPad
-	f.Height = bottom + bottomPad
-	return f
-}
-
 // row is one horizontal band of the figure: a party's key, and where it sits.
 type row struct {
 	key  string
@@ -172,100 +143,6 @@ type row struct {
 	anchorH float64
 }
 
-// buildRows is the rows in drawn order: the human, then the members.
-func buildRows(members []Member) []row {
-	rows := make([]row, 0, len(members)+1)
-	rows = append(rows, row{key: Side{Kind: SideHuman}.Key(), H: humanH})
-	for i, member := range members {
-		h := memberH
-		if len(member.Workers) > 0 {
-			h += workerStep
-		}
-		rows = append(rows, row{key: Side{Kind: SideMember, Member: i}.Key(), H: h})
-	}
-	return rows
-}
-
-// stackRows puts the rows under the human, one after another, and returns how
-// far down the figure goes: the last row, or the end of the band of documents,
-// whichever is lower.
-func stackRows(rows []row, top float64, docs int) float64 {
-	rows[0].Y = topMargin
-	y := top
-	for i := 1; i < len(rows); i++ {
-		rows[i].Y = y
-		y += rows[i].H + rowGap
-	}
-	band := top + bandTopPad + float64(docs)*docStep
-	return math.Max(y-rowGap, band)
-}
-
-// sharedDocs is the documents every member reads: the ones with no role.
-func sharedDocs(docs []Doc) []Doc {
-	var out []Doc
-	for _, doc := range docs {
-		if doc.Role == "" {
-			out = append(out, doc)
-		}
-	}
-	return out
-}
-
-// placeDocs puts the shared documents in the band, top to bottom.
-func placeDocs(docs []Doc, top float64) []DocBox {
-	shared := sharedDocs(docs)
-	out := make([]DocBox, len(shared))
-	for i, doc := range shared {
-		out[i] = DocBox{
-			Box:   Box{X: sharedX + docX, Y: top + docY + float64(i)*docStep, W: sharedW - 2*docX, H: docH},
-			Key:   doc.Key,
-			Label: doc.Label,
-			Rules: len(doc.Rules),
-		}
-	}
-	return out
-}
-
-// placeMember puts one member's box, its role file and its workers. row carries
-// the y the member's box starts at.
-func placeMember(member Member, index int, row row, docs []Doc) MemberBox {
-	box := Box{X: memberX, Y: row.Y, W: memberW, H: memberH}
-	slot := Box{X: roleX, Y: box.CY() - roleH/2, W: roleW, H: roleH}
-	out := MemberBox{Box: box, Index: index, Name: member.Name, Role: member.Role, RoleSlot: slot}
-	if doc, ok := roleFile(member.Role, docs); ok {
-		file := slot
-		out.RoleFile = &file
-		out.RoleFileKey = doc.Key
-	}
-	if n := len(member.Workers); n > 0 {
-		w := math.Min(workerMaxW, (memberW-2*workerPadX-float64(n-1)*8)/float64(n))
-		for j, worker := range member.Workers {
-			out.Workers = append(out.Workers, WorkerBox{
-				Box: Box{
-					X: memberX + workerPadX + float64(j)*(w+8),
-					Y: box.Y + memberH + workerGap,
-					W: w,
-					H: workerH,
-				},
-				Purpose: worker.Purpose,
-				Profile: worker.Profile,
-			})
-		}
-	}
-	return out
-}
-
-// roleFile finds the role file a role reads: the document whose role is that
-// role. Files are never merged, so the first one wins.
-func roleFile(role string, docs []Doc) (Doc, bool) {
-	for _, doc := range docs {
-		if doc.Role != "" && doc.Role == role {
-			return doc, true
-		}
-	}
-	return Doc{}, false
-}
-
 // rowIndex maps each party's key to its row.
 func rowIndex(rows []row) map[string]int {
 	index := make(map[string]int, len(rows))
@@ -273,26 +150,6 @@ func rowIndex(rows []row) map[string]int {
 		index[r.key] = i
 	}
 	return index
-}
-
-// placeEdges puts every arrow: its lane to the right of the members, and the y
-// where it meets each row.
-func placeEdges(turns []Turn, rows []row, index map[string]int) []Arrow {
-	held := make([]heldEdge, 0, len(turns))
-	for _, turn := range turns {
-		from, ok := index[turn.From.Key()]
-		if !ok {
-			continue
-		}
-		to, ok := index[turn.To.Key()]
-		if !ok {
-			continue
-		}
-		held = append(held, heldEdge{turn: turn, from: from, to: to})
-	}
-	assignLanes(held)
-	fromY, toY := anchors(held, rows)
-	return assemble(held, fromY, toY)
 }
 
 // assignLanes sorts the arrows and gives each its lane: the short ones bend
@@ -310,11 +167,9 @@ func assignLanes(held []heldEdge) {
 	}
 }
 
-// heldEdge is one arrow with the rows its ends meet. turn is set for an arrow of
-// the older figure and edge for one of a graph (C7); each caller sets the one it
-// has.
+// heldEdge is one arrow with the rows its ends meet: the graph edge it draws
+// (C7).
 type heldEdge struct {
-	turn     Turn
 	edge     definition.Edge
 	from, to int
 	lane     int
@@ -384,18 +239,6 @@ func placeEnds(list []end, lanes []int, r row, index int, fromY, toY []float64) 
 			toY[e.at] = center + offset
 		}
 	}
-}
-
-// assemble writes each arrow out with its lane and label position, shifting a
-// label down when it would sit on another label in a nearby lane.
-func assemble(held []heldEdge, fromY, toY []float64) []Arrow {
-	x0 := memberX + memberW
-	out := make([]Arrow, 0, len(held))
-	for i, h := range held {
-		laneX := x0 + laneStart + float64(h.lane)*laneW
-		out = append(out, Arrow{Turn: h.turn, FromY: fromY[i], ToY: toY[i], LaneX: laneX})
-	}
-	return out
 }
 
 func abs(n int) int {

@@ -4,6 +4,26 @@
 
 ### Changed
 
+- **The web UI is rebuilt around the four concepts**: `hergy serve` now shows
+  the activity, the team definitions, the roles and the profiles, in four
+  bands. `/` and `/definitions` list the team definitions (the shared agreement
+  above them), `/definitions/<definition>` shows one definition — its mission
+  (the one field edited from the screens), its figure, its members, its workers,
+  its turns and its agreement — `/activity` shows what each running team is
+  doing and moves herdr's focus to a waiting pane, and `/roles`, `/agreement`
+  and `/profiles` show the rest. Every path answers the whole page, so a deep
+  link and a reload work without JavaScript.
+
+  The layer is no longer in the screens or their paths; where a file lives is
+  said by its path on the one line a save writes. The old paths move with a 301
+  (`/teams` → `/definitions`, `/team?name=x` → `/definitions/x`, `/running` →
+  `/activity`, and a `?layer=` parameter is dropped), and `/rules`, `/diff`,
+  `/bump`, `/figure` and `/panel` are gone (404): the file-by-file rules screen,
+  the prompt diff, the version screen and the separate figure are no longer
+  concepts of their own. The members, the turns, the rules and the profiles are
+  read only from the screens until the rounds that give them their own editing;
+  this round writes one thing, a definition's mission.
+
 - **`hergy validate` warns when a rule text names something the definition has
   no node for**: a rule that writes `lead → impl`, where `impl` is neither a
   member of this definition nor a purpose in its `workers:`, now gets a warning
@@ -14,6 +34,18 @@
   the graph). The human is read by both words a rule's text may write it with,
   `human` and `人間`, whatever the language of the text, so a Japanese rule that
   writes `spec → human` is read as a turn to the human rather than warned about.
+
+### Added
+
+- **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
+  gate that drives the served pages in a real headless Chrome through chromedp
+  (the Go test is behind the `e2e` build tag). It checks the four bands, the way
+  into a field in two presses, closing a field three ways, the mission being
+  written and the saved line, a draft surviving another field, the pointer
+  cursor never standing on something unpressable, the three widths scrolling
+  neither way, Tab and Enter reaching a field, and no console errors. A machine
+  with no Chrome fails the gate in CI and skips it with one line on a laptop.
+
 
 ## 0.6.0 - 2026-10-17
 

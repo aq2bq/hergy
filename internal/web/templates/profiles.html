@@ -1,0 +1,19 @@
+{{define "profiles.html"}}
+<h1 class="lead">{{t "web.profiles.title"}}</h1>
+{{- if .Empty}}
+<p class="empty">{{t "web.profiles.empty"}}</p>
+{{- else}}
+<table class="tbl list">
+  <thead><tr><th>{{t "label.profile"}}</th><th>{{t "web.profile.kind"}}</th><th>{{t "web.profiles.users"}}</th></tr></thead>
+  <tbody>
+    {{- range .Rows}}
+    <tr>
+      <td><a href="{{.Href}}" class="mono">{{.Name}}</a>{{if .Path}} <span class="marker mono">{{.Path}}</span>{{end}}</td>
+      <td class="mono">{{.Kind}}</td>
+      <td>{{range .Users}}<span class="ref">{{.}}</span> {{end}}</td>
+    </tr>
+    {{- end}}
+  </tbody>
+</table>
+{{- end}}
+{{end}}

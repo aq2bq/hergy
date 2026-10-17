@@ -1,0 +1,20 @@
+{{define "roles.html"}}
+<h1 class="lead">{{t "web.roles.title"}}</h1>
+{{- if .Empty}}
+<p class="empty">{{t "web.roles.empty"}}</p>
+<p><a href="/definitions" class="link">{{t "web.band.definitions"}}</a></p>
+{{- else}}
+<table class="tbl list">
+  <thead><tr><th>{{t "label.role"}}</th><th>{{t "web.roles.users"}}</th><th>{{t "web.roles.rules"}}</th></tr></thead>
+  <tbody>
+    {{- range .Rows}}
+    <tr>
+      <td><a href="{{.Href}}">{{.Name}}</a>{{if .Path}} <span class="marker mono">{{.Path}}</span>{{end}}</td>
+      <td>{{range .Users}}<span class="ref">{{.}}</span> {{end}}</td>
+      <td>{{if .Missing}}{{range .Missing}}<span class="problem">{{.}}</span>{{end}}{{else}}{{.Rules}}{{end}}</td>
+    </tr>
+    {{- end}}
+  </tbody>
+</table>
+{{- end}}
+{{end}}

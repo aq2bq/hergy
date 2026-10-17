@@ -1,6 +1,0 @@
-{{define "preview.html"}}
-{{- if .Broken}}
-<p class="err">{{tf "web.rules.check.broken" .Preview.Break}}</p>
-{{- end}}
-{{- if .Preview.Section}}<div class="render raw"><pre>{{inline .Preview.Section}}</pre></div>{{else}}<span class="fine">{{t "web.rules.panel.preview.empty"}}</span>{{end}}
-{{end}}

@@ -1,0 +1,64 @@
+{{define "sections"}}
+{{- range .}}
+<h3 class="sec">{{.Heading}}</h3>
+<ul class="cards">
+  {{- range .Rules}}
+  <li class="card"><a href="{{.Href}}"><span class="rid mono">{{.ID}}</span> <span class="clause">{{.Clause}}</span></a></li>
+  {{- end}}
+</ul>
+{{- end}}
+{{end}}
+
+{{define "panel"}}
+<aside class="panel" id="panel" data-parent="{{.Parent}}" aria-label="{{.Title}}">
+  <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
+  <h2 class="panel-title">{{.Title}}</h2>
+  {{- if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
+  {{- range .Findings}}<p class="problem">{{.}}</p>{{end}}
+  {{- if .Rule}}{{template "rule" .Rule}}{{else}}
+  <dl class="fields">
+    {{- range .Fields}}
+    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
+    {{- end}}
+  </dl>
+  {{- end}}
+</aside>
+{{end}}
+
+{{define "rule"}}
+<dl class="fields">
+  <div class="field"><dt>{{t "web.rule.text"}}</dt><dd>{{inline .Text}}</dd></div>
+  {{- if .Why}}<div class="field"><dt>{{t "web.rule.why"}}</dt><dd>{{inline .Why}}</dd></div>{{end}}
+  {{- if .Origin}}<div class="field"><dt>{{t "web.rule.origin"}}</dt><dd>{{.Origin}}</dd></div>{{end}}
+  {{- if .Check}}<div class="field"><dt>{{t "web.rule.check"}}</dt><dd class="mono">{{.Check}}</dd></div>{{end}}
+  {{- if .Note}}<div class="field"><dt>{{t "web.rule.note"}}</dt><dd>{{inline .Note}}</dd></div>{{end}}
+</dl>
+{{end}}
+
+{{define "commands"}}
+{{- if .Teams}}
+<ul class="handover">
+  {{- range $ti, $team := .Teams}}
+  <li><b>{{tf "web.handover.team" $team.Team}}</b>
+    <ul class="cmds">
+      {{- range $ci, $c := $team.Commands}}
+      <li><code id="cmd-{{$ti}}-{{$ci}}">{{$c.Line}}</code><button type="button" class="btn quiet" data-copy="#cmd-{{$ti}}-{{$ci}}" data-copied="{{t "web.copy.done"}}">{{t "web.copy"}}</button>{{if $c.Note}}<span class="note">{{$c.Note}}</span>{{end}}</li>
+      {{- end}}
+    </ul>
+  </li>
+  {{- end}}
+</ul>
+{{- else if .Nothing}}
+<p class="handover muted">{{t "effect.handover.nothing"}}</p>
+{{- else}}
+<p class="handover muted">{{t "effect.handover.none_running"}}</p>
+{{- end}}
+{{end}}
+
+{{define "notice"}}
+{{- if .Notice}}
+<ul class="findings">
+  {{- range .Notice}}<li>{{.}}{{if $.NoticeReload}} <a class="link" href="{{$.Href}}">{{t "web.reload"}}</a>{{end}}</li>{{end}}
+</ul>
+{{- end}}
+{{end}}
