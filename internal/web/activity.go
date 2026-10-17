@@ -95,9 +95,14 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 		data.Broken = s.noDefinition(err, entry)
 		return s.pageBody(page, "team.html", data)
 	}
+	launch, launched := s.port.Launched(entry.Team)
 	if entry.Definition != name {
-		data.From = tf("web.activity.from", entry.Definition)
+		data.From = s.fromLine(entry, foreign, launch, launched)
 		if !foreign {
+			// The definition's own page, as its own line: the line above it
+			// carries the definition's name and the time, and a link inside it
+			// would stand between the two parts (spec/43 N2, 設計 3.2).
+			data.Definition = entry.Definition
 			data.DefinitionHref = definitionPath(entry.Definition)
 		}
 	}
@@ -122,19 +127,48 @@ func (s *Server) teamActivity(r *http.Request) (view, error) {
 	}
 	data.Hired = hiredLines(verdict.Hired)
 	data.Questions = questionLines(verdict.Questions)
-	if launch, ok := s.port.Launched(entry.Team); ok {
+	if launched {
 		data.Launched = launchedText(entry, launch)
-		if !foreign {
-			// The record was written from this project's definition, so the
-			// prompt it holds can be compared here (C9). Another project's
-			// definition reads through another catalog, which this screen does
-			// not carry (W16).
-			changes := effect.Undelivered(launch.Prompts, s.teamView(def, entry.Team, s.cat.Reader()))
-			data.Undelivered = effect.UndeliveredLines(changes)
+		changes := s.deliveredChanges(entry, def, foreign, launch)
+		data.Undelivered = effect.UndeliveredLines(changes)
+		if len(changes) > 0 {
 			data.Handover = handoverOf(effect.Commands(changes, []effect.Running{{Team: entry.Team, Definition: def.Name}}))
 		}
 	}
 	return s.pageBody(page, "team.html", data)
+}
+
+// deliveredChanges is what a running team still has to take up: the launch
+// record's prompt hashes compared with the prompts as they read now (C9). The
+// prompts are rebuilt the way the launch built them, from the facts the record
+// kept; a record from before those were kept gives no change, because a prompt
+// cannot be rebuilt to match it (spec/43 S1). A team from another project is
+// rebuilt from that project's own catalog (T1).
+func (s *Server) deliveredChanges(entry effect.Running, def *definition.Definition, foreign bool, launch Launch) []effect.Change {
+	if foreign {
+		view, ok := s.port.LaunchedView(entry.Team)
+		if !ok {
+			return nil
+		}
+		return effect.Undelivered(launch.Prompts, view)
+	}
+	if launch.Executable == "" || launch.Lang == "" {
+		return nil
+	}
+	return effect.Undelivered(launch.Prompts, s.teamView(def, entry.Team, launch, s.cat.Reader()))
+}
+
+// fromLine is how a running team's own line names the definition it was booted
+// from, or "" when it runs from a definition of its own name: "（agile から起動）",
+// and, for a team from another project, the place that project stands, so a
+// person can tell it from this place's own teams of the same shape (W16,
+// spec/43 N3). It is plain text: a link in it would stand between the two parts
+// of the line.
+func (s *Server) fromLine(entry effect.Running, foreign bool, launch Launch, launched bool) string {
+	if foreign && launched && launch.Project != "" {
+		return tf("web.activity.from_place", entry.Definition, s.cat.Display(launch.Project))
+	}
+	return tf("web.activity.from", entry.Definition)
 }
 
 // teamDefinition is the definition a running team was booted from: this place's
@@ -175,18 +209,22 @@ func plainFigure(f figureData) figureData {
 
 // teamView is one running team as effect reads it: the definition as it stands,
 // with the team's own name in the prompt facts, because a prompt names each
-// member by its herdr name (C9).
-func (s *Server) teamView(def *definition.Definition, team string, reader source.Reader) effect.View {
+// member by its herdr name, and the facts the launch record kept — the hergy
+// binary, the project root and the language its prompts were written in — so the
+// prompt is rebuilt the way the launch built it (C9).
+func (s *Server) teamView(def *definition.Definition, team string, launch Launch, reader source.Reader) effect.View {
 	profiles, _, _ := s.cat.Profiles()
 	return effect.View{
 		Def:      def,
 		Profiles: profiles,
 		Run: prompt.Run{
-			Team:    team,
-			Base:    s.cat.Base(),
-			Reader:  reader,
-			Sources: s.cat,
-			Display: s.cat.Display,
+			Team:       team,
+			Executable: launch.Executable,
+			Base:       launch.Project,
+			Lang:       launch.Lang,
+			Reader:     reader,
+			Sources:    s.cat,
+			Display:    s.cat.Display,
 		},
 	}
 }
@@ -205,12 +243,14 @@ func launchedText(entry effect.Running, launch Launch) string {
 	return tf("web.activity.launched", at)
 }
 
-// stamp is one time as a screen writes it: "10/17 09:12" (設計 3.2).
+// stamp is one time as a screen writes it, in this machine's own zone:
+// "10/17 09:12" (設計 3.2). A time gy wrote in UTC is read here, so the time a
+// question was asked is the time the person's clock shows (spec/43 N1).
 func stamp(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("01/02 15:04")
+	return t.Local().Format("01/02 15:04")
 }
 
 // focus is the one thing the activity writes: where herdr's focus stands. It
@@ -287,10 +327,11 @@ func (s *Server) sections(running []effect.Running, agents map[string][]activity
 func (s *Server) section(entry effect.Running, agents []activity.Agent, agentsErr error, seen map[string]activity.Watch, questions []activity.Question, now time.Time) (teamSection, activity.Team, bool) {
 	section := teamSection{Name: entry.Team, Href: teamPath(entry.Team)}
 	verdict := activity.Team{Name: entry.Team}
+	def, foreign, err := s.teamDefinition(entry)
 	if entry.Definition != entry.Team {
-		section.From = tf("web.activity.from", entry.Definition)
+		launch, launched := s.port.Launched(entry.Team)
+		section.From = s.fromLine(entry, foreign, launch, launched)
 	}
-	def, _, err := s.teamDefinition(entry)
 	if err != nil {
 		section.Unjudged = true
 		section.Line = s.noDefinition(err, entry)
@@ -311,15 +352,14 @@ func (s *Server) section(entry effect.Running, agents []activity.Agent, agentsEr
 }
 
 // noDefinition is the one line a team whose definition this place does not hold
-// gets: the team, the definition it was started from, and that it is not here.
-// The find-the-file sentence (the paths it looked in, and the next command) is
-// for the one person who typed a name, not for the activity list (L4, E2).
+// gets: that the definition is not here. The team's own name and the definition
+// it was started from are already on the line above it, so they are not repeated
+// (walk-6 P1). The find-the-file sentence (the paths it looked in, and the next
+// command) is for the one person who typed a name, not for the activity list
+// (L4, E2).
 func (s *Server) noDefinition(err error, entry effect.Running) string {
 	if errors.Is(err, catalog.ErrNotFound) {
-		if entry.Definition == entry.Team {
-			return tf("web.activity.no_definition_same", entry.Team, entry.Definition)
-		}
-		return tf("web.activity.no_definition", entry.Team, entry.Definition, entry.Definition)
+		return tf("web.activity.no_definition", entry.Definition)
 	}
 	return s.breakLine(readErrorPath(err, s.teamYAMLOf(entry.Definition)), err)
 }
@@ -548,6 +588,7 @@ type teamData struct {
 	Name           string
 	Href           string
 	From           string
+	Definition     string
 	DefinitionHref string
 	Line           string
 	Tail           string

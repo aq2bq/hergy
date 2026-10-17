@@ -1,6 +1,7 @@
 {{define "team.html"}}
 <h1 class="lead">{{tf "web.activity.team_title" .Name}}</h1>
-{{- if or .From .Launched}}<p class="sub">{{if .From}}{{if .DefinitionHref}}<a href="{{.DefinitionHref}}">{{.From}}</a>{{else}}{{.From}}{{end}}{{end}}{{if and .From .Launched}}・{{end}}{{.Launched}}</p>{{end}}
+{{- if or .From .Launched}}<p class="sub">{{.From}}{{if and .From .Launched}}・{{end}}{{.Launched}}</p>{{end}}
+{{- if .DefinitionHref}}<p class="sub"><a href="{{.DefinitionHref}}">{{tf "web.definition.title" .Definition}}</a></p>{{end}}
 {{- if .NotRunning}}
 <p class="empty">{{tf "web.activity.not_running" .Name}}</p>
 <p><a href="/activity" class="link">{{t "web.band.activity"}}</a></p>

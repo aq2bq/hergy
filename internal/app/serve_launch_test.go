@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/team"
 )
 
 // otherProject writes a second project with its own definition, the way two
@@ -22,7 +23,7 @@ func otherProject(t *testing.T, root string) {
 	writeFile(t, filepath.Join(root, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  coder:\n    kind: claude\n")
 	writeFile(t, filepath.Join(root, ".hergy", "teams", "agile", "team.yaml"),
-		"version: 1\nmission: crm の使命\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+		"version: 1\nmission: crm の使命\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: spec\n    role: spec\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> spec\n  - spec -> human\n")
 }
 
 // launchRecord writes one launch record for a team, as a hergy up in that
@@ -170,4 +171,176 @@ func (w urlSink) Write(p []byte) (int, error) {
 		}
 	}
 	return len(p), nil
+}
+
+// useLang puts the process in one language for the rest of the test, so a prompt
+// written in one language can be compared with a serve that runs in another.
+func useLang(t *testing.T, lang string) {
+	t.Helper()
+	was := i18n.Language()
+	if err := i18n.Use(lang); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = i18n.Use(was) })
+}
+
+// page reads one served page, failing the test when it cannot be read.
+func page(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
+// TestAPromptRebuiltFromTheRecordMatchesTheLaunch is spec/43 S1: a launch record
+// keeps the facts its prompts were built with, so a serve that rebuilds them
+// finds nothing changed; a change to a document a member reads is found.
+func TestAPromptRebuiltFromTheRecordMatchesTheLaunch(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+	useLang(t, "ja")
+	env := serveEnv(t)
+	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", source.LayerLocal, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordLaunch(io.Discard, env, r, launchlog.CommandUp, r.starts)
+
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":3}`)
+	url, stop := startServeForTest(t, f)
+	defer stop()
+
+	if body := page(t, url+"/activity/demo"); strings.Contains(body, "起動のあとで変わったもの") {
+		t.Errorf("a launch this serve wrote shows an undelivered change:\n%s", body)
+	}
+
+	// A document the member reads changes: now lead's prompt differs from the
+	// one the launch handed it.
+	role := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	writeFile(t, role, readFile(t, role)+"      - id: LEAD-9\n        text: 新しく足した規則。\n")
+	body := page(t, url+"/activity/demo")
+	if !strings.Contains(body, "起動のあとで変わったもの: lead のプロンプト") {
+		t.Errorf("a changed prompt is not named:\n%s", body)
+	}
+	if !strings.Contains(body, "hergy reprompt lead --team demo") {
+		t.Errorf("the changed prompt hands over nothing:\n%s", body)
+	}
+}
+
+// TestTheLaunchLanguageIsWhatAPromptIsRebuiltIn is spec/43 S1: a serve run in
+// one language says nothing about a launch whose prompts were written in
+// another, because the prompts are rebuilt in the language the record names.
+func TestTheLaunchLanguageIsWhatAPromptIsRebuiltIn(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+	// The launch runs in English and the serve in Japanese.
+	useLang(t, "en")
+	env := serveEnv(t)
+	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", source.LayerLocal, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordLaunch(io.Discard, env, r, launchlog.CommandUp, r.starts)
+
+	useLang(t, "ja")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":3}`)
+	url, stop := startServeForTest(t, f)
+	defer stop()
+
+	body := page(t, url+"/activity/demo")
+	if strings.Contains(body, "起動のあとで変わったもの") {
+		t.Errorf("a launch in another language shows an undelivered change:\n%s", body)
+	}
+	if !strings.Contains(body, "チーム demo") {
+		t.Errorf("the page is not the serve's own language:\n%s", body)
+	}
+}
+
+// TestAForeignTeamsAgentsAreBoundToTheirNodes is spec/43 S2: an agent of a team
+// booted from another project's definition is the node its member name names,
+// so the judgement sees the team's turns; it is not taken for a hired worker.
+func TestAForeignTeamsAgentsAreBoundToTheirNodes(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	useLang(t, "ja")
+	other := filepath.Join(filepath.Dir(f.proj), "other")
+	otherProject(t, other)
+	launchRecord(t, other, "agile", "crm")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"crm"}`,
+		`{"name":"crm-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":5},`+
+			`{"name":"crm-spec","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":7}`)
+	url, stop := startServeForTest(t, f)
+	defer stop()
+
+	body := page(t, url+"/activity")
+	if !strings.Contains(body, "spec が") || !strings.Contains(body, "人間を待っています") {
+		t.Errorf("the last turn is not read as a member handing the turn to the human:\n%s", body)
+	}
+	if strings.Contains(body, "雇ったワーカー") {
+		t.Errorf("a member of the team's own definition is taken for a hired worker:\n%s", body)
+	}
+	if !strings.Contains(body, "人間を待っているチーム 1・動いているチーム 1") {
+		t.Errorf("the team is not judged and counted:\n%s", body)
+	}
+	// The figure marks the node that handed the turn over.
+	if detail := page(t, url+"/activity/crm"); !strings.Contains(detail, `class="node handed"`) {
+		t.Errorf("the figure does not mark the node that waits on the human:\n%s", detail)
+	}
+}
+
+// TestAForeignTeamsUndeliveredChangeIsFound is spec/43 T1: a team booted from
+// another project's definition is compared with its launch in that project's own
+// catalog, so its undelivered changes are found the way this place's own team's
+// are.
+func TestAForeignTeamsUndeliveredChangeIsFound(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	mustRun(t, "new", "demo")
+	useLang(t, "ja")
+	other := filepath.Join(filepath.Dir(f.proj), "other")
+	otherProject(t, other)
+	writeFile(t, filepath.Join(other, ".hergy", "roles", "lead.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead は最初に動く。\n")
+	writeFile(t, filepath.Join(other, ".hergy", "roles", "spec.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: SPEC-1\n        text: spec は確かめる。\n")
+
+	// A launch of that project's team, recorded there the way its own hergy up
+	// would: the prompts are built from that project's root and its documents.
+	here := serveEnv(t)
+	foreign := team.Env{ProjectRoot: other, GlobalDir: here.GlobalDir, LocalDir: filepath.Join(other, ".hergy")}
+	r, err := readDefinition(foreign.Catalog(source.Disk{}), other, "agile", source.LayerLocal, "crm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordLaunch(io.Discard, foreign, r, launchlog.CommandUp, r.starts)
+
+	f.runningHerdr(t, `{"tab_id":"t1","label":"crm"}`,
+		`{"name":"crm-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":3}`)
+	url, stop := startServeForTest(t, f)
+	defer stop()
+
+	body := page(t, url+"/activity/crm")
+	if strings.Contains(body, "起動のあとで変わったもの") {
+		t.Errorf("an unchanged prompt is called changed:\n%s", body)
+	}
+
+	// A document the member reads changes: now lead's prompt differs from the
+	// one the launch in that project handed it.
+	role := filepath.Join(other, ".hergy", "roles", "lead.yaml")
+	writeFile(t, role, readFile(t, role)+"      - id: LEAD-9\n        text: 新しく足した規則。\n")
+	body = page(t, url+"/activity/crm")
+	if !strings.Contains(body, "起動のあとで変わったもの: lead のプロンプト") {
+		t.Errorf("a changed prompt of another project's team is not named:\n%s", body)
+	}
 }

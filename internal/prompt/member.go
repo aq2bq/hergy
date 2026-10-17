@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -21,6 +22,10 @@ type Run struct {
 	Executable string
 	// Base is the project root, for cwd values and the embedded hire command.
 	Base string
+	// Lang is the language the prompt is written in: the launch record's when a
+	// prompt is rebuilt to compare it with what was handed out (C9), and empty
+	// for the language in use.
+	Lang string
 	// Reader reads the rule files the prompt names.
 	Reader source.Reader
 	// Sources is where the prompt gets the two documents that are not the
@@ -33,6 +38,26 @@ type Run struct {
 	// Empty means a path stands as it is.
 	Display func(string) string
 }
+
+// language is the language this run's prompt is written in: the run's own when
+// it carries one, and the one in use otherwise.
+func (r Run) language() string {
+	if r.Lang != "" {
+		return r.Lang
+	}
+	return i18n.Language()
+}
+
+// text is one of hergy's own words in the language this run's prompt is written
+// in.
+func (r Run) text(key string) string { return i18n.Text(r.Lang, key) }
+
+// textf is text with fmt.Sprintf.
+func (r Run) textf(key string, args ...any) string { return i18n.Textf(r.Lang, key, args...) }
+
+// errorf is one of hergy's sentences, in the language this run's prompt is
+// written in, as an error.
+func (r Run) errorf(key string, args ...any) error { return errors.New(r.textf(key, args...)) }
 
 // shown writes one path the way the environment writes it.
 func (r Run) shown(path string) string {
@@ -128,7 +153,7 @@ type Built struct {
 // member, the team or the locales give. It reads the graph and the catalog and
 // adds nothing to either.
 func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*Built, error) {
-	template := MemberTemplate()
+	template := MemberTemplate(run.Lang)
 	switch {
 	case node.HasPrompt:
 		template = node.Prompt
@@ -189,12 +214,12 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			}
 			return "\n" + strings.Join(texts, "\n\n") + "\n"
 		},
-		"roster": func() string { return Roster(RosterOf(def, run.Team), memberName) },
+		"roster": func() string { return Roster(run.Lang, RosterOf(def, run.Team), memberName) },
 		"herdr": func() string {
-			return HerdrMember(i18n.Tf("prompt.self_intro_member", run.Team, node.Role, memberName))
+			return HerdrMember(run.Lang, run.textf("prompt.self_intro_member", run.Team, node.Role, memberName))
 		},
 		"turns": func() string {
-			return TurnsNote(TurnsOf(def, node.Name, run.Team))
+			return TurnsNote(run.Lang, TurnsOf(def, node.Name, run.Team))
 		},
 		"workers": func() string {
 			workers := WorkersOf(def, node.Name)
@@ -204,7 +229,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			// The worker reports back to this member: the note names the herdr
 			// name, the same name the worker's own prompt names, so it follows
 			// --as (the hire command takes the short name).
-			return WorkersNote(memberName, workers, hireCommand(run, node.Name))
+			return WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name))
 		},
 	}
 	text, err := Expand(template, parts)
@@ -312,8 +337,8 @@ func hireCommand(run Run, shortName string) string {
 	if executable == "" {
 		executable = "hergy"
 	}
-	return i18n.Tf("hire.command",
-		shellQuote(executable), run.Team, i18n.Language(), shellQuote(run.Base), shortName)
+	return run.textf("hire.command",
+		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base), shortName)
 }
 
 func shellQuote(s string) string {
@@ -329,16 +354,16 @@ func shellQuote(s string) string {
 // team.yaml it read and, when the template is a member's own, the member, so a
 // person knows which file to open (spec/32 D2).
 func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
-	where := i18n.T("prompt.template_default")
+	where := run.text("prompt.template_default")
 	switch {
 	case node.HasPrompt:
-		where = i18n.Tf("prompt.template_member", node.Name)
+		where = run.textf("prompt.template_member", node.Name)
 	case def.Prompt != "":
-		where = i18n.T("prompt.template_team")
+		where = run.text("prompt.template_team")
 	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return withWhere(WhereTemplate, i18n.Errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part))
+			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part))
 		}
 	}
 	return nil
@@ -380,7 +405,7 @@ func memberRole(node *definition.MemberNode, run Run) (source.Doc, error) {
 func missingRole(node *definition.MemberNode, run Run) error {
 	if run.Sources != nil {
 		if doc, ok := run.Sources.RoleMarkdown(node.Role); ok {
-			return i18n.Errorf("error.role_markdown", node.Role, run.shown(doc.Path))
+			return run.errorf("error.role_markdown", node.Role, run.shown(doc.Path))
 		}
 	}
 	places := []string{run.shown("roles/" + node.Role + ".yaml")}
@@ -392,5 +417,5 @@ func missingRole(node *definition.MemberNode, run Run) error {
 			}
 		}
 	}
-	return i18n.Errorf("error.no_role_doc", node.Name, node.Role, strings.Join(places, i18n.T("list.separator")))
+	return run.errorf("error.no_role_doc", node.Name, node.Role, strings.Join(places, run.text("list.separator")))
 }

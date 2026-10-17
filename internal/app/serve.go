@@ -23,6 +23,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
@@ -99,7 +100,9 @@ func (p *servePort) Agents(team string) ([]activity.Agent, error) {
 }
 
 // memberNames is the members of the definition a running team was booted from,
-// which tells a member's agent from a worker a member hired.
+// which tells a member's agent from a worker a member hired. A definition this
+// place does not hold is read from the project the launch record names, so a
+// team from another project's agents are bound to their nodes too (spec/43 S2).
 func (p *servePort) memberNames(team string) map[string]bool {
 	entries, err := runningTeams()
 	if err != nil {
@@ -111,7 +114,11 @@ func (p *servePort) memberNames(team string) map[string]bool {
 		}
 		def, err := p.cat.Read(entry.Definition)
 		if err != nil {
-			return nil
+			foreign, ferr := p.LaunchedDefinition(team)
+			if ferr != nil {
+				return nil
+			}
+			def = foreign
 		}
 		names := make(map[string]bool, len(def.Graph.Members))
 		for _, member := range def.Graph.Members {
@@ -162,10 +169,15 @@ func (p *servePort) Questions() ([]activity.Question, error) {
 	return list, err
 }
 
-// Launched is one running team's launch record: when it was launched, and the
-// hash of each member's prompt at that time, by the member's short name (C9).
-// The newest record of that team is the one it is running from: two teams of one
-// name cannot run at once, so the newest is this team's.
+// Launched is one running team's launch record: when it was launched, the hash
+// of each member's prompt at that time (by the member's short name), and the
+// facts those prompts were built with (C9). The newest record of that team is
+// the one it is running from: two teams of one name cannot run at once, so the
+// newest is this team's.
+//
+// A record from before the facts were kept carries neither the executable nor
+// the language; the screens then show no undelivered change, because a prompt
+// cannot be rebuilt the way the launch built it (spec/43 S1).
 func (p *servePort) Launched(team string) (web.Launch, bool) {
 	rec, ok := p.launchOf(team)
 	if !ok {
@@ -181,25 +193,73 @@ func (p *servePort) Launched(team string) (web.Launch, bool) {
 			prompts[member.Short] = member.Prompt
 		}
 	}
-	return web.Launch{At: at, Prompts: prompts}, true
+	return web.Launch{
+		At:         at,
+		Prompts:    prompts,
+		Executable: rec.Executable,
+		Project:    rec.Project,
+		Lang:       rec.Lang,
+	}, true
 }
 
-// LaunchedDefinition reads the definition one team was booted from, from the
+// LaunchedDefinition reads the definition a team was booted from, from the
 // project its launch record names: a team started from another project is judged
-// like any other (W16). It reads that project's files and writes none. A team
-// this machine has no record of answers an error, and the screen keeps its one
-// line.
-func (p *servePort) LaunchedDefinition(name string) (*definition.Definition, error) {
-	rec, ok := p.launchOf(name)
+// like any other, and its agents are bound to their nodes rather than all being
+// taken for hired workers (W16, spec/43 S2). The definition is read whether or
+// not the record kept the facts a prompt is built with, because binding an agent
+// to a node does not need them. It reads that project's files and writes none.
+func (p *servePort) LaunchedDefinition(team string) (*definition.Definition, error) {
+	rec, ok := p.launchOf(team)
 	if !ok {
-		return nil, i18n.Errorf("error.no_launch_record", name)
+		return nil, i18n.Errorf("error.no_launch_record", team)
 	}
-	other := team.Env{
+	return p.launchedCatalog(rec).Read(rec.Definition)
+}
+
+// LaunchedView is one running team as effect reads it to compare a prompt with
+// the one the launch handed out (C9): the definition, the facts the prompt was
+// built with (the record's executable, project root and language) and that
+// project's catalog. A team with no record, or one from before those facts were
+// kept, answers false: nothing can be rebuilt, so the screen shows no change
+// (spec/43 S1, T1).
+func (p *servePort) LaunchedView(team string) (effect.View, bool) {
+	rec, ok := p.launchOf(team)
+	if !ok || rec.Executable == "" || rec.Lang == "" {
+		return effect.View{}, false
+	}
+	cat := p.launchedCatalog(rec)
+	def, err := cat.Read(rec.Definition)
+	if err != nil {
+		return effect.View{}, false
+	}
+	profiles, _, err := cat.Profiles()
+	if err != nil {
+		return effect.View{}, false
+	}
+	return effect.View{
+		Def:      def,
+		Profiles: profiles,
+		Run: prompt.Run{
+			Team:       team,
+			Executable: rec.Executable,
+			Base:       rec.Project,
+			Lang:       rec.Lang,
+			Reader:     cat.Reader(),
+			Sources:    cat,
+			Display:    cat.Display,
+		},
+	}, true
+}
+
+// launchedCatalog is the project one launch record names, with this machine's
+// settings outside it (K1, W16).
+func (p *servePort) launchedCatalog(rec launchlog.Record) *catalog.Catalog {
+	env := team.Env{
 		ProjectRoot: rec.Project,
 		GlobalDir:   p.env.GlobalDir,
 		LocalDir:    filepath.Join(rec.Project, ".hergy"),
 	}
-	return other.Catalog(source.Disk{}).Read(rec.Definition)
+	return env.Catalog(source.Disk{})
 }
 
 // launchOf is the newest launch record of one team, or false when this machine

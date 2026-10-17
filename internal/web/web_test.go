@@ -47,6 +47,7 @@ type fixture struct {
 	questionErr error
 	launch      map[string]Launch
 	foreign     map[string]*definition.Definition
+	foreignView map[string]effect.View
 	port        *fakePort
 }
 
@@ -176,6 +177,11 @@ func (p *fakePort) LaunchedDefinition(team string) (*definition.Definition, erro
 		return def, nil
 	}
 	return nil, errors.New("no launch record")
+}
+
+func (p *fakePort) LaunchedView(team string) (effect.View, bool) {
+	view, ok := p.f.foreignView[team]
+	return view, ok
 }
 
 // TestEveryPathAnswers: every path of the UI answers the whole page, with the
@@ -955,15 +961,19 @@ func TestActivitySaysWhenGyCannotBeRead(t *testing.T) {
 
 // TestTheTeamDetailShowsTheLaunchAndWhatIsUndelivered: the team's detail carries
 // the launch time and one line per member whose prompt changed since the launch,
-// with the handover, and shows nothing of the difference (C9, W9). A member the
-// record does not name is not named either.
+// with the handover, and shows nothing of the difference (C9, W9). The prompts
+// are rebuilt from the facts the record kept, and a record from before those
+// were kept shows no change at all (spec/43 S1).
 func TestTheTeamDetailShowsTheLaunchAndWhatIsUndelivered(t *testing.T) {
 	f := newFixture(t)
 	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
 	f.agents["demo"] = []activity.Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}}
 	f.launch = map[string]Launch{"demo": {
-		At:      time.Date(2026, 10, 17, 9, 12, 0, 0, time.Local),
-		Prompts: map[string]string{"lead": "deadbeef"},
+		At:         time.Date(2026, 10, 17, 9, 12, 0, 0, time.Local),
+		Prompts:    map[string]string{"lead": "deadbeef"},
+		Executable: "/usr/local/bin/hergy",
+		Project:    f.proj,
+		Lang:       "ja",
 	}}
 	server := f.server(t)
 
@@ -979,6 +989,17 @@ func TestTheTeamDetailShowsTheLaunchAndWhatIsUndelivered(t *testing.T) {
 	}
 	if strings.Contains(body, "deadbeef") {
 		t.Errorf("the detail shows a hash, where only the member's name belongs")
+	}
+
+	// A record from before the facts were kept cannot be rebuilt, so nothing is
+	// said about a change: a wrong line is worse than none.
+	f.launch["demo"] = Launch{At: time.Date(2026, 10, 17, 9, 12, 0, 0, time.Local), Prompts: map[string]string{"lead": "deadbeef"}}
+	_, body = f.get(t, server, "/activity/demo")
+	if !strings.Contains(body, "起動 10/17 09:12") {
+		t.Errorf("an old record shows no launch time:\n%s", body)
+	}
+	if strings.Contains(body, "起動のあとで変わったもの") {
+		t.Errorf("an old record shows an undelivered change it cannot know:\n%s", body)
 	}
 }
 
@@ -1006,12 +1027,14 @@ func foreignTeam(t *testing.T, name, mission string) *definition.Definition {
 // TestATeamFromAnotherProjectIsJudgedAndCounted: a team whose definition this
 // place does not hold is read from the project its launch record names, judged
 // like any other and counted, with no link to a definition page this place
-// cannot answer (W16).
+// cannot answer, and with the place that project stands named beside its
+// definition (W16, spec/43 N3).
 func TestATeamFromAnotherProjectIsJudgedAndCounted(t *testing.T) {
 	f := newFixture(t)
 	f.running = []effect.Running{{Team: "crm", Definition: "agile"}}
 	f.agents["crm"] = []activity.Agent{{Herdr: "crm-lead", Node: "lead", Status: "blocked", Seq: 5}}
 	f.foreign = map[string]*definition.Definition{"crm": foreignTeam(t, "agile", "crm の使命")}
+	f.launch = map[string]Launch{"crm": {Project: "/elsewhere/crm"}}
 	server := f.server(t)
 
 	resp, body := f.get(t, server, "/activity")
@@ -1024,6 +1047,9 @@ func TestATeamFromAnotherProjectIsJudgedAndCounted(t *testing.T) {
 	if !strings.Contains(body, "止まっています") {
 		t.Errorf("the team from another project is not judged:\n%s", body)
 	}
+	if !strings.Contains(body, "（agile から起動・/elsewhere/crm）") {
+		t.Errorf("the section does not name the project the definition was read from:\n%s", body)
+	}
 	if strings.Contains(body, "この場所にチーム定義") {
 		t.Errorf("the team was not read from its own project:\n%s", body)
 	}
@@ -1032,7 +1058,74 @@ func TestATeamFromAnotherProjectIsJudgedAndCounted(t *testing.T) {
 	if !strings.Contains(body, "チーム crm") {
 		t.Errorf("the team's detail does not open:\n%s", body)
 	}
+	if !strings.Contains(body, "（agile から起動・/elsewhere/crm）") {
+		t.Errorf("the detail does not name the project the definition was read from:\n%s", body)
+	}
 	if strings.Contains(body, "/definitions/agile") {
 		t.Errorf("the detail links to a definition page this place cannot answer:\n%s", body)
+	}
+}
+
+// TestTheTeamLineReadsWithNoStraySpace is spec/43 N2: the team's second line is
+// the definition it was booted from and the launch time, with nothing between
+// them but the separator; a link to the definition stands on its own line, so no
+// tag stands between the two parts of the line.
+func TestTheTeamLineReadsWithNoStraySpace(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "exp", Definition: "demo"}}
+	f.agents["exp"] = []activity.Agent{{Herdr: "exp-lead", Node: "lead", Status: "idle", Seq: 3}}
+	f.launch = map[string]Launch{"exp": {
+		At:         time.Date(2026, 10, 17, 9, 20, 0, 0, time.Local),
+		Prompts:    map[string]string{"lead": "x"},
+		Executable: "/usr/local/bin/hergy",
+		Project:    f.proj,
+		Lang:       "ja",
+	}}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity/exp")
+	if got, want := between(body, `class="sub"`, "</p>"), `class="sub">（demo から起動）・10/17 09:20`; got != want {
+		t.Errorf("the team's line is\n%q\nwant\n%q", got, want)
+	}
+	// The definition's own page is its own line: it is reachable, and it does
+	// not sit inside the line above.
+	if !strings.Contains(body, `<p class="sub"><a href="/definitions/demo">チーム定義 demo</a></p>`) {
+		t.Errorf("the definition's page is not linked on its own line:\n%s", body)
+	}
+}
+
+// TestTheQuestionTimeIsReadInThisMachinesZone is spec/43 N1: gy writes a
+// question's time in UTC, and the screen reads it in the zone this machine is
+// in, the way it reads a launch record's time.
+func TestTheQuestionTimeIsReadInThisMachinesZone(t *testing.T) {
+	was := time.Local
+	time.Local = time.FixedZone("test", 9*60*60)
+	t.Cleanup(func() { time.Local = was })
+
+	asked := time.Date(2026, 10, 17, 2, 0, 0, 0, time.UTC)
+	if got, want := stamp(asked), "10/17 11:00"; got != want {
+		t.Errorf("stamp of a UTC time = %q, want %q", got, want)
+	}
+}
+
+// TestAnUnjudgedTeamSaysItOnce is walk-6 P1: a team whose definition is not here
+// gets one line, and the team's name and the definition it was started from are
+// not repeated from the line above it.
+func TestAnUnjudgedTeamSaysItOnce(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "crm", Definition: "agile-dev-2"}}
+	server := f.server(t)
+
+	_, body := f.get(t, server, "/activity")
+	card := between(body, `class="teamcard"`, "</section>")
+	if !strings.Contains(card, "この場所にチーム定義 agile-dev-2 はありません") {
+		t.Errorf("the one line about the missing definition is not there:\n%s", card)
+	}
+	if got := strings.Count(card, "agile-dev-2"); got != 2 {
+		// Once in the section's own line and once in the one line below it.
+		t.Errorf("the definition is named %d times in the section, want twice:\n%s", got, card)
+	}
+	if strings.Contains(card, "チーム crm（") || strings.Contains(card, "（agile-dev-2 から起動）。") {
+		t.Errorf("the one line repeats the line above it:\n%s", card)
 	}
 }

@@ -189,7 +189,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 			t.Errorf("%s's prompt moved, but no Change says so", bm.Name)
 		}
 	}
-	leadTurns := prompt.TurnsNote(prompt.TurnsOf(after, "lead", "demo"))
+	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
 	if strings.Contains(leadTurns, "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}

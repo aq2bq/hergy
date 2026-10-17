@@ -50,8 +50,8 @@
   activity is made from herdr alone, and hergy keeps no ledger of its own. A
   team whose definition this project does not hold — a team booted from another
   project — is now read from the project its launch record names, judged and
-  counted like any other, with no link to a definition page this serve cannot
-  answer.
+  counted like any other, with the place that project stands named beside its
+  definition and no link to a definition page this serve cannot answer.
 
 - **A team's detail says when it was launched and what it still has to take
   up**: `/activity/<team>` shows the launch record's time, and, when the
@@ -59,7 +59,10 @@
   per member whose prompt changed (`起動のあとで変わったもの: lead の
   プロンプト`) with the command that hands the change over (`hergy reprompt
   lead --team <team>`). The difference itself is not shown: the record keeps
-  only hashes, not the text.
+  only hashes, not the text. A prompt is rebuilt for the comparison from the
+  facts the record keeps — the hergy binary, the project root and the language
+  it was written in — so an unchanged team says nothing; a record from before
+  those were kept says nothing either, rather than something made up.
 
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
