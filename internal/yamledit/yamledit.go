@@ -126,6 +126,36 @@ func (s *Source) Writable(value, label string) error {
 	return nil
 }
 
+// ReplaceKey writes another name on a mapping key's line, keeping the colon,
+// the indent, a comment after it and the line ending. A key is a scalar like
+// any other, but the colon after it is not part of it, so the value's own end
+// (ScalarEnd) is not where the name ends.
+func ReplaceKey(src *Source, key *yaml.Node, value, label string) error {
+	if err := src.Writable(value, label); err != nil {
+		return err
+	}
+	if key.Anchor != "" {
+		return src.Shape(label)
+	}
+	line := src.Line(key.Line)
+	start := ByteColumn(line, key.Column)
+	end := 0
+	switch {
+	case start < len(line) && (line[start] == '"' || line[start] == '\''):
+		var ok bool
+		end, ok = ScalarEnd(line, start, false)
+		if !ok {
+			return src.Shape(label)
+		}
+	case strings.IndexByte(line[start:], ':') >= 0:
+		end = start + strings.IndexByte(line[start:], ':')
+	default:
+		return src.Shape(label)
+	}
+	src.lines[key.Line-1] = line[:start] + ScalarLiteral(value, key.Style) + line[end:]
+	return nil
+}
+
 // SeqPlace is where a block sequence's items live on the file's lines: the
 // column of the "-", and the line the last item ends on (what the next item is
 // written after).

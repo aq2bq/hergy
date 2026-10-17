@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -718,11 +717,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	}
 	for _, dir := range []string{env.GlobalDir, env.LocalDir} {
 		if path := filepath.Join(dir, "profiles.yaml"); isFile(path) {
-			profiles, err := validateProfiles(path)
-			report(path, err)
-			if err == nil {
-				reportProfileNames(stdout, profiles)
-			}
+			reportProfileFile(stdout, env, path, report)
 		}
 	}
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
@@ -840,16 +835,37 @@ func reportOldCommon(w io.Writer, env team.Env, dir string) {
 		env.Display(filepath.Join(dir, "common")), env.Display(filepath.Join(dir, "agreement.yaml"))))
 }
 
-// reportProfileNames is the one warning a profiles.yaml gets: a profile whose
-// name is its kind (d-a477). A name that is the kind makes a profile look like a
-// choice of kind, where I7 makes it a choice of engine settings; the name should
-// say the model or the settings instead. It stands under the file's own result
-// line, and moves no exit code: such a profile runs the same.
-func reportProfileNames(w io.Writer, profiles map[string]profile.Profile) {
-	for _, name := range slices.Sorted(maps.Keys(profiles)) {
-		if profiles[name].Kind == name {
-			indentField(w, 1, label("warning"), i18n.Tf("validate.profile_named_after_kind", name))
+// reportProfileFile writes one profiles.yaml's line and its warnings, from the
+// same reading the WebUI shows: ReadAll gathers every problem in one pass, and
+// the command line keeps its own output — the first thing that stops the file
+// under the result, and the name warnings under it.
+func reportProfileFile(stdout io.Writer, env team.Env, path string, report func(string, error)) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		report(path, err)
+		return
+	}
+	_, problems := profile.ReadAll(string(text), env.Display(path))
+	var stop error
+	for _, problem := range problems {
+		if problem.Sev == profile.Err {
+			stop = errors.New(problem.Text)
+			break
 		}
+	}
+	report(path, stop)
+	if stop != nil {
+		return
+	}
+	warnings := make([]string, 0, len(problems))
+	for _, problem := range problems {
+		if problem.Sev == profile.Warn {
+			warnings = append(warnings, problem.Text)
+		}
+	}
+	slices.Sort(warnings)
+	for _, warning := range warnings {
+		indentField(stdout, 1, label("warning"), warning)
 	}
 }
 
@@ -1025,16 +1041,6 @@ func validateConfig(path string) error {
 	}
 	_, err = i18n.Resolve("", lang)
 	return err
-}
-
-// validateProfiles reads one profiles.yaml the way up does, and returns the
-// profiles it holds for the name warning (d-a477).
-func validateProfiles(path string) (map[string]profile.Profile, error) {
-	text, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return profile.ParseProfiles(string(text), path)
 }
 
 // validateTeam builds one team from one layer the way up does.

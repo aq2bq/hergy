@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The profile screen is rebuilt around the three things a person does with
+  profiles**: `/profiles` now lists every profile from the project's own file
+  and the one outside it (name, kind, place, args, env and who uses it), with
+  kind chips and a name search above it, and a row that opens in place. An open
+  row shows the people that name the profile, then one panel per file, so the
+  project's profile and the shared one of the same name stand side by side and
+  say which one is in effect. A profile is added, duplicated, copied to the
+  other file and deleted from there; every field is checked while it is typed
+  with the sentences `hergy validate` prints, they stand beside the field they
+  are about, and Save writes only what changed — every other line, comment and
+  order of profiles.yaml stays as it was. A rename can write the new name into
+  the team definitions that used it. `/profiles/assign` shows every team
+  definition's members and workers with their profile, and a pick is written
+  into that team.yaml. `/profiles/yaml` shows both files as text with line
+  numbers, validate's problems beside the editor on their lines, and writes
+  the text back as typed. A profile that is in use is deleted after the confirm
+  names how many people use it, and the assign tab then shows those people
+  naming a profile that is not there. The environment rows are written in the
+  order the person put them. The two families the screen names — IBM Plex Mono
+  and Zen Kaku Gothic New, both under the OFL — are kept beside the page under
+  `/static` and read with `@font-face`, so the page's own policy still allows
+  them and the text shows the fonts the design asks for. The old
+  `/profiles/<name>` path moves to the opened row. `hergy validate` reads
+  profiles with the same one-pass check, so a screen and the command line say
+  the same sentence, and reports an environment variable written twice.
+
 ## 0.7.0 - 2026-10-17
 
 ### Changed

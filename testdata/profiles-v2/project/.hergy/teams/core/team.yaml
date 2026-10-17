@@ -1,0 +1,33 @@
+version: 1
+mission: "注文 API を作り直す"
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: analyst
+    role: analyst
+    profile: opus-deep
+  - name: impl-a
+    role: builder
+    profile: codex-high
+  - name: impl-b
+    role: builder
+    profile: sonnet-fast
+  - name: reviewer
+    role: reviewer
+    profile: fable-review
+workers:
+  - from: lead
+    purpose: 依存の更新
+    profile: codex-mini
+turns:
+  - human -> lead
+  - lead -> human
+  - lead -> analyst
+  - analyst -> lead
+  - lead -> impl-a
+  - impl-a -> lead
+  - lead -> impl-b
+  - impl-b -> lead
+  - lead -> reviewer
+  - reviewer -> lead

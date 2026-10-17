@@ -1,0 +1,6 @@
+version: 1
+sections:
+  - style: ids
+    rules:
+      - id: R1
+        text: 指摘には根拠の行を添える。

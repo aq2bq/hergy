@@ -24,6 +24,8 @@ const (
 	OpAdd
 	// OpRemove takes one profile out of the file.
 	OpRemove
+	// OpRename writes another name on one profile's key.
+	OpRename
 )
 
 // Op is one edit to a profiles.yaml: one profile, one change. Build it with the
@@ -36,8 +38,10 @@ type Op struct {
 	Kind     OpKind
 	Name     string            // the profile the op names
 	KindName string            // OpSetKind, OpAdd: the kind it runs
+	NewName  string            // OpRename: the name it is written with
 	Args     []string          // OpSetArgs
 	Env      map[string]string // OpSetEnv
+	EnvPairs []EnvPair         // OpSetEnv: the pairs in the order the screen shows them
 }
 
 // SetKind is the op that writes one profile's kind.
@@ -46,9 +50,16 @@ func SetKind(name, kind string) Op { return Op{Kind: OpSetKind, Name: name, Kind
 // SetArgs is the op that writes one profile's args, in the order given.
 func SetArgs(name string, args []string) Op { return Op{Kind: OpSetArgs, Name: name, Args: args} }
 
-// SetEnv is the op that writes one profile's env.
+// SetEnv is the op that writes one profile's env, keeping the order the file
+// already wrote and putting the names it does not have after them.
 func SetEnv(name string, env map[string]string) Op {
 	return Op{Kind: OpSetEnv, Name: name, Env: env}
+}
+
+// SetEnvInOrder is the op that writes one profile's env in the order the screen
+// shows it, so a person's rows come back the way they wrote them (r-c683 R7).
+func SetEnvInOrder(name string, pairs []EnvPair) Op {
+	return Op{Kind: OpSetEnv, Name: name, EnvPairs: pairs}
 }
 
 // Add is the op that appends one profile.
@@ -56,6 +67,12 @@ func Add(name, kind string) Op { return Op{Kind: OpAdd, Name: name, KindName: ki
 
 // Remove is the op that takes one profile out.
 func Remove(name string) Op { return Op{Kind: OpRemove, Name: name} }
+
+// Rename is the op that writes another name on one profile's key, keeping the
+// position, the comments and everything under it.
+func Rename(old, next string) Op {
+	return Op{Kind: OpRename, Name: old, NewName: next}
+}
 
 // EditYAML changes one place in a profiles.yaml and writes the file back
 // (spec/41 S1).
@@ -124,6 +141,8 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		}
 		yamledit.RemoveKeyLines(src, profiles, op.Name)
 		return nil
+	case OpRename:
+		return renameLines(src, profiles, op)
 	case OpSetKind, OpSetArgs, OpSetEnv:
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
@@ -138,8 +157,26 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 	case OpSetArgs:
 		return yamledit.ReplaceSeq(src, item, "args", op.Args)
 	default:
+		if op.EnvPairs != nil {
+			return yamledit.ReplaceMap(src, item, "env", orderedEnvPairs(op.EnvPairs))
+		}
 		return yamledit.ReplaceMap(src, item, "env", envPairs(item, op.Env))
 	}
+}
+
+// renameLines writes another name on one profile's key, on the key's own line,
+// so the profile stays where it was and the comments above it stay with it.
+func renameLines(src *yamledit.Source, profiles *yaml.Node, op Op) error {
+	if profiles == nil || yamledit.MappingKeyNode(profiles, op.Name) == nil {
+		return i18n.Errorf("error.edit_no_profile", op.Name)
+	}
+	if op.NewName == op.Name {
+		return nil
+	}
+	if yamledit.MappingKeyNode(profiles, op.NewName) != nil {
+		return i18n.Errorf("error.edit_profile_twice", op.NewName)
+	}
+	return yamledit.ReplaceKey(src, yamledit.MappingKeyNode(profiles, op.Name), op.NewName, "profiles."+op.Name)
 }
 
 // addLines appends one profile after the last one, lined up with the profiles
@@ -217,6 +254,15 @@ func envPairs(item *yaml.Node, env map[string]string) []yamledit.Pair {
 	return pairs
 }
 
+// orderedEnvPairs is env as the screen shows it, in that order.
+func orderedEnvPairs(pairs []EnvPair) []yamledit.Pair {
+	out := make([]yamledit.Pair, 0, len(pairs))
+	for _, pair := range pairs {
+		out = append(out, yamledit.Pair{Key: pair.Key, Value: pair.Value})
+	}
+	return out
+}
+
 // nodesOf is a mapping's own keys in the order the file wrote them.
 func nodesOf(v *yaml.Node) []yamledit.Pair {
 	if v == nil || v.Kind != yaml.MappingNode {
@@ -258,7 +304,14 @@ func applyTree(root *yaml.Node, op Op) error {
 		case OpSetArgs:
 			putValue(item, "args", seqValue(op.Args))
 		default:
-			putValue(item, "env", mapValue(op.Env))
+			env := op.Env
+			if op.EnvPairs != nil {
+				env = map[string]string{}
+				for _, pair := range op.EnvPairs {
+					env[pair.Key] = pair.Value
+				}
+			}
+			putValue(item, "env", mapValue(env))
 		}
 		return nil
 	case OpAdd:
@@ -275,9 +328,26 @@ func applyTree(root *yaml.Node, op Op) error {
 	case OpRemove:
 		removeMapKey(profiles, op.Name)
 		return nil
+	case OpRename:
+		return renameTree(profiles, op)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
+}
+
+// renameTree is the rename on the tree: the key keeps its place in the mapping.
+func renameTree(profiles *yaml.Node, op Op) error {
+	for i := 0; i+1 < len(profiles.Content); i += 2 {
+		key := profiles.Content[i]
+		if key.Value == op.Name {
+			if op.NewName != op.Name && yamledit.MappingKeyNode(profiles, op.NewName) != nil {
+				return i18n.Errorf("error.edit_profile_twice", op.NewName)
+			}
+			key.Value = op.NewName
+			return nil
+		}
+	}
+	return i18n.Errorf("error.edit_no_profile", op.Name)
 }
 
 // ensureMapping is the mapping a key holds, making the key and an empty mapping

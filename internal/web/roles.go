@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 )
@@ -197,16 +196,6 @@ func dirOf(path string) string {
 		}
 	}
 	return path
-}
-
-// sortedKeys is a map's keys, sorted, for a list that holds still.
-func sortedKeys[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for key := range m {
-		out = append(out, key)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // makeForm is the one button that makes a document a place does not have yet

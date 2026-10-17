@@ -1,0 +1,154 @@
+{{define "p2_page"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hergy プロファイル</title>
+<link rel="stylesheet" href="/static/profiles-v2.css">
+<script src="/static/profiles-v2.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="crumb"><span class="mark">hergy</span><span class="sep">/</span><span>{{.Project}}</span></div>
+    <nav class="tabs" id="tabs">
+      <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>プロファイル<span class="n">{{.ProfileCount}}</span></a>
+      <a class="tab {{if eq .Tab "assign"}}on{{end}}" href="/profiles/assign"{{if eq .Tab "assign"}} aria-current="page"{{end}}>割り当て<span class="n">{{.AssignCount}}</span></a>
+      <a class="tab {{if eq .Tab "yaml"}}on{{end}}" href="/profiles/yaml"{{if eq .Tab "yaml"}} aria-current="page"{{end}}>YAML</a>
+    </nav>
+  </header>
+  <main id="view" data-tab="{{.Tab}}" data-token="{{.Token}}" data-hash-project="{{.HashProject}}" data-hash-shared="{{.HashShared}}" data-path-project="{{.PathProject}}" data-path-shared="{{.PathShared}}" data-other-kinds="{{.OtherKinds}}">
+  {{if eq .Tab "assign"}}{{template "p2_body_assign" .}}{{else if eq .Tab "yaml"}}{{template "p2_body_yaml" .}}{{else}}{{template "p2_body_profiles" .}}{{end}}
+  </main>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "p2_body_profiles"}}
+<div class="toolbar">
+  <button class="btn primary" data-act="new">＋ プロファイルを追加</button>
+  <div class="filters">
+    <a class="fchip {{if eq .KindFilter ""}}on{{end}}" data-act="kind-filter" data-k="" href="/profiles{{if .Query}}?q={{.Query}}{{end}}" aria-pressed="{{if eq .KindFilter ""}}true{{else}}false{{end}}">すべて<span class="n">{{.ProfileCount}}</span></a>
+    {{range .Kinds}}{{if .Name}}<a class="fchip {{if .On}}on{{end}}" data-act="kind-filter" data-k="{{.Name}}" href="/profiles?kind={{.Name}}{{if $.Query}}&amp;q={{$.Query}}{{end}}" aria-pressed="{{if .On}}true{{else}}false{{end}}"><i class="sw {{.KindClass}}"></i>{{.Name}}<span class="n">{{.Count}}</span></a>{{end}}{{end}}
+  </div>
+  <input id="q" class="search" type="search" placeholder="名前" value="{{.Query}}" autocomplete="off">
+</div>
+<div class="list">
+  <div class="head"><span></span><span>名前</span><span>kind</span><span>置き場所</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+  <div id="rows">
+    {{if .Empty}}<p class="none">プロファイルはありません</p>{{end}}
+    <p class="none" id="no-match" hidden>合うプロファイルはありません</p>
+    {{range .Rows}}{{template "p2_row" .}}{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "p2_row"}}
+<div class="row{{if .Open}} open{{end}}" data-name="{{.Name}}" data-kind="{{.Kind}}">
+  <div class="sum" role="button" tabindex="0" aria-expanded="{{if .Open}}true{{else}}false{{end}}" data-act="toggle">
+    <span class="chev"></span>
+    <span class="c-name"><span class="nm">{{if .Name}}{{.Name}}{{else}}<span class="none">—</span>{{end}}</span>{{if .New}}<span class="tag">新規</span>{{end}}{{if gt .Err 0}}<span class="sev err">問題 {{.Err}}</span>{{else if gt .Warn 0}}<span class="sev warn">警告 {{.Warn}}</span>{{end}}</span>
+    <span class="c-kind">{{if .Kind}}<i class="sw {{.KindClass}}"></i>{{.Kind}}{{end}}</span>
+    <span class="c-place">{{range .Places}}<span class="pill {{.State}}">{{.Label}}</span>{{end}}</span>
+    <span class="c-args">{{if .Args}}{{.Args}}{{else}}<span class="none">—</span>{{end}}</span>
+    <span class="c-env">{{if .Env}}{{range .Env}}<span>{{.}}</span>{{end}}{{if gt .More 0}}<span class="more">+{{.More}}</span>{{end}}{{else}}<span class="none">—</span>{{end}}</span>
+    <span class="c-users">{{if gt .Users 0}}<b>{{.Users}}</b><span>{{.Roles}}</span>{{else}}<span class="none">0</span>{{end}}</span>
+  </div>
+  {{template "p2_detail" .}}
+</div>
+{{end}}
+
+{{define "p2_detail"}}
+<div class="detail"{{if not .Open}} hidden{{end}}>
+  {{if .Chips}}<div class="usage"><span class="lbl">使っている人</span>{{range .Chips}}<a class="uchip" href="/profiles/assign#{{.Def}}.{{.ID}}" data-act="goto" data-g="{{.Def}}" data-k="{{.ID}}"><span class="g">{{.Def}}</span>{{if .Worker}}<span class="wk">ワーカー</span><span class="r">{{.Role}}</span>{{else}}{{.Who}}<span class="g">{{.Role}}</span>{{end}}</a>{{end}}</div>{{end}}
+  <div class="panels{{if gt (len .Panels) 1}} two{{end}}">
+    {{range .Panels}}{{template "p2_panel" .}}{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "p2_panel"}}
+<section class="panel{{if .Shadowed}} shadowed{{end}}" data-file="{{.File}}" data-saved="1" data-users="{{.Users}}" data-rename-users="{{.RenameUsers}}" data-saved-name="{{.SavedName}}" data-saved-kind="{{.SavedKind}}" data-saved-args="{{.SavedArgs}}" data-saved-env="{{.SavedEnv}}" data-hash="{{.Hash}}">
+  <header class="ph">
+    <span class="ln">{{.Label}}</span>
+    <code class="path">{{.Path}}</code>
+    {{if .Both}}<span class="state {{if .Shadowed}}off{{else}}on{{end}}">{{if .Shadowed}}隠れている{{else}}効いている{{end}}</span>{{end}}
+  </header>
+  <div class="field"><label>名前</label><div>
+    <input class="in-name" data-f="name" value="{{.Name}}" spellcheck="false" autocomplete="off">
+    <label class="rename" hidden><input type="checkbox" checked><span></span></label>
+    <ul class="vm" data-for="name"></ul>
+  </div></div>
+  <div class="field"><label>kind</label><div>
+    <div class="seg" data-f="kind">
+      {{range splitKinds}}<button class="{{if eq . $.Kind}}on{{end}}" data-act="set-kind" data-k="{{.}}" aria-pressed="{{if eq . $.Kind}}true{{else}}false{{end}}"><i class="sw {{kindClass .}}"></i>{{.}}</button>{{end}}
+      <span class="sel"><select data-f="kind-other" aria-label="ほかの kind"><option value="">ほか</option>{{range otherKinds .Kind}}<option value="{{.}}"{{if eq . $.Kind}} selected{{end}}>{{.}}</option>{{end}}</select></span>
+    </div>
+    <ul class="vm" data-for="kind"></ul>
+  </div></div>
+  <div class="field"><label>引数</label><div>
+    <div class="args"><span class="bin">{{.Kind}}</span>{{range $i, $arg := .Args}}<span class="arg{{if hasPrefix $arg "-"}} flag{{end}}"><span class="grip" aria-hidden="true">⋮</span><input data-f="arg" data-i="{{$i}}" value="{{$arg}}" size="{{if gt (len $arg) 3}}{{len $arg}}{{else}}3{{end}}" spellcheck="false" autocomplete="off"><button class="x" data-act="arg-del" data-i="{{$i}}" aria-label="{{$arg}} を消す">×</button></span>{{end}}<button class="add" data-act="arg-add" aria-label="引数を足す">＋</button></div>
+    <ul class="vm" data-for="args"></ul>
+  </div></div>
+  <div class="field"><label>環境変数</label><div>
+    <div class="env">{{range $i, $pair := .Env}}<div class="envrow"><input data-f="ek" data-i="{{$i}}" value="{{$pair.Key}}" spellcheck="false" autocomplete="off"><span class="eq">=</span><textarea data-f="ev" data-i="{{$i}}" rows="1" spellcheck="false">{{$pair.Value}}</textarea><button class="x" data-act="env-del" data-i="{{$i}}" aria-label="{{$pair.Key}} を消す">×</button></div>{{end}}<button class="add" data-act="env-add" aria-label="環境変数を足す">＋</button></div>
+    <ul class="vm" data-for="env"></ul>
+  </div></div>
+  <footer class="pf">
+    <button class="btn primary" data-act="save" disabled>保存</button><span class="dirty"></span><span class="vcount">{{if gt .Err 0}}<span class="sev err">問題 {{.Err}}</span>{{else if gt .Warn 0}}<span class="sev warn">警告 {{.Warn}}</span>{{end}}</span>{{if .SavedLine}}<span class="ok">保存しました</span>{{end}}
+    <span class="acts">
+      {{if .Saved}}<button class="btn" data-act="dup">複製</button>{{end}}
+      {{if and .Saved (not .Both)}}<button class="btn" data-act="copy">{{.OtherLabel}}にコピー</button>{{end}}
+      {{if not .Saved}}<button class="btn danger" data-act="discard">取り消し</button>{{else}}<button class="btn danger" data-act="del">削除</button>{{end}}
+    </span>
+  </footer>
+</section>
+{{end}}
+
+{{define "p2_body_assign"}}
+<div class="kindbar">{{range .Assign.Kinds}}<button class="kseg {{.KindClass}} {{.Grow}}{{if .Dim}} dim{{end}}" data-act="kind-hi" data-k="{{.Name}}" aria-pressed="{{if .On}}true{{else}}false{{end}}"><span>{{.Name}}</span><b>{{.Count}}</b></button>{{end}}</div>
+<div class="teams">
+  {{if .Assign.Empty}}<p class="none">チーム定義はありません</p>{{end}}
+  {{range .Assign.Teams}}{{template "p2_team" .}}{{end}}
+</div>
+{{end}}
+
+{{define "p2_team"}}
+<section class="team" data-g="{{.Name}}" data-hash="{{.Hash}}">
+  <header class="th"><span class="tl">チーム定義</span><code class="tid">{{.Name}}</code><span class="tn">{{.Members}}</span>
+    <span class="tside">{{if gt .Err 0}}<span class="sev err">問題 {{.Err}}</span>{{end}}{{if .Saved}}<span class="ok">保存しました</span>{{end}}</span>
+    <code class="path">{{.Path}}</code>
+  </header>
+  {{range .Rows}}{{if eq .Kind "m"}}{{template "p2_arow" .}}{{end}}{{end}}
+  {{if gt .Workers 0}}<div class="sub">ワーカー</div>{{range .Rows}}{{if eq .Kind "w"}}{{template "p2_arow" .}}{{end}}{{end}}{{end}}
+</section>
+{{end}}
+
+{{define "p2_arow"}}
+<div class="arow{{if .Missing}} missing{{end}}{{if .Dim}} dim{{end}}" data-k="{{.ID}}" data-saved="{{.Profile}}">
+  <div class="who">{{if eq .Kind "m"}}<code>{{.Name}}</code><span class="role"><code>role {{.Role}}</code></span>{{else}}<span class="purpose">{{.Name}}</span><span class="role"><code>from {{.Role}}</code></span>{{end}}</div>
+  <div class="pick"><i class="sw {{.KindCls}}"></i><span class="sel"><select data-k="{{.ID}}" aria-label="{{.Name}} のプロファイル">{{if .Missing}}<option selected value="{{.Profile}}" data-kind="">{{.Profile}}</option>{{end}}{{range $g := .Options}}<optgroup label="{{$g.Kind}}">{{range $n := $g.Names}}<option value="{{$n}}" data-kind="{{$g.Kind}}"{{if eq $n $.Profile}} selected{{end}}>{{$n}}</option>{{end}}</optgroup>{{end}}</select></span></div>
+  {{if .Missing}}<ul class="vm"><li><span class="sev err">問題</span><span>{{.Error}}</span></li></ul>{{end}}
+</div>
+{{end}}
+
+{{define "p2_body_yaml"}}
+<div class="yeds">{{range .Files}}{{template "p2_yed" .}}{{end}}</div>
+{{end}}
+
+{{define "p2_yeds"}}{{range .}}{{template "p2_yed" .}}{{end}}{{end}}
+
+{{define "p2_yed"}}
+<section class="yed" data-file="{{.File}}" data-hash="{{.Hash}}">
+  <header class="ph"><span class="ln">{{.Label}}</span><code class="path">{{.Path}}</code></header>
+  <div class="ybody">
+    <div class="code {{.Height}}"><pre class="gutter" aria-hidden="true">{{range .Lines}}<span class="{{.Mark}}">{{.N}}</span>{{end}}</pre><textarea class="ytext" data-file="{{.File}}" wrap="off" spellcheck="false" autocomplete="off" aria-label="{{.Path}}">{{.Text}}</textarea></div>
+    <div class="vlist"><div class="vhead"><span class="vt">validate</span>{{if or .Err .Warn}}<span class="vcount">{{if gt .Err 0}}<span class="sev err">問題 {{.Err}}</span>{{end}}{{if gt .Warn 0}}<span class="sev warn">警告 {{.Warn}}</span>{{end}}</span>{{else}}<span class="vclean">✓ 問題なし</span>{{end}}</div>{{range .Problems}}<button class="vitem" data-act="yaml-jump" data-line="{{.Line}}"><span class="sev {{.Sev}}">{{if eq .Sev "err"}}問題{{else}}警告{{end}}</span><span class="lno">{{.Line}} 行</span><span class="msg">{{.Text}}</span></button>{{end}}</div>
+  </div>
+  <footer class="pf">
+    <button class="btn primary" data-act="yaml-save" disabled>保存</button><span class="dirty"></span>
+    <span class="acts"><button class="btn" data-act="yaml-revert" hidden>元に戻す</button></span>
+  </footer>
+</section>
+{{end}}
