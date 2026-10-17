@@ -14,10 +14,11 @@
   <a class="btn quiet close" href="{{.Parent}}">{{t "web.panel.close"}}</a>
   <h2 class="panel-title">{{.Title}}</h2>
   {{- if .Notice}}<p class="problem">{{.Notice}}</p>{{end}}
+  {{- range .Findings}}<p class="problem">{{.}}</p>{{end}}
   {{- if .Rule}}{{template "rule" .Rule}}{{else}}
   <dl class="fields">
     {{- range .Fields}}
-    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}</dd></div>
+    <div class="field"><dt>{{.Label}}</dt><dd>{{if .Href}}<a href="{{.Href}}"{{if .Mono}} class="mono"{{end}}>{{.Value}}</a>{{else}}<span{{if .Mono}} class="mono"{{end}}>{{.Value}}</span>{{end}}{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</dd></div>
     {{- end}}
   </dl>
   {{- end}}

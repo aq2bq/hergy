@@ -2,15 +2,17 @@
 <figure class="fig">
 <svg viewBox="0 0 {{.Width}} {{.Height}}" role="img" aria-label="{{t "web.figure.label"}}">
   <defs><marker id="head" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path class="head" d="M0,0 L7,3 L0,6 z"/></marker></defs>
-  <a href="{{.Human.Href}}" class="node human{{if .Human.Open}} open{{end}}">
+  <a href="{{.Human.Href}}" class="node human{{if .Human.Open}} open{{end}}{{if .Human.Problem}} problem{{end}}">
     <rect class="box" x="{{.Human.X}}" y="{{.Human.Y}}" width="{{.Human.W}}" height="{{.Human.H}}" rx="8"/>
     <text class="nm" x="{{.Human.NameX}}" y="{{.Human.NameY}}">{{.Human.Name}}</text>
+    {{- if .Human.Problem}}<title>{{.Human.Problem}}</title>{{end}}
   </a>
   {{- range .Members}}
-  <a href="{{.Href}}" class="node{{if .Open}} open{{end}}{{if .State}} {{.State}}{{end}}">
+  <a href="{{.Href}}" class="node{{if .Open}} open{{end}}{{if .State}} {{.State}}{{end}}{{if .Problem}} problem{{end}}">
     <rect class="box member {{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}" rx="8"/>
     <text class="nm" x="{{.NameX}}" y="{{.NameY}}">{{.Name}}</text>
     <text class="sub" x="{{.SubX}}" y="{{.SubY}}">{{.Sub}}</text>
+    {{- if .Problem}}<title>{{.Problem}}</title>{{end}}
   </a>
   {{- range .Workers}}
   <a href="{{.Href}}" class="node{{if .Open}} open{{end}}">

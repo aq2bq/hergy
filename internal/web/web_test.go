@@ -755,8 +755,8 @@ func TestAMissingDefinitionSaysItWithoutTheNextCommand(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, body := f.get(t, server, "/definitions/nosuch")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET a missing definition: status %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET a missing definition: status %d, want 404", resp.StatusCode)
 	}
 	if !strings.Contains(body, "チーム定義 nosuch") {
 		t.Errorf("the page does not name the missing definition")
@@ -799,5 +799,67 @@ func TestTheFigureCarriesTheEdgeEnds(t *testing.T) {
 	// TestEveryLinkResolves does (S1).
 	if !strings.Contains(body, `href="/definitions/demo/workers/lead/`) {
 		t.Errorf("a worker's arrow does not open the worker's field")
+	}
+}
+
+// TestAMissingPlaceSaysItOnce: a field the definition does not hold names the
+// place in its title and says it is not there once, in the body (R2), and a
+// missing definition or profile is a 404 too (R3).
+func TestAMissingPlaceSaysItOnce(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	cases := []struct{ path, title, line string }{
+		{"/definitions/demo/members/nosuch", "メンバー nosuch", "メンバー nosuch はありません"},
+		{"/definitions/demo/workers/lead/nosuch", "ワーカー nosuch（lead が呼ぶ）", "ワーカー nosuch（lead が呼ぶ）はありません"},
+		{"/definitions/demo/turns/lead/nosuch", "lead → nosuch", "ターン lead → nosuch はありません"},
+	}
+	for _, test := range cases {
+		resp, body := f.get(t, server, test.path)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s: status %d, want 404", test.path, resp.StatusCode)
+			continue
+		}
+		if !strings.Contains(body, `<h2 class="panel-title">`+test.title+`</h2>`) {
+			t.Errorf("GET %s: the title is not %q", test.path, test.title)
+		}
+		if got := strings.Count(body, test.line); got != 1 {
+			t.Errorf("GET %s: the sentence appears %d times, want once", test.path, got)
+		}
+	}
+	for _, path := range []string{"/definitions/nosuch", "/profiles/nosuch"} {
+		if resp, _ := f.get(t, server, path); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s: status %d, want 404", path, resp.StatusCode)
+		}
+	}
+}
+
+// TestTheDefinitionShowsWhatStopsIt: a stop the check writes is shown where its
+// field is — the member's row and field, and the mission's field — so the
+// detail says what validate says (R1).
+func TestTheDefinitionShowsWhatStopsIt(t *testing.T) {
+	f := newFixture(t)
+	// The role document is gone, so the check stops on the member that reads it.
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+	want := "builder.yaml"
+	_, body := f.get(t, server, "/definitions/demo")
+	if !strings.Contains(body, want) {
+		t.Errorf("the detail does not say the role document is missing:\n%s", body)
+	}
+	// The member's own field says it too.
+	_, body = f.get(t, server, "/definitions/demo/members/builder")
+	if !strings.Contains(body, want) {
+		t.Errorf("the member's field does not say the role document is missing:\n%s", body)
+	}
+	// And the list's row says the definition cannot be started.
+	_, body = f.get(t, server, "/")
+	if !strings.Contains(body, want) {
+		t.Errorf("the list does not say the definition cannot be started:\n%s", body)
+	}
+	// The row carries no counts: it is not a definition that reads clean.
+	if strings.Contains(body, `mission: `) {
+		t.Errorf("the list shows a broken row like a whole one")
 	}
 }

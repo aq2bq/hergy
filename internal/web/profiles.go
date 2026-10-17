@@ -40,7 +40,7 @@ func (s *Server) profile(r *http.Request) (view, error) {
 	value, ok := s.cat.Profile(name)
 	if !ok {
 		data.Missing = true
-		return s.pageBody(view{title: tf("web.profile.title", name), band: bandProfiles, crumb: crumb}, "profile.html", data)
+		return s.pageBody(view{title: tf("web.profile.title", name), band: bandProfiles, crumb: crumb, status: http.StatusNotFound}, "profile.html", data)
 	}
 	data.Kind = value.Kind
 	data.Path = s.cat.Display(value.Path)

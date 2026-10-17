@@ -1,5 +1,6 @@
 {{define "definition.html"}}
 <h1 class="lead">{{tf "web.definition.title" .Name}}</h1>
+{{- range .Heading}}<p class="problem">{{.}}</p>{{end}}
 {{- if .Broken}}
 <p class="problem">{{.Broken}}</p>
 <p class="muted mono">{{.Path}}</p>
@@ -33,9 +34,9 @@
       <tbody>
         {{- range .Members}}
         <tr{{if eq .Href $.Panel.Key}} class="open"{{end}}>
-          <td><a href="{{.Href}}" class="mono">{{.Name}}</a></td>
-          <td>{{if .Role}}<a href="{{.RoleHref}}">{{.Role}}</a>{{end}}</td>
-          <td>{{if .Profile}}<a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a>{{if .Kind}} <span class="muted">（{{.Kind}}）</span>{{end}}{{end}}</td>
+          <td><a href="{{.Href}}" class="mono">{{.Name}}</a>{{range .Findings}}<span class="problem">{{.}}</span>{{end}}</td>
+          <td>{{if .Role}}<a href="{{.RoleHref}}">{{.Role}}</a>{{end}}{{range .RoleFindings}}<span class="problem">{{.}}</span>{{end}}</td>
+          <td>{{if .Profile}}<a href="{{.ProfileHref}}" class="mono">{{.Profile}}</a>{{if .Kind}} <span class="muted">（{{.Kind}}）</span>{{end}}{{end}}{{range .ProfileFindings}}<span class="problem">{{.}}</span>{{end}}</td>
           <td>{{range .Turns}}<a href="{{.Href}}">{{.Name}}</a> {{end}}</td>
         </tr>
         {{- end}}

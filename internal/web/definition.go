@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -26,7 +27,15 @@ func (s *Server) definition(r *http.Request) (view, error) {
 func (s *Server) definitionPage(name string, open panelFn) (view, error) {
 	def, err := s.readDefinition(name)
 	if err != nil {
-		return s.brokenDefinition(name, err)
+		v, rerr := s.brokenDefinition(name, err)
+		if rerr != nil {
+			return v, rerr
+		}
+		if errors.Is(err, catalog.ErrNotFound) {
+			// A name no layer holds is a 404, the way a field is (R3).
+			v.status = http.StatusNotFound
+		}
+		return v, nil
 	}
 	data := s.definitionData(def, open)
 	v, err := s.renderDefinition(data)
@@ -56,7 +65,8 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 		Token:   s.token,
 		Hash:    s.hashOf(def.TeamYAML),
 		Draft:   "definition:" + def.Name + ":mission",
-		Members: s.memberRows(def),
+		Heading: fieldTexts(findings, ""),
+		Members: s.memberRows(def, findings),
 		Workers: workerRows(def),
 		Turns:   turnRows(def),
 		Running: runningFor(running, def.Name),
@@ -69,8 +79,45 @@ func (s *Server) definitionData(def *definition.Definition, open panelFn) defini
 		data.PanelOpen = true
 		openKey = data.Panel.Key
 	}
-	data.Figure = s.figure(def, nil, openKey)
+	data.Figure = s.figure(def, nil, nodeProblems(findings), openKey)
 	return data
+}
+
+// nodeProblems is the sentence the check writes about each node, by the node's
+// name (the human is "human"), for the figure and the node's field (R1).
+func nodeProblems(findings []check.Finding) map[string]string {
+	out := map[string]string{}
+	for _, finding := range findings {
+		name, ok := strings.CutPrefix(finding.Field, "node:")
+		if !ok {
+			continue
+		}
+		if _, seen := out[name]; !seen {
+			out[name] = finding.Text
+		}
+	}
+	return out
+}
+
+// memberFindings is what the check says about one member: every sentence about
+// the member, and the ones that belong to its role and its profile fields (R1).
+func memberFindings(findings []check.Finding, index int) (all, role, profile []string) {
+	base := fmt.Sprintf("members[%d]", index)
+	for _, finding := range findings {
+		switch {
+		case finding.Field == base:
+			all = append(all, finding.Text)
+		case strings.HasPrefix(finding.Field, base+"."):
+			all = append(all, finding.Text)
+		}
+		switch finding.Field {
+		case base + ".role":
+			role = append(role, finding.Text)
+		case base + ".profile":
+			profile = append(profile, finding.Text)
+		}
+	}
+	return all, role, profile
 }
 
 // renderDefinition renders the detail page.
@@ -307,14 +354,17 @@ func missionFindings(findings []check.Finding) []string {
 
 // memberRow is one row of the members table.
 type memberRow struct {
-	Name        string
-	Href        string
-	Role        string
-	RoleHref    string
-	Profile     string
-	ProfileHref string
-	Kind        string
-	Turns       []turnEnd
+	Name            string
+	Href            string
+	Role            string
+	RoleHref        string
+	RoleFindings    []string
+	Profile         string
+	ProfileHref     string
+	ProfileFindings []string
+	Kind            string
+	Findings        []string
+	Turns           []turnEnd
 }
 
 // turnEnd is one end of a turn: what it is called, and where its field is.
@@ -323,19 +373,24 @@ type turnEnd struct {
 	Href string
 }
 
-// memberRows is the members table (設計 3.4 (2)).
-func (s *Server) memberRows(def *definition.Definition) []memberRow {
+// memberRows is the members table (設計 3.4 (2)), with the sentences the check
+// writes about each member and its fields (R1).
+func (s *Server) memberRows(def *definition.Definition, findings []check.Finding) []memberRow {
 	rows := make([]memberRow, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
+		all, role, profile := memberFindings(findings, i)
 		row := memberRow{
-			Name:        member.Name,
-			Href:        memberPath(def.Name, member.Name),
-			Role:        member.Role,
-			RoleHref:    rolePath(member.Role),
-			Profile:     member.Profile,
-			ProfileHref: profilePath(member.Profile),
-			Kind:        s.kindOf(member.Profile),
+			Name:            member.Name,
+			Href:            memberPath(def.Name, member.Name),
+			Role:            member.Role,
+			RoleHref:        rolePath(member.Role),
+			Profile:         member.Profile,
+			ProfileHref:     profilePath(member.Profile),
+			Kind:            s.kindOf(member.Profile),
+			Findings:        all,
+			RoleFindings:    role,
+			ProfileFindings: profile,
 		}
 		for _, edge := range def.Graph.Out(member.ID()) {
 			if !isTurn(edge) {
@@ -459,6 +514,7 @@ type definitionData struct {
 	Path         string
 	Unused       string
 	Broken       string
+	Heading      []string
 	Mission      string
 	Notice       []string
 	Saved        string

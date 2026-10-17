@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
@@ -15,22 +16,24 @@ import (
 // URL names but the definition does not hold comes back with Missing set and the
 // one line Notice, so the page answers 404 rather than opening nothing (N2).
 type panel struct {
-	Title   string
-	Key     string
-	Parent  string
-	Crumb   string
-	Fields  []panelField
-	Rule    *ruleCard
-	Missing bool
-	Notice  string
+	Title    string
+	Key      string
+	Parent   string
+	Crumb    string
+	Fields   []panelField
+	Rule     *ruleCard
+	Missing  bool
+	Notice   string
+	Findings []string
 }
 
 // panelField is one labelled value in a panel.
 type panelField struct {
-	Label string
-	Value string
-	Href  string
-	Mono  bool
+	Label    string
+	Value    string
+	Href     string
+	Mono     bool
+	Findings []string
 }
 
 // profileLabel is one profile as a panel shows it: its name, with the kind it
@@ -50,15 +53,16 @@ func (s *Server) profileLabel(name string) string {
 func (s *Server) memberPanel(r *http.Request) (view, error) {
 	member := r.PathValue("member")
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
-		return s.memberPanelOf(def, member)
+		return s.memberPanelOf(def, member, s.findings(def.Name))
 	})
 }
 
-// memberPanelOf builds one member's field.
-func (s *Server) memberPanelOf(def *definition.Definition, name string) panel {
+// memberPanelOf builds one member's field, with the sentences the check writes
+// about the member and its role and profile fields (R1).
+func (s *Server) memberPanelOf(def *definition.Definition, name string, findings []check.Finding) panel {
 	member, ok := def.Graph.Member(name)
 	if !ok {
-		return missingPanel(def, "member:"+name, tf("web.missing.member", def.Name, name))
+		return missingPanel(def, "member:"+name, tf("web.panel.member", name), tf("web.missing.member", def.Name, name))
 	}
 	field := panel{
 		Title:  tf("web.panel.member", name),
@@ -66,8 +70,13 @@ func (s *Server) memberPanelOf(def *definition.Definition, name string) panel {
 		Parent: definitionPath(def.Name),
 		Crumb:  name,
 	}
-	field.Fields = append(field.Fields, panelField{Label: t("label.role"), Value: member.Role, Href: rolePath(member.Role)})
-	field.Fields = append(field.Fields, panelField{Label: t("label.profile"), Value: s.profileLabel(member.Profile), Mono: true})
+	all, roleFindings, profileFindings := memberFindings(findings, memberIndex(def, name))
+	if problem := nodeProblems(findings)[name]; problem != "" {
+		all = append(all, problem)
+	}
+	field.Findings = all
+	field.Fields = append(field.Fields, panelField{Label: t("label.role"), Value: member.Role, Href: rolePath(member.Role), Findings: roleFindings})
+	field.Fields = append(field.Fields, panelField{Label: t("label.profile"), Value: s.profileLabel(member.Profile), Mono: true, Findings: profileFindings})
 	for _, edge := range def.Graph.Out(member.ID()) {
 		if !isTurn(edge) {
 			continue
@@ -144,7 +153,7 @@ func (s *Server) workerPanel(r *http.Request) (view, error) {
 			}
 		}
 		key := "worker:" + from + "/" + purpose
-		return missingPanel(def, key, tf("web.missing.worker", def.Name, purpose, from))
+		return missingPanel(def, key, tf("web.panel.worker", purpose, from), tf("web.missing.worker", def.Name, purpose, from))
 	})
 }
 
@@ -197,7 +206,7 @@ func (s *Server) turnPanel(r *http.Request) (view, error) {
 			}
 		}
 		label := turnEndLabel(from) + " → " + turnEndLabel(to)
-		return missingPanel(def, turnKey(from, to), tf("web.missing.turn", def.Name, label))
+		return missingPanel(def, turnKey(from, to), label, tf("web.missing.turn", def.Name, label))
 	})
 }
 
@@ -229,7 +238,7 @@ func parseNode(raw string) (definition.NodeID, bool) {
 func (s *Server) agreementPanel(r *http.Request) (view, error) {
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
 		if !def.HasAgreement {
-			return missingPanel(def, "agreement", tf("web.missing.agreement", def.Name))
+			return missingPanel(def, "agreement", t("web.panel.team_agreement"), tf("web.missing.agreement", def.Name))
 		}
 		return panel{
 			Title:  t("web.panel.team_agreement"),
@@ -246,16 +255,19 @@ func (s *Server) agreementPanel(r *http.Request) (view, error) {
 func (s *Server) rulePanel(r *http.Request) (view, error) {
 	id := r.PathValue("rule")
 	return s.definitionPage(r.PathValue("name"), func(def *definition.Definition) panel {
+		missing := func() panel {
+			return missingPanel(def, "rule:"+id, tf("web.panel.rule", id), tf("web.missing.rule", def.Name, id))
+		}
 		if !def.HasAgreement {
-			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
+			return missing()
 		}
 		doc, err := s.ruleDoc(def.Agreement)
 		if err != nil {
-			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
+			return missing()
 		}
 		card, ok := cardOf(doc, id)
 		if !ok {
-			return missingPanel(def, "rule:"+id, tf("web.missing.rule", def.Name, id))
+			return missing()
 		}
 		return panel{
 			Title:  tf("web.panel.rule", id),
@@ -268,15 +280,27 @@ func (s *Server) rulePanel(r *http.Request) (view, error) {
 }
 
 // missingPanel is the field a URL named and the definition does not hold: the
-// key it tried to open, and the one line that says so (N2).
-func missingPanel(def *definition.Definition, key, notice string) panel {
+// place's own name as the title, and the one line that says it is not there
+// (N2). The sentence is shown once, in the body (R2).
+func missingPanel(def *definition.Definition, key, title, notice string) panel {
 	return panel{
 		Key:     key,
 		Parent:  definitionPath(def.Name),
 		Missing: true,
 		Notice:  notice,
-		Title:   notice,
+		Title:   title,
 	}
+}
+
+// memberIndex is where one member stands in the definition's member list, for the
+// check's members[i] fields.
+func memberIndex(def *definition.Definition, name string) int {
+	for i := range def.Graph.Members {
+		if def.Graph.Members[i].Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // cardOf finds one rule in a document, as the card the panel shows.

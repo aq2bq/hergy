@@ -70,6 +70,17 @@ func runningByDefinition(running []effect.Running) map[string][]effect.Running {
 	return out
 }
 
+// firstStop is the first sentence that stops a definition from being started,
+// and whether there was one (一覧の行が使命の所に出す 1 つ、R1).
+func firstStop(findings []check.Finding) (string, bool) {
+	for _, finding := range findings {
+		if finding.Stops {
+			return finding.Text, true
+		}
+	}
+	return "", false
+}
+
 // fieldTexts is every sentence about one field, in the order the check returned
 // them.
 func fieldTexts(findings []check.Finding, field string) []string {

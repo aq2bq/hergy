@@ -44,6 +44,15 @@ func (s *Server) definitions(_ *http.Request) (view, error) {
 			data.Entries = append(data.Entries, row)
 			continue
 		}
+		// A definition that cannot be started keeps its row and says why, the
+		// way a definition that does not read does (R1, 3.3).
+		if msg, ok := firstStop(s.findings(entry.Name)); ok {
+			row.Broken = true
+			row.Mission = []string{msg}
+			row.Running = nil
+			data.Entries = append(data.Entries, row)
+			continue
+		}
 		row.Mission = missionLines(def.Mission)
 		row.Members = len(def.Graph.Members)
 		row.Workers = len(def.Graph.Workers)

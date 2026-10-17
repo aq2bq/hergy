@@ -10,8 +10,9 @@ import (
 // figureOf lays one definition's graph out for drawing (設計 4 節): the human at
 // the top, the members with the workers under them, and one arrow per edge. The
 // positions come from topology.LayoutGraph; the state overlay comes from the
-// activity, and the links from the fields the nodes open.
-func (s *Server) figure(def *definition.Definition, states map[string]string, openKey string) figureData {
+// activity, the sentences a node's field carries from the check, and the links
+// from the fields the nodes open.
+func (s *Server) figure(def *definition.Definition, states, problems map[string]string, openKey string) figureData {
 	layout := topology.LayoutGraph(def.Graph)
 	out := figureData{
 		Width:   layout.Width,
@@ -24,18 +25,20 @@ func (s *Server) figure(def *definition.Definition, states map[string]string, op
 		Href:  s.openHref(def, definition.Human{}.ID(), openKey),
 		Open:  nodeKeyOf(definition.Human{}.ID()) == openKey,
 		NameX: layout.Human.X + 14, NameY: layout.Human.Y + layout.Human.H/2 + 5,
+		Problem: problems["human"],
 	}
 	for i := range layout.Members {
 		member := layout.Members[i]
 		box := memberFigure{
 			nodeBox: nodeBox{
 				X: member.X, Y: member.Y, W: member.W, H: member.H,
-				Name:  member.Name,
-				Sub:   dot(member.Role, member.Profile),
-				Href:  s.openHref(def, definition.NodeID{Kind: definition.KindMember, Name: member.Name}, openKey),
-				Class: out.Classes[i],
-				Open:  nodeKeyOf(definition.NodeID{Kind: definition.KindMember, Name: member.Name}) == openKey,
-				State: states[member.Name],
+				Name:    member.Name,
+				Sub:     dot(member.Role, member.Profile),
+				Href:    s.openHref(def, definition.NodeID{Kind: definition.KindMember, Name: member.Name}, openKey),
+				Class:   out.Classes[i],
+				Open:    nodeKeyOf(definition.NodeID{Kind: definition.KindMember, Name: member.Name}) == openKey,
+				State:   states[member.Name],
+				Problem: problems[member.Name],
 			},
 		}
 		box.NameX, box.NameY = member.X+14, member.Y+24
@@ -212,6 +215,9 @@ type nodeBox struct {
 	// State is the live state of the node on the activity screen ("active",
 	// "blocked", "idle", "handed", empty when none).
 	State string
+	// Problem is a sentence the check writes about this node (node:<name>), shown
+	// on the node and in its field (R1). Empty when there is none.
+	Problem string
 }
 
 // memberFigure is one member's box with the workers under it.
