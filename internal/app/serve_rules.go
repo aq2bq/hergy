@@ -1,10 +1,7 @@
 package app
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,14 +183,13 @@ func (p servePort) WriteRule(path, text, hash string) error {
 	if !p.reads(layer, path) {
 		return i18n.Errorf("error.rules_not_writable", p.env.Display(path))
 	}
-	before, err := os.ReadFile(path)
-	if err != nil {
+	if err := source.WriteIfUnchanged(path, hash, text); err != nil {
+		if errors.Is(err, source.ErrChanged) {
+			return i18n.Errorf("error.rules_file_changed", p.env.Display(path))
+		}
 		return err
 	}
-	if hashText(string(before)) != hash {
-		return i18n.Errorf("error.rules_file_changed", p.env.Display(path))
-	}
-	return writeFileBeside(path, text)
+	return nil
 }
 
 // Preview is the edited rule as a member would read it: the section it stands
@@ -320,60 +316,7 @@ func under(base, path string) bool {
 	return strings.HasPrefix(path, strings.TrimSuffix(base, string(filepath.Separator))+string(filepath.Separator))
 }
 
-// hashText is the hash the screen carries from a read to a write.
-func hashText(text string) string {
-	sum := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(sum[:])
-}
-
-// writeFileBeside writes text to a file beside the target and renames it over,
-// so a reader sees either the old file or the new one, never half of either.
-//
-// The target may be a link: a dotfiles setup keeps the files under
-// ~/.config/hergy as links, so the link is followed and the file it points at is
-// what is written. The link stays a link, and the mode stays the one the file
-// already had rather than a fresh 0644.
-//
-// A target that is not there yet is written at its own path: this is how a layer
-// whose profiles.yaml does not exist gets one (r-daf8). The directory must be
-// there; the caller checks that where it matters.
-func writeFileBeside(path, text string) error {
-	target, err := filepath.EvalSymlinks(path)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		target = path
-	case err != nil:
-		return err
-	}
-	mode := os.FileMode(0o644)
-	if info, err := os.Stat(target); err == nil {
-		mode = info.Mode().Perm()
-	}
-	temp, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+".*")
-	if err != nil {
-		return err
-	}
-	name := temp.Name()
-	// A temp file that does not reach the rename is removed. A removal that
-	// fails has nothing to say: the target file is untouched either way.
-	defer func() {
-		if name != "" {
-			_ = os.Remove(name)
-		}
-	}()
-	if _, err := temp.WriteString(text); err != nil {
-		_ = temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(name, mode); err != nil {
-		return err
-	}
-	if err := os.Rename(name, target); err != nil {
-		return err
-	}
-	name = "" // renamed: there is nothing left to remove
-	return nil
-}
+// hashText is the hash a screen carries from a read to a write. The one
+// function is source.Hash (段 1a, C11); this name stays until the screens that
+// call it are gone, so nothing has to change on either side yet.
+func hashText(text string) string { return source.Hash(text) }

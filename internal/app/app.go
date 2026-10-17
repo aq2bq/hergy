@@ -536,12 +536,15 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
 	// hergy new writes where the person is (K2): inside a git repository that
-	// is the project's own layer, and outside one the global layer.
+	// is the project's own layer, and outside one the global layer. The place
+	// comes from the catalog (C13), so a screen that makes a role document or
+	// adds a profile writes in the same one.
 	layer := source.LayerGlobal
 	if env.InRepo() {
 		layer = source.LayerLocal
 	}
-	dir := env.TeamDir(name, layer)
+	cat := env.Catalog(source.Disk{})
+	dir := cat.NewPlace(catalog.NewTeam, name)
 	if _, err := os.Stat(dir); err == nil {
 		return i18n.Errorf("error.new_exists", name, env.Display(dir))
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -560,7 +563,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	roleDir := filepath.Join(env.Catalog(source.Disk{}).LayerDir(layer), "roles")
+	roleDir := filepath.Join(cat.LayerDir(layer), "roles")
 	wroteRoles, keptRoles, err := writeScaffoldRoles(roleDir, roles)
 	if err != nil {
 		return err
@@ -637,7 +640,7 @@ func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := writeFileBeside(path, text); err != nil {
+	if err := source.WriteBeside(path, text); err != nil {
 		return "", err
 	}
 	return path, nil
