@@ -189,7 +189,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 			t.Errorf("%s's prompt moved, but no Change says so", bm.Name)
 		}
 	}
-	leadTurns := prompt.TurnsNote(prompt.TurnsOf(after, "lead", "demo"))
+	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
 	if strings.Contains(leadTurns, "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}
@@ -617,4 +617,89 @@ func launchChange(member string) []effect.Change {
 
 func envChange(member string) []effect.Change {
 	return []effect.Change{{Member: member, Definition: "demo", Parts: []effect.PartChange{{Part: effect.Env}}}}
+}
+
+// launchedHashes is each member's prompt hash as one launch handed it, by the
+// member's short name.
+func launchedHashes(t *testing.T, l layer, def *definition.Definition) map[string]string {
+	t.Helper()
+	run := l.run(t)
+	out := map[string]string{}
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		built, err := prompt.Member(def, member, run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[member.Name] = source.Hash(built.Text)
+	}
+	return out
+}
+
+// TestUndeliveredNamesTheMembersWhosePromptMoved is C9: comparing the launch
+// record's hashes with the prompt as it reads now names the members that moved,
+// with no parts (the record holds no text) and a reprompt as the handover
+// (設計 10.2, W9).
+func TestUndeliveredNamesTheMembersWhosePromptMoved(t *testing.T) {
+	l := newLayer(t)
+	launched := l.read(t, teamText())
+	hashes := launchedHashes(t, l, launched)
+
+	// Nothing changed: a team that took the launch up has nothing to take up.
+	if changes := effect.Undelivered(hashes, l.view(t, launched)); len(changes) != 0 {
+		t.Errorf("Undelivered on an unchanged definition = %+v, want none", changes)
+	}
+
+	edited, err := definition.EditYAML([]byte(teamText()), "team.yaml", definition.MemberRole("spec", "lead"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := l.read(t, string(edited))
+	changes := effect.Undelivered(hashes, l.view(t, now))
+	if len(changes) == 0 {
+		t.Fatalf("a moved prompt was not named")
+	}
+	for _, change := range changes {
+		if len(change.Parts) != 0 {
+			t.Errorf("%s carries parts: %+v (the record holds only hashes)", change.Member, change.Parts)
+		}
+		if change.Definition != "demo" {
+			t.Errorf("%s belongs to %q, want demo", change.Member, change.Definition)
+		}
+	}
+
+	lines := effect.UndeliveredLines(changes)
+	if len(lines) != len(changes) {
+		t.Fatalf("UndeliveredLines = %q, want one line per member", lines)
+	}
+	for i, line := range lines {
+		want := "起動のあとで変わったもの: " + changes[i].Member + " のプロンプト"
+		if line != want {
+			t.Errorf("line %d = %q, want %q", i, line, want)
+		}
+	}
+
+	// The handover reprompts the members that moved: nothing of the prompt can
+	// be named, but a reprompt is what makes them read it again.
+	running := []effect.Running{{Team: "demo", Definition: "demo"}}
+	commands := effect.Commands(changes, running)
+	if len(commands) != 1 {
+		t.Fatalf("Commands = %+v, want one team", commands)
+	}
+	for _, command := range commands[0].Commands {
+		if !strings.HasPrefix(command.Line, "hergy reprompt ") {
+			t.Errorf("the handover says %q, want a reprompt", command.Line)
+		}
+	}
+}
+
+// TestUndeliveredLeavesOutAMemberTheRecordDoesNotName: a member added since the
+// launch is not this round's change (W7).
+func TestUndeliveredLeavesOutAMemberTheRecordDoesNotName(t *testing.T) {
+	l := newLayer(t)
+	now := l.read(t, teamText())
+	hashes := map[string]string{"nosuch": "deadbeef"}
+	if changes := effect.Undelivered(hashes, l.view(t, now)); len(changes) != 0 {
+		t.Errorf("Undelivered = %+v, want none for a member the record does not name", changes)
+	}
 }

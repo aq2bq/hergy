@@ -47,15 +47,17 @@ linters:
     depguard:
       rules:
         exec:
-          # 子プロセスを起動してよいのは、herdr を呼ぶ herdrcli、ブラウザを開く
-          # browser、ゲートの道具を呼ぶ tools/check だけ（d-b28a 4、d-fb89）。
+          # 子プロセスを起動してよいのは、herdr を呼ぶ herdrcli、gy を呼ぶ gycli、
+          # ブラウザを開く browser、ゲートの道具を呼ぶ tools/check だけ（d-b28a 4、
+          # d-fb89、段 6）。
           files:
             - "!**/internal/herdrcli/**"
+            - "!**/internal/gycli/**"
             - "!**/internal/browser/**"
             - "!**/tools/check/**"
           deny:
             - pkg: os/exec
-              desc: os/exec is for internal/herdrcli (herdr), internal/browser (the person's browser) and tools/check (the gates) only
+              desc: os/exec is for internal/herdrcli (herdr), internal/gycli (gy), internal/browser (the person's browser) and tools/check (the gates) only
     # 複雑さは Ratchet。しきい値は導入時（2026-10-15）のテスト以外の最大値
     # （gocognit 33 の runLs、cyclop 25 の validate）。下げる向きにだけ動かしてよい。
     gocognit:

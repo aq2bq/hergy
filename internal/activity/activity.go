@@ -79,6 +79,10 @@ type Question struct {
 	Options []string
 	Decider string
 	At      time.Time
+	// Writer is who asked it, as gy's write unit names them. The activity
+	// shows the question on a team's own section when the writer is one of that
+	// team's herdr names (設計 5.3, W4).
+	Writer string
 }
 
 // Input is everything the judgement reads (設計 5.2).

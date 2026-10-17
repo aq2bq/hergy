@@ -50,6 +50,10 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Team:       r.team.Name,
 		TeamYAML:   r.team.Definition.TeamYAML,
 		Hash:       launchlog.Hash(material),
+		// The facts the prompts were built with, so a screen can rebuild them
+		// the way the launch did (C9, spec/43 S1).
+		Executable: executable(),
+		Lang:       i18n.Language(),
 	}
 	// A document two members read is one entry, and one blob: the record names
 	// the files, not the times they were read.

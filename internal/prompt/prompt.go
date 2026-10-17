@@ -10,8 +10,9 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// MemberTemplate is the default bootstrap prompt for a team member.
-func MemberTemplate() string { return i18n.T("prompt.member") }
+// MemberTemplate is the default bootstrap prompt for a team member, in one
+// language; empty is the language in use.
+func MemberTemplate(lang string) string { return i18n.Text(lang, "prompt.member") }
 
 // WorkerTemplate is the bootstrap prompt for a hired worker.
 func WorkerTemplate() string { return i18n.T("prompt.worker") }
@@ -47,15 +48,16 @@ type RosterEntry struct {
 	Role string
 }
 
-// Roster lists the team, marking the reader.
-func Roster(members []RosterEntry, me string) string {
+// Roster lists the team, marking the reader. lang is the language the prompt is
+// written in; empty is the language in use.
+func Roster(lang string, members []RosterEntry, me string) string {
 	lines := make([]string, 0, len(members))
 	for _, member := range members {
 		mark := ""
 		if member.Name == me {
-			mark = i18n.T("roster.mark")
+			mark = i18n.Text(lang, "roster.mark")
 		}
-		lines = append(lines, fmt.Sprintf(i18n.T("roster.line"), member.Role, member.Name, mark))
+		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "roster.line"), member.Role, member.Name, mark))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -64,8 +66,8 @@ func Roster(members []RosterEntry, me string) string {
 // launcher adds no messaging of its own. intro is how the member introduces
 // itself. It also names the one way to add a teammate, so a member does not
 // start one with herdr directly and lose it from hergy's roster.
-func HerdrMember(intro string) string {
-	return i18n.Tf("herdr.guide_member", intro)
+func HerdrMember(lang, intro string) string {
+	return i18n.Textf(lang, "herdr.guide_member", intro)
 }
 
 // HerdrWorker is the same contact guide for a hired worker, which adds no
@@ -84,13 +86,13 @@ type WorkerPair struct {
 // never enforced: a hire outside it only prints a note. It lists the pairs of
 // purpose and profile the member may hire for. `command` is the hire command
 // line shown to the member, with the placeholders it should fill in.
-func WorkersNote(memberName string, workers []WorkerPair, command string) string {
+func WorkersNote(lang, memberName string, workers []WorkerPair, command string) string {
 	allowed := make([]string, 0, len(workers))
 	for _, worker := range workers {
-		allowed = append(allowed, fmt.Sprintf(i18n.T("workers.allowed_item"), worker.Purpose, worker.Profile))
+		allowed = append(allowed, fmt.Sprintf(i18n.Text(lang, "workers.allowed_item"), worker.Purpose, worker.Profile))
 	}
-	separator := i18n.T("list.separator")
-	return i18n.Tf("workers.note",
+	separator := i18n.Text(lang, "list.separator")
+	return i18n.Textf(lang, "workers.note",
 		strings.Join(allowed, separator),
 		command,
 		memberName)
@@ -107,17 +109,17 @@ type TurnPart struct {
 // TurnsNote lists who a member hands the turn to. It is built from the graph's
 // edges out of the member and adds nothing to them (I13): taking one edge away
 // takes that party out of the prompt.
-func TurnsNote(turns []TurnPart) string {
+func TurnsNote(lang string, turns []TurnPart) string {
 	if len(turns) == 0 {
 		return ""
 	}
 	lines := make([]string, 0, len(turns))
 	for _, turn := range turns {
 		if turn.Role == "" {
-			lines = append(lines, i18n.T("turns.human_item"))
+			lines = append(lines, i18n.Text(lang, "turns.human_item"))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf(i18n.T("turns.member_item"), turn.Name, turn.Role))
+		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "turns.member_item"), turn.Name, turn.Role))
 	}
-	return i18n.Tf("turns.note", strings.Join(lines, "\n"))
+	return i18n.Textf(lang, "turns.note", strings.Join(lines, "\n"))
 }
