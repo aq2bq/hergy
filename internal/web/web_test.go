@@ -7,14 +7,18 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/check"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/effect"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.uber.org/goleak"
 )
@@ -58,7 +62,7 @@ func newFixture(t *testing.T) *fixture {
 		}
 	}
 	f.writeTeam(t, "demo", "demo の使命")
-	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n")
+	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n  planner:\n    kind: codex\n")
 	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead は最初に動く。\n")
 	f.write(t, "roles/builder.yaml", "version: 1\nsections:\n  - rules:\n      - id: BUILD-1\n        text: builder は作る。\n")
 	f.write(t, "agreement.yaml", "version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n        why: だから。\n")
@@ -78,11 +82,11 @@ func (f *fixture) write(t *testing.T, rel, text string) {
 	}
 }
 
-// writeTeam writes one team definition with a member, a worker, a turn to the
-// human, a role document for each role, a team agreement and a shared one.
+// writeTeam writes one team definition with a member, three workers, a turn to
+// the human, a role document for each role, a team agreement and a shared one.
 func (f *fixture) writeTeam(t *testing.T, name, mission string) {
 	t.Helper()
-	f.write(t, filepath.Join("teams", name, "team.yaml"), "version: 1\nmission: "+mission+"\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 試作\n    profile: coder\n")
+	f.write(t, filepath.Join("teams", name, "team.yaml"), "version: 1\nmission: "+mission+"\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
 	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n        origin:\n          - kind: incident\n            date: \"2026-01-01\"\n")
 }
 
@@ -862,4 +866,607 @@ func TestTheDefinitionShowsWhatStopsIt(t *testing.T) {
 	if strings.Contains(body, `mission: `) {
 		t.Errorf("the list shows a broken row like a whole one")
 	}
+}
+
+// teamYAML is the team.yaml of the fixture's demo definition.
+func (f *fixture) teamYAML() string {
+	return filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
+}
+
+// savedLine is the line one save wrote, and what it says the change does to the
+// members' prompts (C2).
+func savedLine(body string) string { return between(body, `class="saved"`, "</div>") }
+
+// TestAMembersRoleSavesAndKeepsEveryOtherLine: the role is written from the
+// field (C1), the saved line says what the change moves, and a running team gets
+// a command to take the change up (C2, 設計 3.4).
+func TestAMembersRoleSavesAndKeepsEveryOtherLine(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"role"},
+		"role": {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if want := strings.Replace(before, "role: lead", "role: builder", 1); readFile(t, path) != want {
+		t.Errorf("the save changed more than the role:\n got %q\nwant %q", readFile(t, path), want)
+	}
+	saved := savedLine(body)
+	if !strings.Contains(saved, "書きました") {
+		t.Errorf("the save shows no saved line: %q", saved)
+	}
+	if !strings.Contains(saved, "『ロールの文書』が変わります") || !strings.Contains(saved, "『名簿』が変わります") {
+		t.Errorf("the saved line does not say what the change moves: %q", saved)
+	}
+	if !strings.Contains(saved, "hergy reprompt --all --team demo") {
+		t.Errorf("the saved line does not say how a running team takes it up: %q", saved)
+	}
+	// The field is open again and reads the new value (C3).
+	if !strings.Contains(body, `data-origin="builder"`) {
+		t.Errorf("the open field does not read the value just written")
+	}
+}
+
+// TestAMembersProfileSavesAndKeepsEveryOtherLine: a profile is written by name
+// alone (I7), and the saved line says how the running team takes it up.
+func TestAMembersProfileSavesAndKeepsEveryOtherLine(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":      {"profile"},
+		"profile": {"planner"},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	want := strings.Replace(before, "name: lead\n    role: lead\n    profile: coder", "name: lead\n    role: lead\n    profile: planner", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the save changed more than the profile:\n got %q\nwant %q", got, want)
+	}
+	saved := savedLine(body)
+	if !strings.Contains(saved, "書きました") {
+		t.Errorf("the save shows no saved line: %q", saved)
+	}
+	// A profile that moves the kind and the env is a down and up: the pane is
+	// the only place the env reaches (設計 3.0 の表).
+	if !strings.Contains(saved, "hergy down demo") || !strings.Contains(saved, "hergy up demo --as demo") {
+		t.Errorf("the saved line does not say the pane has to be made again: %q", saved)
+	}
+}
+
+// TestAddingAndRemovingAWorker: a worker is hired and taken away from the
+// member's field (設計 3.4 の表). The press that takes it away says what the hire
+// loses before anything is written (I6), and a purpose written blank is refused
+// with validate's sentence.
+func TestAddingAndRemovingAWorker(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":      {"worker-add"},
+		"purpose": {"検証"},
+		"profile": {"planner"},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the hire answered %d", resp.StatusCode)
+	}
+	added := readFile(t, path)
+	if !strings.HasSuffix(added, "  - from: lead\n    purpose: 検証\n    profile: planner\n") {
+		t.Errorf("the hire did not write the entry in the file's own shape:\n%s", added)
+	}
+	if !strings.Contains(savedLine(body), "『呼べるワーカー』に 検証 が入ります") {
+		t.Errorf("the saved line does not say the worker was added: %q", savedLine(body))
+	}
+
+	// The press that chooses the removal shows what will be lost first (I6), and
+	// writes nothing.
+	_, body = f.get(t, server, "/definitions/demo/members/lead?remove="+url.QueryEscape("検証"))
+	if !strings.Contains(body, "hergy hire --purpose 検証 は断られます") {
+		t.Errorf("the removal does not say what the hire loses:\n%s", body)
+	}
+	if !strings.Contains(body, `class="confirm"`) {
+		t.Errorf("the removal offers no way to write it")
+	}
+	if readFile(t, path) != added {
+		t.Errorf("the press wrote the file")
+	}
+
+	// Writing it takes the entry away, leaving the file as it was.
+	_, body = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":     {"worker-remove"},
+		"worker": {"検証"},
+		"hash":   {source.Hash(added)},
+	})
+	if got := readFile(t, path); got != before {
+		t.Errorf("the removal left\n got %q\nwant %q", got, before)
+	}
+	if !strings.Contains(savedLine(body), "『呼べるワーカー』から 検証 が消えます") {
+		t.Errorf("the saved line does not say the worker was taken away: %q", savedLine(body))
+	}
+
+	// A purpose written blank is refused in the field's own words, and nothing
+	// is written (N2).
+	resp, body = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":      {"worker-add"},
+		"purpose": {"  "},
+		"profile": {"planner"},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "目的を書いてください") {
+		t.Errorf("a blank purpose was not refused in the field's own words: %d\n%s", resp.StatusCode, body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused hire wrote the file")
+	}
+}
+
+// TestRemovingAWorkerFromItsOwnFieldLandsOnTheMember: the field a worker stood in
+// is gone once the worker is, so the write lands on the member that hired it —
+// the field that still holds the worker list — rather than on a field that says
+// the worker it just took away is not there (N1).
+func TestRemovingAWorkerFromItsOwnFieldLandsOnTheMember(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	// The press that chooses the removal names the member's field as where the
+	// write goes.
+	_, body := f.get(t, server, "/definitions/demo/workers/lead/試作?remove="+url.QueryEscape("試作"))
+	confirm := between(body, `class="confirm"`, "</form>")
+	if !strings.Contains(confirm, `action="/definitions/demo/members/lead"`) {
+		t.Errorf("the removal does not write to the member's field:\n%s", confirm)
+	}
+	if !strings.Contains(confirm, "hergy hire --purpose 試作 は断られます") {
+		t.Errorf("the removal does not say what the hire loses:\n%s", confirm)
+	}
+
+	// Writing it draws the member's field, with the saved line, and never says
+	// the worker it just took away is not there.
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op": {"worker-remove"}, "worker": {"試作"}, "hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the removal answered %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, `<h2 class="panel-title">メンバー lead</h2>`) {
+		t.Fatalf("the removal did not land on the member's field:\n%s", body)
+	}
+	if !strings.Contains(savedLine(body), "の「ワーカー」を書きました。") {
+		t.Errorf("the member's field shows no saved line: %q", savedLine(body))
+	}
+	if strings.Contains(body, "にワーカー 試作") {
+		t.Errorf("the page says the worker it just took away is not there:\n%s", body)
+	}
+	after := readFile(t, path)
+	for _, kept := range []string{"purpose: 実装", "purpose: 調査"} {
+		if !strings.Contains(after, kept) {
+			t.Errorf("the removal took more than the one worker: %s", kept)
+		}
+	}
+	if strings.Contains(after, "purpose: 試作") {
+		t.Errorf("the removal wrote nothing")
+	}
+
+	// A write that reaches the worker's own URL by hand lands there too.
+	resp, body = f.post(t, server, "/definitions/demo/workers/lead/調査", url.Values{
+		"op": {"worker-remove"}, "hash": {source.Hash(after)},
+	})
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `<h2 class="panel-title">メンバー lead</h2>`) {
+		t.Errorf("the worker's own field did not land on the member's: %d", resp.StatusCode)
+	}
+}
+
+// TestTheWorkerRowNamesThePurpose: each worker's row names the purpose it is
+// hired for, as a link to its own field, so a person can tell which row writes
+// which worker (S1).
+func TestTheWorkerRowNamesThePurpose(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+	rows := between(body, `<dt>ワーカー</dt>`, `<dt>ワーカーを足す</dt>`)
+	if rows == "" {
+		t.Fatalf("the member's field holds no worker row:\n%s", body)
+	}
+	for _, purpose := range []string{"実装", "試作", "調査"} {
+		want := `<a href="` + workerPath("demo", "lead", purpose) + `">` + purpose + `</a>`
+		if !strings.Contains(rows, want) {
+			t.Errorf("no worker row names %q as a link to its own field:\n%s", purpose, rows)
+		}
+	}
+	// And the field that hires one says what to write there (S1).
+	if !strings.Contains(body, `<label class="fl">目的 <input type="text" name="purpose"`) {
+		t.Errorf("the purpose input of the hire has no label:\n%s", body)
+	}
+}
+
+// TestAnEmptyInputIsRefusedInTheFieldsOwnWords: an input a person left empty is
+// refused by the field's own name, never with the place a broken file would be
+// told about (N2). What the file itself holds is still validate's sentence, from
+// the check.
+func TestAnEmptyInputIsRefusedInTheFieldsOwnWords(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	hash := source.Hash(before)
+	cases := []struct {
+		target, want string
+		form         url.Values
+	}{
+		{target: "/definitions/demo/members/lead", want: "ロールを選んでください", form: url.Values{"op": {"role"}, "role": {""}, "hash": {hash}}},
+		{target: "/definitions/demo/members/lead", want: "プロファイルを選んでください", form: url.Values{"op": {"profile"}, "profile": {""}, "hash": {hash}}},
+		{target: "/definitions/demo/members/lead", want: "目的を書いてください", form: url.Values{"op": {"worker-add"}, "purpose": {""}, "profile": {"coder"}, "hash": {hash}}},
+		{target: "/definitions/demo/workers/lead/試作", want: "プロファイルを選んでください", form: url.Values{"op": {"worker-profile"}, "profile": {""}, "hash": {hash}}},
+	}
+	for _, test := range cases {
+		resp, body := f.post(t, server, test.target, test.form)
+		if resp.StatusCode != http.StatusOK || !strings.Contains(body, test.want) {
+			t.Errorf("POST %s: %d, want %q\n%s", test.target, resp.StatusCode, test.want, body)
+		}
+		for _, internal := range []string{"workers[", "members["} {
+			if strings.Contains(body, internal) {
+				t.Errorf("POST %s: the refusal shows the file's place %q", test.target, internal)
+			}
+		}
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused input wrote the file")
+	}
+}
+
+// TestTheSavedLineNamesTheKeyInItsOwnQuotes: the saved line names the key it
+// wrote between the language's own quotes, and a page-level field (the mission)
+// is named the same way as a field of a panel (N3).
+func TestTheSavedLineNamesTheKeyInItsOwnQuotes(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"role"},
+		"role": {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	if saved := savedLine(body); !strings.Contains(saved, "の「ロール」を書きました。") {
+		t.Errorf("the saved line names the key as %q", saved)
+	}
+
+	written := readFile(t, path)
+	_, body = f.post(t, server, "/definitions/demo", url.Values{
+		"mission": {"新しい使命"},
+		"hash":    {source.Hash(written)},
+	})
+	saved := between(body, `class="saved"`, "</div>")
+	if !strings.Contains(saved, "の「使命」を書きました。") {
+		t.Errorf("the mission's saved line names the key as %q", saved)
+	}
+	if !strings.Contains(saved, "どのメンバーのプロンプトも変わりません") {
+		t.Errorf("the mission's saved line says nothing about the prompts: %q", saved)
+	}
+}
+
+// TestPickingAValueShowsWhatItWouldDo: a pick that is not written yet shows what
+// it would do to the members' prompts beside the field, and writes nothing (T1).
+// A pick that would be refused shows the stop instead, and offers no write.
+func TestPickingAValueShowsWhatItWouldDo(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.get(t, server, "/definitions/demo/members/lead?preview=role&role=builder")
+	role := between(body, `data-key="role"`, "</form>")
+	if !strings.Contains(role, "『ロールの文書』が変わります") {
+		t.Errorf("the pick shows no line about what it would do:\n%s", role)
+	}
+	if !strings.Contains(role, `data-origin="lead"`) || !strings.Contains(body, `value="builder" selected`) {
+		t.Errorf("the field does not read the picked value and keep the file's own:\n%s", role)
+	}
+	if !strings.Contains(body, "保存する") {
+		t.Errorf("the pick offers no way to write it:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the preview wrote the file")
+	}
+
+	// A pick on a worker's own profile is looked at the same way, and names the
+	// worker it belongs to.
+	_, body = f.get(t, server, "/definitions/demo/members/lead?preview=worker-profile&worker="+url.QueryEscape("試作")+"&profile=planner")
+	worker := between(body, `data-key="worker/lead/試作"`, "</form>")
+	if !strings.Contains(worker, "『呼べるワーカー』の 試作 のプロファイルが変わります") {
+		t.Errorf("a worker's pick shows no line about what it would do:\n%s", worker)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the preview wrote the file")
+	}
+
+	// A pick that would stop the definition says so, and takes the write away
+	// (the way the save road does).
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	_, body = f.get(t, server, "/definitions/demo/members/lead?preview=role&role=builder")
+	role = between(body, `data-key="role"`, "</form>")
+	if !strings.Contains(role, "builder.yaml") {
+		t.Errorf("a refused pick does not say what stops it:\n%s", role)
+	}
+	if strings.Contains(role, `type="submit"`) {
+		t.Errorf("a refused pick still offers the write:\n%s", role)
+	}
+	if !strings.Contains(role, "取り消す") {
+		t.Errorf("a refused pick leaves no way out:\n%s", role)
+	}
+}
+
+// TestAWorkersProfileIsWrittenFromItsOwnField: the worker's own field changes the
+// profile, and its table row is the same write (設計 3.4 の表).
+func TestAWorkersProfileIsWrittenFromItsOwnField(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/workers/lead/試作", url.Values{
+		"op":      {"worker-profile"},
+		"profile": {"planner"},
+		"hash":    {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	want := strings.Replace(before, "purpose: 試作\n    profile: coder", "purpose: 試作\n    profile: planner", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the save changed more than the worker's profile:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(savedLine(body), "『呼べるワーカー』の 試作 のプロファイルが変わります") {
+		t.Errorf("the saved line does not say the profile moved: %q", savedLine(body))
+	}
+
+	// The same write from the member's field leaves the same file.
+	resp, _ = f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":      {"worker-profile"},
+		"worker":  {"試作"},
+		"profile": {"coder"},
+		"hash":    {source.Hash(want)},
+	})
+	if resp.StatusCode != http.StatusOK || readFile(t, path) != before {
+		t.Errorf("the member's field did not write the same place: %d", resp.StatusCode)
+	}
+}
+
+// TestTheMemberFieldOffersTheNamesTheCatalogResolves: the profile is picked by
+// name and its kind stands beside the pick as an attribute, never inside the
+// choice (I7); the role is picked from the roles hergy resolves.
+func TestTheMemberFieldOffersTheNamesTheCatalogResolves(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+
+	profiles := between(body, `name="profile" data-draft="field:demo:members/lead:profile"`, "</select>")
+	if got := optionTexts(profiles); !reflect.DeepEqual(got, []string{"coder", "planner"}) {
+		t.Errorf("the profile choices are %v, want the profile names alone", got)
+	}
+	if !strings.Contains(profiles, `data-kind="claude"`) {
+		t.Errorf("a profile choice does not carry its kind as an attribute:\n%s", profiles)
+	}
+	if strings.Contains(profiles, "（") || strings.Contains(profiles, "(") {
+		t.Errorf("a choice carries more than the name:\n%s", profiles)
+	}
+	if !strings.Contains(body, `<span class="kind" data-kind-show>claude</span>`) {
+		t.Errorf("the kind of the picked profile does not stand beside the pick")
+	}
+
+	roles := between(body, `name="role" data-draft="field:demo:members/lead:role"`, "</select>")
+	if got := optionTexts(roles); !reflect.DeepEqual(got, []string{"builder", "lead"}) {
+		t.Errorf("the role choices are %v, want the roles hergy resolves", got)
+	}
+}
+
+// TestEveryWritableFieldKeepsItsDraftAndItsOrigin: every field of a member and
+// of a worker carries the key the script keeps its half-written value under and
+// the value the file writes, so 1b's writing-in-progress works on this round's
+// fields too (C5).
+func TestEveryWritableFieldKeepsItsDraftAndItsOrigin(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	_, body := f.get(t, server, "/definitions/demo/members/lead")
+	for _, want := range []string{
+		`data-draft="field:demo:members/lead:role" data-origin="lead"`,
+		`data-draft="field:demo:members/lead:profile" data-origin="coder"`,
+		`data-draft="field:demo:workers/lead/試作:profile" data-origin="coder"`,
+		`data-draft="field:demo:members/lead:worker-add:purpose" data-origin=""`,
+		`data-draft="field:demo:members/lead:worker-add:profile" data-origin="coder"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the member's field does not keep %q", want)
+		}
+	}
+}
+
+// TestARoleWithoutADocumentIsRefusedWithValidatesSentence: a save that brings in
+// a stop is refused with the sentence the check writes, beside the field, and
+// the file is left alone (設計 7.3).
+func TestARoleWithoutADocumentIsRefusedWithValidatesSentence(t *testing.T) {
+	f := newFixture(t)
+	// The role document is gone, so moving a member onto that role would stop
+	// the definition.
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	resp, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"role"},
+		"role": {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d", resp.StatusCode)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a refused save wrote the file")
+	}
+	edited, err := definition.EditYAML([]byte(before), definition.MemberRole("lead", "builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := f.catalog().With(path, string(edited))
+	want := firstStopText(check.Definition(check.Input{Catalog: with, Name: "demo"}))
+	if want == "" {
+		t.Fatal("the check wrote no stop for the change")
+	}
+	if !strings.Contains(body, want) {
+		t.Errorf("the panel does not say what validate says (%q):\n%s", want, body)
+	}
+}
+
+// TestTheSavedHandoverIsRealCommands: every command a saved field shows is taken
+// apart by the real command definitions, so the line a person copies is one
+// hergy takes (I16).
+func TestTheSavedHandoverIsRealCommands(t *testing.T) {
+	f := newFixture(t)
+	f.running = []effect.Running{{Team: "demo", Definition: "demo"}}
+	server := f.server(t)
+	before := readFile(t, f.teamYAML())
+
+	_, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"role"},
+		"role": {"builder"},
+		"hash": {source.Hash(before)},
+	})
+	commands := codeTexts(savedLine(body))
+	if len(commands) == 0 {
+		t.Fatalf("the saved line holds no command:\n%s", savedLine(body))
+	}
+	for _, line := range commands {
+		argv := strings.Fields(line)
+		if len(argv) == 0 || argv[0] != "hergy" {
+			t.Errorf("the command %q does not start with hergy", line)
+			continue
+		}
+		if _, err := options.Parse(argv[1:]); err != nil {
+			t.Errorf("the command %q does not parse: %v", line, err)
+		}
+	}
+}
+
+// TestAMemberFieldRefusesAStalePageAndNeedsTheToken: a file that moved under the
+// page is refused with the clash line and a link that reads it again, and a
+// write without the token of the run never reaches the handler (設計 3.0・7.3).
+func TestAMemberFieldRefusesAStalePageAndNeedsTheToken(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+
+	_, body := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":   {"role"},
+		"role": {"builder"},
+		"hash": {"deadbeef"},
+	})
+	if !strings.Contains(body, "変わりました") || !strings.Contains(body, "読み直す") {
+		t.Errorf("a stale page was not refused with the clash line and a reload link:\n%s", body)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("a stale page wrote the file")
+	}
+
+	resp, _ := f.post(t, server, "/definitions/demo/members/lead", url.Values{
+		"op":    {"role"},
+		"role":  {"builder"},
+		"token": {""},
+	})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("a write without the token answered %d, want 403", resp.StatusCode)
+	}
+}
+
+// TestAMissingMemberWriteIsNotFound: a write to a field the definition does not
+// hold is the 404 the read is, and nothing is written (N2).
+func TestAMissingMemberWriteIsNotFound(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	resp, body := f.post(t, server, "/definitions/demo/members/nosuch", url.Values{
+		"op":   {"role"},
+		"role": {"lead"},
+	})
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("the write answered %d, want 404", resp.StatusCode)
+	}
+	if !strings.Contains(body, "メンバー nosuch はありません") {
+		t.Errorf("the page does not say the member is not there")
+	}
+}
+
+// optionTexts is the text of every <option> in one select block, so a test can
+// say a choice carries the name alone (I7).
+func optionTexts(block string) []string {
+	var out []string
+	for rest := block; ; {
+		i := strings.Index(rest, "<option ")
+		if i < 0 {
+			return out
+		}
+		_, after, ok := strings.Cut(rest[i:], ">")
+		if !ok {
+			return out
+		}
+		text, tail, ok := strings.Cut(after, "</option>")
+		if !ok {
+			return out
+		}
+		out = append(out, text)
+		rest = tail
+	}
+}
+
+// codeTexts is the text of every <code> block, in the order the page writes it.
+func codeTexts(body string) []string {
+	var out []string
+	for rest := body; ; {
+		i := strings.Index(rest, "<code")
+		if i < 0 {
+			return out
+		}
+		_, after, ok := strings.Cut(rest[i:], ">")
+		if !ok {
+			return out
+		}
+		text, tail, ok := strings.Cut(after, "</code>")
+		if !ok {
+			return out
+		}
+		out = append(out, text)
+		rest = tail
+	}
+}
+
+// firstStopText is the first sentence that stops a definition, which is the one
+// a save that brings it in is refused with.
+func firstStopText(findings []check.Finding) string {
+	for _, finding := range findings {
+		if finding.Stops {
+			return finding.Text
+		}
+	}
+	return ""
 }

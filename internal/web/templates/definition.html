@@ -6,7 +6,7 @@
 <p class="muted mono">{{.Path}}</p>
 {{- else}}
 {{- if .Saved}}
-<div class="saved">{{.Saved}}{{template "commands" .Handover}}</div>
+<div class="saved">{{.Saved}}{{range .Preview}} <span class="note">{{.}}</span>{{end}}{{template "commands" .Handover}}</div>
 {{- end}}
 <form class="mission" method="post" action="{{.Href}}" hx-post="{{.Href}}" hx-target="#page" hx-select="#page" hx-swap="outerHTML" hx-replace-url="true"{{if .Saved}} data-saved="1"{{end}}>
   <input type="hidden" name="token" value="{{.Token}}">

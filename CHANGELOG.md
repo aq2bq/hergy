@@ -37,14 +37,43 @@
 
 ### Added
 
+- **A member's role and profile, and the workers it may hire, are written from
+  `hergy serve`**: opening a member of a team definition now gives a picker for
+  its role (the roles hergy resolves, and the name the definition writes now)
+  and for its profile (the profile names alone; the kind of the picked profile
+  stands beside the pick as its attribute). The workers the member may hire are
+  written the same place: a purpose and a profile to hire one, the profile of a
+  worker to change one, and a press to take one away. That last press writes
+  nothing at once: it shows what the hire would lose ("`hergy hire --purpose
+  <purpose>` は断られます") and offers the write or the way out. The worker's own
+  field writes the same profile and takes the same worker away.
+
+  A save writes one place in `team.yaml`, leaves every other line as it was,
+  and says what was written (with the key between the language's own quotes),
+  what the change does to the members' prompts, and the command a running team
+  needs (with a copy button). A change that would stop the definition is refused
+  with the sentence `hergy validate` writes, beside the field; a file that moved
+  under the page is refused with a link that reads it again. Two fields of one
+  member are filled in and saved one at a time, and a half-written field is kept
+  while another is opened.
+
+  A pick that has not been written yet shows what it would do before it is
+  written: picking another role or profile reads the field again with the pick
+  pending and prints the same line the save would print (or the sentence the
+  save would be refused with), so the person knows what a save costs before
+  paying it. A worker taken away from its own field lands on the member that
+  hired it, and the press that takes one away says what the hire loses first.
+
 - **An end-to-end run of the screens**: `go run ./tools/check` gained an `e2e`
   gate that drives the served pages in a real headless Chrome through chromedp
   (the Go test is behind the `e2e` build tag). It checks the four bands, the way
   into a field in two presses, closing a field three ways, the mission being
-  written and the saved line, a draft surviving another field, the pointer
-  cursor never standing on something unpressable, the three widths scrolling
-  neither way, Tab and Enter reaching a field, and no console errors. A machine
-  with no Chrome fails the gate in CI and skips it with one line on a laptop.
+  written and the saved line, a member's role being written from its field with
+  the profile kind following the pick and a worker's removal saying what the
+  hire loses first, a draft surviving another field, the pointer cursor never
+  standing on something unpressable, the three widths scrolling neither way, Tab
+  and Enter reaching a field, and no console errors. A machine with no Chrome
+  fails the gate in CI and skips it with one line on a laptop.
 
 
 ## 0.6.0 - 2026-10-17
