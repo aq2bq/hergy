@@ -1,6 +1,7 @@
 package definition
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,36 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
 )
+
+// FieldError is a reading error that knows which field of team.yaml it is about:
+// the key a screen puts the sentence beside, as a person editing the file reads
+// it ("mission", "members[1].profile", a turns: line). The error's own sentence
+// is what a person reads; the field is for placing it (C2).
+type FieldError struct {
+	Field string
+	Err   error
+}
+
+func (e *FieldError) Error() string { return e.Err.Error() }
+func (e *FieldError) Unwrap() error { return e.Err }
+
+// field wraps err with the field it is about.
+func field(key string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &FieldError{Field: key, Err: err}
+}
+
+// Field is the team.yaml field an error is about, or "" when the error is about
+// the file as a whole (an unreadable file, a broken read).
+func Field(err error) string {
+	var fe *FieldError
+	if errors.As(err, &fe) {
+		return fe.Field
+	}
+	return ""
+}
 
 // teamPlaceholder is a leftover from the form where a member name had to carry
 // the team name itself. The team name is now added automatically, so a member
@@ -115,20 +146,20 @@ func Read(in Input) (*Definition, error) {
 		return nil, fmt.Errorf("%s: %s", in.TeamYAMLPath, profile.CleanError(err))
 	}
 	if raw.Team != "" && raw.Team != in.Name {
-		return nil, i18n.Errorf("error.team_name_mismatch", in.TeamYAMLPath, raw.Team, in.Name)
+		return nil, field("team", i18n.Errorf("error.team_name_mismatch", in.TeamYAMLPath, raw.Team, in.Name))
 	}
 	mission, err := missionOf(raw.Mission, in.TeamYAMLPath)
 	if err != nil {
 		return nil, err
 	}
 	if len(raw.Members) == 0 {
-		return nil, i18n.Errorf("error.members_empty", in.TeamYAMLPath)
+		return nil, field("members", i18n.Errorf("error.members_empty", in.TeamYAMLPath))
 	}
 	if raw.Docs != nil {
-		return nil, i18n.Errorf("error.docs_gone", in.Name)
+		return nil, field("docs", i18n.Errorf("error.docs_gone", in.Name))
 	}
 	if raw.Roles != nil {
-		return nil, i18n.Errorf("error.roles_gone")
+		return nil, field("roles", i18n.Errorf("error.roles_gone"))
 	}
 	agreement := teamAgreement(in)
 	prompt, err := promptOf(raw.Prompt)
@@ -185,10 +216,10 @@ func promptOf(raw *string) (string, error) {
 		return "", nil
 	}
 	if strings.TrimSpace(*raw) == "" {
-		return "", i18n.Errorf("error.prompt_empty_team")
+		return "", field("prompt", i18n.Errorf("error.prompt_empty_team"))
 	}
 	if strings.Contains(*raw, spawnPlaceholder) {
-		return "", i18n.Errorf("error.spawn_placeholder_gone")
+		return "", field("prompt", i18n.Errorf("error.spawn_placeholder_gone"))
 	}
 	return *raw, nil
 }
@@ -200,14 +231,14 @@ func promptOf(raw *string) (string, error) {
 // scalar's trailing newline is not a second line.
 func missionOf(raw *string, path string) (string, error) {
 	if raw == nil {
-		return "", i18n.Errorf("error.mission_missing", path)
+		return "", field("mission", i18n.Errorf("error.mission_missing", path))
 	}
 	mission := strings.TrimSpace(*raw)
 	if mission == "" {
-		return "", i18n.Errorf("error.mission_missing", path)
+		return "", field("mission", i18n.Errorf("error.mission_missing", path))
 	}
 	if strings.Contains(mission, "\n") {
-		return "", i18n.Errorf("error.mission_multiline", path)
+		return "", field("mission", i18n.Errorf("error.mission_multiline", path))
 	}
 	return mission, nil
 }
@@ -223,12 +254,12 @@ func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 		// literal %{team} is a leftover that would only make the herdr name
 		// carry the team twice.
 		if strings.Contains(rm.Name, teamPlaceholder) {
-			return nil, i18n.Errorf("error.name_team_placeholder", label)
+			return nil, field(label+".name", i18n.Errorf("error.name_team_placeholder", label))
 		}
 		// The workers moved to the top level (段 5): a member that still writes
 		// them is stopped here, with the sentence that says where they went.
 		if rm.MaySpawn.Kind != 0 {
-			return nil, i18n.Errorf("error.may_spawn_gone")
+			return nil, field(label, i18n.Errorf("error.may_spawn_gone"))
 		}
 		member, err := parseMember(rm, raw.Cwd, in, i)
 		if err != nil {
@@ -237,9 +268,9 @@ func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 		members = append(members, member)
 	}
 	seen := map[string]bool{}
-	for _, member := range members {
+	for i, member := range members {
 		if seen[member.Name] {
-			return nil, i18n.Errorf("error.duplicate_member", member.Name)
+			return nil, field(fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.duplicate_member", member.Name))
 		}
 		seen[member.Name] = true
 	}
@@ -255,22 +286,22 @@ func parseWorkers(raw rawTeam, in Input) ([]WorkerNode, error) {
 	for i, rw := range raw.Workers {
 		label := fmt.Sprintf("workers[%d]", i)
 		if strings.TrimSpace(rw.From) == "" {
-			return nil, i18n.Errorf("error.workers_from_empty", label)
+			return nil, field(label+".from", i18n.Errorf("error.workers_from_empty", label))
 		}
 		if strings.TrimSpace(rw.Purpose) == "" {
-			return nil, i18n.Errorf("error.workers_purpose_empty", label)
+			return nil, field(label, i18n.Errorf("error.workers_purpose_empty", label))
 		}
 		if rw.Profile == "" {
-			return nil, i18n.Errorf("error.workers_profile_empty", label)
+			return nil, field(label, i18n.Errorf("error.workers_profile_empty", label))
 		}
 		if _, ok := in.Profiles[rw.Profile]; !ok {
-			return nil, i18n.Errorf("error.workers_no_profile", label, rw.Profile)
+			return nil, field(label, i18n.Errorf("error.workers_no_profile", label, rw.Profile))
 		}
 		// A worker's identity is the member that hires it and the purpose
 		// (I12c): two workers of the same pair are one node twice.
 		key := rw.From + "\x00" + rw.Purpose
 		if seen[key] {
-			return nil, i18n.Errorf("error.workers_duplicate_purpose", label, rw.From, rw.Purpose)
+			return nil, field(label, i18n.Errorf("error.workers_duplicate_purpose", label, rw.From, rw.Purpose))
 		}
 		seen[key] = true
 		workers = append(workers, WorkerNode(rw))
@@ -289,11 +320,12 @@ func parseTurns(entries *stringList) ([]Edge, error) {
 	for i, line := range *entries {
 		// The label names the line as a person counts lines, so the sentence a
 		// broken turns: line gets reads "turns: の 5 行目"/"line 5 in turns:"
-		// rather than "turns[4]" (spec/33, 段 7).
+		// rather than "turns[4]" (spec/33, 段 7). The field key a screen places
+		// the sentence by counts from 0, whatever the language (N2).
 		label := i18n.Tf("label.turns_line", i+1)
 		from, to, err := parseTurn(line, label)
 		if err != nil {
-			return nil, err
+			return nil, field(fmt.Sprintf("turns[%d]", i), err)
 		}
 		turns = append(turns, Edge{From: from, To: to})
 	}
@@ -364,10 +396,10 @@ func memberPrompt(rm rawMember, label string) (*string, error) {
 func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode, error) {
 	label := fmt.Sprintf("members[%d]", index)
 	if !profile.NamePattern.MatchString(rm.Name) {
-		return MemberNode{}, i18n.Errorf("error.name_pattern", label)
+		return MemberNode{}, field(label+".name", i18n.Errorf("error.name_pattern", label))
 	}
 	if strings.TrimSpace(rm.Role) == "" {
-		return MemberNode{}, i18n.Errorf("error.role_empty", label)
+		return MemberNode{}, field(label+".role", i18n.Errorf("error.role_empty", label))
 	}
 	name, err := engineProfile(rm, label, in.Profiles)
 	if err != nil {
@@ -385,7 +417,7 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 	}
 	prompt, err := memberPrompt(rm, label)
 	if err != nil {
-		return MemberNode{}, err
+		return MemberNode{}, field(label+".prompt", err)
 	}
 	node := MemberNode{Name: rm.Name, Role: rm.Role, Profile: name, Cwd: cwd}
 	if prompt != nil {
@@ -401,13 +433,13 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 // from it.
 func engineProfile(rm rawMember, label string, profiles map[string]profile.Profile) (string, error) {
 	if key := inlineEngineKey(rm); key != "" {
-		return "", i18n.Errorf("error.member_writes_engine", rm.Name, key, key)
+		return "", field(label+"."+key, i18n.Errorf("error.member_writes_engine", rm.Name, key, key))
 	}
 	if rm.Profile == "" {
-		return "", i18n.Errorf("error.member_needs_profile", rm.Name)
+		return "", field(label+".profile", i18n.Errorf("error.member_needs_profile", rm.Name))
 	}
 	if _, ok := profiles[rm.Profile]; !ok {
-		return "", i18n.Errorf("error.no_profile", label, rm.Profile)
+		return "", field(label+".profile", i18n.Errorf("error.no_profile", label, rm.Profile))
 	}
 	return rm.Profile, nil
 }

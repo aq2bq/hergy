@@ -193,6 +193,10 @@ type ReadError struct {
 func (e *ReadError) Error() string { return e.Err.Error() }
 func (e *ReadError) Unwrap() error { return e.Err }
 
+// Base is the project root the catalog resolves against: the folder cwd values
+// and a member's embedded hire command are written from.
+func (c *Catalog) Base() string { return c.base }
+
 // LayerDir is where one layer's files live.
 func (c *Catalog) LayerDir(layer string) string {
 	if layer == source.LayerLocal {

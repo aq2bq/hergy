@@ -128,8 +128,8 @@ func readRule(r *Reading, members []Member, doc Doc, rule Rule, seen map[string]
 			})
 			continue
 		}
-		from := match(members, text, left.run, true)
-		to := match(members, text, right.run, false)
+		from := match(members, left.run, true)
+		to := match(members, right.run, false)
 		switch {
 		case from != nil && to != nil:
 			addEdges(r, seen, doc, rule, spot, from, to)
@@ -181,12 +181,12 @@ func missing(from, to string) []string {
 // (left) or starts with (right), and the sides that name stands for. A role
 // stands for every member that reads it. Nothing matching gives nil, and the
 // caller falls back to the written word.
-func match(members []Member, text, run string, left bool) []Side {
+func match(members []Member, run string, left bool) []Side {
 	if run == "" {
 		return nil
 	}
 	var best *name
-	for _, candidate := range known(members, text) {
+	for _, candidate := range known(members) {
 		if !candidate.hit(run, left) {
 			continue
 		}
@@ -217,17 +217,26 @@ func (n name) hit(run string, left bool) bool {
 }
 
 // known is the names the team knows, in the order they are tried: the member
-// names, then the role names, then the human. The list is rebuilt per rule,
-// because the human's word follows the file's language.
-func known(members []Member, text string) []name {
-	out := make([]name, 0, len(members)*2+1)
+// names, then the role names, then the human. The human is known by both words
+// it is written with, 人間 and human, whatever the language of the rule's text: a
+// rule is written in one language, and the arrow in it may name the human the
+// other way (S1).
+func known(members []Member) []name {
+	out := make([]name, 0, len(members)*2+len(humanWords))
 	for i, member := range members {
 		out = append(out, name{text: member.Name, sides: []Side{{Kind: SideMember, Member: i}}})
 	}
 	out = append(out, roleNames(members)...)
-	out = append(out, name{text: humanName(text), sides: []Side{{Kind: SideHuman}}})
+	for _, word := range humanWords {
+		out = append(out, name{text: word, sides: []Side{{Kind: SideHuman}}})
+	}
 	return out
 }
+
+// humanWords are the words the human is written with: turns: writes "human"
+// (d-11f8), and a rule's text writes either. Both are read in either language
+// (S1).
+var humanWords = []string{"人間", "human"}
 
 // roleNames is one entry per role, in the order the roles first appear, each
 // standing for every member that reads it.
@@ -246,17 +255,6 @@ func roleNames(members []Member) []name {
 		out = append(out, name{text: member.Role, sides: []Side{{Kind: SideMember, Member: i}}})
 	}
 	return out
-}
-
-// humanName is the word a file uses for the human: 人間 in a file written with
-// kanji, human in an English file.
-func humanName(text string) string {
-	for _, r := range text {
-		if unicode.Is(unicode.Han, r) {
-			return "人間"
-		}
-	}
-	return "human"
 }
 
 // Key is how one side is told apart from another: a member by index, the human,

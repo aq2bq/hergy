@@ -12,6 +12,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/browser"
 	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -297,13 +298,7 @@ func listingPath(row catalog.Listing, layer string) string {
 // person writes it, and why, with the whole reason on one line. hergy validate
 // and the web UI both show a broken file this way.
 func breakLine(env team.Env, path string, err error) string {
-	msg := strings.ReplaceAll(err.Error(), path, env.Display(path))
-	// Some team-file errors do not name the file; the file-level parser errors
-	// already do. Show the location once either way.
-	if !strings.Contains(msg, env.Display(path)) {
-		msg = fmt.Sprintf("%s: %s", env.Display(path), msg)
-	}
-	return strings.Join(strings.Fields(msg), " ")
+	return check.BreakLine(env.Display, path, err)
 }
 
 // runServe serves the screens on this machine and prints the URL once the socket
