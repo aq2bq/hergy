@@ -8,13 +8,11 @@ import (
 	"time"
 )
 
-// writeFile writes one file, making its directory.
-func writeFile(t *testing.T, path, text string) {
+// gyToml writes the one gy.toml a test project keeps: its presence is what says
+// the project uses gy (設計 5.3).
+func gyToml(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gy.toml"), []byte("[scopes.common]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -57,7 +55,7 @@ func TestGyWithoutAConfigIsSilent(t *testing.T) {
 // from the write that created the question (設計 10.1).
 func TestReadsTheOpenQuestions(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "gy.toml"), "[scopes.common]\n")
+	gyToml(t, dir)
 	fakeGy(t, `if [ "$1" = "show" ]; then
   echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":["A one","B two"]}}}]'
   exit 0
@@ -96,7 +94,7 @@ echo '[{"id":"q-1","title":"Which way?","created":"2026-10-17T02:59:58Z"}]'
 // there being none: the screens show one line for it (設計 3.1).
 func TestAnUnreadableGyIsAnError(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "gy.toml"), "[scopes.common]\n")
+	gyToml(t, dir)
 	fakeGy(t, "echo 'boom' >&2\nexit 1\n")
 
 	questions, err := OpenQuestions(dir)
@@ -105,6 +103,101 @@ func TestAnUnreadableGyIsAnError(t *testing.T) {
 	}
 	if questions != nil {
 		t.Errorf("a failed read handed back questions: %v", questions)
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("the error does not carry what gy said: %v", err)
+	}
+}
+
+// TestTheLedgerIsNoLedgerWithoutGyOrConfig: the ledger check's opening is the
+// activity's: no gy, or no gy.toml, is no ledger here rather than an error, so
+// the check says one line and moves on (spec-ledger 3).
+func TestTheLedgerIsNoLedgerWithoutGyOrConfig(t *testing.T) {
+	t.Setenv("HERGY_GY", "")
+	t.Setenv("PATH", t.TempDir())
+	if _, ok := OpenLedger(t.TempDir()); ok {
+		t.Error("OpenLedger without gy = true, want no ledger here")
+	}
+
+	fakeGy(t, "exit 0\n")
+	if _, ok := OpenLedger(t.TempDir()); ok {
+		t.Error("OpenLedger outside a gy project = true, want no ledger here")
+	}
+}
+
+// TestReadsTheLedgerWrites: with a gy.toml and a gy, every write comes back with
+// its writer, its node and its why, and a write with no writer is skipped (the
+// rules cannot judge it). The why is what names the write (spec-ledger).
+func TestReadsTheLedgerWrites(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	fakeGy(t, `if [ "$1" = "list" ]; then
+  echo '[{"seq":1,"actor":"hergy-dev-lead","node":"r-1","what":"created","why":"req add r-1"},{"seq":2,"actor":"hergy-dev-designer","node":"r-1","what":"changed","why":"req approve r-1"},{"seq":3,"actor":"","node":"r-2","what":"changed","why":"req done r-2"},{"seq":4,"actor":"hergy-dev-lead","node":"r-3","what":"changed","why":""}]'
+  exit 0
+fi
+`)
+
+	ledger, ok := OpenLedger(dir)
+	if !ok {
+		t.Fatal("OpenLedger = false, want a ledger here")
+	}
+	writes, err := ledger.Writes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Write{
+		{Actor: "hergy-dev-lead", Node: "r-1", Why: "req add r-1"},
+		{Actor: "hergy-dev-designer", Node: "r-1", Why: "req approve r-1"},
+	}
+	if len(writes) != len(want) {
+		t.Fatalf("Writes = %v, want %v", writes, want)
+	}
+	for i := range want {
+		if writes[i] != want[i] {
+			t.Errorf("Writes[%d] = %+v, want %+v", i, writes[i], want[i])
+		}
+	}
+}
+
+// TestReadsAQuestionsDecider: the decider of one question comes back, so the
+// check can tell a question to a member from a question to the human.
+func TestReadsAQuestionsDecider(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	fakeGy(t, `if [ "$1" = "show" ]; then
+  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"hergy-dev-lead","options":["A one","B two"]}}}]'
+  exit 0
+fi
+`)
+
+	ledger, ok := OpenLedger(dir)
+	if !ok {
+		t.Fatal("OpenLedger = false, want a ledger here")
+	}
+	got, err := ledger.Decider("q-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "hergy-dev-lead" {
+		t.Errorf("Decider = %q, want %q", got, "hergy-dev-lead")
+	}
+}
+
+// TestAnUnreadableLedgerIsAnError: a gy that is there and fails is an error from
+// the ledger reads too, so the check says the ledger was not checked rather than
+// finding no broken rule (spec-ledger 3).
+func TestAnUnreadableLedgerIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	fakeGy(t, "echo 'boom' >&2\nexit 1\n")
+
+	ledger, ok := OpenLedger(dir)
+	if !ok {
+		t.Fatal("OpenLedger = false, want a ledger here")
+	}
+	writes, err := ledger.Writes()
+	if err == nil {
+		t.Fatalf("Writes = %v, nil; want an error from the failing gy", writes)
 	}
 	if !strings.Contains(err.Error(), "boom") {
 		t.Errorf("the error does not carry what gy said: %v", err)

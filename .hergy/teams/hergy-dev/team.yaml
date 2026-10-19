@@ -19,3 +19,6 @@ turns:
   - designer -> lead
   - designer -> human
   - lead -> human
+ledger:
+  - req approve by lead
+  - question to human by lead

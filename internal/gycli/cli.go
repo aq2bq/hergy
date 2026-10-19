@@ -39,18 +39,87 @@ type CLI struct {
 // alone (I17). A gy that is there and cannot be read is an error, told apart
 // from the absent case.
 func OpenQuestions(dir string) ([]activity.Question, error) {
+	cli, ok := open(dir)
+	if !ok {
+		return nil, nil
+	}
+	return cli.questions()
+}
+
+// open is the gy binary of one project, and whether this project uses gy at all:
+// the HERGY_GY override or gy on PATH, and a gy.toml at dir. ok is false when
+// either is missing, which is no gy here rather than an error.
+func open(dir string) (CLI, bool) {
 	bin := os.Getenv("HERGY_GY")
 	if bin == "" {
 		found, err := exec.LookPath("gy")
 		if err != nil {
-			return nil, nil
+			return CLI{}, false
 		}
 		bin = found
 	}
 	if !isFile(filepath.Join(dir, configName)) {
-		return nil, nil
+		return CLI{}, false
 	}
-	return CLI{Dir: dir, Bin: bin}.questions()
+	return CLI{Dir: dir, Bin: bin}, true
+}
+
+// Write is one write the ledger holds, as `gy list --since` writes it: who
+// wrote, about which node, and why. The first two words of why name the write
+// ("req approve r-1c42"), which is what a team definition's ledger: rules speak
+// of (spec-ledger).
+type Write struct {
+	Actor string
+	Node  string
+	Why   string
+}
+
+// Ledger reads one project's ledger, the whole of it. It is the one place the
+// ledger check goes through the gy binary, so the tests can substitute a fake gy
+// with HERGY_GY (spec-ledger: テストでは gycli を差し替える).
+type Ledger struct{ cli CLI }
+
+// OpenLedger is the ledger of one project, and whether this project has one: a
+// project with no gy.toml, or a machine with no gy on PATH, is no ledger here,
+// told apart from a gy that is there and cannot be read (whose reads return the
+// error).
+func OpenLedger(dir string) (Ledger, bool) {
+	cli, ok := open(dir)
+	if !ok {
+		return Ledger{}, false
+	}
+	return Ledger{cli: cli}, true
+}
+
+// Writes reads every write of the ledger, oldest first (`gy list --since 0`). A
+// write with no writer or no why is not one the rules can judge, so it is
+// skipped.
+func (l Ledger) Writes() ([]Write, error) {
+	var rows []writeRow
+	out, err := l.cli.capture("list", "--since", "0", "--json")
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		return nil, err
+	}
+	writes := make([]Write, 0, len(rows))
+	for _, row := range rows {
+		if row.Actor == "" || row.Why == "" {
+			continue
+		}
+		writes = append(writes, Write{Actor: row.Actor, Node: row.Node, Why: row.Why})
+	}
+	return writes, nil
+}
+
+// Decider reads one question's decider (`gy show <id>`).
+func (l Ledger) Decider(node string) (string, error) {
+	detail, err := l.cli.show(node)
+	if err != nil {
+		return "", err
+	}
+	return detail.Decider, nil
 }
 
 // questions runs the two reads one question needs: the list of the open ones,
@@ -141,11 +210,12 @@ func (c CLI) show(id string) (shown, error) {
 }
 
 // writeRow is one write as `gy list --since` writes it: who wrote, about which
-// node, and what they did.
+// node, what they did, and why.
 type writeRow struct {
 	Actor string `json:"actor"`
 	Node  string `json:"node"`
 	What  string `json:"what"`
+	Why   string `json:"why"`
 }
 
 // writers is who asked each open question: the actor of the write that created
