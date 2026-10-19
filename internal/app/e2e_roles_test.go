@@ -81,6 +81,21 @@ func TestE2ERoles(t *testing.T) {
 	t.Run("old urls", func(t *testing.T) { e2eRolesOldURLs(t, ctx, base) })
 	t.Run("widths and lights", func(t *testing.T) { e2eRolesWidths(t, ctx, base) })
 
+	// The rows a document does not back need a project of their own, because they
+	// change the rows and the counts the tests above read: a role a layer holds
+	// only as Markdown, and a role no layer holds a document for, which a member
+	// names (J2, R11, N2, N3).
+	f2 := newFixture(t)
+	copyRolesFixture(t, f2, cwd)
+	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	writeFile(t, filepath.Join(f2.proj, ".hergy", "roles", "mdonly.md"), "# 手書きのロール\n")
+	team := filepath.Join(f2.proj, ".hergy", "teams", "research", "team.yaml")
+	writeFile(t, team, strings.Replace(readFile(t, team), "role: writer", "role: nosuch", 1))
+	f2.runningHerdr(t, "", "")
+	base2, stop2 := startServe(t, f2)
+	defer stop2()
+	t.Run("rows without a document", func(t *testing.T) { e2eRolesNoDoc(t, ctx, base2, f2) })
+
 	mu.Lock()
 	defer mu.Unlock()
 	if len(console) > 0 {
@@ -345,6 +360,19 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	}
 	if got := e2eRolesFloat(t, ctx, `Math.min.apply(null,[...document.querySelectorAll('#rows .role.open .yprev .yt')].map(function(e){return parseFloat(getComputedStyle(e).textIndent)}))`); got >= 0 {
 		t.Errorf("the smallest text-indent in the Markdown preview is %v, want a kept line pulled back", got)
+	}
+	// N1: the origin cell that says — stands one line high, exactly as high as a
+	// cell that names an origin. The empty list's sentence has padding of its
+	// own, and it must not reach a rule's row (spec-roles 1.2.5).
+	cell := func(sel string) string {
+		return `(function(){var c=[...document.querySelectorAll(` + strconv.Quote("#rows .role.open .panel .rule "+sel) + `)];return c.length?Math.round(Math.max.apply(null,c.map(function(e){return e.getBoundingClientRect().height}))):-1})()`
+	}
+	emptyCell, namedCell := e2eRolesFloat(t, ctx, cell(".org.empty")), e2eRolesFloat(t, ctx, cell(".org:not(.empty)"))
+	if emptyCell <= 0 || namedCell <= 0 {
+		t.Fatalf("the builder shows no origin cells to measure: empty=%v named=%v", emptyCell, namedCell)
+	}
+	if emptyCell != namedCell {
+		t.Errorf("the cell that says — stands %vpx high against %vpx for a named origin, want one line each", emptyCell, namedCell)
 	}
 
 	// P3: the rule opens under its own summary, and its place joins the URL.
@@ -854,5 +882,80 @@ func e2eRolesWidths(t *testing.T, ctx context.Context, base string) {
 	}))
 	if got := e2eRolesValue(t, ctx, `getComputedStyle(document.body).backgroundColor`); got != "rgb(15, 18, 24)" {
 		t.Errorf("the OS dark ground is %q", got)
+	}
+}
+
+// e2eRolesNoDoc is J2・R11・N2・N3・N4: the rows a document does not back. A role
+// a layer holds only as Markdown is listed with the words that say so and opens
+// from the address (J2, N3). A role no layer holds a document for stands as a
+// new one: the one empty rule it would write stands open and its check has run
+// (N2), and a save under another name puts the new name in the address (N4).
+func e2eRolesNoDoc(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	projDir := filepath.Join(f.proj, ".hergy", "roles")
+	panel := `document.querySelector('#rows .role.open .panel[data-l=project]')`
+
+	// J2・N3: the address opens the row the .md leaves, and the row says what
+	// hergy does about it. No panel: hergy does not write over a Markdown file.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=mdonly"), chromedp.WaitReady("#rows .role.open .dhvm li"))
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .c-name .nm').textContent.trim()`); got != "mdonly" {
+		t.Errorf("open=mdonly opened the row %q", got)
+	}
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .dhvm li span:last-child').textContent`); !strings.Contains(got, "Markdown") {
+		t.Errorf("the Markdown row's words read %q", got)
+	}
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel').length`); got != 0 {
+		t.Errorf("a Markdown row shows %d editable panels, want none", got)
+	}
+
+	// R11: the row no document holds shows no place, counts no rules and no
+	// amount, and carries the number of the people who read it.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("#rows .role"))
+	row := e2eRolesRowJS("nosuch")
+	if got := e2eRolesValue(t, ctx, row+`.querySelector('.c-name .sev').textContent.trim()`); got != "問題 1" {
+		t.Errorf("the row no document holds carries %q, want the reader's count", got)
+	}
+	if got := e2eRolesValue(t, ctx, row+`.querySelector('.c-place').textContent.trim()`); got != "" {
+		t.Errorf("the row no document holds shows the place %q, want none", got)
+	}
+	if got := e2eRolesValue(t, ctx, row+`.querySelector('.c-count').textContent.trim()`); got != "—" {
+		t.Errorf("the row no document holds counts %q rules, want —", got)
+	}
+	if got := e2eRolesInt(t, ctx, row+`.querySelectorAll('.c-name .tag').length`); got != 1 {
+		t.Errorf("the row no document holds shows %d 新規 tags, want 1", got)
+	}
+
+	// N2: opening it opens the one empty rule a new role starts with, and its
+	// check has run by then — the preview reads the server's own reading and not
+	// the 0 行 a check that never ran would leave.
+	e2eRolesClick(t, ctx, row+`.querySelector('.sum')`)
+	e2eRolesWait(t, ctx, `!!`+row+`.querySelector('.panel .rule.open')`)
+	e2eRolesWait(t, ctx, `!document.querySelector('#rows .role.open .yprev .yinfo .vt').textContent.startsWith('0 行')`)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .yprev .yinfo .vt').textContent`); got == "" {
+		t.Errorf("the opened row's preview reads nothing at all")
+	}
+	if got := e2eRolesValue(t, ctx, panel+`.querySelector('.rule.open [data-f=id]').value`); got != "" {
+		t.Errorf("the one empty rule a new role starts with reads the id %q", got)
+	}
+
+	// N4: the save writes the document under the new name, and the address opens
+	// the row by the name it now shows.
+	e2eRolesSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "nosuch-2")
+	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NOSUCH-1")
+	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "文書の無いロールに足した規則。")
+	e2eRolesWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
+	e2eRolesClick(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
+	written := readFile(t, filepath.Join(projDir, "nosuch-2.yaml"))
+	for _, want := range []string{"NOSUCH-1", "文書の無いロールに足した規則。"} {
+		if !strings.Contains(written, want) {
+			t.Errorf("the saved document does not hold %q:\n%s", want, written)
+		}
+	}
+	if got := e2eRolesValue(t, ctx, `window.location.search`); !strings.Contains(got, "open=nosuch-2") {
+		t.Errorf("the save under another name left %q in the address, want the new name", got)
+	}
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .c-name .nm').textContent.trim()`); got != "nosuch-2" {
+		t.Errorf("the saved row shows the name %q", got)
 	}
 }

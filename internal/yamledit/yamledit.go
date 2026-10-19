@@ -56,23 +56,55 @@ func RemoveNode(src *Source, n *yaml.Node) {
 // SameValues is whether the written text reads as the intended tree. Only the
 // values are compared (the order of a mapping's keys is not the file's promise),
 // so a value put on the wrong line, dropped, or written unquoted where it needs
-// quotes is caught.
+// quotes is caught. A date is compared as the text it was written with, so a
+// document a person wrote by hand (`date: 2026-09-14`) is not refused for the
+// quotes hergy writes (`date: "2026-09-14"`): a hand-written document stays
+// editable on the screens.
 func SameValues(want *yaml.Node, out []byte, path string) error {
 	encoded, err := encode(want, path)
 	if err != nil {
 		return err
 	}
-	var wanted, got any
-	if err := yaml.Unmarshal(encoded, &wanted); err != nil {
-		return i18n.Errorf("error.edit_yaml", path, err)
+	wanted, err := plainValues(encoded, path)
+	if err != nil {
+		return err
 	}
-	if err := yaml.Unmarshal(out, &got); err != nil {
-		return i18n.Errorf("error.edit_yaml", path, err)
+	got, err := plainValues(out, path)
+	if err != nil {
+		return err
 	}
 	if !reflect.DeepEqual(wanted, got) {
 		return i18n.Errorf("error.edit_yaml", path, fmt.Errorf("書き換えた行が、意図した変更と読み取れません"))
 	}
 	return nil
+}
+
+// plainValues reads a document as plain values the way yaml.Unmarshal does, with
+// one difference: a date is read as the text it was written with. yaml.v3 reads
+// an unquoted 2026-09-14 as a time and hergy writes every date quoted, so
+// without this the two would compare as different values.
+func plainValues(data []byte, path string) (any, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
+	}
+	datesAsText(&doc)
+	var out any
+	if err := doc.Decode(&out); err != nil {
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
+	}
+	return out, nil
+}
+
+// datesAsText marks every date in the tree as a string, so reading it gives the
+// text that was written and not a time.
+func datesAsText(n *yaml.Node) {
+	if n.Kind == yaml.ScalarNode && n.Tag == "!!timestamp" {
+		n.Tag = "!!str"
+	}
+	for _, child := range n.Content {
+		datesAsText(child)
+	}
 }
 
 // encode writes the document the way hergy writes its own settings: a

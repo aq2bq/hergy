@@ -116,6 +116,24 @@ func TestSameValuesCatchesAWrongWrite(t *testing.T) {
 	}
 }
 
+// TestSameValuesReadsADateAsTheTextItWasWrittenWith: hergy writes every date
+// quoted and a person may write it plainly, and the two are the same value, so a
+// hand-written document is not refused for the quotes. Another date is still
+// another value.
+func TestSameValuesReadsADateAsTheTextItWasWrittenWith(t *testing.T) {
+	quoted := nodes(t, "date: \"2026-09-14\"\n")
+	if err := SameValues(quoted, []byte("date: 2026-09-14\n"), "x.yaml"); err != nil {
+		t.Errorf("an unquoted date was refused: %v", err)
+	}
+	plain := nodes(t, "date: 2026-09-14\n")
+	if err := SameValues(plain, []byte("date: \"2026-09-14\"\n"), "x.yaml"); err != nil {
+		t.Errorf("a quoted date was refused against a plain one: %v", err)
+	}
+	if err := SameValues(quoted, []byte("date: 2026-09-15\n"), "x.yaml"); err == nil {
+		t.Error("another date was accepted")
+	}
+}
+
 // TestShapeKeyOfNamesTheShape: a merge key and an alias are the shapes a line
 // write refuses, named by the key they stand under.
 func TestShapeKeyOfNamesTheShape(t *testing.T) {

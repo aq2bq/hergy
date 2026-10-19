@@ -218,6 +218,18 @@
   }
 
   // ---- URL -------------------------------------------------------------
+  // openNewPanel opens the row a screen shows for a role no document holds: its
+  // one empty rule stands open and its check runs once, the way ＋ ロールを追加
+  // does (spec-roles 1.2.4, 1.2.10). Until the check comes back the preview would
+  // say 0 行 · 0 文字, which is not what the row holds.
+  function openNewPanel(r) {
+    const l = eff(r), e = r[l];
+    const first = e && e.draft.sections[0] && e.draft.sections[0].rules[0];
+    if (!first) return;
+    state.ropen.add(rkey(r, l, first));
+    if (!checks[keyOf(r, l)]) askCheck(r, l, () => render());
+  }
+
   function parseURL() {
     const path = location.pathname;
     state.tab = /\/roles\/assign$/.test(path) ? 'assign' : /\/roles\/yaml$/.test(path) ? 'yaml' : 'roles';
@@ -227,8 +239,12 @@
       state.filter = (f === 'noorigin' || f === 'nowhy' || f === 'issues') ? f : null;
       state.q = qs.get('q') || '';
       (qs.get('open') || '').split(',').filter(Boolean).forEach((name) => {
-        const r = roles.find((x) => x[live(x, 'project') || live(x, 'global') ? eff(x) : (x.project ? 'project' : 'global')] && (x[eff(x)].saved ? x[eff(x)].saved.name : x[eff(x)].draft.name) === name);
-        if (r) state.open.add(r.uid);
+        // A row is found by the name it shows: a saved name, a written one, or
+        // the name of a document only Markdown holds (spec-roles 2 節).
+        const r = roles.find((x) => curName(x) === name);
+        if (!r) return;
+        state.open.add(r.uid);
+        if (r.noDoc) openNewPanel(r);
       });
       (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
         const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
@@ -354,7 +370,7 @@
     const shown = roles.filter((r) => !filtering() || r.isNew || r.markdown
       || PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
     document.getElementById('rows').innerHTML = shown.map(roleHTML).join('')
-      || `<div class="sum empty"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
+      || `<div class="sum"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
     $$('.panel').forEach(markPanel);
     applyStyles();
   }
@@ -783,7 +799,7 @@
   function viewAssign() {
     const cnt = {};
     teams.forEach((t) => t.members.forEach((m) => { cnt[m.draft] = (cnt[m.draft] || 0) + 1; }));
-    if (!teams.length) return `<div class="empty">チーム定義はありません</div>`;
+    if (!teams.length) return `<p class="none">チーム定義はありません</p>`;
     return `<div class="rolebar">${savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
       const n = curName(r);
       return `<button class="rseg ${state.roleHi === n ? 'on' : state.roleHi ? 'dim' : ''}" data-act="role-hi" data-n="${esc(n)}" aria-pressed="${state.roleHi === n}"><code>${esc(n)}</code><span>${esc(cur(r).title)}</span><b>${cnt[n]}</b></button>`;
@@ -864,7 +880,7 @@
 
   function viewYAML() {
     const files = filesList();
-    if (!files.length) return `<div class="empty">ロールの文書はありません</div>`;
+    if (!files.length) return `<p class="none">ロールの文書はありません</p>`;
     if (!state.yfile || !files.some(({ r, l }) => r.uid + l === state.yfile)) state.yfile = files[0] ? files[0].r.uid + files[0].l : null;
     return `<div class="ylay">
       <nav class="files">${PLACES.map((l) => `<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
@@ -1064,7 +1080,8 @@
 
     switch (act) {
       case 'toggle':
-        if (state.open.has(r.uid)) state.open.delete(r.uid); else state.open.add(r.uid);
+        if (state.open.has(r.uid)) state.open.delete(r.uid);
+        else { state.open.add(r.uid); if (r.noDoc) openNewPanel(r); }
         renderList(); syncURL(false);
         { const s = $(`.role[data-uid="${r.uid}"] .sum`); if (s) s.focus(); }
         break;
@@ -1250,6 +1267,9 @@
     state.ok[r.uid + l] = 1;
     await askCheck(r, l, null);
     render();
+    // A rename changes the name the address opens the row by, so the address
+    // follows the save (spec-roles 2 節).
+    syncURL(false);
     await ensureYAML(keyOf(r, l));
   }
 

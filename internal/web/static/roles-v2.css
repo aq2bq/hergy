@@ -201,7 +201,6 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; paddi
 .sum:hover { background: var(--surface); }
 #rows > .sum { cursor: default; }
 #rows > .sum:hover { background: none; }
-.empty { padding: 20px 0; color: var(--muted); }
 .role.open > .sum { background: var(--sunk); }
 .chev { grid-area: chev; width: 8px; height: 8px; border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); transform: rotate(-45deg); transition: transform .15s; justify-self: start; }
 .role.open > .sum .chev, .rule.open > .rsum .chev { transform: rotate(45deg); border-color: var(--ink); }

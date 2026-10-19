@@ -40,6 +40,12 @@
   same whatever model runs it. This adds lines to `hergy validate` output for
   documents that name a model.
 
+- **A date a person wrote without quotes is no longer refused**: YAML reads
+  `date: 2026-09-14` as a date and hergy writes `date: "2026-09-14"`, and the two
+  are the same value now, so a settings file a person wrote by hand — a role
+  document, a definition or a profile — writes its one line instead of stopping
+  with `error.edit_yaml`.
+
 ### Added
 
 - **The amount a member is handed has one sentence**: `size.member_rules` and
