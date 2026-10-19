@@ -34,6 +34,7 @@ type Finding struct {
 	//	members[i].kind  .args  .env                 the engine the member writes
 	//	turns                                        turns: as a whole
 	//	turns[i]                                     the i-th line of turns:
+	//	ledger[i]                                    the i-th line of ledger:
 	//	workers[i]                                   the worker at i (0-based)
 	//	workers[i].from                              the worker's from:
 	//	node:human, node:<member>                    a sentence about a node
@@ -78,6 +79,10 @@ const (
 	// KindModel is the warning that a role document's rule text names a model
 	// (C8): a role document is meant to read the same whatever model runs it.
 	KindModel
+	// KindLedger is the warning that a write a member of this team made broke a
+	// rule the definition's ledger: gives (spec-ledger). It does not stop a run
+	// (d-db1b).
+	KindLedger
 )
 
 // Input is what one check needs: the catalog to read through, the definition's

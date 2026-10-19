@@ -44,6 +44,10 @@ type Definition struct {
 	// Prompt is the definition's own prompt template, empty when it writes none
 	// (the member prompt in the locales is used).
 	Prompt string
+	// Ledger is the ledger: rules: what each write a member of this team makes
+	// must be, and which member may make it (spec-ledger). Empty when the
+	// definition writes none.
+	Ledger []Ledger
 }
 
 // MemberNode is one member of a definition: the frame team.yaml writes. The

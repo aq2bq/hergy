@@ -94,6 +94,23 @@
   After: the pane carries the member's herdr name (`<team>-<member>`); take
   `GY_ACTOR` out of the profile, which `hergy validate` now warns about.
 
+- **A team definition can write `ledger:` rules, and `hergy validate` checks
+  them**: `ledger:` is a list of `<write> by <member>[, <member>...]`, where
+  `<write>` is the name of a gy write (the first two words of the `why` gy
+  records: `req add`, `req approve`, `req done`, `req revise`,
+  `criterion satisfy`, `need add`, `need close`, `decide`, `question add`,
+  `question close`) or `question to human` for a question whose decider is
+  nobody in the team. `<member>` is a `members[].name`; a worker's name is
+  refused, because a worker takes no rules. A line hergy cannot read, a write it
+  does not know, and a name that is no member stop the definition, the way a
+  broken `turns:` line does. The check itself stops nothing: `hergy validate`
+  reads the project's ledger (`gy list --since 0`) and warns once for each write
+  a writer of the team made that the rule gives to other members — a writer of
+  the team is one whose `GY_ACTOR` begins with the team name, or with a name the
+  launch record shows the definition was started as (`--as`) — and says so in
+  one line when gy cannot be read. `hergy show` prints `ledger:`; `hergy new`
+  does not write it.
+
 ### Removed
 
 - **The old WebUI screens are gone; `hergy serve` shows the profiles and the

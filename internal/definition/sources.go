@@ -100,6 +100,7 @@ type rawTeam struct {
 	Members []rawMember `yaml:"members"`
 	Workers []rawWorker `yaml:"workers"`
 	Turns   *stringList `yaml:"turns"`
+	Ledger  *stringList `yaml:"ledger"`
 }
 
 // rawWorker is one worker a member may hire: who hires it, what it is for, and
@@ -178,6 +179,10 @@ func Read(in Input) (*Definition, error) {
 	if err != nil {
 		return nil, err
 	}
+	ledger, err := parseLedger(raw.Ledger, members, workers)
+	if err != nil {
+		return nil, err
+	}
 	graph := NewGraph(members, workers, turns)
 	// A graph whose turns the definition cannot hold stops every command that
 	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
@@ -197,6 +202,7 @@ func Read(in Input) (*Definition, error) {
 		Agreement:    agreement,
 		HasAgreement: in.Reader.IsFile(agreement),
 		Prompt:       prompt,
+		Ledger:       ledger,
 	}, nil
 }
 

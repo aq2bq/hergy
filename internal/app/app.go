@@ -704,6 +704,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	tally := &rules.Tally{}
 	var teams []teamSize
 	seenFiles := map[string]bool{}
+	ledger := &ledgerCheck{env: env}
 	report := func(path string, err error) {
 		checked++
 		reportFile(stdout, env, path, err)
@@ -738,6 +739,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			if err != nil {
 				continue
 			}
+			printLedger(stdout, r.team.Definition, ledger)
 			collectRules(tally, seenFiles, r)
 			size := sizeOf(r)
 			size.name = env.Display(filepath.Dir(path))
@@ -1393,6 +1395,9 @@ func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 		field(w, label("profiles"), displayPaths(r.profilesYAML, env))
 	default:
 		field(w, label("profiles"), i18n.Tf("value.unused", displayPaths(r.profilesYAML, env)))
+	}
+	if len(def.Ledger) > 0 {
+		field(w, label("ledger"), ledgerText(def.Ledger))
 	}
 }
 
