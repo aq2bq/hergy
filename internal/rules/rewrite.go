@@ -65,14 +65,14 @@ func Rewrite(text []byte, saved *Document, draft Draft) ([]byte, error) {
 		// Nothing to write. The draft may still differ from the file (a value
 		// hergy does not write, such as a change to the reports block): that is
 		// caught here rather than written.
-		if err := sameValuesAs(draft.Doc, text); err != nil {
+		if err := sameValuesAs(draft.Doc, text, path); err != nil {
 			return nil, err
 		}
 		return text, nil
 	}
 	applyOps(src, ops)
 	out := src.Bytes()
-	if err := sameValuesAs(draft.Doc, out); err != nil {
+	if err := sameValuesAs(draft.Doc, out, path); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -130,8 +130,11 @@ type plan struct {
 	src   *yamledit.Source
 	root  *yaml.Node
 	saved []Section
-	draft Draft
-	path  string
+	// sections is the file's sections: a node, so a rule moved out of a
+	// section can be found where it stood.
+	sections *yaml.Node
+	draft    Draft
+	path     string
 	// sectionOf is the draft section each draft rule is in, rule by rule, in
 	// the order the draft writes them.
 	sectionOf []int
@@ -155,7 +158,7 @@ func planRewrite(src *yamledit.Source, root *yaml.Node, saved *Document, draft D
 		return nil, i18n.Errorf("error.edit_shape", path, "sections")
 	}
 
-	p := &plan{src: src, root: root, saved: savedSections, draft: draft, path: path, claimed: map[[2]int]int{}}
+	p := &plan{src: src, root: root, saved: savedSections, sections: sectionsNode, draft: draft, path: path, claimed: map[[2]int]int{}}
 	for ds, sec := range want.Sections {
 		for range sec.Rules {
 			p.sectionOf = append(p.sectionOf, ds)
@@ -443,6 +446,14 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 	dashCol := items[0].Column - 3
 	headLine := yamledit.MappingKeyNode(node, "rules").Line
 
+	// Which of the section's own rules stay on their own lines: the longest run
+	// of them whose saved places rise in the draft's order (R4). A rule that
+	// leaves the run moved, and every rule the draft puts here that the saved
+	// section held elsewhere moved in; both have their own lines carried to
+	// where the draft writes them, so the shape of a line and a comment travel
+	// with the rule (spec-roles 1.2.9).
+	kept := p.keptRules(ds, ss)
+	moved := map[int]bool{}
 	var groups []placement
 	add := func(anchor int, lines []string) {
 		if n := len(groups); n > 0 && groups[n-1].anchor == anchor {
@@ -452,23 +463,11 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 		groups = append(groups, placement{anchor: anchor, lines: lines})
 	}
 	desiredAfter := headLine
-	prevSaved := -1
-	movedWithin := map[int]bool{}
 	for _, gi := range globals {
 		place := p.draft.From[gi]
 		rule := p.ruleAt(gi)
-		if place.Section == ss {
-			if place.Rule != prevSaved+1 {
-				// The rule moved within its section: its lines go where the
-				// draft writes it, and they come out of where they stood.
-				removed, lines, err := p.moveWithinSection(place, rule, node, items, dashCol)
-				if err != nil {
-					return nil, err
-				}
-				add(desiredAfter, lines)
-				ops = append(ops, removed...)
-				movedWithin[place.Rule] = true
-			} else if !sameRule(p.saved[ss].Rules[place.Rule], rule) {
+		if place.Section == ss && kept[place.Rule] {
+			if !sameRule(p.saved[ss].Rules[place.Rule], rule) {
 				lines, err := ruleLines(rule, dashCol, p.path)
 				if err != nil {
 					return nil, err
@@ -476,16 +475,17 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 				ops = append(ops, op{kind: opReplace, line: items[place.Rule].Line, to: yamledit.NodeEndLine(items[place.Rule]), lines: lines})
 			}
 			desiredAfter = yamledit.NodeEndLine(items[place.Rule])
-			prevSaved = place.Rule
 			continue
 		}
-		// A rule the section did not hold: new, or moved in from another
-		// section. It is written where the draft puts it.
-		lines, err := ruleLines(rule, dashCol, p.path)
+		lines, removed, err := p.moveLines(place, rule, ss, node, items, dashCol)
 		if err != nil {
 			return nil, err
 		}
 		add(desiredAfter, lines)
+		ops = append(ops, removed...)
+		if place.Section == ss {
+			moved[place.Rule] = true
+		}
 	}
 	for _, g := range groups {
 		ops = append(ops, op{kind: opInsert, line: g.anchor, lines: g.lines})
@@ -493,8 +493,75 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 	// A saved rule no draft rule of this section names is taken out — unless the
 	// draft moved it within this section (handled above) or into another one
 	// (that section writes it).
-	ops = p.removeUnclaimed(ops, ds, ss, node, items, movedWithin)
+	ops = p.removeUnclaimed(ops, ds, ss, node, items, moved)
 	return ops, nil
+}
+
+// keptRules is which of one draft section's own saved rules stay on their own
+// lines: the longest increasing run of their saved places, read in the draft's
+// order (R4). A draft that keeps every rule in place has every place in the run;
+// one rule lifted over its neighbour leaves that neighbour out of the run, so
+// the neighbour is the one whose lines move. Ties take the earlier place, so the
+// rule a person moved down is the one written down.
+func (p *plan) keptRules(ds, ss int) map[int]bool {
+	var seq []int
+	for _, gi := range p.globalRules(ds) {
+		if place := p.draft.From[gi]; place.Section == ss {
+			seq = append(seq, place.Rule)
+		}
+	}
+	out := map[int]bool{}
+	n := len(seq)
+	if n == 0 {
+		return out
+	}
+	dp := make([]int, n)
+	prev := make([]int, n)
+	best, bestAt := 0, 0
+	for i := range n {
+		dp[i], prev[i] = 1, -1
+		for j := range i {
+			if seq[j] < seq[i] && dp[j]+1 > dp[i] {
+				dp[i], prev[i] = dp[j]+1, j
+			}
+		}
+		if dp[i] > best {
+			best, bestAt = dp[i], i
+		}
+	}
+	for i := bestAt; i >= 0; i = prev[i] {
+		out[seq[i]] = true
+		if prev[i] < 0 {
+			break
+		}
+	}
+	return out
+}
+
+// moveLines is the lines a rule is written with where the draft puts it in a
+// section: its own lines, shifted to the column that section writes its "- " at,
+// when the values did not change, and Emit's lines when they did. A rule that
+// moved inside this section also takes its old lines out; one that came in from
+// another section is taken out by that section's own plan.
+func (p *plan) moveLines(place Place, rule Rule, ss int, node *yaml.Node, items []*yaml.Node, dashCol int) ([]string, []op, error) {
+	if place.Section < 0 {
+		lines, err := ruleLines(rule, dashCol, p.path)
+		return lines, nil, err
+	}
+	source := p.sections.Content[place.Section]
+	sourceRules := yamledit.MappingValue(source, "rules")
+	if sourceRules == nil || place.Rule >= len(sourceRules.Content) {
+		lines, err := ruleLines(rule, dashCol, p.path)
+		return lines, nil, err
+	}
+	lines, err := p.rulePlacementLines(sourceRules.Content[place.Rule], rule, dashCol)
+	if err != nil {
+		return nil, nil, err
+	}
+	if place.Section == ss {
+		return lines, p.removeRuleOps(node, items, place.Rule), nil
+	}
+	return lines, nil, nil
 }
 
 // removeUnclaimed takes out every saved rule of a section that no draft rule of
@@ -511,16 +578,6 @@ func (p *plan) removeUnclaimed(ops []op, ds, ss int, node *yaml.Node, items []*y
 		ops = append(ops, p.removeRuleOps(node, items, sr)...)
 	}
 	return ops
-}
-
-// moveWithinSection is a rule that moved inside its own section: its lines go
-// where the draft puts them, and the lines where it stood come out.
-func (p *plan) moveWithinSection(place Place, rule Rule, node *yaml.Node, items []*yaml.Node, dashCol int) ([]op, []string, error) {
-	lines, err := p.rulePlacementLines(items[place.Rule], rule, dashCol)
-	if err != nil {
-		return nil, nil, err
-	}
-	return p.removeRuleOps(node, items, place.Rule), lines, nil
 }
 
 // createRules writes a rules: key and every rule of a section that had none.

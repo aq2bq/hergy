@@ -152,6 +152,26 @@ func TestRolesKeepsARoleWithoutADocument(t *testing.T) {
 	if left := byName["impl-role"]; !left.HasDocument || left.Path == "" {
 		t.Errorf("impl-role = %+v, want the document the layer still holds", left)
 	}
+	// The documents come first, the row no document holds last (spec-roles 1.2「並び」).
+	if roles[0].Name != "impl-role" || roles[1].Name != "lead-role" || roles[2].Name != "absent-role" {
+		t.Errorf("order = %s, %s, %s, want impl-role, lead-role, absent-role", roles[0].Name, roles[1].Name, roles[2].Name)
+	}
+}
+
+// TestRolesTakesARoleLeftAsMarkdown: a role document a layer still holds as
+// Markdown is a row too, with no .yaml, so a screen says the .yaml is not there
+// yet (spec-roles 1.2.10, J2).
+func TestRolesTakesARoleLeftAsMarkdown(t *testing.T) {
+	l := newLayers(t)
+	write(t, filepath.Join(l.local, "roles", "noted.md"), "# noted\n")
+
+	roles := l.catalog().Roles()
+	if len(roles) != 1 || roles[0].Name != "noted" {
+		t.Fatalf("roles = %+v, want the one row noted", roles)
+	}
+	if roles[0].HasDocument || roles[0].Path != "" {
+		t.Errorf("noted = %+v, want a row with no .yaml document", roles[0])
+	}
 }
 
 // TestRolesTakesTheDocumentsTheLayersHold: a document a layer holds is a row
@@ -177,14 +197,18 @@ members:
 	if len(roles) != 2 {
 		t.Fatalf("roles = %d, want 2: %+v", len(roles), roles)
 	}
-	orphan := roles[0]
-	if orphan.Name != "orphan" || !orphan.Outside || !orphan.HasDocument {
+	// The project's document comes first, then the shared one (spec-roles 1.2「並び」).
+	if roles[0].Name != "watched" || roles[1].Name != "orphan" {
+		t.Fatalf("order = %s, %s, want watched, orphan", roles[0].Name, roles[1].Name)
+	}
+	orphan := roles[1]
+	if !orphan.Outside || !orphan.HasDocument {
 		t.Errorf("orphan = %+v, want the outside document", orphan)
 	}
 	if want := filepath.Join(l.global, "roles", "orphan.yaml"); orphan.Path != want {
 		t.Errorf("orphan path = %q, want %q", orphan.Path, want)
 	}
-	watched := roles[1]
+	watched := roles[0]
 	if want := filepath.Join(l.local, "roles", "watched.yaml"); watched.Path != want {
 		t.Errorf("watched path = %q, want %q", watched.Path, want)
 	}

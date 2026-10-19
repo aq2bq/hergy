@@ -34,9 +34,8 @@ func TestRoleWarnsAboutAModelNameInARuleText(t *testing.T) {
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: 0, Rule: 0,
-		Field: "rule:" + f.leadRolePath() + "#LEAD-1",
-		Text:  i18n.Tf("validate.rule_model_name", "LEAD-1", "claude"+i18n.T("list.separator")+"opus"),
+		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 8,
+		Text: i18n.Tf("validate.rule_model_name", "LEAD-1", "claude"+i18n.T("list.separator")+"opus"),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
 		t.Errorf("problems = %+v, want the one model warning %+v", report.Problems, want)
@@ -54,9 +53,9 @@ func TestRoleNamesTheDefinitionAtTheHeadOfATurnWarning(t *testing.T) {
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: 0, Rule: 0,
-		Field: "rule:" + f.leadRolePath() + "#LEAD-1", Definition: "demo",
-		Text: "demo: " + i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl"),
+		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 8,
+		Definition: "demo",
+		Text:       "demo: " + i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl"),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
 		t.Errorf("problems = %+v, want the one turn warning %+v", report.Problems, want)
@@ -78,7 +77,7 @@ func TestRoleNamesTheDefinitionAtTheHeadOfASizeWarning(t *testing.T) {
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: -1, Rule: -1, Definition: "demo",
+		Sev: rules.SevWarning, Section: -1, Rule: -1, Line: 1, Definition: "demo",
 		Text: "demo: " + MemberRulesWarning("demo-lead", rules.MemberRuleLimit+1),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
@@ -168,7 +167,7 @@ func TestRoleReadsTheRoleTabsDraftAsIfItWereSaved(t *testing.T) {
 	}
 	report := reportFor(f, RoleInput{Name: "lead", Draft: draft})
 	want := RoleProblem{
-		Sev: rules.SevError, Section: 0, Rule: 1, Field: "id", Definition: "demo",
+		Sev: rules.SevError, Section: 0, Rule: 1, Field: "id", Line: 9, Definition: "demo",
 		Text: i18n.Tf("error.rules_duplicate_id", agreement, "DUP-1", f.leadRolePath()),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {

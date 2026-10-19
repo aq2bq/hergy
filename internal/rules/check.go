@@ -104,11 +104,11 @@ func (s *set) refProblems(docs []*Document) []Problem {
 					if origin.Kind != KindDerived {
 						continue
 					}
-					for _, ref := range origin.Refs {
+					for j, ref := range origin.Refs {
 						if _, ok := s.ids[ref]; ok {
 							continue
 						}
-						problem := newProblem(doc.Path, si, ri, fmt.Sprintf("origin.%d", oi), 0,
+						problem := newProblem(doc.Path, si, ri, fmt.Sprintf("origin.%d.refs.%d", oi, j), 0,
 							i18n.Errorf("error.rules_derived_missing", doc.Path, rule.ID, ref))
 						problem.ruleID = rule.ID
 						problems = append(problems, problem)

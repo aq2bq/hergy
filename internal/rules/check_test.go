@@ -32,7 +32,7 @@ func TestCheckAllGathersEveryBreakWithItsPlace(t *testing.T) {
 	}{
 		{"id", 0, 1},
 		{"report", 0, 1},
-		{"origin.0", 0, 1},
+		{"origin.0.refs.0", 0, 1},
 	}
 	if len(problems) != len(want) {
 		t.Fatalf("problems = %+v, want %d", problems, len(want))

@@ -102,16 +102,16 @@ func readRoot(text []byte, path string) (*yaml.Node, error) {
 // means, so lines placed on the wrong place are caught here rather than written.
 // Only the values are compared: the order the file keeps its keys in is the
 // file's own.
-func sameValuesAs(doc *Document, out []byte) error {
+func sameValuesAs(doc *Document, out []byte, path string) error {
 	text, err := Emit(doc)
 	if err != nil {
 		return err
 	}
-	want, err := readRoot([]byte(text), doc.Path)
+	want, err := readRoot([]byte(text), path)
 	if err != nil {
 		return err
 	}
-	return yamledit.SameValues(want, out, doc.Path)
+	return yamledit.SameValues(want, out, path)
 }
 
 // ruleLines is one rule written the way Emit writes it, as the lines of a block

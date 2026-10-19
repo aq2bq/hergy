@@ -199,6 +199,9 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; paddi
 .role { border-bottom: 1px solid var(--line); }
 .sum { min-height: 50px; padding-block: 9px; cursor: pointer; }
 .sum:hover { background: var(--surface); }
+#rows > .sum { cursor: default; }
+#rows > .sum:hover { background: none; }
+.empty { padding: 20px 0; color: var(--muted); }
 .role.open > .sum { background: var(--sunk); }
 .chev { grid-area: chev; width: 8px; height: 8px; border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); transform: rotate(-45deg); transition: transform .15s; justify-self: start; }
 .role.open > .sum .chev, .rule.open > .rsum .chev { transform: rotate(45deg); border-color: var(--ink); }
@@ -379,6 +382,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .ta { width: 100%; resize: vertical; field-sizing: content; min-height: 2.4em; font-family: var(--f-body) !important; font-size: 13.5px !important; line-height: 1.65; }
 .tchk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
 .tchk:empty { display: none; }
+.tchk .gap { width: 10px; }
 .tk { font-family: var(--f-mono); font-size: 12px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); }
 .tk.okk { color: var(--ok); border-color: var(--ok); }
 .tk.warn { background: var(--warn); color: var(--on-warn); border-color: var(--warn); }
@@ -423,6 +427,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
   border-top: 1px solid var(--line); background: var(--surface); border-radius: 0 0 6px 6px;
 }
 .pf .acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.errline { color: var(--danger); font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
 
 @container (max-width: 800px) {
   .rsum { grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-areas: "grip id marks" ". text text"; row-gap: 3px; }

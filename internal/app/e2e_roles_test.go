@@ -75,6 +75,7 @@ func TestE2ERoles(t *testing.T) {
 	t.Run("open and checks", func(t *testing.T) { e2eRolesOpen(t, ctx, base) })
 	t.Run("filter and search", func(t *testing.T) { e2eRolesFilter(t, ctx, base) })
 	t.Run("save one rule", func(t *testing.T) { e2eRolesSaveRule(t, ctx, base, f) })
+	t.Run("save new and copies", func(t *testing.T) { e2eRolesSaveNew(t, ctx, base, f) })
 	t.Run("assign", func(t *testing.T) { e2eRolesAssign(t, ctx, base, f) })
 	t.Run("yaml", func(t *testing.T) { e2eRolesYAML(t, ctx, base, f) })
 	t.Run("old urls", func(t *testing.T) { e2eRolesOldURLs(t, ctx, base) })
@@ -210,7 +211,7 @@ func e2eRolesStructure(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('.head > span')].map(function(e){return e.textContent.trim()}).filter(Boolean).join(',')`); got != "名前,置き場所,規則,由来・なぜ・確かめ,1 人が読む量,読んでいる人" {
 		t.Errorf("the head reads %q", got)
 	}
-	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('#rows .role .c-name .nm')].map(function(n){return n.textContent.trim()}).join(',')`); got != "analyst,builder,lead,reviewer,scout,writer" {
+	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('#rows .role .c-name .nm')].map(function(n){return n.textContent.trim()}).join(',')`); got != "analyst,builder,lead,scout,reviewer,writer" {
 		t.Errorf("the rows read %q", got)
 	}
 	if got := e2eRolesValue(t, ctx, e2eRolesRowJS("analyst")+`.querySelector('.c-name .sev').textContent.trim()`); got != "警告 1" {
@@ -271,10 +272,10 @@ func e2eRolesStructure(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('.files .file').length`); got != 7 {
 		t.Errorf("the YAML tab has %d files, want 7", got)
 	}
-	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('.files .file code')].map(function(c){return c.textContent}).join(',')`); got != "analyst.yaml,builder.yaml,lead.yaml,scout.yaml,reviewer.yaml,scout.yaml,writer.yaml" {
+	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('.files .file code')].map(function(c){return c.textContent}).join(',')`); got != "analyst.yaml,builder.yaml,lead.yaml,scout.yaml,scout.yaml,reviewer.yaml,writer.yaml" {
 		t.Errorf("the files read %q", got)
 	}
-	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('.files .file .fs')].map(function(s){return s.textContent.trim()}).join(',')`); got != "警告 1,問題 1,9,4,6,5,8" {
+	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('.files .file .fs')].map(function(s){return s.textContent.trim()}).join(',')`); got != "警告 1,問題 1,9,4,5,6,8" {
 		t.Errorf("the file amounts read %q", got)
 	}
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('.file.hid').length`); got != 1 {
@@ -334,6 +335,16 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	}
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`); got != 2 {
 		t.Errorf("the Markdown preview marks %d lines as a warning, want 2", got)
+	}
+	// R1: the page's CSP stops a style attribute written through innerHTML, so
+	// the meter's fill and a kept line's indent are put on the elements from the
+	// CSSOM after they are drawn. The meter paints, and a line that stands under
+	// a bullet's head is pulled back to it (a negative text-indent).
+	if got := e2eRolesFloat(t, ctx, `document.querySelector('#rows .role.open .c-amount .meter i').getBoundingClientRect().width`); got <= 0 {
+		t.Errorf("the reader's meter is %vpx wide, want a painted fill", got)
+	}
+	if got := e2eRolesFloat(t, ctx, `Math.min.apply(null,[...document.querySelectorAll('#rows .role.open .yprev .yt')].map(function(e){return parseFloat(getComputedStyle(e).textIndent)}))`); got >= 0 {
+		t.Errorf("the smallest text-indent in the Markdown preview is %v, want a kept line pulled back", got)
 	}
 
 	// P3: the rule opens under its own summary, and its place joins the URL.
@@ -488,6 +499,94 @@ func e2eRolesSaveRule(t *testing.T, ctx context.Context, base string, f *fixture
 	}
 	if got := e2eRolesValue(t, ctx, `(function(){var x=[...document.querySelectorAll('#rows .role.open .rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()==='BUILD-5'});return x.querySelector('.rtx').textContent})()`); !strings.Contains(got, want) {
 		t.Errorf("the saved rule's summary reads %q", got)
+	}
+}
+
+// e2eRolesSaveNew is C4・X1: a role added on the screen, a duplicate and a copy to
+// the shared place are written each with its own text — an added document from
+// nothing, a duplicate and a copy from the document they came from, so the lines
+// a person did not touch travel to the new file (spec-roles 1.2.8, 1.2.9).
+func e2eRolesSaveNew(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	projDir := filepath.Join(f.proj, ".hergy", "roles")
+	cfgDir := filepath.Join(f.cfg, "hergy", "roles")
+	lead := filepath.Join(projDir, "lead.yaml")
+
+	// 追加: the panel's one empty rule takes the id and the text a rule needs, and
+	// the save writes the new document from the draft alone.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("#rows .role"))
+	e2eRolesClick(t, ctx, `document.querySelector('[data-act=new]')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('.panel[data-l=project] .rule.open [data-f=id]')`)
+	// R14: the name field takes the cursor once the check's redraw is over.
+	e2eRolesWait(t, ctx, `document.activeElement && document.activeElement.getAttribute('data-f')==='name'`)
+	panel := `document.querySelector('.panel[data-l=project]')`
+	e2eRolesSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "e2e-new")
+	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NEW-1")
+	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "新しく足したロールの規則。")
+	e2eRolesWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
+	e2eRolesClick(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
+	added := readFile(t, filepath.Join(projDir, "e2e-new.yaml"))
+	for _, want := range []string{"id: NEW-1", "新しく足したロールの規則。"} {
+		if !strings.Contains(added, want) {
+			t.Errorf("the added role's file does not hold %q:\n%s", want, added)
+		}
+	}
+	if got := e2eRolesValue(t, ctx, panel+`.querySelector('.path').textContent`); !strings.Contains(got, "e2e-new.yaml") {
+		t.Errorf("the saved panel's path reads %q", got)
+	}
+
+	// 複製: lead's copy comes back with the original's own lines, byte for byte.
+	before := readFile(t, lead)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=lead"), chromedp.WaitReady("#rows .role.open .pf [data-act=dup]"))
+	e2eRolesClick(t, ctx, `document.querySelector('#rows .role.open .panel .pf [data-act=dup]')`)
+	findDup := `[...document.querySelectorAll('.panel[data-l=project] [data-f=name]')].find(function(i){return i.value==='lead-2'})`
+	e2eRolesWait(t, ctx, `!!`+findDup)
+	dupUid := e2eRolesValue(t, ctx, findDup+`.closest('.panel').dataset.uid`)
+	dupPanel := `.panel[data-uid="` + dupUid + `"][data-l=project]`
+	at := func(sel string) string { return `document.querySelector(` + strconv.Quote(dupPanel+" "+sel) + `)` }
+	e2eRolesSet(t, ctx, at("[data-f=name]"), "e2e-dup")
+	e2eRolesWait(t, ctx, `!`+at(".pf [data-act=save]")+`.disabled`)
+	e2eRolesClick(t, ctx, at(".pf [data-act=save]"))
+	e2eRolesWait(t, ctx, `!!`+at(".ok"))
+	if got := readFile(t, filepath.Join(projDir, "e2e-dup.yaml")); got != before {
+		t.Errorf("the duplicate does not keep the original's lines:\n%s", got)
+	}
+	if got := readFile(t, lead); got != before {
+		t.Errorf("duplicating changed the original:\n%s", got)
+	}
+
+	// 共通にコピー: the same lines are written beside the shared documents.
+	e2eRolesClick(t, ctx, at(".pf [data-act=copy]"))
+	glob := `document.querySelector(` + strconv.Quote(`.panel[data-uid="`+dupUid+`"][data-l=global]`) + `)`
+	e2eRolesWait(t, ctx, `!!`+glob)
+	e2eRolesWait(t, ctx, `!`+glob+`.querySelector('.pf [data-act=save]').disabled`)
+	e2eRolesClick(t, ctx, glob+`.querySelector('.pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!`+glob+`.querySelector('.ok')`)
+	if got := readFile(t, filepath.Join(cfgDir, "e2e-dup.yaml")); got != before {
+		t.Errorf("the copy does not keep the original's lines:\n%s", got)
+	}
+
+	// R7: a name the pattern refuses stands under the name field, and the footer
+	// stays clean (spec-roles 1.2.9).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=analyst"), chromedp.WaitReady("#rows .role.open .panel[data-l=project] .pf [data-act=save]"))
+	analystBefore := readFile(t, filepath.Join(projDir, "analyst.yaml"))
+	bad := `.panel[data-l=project]`
+	atBad := func(sel string) string {
+		return `document.querySelector('#rows .role.open ' + ` + strconv.Quote(bad+" "+sel) + `)`
+	}
+	e2eRolesSet(t, ctx, atBad("[data-f=name]"), "Bad Name")
+	e2eRolesWait(t, ctx, `!`+atBad(".pf [data-act=save]")+`.disabled`)
+	e2eRolesClick(t, ctx, atBad(".pf [data-act=save]"))
+	e2eRolesWait(t, ctx, `!`+atBad(".errline.name")+`.hidden`)
+	if got := e2eRolesValue(t, ctx, atBad(".errline.name")+`.textContent`); !strings.Contains(got, "ロール名") {
+		t.Errorf("the refusal under the name field reads %q", got)
+	}
+	if got := e2eRolesValue(t, ctx, atBad(".errline.doc")+`.hidden+''`); got != "true" {
+		t.Errorf("a name's refusal stands in the footer too")
+	}
+	if got := readFile(t, filepath.Join(projDir, "analyst.yaml")); got != analystBefore {
+		t.Errorf("a refused save wrote the file:\n%s", got)
 	}
 }
 

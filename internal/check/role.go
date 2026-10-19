@@ -3,6 +3,7 @@ package check
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -142,6 +143,7 @@ func Role(in RoleInput) RoleReport {
 	if doc == nil {
 		doc = &rules.Document{Path: path}
 	}
+	lines := rules.LinesOf(text, path)
 
 	// Everything else reads through a catalog that carries the draft (C5).
 	overlay := cat.With(path, text)
@@ -165,18 +167,32 @@ func Role(in RoleInput) RoleReport {
 		})
 	}
 	index := ruleIndex(doc)
-	report.Problems = append(report.Problems, roleModelProblems(path, doc, index)...)
+	report.Problems = append(report.Problems, roleModelProblems(path, doc, index, lines)...)
 
 	for _, def := range roleDefinitions(cat, in.Name) {
 		size := SizeOf(roleStarts(overlay, def, in.Name), overlay.Reader())
-		report.Problems = append(report.Problems, roleDocProblems(overlay, def, in.Name, path, index)...)
-		report.Problems = append(report.Problems, roleTurnProblems(overlay, def, path, index)...)
+		report.Problems = append(report.Problems, roleDocProblems(overlay, def, in.Name, path, index, lines)...)
+		report.Problems = append(report.Problems, roleTurnProblems(overlay, def, path, index, lines)...)
 		report.Problems = append(report.Problems, roleSizeProblems(def.Name, size)...)
 		report.Turns = append(report.Turns, roleTurns(overlay, def, in.Name, path, index)...)
 		report.Readers = append(report.Readers, roleReaders(def.Name, size)...)
 	}
-	report.Problems = dedupeProblems(report.Problems)
+	report.Problems = orderProblems(dedupeProblems(report.Problems))
 	return report
+}
+
+// orderProblems gives every problem the line a screen points at and puts them in
+// the file's order (spec-roles 6 C6). A problem about the file as a whole — the
+// amount a member reads, the title, the revision — stands on the first line, the
+// way the Markdown preview marks the first line.
+func orderProblems(problems []RoleProblem) []RoleProblem {
+	for i := range problems {
+		if problems[i].Line == 0 {
+			problems[i].Line = 1
+		}
+	}
+	sort.SliceStable(problems, func(i, j int) bool { return problems[i].Line < problems[j].Line })
+	return problems
 }
 
 // draftText is the YAML the draft stands for: the role tab's document written
@@ -277,13 +293,13 @@ func (x roleIndex) placeID(id string) (int, int) {
 
 // roleModelProblems is one document's model-name warnings (C8): one per rule
 // whose text names a model, in the written order.
-func roleModelProblems(path string, doc *rules.Document, index roleIndex) []RoleProblem {
+func roleModelProblems(path string, doc *rules.Document, index roleIndex, lines rules.Lines) []RoleProblem {
 	var out []RoleProblem
 	for _, finding := range modelDocFindings(path, doc) {
 		section, rule := index.place(finding.Field, path)
 		out = append(out, RoleProblem{
 			Sev: rules.SevWarning, Section: section, Rule: rule,
-			Field: finding.Field, Text: finding.Text,
+			Field: "text", Line: lines.At(section, rule, "text"), Text: finding.Text,
 		})
 	}
 	return out
@@ -299,7 +315,7 @@ func roleModelProblems(path string, doc *rules.Document, index roleIndex) []Role
 // problem that names a rule the document holds is placed on it; a problem about
 // another document's rule alone is placed on the document as a whole (-1, -1),
 // because there is no rule of this document to put it beside.
-func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, path string, index roleIndex) []RoleProblem {
+func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, path string, index roleIndex, lines rules.Lines) []RoleProblem {
 	var out []RoleProblem
 	for _, p := range rules.CheckAll(roleDocs(cat, def, name)) {
 		section, rule := -1, -1
@@ -311,6 +327,7 @@ func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, pat
 		}
 		out = append(out, RoleProblem{
 			Sev: p.Sev, Section: section, Rule: rule, Field: p.Field,
+			Line:       lines.At(section, rule, p.Field),
 			Definition: def.Name, Text: p.Text,
 		})
 	}
@@ -358,7 +375,7 @@ func parseRoleDoc(cat *catalog.Catalog, doc source.Doc) *rules.Document {
 // roleTurnProblems is TurnFindings, of the rules this document writes, with the
 // definition named at the head of the sentence (spec-roles 1.6), so a screen
 // says which definition the sentence is about.
-func roleTurnProblems(cat *catalog.Catalog, def *definition.Definition, path string, index roleIndex) []RoleProblem {
+func roleTurnProblems(cat *catalog.Catalog, def *definition.Definition, path string, index roleIndex, lines rules.Lines) []RoleProblem {
 	prefix := "rule:" + path + "#"
 	var out []RoleProblem
 	for _, finding := range TurnFindings(Input{Catalog: cat}, def) {
@@ -367,7 +384,8 @@ func roleTurnProblems(cat *catalog.Catalog, def *definition.Definition, path str
 		}
 		section, rule := index.place(finding.Field, path)
 		out = append(out, RoleProblem{
-			Sev: rules.SevWarning, Section: section, Rule: rule, Field: finding.Field,
+			Sev: rules.SevWarning, Section: section, Rule: rule, Field: "text",
+			Line:       lines.At(section, rule, "text"),
 			Definition: def.Name, Text: def.Name + ": " + finding.Text,
 		})
 	}
@@ -573,6 +591,24 @@ func lineDiff(saved, draft []string) RoleDiff {
 	}
 	for ; j < len(draft); j++ {
 		added[j] = true
+	}
+	// A removed saved line whose place a draft line took is marked on the first
+	// line after the added run (spec-roles 1.2.6): the mock draws the strike
+	// under the block that replaced it, not on the same line as the new text.
+	for j := range draft {
+		if !removed[j] || !added[j] {
+			continue
+		}
+		n := j
+		for n < len(draft) && added[n] {
+			n++
+		}
+		delete(removed, j)
+		if n < len(draft) {
+			removed[n] = true
+		} else {
+			diff.RemovedAtEnd = true
+		}
 	}
 	for j := range draft {
 		if added[j] {

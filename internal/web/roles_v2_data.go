@@ -37,6 +37,7 @@ type r2Row struct {
 	Project  *r2Doc `json:"project"`
 	Global   *r2Doc `json:"global"`
 	IsNew    bool   `json:"isNew,omitempty"`
+	NoDoc    bool   `json:"noDoc,omitempty"`
 	Markdown string `json:"markdown,omitempty"`
 }
 
@@ -111,6 +112,7 @@ func (s *Server) r2IslandOf() r2Island {
 		"no_role_doc":  t("error.no_role_doc"),
 		"member_rules": t("size.member_rules"),
 		"member_chars": t("size.member_chars"),
+		"separator":    t("list.separator"),
 	}
 	// Where each place keeps its role documents, as a person reads a path.
 	out.Places = map[string]string{
@@ -137,10 +139,13 @@ func (s *Server) r2IslandOf() r2Island {
 				row.Markdown = tf("error.role_markdown", entry.Name, s.cat.Display(md.Path))
 				break
 			}
-			// Otherwise the row stays with its name and offers to make one
-			// (W8, 設計 1.2.10). The project's place is where it would go.
-			row.Project = &r2Doc{Name: entry.Name}
+			// Otherwise the row keeps its name with no place chosen and opens
+			// a new role's content (設計 1.2.10). The panel's place switch
+			// starts on the project, where the document would go (W8).
+			row.Name = entry.Name
+			row.NoDoc = true
 			row.IsNew = true
+			row.Project = r2NewRole(entry.Name)
 		}
 		if row.Project == nil && row.Global == nil && row.Markdown == "" {
 			continue
@@ -197,6 +202,19 @@ func r2DocOf(doc *rules.Document, hash, text string) *r2Doc {
 		out.Sections = append(out.Sections, sec)
 	}
 	return out
+}
+
+// r2NewRole is the content of a new role a screen opens (spec-roles 1.2.4):
+// revision 1, one section 使命, and one empty rule. The name is the caller's.
+func r2NewRole(name string) *r2Doc {
+	revision := 1
+	return &r2Doc{
+		Name: name, Revision: &revision,
+		Sections: []r2Section{{
+			Heading: "使命", Style: "ids",
+			Rules: []r2Rule{{SendWhy: true}},
+		}},
+	}
 }
 
 // roleNameOf is the role a document's file names: roles/<name>.yaml.

@@ -201,6 +201,49 @@ func TestRewriteMovesARuleWithinItsSection(t *testing.T) {
 	}
 }
 
+// TestRewriteMovesARuleBetweenItsNeighbours: F2, R4 — a rule swapped with the
+// one after it in the middle of a section, neither of them the section's last:
+// the two items' own lines trade places and nothing else changes. A neighbour
+// that is the section's last rule is the easy case; this is the one that was
+// refused before the run was read as the longest one that stays.
+func TestRewriteMovesARuleBetweenItsNeighbours(t *testing.T) {
+	const role = `version: 1
+title: 進行管理
+revision: 1
+sections:
+  - heading: 使命
+    style: ids
+    rules:
+      - id: LEAD-1
+        text: 最初の本文。
+        origin:
+          - kind: instruction
+            date: "2026-09-14"
+            refs: [d-4c11]
+      - id: LEAD-2
+        text: 2 番目の本文。
+      - id: LEAD-3
+        text: 3 番目の本文。
+      - id: LEAD-4
+        text: 4 番目の本文。
+`
+	saved := mustParse(t, role, "roles/lead.yaml")
+	want := mustParse(t, role, "roles/lead.yaml")
+	r := want.Sections[0].Rules
+	want.Sections[0].Rules = []Rule{r[0], r[2], r[1], r[3]}
+
+	out, err := Rewrite([]byte(role), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantText := strings.Replace(role,
+		"      - id: LEAD-2\n        text: 2 番目の本文。\n      - id: LEAD-3\n        text: 3 番目の本文。\n",
+		"      - id: LEAD-3\n        text: 3 番目の本文。\n      - id: LEAD-2\n        text: 2 番目の本文。\n", 1)
+	if string(out) != wantText {
+		t.Errorf("Rewrite wrote\n%q\nwant\n%q", string(out), wantText)
+	}
+}
+
 // TestRewriteMovesARuleToTheNextSection: a rule moved to another section keeps
 // its values and the section it left loses it.
 func TestRewriteMovesARuleToTheNextSection(t *testing.T) {

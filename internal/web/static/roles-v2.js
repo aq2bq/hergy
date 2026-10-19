@@ -93,10 +93,15 @@
     if (r.markdown) { row.markdown = r.markdown; row.name = r.name || ''; row.project = null; row.global = null; return row; }
     for (const l of PLACES) {
       if (r[l]) {
-        const saved = fromJSON(r[l]);
-        row[l] = { saved, draft: clone(saved), hash: r[l].hash || '', text: r[l].text || '' };
+        const draft = fromJSON(r[l]);
+        // A role no layer holds a document for opens as a new one (spec-roles
+        // 1.2.10): nothing is saved yet, so the first 保存 writes the file, and
+        // the row counts no rules and no amount until it is saved.
+        const saved = r.noDoc ? null : draft;
+        row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
       } else { row[l] = null; }
     }
+    if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;
     return row;
   });
@@ -151,7 +156,6 @@
   function markdownOf(r, l) { const c = checks[keyOf(r, l)]; return c ? c.markdown : { lines: [], chars: 0 }; }
   function diffOf(r, l) { const c = checks[keyOf(r, l)]; return c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false }; }
   function turnsOf(r, l) { const c = checks[keyOf(r, l)]; return c ? c.turns : []; }
-  function readersOf(r, l) { const c = checks[keyOf(r, l)]; return c ? c.readers : []; }
 
   async function askCheck(r, l, cb) {
     const e = r[l];
@@ -159,7 +163,7 @@
     const k = keyOf(r, l);
     const id = (reqs[k] || 0) + 1;
     reqs[k] = id;
-    const res = await post('/roles/check', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved) });
+    const res = await post('/roles/check', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
     if (reqs[k] !== id) return;
     if (!res.ok || !res.json) return;
     checks[k] = {
@@ -198,7 +202,7 @@
   // ---- state -----------------------------------------------------------
   const state = {
     tab: 'roles', open: new Set(), ropen: new Set(), filter: null, q: '', roleHi: null,
-    confirm: {}, ok: {}, yfile: null, pmode: {}, pfocus: {}, yscroll: {}, introOpen: null,
+    confirm: {}, ok: {}, yfile: null, pmode: {}, pfocus: {}, yscroll: {}, introOpen: null, wantFocus: null,
   };
 
   const ARROW_RE = /([A-Za-z][\w-]*|人間)\s*(→|⇄)\s*([A-Za-z][\w-]*|人間)/g;
@@ -296,6 +300,15 @@
     if (state.tab === 'roles') renderList();
     if (state.tab === 'yaml') $$('.yed').forEach(refreshYed);
     updateTabs();
+    applyStyles();
+    // A row a person just added opens on its name, after the last redraw the
+    // check caused (spec-roles 1.2「道具の列」).
+    if (state.wantFocus) {
+      const { uid: u, sel } = state.wantFocus;
+      state.wantFocus = null;
+      const el = $(`.panel[data-uid="${u}"] ${sel}`);
+      if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
+    }
   }
   function updateCounts() {
     const people = teams.reduce((n, t) => n + t.members.length, 0);
@@ -341,8 +354,9 @@
     const shown = roles.filter((r) => !filtering() || r.isNew || r.markdown
       || PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
     document.getElementById('rows').innerHTML = shown.map(roleHTML).join('')
-      || `<div class="sum" style="cursor:default"><span></span><span class="none">0 件</span></div>`;
+      || `<div class="sum empty"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
     $$('.panel').forEach(markPanel);
+    applyStyles();
   }
 
   function rowIssues(r) {
@@ -350,14 +364,32 @@
   }
 
   function maxReader(r) {
-    const l = eff(r), rs = readersOf(r, l).slice();
-    rs.sort((a, b) => b.rules - a.rules);
-    return rs[0] || null;
+    // The most a person reads this role: its rules and characters, plus the
+    // agreements of each team that plays it, counted from the island so a
+    // definition the server cannot build a prompt for still shows its amount.
+    const name = curName(r), seen = new Set(), zs = [];
+    for (const { t } of whoReads(name)) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      const z = sizeOf(t, name);
+      if (z) zs.push(z);
+    }
+    zs.sort((a, b) => b.rules - a.rules);
+    return zs[0] || null;
   }
 
   function amtHTML(rules, chars, withChars) {
     const over = rules > LIMIT.rules || chars > LIMIT.chars;
-    return `<span class="amt ${over ? 'over' : ''}"><span class="meter ${over ? 'over' : ''}"><i style="width:${Math.min(100, rules / (LIMIT.rules * 1.25) * 100)}%"></i></span><span class="v">${rules}<span class="lim">/${LIMIT.rules}</span></span>${withChars ? `<span class="lim">${num(chars)} 字</span>` : ''}</span>`;
+    const w = Math.min(100, rules / (LIMIT.rules * 1.25) * 100);
+    return `<span class="amt ${over ? 'over' : ''}"><span class="meter ${over ? 'over' : ''}"><i data-w="${w}"></i></span><span class="v">${rules}<span class="lim">/${LIMIT.rules}</span></span>${withChars ? `<span class="lim">${num(chars)} 字</span>` : ''}</span>`;
+  }
+
+  // The page's CSP refuses a style="…" written as markup, so what a person
+  // computed (a meter's width, a Markdown line's indent) is put on the elements
+  // after they are drawn, through the stylesheet object (spec-roles 1.2.6).
+  function applyStyles(root = view) {
+    $$('[data-w]', root).forEach((el) => { el.style.width = el.dataset.w + '%'; });
+    $$('[data-h]', root).forEach((el) => { el.style.setProperty('--h', el.dataset.h); });
   }
 
   function sumInner(r) {
@@ -372,7 +404,7 @@
     }
     const d = cur(r), saved = live(r, 'project') || live(r, 'global');
     const readers = whoReads(curName(r));
-    const pills = PLACES.map((l) => (live(r, l)
+    const pills = r.noDoc ? '' : PLACES.map((l) => (live(r, l)
       ? `<span class="pill ${l === 'global' && live(r, 'project') ? 'shadow' : 'on'}">${LNAME[l]}</span>`
       : r[l] ? `<span class="pill pending">${LNAME[l]}</span>` : '')).join('');
     const issues = rowIssues(r);
@@ -381,9 +413,8 @@
     const mx = rs.map((x) => `<i class="p ${x.origin[0] ? 'o-' + x.origin[0].kind : ''}"></i><i class="p ${x.why ? 'why' : ''}"></i><i class="p ${x.tests.length || x.report ? 'tst' : ''}"></i>`).join('');
     const top = saved ? maxReader(r) : null;
     const teamsTxt = [...new Set(readers.map((x) => x.t.id))].join(' · ');
-    const changed = PLACES.filter((l) => r[l]).some((l) => r[l].saved && diffCount(r[l]) > 0);
     return `<span class="chev"></span>
-      <span class="c-name"><span class="nm">${esc(d.name) || '<span class="none">—</span>'}</span>${changed ? '<i class="dot" aria-hidden="true"></i>' : ''}<span class="ttl">${esc(d.title)}</span>${r.isNew ? '<span class="tag">新規</span>' : ''}${saved ? badge(issues) : readers.length ? `<span class="sev err">問題 ${readers.length}</span>` : ''}</span>
+      <span class="c-name"><span class="nm">${esc(d.name) || '<span class="none">—</span>'}</span><span class="ttl">${esc(d.title)}</span>${r.isNew ? '<span class="tag">新規</span>' : ''}${saved ? badge(issues) : readers.length ? `<span class="sev err">問題 ${readers.length}</span>` : ''}</span>
       <span class="c-place">${pills}</span>
       <span class="c-count">${saved ? rs.length : '<span class="none">—</span>'}</span>
       <span class="c-backing" title="${tip}"><span class="mx" aria-label="${tip}">${mx}</span></span>
@@ -398,6 +429,7 @@
     if (sum) sum.innerHTML = sumInner(r);
     const usage = el.querySelector('.usage');
     if (usage) usage.innerHTML = usageHTML(r);
+    applyStyles(el);
   }
 
   function roleHTML(r) {
@@ -414,7 +446,7 @@
     const l = eff(r);
     return `<span class="lbl">読んでいる人</span>` + readers.map(({ t, m }) => {
       const z = sizeOf(t, curName(r)), over = z && (z.rules > LIMIT.rules || z.chars > LIMIT.chars);
-      return `<button class="uchip ${over ? 'over' : ''}" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}"><span class="g">${t.id}</span>${esc(m.name)}<span class="z">${z ? z.rules : '—'}/${LIMIT.rules}</span></button>`;
+      return `<button class="uchip ${over ? 'over' : ''}" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}" data-i="${t.members.indexOf(m)}"><span class="g">${t.id}</span>${esc(m.name)}<span class="z">${z ? z.rules : '—'}/${LIMIT.rules}</span></button>`;
     }).join('');
   }
 
@@ -453,7 +485,7 @@
       <div class="pmain">
       <div class="pedit">
       <div class="dh">
-        <div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"></div>
+        <div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"><span class="errline name" hidden></span></div>
         <div class="dhf"><label for="t${key}">タイトル</label><input id="t${key}" class="in-title" data-f="title" value="${esc(d.title)}" autocomplete="off"></div>
         <div class="dhf"><label for="v${key}">revision</label><input id="v${key}" class="in-rev" data-f="revision" type="number" min="1" value="${d.revision === null ? '' : d.revision}"></div>
         <label class="rename" hidden><input type="checkbox" id="rn${key}" checked><span></span></label>
@@ -465,7 +497,7 @@
       <aside class="yprev" aria-label="Markdown"><div class="yph"><span class="pkl">Markdown</span><span class="yinfo"></span></div><div class="ybox"></div></aside>
       </div>
       <footer class="pf">
-        <button class="btn primary" data-act="save">保存</button><span class="dirty"></span><span class="vcount"></span>${ok}
+        <button class="btn primary" data-act="save">保存</button><span class="errline doc" hidden></span><span class="dirty"></span><span class="vcount"></span>${ok}
         <span class="acts">
           ${e.saved ? `<button class="btn" data-act="dup">複製</button>` : ''}
           ${e.saved && !r[other(l)] ? `<button class="btn" data-act="copy">${LNAME[other(l)]}にコピー</button>` : ''}
@@ -474,7 +506,6 @@
             : `<button class="btn danger" data-act="del">削除</button>`}
         </span>
       </footer>
-      <span class="errline" hidden></span>
     </section>`;
   }
 
@@ -556,15 +587,21 @@
   function diffCount(e) {
     const s = e.saved, d = e.draft;
     if (!s) return 1;
+    // A rule that left its section counts, even when its values are the same and
+    // the order of the keys did not change (spec-roles 1.2.8).
+    const secAt = new Map();
+    s.sections.forEach((sec, si) => sec.rules.forEach((x) => secAt.set(x._k, si)));
     let n = ['name', 'title', 'revision'].filter((f) => s[f] !== d[f]).length;
     const sr = new Map(rulesOf(s).map((x) => [x._k, JSON.stringify(x)])), dr = rulesOf(d);
-    dr.forEach((x) => { if (sr.get(x._k) !== JSON.stringify(x)) n++; });
+    d.sections.forEach((sec, si) => sec.rules.forEach((x) => {
+      if (sr.get(x._k) !== JSON.stringify(x) || secAt.get(x._k) !== si) n++;
+    }));
     sr.forEach((v, k) => { if (!dr.some((x) => x._k === k)) n++; });
     for (let i = 0; i < Math.max(s.sections.length, d.sections.length); i++) {
       const a = s.sections[i], b = d.sections[i];
       if (!a || !b || ['heading', 'style', 'level', 'intro'].some((f) => a[f] !== b[f])) n++;
     }
-    if (!n && rulesOf(s).map((x) => x._k).join() !== dr.map((x) => x._k).join()) n++;
+    if (!n && sr.size && rulesOf(s).map((x) => x._k).join() !== dr.map((x) => x._k).join()) n++;
     return n;
   }
 
@@ -598,8 +635,9 @@
     const hint = sec.querySelector('.rename'), nread = s && d.name && d.name !== s.name ? whoReads(s.name).length : 0;
     if (hint) { hint.hidden = !nread; if (nread) hint.querySelector('span').textContent = `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える`; }
     const n = diffCount(e);
-    sec.querySelector('.vcount').innerHTML = counts(issues);
-    sec.querySelector('.dirty').textContent = s && n ? `${n} か所` : '';
+    const foot = sec.querySelector('.pf');
+    foot.querySelector('.vcount').innerHTML = counts(issues);
+    foot.querySelector('.dirty').textContent = s && n ? `${n} か所` : '';
     const before = new Set(s ? issuesOfSaved(r, l, s).filter((m) => m.sev === 'err').map((m) => m.msg) : []);
     const saveBtn = sec.querySelector('[data-act=save]');
     if (saveBtn) saveBtn.disabled = !s ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.msg)) || diffCount(e) === 0);
@@ -635,9 +673,14 @@
     ed.querySelectorAll('.bad').forEach((el) => el.classList.remove('bad'));
     ed.querySelectorAll('.vm[data-for]').forEach((u) => { u.innerHTML = issues.filter((m) => (m.f.split('.')[0] || '') === u.dataset.for).map(vmItem).join(''); });
     issues.forEach((m) => {
-      const parts = m.f.split('.'), f = parts[0], oi = parts[1], j = parts[2];
-      const el = f === 'id' ? ed.querySelector('[data-f=id]') : f === 'text' && m.sev === 'err' ? ed.querySelector('[data-f=text]')
-        : f === 'origin' ? (j !== undefined ? (ed.querySelector(`.orow[data-oi="${oi}"] [data-f=ref][data-j="${j}"]`) || {}).closest?.('.chip') : ed.querySelector(`.orow[data-oi="${oi}"] [data-f=o-date]`)) : null;
+      const parts = m.f.split('.'), f = parts[0], oi = parts[1];
+      let el = null;
+      if (f === 'id') el = ed.querySelector('[data-f=id]');
+      else if (f === 'text' && m.sev === 'err') el = ed.querySelector('[data-f=text]');
+      else if (f === 'origin') {
+        el = parts[2] === 'refs' ? (ed.querySelector(`.orow[data-oi="${oi}"] [data-f=ref][data-j="${parts[3]}"]`) || {}).closest?.('.chip')
+          : ed.querySelector(`.orow[data-oi="${oi}"] [data-f=o-date]`);
+      }
       if (el) el.classList.add('bad');
     });
     const tchk = ed.querySelector('.tchk');
@@ -646,7 +689,7 @@
       const mine = here ? turnsOf(r, l).filter((z) => z.section === here.si && z.rule === here.ri) : [];
       const arrows = [...new Set(mine.map((z) => z.arrow))];
       tchk.innerHTML = arrows.map((a) => `<span class="arrow">${esc(a)}</span>` + mine.filter((z) => z.arrow === a)
-        .map((z) => `<span class="tk ${z.ok ? 'okk' : 'warn'}">${esc(z.definition)}${z.ok ? ' ✓' : ''}</span>`).join('')).join('<span style="width:10px"></span>');
+        .map((z) => `<span class="tk ${z.ok ? 'okk' : 'warn'}">${esc(z.definition)}${z.ok ? ' ✓' : ''}</span>`).join('')).join('<span class="gap"></span>');
     }
     const rev = ed.querySelector('[data-act=rule-revert]');
     if (rev) rev.hidden = !sr || !ruleChanged(r[l], x);
@@ -700,14 +743,19 @@
       const ms = marks[i] || [], sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
       const k = z.section >= 0 ? ruleKeyAt(e.draft, z.section, z.rule) : 0;
       const { h, html } = mdHL(z.text || '', z.held || '');
-      const go = k || z.section >= 0;
-      const cls = [sev, added.has(i) && 'ins', removedBefore.has(i) && 'del', fc && fc.k && k === fc.k && 'cur', (z.part === 'title' || z.part === 'heading' || z.part === 'intro') && fc && !fc.k && ((z.part === 'title' && fc.f === 'title') || (z.part === 'intro' && fc.f.startsWith('sec.')) || (z.part === 'heading' && fc.f.startsWith('sec.'))) && 'curf', go && 'go'].filter(Boolean).join(' ');
-      return `<div class="yl ${cls}"${go ? ` data-act="yline" data-k="${k}" data-si="${z.section}" data-part="${z.part}"` : ''}${ms.length ? ` title="${esc(ms.map((m) => m.msg).join('\n'))}"` : ''}><span class="lno">${i + 1}</span><span class="yt" style="--h:${h}">${html || ' '}</span></div>`;
+      const go = k || z.section >= 0 || z.part === 'title';
+      const here = fc && fc.k && k === fc.k;
+      const around = here && fc.f === 'text';
+      const partNear = fc && !fc.k && (z.part === 'title' || z.part === 'heading' || z.part === 'intro')
+        && ((z.part === 'title' && fc.f === 'title') || (z.part !== 'title' && fc.f.startsWith('sec.')));
+      const cls = [sev, added.has(i) && 'ins', removedBefore.has(i) && 'del', here && 'cur', (around || partNear) && 'curf', go && 'go'].filter(Boolean).join(' ');
+      return `<div class="yl ${cls}"${go ? ` data-act="yline" data-k="${k}" data-si="${z.section}" data-part="${z.part}"` : ''}${ms.length ? ` title="${esc(ms.map((m) => m.msg).join('\n'))}"` : ''}><span class="lno">${i + 1}</span><span class="yt" data-h="${h}">${html || ' '}</span></div>`;
     }).join('');
     const nadd = added.size, ndel = removedBefore.size;
     aside.querySelector('.yinfo').innerHTML = `<span class="vt">${lines.length} 行 · ${num(md.chars)} 文字</span>${nadd || ndel ? `<span class="dirty">+${nadd} −${ndel}</span>` : ''}<span class="yr">${all.length ? `<span class="vcount">${counts(all)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</span>`;
     box.scrollTop = state.yscroll[r.uid + l] || 0;
     follow(box, r.uid + l);
+    applyStyles(aside);
   }
 
   function follow(box, key) {
@@ -735,6 +783,7 @@
   function viewAssign() {
     const cnt = {};
     teams.forEach((t) => t.members.forEach((m) => { cnt[m.draft] = (cnt[m.draft] || 0) + 1; }));
+    if (!teams.length) return `<div class="empty">チーム定義はありません</div>`;
     return `<div class="rolebar">${savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
       const n = curName(r);
       return `<button class="rseg ${state.roleHi === n ? 'on' : state.roleHi ? 'dim' : ''}" data-act="role-hi" data-n="${esc(n)}" aria-pressed="${state.roleHi === n}"><code>${esc(n)}</code><span>${esc(cur(r).title)}</span><b>${cnt[n]}</b></button>`;
@@ -751,21 +800,31 @@
     }).join('');
   }
 
+  // A member's amount, counted from the island: the rules and characters of the
+  // role the member plays, plus the agreements the team reads (spec-roles 1.3).
+  // It is not asked of the server, so a definition the server cannot build a
+  // prompt for — a profile that is not there — still shows its amount (6 C6),
+  // and a role picked for a member is counted before the definition reads it.
   function sizeOf(t, roleName) {
     const r = roleByName(roleName);
     if (!r) return null;
-    const l = eff(r);
-    const c = checks[r.uid + l];
-    if (!c) return null;
-    return c.readers.find((x) => x.definition === t.id) || null;
+    const l = eff(r), c = checks[r.uid + l];
+    const rules = rulesOf(r[l].draft).length + t.agree.rules;
+    const chars = (c ? c.markdown.chars : 0) + t.agree.chars;
+    return { rules, chars, over: rules > LIMIT.rules || chars > LIMIT.chars };
   }
 
   function arowHTML(t, m, i) {
     const r = roleByName(m.draft), z = r ? sizeOf(t, m.draft) : null;
     const dim = state.roleHi && m.draft !== state.roleHi ? 'dim' : '';
     const errs = [];
-    if (!r) errs.push({ sev: 'err', msg: fill(TEXT.no_role_doc, m.name, m.draft, `${DIR.project}${m.draft}.yaml, ${DIR.global}${m.draft}.yaml`) });
-    if (z && z.rules > LIMIT.rules) errs.push({ sev: 'warn', msg: fill(TEXT.member_rules, m.name, z.rules, LIMIT.rules) });
+    if (!r) {
+      // The sentence the server would print for validate, with its values: the
+      // member's own name, and where hergy looked, as a person reads a path.
+      const places = [DIR.project + m.draft + '.yaml', DIR.global + m.draft + '.yaml'].join(TEXT.separator || '、');
+      errs.push({ sev: 'err', msg: fill(TEXT.no_role_doc, m.name, m.draft, places) });
+    }
+    if (z && z.rules > LIMIT.rules) errs.push({ sev: 'warn', msg: fill(TEXT.member_rules, `${t.id}-${m.name}`, z.rules, LIMIT.rules) });
     return `<div class="arow ${m.draft !== m.saved ? 'changed' : ''} ${r ? '' : 'missing'} ${dim}" data-m="${esc(m.name)}">
       <div class="who"><code>${esc(m.name)}</code></div>
       <div class="pick">${m.draft !== m.saved ? `<s class="was">${esc(m.saved)}</s>` : ''}<span class="sel"><select class="pickrole" id="s-${t.id}-${i}" data-t="${t.id}" data-i="${i}" aria-label="${esc(m.name)} のロール">${roleOptions(m.draft)}</select></span></div>
@@ -805,6 +864,7 @@
 
   function viewYAML() {
     const files = filesList();
+    if (!files.length) return `<div class="empty">ロールの文書はありません</div>`;
     if (!state.yfile || !files.some(({ r, l }) => r.uid + l === state.yfile)) state.yfile = files[0] ? files[0].r.uid + files[0].l : null;
     return `<div class="ylay">
       <nav class="files">${PLACES.map((l) => `<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
@@ -1018,8 +1078,7 @@
         const d = { name: '', title: '', revision: 1, sections: [{ heading: '使命', level: 0, intro: '', style: 'ids', rules: [{ _k: ++kseq, id: '', text: '', why: '', send_why: true, note: '', report: '', tests: [], origin: [] }] }] };
         const nr = { uid: ++uid, isNew: true, project: { saved: null, draft: d, hash: '', text: '' }, global: null };
         roles.unshift(nr); state.open.add(nr.uid); state.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`); state.filter = null; state.q = '';
-        render(); askCheck(nr, 'project', () => { render(); });
-        { const el = $(`.panel[data-uid="${nr.uid}"] [data-f=name]`); if (el) el.focus(); }
+        render(); askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
         break;
       }
       case 'pick-place':
@@ -1061,20 +1120,22 @@
         const fresh = re();
         const el = fresh && fresh.querySelector(k ? `.rule[data-k="${k}"] [data-f=text]` : part === 'title' ? '[data-f=title]' : `.sec[data-si="${si}"] [data-f=${part === 'intro' ? 'intro' : 'heading'}]`);
         if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
+        syncURL(false);
         break;
       }
       case 'dup': {
-        const d = clone(r[c.l].saved); d.name += '-2';
-        rulesOf(d).forEach((x) => { x._k = ++kseq; });
-        const nr = { uid: ++uid, isNew: true, [c.l]: { saved: null, draft: d, hash: '', text: '' } };
+        // The copy keeps the places its rules stood in (their _k), so the server
+        // writes the new file from the original's own lines (spec-roles 1.2.9).
+        const src = r[c.l].saved;
+        const d = clone(src); d.name += '-2';
+        const nr = { uid: ++uid, isNew: true, [c.l]: { saved: null, draft: d, base: clone(src), basePlace: { place: c.l, name: src.name }, hash: '', text: '' } };
         nr.project = nr.project || null; nr.global = nr.global || null;
         roles.splice(roles.indexOf(r) + 1, 0, nr); state.open.add(nr.uid); renderList();
-        askCheck(nr, c.l, () => render());
-        { const el = $(`.panel[data-uid="${nr.uid}"] [data-f=name]`); if (el) el.focus(); }
+        askCheck(nr, c.l, () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
         break;
       }
       case 'copy':
-        r[other(c.l)] = { saved: null, draft: clone(r[c.l].saved), hash: '', text: '' };
+        r[other(c.l)] = { saved: null, draft: clone(r[c.l].saved), base: clone(r[c.l].saved), basePlace: { place: c.l, name: r[c.l].saved.name }, hash: '', text: '' };
         renderList(); askCheck(r, other(c.l), () => render()); break;
       case 'del': state.confirm[pkey] = 1; re('[data-act=del-yes]'); break;
       case 'del-no': delete state.confirm[pkey]; re(); break;
@@ -1089,7 +1150,13 @@
       case 'goto': {
         state.tab = 'assign'; render(); syncURL(true);
         const el = $(`.team[data-t="${b.dataset.t}"] .arow[data-m="${b.dataset.m}"]`);
-        if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); const s = el.querySelector('select'); if (s) s.focus({ preventScroll: true }); }
+        if (el) {
+          el.scrollIntoView({ block: 'center' }); el.classList.add('flash');
+          const s = el.querySelector('select'); if (s) s.focus({ preventScroll: true });
+        }
+        // The row a person came to is named in the URL, so a reload comes back to
+        // it (spec-roles 2「割り当てのタブ」).
+        history.replaceState(null, '', `${location.pathname}${location.search}#${b.dataset.t}.m-${b.dataset.i}`);
         break;
       }
       case 'role-hi': state.roleHi = state.roleHi === b.dataset.n ? null : b.dataset.n; render(); syncURL(false); break;
@@ -1134,23 +1201,42 @@
   }
 
   // ---- writes ----------------------------------------------------------
+  // A refusal stands where its field does: a name's refusal under the name
+  // field, the document's in the panel's footer (spec-roles 1.2.9).
+  function clearRefusal(sec) {
+    if (!sec) return;
+    $$('.errline', sec).forEach((el) => { el.hidden = true; el.textContent = ''; });
+  }
+
+  function showRefusal(sec, json) {
+    if (!sec) return;
+    clearRefusal(sec);
+    const el = sec.querySelector(json && json.field === 'name' ? '.errline.name' : '.errline.doc');
+    if (el) { el.hidden = false; el.textContent = (json && json.text) || '保存できませんでした'; }
+  }
+
   async function doSave(r, l) {
     const e = r[l], sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`);
     const keepRename = (() => { const cb = document.getElementById('rn' + r.uid + l); return cb ? cb.checked : true; })();
-    const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved), renameUsers: keepRename, hash: e.hash || '' };
+    const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
+    if (e.basePlace) payload.base = e.basePlace;
     const res = await post('/roles/save', payload);
-    const errEl = sec && sec.querySelector('.errline');
     if (!res.ok) {
-      const txt = (res.json && res.json.text) || '保存できませんでした';
-      if (errEl) { errEl.hidden = false; errEl.textContent = txt; }
+      showRefusal(sec, res.json);
       return;
     }
-    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    clearRefusal(sec);
     const old = e.saved;
     const newName = e.draft.name;
     e.saved = clone(e.draft);
     e.hash = (res.json && res.json.hash) || e.hash;
+    // The written text comes back with the answer, so the YAML tab shows the file
+    // this save just made (a moved line, a rule the write re-emitted).
+    if (res.json && typeof res.json.text === 'string') e.text = res.json.text;
+    delete e.base;
+    delete e.basePlace;
     delete r.isNew;
+    delete r.noDoc;
     if (old && old.name !== newName && keepRename) {
       teams.forEach((t) => t.members.forEach((m) => {
         if (m.saved === old.name) m.saved = newName;
@@ -1171,7 +1257,7 @@
     const e = r[l];
     if (!e || !e.saved) return;
     const res = await post('/roles/delete', { place: l, name: e.saved.name, hash: e.hash || '' });
-    if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); const el = sec && sec.querySelector('.errline'); if (el) { el.hidden = false; el.textContent = (res.json && res.json.text) || '削除できませんでした'; } return; }
+    if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); showRefusal(sec, res.json); return; }
     ychecks[ykey(l, e.saved.name)] = undefined;
     delete r[l];
     if (!r.project && !r.global) { const i = roles.indexOf(r); if (i >= 0) roles.splice(i, 1); state.open.delete(r.uid); }
