@@ -310,13 +310,18 @@
   // ---- render ----------------------------------------------------------
   function render() {
     const people = teams.reduce((n, t) => n + t.members.length, 0);
-    document.getElementById('tabs').innerHTML = [['roles', 'ロール', savedRoles().length], ['assign', '割り当て', people], ['yaml', 'YAML', '']]
+    document.getElementById('tabs').innerHTML = [['roles', '一覧', ''], ['assign', '割り当て', people], ['yaml', 'YAML', '']]
       .map(([t, label, n]) => `<button class="tab ${state.tab === t ? 'on' : ''}" data-act="tab" data-t="${t}" aria-pressed="${state.tab === t}">${label}${n !== '' ? `<span class="n">${n}</span>` : ''}</button>`).join('');
     view.innerHTML = state.tab === 'roles' ? viewRoles() : state.tab === 'assign' ? viewAssign() : viewYAML();
     if (state.tab === 'roles') renderList();
     if (state.tab === 'yaml') $$('.yed').forEach(refreshYed);
     updateTabs();
     applyStyles();
+    // The number of roles stands in the band now; the first tab is 一覧 and
+    // carries none (spec-nav.md 1.1, 1.2). Every save, delete and copy comes
+    // through here, so the band's number is the list's own.
+    if (window.hergyNav) window.hergyNav.setCount('roles', savedRoles().length);
+    tellDirty();
     // A row a person just added opens on its name, after the last redraw the
     // check caused (spec-roles 1.2「道具の列」).
     if (state.wantFocus) {
@@ -332,6 +337,7 @@
       const el = $(`#tabs .tab[data-t="${t}"] .n`);
       if (el) el.textContent = n;
     });
+    // The band's number is written where the tabs are drawn (render).
     $$('.fchip').forEach((c, i) => { const n = c.querySelector('.n'); if (n && FILTERS[i]) n.textContent = filterCount(FILTERS[i][0]); });
   }
 
@@ -942,6 +948,7 @@
     const grew = errs.some((mm) => !base.has(mm.text));
     sec.querySelector('[data-act=yaml-save]').disabled = !dirty || grew;
     sec.querySelector('[data-act=yaml-revert]').hidden = !dirty;
+    tellDirty();
   }
 
   async function saveYAML(key) {
@@ -1045,6 +1052,9 @@
     }
     markPanel(c.sec);
     scheduleCheck(c.r, c.l, c.sec);
+    // A field inside a row changes what is unsaved without a redraw, so the
+    // band is told here (R3).
+    tellDirty();
   });
 
   view.addEventListener('change', (e) => {
@@ -1059,6 +1069,7 @@
     const f = t.dataset.f || (t.closest('[data-f]') ? t.closest('[data-f]').dataset.f : '');
     if (f === 'style') { c.d.sections[c.si].style = t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
     if (f === 'level') { c.d.sections[c.si].level = +t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
+    tellDirty();
   });
 
   function moveRule(d, si, ri, dir) {
@@ -1302,6 +1313,87 @@
     render();
   }
 
+  // ---- 帯への報告と持ち越し (spec-nav.md 1.4, 1.5) ---------------------
+  // dirty is whether the screen holds something no save wrote yet: a row's
+  // draft, a row a person added, a pick in the assign tab, or a YAML text. The
+  // band shows its dot while it is true, and carries the draft over when a
+  // person walks to the other screen with the band.
+  function rowDirty(r) {
+    return PLACES.some((l) => r[l] && (!r[l].saved || JSON.stringify(r[l].draft) !== JSON.stringify(r[l].saved)));
+  }
+
+  function dirty() {
+    const rows = roles.some(rowDirty);
+    const members = teams.some((t) => t.members.some((m) => m.draft !== m.saved));
+    const ytexts = allEntries().some(({ r, l }) => r[l].ytext !== undefined && r[l].ytext !== (r[l].text || ''));
+    return rows || members || ytexts;
+  }
+
+  function tellDirty() {
+    document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+  }
+
+  // take is the draft the band puts aside: every row's draft that is not what
+  // the file holds, every row a person added, every pick that was made, every
+  // YAML text that was typed — each with the hash of the file it was read from,
+  // so a file that moved outside is not written over by a page that read
+  // another one.
+  function take() {
+    const rows = [], ytexts = [], members = [];
+    roles.forEach((r) => {
+      PLACES.forEach((l) => {
+        const e = r[l];
+        if (!e) return;
+        if (!e.saved) {
+          rows.push({ place: l, saved: null, name: e.draft.name, hash: e.hash || '', draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
+        } else if (JSON.stringify(e.draft) !== JSON.stringify(e.saved)) {
+          rows.push({ place: l, saved: e.saved.name, name: e.draft.name, hash: e.hash || '', draft: e.draft });
+        }
+        if (e.ytext !== undefined && e.ytext !== (e.text || '')) {
+          ytexts.push({ place: l, name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext });
+        }
+      });
+    });
+    teams.forEach((t) => t.members.forEach((m) => {
+      if (m.draft !== m.saved) members.push({ team: t.id, hash: t.hash || '', name: m.name, saved: m.saved, draft: m.draft });
+    }));
+    return { rows, ytexts, members };
+  }
+
+  // restore puts the carried draft back, skipping every part whose file moved
+  // outside since the draft was made (spec-nav.md 1.5).
+  function restore(carried) {
+    (carried.rows || []).forEach((c) => {
+      const r = c.saved
+        ? roles.find((x) => x[c.place] && x[c.place].saved && x[c.place].saved.name === c.saved)
+        : roles.find((x) => x[c.place] && !x[c.place].saved && (x.noDoc || x.isNew || x[c.place].draft.name === c.name));
+      if (!r || !r[c.place]) return;
+      const e = r[c.place];
+      if (c.hash && e.hash !== c.hash) return;
+      e.draft = clone(c.draft);
+      rulesOf(e.draft).forEach((x) => { if (x._k > kseq) kseq = x._k; });
+      if (c.isNew) r.isNew = true;
+      clearTimeout(timers[r.uid + c.place]);
+      askCheck(r, c.place, null);
+    });
+    (carried.ytexts || []).forEach((c) => {
+      const r = roles.find((x) => x[c.place] && (x[c.place].saved || x[c.place].draft).name === c.name);
+      if (!r) return;
+      const e = r[c.place];
+      if (c.hash && e.hash !== c.hash) return;
+      e.ytext = c.text;
+    });
+    (carried.members || []).forEach((c) => {
+      const t = teams.find((x) => x.id === c.team);
+      if (!t || (c.hash && t.hash !== c.hash)) return;
+      const m = t.members.find((x) => x.name === c.name && x.saved === c.saved);
+      if (m) m.draft = c.draft;
+    });
+    render();
+  }
+
+  window.hergyPage = { screen: 'roles', dirty, take };
+
   // ---- boot ------------------------------------------------------------
   function updateTabs() { /* counts are drawn by render() */ }
 
@@ -1310,6 +1402,10 @@
     await Promise.all(roles.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => { r[l].__savedIssues = (checks[r.uid + l] || {}).issues; }))));
     // remember each saved document's own problems for the save gate (X3)
     roles.forEach((r) => PLACES.forEach((l) => { if (r[l] && r[l].saved) { const c = checks[r.uid + l]; if (c) r[l].__savedIssues = c.issues; } }));
+    // The band's promise: what one screen left unsaved is handed to this one,
+    // and dropped whether or not it could be put back.
+    const carried = window.hergyNav && window.hergyNav.takeDraft('roles');
+    if (carried) restore(carried);
     render();
     if (state.yfile) await ensureYAML(state.yfile);
   }

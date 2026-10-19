@@ -217,7 +217,7 @@ func e2eRolesStructure(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#tabs .tab').length`); got != 3 {
 		t.Errorf("the page has %d tabs, want 3", got)
 	}
-	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('#tabs .tab')].map(function(b){return b.dataset.t+'='+b.textContent.trim()}).join(',')`); got != "roles=ロール6,assign=割り当て15,yaml=YAML" {
+	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('#tabs .tab')].map(function(b){return b.dataset.t+'='+b.textContent.trim()}).join(',')`); got != "roles=一覧,assign=割り当て15,yaml=YAML" {
 		t.Errorf("the tabs read %q", got)
 	}
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role').length`); got != 6 {

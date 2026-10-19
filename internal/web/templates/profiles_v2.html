@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>hergy プロファイル</title>
 <link rel="stylesheet" href="/static/profiles-v2.css">
+<link rel="stylesheet" href="/static/nav.css">
+<script src="/static/nav.js" defer></script>
 <script src="/static/profiles-v2.js" defer></script>
 </head>
 <body>
 <div class="wrap">
+  {{template "nav_band" .Nav}}
   <header class="top">
-    <div class="crumb"><span class="mark">hergy</span><span class="sep">/</span><span>{{.Project}}</span></div>
     <nav class="tabs" id="tabs">
-      <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>プロファイル<span class="n">{{.ProfileCount}}</span></a>
+      <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>一覧</a>
       <a class="tab {{if eq .Tab "assign"}}on{{end}}" href="/profiles/assign"{{if eq .Tab "assign"}} aria-current="page"{{end}}>割り当て<span class="n">{{.AssignCount}}</span></a>
       <a class="tab {{if eq .Tab "yaml"}}on{{end}}" href="/profiles/yaml"{{if eq .Tab "yaml"}} aria-current="page"{{end}}>YAML</a>
     </nav>

@@ -27,7 +27,7 @@ const (
 // tab shows.
 type p2Data struct {
 	Lang         string
-	Project      string
+	Nav          navData
 	Tab          string
 	Token        string
 	ProfileCount int
