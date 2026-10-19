@@ -12,10 +12,12 @@ import (
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
-// Port is what Herdr needs from the CLI: the command check and JSON replies.
+// Port is what Herdr needs from the CLI: the command check, JSON replies, and
+// a command's plain-text output (agent read).
 type Port interface {
 	Verify(mode string) error
 	JSON(args ...string) (map[string]any, error)
+	Text(args ...string) (string, error)
 }
 
 // Herdr drives Herdr through a port.
@@ -207,6 +209,20 @@ func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) erro
 func (h *Herdr) Prompt(target, text string) error {
 	_, err := h.port.JSON("agent", "prompt", target, text)
 	return err
+}
+
+// SendKeys presses keys in a live agent's pane. hergy stop sends esc, which ends
+// the agent's current turn and keeps its conversation.
+func (h *Herdr) SendKeys(target, key string) error {
+	_, err := h.port.JSON("agent", "send-keys", target, key)
+	return err
+}
+
+// Read reads what a live agent's terminal shows, from the detection source: the
+// snapshot hergy status hashes to tell whether a working member's screen has
+// changed. It is a plain-text command, not JSON.
+func (h *Herdr) Read(target string) (string, error) {
+	return h.port.Text("agent", "read", target, "--source", "detection")
 }
 
 // Agent looks up a live agent by name or pane id.

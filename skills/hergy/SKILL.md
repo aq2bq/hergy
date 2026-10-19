@@ -13,13 +13,13 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 - Starting a team, adding a worker, closing a team: hergy.
 - Reaching a teammate, driving a pane: herdr.
-- Whether anyone is waiting on the human, or nobody is working: `hergy status`.
+- Whether anyone is waiting on the human, or nobody is working: `hergy status`. A member whose screen has not changed while it works is marked with how long it has stood.
 
 ## Team definitions and team names
 
 - A team definition is the directory `teams/<name>/` with its `team.yaml`; `hergy up`, `hergy new` and `hergy show` take a team definition name.
 - `team.yaml` must write `mission:` — one line saying what the team is for. A definition that writes none, or writes one over more than one line, does not read. The commands that handle a team print it at the top of their header, and so do the web UI's team list and team screen.
-- A team is a running team, named by `hergy up --as` or, without it, by the team definition name; `hergy down`, `hergy status`, `hergy refresh`, `hergy reprompt` and `hergy hire` take a team name and find the definition from this machine's launch record. The team's herdr tab is labelled with the team's name alone, so a tab a person sees says the team, not the definition it came from; a team booted by an older hergy still has the definition in its tab's label, and is still found.
+- A team is a running team, named by `hergy up --as` or, without it, by the team definition name; `hergy down`, `hergy status`, `hergy refresh`, `hergy reprompt`, `hergy hire`, `hergy focus`, `hergy nudge`, `hergy stop` and `hergy tell` take a team name and find the definition from this machine's launch record. The team's herdr tab is labelled with the team's name alone, so a tab a person sees says the team, not the definition it came from; a team booted by an older hergy still has the definition in its tab's label, and is still found.
 - `hergy status` with no team name lists every running team, with its team definition name.
 
 ## Before you run one
@@ -31,6 +31,14 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - `hergy` sets `GY_ACTOR=<herdr name>` in every pane it makes, so an agent's records in gy carry the name herdr knows it by; the bootstrap prompt tells the agent not to change it. A profile that writes `GY_ACTOR` does not win, and `hergy validate` warns when one does.
 - `hergy down` closes the panes of the team you are in, your own pane included, and that pane last.
 - To read output, add `--lang en`, or use `--dry --json`; the `next:` line names what to type next.
+
+## Reaching a member
+
+- `hergy focus <member>` moves herdr's focus to that member's pane, so a person can answer it there.
+- `hergy nudge <member> [text]` sends a short push to carry on, only when the member is idle or done: a working or blocked member is refused, and nothing is sent. With no text it sends a short "carry on". The text is headed by who sent it: the member whose pane you type in, else the human.
+- `hergy stop <member>` sends esc, ending the member's current turn and keeping its conversation; a member that is not working is left alone, and the command still succeeds. After a real stop it names `hergy refresh <member>` as the next step. A member cannot stop itself: hergy runs in that member's pane.
+- `hergy tell <member> "<text>" [--from <member>]` sends a message headed by `--from`, else the member whose pane you type in, else the human. It does not read the member's state, so the message reaches an agent in any state. A `--from` name outside the team is refused.
+- All four take a member by short member name or herdr name, and `--team <team>` picks the running team; none needs a herdr-managed pane of its own. `--dry` prints what would be sent and sends nothing (focus has no `--dry`).
 
 ## While you are inside a team
 

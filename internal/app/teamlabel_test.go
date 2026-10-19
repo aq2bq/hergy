@@ -119,7 +119,7 @@ printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in

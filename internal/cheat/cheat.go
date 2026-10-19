@@ -100,6 +100,14 @@ var behavior = map[options.Kind]string{
       Both <member> and --all is an error; neither is an error.
       If any selected member is not idle or done, nothing is sent and the whole command errors.
 `,
+	options.Focus: `      Move the focus to a member's pane, by short member name or herdr name, so a person can answer it there. It changes nothing else.
+`,
+	options.Nudge: `      Send a member a short push to carry on, only when it is idle or done: a working or blocked member is left alone, and the whole command errors. The text is headed by who it is from (the member whose pane you type in, else the human); with no text, a short "carry on". --dry prints the message and reads nothing.
+`,
+	options.Stop: `      Send esc to a working member, ending its current turn and keeping its conversation. An idle or done member is left alone, and the command still succeeds: there is nothing to stop. A member running in your own pane (HERDR_PANE_ID) is refused. After a real stop it names refresh as the next step. --dry prints what would stop and reads nothing.
+`,
+	options.Tell: `      Send a member a message headed by who it is from: --from names a member (short member name or herdr name), else the member whose pane you type in, else the human. It does not read the member's state, so the message reaches an agent in any state. --dry prints the message and reads nothing.
+`,
 	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for.
 `,
 	options.Ls: `      List the visible team definitions and the running team names each one booted.
@@ -125,8 +133,8 @@ var behavior = map[options.Kind]string{
 var flagMeaning = map[string]string{
 	"ai":      "Print the agent cheatsheet (this text) instead of the short one. Always English.",
 	"as":      "Run the team definition under this team name. The team name is the first half of the herdr name; without it, the team definition name.",
-	"dry":     "Print what would happen and change nothing. up, reprompt and hire never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane). --dry-run is an alias.",
-	"json":    "With --dry, print the plan as JSON. --json without --dry is an error.",
+	"dry":     "Print what would happen and change nothing. up, reprompt, hire, nudge, stop and tell never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane). --dry-run is an alias.",
+	"json":    "With --dry, print the plan as JSON; status --json prints its rows as JSON (state and unchanged_minutes) and is the one command that does not need --dry. --json without --dry is an error on every other command.",
 	"all":     "Act on every member instead of one <member>; both together is an error.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
 	"port":    "The port hergy serve listens on (default 8787; 0 lets the operating system pick a free one).",
@@ -134,7 +142,7 @@ var flagMeaning = map[string]string{
 	"team":    "The team, by team name, to act on.",
 	"purpose": "The worker's purpose.",
 	"task":    "The worker's task text.",
-	"from":    "The member hiring the worker; a short member name or a herdr name.",
+	"from":    "The member a hire is from, or, on tell, who the message is from; a short member name or a herdr name.",
 	"lang":    "The language for this run. The global config.yaml can set lang; --lang wins; default en.",
 	"dir":     "The project root to resolve against (default: the git root, else the current directory).",
 	"help":    "Print the page of the command, with each flag and what it means there. hergy --help lists every command.",
@@ -143,7 +151,8 @@ var flagMeaning = map[string]string{
 // tail is what comes after the Flags: section.
 const tail = `Running against herdr:
   up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
-  A team command (down, status, refresh, reprompt, hire) reads herdr's tabs to find the running team (a tab is a team's when the agents in it are named after the tab's label), and this machine's launch record only says which team definition a found tab came from. A team name with no hergy tab is an error, whatever the record holds. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status). down closes the panes named after the team even when its definition cannot be read.
+  focus, nudge, stop and tell read and drive herdr from anywhere; the pane you type in says who a message is from, and a member running in it cannot stop itself.
+  A team command (down, status, refresh, reprompt, hire, focus, nudge, stop, tell) reads herdr's tabs to find the running team (a tab is a team's when the agents in it are named after the tab's label), and this machine's launch record only says which team definition a found tab came from. A team name with no hergy tab is an error, whatever the record holds. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status). down closes the panes named after the team even when its definition cannot be read.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
@@ -155,6 +164,7 @@ Reading the output:
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
+  status --json prints its rows as JSON, the one command that does not need --dry: a team object with members, each {name, state, unchanged_minutes, live, worker}, where unchanged_minutes is the number of minutes a working member's screen has stood (absent when it changed or hergy had not seen it). With no team name it is {"teams": [...]}, one such object each.
   A JSON member always has name, role, kind, args, env, cwd (an absolute path) and prompt: env is the pane's environment, the profile's own variables plus GY_ACTOR. profile, workers, turns and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin).
@@ -190,7 +200,7 @@ Resolution:
 Team, definition and member names:
   members[].name is a short member name (lead, builder). hergy prefixes the team name, so the herdr name is <team>-<member>.
   --as <team> runs the same team definition under another name: the demo definition's lead is demo-lead, and dev2-lead with --as dev2.
-  refresh <member>, reprompt <member> and hire --from <member> accept the short member name or the herdr name; the short name is preferred.
+  refresh <member>, reprompt <member>, focus <member>, nudge <member>, stop <member>, tell <member> and hire --from <member> accept the short member name or the herdr name; the short name is preferred.
   The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<member> matches [a-z][a-z0-9_-]{0,31}.
 
 Settings files and their keys:

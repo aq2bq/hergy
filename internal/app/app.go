@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/cheat"
@@ -30,6 +32,7 @@ import (
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
+	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/spawn"
 	"github.com/aq2bq/hergy/internal/status"
@@ -158,6 +161,14 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runRefresh(ctx, env, opts, stdout, stderr)
 	case options.Reprompt:
 		return runReprompt(ctx, env, opts, stdout, stderr)
+	case options.Focus:
+		return runFocus(env, opts, stdout)
+	case options.Nudge:
+		return runNudge(env, opts, stdout)
+	case options.Stop:
+		return runStop(env, opts, stdout)
+	case options.Tell:
+		return runTell(env, opts, stdout)
 	case options.Hire:
 		return runHire(ctx, env, opts, stdout, stderr)
 	default:
@@ -1139,11 +1150,17 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return statusOfARunningTeam(opts, err)
 	}
-	printHeader(stdout, r, env, true)
 	rows, err := newLauncher(r, opts.Timeout, stdout).Status(r.starts)
 	if err != nil {
 		return err
 	}
+	markScreens(rows)
+	if opts.JSON {
+		return writeStatusJSON(stdout, statusJSONTeam{
+			Team: r.team.Name, Definition: r.team.Definition.Name, Members: statusJSONRows(rows),
+		})
+	}
+	printHeader(stdout, r, env, true)
 	for _, row := range rows {
 		field(stdout, row.Name, row.Text())
 	}
@@ -1173,12 +1190,16 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		return err
 	}
 	if len(running) == 0 {
+		if opts.JSON {
+			return printStatusJSONList(stdout, nil)
+		}
 		fmt.Fprintln(stdout, i18n.T("status.none"))
 		return nil
 	}
 	cat := env.Catalog(source.Disk{})
+	var teams []statusJSONTeam
 	for i, entry := range running {
-		if i > 0 {
+		if !opts.JSON && i > 0 {
 			fmt.Fprintln(stdout)
 		}
 		r, err := buildRunning(cat, env.ProjectRoot, entry)
@@ -1187,6 +1208,10 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			// so one such team does not hide the rest. A definition that is here
 			// but does not read says why, with its file's path; only a
 			// definition that is not here says "another project".
+			if opts.JSON {
+				teams = append(teams, statusJSONTeam{Team: entry.Team, Definition: entry.Definition, Error: brokenTeamLine(env, err)})
+				continue
+			}
 			field(stdout, label("team"), startedFrom(entry.Team, entry.Definition))
 			if errors.Is(err, catalog.ErrNotFound) {
 				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
@@ -1195,11 +1220,18 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			}
 			continue
 		}
-		field(stdout, label("team"), startedFrom(r.team.Name, r.team.Definition.Name))
 		rows, err := newLauncher(r, opts.Timeout, stdout).Status(r.starts)
 		if err != nil {
 			return err
 		}
+		markScreens(rows)
+		if opts.JSON {
+			teams = append(teams, statusJSONTeam{
+				Team: r.team.Name, Definition: r.team.Definition.Name, Members: statusJSONRows(rows),
+			})
+			continue
+		}
+		field(stdout, label("team"), startedFrom(r.team.Name, r.team.Definition.Name))
 		membersCount, workers := status.Counts(rows)
 		indentField(stdout, 1, label("members"), strconv.Itoa(membersCount))
 		indentField(stdout, 1, label("workers"), strconv.Itoa(workers))
@@ -1207,7 +1239,258 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			return err
 		}
 	}
+	if opts.JSON {
+		return printStatusJSONList(stdout, teams)
+	}
 	return nil
+}
+
+// statusRowJSON is one status row as JSON: the state hergy status prints, and
+// how long a working member's screen has stood (absent when hergy has not seen
+// it before, or it changed).
+type statusRowJSON struct {
+	Name             string `json:"name"`
+	State            string `json:"state"`
+	UnchangedMinutes *int   `json:"unchanged_minutes,omitempty"`
+	Live             bool   `json:"live"`
+	Worker           bool   `json:"worker,omitempty"`
+}
+
+func statusJSONRows(rows []status.Row) []statusRowJSON {
+	out := make([]statusRowJSON, 0, len(rows))
+	for _, row := range rows {
+		state := row.State
+		if !row.Live {
+			state = i18n.T("status.not_live")
+		}
+		out = append(out, statusRowJSON{
+			Name: row.Name, State: state, UnchangedMinutes: row.UnchangedMinutes,
+			Live: row.Live, Worker: row.Worker,
+		})
+	}
+	return out
+}
+
+// statusJSONTeam is one team's rows: the team name, the definition it was
+// booted from (empty when that cannot be read, with the reason in Error).
+type statusJSONTeam struct {
+	Team       string          `json:"team"`
+	Definition string          `json:"definition,omitempty"`
+	Error      string          `json:"error,omitempty"`
+	Members    []statusRowJSON `json:"members"`
+}
+
+// statusJSONList is status --json with no team name: every running team.
+type statusJSONList struct {
+	Teams []statusJSONTeam `json:"teams"`
+}
+
+func printStatusJSONList(w io.Writer, teams []statusJSONTeam) error {
+	if teams == nil {
+		teams = []statusJSONTeam{}
+	}
+	return writeStatusJSON(w, statusJSONList{Teams: teams})
+}
+
+func writeStatusJSON(w io.Writer, value any) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	return enc.Encode(value)
+}
+
+// screenMarks is what status keeps between runs, for one command line: the
+// member screens read last time, and the ones this run will leave behind. now is
+// a field, so a test can fix the clock and check the "N min" wording.
+type screenMarks struct {
+	log  screenlog.Log
+	prev map[string]screenlog.Entry
+	next map[string]screenlog.Entry
+	now  func() time.Time
+}
+
+// screenClock is the clock status stamps a fresh screen with. It is a variable
+// so a test can fix the time and check the "N min" wording without waiting.
+var screenClock = time.Now
+
+// openScreenMarks reads this machine's record of member screens. A record that
+// cannot be read leaves the marks off: the extra line is not worth failing the
+// command for.
+func openScreenMarks() (*screenMarks, error) {
+	log, err := screenlog.Open()
+	if err != nil {
+		return nil, err
+	}
+	prev, err := log.Read()
+	if err != nil {
+		return nil, err
+	}
+	next := make(map[string]screenlog.Entry, len(prev))
+	maps.Copy(next, prev)
+	return &screenMarks{log: log, prev: prev, next: next, now: screenClock}, nil
+}
+
+// mark fills each row's unchanged mark and records this run's screens. A member
+// whose screen is the same as last time keeps the time that screen was first
+// seen, so the mark counts the whole time it has stood, not the time since the
+// last status. A member whose screen is new starts that clock now.
+func (m *screenMarks) mark(rows []status.Row) {
+	now := m.now()
+	for i := range rows {
+		row := &rows[i]
+		if row.Screen == "" {
+			continue
+		}
+		entry, seen := m.prev[row.Name]
+		if seen && entry.Hash == row.Screen {
+			if row.Live && row.State == "working" {
+				minutes := int(now.Sub(entry.At).Minutes())
+				row.UnchangedMinutes = &minutes
+			}
+			continue
+		}
+		m.next[row.Name] = screenlog.Entry{Hash: row.Screen, At: now}
+	}
+}
+
+// save writes the record. A record that cannot be written is left, not reported.
+func (m *screenMarks) save() { _ = m.log.Write(m.next) }
+
+// markScreens records the screens of one team's rows, best effort: a machine
+// whose state directory cannot be read still prints status.
+func markScreens(rows []status.Row) {
+	marks, err := openScreenMarks()
+	if err != nil {
+		return
+	}
+	marks.mark(rows)
+	marks.save()
+}
+
+// runFocus moves the focus to one member's pane.
+func runFocus(env team.Env, opts *options.Options, stdout io.Writer) error {
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	if err != nil {
+		return err
+	}
+	member, err := r.member(opts.Member)
+	if err != nil {
+		return err
+	}
+	return newLauncher(r, opts.Timeout, stdout).Focus(member)
+}
+
+// runNudge sends one member a short push to carry on, only when it is idle or
+// done. --dry prints the message and sends nothing.
+func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	if err != nil {
+		return err
+	}
+	member, err := r.member(opts.Member)
+	if err != nil {
+		return err
+	}
+	body := opts.Body
+	if body == "" {
+		body = i18n.T("nudge.default")
+	}
+	text := sendText(senderName(r, os.Getenv("HERDR_PANE_ID")), body)
+	if opts.Dry {
+		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
+		return nil
+	}
+	return newLauncher(r, opts.Timeout, stdout).Nudge(member, text)
+}
+
+// runStop interrupts one member's current turn. --dry prints what would stop and
+// reads nothing.
+func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	if err != nil {
+		return err
+	}
+	member, err := r.member(opts.Member)
+	if err != nil {
+		return err
+	}
+	if opts.Dry {
+		fmt.Fprintf(stdout, i18n.T("stop.dry"), member.Name)
+		return nil
+	}
+	stopped, err := newLauncher(r, opts.Timeout, stdout).Stop(member, os.Getenv("HERDR_PANE_ID"))
+	if err != nil {
+		return err
+	}
+	if stopped {
+		printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
+	}
+	return nil
+}
+
+// runTell sends one member a message from a person or another member. --dry
+// prints the message and sends nothing.
+func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	if err != nil {
+		return err
+	}
+	member, err := r.member(opts.Member)
+	if err != nil {
+		return err
+	}
+	from, err := tellSender(r, opts)
+	if err != nil {
+		return err
+	}
+	text := sendText(from, opts.Body)
+	if opts.Dry {
+		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
+		return nil
+	}
+	return newLauncher(r, opts.Timeout, stdout).Tell(member, text)
+}
+
+// sendText heads a message with who it is from, the shape a member's own message
+// carries (prompt.self_intro_*). An empty from is the human.
+func sendText(from, body string) string {
+	if from == "" {
+		from = i18n.T("send.who_human")
+	}
+	return i18n.Tf("send.from", from) + " " + body
+}
+
+// senderName is which member of this team typed the command, read from the pane
+// hergy runs in: the herdr name of the member whose agent runs there, or "" when
+// the pane is not one of the team's members (the human).
+func senderName(r *resolved, selfPane string) string {
+	if selfPane == "" {
+		return ""
+	}
+	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(selfPane)
+	if err != nil {
+		return ""
+	}
+	for i := range r.starts {
+		if r.starts[i].Name == agent.Name {
+			return agent.Name
+		}
+	}
+	return ""
+}
+
+// tellSender is who a tell's message is from: --from resolved against the team,
+// else the pane's member, else the human (""). A --from name the team does not
+// have is refused.
+func tellSender(r *resolved, opts *options.Options) (string, error) {
+	if opts.From == "" {
+		return senderName(r, os.Getenv("HERDR_PANE_ID")), nil
+	}
+	member, err := r.member(opts.From)
+	if err != nil {
+		return "", i18n.Errorf("error.tell_from_unknown", opts.From)
+	}
+	return member.Name, nil
 }
 
 // brokenTeamLine is why a running team's definition cannot be read, as one line:

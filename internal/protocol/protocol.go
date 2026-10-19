@@ -147,8 +147,20 @@ var downGroups = []Group{
 }
 
 var statusGroups = []Group{
-	{Name: "agent", Subs: []string{"list"}},
+	{Name: "agent", Subs: []string{"list", "read"}},
 	{Name: "tab", Subs: []string{"list"}},
+}
+
+var focusGroups = []Group{
+	{Name: "agent", Subs: []string{"focus"}},
+}
+
+var promptGroups = []Group{
+	{Name: "agent", Subs: []string{"get", "prompt"}},
+}
+
+var stopGroups = []Group{
+	{Name: "agent", Subs: []string{"get", "send-keys"}},
 }
 
 // Mode is one hergy operation, which needs its own commands from Herdr.
@@ -161,8 +173,16 @@ const (
 	ModeReprompt = "reprompt"
 	// ModeDown closes live agents' panes; it starts nothing.
 	ModeDown = "down"
-	// ModeStatus reads the live agents and tabs; it starts and stops nothing.
+	// ModeStatus reads the live agents, their screens and the tabs; it starts
+	// and stops nothing.
 	ModeStatus = "status"
+	// ModeFocus moves a person's focus to a live agent's pane; it changes
+	// nothing else.
+	ModeFocus = "focus"
+	// ModePrompt sends a live agent a prompt (nudge, tell); it starts nothing.
+	ModePrompt = "prompt"
+	// ModeStop interrupts a live agent's turn (stop); it starts nothing.
+	ModeStop = "stop"
 )
 
 // RequiredCommands is the groups and subcommands needed for one operation.
@@ -177,6 +197,12 @@ func RequiredCommands(mode string) []Group {
 		return downGroups
 	case ModeStatus:
 		return statusGroups
+	case ModeFocus:
+		return focusGroups
+	case ModePrompt:
+		return promptGroups
+	case ModeStop:
+		return stopGroups
 	default:
 		return bootGroups
 	}
@@ -202,14 +228,7 @@ func CheckHelp(group string, subs []string, help string, exitStatus int) error {
 // Result turns a Herdr JSON reply into its result object, or an error.
 func Result(args []string, stdout, stderr string, exitStatus int) (map[string]any, error) {
 	if exitStatus != 0 {
-		detail := strings.TrimSpace(stderr)
-		if detail == "" {
-			detail = strings.TrimSpace(stdout)
-		}
-		return nil, &Error{
-			Code: replyCode(detail),
-			err:  i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail),
-		}
+		return nil, Failure(args, stdout, stderr, exitStatus)
 	}
 	var data map[string]any
 	if err := json.Unmarshal([]byte(stdout), &data); err != nil {
@@ -223,6 +242,21 @@ func Result(args []string, stdout, stderr string, exitStatus int) (map[string]an
 		return nil, i18n.Errorf("error.herdr_no_result")
 	}
 	return result, nil
+}
+
+// Failure is the error a Herdr command that ran and failed gives, from its exit
+// status and output. detail is the stderr, or the stdout when stderr is empty;
+// Code is Herdr's error code where the reply carries one, so a caller can tell
+// one kind of failure from another.
+func Failure(args []string, stdout, stderr string, exitStatus int) error {
+	detail := strings.TrimSpace(stderr)
+	if detail == "" {
+		detail = strings.TrimSpace(stdout)
+	}
+	return &Error{
+		Code: replyCode(detail),
+		err:  i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail),
+	}
 }
 
 // Error is a Herdr command that answered with an error. Code is Herdr's error

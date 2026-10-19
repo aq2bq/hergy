@@ -19,7 +19,7 @@ const passingHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -38,7 +38,7 @@ const liveHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -63,7 +63,7 @@ const statusHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -79,7 +79,7 @@ const absentHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -95,7 +95,7 @@ const noPaneHerdr = `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -179,7 +179,7 @@ printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -256,7 +256,7 @@ func (f *fixture) runningHerdr(t *testing.T, tabs, agents string) {
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -283,7 +283,7 @@ printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
-  for x in get prompt start list current split rename close create process-info; do echo "  herdr $g $x"; done
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
   exit 0
 fi
 case "$g $s" in
@@ -2054,7 +2054,7 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
 		"demo-lead: working",
-		"demo-builder: blocked",
+		"demo-builder: blocked (waiting for permission)",
 		"demo-w1: idle (worker)",
 		"waiting for a human: demo-builder",
 	)
@@ -2070,7 +2070,7 @@ func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 	for _, line := range []string{
 		"チーム: demo",
 		"demo-lead: working",
-		"demo-builder: blocked",
+		"demo-builder: blocked（許可待ち）",
 		"demo-w1: idle（ワーカー）",
 		"人間の返事待ち: demo-builder",
 	} {

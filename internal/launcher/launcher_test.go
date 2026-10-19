@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/status"
 )
 
@@ -44,6 +45,11 @@ type fakePort struct {
 	gone       map[string]bool
 	process    map[string][2]int
 	onAgentGet func(target string)
+
+	// screens is what `agent read` answers for a target, by herdr name. A target
+	// that is not in it answers a stable stand-in, so a status test can check the
+	// screen hash without pinning a real terminal.
+	screens map[string]string
 }
 
 func (p *fakePort) Verify(mode string) error {
@@ -161,6 +167,19 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	return nil, fmt.Errorf("unexpected herdr command: %v", args)
+}
+
+// Text answers `agent read`, the plain-text command status hashes.
+func (p *fakePort) Text(args ...string) (string, error) {
+	p.record(args...)
+	if len(args) >= 3 && args[0] == "agent" && args[1] == "read" {
+		target := args[2]
+		if screen, ok := p.screens[target]; ok {
+			return screen, nil
+		}
+		return "screen of " + target, nil
+	}
+	return "", fmt.Errorf("unexpected herdr text command: %v", args)
 }
 
 // commandTrail is the recorded calls as "<group> <sub>" pairs, so a test can
@@ -424,7 +443,7 @@ func TestStatusRowsMembersThenWorkers(t *testing.T) {
 		t.Fatalf("Status: %v", err)
 	}
 	want := []status.Row{
-		{Name: "dev-lead", State: "working", Live: true, PaneID: "p-lead", Title: "#42 の報告を待っている", Role: "role", Kind: "claude"},
+		{Name: "dev-lead", State: "working", Live: true, PaneID: "p-lead", Title: "#42 の報告を待っている", Role: "role", Kind: "claude", Screen: screenlog.Hash("screen of dev-lead")},
 		{Name: "dev-worker", Live: false, Role: "role", Kind: "claude"},
 		{Name: "dev-w1", State: "blocked", Live: true, Worker: true, PaneID: "p-w1", Title: "依存の更新を入れてよいか聞いている", Kind: "claude"},
 	}

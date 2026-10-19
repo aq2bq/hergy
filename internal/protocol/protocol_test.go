@@ -79,8 +79,8 @@ func TestResult(t *testing.T) {
 	}
 }
 
-// TestRequiredCommandsStatus: a status run reads the live agents and the live
-// tabs, and nothing else.
+// TestRequiredCommandsStatus: a status run reads the live agents, their screens
+// and the live tabs, and nothing else.
 func TestRequiredCommandsStatus(t *testing.T) {
 	var got []string
 	for _, group := range RequiredCommands(ModeStatus) {
@@ -88,7 +88,7 @@ func TestRequiredCommandsStatus(t *testing.T) {
 			got = append(got, group.Name+" "+sub)
 		}
 	}
-	want := []string{"agent list", "tab list"}
+	want := []string{"agent list", "agent read", "tab list"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("RequiredCommands(%s) needs %v, want %v", ModeStatus, got, want)
 	}
