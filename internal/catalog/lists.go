@@ -7,6 +7,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
+	"go.yaml.in/yaml/v3"
 )
 
 // RoleEntry is one row of the roles list a screen shows (3.5, spec/38 T2), in
@@ -33,9 +34,12 @@ type RoleEntry struct {
 
 // Roles is every role a name resolves to, as the roles list shows it (3.5,
 // spec/38 T2): one row per name, the project's document where both layers hold
-// the name. A role a readable definition names is a row whether or not a
-// document is there — a role is born when a member names one (3.5) — and a role
-// document a layer holds is a row too.
+// the name. A role a team definition names is a row whether or not a document is
+// there — a role is born when a member names one (3.5), and a definition that
+// does not read still names its members' roles (spec-roles 1.2.10) — and a role
+// document a layer holds is a row too. The order is the project's document names
+// first, then the names only the shared layer holds, then the names no document
+// holds (spec-roles 1.2「並び」).
 func (c *Catalog) Roles() []RoleEntry {
 	byName := map[string]*RoleEntry{}
 	add := func(name string) {
@@ -46,10 +50,8 @@ func (c *Catalog) Roles() []RoleEntry {
 			byName[name] = &RoleEntry{Name: name}
 		}
 	}
-	for _, def := range c.readable() {
-		for _, member := range def.Graph.Members {
-			add(member.Role)
-		}
+	for _, role := range c.namedRoles() {
+		add(role)
 	}
 	for _, one := range c.layers() {
 		for _, name := range roleNames(one.dir) {
@@ -138,36 +140,82 @@ func (c *Catalog) ProfileEntries() []ProfileEntry {
 	return out
 }
 
+// namedRoles is every role the team definitions name, read from each file as it
+// is: a definition that does not read still names the roles its members play, so
+// the role screen shows a row for a role a member points at (spec-roles 1.2.10).
+func (c *Catalog) namedRoles() []string {
+	var out []string
+	for _, listing := range c.Definitions() {
+		path := listing.GlobalPath
+		if listing.Local {
+			path = listing.LocalPath
+		}
+		text, ok, err := c.fileText(path)
+		if err != nil || !ok {
+			continue
+		}
+		var raw struct {
+			Members []struct {
+				Role string `yaml:"role"`
+			} `yaml:"members"`
+		}
+		if err := yaml.Unmarshal([]byte(text), &raw); err != nil {
+			continue
+		}
+		for _, member := range raw.Members {
+			out = append(out, member.Role)
+		}
+	}
+	return out
+}
+
 // rolePlace is where one layer's document for a role stands, whether or not it
 // is there.
 func (c *Catalog) rolePlace(layer, name string) string {
 	return filepath.Join(c.LayerDir(layer), "roles", name+".yaml")
 }
 
-// roleNames lists the role documents under one layer, by role name.
+// roleNames lists the role documents under one layer, by role name: the .yaml
+// hergy reads, and a .md still left as Markdown, which the screen shows as a row
+// that says so (spec-roles 1.2.10).
 func roleNames(dir string) []string {
-	matches, err := filepath.Glob(filepath.Join(dir, "roles", "*.yaml"))
-	if err != nil {
-		return nil
+	var names []string
+	for _, ext := range []string{"yaml", "md"} {
+		matches, err := filepath.Glob(filepath.Join(dir, "roles", "*."+ext))
+		if err != nil {
+			continue
+		}
+		for _, match := range matches {
+			names = append(names, strings.TrimSuffix(filepath.Base(match), "."+ext))
+		}
 	}
-	names := make([]string, 0, len(matches))
-	for _, match := range matches {
-		names = append(names, strings.TrimSuffix(filepath.Base(match), ".yaml"))
-	}
-	sort.Strings(names)
 	return names
 }
 
-// sortRoles turns the rows built by name into a list, by name.
+// sortRoles turns the rows built by name into a list: the project's documents by
+// name, then the names only the shared layer holds by name, then the names no
+// document holds by name (spec-roles 1.2「並び」).
 func sortRoles(byName map[string]*RoleEntry) []RoleEntry {
-	names := make([]string, 0, len(byName))
-	for name := range byName {
-		names = append(names, name)
+	rows := make([]RoleEntry, 0, len(byName))
+	for _, row := range byName {
+		rows = append(rows, *row)
 	}
-	sort.Strings(names)
-	out := make([]RoleEntry, 0, len(names))
-	for _, name := range names {
-		out = append(out, *byName[name])
+	rank := func(row RoleEntry) int {
+		switch {
+		case row.HasDocument && !row.Outside:
+			return 0
+		case row.HasDocument:
+			return 1
+		default:
+			return 2
+		}
 	}
-	return out
+	sort.Slice(rows, func(i, j int) bool {
+		ri, rj := rank(rows[i]), rank(rows[j])
+		if ri != rj {
+			return ri < rj
+		}
+		return rows[i].Name < rows[j].Name
+	})
+	return rows
 }

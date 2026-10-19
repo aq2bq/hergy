@@ -33,13 +33,14 @@ type p2Answer struct {
 	headers map[string]string
 }
 
-// p2JSONAnswer is a JSON answer.
-func p2JSONAnswer(status int, value any) p2Answer {
+// p2JSONAnswer is a JSON answer: a success, so always 200. A refusal is a
+// sentence a person reads, and p2TextAnswer carries it with its own status.
+func p2JSONAnswer(value any) p2Answer {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return p2TextAnswer(http.StatusInternalServerError, err.Error())
 	}
-	return p2Answer{status: status, ctype: "application/json; charset=utf-8", body: string(raw)}
+	return p2Answer{status: http.StatusOK, ctype: "application/json; charset=utf-8", body: string(raw)}
 }
 
 // p2TextAnswer is a refusal: the sentence a person reads, and a status.
@@ -197,7 +198,7 @@ func (s *Server) p2Check(r *http.Request) p2Answer {
 	text, _ := s.p2Text(path)
 	entries, _ := profile.ReadAll(text, display)
 	problems := profile.CheckDraft(draft.profileOf(), entries, r.PostFormValue("original"))
-	return p2JSONAnswer(http.StatusOK, map[string]any{"problems": p2ProblemsJSON(problems)})
+	return p2JSONAnswer(map[string]any{"problems": p2ProblemsJSON(problems)})
 }
 
 // p2ProblemsJSON is problems as the page reads them.
@@ -221,7 +222,7 @@ func (s *Server) p2YAMLCheck(r *http.Request) p2Answer {
 	for _, problem := range p2Sorted(problems) {
 		out = append(out, map[string]any{"sev": problem.Sev.Word(), "line": problem.Line, "text": problem.Text})
 	}
-	return p2JSONAnswer(http.StatusOK, map[string]any{"problems": out})
+	return p2JSONAnswer(map[string]any{"problems": out})
 }
 
 // p2Save writes one panel of the profile tab.

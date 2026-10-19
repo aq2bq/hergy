@@ -95,7 +95,6 @@ func e2eBands(t *testing.T, ctx context.Context, base string) {
 	cases := []struct{ path, lead, band string }{
 		{"/", "チーム定義", "チーム定義"},
 		{"/activity", "活動", "活動"},
-		{"/roles", "ロール", "ロール"},
 	}
 	for _, c := range cases {
 		e2eRun(t, ctx, chromedp.Navigate(base+c.path), chromedp.WaitReady("main h1"))
@@ -175,7 +174,7 @@ func e2eClose(t *testing.T, ctx context.Context, base string) {
 	e2eWaitClosed(t, ctx, "Escape")
 
 	// The browser's back returns to the page the field was opened from.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("main h1"))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("#tabs .tab"))
 	open()
 	e2eRun(t, ctx, chromedp.Evaluate(`window.history.back()`, nil))
 	e2eWaitURL(t, ctx, base+"/roles")
@@ -409,7 +408,7 @@ func e2eDraft(t *testing.T, ctx context.Context, base string) {
 // press.
 func e2ePressable(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity", "/roles", "/roles/lead", "/agreement", "/profiles"} {
+	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity", "/roles", "/roles/assign", "/roles/yaml", "/agreement", "/profiles"} {
 		e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
 		var dead []string
 		script := `(function(){

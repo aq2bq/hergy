@@ -155,8 +155,6 @@ func agreementRulePath(id string) string { return "/agreement/" + url.PathEscape
 
 func rolePath(role string) string { return "/roles/" + url.PathEscape(role) }
 
-func roleRulePath(role, id string) string { return rolePath(role) + "/" + url.PathEscape(id) }
-
 func profilePath(name string) string { return "/profiles/" + url.PathEscape(name) }
 
 func teamPath(name string) string { return "/activity/" + url.PathEscape(name) }

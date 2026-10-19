@@ -43,6 +43,10 @@ type Catalog struct {
 	// own edit through With, so a text it has not written yet reads back. The
 	// zero value reads every file from disk.
 	overlays map[string]string
+	// hidden are the paths the catalog reads as though they were not there
+	// (C5): a screen checks a draft that removes a document, so the reading has
+	// to see the removal before it is written. Without adds one.
+	hidden map[string]bool
 }
 
 // New builds a catalog over the two layer directories and the project root.
@@ -83,7 +87,27 @@ func (c *Catalog) With(path, text string) *Catalog {
 	out.overlays = make(map[string]string, len(c.overlays)+1)
 	maps.Copy(out.overlays, c.overlays)
 	out.overlays[filepath.Clean(path)] = text
-	out.reader = overlayReader{base: c.reader, overlays: out.overlays}
+	out.reader = overlayReader{base: c.reader, overlays: out.overlays, hidden: c.hidden}
+	return &out
+}
+
+// Without returns a catalog that reads one path as though the file were not
+// there (C5): a screen checks a draft that removes a document, and the reading
+// has to see the removal before it is written. A text laid over the same path
+// by With is dropped, because a file cannot be both there and not there.
+// Everything else reads as before, and the receiver is left as it was.
+func (c *Catalog) Without(path string) *Catalog {
+	out := *c
+	clean := filepath.Clean(path)
+	out.hidden = make(map[string]bool, len(c.hidden)+1)
+	maps.Copy(out.hidden, c.hidden)
+	out.hidden[clean] = true
+	if _, overlaid := c.overlays[clean]; overlaid {
+		out.overlays = make(map[string]string, len(c.overlays))
+		maps.Copy(out.overlays, c.overlays)
+		delete(out.overlays, clean)
+	}
+	out.reader = overlayReader{base: c.reader, overlays: out.overlays, hidden: out.hidden}
 	return &out
 }
 
@@ -94,25 +118,40 @@ func (c *Catalog) With(path, text string) *Catalog {
 // the text the screen is editing.
 func (c *Catalog) Reader() source.Reader { return c.reader }
 
-// readThrough is the text an overlay carries for a path, if one does.
+// readThrough is the text an overlay carries for a path, if one does. A hidden
+// path carries none: it reads as absent (C5).
 func (c *Catalog) readThrough(path string) (string, bool) {
+	if c.hidden[filepath.Clean(path)] {
+		return "", false
+	}
 	text, ok := c.overlays[filepath.Clean(path)]
 	return text, ok
 }
 
 // overlayReader is a reader with the files a catalog carries answered by their
-// texts rather than by disk (C3b): the files the screen is editing.
+// texts rather than by disk (C3b), and the files it hides answered as absent
+// (C5): the files the screen is editing, and the one it is removing.
 type overlayReader struct {
 	base     source.Reader
 	overlays map[string]string
+	hidden   map[string]bool
 }
 
 func (r overlayReader) text(path string) (string, bool) {
+	if r.hidden[filepath.Clean(path)] {
+		return "", false
+	}
 	text, ok := r.overlays[filepath.Clean(path)]
 	return text, ok
 }
 
+// gone reports whether a path reads as absent (C5).
+func (r overlayReader) gone(path string) bool { return r.hidden[filepath.Clean(path)] }
+
 func (r overlayReader) Read(d source.Doc) (string, error) {
+	if r.gone(d.Path) {
+		return "", os.ErrNotExist
+	}
 	if text, ok := r.text(d.Path); ok {
 		return text, nil
 	}
@@ -120,6 +159,9 @@ func (r overlayReader) Read(d source.Doc) (string, error) {
 }
 
 func (r overlayReader) IsFile(d source.Doc) bool {
+	if r.gone(d.Path) {
+		return false
+	}
 	if _, ok := r.text(d.Path); ok {
 		return true
 	}
@@ -127,6 +169,9 @@ func (r overlayReader) IsFile(d source.Doc) bool {
 }
 
 func (r overlayReader) IsDir(d source.Doc) bool {
+	if r.gone(d.Path) {
+		return false
+	}
 	if _, ok := r.text(d.Path); ok {
 		return false
 	}
@@ -134,6 +179,9 @@ func (r overlayReader) IsDir(d source.Doc) bool {
 }
 
 func (r overlayReader) YAMLIn(d source.Doc) ([]source.Doc, error) {
+	if r.gone(d.Path) {
+		return nil, nil
+	}
 	if _, ok := r.text(d.Path); ok {
 		return nil, nil
 	}
@@ -141,6 +189,9 @@ func (r overlayReader) YAMLIn(d source.Doc) ([]source.Doc, error) {
 }
 
 func (r overlayReader) MarkdownIn(d source.Doc) ([]source.Doc, error) {
+	if r.gone(d.Path) {
+		return nil, nil
+	}
 	if _, ok := r.text(d.Path); ok {
 		return nil, nil
 	}
@@ -151,6 +202,9 @@ func (r overlayReader) MarkdownIn(d source.Doc) ([]source.Doc, error) {
 // for this path (C3b). A file that is not there is an error, as it is for a read
 // from disk.
 func (c *Catalog) readText(path string) (string, error) {
+	if c.hidden[filepath.Clean(path)] {
+		return "", os.ErrNotExist
+	}
 	if text, ok := c.readThrough(path); ok {
 		return text, nil
 	}
@@ -162,8 +216,11 @@ func (c *Catalog) readText(path string) (string, error) {
 }
 
 // hasFile reports whether a settings file is there to read: on disk, or as a
-// carried text standing in for it (C3b).
+// carried text standing in for it (C3b). A hidden path is not there (C5).
 func (c *Catalog) hasFile(path string) bool {
+	if c.hidden[filepath.Clean(path)] {
+		return false
+	}
 	if _, ok := c.readThrough(path); ok {
 		return true
 	}
@@ -465,6 +522,9 @@ func (c *Catalog) Profiles() (map[string]profile.Profile, string, error) {
 // the path (C3b), the file's when it is there, and ok=false when there is
 // nothing to read.
 func (c *Catalog) fileText(path string) (text string, ok bool, err error) {
+	if c.hidden[filepath.Clean(path)] {
+		return "", false, nil
+	}
 	if text, carried := c.readThrough(path); carried {
 		return text, true, nil
 	}

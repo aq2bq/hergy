@@ -200,14 +200,20 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	get("/activity/{team}", s.teamActivity)
 	post("/activity/{team}/focus", s.focus)
 
-	// ロール (3.5).
-	get("/roles", s.roles)
-	get("/roles/{role}", s.role)
-	get("/roles/{role}/new", s.roleNew)
-	get("/roles/{role}/{rule}", s.roleRule)
-	post("/roles/{role}", s.writeRole)
-	post("/roles/{role}/new", s.addRoleRule)
-	post("/roles/{role}/{rule}", s.saveRoleRule)
+	// ロール (r-778c): the three tabs, their checks and their writes. The old
+	// page-per-role URLs move to the opened row (設計 6 節).
+	mux.HandleFunc("GET /roles", func(w http.ResponseWriter, r *http.Request) { s.r2Page(w, r, "roles") })
+	mux.HandleFunc("GET /roles/assign", func(w http.ResponseWriter, r *http.Request) { s.r2Page(w, r, "assign") })
+	mux.HandleFunc("GET /roles/yaml", func(w http.ResponseWriter, r *http.Request) { s.r2Page(w, r, "yaml") })
+	mux.HandleFunc("GET /roles/{role}", s.r2OldRole)
+	mux.HandleFunc("GET /roles/{role}/new", s.r2OldRoleNew)
+	mux.HandleFunc("GET /roles/{role}/{rule}", s.r2OldRoleRule)
+	mux.HandleFunc("POST /roles/check", s.p2Post(s.r2Check))
+	mux.HandleFunc("POST /roles/yaml/check", s.p2Post(s.r2YAMLCheck))
+	mux.HandleFunc("POST /roles/save", s.p2Post(s.r2Save))
+	mux.HandleFunc("POST /roles/delete", s.p2Post(s.r2Delete))
+	mux.HandleFunc("POST /roles/yaml/save", s.p2Post(s.r2YAMLSave))
+	mux.HandleFunc("POST /roles/assign/save", s.p2Post(s.r2AssignSave))
 
 	// 共通の約束 (3.6).
 	get("/agreement", s.agreement)

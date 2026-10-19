@@ -1,0 +1,34 @@
+version: 1
+title: migrate チームの約束
+revision: 2
+sections:
+  - heading: 移し方
+    style: ids
+    rules:
+      - id: MIG-1
+        text: 移行は 1 回に 1 つの決済手段だけにする。移したあと 1 週間は古い基盤を止めず、両方の結果を毎日突き合わせる。
+        why: 3 つの決済手段を一度に移し、どれが差額を出しているのか切り分けられなかった。
+        origin:
+          - kind: incident
+            date: "2026-08-19"
+            refs: [d-0e42]
+      - id: MIG-2
+        text: 移行の手順書には、戻す手順を同じ細かさで書く。戻す手順を試していない移行は始めない。
+        origin:
+          - kind: instruction
+            date: "2026-08-21"
+            refs: [d-0e50]
+      - id: MIG-3
+        text: 金額の計算は整数の最小単位（円、セント）で行い、小数で持たない。丸めが要る所には、丸め方の名前を書く。
+  - heading: 確かめ
+    style: ids
+    rules:
+      - id: MIG-4
+        text: 移した日の取引は、古い基盤と新しい基盤の両方で件数と合計額を数え、差があれば移行を止めて lead に知らせる。
+        origin:
+          - kind: derived
+            refs: [MIG-1]
+      - id: MIG-5
+        text: 試験には本物の規模の作り物（1 日ぶんの取引の件数と金額の分布）を使う。数件の作り物だけで通ったと言わない。
+      - id: MIG-6
+        text: 外部の決済事業者の試験環境を使う日は、前日までに台帳へ書く。試験環境の呼び出しの上限を超えないようにする。

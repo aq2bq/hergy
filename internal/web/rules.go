@@ -28,7 +28,6 @@ import (
 type rulesPlace struct {
 	Doc  source.Doc
 	Def  string
-	Role string
 	Page rulesPage
 }
 
@@ -37,7 +36,6 @@ type rulesPage int
 
 const (
 	pageDefinition rulesPage = iota // the definition's detail, which holds the team agreement
-	pageRole                        // one role's document
 	pageShared                      // the agreement every team shares
 )
 
@@ -45,8 +43,6 @@ const (
 // what a card the document is adding stands beside (設計 3.8).
 func (p rulesPlace) document() string {
 	switch p.Page {
-	case pageRole:
-		return rolePath(p.Role)
 	case pageShared:
 		return "/agreement"
 	default:
@@ -66,8 +62,6 @@ func (p rulesPlace) parent() string {
 // ruleURL is where one rule's card stands.
 func (p rulesPlace) ruleURL(id string) string {
 	switch p.Page {
-	case pageRole:
-		return roleRulePath(p.Role, id)
 	case pageShared:
 		return agreementRulePath(id)
 	default:
@@ -84,8 +78,6 @@ func (p rulesPlace) addURL(section int) string {
 // missingRule is the one line a field says when the document holds no such rule.
 func (p rulesPlace) missingRule(id string) string {
 	switch p.Page {
-	case pageRole:
-		return tf("web.missing.role_rule", p.Role, id)
 	case pageShared:
 		return tf("web.missing.shared_rule", id)
 	default:
@@ -103,15 +95,6 @@ func (s *Server) teamPlace(name string) rulesPlace {
 	return place
 }
 
-// rolePlace is one role's document.
-func (s *Server) rolePlace(role string) rulesPlace {
-	place := rulesPlace{Role: role, Page: pageRole}
-	if doc, ok := s.cat.Role(role); ok {
-		place.Doc = doc
-	}
-	return place
-}
-
 // sharedPlace is the agreement every team of the place shares.
 func (s *Server) sharedPlace() rulesPlace {
 	place := rulesPlace{Page: pageShared}
@@ -119,12 +102,6 @@ func (s *Server) sharedPlace() rulesPlace {
 		place.Doc = doc
 	}
 	return place
-}
-
-// madePlace is where a document that is not there yet goes (K2, W8): the place
-// itself, with nothing behind it, so the same save path can write it.
-func (s *Server) madeRolePlace(role string) rulesPlace {
-	return rulesPlace{Doc: source.Doc{Path: s.cat.NewPlace(catalog.NewRole, role)}, Role: role, Page: pageRole}
 }
 
 // madeSharedPlace is where a shared agreement that is not there yet goes.
@@ -692,8 +669,6 @@ func sectionOf(r *http.Request) int {
 // after a write, the saved line and what a running team takes up (設計 3.8).
 func (s *Server) rulesPage(place rulesPlace, open *ruleOpen, line saved, notice string, reload bool) (view, error) {
 	switch place.Page {
-	case pageRole:
-		return s.rolePage(place, open, line, notice, reload)
 	case pageShared:
 		return s.agreementPage(place, open, line, notice, reload)
 	default:

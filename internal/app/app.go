@@ -942,50 +942,14 @@ type teamSize struct {
 }
 
 // sizeOf counts what one team definition hands each member and what the team
-// keeps. Each rule file is read and parsed once; a file two members read is
-// counted in the team's sources once, because a person maintains it once.
+// keeps. The count lives in internal/check (C7), so hergy validate and the role
+// screen count the amount a member is handed in one place.
 func sizeOf(r *resolved) teamSize {
-	parsed := map[string]*rules.Document{}
-	texts := map[string]string{}
-	load := func(doc source.Doc) *rules.Document {
-		if document, ok := parsed[doc.Path]; ok {
-			return document
-		}
-		text, err := os.ReadFile(doc.Path)
-		if err != nil {
-			parsed[doc.Path] = nil
-			return nil
-		}
-		texts[doc.Path] = string(text)
-		document, err := rules.Parse(string(text), doc.Path)
-		if err != nil {
-			parsed[doc.Path] = nil
-			return nil
-		}
-		parsed[doc.Path] = document
-		return document
+	size := check.SizeOf(r.starts, source.Disk{})
+	team := teamSize{size: size.Team}
+	for _, member := range size.Members {
+		team.members = append(team.members, memberSize{name: member.Name, size: member.Size})
 	}
-	var team teamSize
-	var size rules.TeamSize
-	for i := range r.starts {
-		member := &r.starts[i]
-		var read rules.MemberSize
-		files := make([]source.Doc, 0, len(member.Read)+1)
-		if member.HasRole {
-			files = append(files, member.RoleDoc)
-		}
-		files = append(files, member.Read...)
-		for _, doc := range files {
-			if document := load(doc); document != nil {
-				read.Add(document)
-			}
-			if text, ok := texts[doc.Path]; ok {
-				size.AddSource(doc.Path, text)
-			}
-		}
-		team.members = append(team.members, memberSize{name: member.Name, size: read})
-	}
-	team.size = size
 	return team
 }
 
@@ -1014,11 +978,11 @@ func printSize(w io.Writer, teams []teamSize) {
 		for _, member := range team.members {
 			line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars))
 			if member.size.OverMemberRules() {
-				line(i18n.Tf("validate.size_warn_member_rules", member.name, member.size.Rules, rules.MemberRuleLimit))
+				line(i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning(member.name, member.size.Rules)))
 				warned = true
 			}
 			if member.size.OverMemberChars() {
-				line(i18n.Tf("validate.size_warn_member_chars", member.name, member.size.Chars, rules.MemberCharLimit))
+				line(i18n.Tf("validate.size_warn_member_chars", check.MemberCharsWarning(member.name, member.size.Chars)))
 				warned = true
 			}
 		}

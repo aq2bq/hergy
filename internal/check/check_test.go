@@ -90,8 +90,17 @@ func (f *fixture) roles() {
 // role writes one role document with the rules a test wants compared.
 func (f *fixture) role(name, rules string) {
 	f.t.Helper()
-	f.write(filepath.Join(f.proj, ".hergy", "roles", name+".yaml"),
-		"version: 1\ntitle: "+name+"\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n"+rules)
+	f.roleText(name, rules)
+}
+
+// roleText writes one role document and returns its text, so a test that calls
+// check.Role, which reads the document the screen hands it rather than the disk,
+// can hand it what it wrote.
+func (f *fixture) roleText(name, rules string) string {
+	f.t.Helper()
+	text := "version: 1\ntitle: " + name + "\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" + rules
+	f.write(filepath.Join(f.proj, ".hergy", "roles", name+".yaml"), text)
+	return text
 }
 
 // findings is the definition's findings, by the one way a name is looked up.

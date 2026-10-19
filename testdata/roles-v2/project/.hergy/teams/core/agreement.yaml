@@ -1,0 +1,59 @@
+version: 1
+title: core チームの約束
+revision: 3
+sections:
+  - heading: 進め方
+    style: ids
+    rules:
+      - id: CORE-1
+        text: 仕事は台帳の要求 1 つから始め、台帳に書いてから動く。会話の中にしかない合意は、無いものとして扱う。
+        why: 口頭で決めたことが翌日には誰の記憶にも残っておらず、同じ議論をもう一度した。
+        origin:
+          - kind: incident
+            date: "2026-09-08"
+            refs: [d-1a20]
+      - id: CORE-2
+        text: 次に動く人へ番を渡すときは、渡す相手と、相手に求めることを 1 文で添える。相手が会話を読まずに着手できる文にする。
+        origin:
+          - kind: instruction
+            date: "2026-09-08"
+            refs: [d-1a20]
+      - id: CORE-3
+        text: 注文 API の公開している形（パス、項目の名前、エラーの番号）は、要求に書かれていない限り変えない。
+      - id: CORE-4
+        text: 作業はそれぞれのワークツリーで行い、終わったら lead に取り込みを頼む。main には lead 以外が触らない。
+        origin:
+          - kind: instruction
+            date: "2026-09-14"
+            refs: [d-4c11]
+  - heading: 境界
+    style: ids
+    rules:
+      - id: CORE-5
+        text: 同じファイルを 2 人が同時に直さない。触る前に台帳でそのファイルの名前を探し、ほかの人の作業中なら lead に順番を問う。
+        why: 2 人が同じ移行ファイルを並行して直し、片方の変更が取り込みで消えた。
+        origin:
+          - kind: incident
+            date: "2026-09-20"
+            refs: [d-58e2]
+      - id: CORE-6
+        text: 本番のデータベースには誰も直接つながない。調べたいことがあれば、写しのデータベースで調べ、使った問い合わせを台帳に残す。
+      - id: CORE-7
+        text: 鍵、トークン、顧客の情報を、コード、コミット、台帳、会話のどこにも書かない。見つけたらすぐ lead に知らせる。
+        why: 試しに貼ったトークンがコミットに残り、鍵を作り直した。
+        send_why: false
+        origin:
+          - kind: incident
+            date: "2026-08-27"
+            refs: [d-0f31]
+  - heading: 終わり
+    style: ids
+    rules:
+      - id: CORE-8
+        text: 仕事の終わりは、コミットと実装記録の 2 つがそろったとき。どちらか一方だけで「できた」と言わない。
+      - id: CORE-9
+        text: CI が落ちたまま次の仕事に移らない。落ちた理由が自分の変更でなければ、その旨を台帳に書いて lead に知らせる。
+        origin:
+          - kind: instruction
+            date: "2026-10-01"
+            refs: [d-6a14]
