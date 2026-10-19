@@ -626,7 +626,11 @@ func e2eNavWait(t *testing.T, ctx context.Context, script string) {
 	t.Fatalf("never became true: %s", script)
 }
 
-// e2eNavWaitPath waits until the page's address ends with one path.
+// e2eNavWaitPath waits until the page's address ends with one path, and the
+// document has loaded. The address alone is not enough: the band remembers
+// where a person stood and points each screen's link at those places when the
+// document loads (nav.js 1.4), so reading or pressing before that acts on the
+// addresses the server wrote, not on the band's (r-3c41).
 func e2eNavWaitPath(t *testing.T, ctx context.Context, path string) {
 	t.Helper()
 	deadline := time.Now().Add(8 * time.Second)
@@ -634,6 +638,7 @@ func e2eNavWaitPath(t *testing.T, ctx context.Context, path string) {
 		var loc string
 		e2eRun(t, ctx, chromedp.Evaluate(`location.pathname + location.search`, &loc))
 		if loc == path {
+			e2eNavLoaded(t, ctx)
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -643,9 +648,17 @@ func e2eNavWaitPath(t *testing.T, ctx context.Context, path string) {
 	t.Fatalf("the page never reached %q (it is at %q)", path, loc)
 }
 
+// e2eNavLoaded waits until the document has loaded. A person cannot press
+// before the page is there; a driver can, so the test waits for it.
+func e2eNavLoaded(t *testing.T, ctx context.Context) {
+	t.Helper()
+	e2eNavWait(t, ctx, `document.readyState === 'complete'`)
+}
+
 // e2eNavClick presses one element the way a person presses it.
 func e2eNavClick(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
+	e2eNavLoaded(t, ctx)
 	script := `(function(){var el=document.querySelector(` + strconv.Quote(selector) + `);if(!el){throw new Error('no element for '+` + strconv.Quote(selector) + `);}el.click();})()`
 	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
 }
