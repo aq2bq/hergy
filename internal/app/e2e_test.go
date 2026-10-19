@@ -6,43 +6,52 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/options"
-	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
+
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/team"
 )
 
-// TestE2E walks the screens in a real headless Chrome (設計 8 節の E2E の行). It
-// runs the serve the way a person does: the command with --no-open, a working
-// XDG, and a fake herdr, and then drives the pages with chromedp. It is behind
-// the e2e build tag, which the e2e gate of go run ./tools/check passes.
-//
-// Chrome missing fails the run in CI and skips it on a laptop with one line
-// (d-a8b1 の W3).
-func TestE2E(t *testing.T) {
+// TestE2ENav walks the navigation band over the real-scale fixture
+// (testdata/profiles-v2 + testdata/roles-v2 + testdata/nav, spec-nav.md 5.1):
+// the four names and the three numbers, the two screens, where a person last
+// stood, the changes one screen carries to the other, the URLs the old WebUI
+// answered, and the six widths and lights of 5.2. It runs the serve the way a
+// person does — the command with --no-open, a working XDG, a made-up herdr —
+// and drives the pages with chromedp.
+func TestE2ENav(t *testing.T) {
 	chrome := chromeBinary(t)
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := newFixture(t)
 	initLocales(t)
-	// The global config says the run is in Japanese, so the scaffold and the
-	// screens both print the words the test walks.
+	copyNavFixture(t, f, cwd)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	mustRun(t, "new", "demo")
-	// A second profile, so the kind beside the profile pick has something to
-	// follow (I7).
-	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
-		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  e2e-kind:\n    kind: codex\n")
+	if err := i18n.Use("ja"); err != nil {
+		t.Fatal(err)
+	}
 	f.runningHerdr(t, "", "")
 
 	base, stop := startServe(t, f)
 	defer stop()
+
+	// The URLs a person hands the address bar, over the real serve (O1〜O4).
+	t.Run("the address", func(t *testing.T) { e2eNavAddress(t, base) })
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
 		append(chromedp.DefaultExecAllocatorOptions[:], chromedp.ExecPath(chrome), chromedp.Headless)...)
@@ -53,728 +62,577 @@ func TestE2E(t *testing.T) {
 	var mu sync.Mutex
 	var console []string
 	chromedp.ListenTarget(browserCtx, func(event any) {
-		if called, ok := event.(*runtime.EventConsoleAPICalled); ok && called.Type == "error" {
+		switch e := event.(type) {
+		case *runtime.EventConsoleAPICalled:
+			if e.Type != "error" {
+				return
+			}
 			var parts []string
-			for _, arg := range called.Args {
+			for _, arg := range e.Args {
 				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
 			}
 			mu.Lock()
 			console = append(console, strings.Join(parts, " | "))
 			mu.Unlock()
+		case *runtime.EventExceptionThrown:
+			// An uncaught exception is not a console call, but it is the same
+			// promise to the person: nothing red in the drawer.
+			mu.Lock()
+			console = append(console, "uncaught: "+e.ExceptionDetails.Error())
+			mu.Unlock()
 		}
 	})
 
-	ctx, cancel := context.WithTimeout(browserCtx, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(browserCtx, 5*time.Minute)
 	defer cancel()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/"))
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 
-	t.Run("bands", func(t *testing.T) { e2eBands(t, ctx, base) })
-	t.Run("main line", func(t *testing.T) { e2eMainLine(t, ctx, base) })
-	t.Run("close again escape back", func(t *testing.T) { e2eClose(t, ctx, base) })
-	t.Run("mission", func(t *testing.T) { e2eMission(t, ctx, base) })
-	t.Run("members and workers", func(t *testing.T) { e2eMembers(t, ctx, base) })
-	t.Run("turns", func(t *testing.T) { e2eTurns(t, ctx, base) })
-	t.Run("draft", func(t *testing.T) { e2eDraft(t, ctx, base) })
-	t.Run("pressable", func(t *testing.T) { e2ePressable(t, ctx, base) })
-	t.Run("widths", func(t *testing.T) { e2eWidths(t, ctx, base) })
-	t.Run("keyboard", func(t *testing.T) { e2eKeyboard(t, ctx, base) })
-	t.Run("rules", func(t *testing.T) { e2eRules(t, ctx, base) })
-	t.Run("activity", func(t *testing.T) { e2eActivity(t, ctx, base, f) })
+	t.Run("band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
+	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, ctx, allocCtx, base) })
+	t.Run("the place a person stood", func(t *testing.T) { e2eNavPlace(t, ctx, base) })
+	t.Run("widths and lights", func(t *testing.T) { e2eNavWidths(t, ctx, base) })
+
+	// The number a save moves, and the carried changes, both need a project whose
+	// files the test may change under the page, so they run over projects of
+	// their own (spec-nav.md 5.1).
+	f3 := newFixture(t)
+	copyNavFixture(t, f3, cwd)
+	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f3.runningHerdr(t, "", "")
+	base3, stop3 := startServe(t, f3)
+	defer stop3()
+	t.Run("the number follows a save", func(t *testing.T) { e2eNavNumbers(t, ctx, base3) })
+
+	f2 := newFixture(t)
+	copyNavFixture(t, f2, cwd)
+	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f2.runningHerdr(t, "", "")
+	base2, stop2 := startServe(t, f2)
+	defer stop2()
+	t.Run("the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
 
 	mu.Lock()
 	defer mu.Unlock()
 	if len(console) > 0 {
-		t.Errorf("the pages logged %d console errors: %v", len(console), console)
+		t.Errorf("the band logged %d console errors: %v", len(console), console)
 	}
 }
 
-// e2eBands is B1・B2: each band's page opens with what it is, and the band the
-// person is in is marked.
-func e2eBands(t *testing.T, ctx context.Context, base string) {
+// copyNavFixture puts the navigation's fixture under the test's project: the
+// role screen's fixture — the profile screen's with the role fixture over it
+// (spec-roles.md 4 章) — and the two shared team definitions (spec-nav.md 5.1).
+func copyNavFixture(t *testing.T, f *fixture, cwd string) {
 	t.Helper()
-	cases := []struct{ path, lead, band string }{
-		{"/", "チーム定義", "チーム定義"},
-		{"/activity", "活動", "活動"},
-	}
-	for _, c := range cases {
-		e2eRun(t, ctx, chromedp.Navigate(base+c.path), chromedp.WaitReady("main h1"))
-		var lead, band string
-		e2eRun(t, ctx,
-			chromedp.Evaluate(`document.querySelector("main h1").textContent.trim()`, &lead),
-			chromedp.Evaluate(`(document.querySelector('nav.band a[aria-current="page"]')||{}).textContent.trim() || ""`, &band),
-		)
-		if !strings.HasPrefix(lead, c.lead) {
-			t.Errorf("%s opens with %q, want %q", c.path, lead, c.lead)
-		}
-		if band != c.band {
-			t.Errorf("%s marks the band %q, want %q", c.path, band, c.band)
-		}
-	}
-
-	// L1: pressing a band moves the mark and the page's own title, even though
-	// only the region the server swaps is replaced.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/"), chromedp.WaitReady("main h1"))
-	e2eRun(t, ctx, chromedp.Click(`nav.band a[href="/activity"]`))
-	e2eWaitText(t, ctx, "main h1", "活動")
-	var band, title string
-	e2eRun(t, ctx,
-		chromedp.Evaluate(`(document.querySelector('nav.band a[aria-current="page"]')||{}).textContent.trim() || ""`, &band),
-		chromedp.Evaluate(`document.title`, &title),
-	)
-	if band != "活動" {
-		t.Errorf("after pressing the activity band the mark is %q", band)
-	}
-	if !strings.Contains(title, "活動") {
-		t.Errorf("after pressing the activity band the title is %q", title)
-	}
-}
-
-// e2eMainLine is A3: the band leads to the list, a row to the field, in two
-// presses, without the figure.
-func e2eMainLine(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	e2eRun(t, ctx,
-		chromedp.Navigate(base+"/definitions"),
-		chromedp.WaitReady("table.list"),
-		chromedp.Click(`table.list a[href="/definitions/demo"]`),
-		chromedp.WaitReady(".mission"),
-	)
-	if got := e2eURL(t, ctx); got != base+"/definitions/demo" {
-		t.Fatalf("the row opened %q, want the definition", got)
-	}
-	e2eRun(t, ctx, chromedp.Click(`.detail a[href="/definitions/demo/members/lead"]`))
-	e2eWaitField(t, ctx, "メンバー lead")
-}
-
-// e2eClose is B3: the field closes with its own button, with the same node
-// pressed again, with Escape, and with the browser's back.
-func e2eClose(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	open := func() {
-		e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"))
-		e2eWaitField(t, ctx, "メンバー lead")
-	}
-
-	open()
-	e2eRun(t, ctx, chromedp.Click("#panel .close"))
-	e2eWaitClosed(t, ctx, "the close button")
-	if got := e2eURL(t, ctx); got != base+"/definitions/demo" {
-		t.Errorf("closing landed on %q, want the definition", got)
-	}
-
-	// The same figure node pressed again closes the field it opened.
-	e2eRun(t, ctx, chromedp.Click(`.fig a[href="/definitions/demo/members/lead"]`))
-	e2eWaitField(t, ctx, "メンバー lead")
-	e2eRun(t, ctx, chromedp.Click(`.fig a[href="/definitions/demo"]`))
-	e2eWaitClosed(t, ctx, "the same node again")
-
-	// Escape closes.
-	open()
-	e2eEscape(t, ctx)
-	e2eWaitClosed(t, ctx, "Escape")
-
-	// The browser's back returns to the page the field was opened from.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("#tabs .tab"))
-	open()
-	e2eRun(t, ctx, chromedp.Evaluate(`window.history.back()`, nil))
-	e2eWaitURL(t, ctx, base+"/roles")
-}
-
-// e2eMission is C1〜C3: the field is writable from the start, a change shows the
-// buttons, revert undoes it, and a save writes the mission and shows the saved
-// line, keeping the place.
-func e2eMission(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo"), chromedp.WaitReady(".mission"))
-	before := e2eMissionValue(t, ctx)
-	if before == "" {
-		t.Fatalf("the definition opens with no mission")
-	}
-	if e2eChangeButtons(t, ctx) {
-		t.Errorf("the save buttons show before anything changed")
-	}
-	e2eSet(t, ctx, "E2E の使命")
-	if !e2eChangeButtons(t, ctx) {
-		t.Fatalf("typing the mission shows no save button")
-	}
-	// Revert puts the file's own line back.
-	e2eRun(t, ctx, chromedp.Click(".mission [data-revert]"))
-	if value := e2eMissionValue(t, ctx); value != before {
-		t.Errorf("revert left %q, want the file's own line %q", value, before)
-	}
-	// Write and save.
-	e2eSet(t, ctx, "E2E の使命")
-	e2eRun(t, ctx, chromedp.Click(".mission button[type=submit]"), chromedp.WaitVisible(".saved"))
-	if e2eChangeButtons(t, ctx) {
-		t.Errorf("the save buttons still show after the save")
-	}
-	var saved string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
-	if !strings.Contains(saved, "書きました") {
-		t.Errorf("the save line is %q", saved)
-	}
-	if got := e2eURL(t, ctx); got != base+"/definitions/demo" {
-		t.Errorf("the save moved to %q, want to stay", got)
-	}
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo"), chromedp.WaitReady(".mission"))
-	if value := e2eMissionValue(t, ctx); value != "E2E の使命" {
-		t.Errorf("the mission on disk is %q, want the saved one", value)
-	}
-}
-
-// e2eMembers is the writable field of this round (C1〜C3, I6・I7): a member's
-// role is picked from the start, a change shows the buttons, revert puts the
-// file's own value back, and a save writes it and shows the saved line without
-// moving the place. The kind follows the profile pick, and the press that takes
-// a worker away says what the hire loses before anything is written.
-func e2eMembers(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	role := `form.edit[data-key="role"]`
-	profile := `form.edit[data-key="profile"]`
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(role))
-	if e2eActions(t, ctx, role) {
-		t.Errorf("the save buttons show before anything changed")
-	}
-	if got := e2eKind(t, ctx, role); got != "" {
-		t.Errorf("a role field shows a kind: %q", got)
-	}
-
-	// T1: a pick says what it would do before it is written.
-	e2ePick(t, ctx, `select[name="role"]`, "builder")
-	e2eWaitText(t, ctx, role+" .save-to", "lead のプロンプトの『ロールの文書』が変わります")
-	if !e2eActions(t, ctx, role) {
-		t.Fatalf("picking another role shows no save button")
-	}
-	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
-		t.Errorf("the field reads %q after the pick, want the pick", got)
-	}
-
-	// 取り消す leaves the pick: the field is read again without it, so the line
-	// about it does not stand over a value that is no longer chosen.
-	e2eRun(t, ctx, chromedp.Click(role+` [data-revert]`), chromedp.WaitReady(role))
-	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
-	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
-		t.Errorf("revert left %q, want the file's own role", got)
-	}
-	var pending bool
-	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('`+role+` .save-to')`, &pending))
-	if pending {
-		t.Errorf("the line about the pick is still there after 取り消す")
-	}
-
-	// The kind of the profile follows the pick, as its attribute (I7).
-	if got := e2eKind(t, ctx, profile); got != "claude" {
-		t.Errorf("the kind beside the profile is %q, want claude", got)
-	}
-	e2ePick(t, ctx, `select[name="profile"]`, "e2e-kind")
-	e2eWaitText(t, ctx, profile+" .save-to", "lead の起動のしかたが変わります")
-	if got := e2eKind(t, ctx, profile); got != "codex" {
-		t.Errorf("the kind beside the picked profile is %q, want codex", got)
-	}
-	e2eRun(t, ctx, chromedp.Click(profile+` [data-revert]`), chromedp.WaitReady(profile))
-
-	e2ePick(t, ctx, `select[name="role"]`, "builder")
-	e2eRun(t, ctx, chromedp.Click(role+` button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
-	if e2eActions(t, ctx, role) {
-		t.Errorf("the save buttons still show after the save")
-	}
-	var saved string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
-	if !strings.Contains(saved, "書きました") || !strings.Contains(saved, "プロンプト") {
-		t.Errorf("the saved line is %q", saved)
-	}
-	if got := e2eURL(t, ctx); got != base+"/definitions/demo/members/lead" {
-		t.Errorf("the save moved to %q, want to stay", got)
-	}
-	if got := e2eValue(t, ctx, `select[name="role"]`); got != "builder" {
-		t.Errorf("the field reads %q after the save, want the written role", got)
-	}
-
-	// Hiring a worker, and the press that takes it away: the line comes first.
-	e2eType(t, ctx, `form.edit[data-key="worker-add"] input[name="purpose"]`, "e2e")
-	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="worker-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
-	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/members/lead?remove=e2e"]`), chromedp.WaitVisible(".panel .confirm"))
-	e2eWaitText(t, ctx, ".panel .save-to", "lead のプロンプトの『呼べるワーカー』から e2e が消えます")
-	if got := e2eURL(t, ctx); !strings.Contains(got, "remove=e2e") {
-		t.Errorf("the press moved to %q, want the field with the removal pending", got)
-	}
-	e2eRun(t, ctx, chromedp.Click(".panel .confirm a.btn"))
-	e2eWaitURL(t, ctx, base+"/definitions/demo/members/lead")
-	e2eRun(t, ctx, chromedp.WaitReady(`form.edit[data-key="worker-add"]`))
-
-	// A half-written pick survives opening another field (C5).
-	e2ePick(t, ctx, `select[name="role"]`, "lead")
-	e2eRun(t, ctx, chromedp.Click(`.detail a[href="/definitions/demo/members/builder"]`), chromedp.WaitReady(`form.edit[data-key="role"]`))
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/lead"), chromedp.WaitReady(`form.edit[data-key="role"]`))
-	if got := e2eValue(t, ctx, `select[name="role"]`); got != "lead" {
-		t.Errorf("the half-written pick was lost: the field reads %q", got)
-	}
-}
-
-// e2eTurns is the turn round (設計 4 節): opening a party's field offers the "＋"
-// handle on the parties it does not hand the turn to yet; pressing it shows the
-// line and the dashed edge; saving adds the arrow; the new arrow's own field
-// chooses the removal, which shows what leaves and takes the arrow away again.
-func e2eTurns(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	arrows := func(t *testing.T) int {
-		t.Helper()
-		var n int
-		e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.edge[data-from]:not([data-from=""])').length`, &n))
-		return n
-	}
-
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/members/builder"), chromedp.WaitReady(`form.edit[data-key="role"]`))
-	before := arrows(t)
-	if before != 4 {
-		t.Fatalf("the demo definition draws %d turn arrows, want 4", before)
-	}
-	// The handle stands on the human (builder does not hand the turn to it yet)
-	// and not on lead (it already does).
-	var handle string
-	e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('.fig a.handle[href*="to=human"]')||{}).getAttribute('href')||""`, &handle))
-	if handle == "" {
-		t.Fatalf("the open party's field offers no handle to the human")
-	}
-	var toLead int
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig a.handle[href*="to=lead"]').length`, &toLead))
-	if toLead != 0 {
-		t.Errorf("the figure offers a handle to a party the node already hands the turn to")
-	}
-	// D3: the handle can be reached with the keyboard.
-	var focusable bool
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`(function(){var h=document.querySelector('.fig a.handle');h.focus();return document.activeElement===h;})()`, &focusable))
-	if !focusable {
-		t.Errorf("the handle cannot be reached with the keyboard")
-	}
-
-	e2eRun(t, ctx, chromedp.Click(`.fig a.handle[href*="to=human"]`))
-	e2eWaitText(t, ctx, `form.edit[data-key="turn-add"] .save-to`, "builder のプロンプトの『ターンを渡す相手』に人間が入ります")
-	var pending int
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-add').length`, &pending))
-	if pending != 1 {
-		t.Fatalf("the chosen edge is not drawn dashed before the write")
-	}
-	if !e2eActions(t, ctx, `form.edit[data-key="turn-add"]`) {
-		t.Fatalf("the chosen turn shows no save button")
-	}
-
-	e2eRun(t, ctx, chromedp.Click(`form.edit[data-key="turn-add"] button[type=submit]`), chromedp.WaitVisible(".panel .saved"))
-	if got := arrows(t); got != before+1 {
-		t.Errorf("after the save the figure draws %d arrows, want %d", got, before+1)
-	}
-	var saved string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.panel .saved').textContent`, &saved))
-	if !strings.Contains(saved, "ターン builder → 人間") {
-		t.Errorf("the saved line is %q", saved)
-	}
-
-	// The new arrow's own field chooses the removal, which lands on the party's
-	// field once it is written. The arrow is pressed the way a person presses
-	// it (the click goes to the path's own link).
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`document.querySelector('.fig path[data-from="builder"][data-to="human"]').parentElement.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}))`, nil))
-	e2eWaitField(t, ctx, "builder → 人間")
-	e2eRun(t, ctx, chromedp.Click(`a[href="/definitions/demo/turns/builder/human?turn=human"]`), chromedp.WaitVisible(".panel .confirm"))
-	e2eWaitText(t, ctx, ".panel .confirm .save-to", "builder のプロンプトの『ターンを渡す相手』から人間が消えます")
-	var faded int
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelectorAll('.fig path.pending-remove').length`, &faded))
-	if faded != 1 {
-		t.Fatalf("the edge chosen to be taken away is not drawn faint")
-	}
-	e2eRun(t, ctx, chromedp.Click(".panel .confirm button[type=submit]"), chromedp.WaitVisible(".panel .saved"))
-	e2eWaitField(t, ctx, "メンバー builder")
-	if got := arrows(t); got != before {
-		t.Errorf("after the removal the figure draws %d arrows, want %d", got, before)
-	}
-}
-
-// e2eDraft is C5: a change not saved survives opening another field and coming
-// back.
-func e2eDraft(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo"), chromedp.WaitReady(".mission"))
-	e2eSet(t, ctx, "書きかけの使命")
-	e2eRun(t, ctx, chromedp.Click(`.detail a[href="/definitions/demo/members/lead"]`))
-	e2eWaitField(t, ctx, "メンバー lead")
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo"), chromedp.WaitReady(".mission"))
-	if value := e2eMissionValue(t, ctx); value != "書きかけの使命" {
-		t.Errorf("the draft was lost: the field reads %q", value)
-	}
-}
-
-// e2ePressable is B4: nothing shows the pointer cursor without something to
-// press.
-func e2ePressable(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity", "/roles", "/roles/assign", "/roles/yaml", "/agreement", "/profiles"} {
-		e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
-		var dead []string
-		script := `(function(){
-			var out=[];
-			document.querySelectorAll('main *').forEach(function(el){
-				if(getComputedStyle(el).cursor!=='pointer') return;
-				if(el.closest('a,button,summary,input,select,textarea,label,[role=button]')) return;
-				out.push(el.tagName+'.'+(el.className||''));
-			});
-			return out;
-		})()`
-		e2eRun(t, ctx, chromedp.Evaluate(script, &dead))
-		if len(dead) > 0 {
-			t.Errorf("%s: %d elements show the pointer cursor with nothing to press: %v", path, len(dead), dead)
+	src := filepath.Join(cwd, "..", "..", "testdata")
+	for _, one := range []string{"roles-v2", "nav"} {
+		for _, half := range []struct{ from, to string }{
+			{filepath.Join("project", ".hergy"), filepath.Join(f.proj, ".hergy")},
+			{filepath.Join("config", "hergy"), filepath.Join(f.cfg, "hergy")},
+		} {
+			from := filepath.Join(src, one, half.from)
+			if _, err := os.Stat(from); err != nil {
+				continue
+			}
+			copyDir(t, from, half.to)
 		}
 	}
 }
 
-// e2eWidths is D2: at 1440, 1000 and 500 the page does not scroll sideways.
-func e2eWidths(t *testing.T, ctx context.Context, base string) {
+// navGet asks the real serve for one URL without following a move, so the
+// answer itself — its status and its page — is what the test reads.
+func navGet(t *testing.T, base, path string) (*http.Response, string) {
 	t.Helper()
-	for _, size := range []int64{1440, 1000, 500} {
-		e2eRun(t, ctx, chromedp.EmulateViewport(size, 900))
-		for _, path := range []string{"/", "/definitions/demo", "/definitions/demo/members/lead", "/definitions/demo/agreement/C1", "/activity"} {
-			e2eRun(t, ctx, chromedp.Navigate(base+path), chromedp.WaitReady("main"))
-			var over bool
-			e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`, &over))
-			if over {
-				t.Errorf("%s at %d: the page scrolls sideways", path, size)
+	client := &http.Client{
+		Timeout:       10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Get(base + path)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	return resp, string(body)
+}
+
+// e2eNavAddress is O1〜O4: the root moves to the profile screen, every URL of
+// the old WebUI is not found with the band on it, the old files are gone, and a
+// URL still carrying ?layer= answers like the same URL without it.
+func e2eNavAddress(t *testing.T, base string) {
+	t.Helper()
+	resp, _ := navGet(t, base, "/")
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("GET / answers %d, want 302", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/profiles" {
+		t.Errorf("GET / moves to %q, want /profiles", got)
+	}
+
+	gone := []string{
+		"/definitions", "/definitions/core", "/definitions/core/members/lead",
+		"/definitions/core/workers/lead/依存の更新", "/definitions/core/human",
+		"/definitions/core/turns/lead/analyst", "/definitions/core/agreement",
+		"/definitions/core/agreement/new", "/definitions/core/agreement/TEAM-1",
+		"/activity", "/activity/core", "/agreement", "/agreement/new", "/agreement/SHARED-1",
+		"/teams", "/running", "/team", "/team?name=core",
+		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
+	}
+	for _, path := range gone {
+		resp, body := navGet(t, base, path)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s answers %d, want 404 (and no move)", path, resp.StatusCode)
+			continue
+		}
+		for _, want := range []string{`class="screens"`, "その画面はありません。", "<title>hergy</title>"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s does not hold %q:\n%s", path, want, body)
+			}
+		}
+		if !strings.Contains(body, `<span class="scr soon"`) {
+			t.Errorf("GET %s shows no screen as not built yet:\n%s", path, body)
+		}
+		if strings.Contains(body, `aria-current="page"`) {
+			t.Errorf("GET %s marks a screen as the one the person is on:\n%s", path, body)
+		}
+	}
+
+	for _, path := range []string{"/static/hergy.css", "/static/htmx-2.0.4.min.js", "/static/ui.js", "/static/copy.js"} {
+		if resp, _ := navGet(t, base, path); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s answers %d, want 404", path, resp.StatusCode)
+		}
+	}
+	for _, path := range []string{"/static/nav.css", "/static/nav.js", "/static/profiles-v2.css", "/static/roles-v2.css"} {
+		if resp, _ := navGet(t, base, path); resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %s answers %d, want 200", path, resp.StatusCode)
+		}
+	}
+
+	// O4: a URL that still carries ?layer= is answered, not moved.
+	resp, with := navGet(t, base, "/profiles?layer=project")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /profiles?layer=project answers %d, want 200", resp.StatusCode)
+	}
+	if _, without := navGet(t, base, "/profiles"); without != with {
+		t.Errorf("?layer= answers a different page than the plain URL")
+	}
+}
+
+// e2eNavBand is S1〜S4 and W1's row: the four names in order with their numbers,
+// the two not built yet struck through, the one the person is on marked, the
+// project's folder name, and the first tab reading 一覧.
+func e2eNavBand(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.screens .scr.on')`)
+
+	got := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
+		return [e.textContent.replace(/\s+/g,''), e.tagName, e.getAttribute('aria-current')||'', e.getAttribute('aria-disabled')||''];}))`)
+	want := `[["活動","SPAN","","true"],["チーム定義6","SPAN","","true"],["プロファイル11","SPAN","page",""],["ロール6","A","",""]]`
+	if got != want {
+		t.Errorf("the band on /profiles reads\n%s\nwant\n%s", got, want)
+	}
+
+	crumbs := e2eNavText(t, ctx, `JSON.stringify((function(){var c=document.querySelector('.crumb');
+		return [c.textContent.replace(/\s+/g,''), c.querySelector('a.mark').getAttribute('href')];})())`)
+	if crumbs != `["hergy/proj","/"]` {
+		t.Errorf("the band's crumb reads %s, want the project's folder name", crumbs)
+	}
+
+	if key := e2eNavText(t, ctx, `document.querySelector('.screens').dataset.key`); len(key) != 12 {
+		t.Errorf("the band's key is %q, want 12 hex digits", key)
+	}
+	if pos := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('.bar')).position`); pos != "sticky" {
+		t.Errorf("the band stands %q, want sticky", pos)
+	}
+	if rows := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('.screens')).display`); rows != "flex" {
+		t.Errorf("the band reads %q at 2000, want one row of flex", rows)
+	}
+
+	// S3: the screen's name and its number stand in the band only; the tabs read
+	// 一覧 / 割り当て 22 / YAML.
+	tabs := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('#tabs .tab')].map(function(e){return e.textContent.replace(/\s+/g,'');}))`)
+	if tabs != `["一覧","割り当て22","YAML"]` {
+		t.Errorf("the profile screen's tabs read %s, want 一覧 / 割り当て 22 / YAML", tabs)
+	}
+
+	// S4: no word of the layers, the duties or the version stands on a screen.
+	for _, word := range []string{"層", "layer", "担当", "役割", "版"} {
+		if n := e2eNavInt(t, ctx, `document.body.innerText.split(`+strconv.Quote(word)+`).length-1`); n > 0 {
+			t.Errorf("the word %q stands %d times on /profiles", word, n)
+		}
+	}
+
+	// The role screen's own band and tabs.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"))
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows .role.open .panel')`)
+	roles := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
+		return [e.textContent.replace(/\s+/g,''), e.tagName];}))`)
+	wantRoles := `[["活動","SPAN"],["チーム定義6","SPAN"],["プロファイル11","A"],["ロール6","SPAN"]]`
+	if roles != wantRoles {
+		t.Errorf("the band on /roles reads\n%s\nwant\n%s", roles, wantRoles)
+	}
+	rtabs := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('#tabs .tab')].map(function(e){return e.textContent.replace(/\s+/g,'');}))`)
+	if rtabs != `["一覧","割り当て19","YAML"]` {
+		t.Errorf("the role screen's tabs read %s, want 一覧 / 割り当て 19 / YAML", rtabs)
+	}
+}
+
+// e2eNavPlace is N1, N3, N4, N5 and N10: the band's links walk the two screens,
+// each screen comes back to the place it was left, the screen the person is on
+// is not a link, and hergy goes to the profile screen's list.
+func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+
+	// N10: reach the band's role link with the keyboard, see its focus ring, and
+	// open it with Enter — the same as pressing it (N1).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
+	e2eNavWait(t, ctx, `!!document.querySelector('a.scr[data-screen="roles"]')`)
+	e2eNavFocus(t, ctx, `a.scr[data-screen="roles"]`)
+	outline := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('a.scr[data-screen="roles"]')).outlineWidth`)
+	if outline != "2px" {
+		t.Errorf("the focused band link has an outline of %s, want 2px", outline)
+	}
+	e2eRun(t, ctx, chromedp.KeyEvent(kb.Enter))
+	e2eNavWait(t, ctx, `!!document.querySelector('.scr.on') && document.querySelector('.scr.on').dataset.screen === 'roles'`)
+	if path := e2eNavText(t, ctx, `location.pathname`); path != "/roles" {
+		t.Errorf("after Enter the page is at %q, want /roles (or the place the screen was left)", path)
+	}
+
+	// N3: the screen the person is on is a span, so pressing it does nothing.
+	if tag := e2eNavText(t, ctx, `document.querySelector('.scr.on').tagName`); tag != "SPAN" {
+		t.Errorf("the screen the person is on is a %s, want a span", tag)
+	}
+
+	// N2: the two screens that are not built yet are not links, they do not
+	// offer a finger, and pressing one changes nothing.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.scr.soon')`)
+	if n := e2eNavInt(t, ctx, `document.querySelectorAll('.scr.soon').length`); n != 2 {
+		t.Errorf("the band shows %d screens struck through, want 2", n)
+	}
+	for _, name := range []string{"活動", "チーム定義"} {
+		script := `(function(){var el=[...document.querySelectorAll('.scr.soon')].find(function(e){return e.textContent.indexOf(` + strconv.Quote(name) + `)===0;});return [el.tagName, getComputedStyle(el).cursor, el.hasAttribute('href')];})()`
+		got := e2eNavText(t, ctx, `JSON.stringify(`+script+`)`)
+		if got != `["SPAN","default",false]` {
+			t.Errorf("the band's %s reads %s, want a span with no finger and no link", name, got)
+		}
+	}
+	e2eNavClick(t, ctx, `.scr.soon`)
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows .row')`)
+	if path := e2eNavText(t, ctx, `location.pathname`); path != "/profiles" {
+		t.Errorf("pressing a screen that is not built moved the page to %q", path)
+	}
+
+	// N5: a row opened on the role screen comes back opened.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"))
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows .role.open .panel')`)
+	e2eNavClick(t, ctx, `a.scr[data-screen="profiles"]`)
+	e2eNavWaitPath(t, ctx, "/profiles")
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles?open=builder")
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows .role.open')`)
+
+	// The same for a screen left on its assign tab.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles/assign"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.teams .team')`)
+	e2eNavClick(t, ctx, `a.scr[data-screen="profiles"]`)
+	e2eNavWaitPath(t, ctx, "/profiles")
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles/assign")
+	e2eNavWait(t, ctx, `!!document.querySelector('.teams .team')`)
+
+	// N4: hergy goes to the profile screen's list, with nothing open.
+	e2eNavClick(t, ctx, `.crumb a.mark`)
+	e2eNavWaitPath(t, ctx, "/profiles")
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows')`)
+	if open := e2eNavInt(t, ctx, `document.querySelectorAll('#rows .row.open').length`); open != 0 {
+		t.Errorf("hergy left %d rows open on the profile screen, want none", open)
+	}
+	if tab := e2eNavText(t, ctx, `document.querySelector('#tabs .tab.on').textContent.replace(/\s+/g,'')`); tab != "一覧" {
+		t.Errorf("hergy lands on the %q tab, want 一覧", tab)
+	}
+
+	// The band stands on the third tab of both screens too, and each tab is a
+	// page of its own.
+	for _, one := range []struct{ path, screen string }{
+		{"/profiles/yaml", "profiles"}, {"/roles/yaml", "roles"},
+	} {
+		e2eRun(t, ctx, chromedp.Navigate(base+one.path))
+		e2eNavWait(t, ctx, `!!document.querySelector('.scr.on')`)
+		if on := e2eNavText(t, ctx, `document.querySelector('.scr.on').dataset.screen`); on != one.screen {
+			t.Errorf("%s shows %q as the screen the person is on, want %s", one.path, on, one.screen)
+		}
+		if tab := e2eNavText(t, ctx, `document.querySelector('#tabs .tab.on').textContent.replace(/\s+/g,'')`); tab != "YAML" {
+			t.Errorf("%s lands on the %q tab, want YAML", one.path, tab)
+		}
+	}
+}
+
+// e2eNavAnotherTab is O5: a browser tab that was not there when the place was
+// remembered walks the band's plain links.
+func e2eNavAnotherTab(t *testing.T, ctx context.Context, allocCtx context.Context, base string) {
+	t.Helper()
+	otherCtx, cancel := chromedp.NewContext(allocCtx)
+	defer cancel()
+	runCtx, cancelRun := context.WithTimeout(otherCtx, 30*time.Second)
+	defer cancelRun()
+	e2eRun(t, runCtx, chromedp.Navigate(base+"/profiles"))
+	e2eNavWait(t, runCtx, `!!document.querySelector('a.scr[data-screen="roles"]')`)
+	if href := e2eNavText(t, runCtx, `document.querySelector('a.scr[data-screen="roles"]').getAttribute('href')`); href != "/roles" {
+		t.Errorf("a fresh tab's band points the role screen at %q, want /roles", href)
+	}
+	if dot := e2eNavText(t, runCtx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+		t.Errorf("a fresh tab's band shows a change mark, want none")
+	}
+}
+
+// e2eNavCarry is N6〜N9: a pick made and not saved is carried to the other
+// screen and back, is dropped when the file moved outside, and is not put back
+// by a reload.
+func e2eNavCarry(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	const pick = `.team[data-g="core"] .arow[data-k="m-2"]`
+
+	// N6: make a pick in the assign tab and walk to the role screen with the
+	// band. The band shows a mark on the profile screen.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/assign"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.team[data-g="core"]')`)
+	e2eNavSelect(t, ctx, pick+" select", "opus-deep")
+	e2eNavWait(t, ctx, `document.querySelector(`+strconv.Quote(pick)+`).classList.contains('changed')`)
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.scr[data-screen="profiles"] .dot'))`); dot != "true" {
+		t.Errorf("N6: the band marks the profile screen, want a dot")
+	}
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles")
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows')`)
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('a.scr[data-screen="profiles"] .dot'))`); dot != "true" {
+		t.Errorf("N6: the changed pick left no dot on the profile screen")
+	}
+	if changed := e2eNavInt(t, ctx, `document.querySelectorAll('.teams .arow.changed').length`); changed != 0 {
+		t.Errorf("N6: the role screen shows %d changed picks, want none", changed)
+	}
+
+	// N7: walking back puts the pick where it was, marked as not saved yet.
+	e2eNavClick(t, ctx, `a.scr[data-screen="profiles"]`)
+	e2eNavWaitPath(t, ctx, "/profiles/assign")
+	e2eNavWait(t, ctx, `document.querySelector(`+strconv.Quote(pick)+`).classList.contains('changed')`)
+	if was := e2eNavText(t, ctx, `((document.querySelector(`+strconv.Quote(pick)+`+' s.was')||{}).textContent||'')`); was != "codex-high" {
+		t.Errorf("N7: the carried pick does not show what it was (%q)", was)
+	}
+	if n := e2eNavText(t, ctx, `((document.querySelector('.team[data-g="core"] .tside .dirty')||{}).textContent||'')`); n != "1 人" {
+		t.Errorf("N7: the team's head reads %q, want 1 人", n)
+	}
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.scr.on .dot'))`); dot != "true" {
+		t.Errorf("N7: the screen the person is on shows no change mark")
+	}
+
+	// N9: a reload puts nothing back — the band carried it, and it is spent.
+	e2eRun(t, ctx, chromedp.Reload())
+	e2eNavWait(t, ctx, `!!document.querySelector('.team[data-g="core"]')`)
+	if changed := e2eNavInt(t, ctx, `document.querySelectorAll('.arow.changed').length`); changed != 0 {
+		t.Errorf("N9: a reload put %d changed picks back, want none", changed)
+	}
+
+	// N6 again, for N8: carry the pick over, change team.yaml outside, and walk
+	// back — the draft is not put back, and the band's mark goes.
+	e2eNavSelect(t, ctx, pick+" select", "opus-deep")
+	e2eNavWait(t, ctx, `document.querySelector(`+strconv.Quote(pick)+`).classList.contains('changed')`)
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles")
+	team := filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml")
+	writeFile(t, team, strings.Replace(readFile(t, team), "注文 API を作り直す", "外で書き換えた使命", 1))
+	e2eNavClick(t, ctx, `a.scr[data-screen="profiles"]`)
+	e2eNavWaitPath(t, ctx, "/profiles/assign")
+	e2eNavWait(t, ctx, `!!document.querySelector('.team[data-g="core"]')`)
+	if changed := e2eNavInt(t, ctx, `document.querySelectorAll('.arow.changed').length`); changed != 0 {
+		t.Errorf("N8: a draft made before the file moved outside was put back (%d picks)", changed)
+	}
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+		t.Errorf("N8: the band still marks a screen after the draft was dropped")
+	}
+}
+
+// e2eNavWidths is W1〜W6 and D1: the three widths in both lights, with the band
+// in one row at the wide ones and in two at 500, the page never flowing
+// sideways.
+func e2eNavWidths(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	paths := []string{"/profiles", "/roles?open=builder", "/nope"}
+	for _, size := range []int64{2000, 1440, 500} {
+		for _, theme := range []string{"", "light", "dark"} {
+			e2eRun(t, ctx, chromedp.EmulateViewport(size, 1000))
+			for _, path := range paths {
+				e2eRun(t, ctx, chromedp.Navigate(base+path))
+				e2eNavWait(t, ctx, `!!document.querySelector('.screens')`)
+				if theme == "" {
+					e2eRun(t, ctx, chromedp.Evaluate(`delete document.documentElement.dataset.theme`, nil))
+				} else {
+					e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.dataset.theme=`+strconv.Quote(theme), nil))
+				}
+				if over := e2eNavInt(t, ctx, `document.documentElement.scrollWidth - window.innerWidth`); over > 1 {
+					t.Errorf("%s at %d/%s flows %dpx sideways", path, size, theme, over)
+				}
+				rows := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('.screens')).display`)
+				if size > 760 && rows != "flex" {
+					t.Errorf("%s at %d: the band reads %q, want one row of flex", path, size, rows)
+				}
+				if size <= 760 {
+					if rows != "grid" {
+						t.Errorf("%s at %d: the band reads %q, want a grid of two rows", path, size, rows)
+					}
+					if cols := e2eNavInt(t, ctx, `getComputedStyle(document.querySelector('.screens')).gridTemplateColumns.split(' ').length`); cols != 4 {
+						t.Errorf("%s at %d: the band's second row holds %d parts, want 4", path, size, cols)
+					}
+					// The four parts fill the band: it is as wide as the row above
+					// it (the crumb), which stands on its own line.
+					span := e2eNavInt(t, ctx, `Math.round(document.querySelector('.screens').getBoundingClientRect().width - document.querySelector('.crumb').getBoundingClientRect().width)`)
+					if span < -1 || span > 1 {
+						t.Errorf("%s at %d: the band is %dpx different from the crumb above it, want the same width", path, size, span)
+					}
+				}
 			}
 		}
 	}
 }
 
-// e2eKeyboard is D3: Tab reaches the main line, and Enter opens what it reached.
-func e2eKeyboard(t *testing.T, ctx context.Context, base string) {
+// e2eNavNumbers is 1.1's last line: a save moves the band's number the same
+// time it moves the screen's own, and the mark goes with the save.
+func e2eNavNumbers(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo"), chromedp.WaitReady(".mission"))
-	found := false
-	for i := 0; i < 80; i++ {
-		e2eRun(t, ctx, chromedp.KeyEvent("\t"))
-		var href string
-		e2eRun(t, ctx, chromedp.Evaluate(`document.activeElement.getAttribute('href') || ""`, &href))
-		if strings.HasSuffix(href, "/definitions/demo/members/lead") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("Tab never reached the member's link")
-	}
-	e2eRun(t, ctx, chromedp.KeyEvent("\r"))
-	e2eWaitField(t, ctx, "メンバー lead")
-}
-
-// e2eRules is 段 4: one rule's card opens from the definition, writes and saves
-// in place (C1〜C3), and 消す asks for a second press before it takes the rule
-// out (3.8, W15).
-func e2eRules(t *testing.T, ctx context.Context, base string) {
-	t.Helper()
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
-	e2eWaitField(t, ctx, "規則 C1")
-
-	before := e2eRuleText(t, ctx)
-	if before == "" {
-		t.Fatalf("the card opens with no text")
-	}
-	if e2eRuleButtons(t, ctx) {
-		t.Errorf("the save buttons show before anything changed")
-	}
-	e2eSetRuleText(t, ctx, "E2E の規則。")
-	if !e2eRuleButtons(t, ctx) {
-		t.Fatalf("typing the text shows no save button")
-	}
-	e2eRun(t, ctx, chromedp.Click(".ruleform [data-revert]"))
-	if got := e2eRuleText(t, ctx); got != before {
-		t.Errorf("revert left %q, want the file's own text %q", got, before)
-	}
-	e2eSetRuleText(t, ctx, "E2E の規則。")
-	e2eRun(t, ctx, chromedp.Click(".ruleform button[type=submit]"), chromedp.WaitVisible(".saved"))
-	var saved string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('.saved').textContent`, &saved))
-	if !strings.Contains(saved, "書きました") {
-		t.Errorf("the save line is %q", saved)
-	}
-	if got := e2eRuleText(t, ctx); got != "E2E の規則。" {
-		t.Errorf("the card reads %q after the save", got)
+	band := `document.querySelector('.scr[data-screen="roles"] .n').textContent`
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles"), chromedp.WaitReady("#rows .role"))
+	if n := e2eNavText(t, ctx, band); n != "6" {
+		t.Errorf("the band counts %s roles, want 6", n)
 	}
 
-	// The card closes with Escape, and the same node pressed again closes it.
-	e2eEscape(t, ctx)
-	e2eWaitClosed(t, ctx, "Escape on a rule card")
+	e2eNavClick(t, ctx, `[data-act=new]`)
+	e2eNavWait(t, ctx, `!!document.querySelector('.panel[data-l=project] .rule.open [data-f=id]')`)
+	panel := `document.querySelector('.panel[data-l=project]')`
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.scr.on .dot'))`); dot != "true" {
+		t.Errorf("a row a person added left no mark in the band")
+	}
+	e2eNavSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "nav-new")
+	e2eNavSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NAV-1")
+	e2eNavSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "帯の数のために足した規則。")
+	e2eNavWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
+	e2eNavPress(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2eNavWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
+	if n := e2eNavText(t, ctx, band); n != "7" {
+		t.Errorf("after a save the band counts %s roles, want 7", n)
+	}
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+		t.Errorf("the band still marks a screen after everything was saved")
+	}
 
-	// 消す asks once more in place: the first press writes nothing, and the
-	// second takes the rule out.
-	e2eRun(t, ctx, chromedp.Navigate(base+"/definitions/demo/agreement/C1"))
-	e2eWaitField(t, ctx, "規則 C1")
-	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
-	// The first press asks once more in place: the way out appears beside the
-	// button that writes (spec/42 T3).
-	e2eWaitContains(t, ctx, "#panel", "やめる")
-	e2eRun(t, ctx, chromedp.Click(".ruleform.del button"))
-	// The second press writes to the document's own page, so that is where the
-	// card is gone (設計 3.8).
-	e2eWaitURL(t, ctx, base+"/definitions/demo/agreement")
-	e2eWaitClosed(t, ctx, "the delete")
-	var left bool
-	e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector('.card a[href$="/agreement/C1"]')`, &left))
-	if left {
-		t.Errorf("the rule is still in the document's cards")
+	// The profile screen keeps its own number the same way, from the answer's
+	// count (1.1).
+	bandP := `document.querySelector('.scr[data-screen="profiles"] .n').textContent`
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"), chromedp.WaitReady("#rows .row"))
+	if n := e2eNavText(t, ctx, bandP); n != "11" {
+		t.Errorf("the band counts %s profiles, want 11", n)
+	}
+	e2eNavClick(t, ctx, `[data-act=new]`)
+	e2eNavSet(t, ctx, `document.querySelector('#rows .row[data-name=""] [data-f=name]')`, "nav-count")
+	e2eNavWait(t, ctx, `!document.querySelector('#rows .row[data-name="nav-count"] [data-act=save]').disabled`)
+	e2eNavClick(t, ctx, `#rows .row[data-name="nav-count"] [data-act=save]`)
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows .row[data-name="nav-count"] .ok')`)
+	if n := e2eNavText(t, ctx, bandP); n != "12" {
+		t.Errorf("after a save the band counts %s profiles, want 12", n)
 	}
 }
 
-// e2eRuleText is what the rule card's text field shows.
-func e2eRuleText(t *testing.T, ctx context.Context) string {
+// e2eNavText evaluates one expression and returns its string value.
+func e2eNavText(t *testing.T, ctx context.Context, script string) string {
 	t.Helper()
 	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(`(document.getElementById('rule-text')||{}).value || ""`, &value))
+	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
 	return value
 }
 
-// e2eSetRuleText clears the rule card's text field and types one line into it,
-// firing the events a person's typing fires.
-func e2eSetRuleText(t *testing.T, ctx context.Context, text string) {
+// e2eNavInt evaluates one expression and returns its number.
+func e2eNavInt(t *testing.T, ctx context.Context, script string) int {
 	t.Helper()
-	clear := `(function(){var el=document.getElementById('rule-text');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(clear, nil))
-	if text != "" {
-		e2eRun(t, ctx, chromedp.SendKeys("#rule-text", text))
-	}
-}
-
-// e2eRuleButtons is whether the rule card's save and revert buttons are drawn.
-func e2eRuleButtons(t *testing.T, ctx context.Context) bool {
-	t.Helper()
-	var shown bool
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`getComputedStyle(document.querySelector('.ruleform [data-change]')).display !== 'none'`, &shown))
-	return shown
-}
-
-// gyOf writes a fake gy and points HERGY_GY at it, so the activity reads the
-// questions it answers. It lives with the e2e run because only the run uses it.
-func gyOf(t *testing.T, f *fixture, script string) {
-	t.Helper()
-	path := filepath.Join(f.cfg, "gy")
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("HERGY_GY", path)
-}
-
-// e2eActivity is 段 6: the activity's section says what a stopped team is doing
-// and for how long, and gy's open question is shown at the top of the list. It
-// runs with a made-up herdr and a made-up gy (設計 8 節の E2E の行), on a serve
-// of its own, because gy is read once every thirty seconds and the earlier run
-// has already read it (設計 5.2).
-func e2eActivity(t *testing.T, ctx context.Context, first string, f *fixture) {
-	t.Helper()
-	// builder stops last and hands the turn to no one, so the section names the
-	// last turn as well as the length.
-	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
-		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":10},`+
-			`{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":11}`)
-	writeFile(t, filepath.Join(f.proj, "gy.toml"), "[scopes.common]\n")
-	gyOf(t, f, `#!/bin/sh
-if [ "$1" = "show" ]; then
-  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":["そのまま","戻す"]}}}]'
-  exit 0
-fi
-if [ "$2" = "--since" ]; then
-  echo '[{"seq":1,"actor":"hergy-dev-lead","node":"q-1","what":"created"}]'
-  exit 0
-fi
-echo '[{"id":"q-1","title":"E2E の問い","created":"2026-10-17T02:59:58Z"}]'
-`)
-
-	base, stop := startServe(t, f)
-	e2eRun(t, ctx, chromedp.Navigate(base+"/activity"), chromedp.WaitReady("#activity-list"))
-	var body string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('activity-list').textContent`, &body))
-	for _, want := range []string{"前から止まっています", "最後のターンは builder", "このプロジェクトの問い", "E2E の問い", "選択肢: そのまま、戻す"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the activity does not hold %q:\n%s", want, body)
-		}
-	}
-	// Leave this serve's page before it is stopped, so its poll does not fail
-	// into the console after the socket is gone.
-	e2eRun(t, ctx, chromedp.Navigate(first+"/"), chromedp.WaitReady("main h1"))
-	stop()
-}
-
-// e2eEscape presses Escape in the page, the key the close script listens for.
-func e2eEscape(t *testing.T, ctx context.Context) {
-	t.Helper()
-	e2eRun(t, ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		down := input.DispatchKeyEventParams{Type: input.KeyRawDown, Key: "Escape", Code: "Escape", WindowsVirtualKeyCode: 27}
-		if err := down.Do(ctx); err != nil {
-			return err
-		}
-		up := input.DispatchKeyEventParams{Type: input.KeyUp, Key: "Escape", Code: "Escape", WindowsVirtualKeyCode: 27}
-		return up.Do(ctx)
-	}))
-}
-
-// e2eChangeButtons is whether the save and revert buttons are drawn (C1: their
-// being hidden is a rendering, not an attribute).
-func e2eChangeButtons(t *testing.T, ctx context.Context) bool {
-	t.Helper()
-	var shown bool
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`getComputedStyle(document.querySelector('.mission [data-change]')).display !== 'none'`, &shown))
-	return shown
-}
-
-// e2eActions is whether one form's save group is drawn (C1).
-func e2eActions(t *testing.T, ctx context.Context, form string) bool {
-	t.Helper()
-	var shown bool
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`getComputedStyle(document.querySelector('`+form+` [data-change]')).display !== 'none'`, &shown))
-	return shown
-}
-
-// e2ePick picks one option of a select and fires the event a person's picking
-// fires.
-func e2ePick(t *testing.T, ctx context.Context, selector, value string) {
-	t.Helper()
-	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + value + `";el.dispatchEvent(new Event("change",{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
-}
-
-// e2eType writes one line into a text field and fires the event a person's
-// typing fires.
-func e2eType(t *testing.T, ctx context.Context, selector, text string) {
-	t.Helper()
-	script := `(function(){var el=document.querySelector('` + selector + `');el.value="` + text + `";el.dispatchEvent(new Event("input",{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
-}
-
-// e2eValue is what one control reads.
-func e2eValue(t *testing.T, ctx context.Context, selector string) string {
-	t.Helper()
-	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.querySelector('`+selector+`').value`, &value))
+	var value int
+	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
 	return value
 }
 
-// e2eKind is the kind shown beside one form's profile pick (I7).
-func e2eKind(t *testing.T, ctx context.Context, form string) string {
+// e2eNavWait waits until one expression is true.
+func e2eNavWait(t *testing.T, ctx context.Context, script string) {
 	t.Helper()
-	var kind string
-	e2eRun(t, ctx, chromedp.Evaluate(
-		`((document.querySelector('`+form+` [data-kind-show]')||{}).textContent||"").trim()`, &kind))
-	return kind
-}
-
-// e2eWaitText waits until one element's text starts with one line.
-func e2eWaitText(t *testing.T, ctx context.Context, selector, want string) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		var got string
-		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector('`+selector+`')||{}).textContent || ""`, &got))
-		if strings.HasPrefix(strings.TrimSpace(got), want) {
+		var ok bool
+		e2eRun(t, ctx, chromedp.Evaluate(script, &ok))
+		if ok {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("%s never read %q", selector, want)
+	t.Fatalf("never became true: %s", script)
 }
 
-// e2eWaitContains waits until one element's text holds one line.
-func e2eWaitContains(t *testing.T, ctx context.Context, selector, want string) {
+// e2eNavWaitPath waits until the page's address ends with one path.
+func e2eNavWaitPath(t *testing.T, ctx context.Context, path string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		var got string
-		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("`+selector+`")||{}).textContent || ""`, &got))
-		if strings.Contains(got, want) {
+		var loc string
+		e2eRun(t, ctx, chromedp.Evaluate(`location.pathname + location.search`, &loc))
+		if loc == path {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("%s never held %q", selector, want)
-}
-
-// e2eSet clears the mission field and types one line into it, firing the input
-// events a person's typing fires.
-func e2eSet(t *testing.T, ctx context.Context, text string) {
-	t.Helper()
-	clear := `(function(){var el=document.getElementById('mission');el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(clear, nil))
-	if text != "" {
-		e2eRun(t, ctx, chromedp.SendKeys("#mission", text))
-	}
-}
-
-// e2eMissionValue is what the mission field shows.
-func e2eMissionValue(t *testing.T, ctx context.Context) string {
-	t.Helper()
-	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(`document.getElementById('mission').value`, &value))
-	return value
-}
-
-// e2eRun runs the actions, failing the test on the first error.
-func e2eRun(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
-	t.Helper()
-	if err := chromedp.Run(ctx, actions...); err != nil {
-		t.Fatalf("chromedp: %v", err)
-	}
-}
-
-// e2eURL is the page's address, without a trailing slash.
-func e2eURL(t *testing.T, ctx context.Context) string {
-	t.Helper()
 	var loc string
-	e2eRun(t, ctx, chromedp.Evaluate(`window.location.href`, &loc))
-	if len(loc) > 1 && strings.HasSuffix(loc, "/") {
-		loc = loc[:len(loc)-1]
-	}
-	return loc
+	e2eRun(t, ctx, chromedp.Evaluate(`location.pathname + location.search`, &loc))
+	t.Fatalf("the page never reached %q (it is at %q)", path, loc)
 }
 
-// e2eWaitURL waits until the page reaches one address.
-func e2eWaitURL(t *testing.T, ctx context.Context, want string) {
+// e2eNavClick presses one element the way a person presses it.
+func e2eNavClick(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if e2eURL(t, ctx) == want {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("the page never reached %q (it is at %q)", want, e2eURL(t, ctx))
+	script := `(function(){var el=document.querySelector(` + strconv.Quote(selector) + `);if(!el){throw new Error('no element for '+` + strconv.Quote(selector) + `);}el.click();})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
 }
 
-// e2eWaitField waits until the right panel holds one field.
-func e2eWaitField(t *testing.T, ctx context.Context, title string) {
+// e2eNavPress presses the element one expression stands for.
+func e2eNavPress(t *testing.T, ctx context.Context, find string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		var got string
-		e2eRun(t, ctx, chromedp.Evaluate(`(document.querySelector("#panel .panel-title")||{}).textContent || ""`, &got))
-		if strings.TrimSpace(got) == title {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("the field %q never opened", title)
+	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.click();})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
 }
 
-// e2eWaitClosed waits until the right panel holds no field.
-func e2eWaitClosed(t *testing.T, ctx context.Context, what string) {
+// e2eNavSet writes one field's value and fires the input event a person's
+// typing fires.
+func e2eNavSet(t *testing.T, ctx context.Context, find, value string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		var open bool
-		e2eRun(t, ctx, chromedp.Evaluate(`!!document.querySelector("#panel .panel-title")`, &open))
-		if !open {
+	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('input',{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eNavSelect picks one option of a select and fires the change event a
+// person's picking fires.
+func e2eNavSelect(t *testing.T, ctx context.Context, selector, value string) {
+	t.Helper()
+	script := `(function(){var el=document.querySelector(` + strconv.Quote(selector) + `);if(!el){throw new Error('no select for '+` + strconv.Quote(selector) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('change',{bubbles:true}));})()`
+	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+}
+
+// e2eNavFocus presses Tab until one element has the keyboard, the way a person
+// reaches it.
+func e2eNavFocus(t *testing.T, ctx context.Context, selector string) {
+	t.Helper()
+	focused := `document.activeElement === document.querySelector(` + strconv.Quote(selector) + `)`
+	for i := 0; i < 12; i++ {
+		var ok bool
+		e2eRun(t, ctx, chromedp.Evaluate(focused, &ok))
+		if ok {
 			return
 		}
-		time.Sleep(50 * time.Millisecond)
+		e2eRun(t, ctx, chromedp.KeyEvent(kb.Tab))
 	}
-	t.Fatalf("%s left the field open", what)
+	t.Fatalf("Tab never reached %s", selector)
 }
 
 // chromeBinary is where Chrome is, or a skip on a machine that has none. In CI a
@@ -804,6 +662,16 @@ func chromeBinary(t *testing.T) string {
 	}
 	t.Skip("no Chrome found; the e2e run is skipped on this machine (design W3)")
 	return ""
+}
+
+// serveEnv is the environment the screens read, built the way Run builds it.
+func serveEnv(t *testing.T) team.Env {
+	t.Helper()
+	env, err := team.NewEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return env
 }
 
 // startServe runs hergy serve with --no-open on a working XDG and a made-up
@@ -851,4 +719,12 @@ func (w urlWriter) Write(p []byte) (int, error) {
 		}
 	}
 	return len(p), nil
+}
+
+// e2eRun runs the actions, failing the test on the first error.
+func e2eRun(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
+	t.Helper()
+	if err := chromedp.Run(ctx, actions...); err != nil {
+		t.Fatalf("chromedp: %v", err)
+	}
 }

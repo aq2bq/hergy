@@ -1,0 +1,14 @@
+version: 1
+mission: "外から来た差分を読んで返す"
+members:
+  - name: reader
+    role: reviewer
+    profile: opus-plan
+  - name: writer
+    role: writer
+    profile: sonnet-fast
+turns:
+  - human -> reader
+  - reader -> human
+  - reader -> writer
+  - writer -> reader

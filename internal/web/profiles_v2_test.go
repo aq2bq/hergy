@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -401,8 +400,7 @@ func fixtureProject(t *testing.T) (*fixture, func()) {
 	global := filepath.Join(root, "config")
 	copyTree(t, filepath.Join(src, "project"), proj)
 	copyTree(t, filepath.Join(src, "config", "hergy"), global)
-	f := &fixture{root: root, proj: proj, global: global, agents: map[string][]activity.Agent{}}
-	f.port = &fakePort{f: f}
+	f := &fixture{root: root, proj: proj, global: global}
 	return f, func() {}
 }
 

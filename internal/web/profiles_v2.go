@@ -106,7 +106,7 @@ func (s *Server) p2Page(w http.ResponseWriter, r *http.Request, tab string) {
 func (s *Server) p2Data(r *http.Request, tab string) p2Data {
 	project, shared, defs := s.p2Read()
 	data := p2Data{
-		Lang: i18n.Language(), Project: filepath.Base(s.cat.Base()), Tab: tab, Token: s.token,
+		Lang: i18n.Language(), Nav: s.navOf("profiles"), Tab: tab, Token: s.token,
 		ProfileCount: len(p2Names(project, shared)), AssignCount: p2People(defs),
 		HashProject: project.hash, HashShared: shared.hash,
 		PathProject: s.cat.Display(s.cat.ProjectProfileFile()),

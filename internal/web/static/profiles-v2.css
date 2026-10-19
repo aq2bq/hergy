@@ -106,14 +106,11 @@ button { font: inherit; color: inherit; }
   max-width: 1680px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 18px 72px;
+  padding-block: 0 72px;
 }
 
-/* ヘッダとタブ */
-.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 28px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
-.crumb { font-family: var(--f-mono); font-size: 13px; color: var(--muted); padding-bottom: 12px; display: flex; gap: 8px; align-items: baseline; width: 100%; }
-.crumb .mark { color: var(--ink); font-weight: 600; letter-spacing: .02em; }
-.crumb .sep { color: var(--faint); }
+/* ヘッダとタブ。上の余白は帯が持つ (spec-nav.md 1.7) */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 28px; border-bottom: 1px solid var(--line); margin-bottom: 18px; padding-top: 6px; }
 .tabs { display: flex; gap: 26px; }
 .tab {
   background: none; border: 0; padding: 0 0 10px; cursor: pointer;

@@ -42,11 +42,12 @@
   }
 
   function updateCounts(headers) {
-    const profiles = $$('#tabs .tab')[0];
     const assign = $$('#tabs .tab')[1];
     const p = headers.get('X-Hergy-Profiles');
     const a = headers.get('X-Hergy-Assign');
-    if (p !== null && profiles) $('.n', profiles).textContent = p;
+    // The number of profiles stands in the band now; the first tab is 一覧 and
+    // carries none (spec-nav.md 1.1, 1.2).
+    if (p !== null && window.hergyNav) window.hergyNav.setCount('profiles', Number(p));
     if (a !== null && assign) $('.n', assign).textContent = a;
     const hp = headers.get('X-Hergy-Hash-Project');
     const hs = headers.get('X-Hergy-Hash-Shared');
@@ -87,17 +88,21 @@
   function changeCount(panel) {
     const saved = savedOf(panel);
     const draft = panelValues(panel);
+    // A profile the file writes with no args (or no env) reads back as null:
+    // it is the same as an empty list, and the screen must not fall over.
+    const beforeArgs = (saved && saved.args) || [];
+    const beforeEnv = (saved && saved.env) || [];
     let n = 0;
     if (!saved || draft.name !== saved.name) n++;
     if (!saved || draft.kind !== saved.kind) n++;
-    draft.args.forEach((arg, i) => { if (!saved || saved.args[i] !== arg) n++; });
-    if (saved && saved.args.length > draft.args.length) n += saved.args.length - draft.args.length;
+    draft.args.forEach((arg, i) => { if (!saved || beforeArgs[i] !== arg) n++; });
+    if (beforeArgs.length > draft.args.length) n += beforeArgs.length - draft.args.length;
     draft.env.forEach((pair, i) => {
-      const before = saved && saved.env[i];
+      const before = beforeEnv[i];
       if (!before || before.key !== pair.key) n++;
       if (!before || before.value !== pair.value) n++;
     });
-    if (saved && saved.env.length > draft.env.length) n += saved.env.length - draft.env.length;
+    if (beforeEnv.length > draft.env.length) n += beforeEnv.length - draft.env.length;
     return n;
   }
 
@@ -253,6 +258,7 @@
     }
     applyFilter();
     if (tab === 'profiles') updateProfilesURL();
+    tellDirty();
   }
 
   function showRefusal(box, text) {
@@ -528,6 +534,7 @@
     const card = holder.firstElementChild;
     if (card) { team.replaceWith(card); initAssign(); }
     updateCounts(answer.headers);
+    tellDirty();
   }
 
   // ---- the YAML tab ----------------------------------------------------
@@ -544,6 +551,7 @@
     $('.dirty', section).textContent = dirty ? '変更あり' : '';
     $('[data-act=yaml-save]', section).disabled = !dirty || problems.some((p) => p.sev === 'err');
     $('[data-act=yaml-revert]', section).hidden = !dirty;
+    tellDirty();
   }
 
   function renderYaml(section, problems) {
@@ -991,7 +999,138 @@
     }
   }, true);
 
+  // ---- 帯への報告と持ち越し (spec-nav.md 1.4, 1.5) ---------------------
+  // dirty is whether the screen holds something no save wrote yet: a panel's
+  // field, a row a person added, a YAML text, or a pick in the assign tab.
+  // The band shows its dot while it is true, and carries the draft over when a
+  // person walks to the other screen with the band.
+  function dirty() {
+    const panels = $$('#rows .panel').some((panel) => savedOf(panel) === null || changeCount(panel) > 0);
+    const yeds = $$('.yed').some((section) => $('.ytext', section).value !== section._base);
+    const picks = $$('.arow').some((row) => $('select', row).value !== (row.dataset.saved || ''));
+    return panels || yeds || picks;
+  }
+
+  function tellDirty() {
+    document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+  }
+
+  // take is the draft the band puts aside: every panel that is not what the
+  // file holds, every YAML text that was typed, every pick that was made — each
+  // with the hash of the file it was read from, so a file that moved outside is
+  // not written over by a page that read another one.
+  function take() {
+    const rows = [];
+    $$('#rows .row').forEach((row) => {
+      $$('.panel', row).forEach((panel) => {
+        const saved = savedOf(panel);
+        if (saved && changeCount(panel) === 0) return;
+        rows.push({
+          file: panel.dataset.file,
+          saved: saved ? saved.name : null,
+          hash: hashOf(panel.dataset.file),
+          values: panelValues(panel),
+        });
+      });
+    });
+    const ytexts = $$('.yed')
+      .filter((section) => $('.ytext', section).value !== section._base)
+      .map((section) => ({ file: section.dataset.file, hash: section.dataset.hash, text: $('.ytext', section).value }));
+    const picks = $$('.arow')
+      .filter((row) => $('select', row).value !== (row.dataset.saved || ''))
+      .map((row) => ({
+        team: row.closest('.team').dataset.g,
+        hash: row.closest('.team').dataset.hash,
+        key: row.dataset.k,
+        profile: $('select', row).value,
+      }));
+    return { rows, ytexts, picks };
+  }
+
+  // applyValues puts a panel's draft back into the fields a person types in,
+  // which keeps the panel's own saved identity (the name the file holds now).
+  function applyValues(panel, values) {
+    const name = $('[data-f=name]', panel);
+    if (name) name.value = values.name;
+    panel.dataset.draftKind = values.kind;
+    $$('.seg[data-f=kind] > button', panel).forEach((el) => {
+      const on = el.dataset.k === values.kind;
+      el.classList.toggle('on', on);
+      el.setAttribute('aria-pressed', String(on));
+    });
+    const other = $('[data-f=kind-other]', panel);
+    if (other) other.value = BASE_KINDS.includes(values.kind) ? '' : values.kind;
+    const args = $('.args', panel);
+    const addArg = $('[data-act=arg-add]', args);
+    $$('.arg', args).forEach((el) => el.remove());
+    values.args.forEach((arg, i) => addArg.insertAdjacentHTML('beforebegin', argHTML(i, arg)));
+    const env = $('.env', panel);
+    const addEnv = $('[data-act=env-add]', env);
+    $$('.envrow', env).forEach((el) => el.remove());
+    values.env.forEach((pair, i) => addEnv.insertAdjacentHTML('beforebegin', envHTML(i, pair.key, pair.value)));
+    const bin = $('.bin', panel);
+    if (bin) bin.textContent = values.kind;
+    initPanel(panel);
+    mark(panel);
+    check(panel);
+  }
+
+  // restore puts the carried draft back, skipping every part whose file moved
+  // outside since the draft was made (spec-nav.md 1.5).
+  function restore(carried) {
+    (carried.rows || []).forEach((c) => {
+      if (c.hash && c.hash !== hashOf(c.file)) return;
+      if (c.saved) {
+        const panel = $$('#rows .panel').find((p) => p.dataset.file === c.file && (p.dataset.savedName || '') === c.saved);
+        if (panel) applyValues(panel, c.values);
+        return;
+      }
+      // a row a person added and had not saved yet
+      const fresh = newRow(c.file);
+      const rows = $('#rows');
+      const first = $('.row', rows);
+      if (first) rows.insertBefore(fresh, first); else rows.appendChild(fresh);
+      $$('.panel', fresh).forEach(initPanel);
+      const panel = $('.panel', fresh);
+      if (panel) applyValues(panel, c.values);
+    });
+    (carried.ytexts || []).forEach((c) => {
+      const section = $$('.yed').find((s) => s.dataset.file === c.file);
+      if (!section || (c.hash && c.hash !== section.dataset.hash)) return;
+      const textarea = $('.ytext', section);
+      textarea.value = c.text;
+      autosize(textarea);
+      yamlFoot(section, section._problems || []);
+      checkYaml(section);
+    });
+    (carried.picks || []).forEach((c) => {
+      const team = $$('.team').find((el) => el.dataset.g === c.team);
+      if (!team || (c.hash && c.hash !== team.dataset.hash)) return;
+      const row = $$('.arow', team).find((el) => el.dataset.k === c.key);
+      if (!row) return;
+      const select = $('select', row);
+      if (![...select.options].some((o) => o.value === c.profile)) return;
+      select.value = c.profile;
+      assignChange(select);
+    });
+    // The rows list's own counts and URL are the profile tab's; the other tabs
+    // only need the band told.
+    if (tab === 'profiles') afterRowsChanged(); else tellDirty();
+  }
+
+  window.hergyPage = { screen: 'profiles', dirty, take };
+  // A change a person makes, and a save's answer, both move the dot.
+  document.addEventListener('input', tellDirty);
+  document.addEventListener('change', tellDirty);
+  document.addEventListener('click', tellDirty);
+
+  // The band's promise: what one screen left unsaved is handed to this one, and
+  // dropped whether or not it could be put back. It is put back after the tab
+  // is set up, so what was typed is not read as the file's own text.
   if (tab === 'profiles') initProfiles();
   else if (tab === 'assign') initAssign();
   else initYaml();
+  const carried = window.hergyNav && window.hergyNav.takeDraft('profiles');
+  if (carried) restore(carried);
+  tellDirty();
 })();

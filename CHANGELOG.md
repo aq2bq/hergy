@@ -80,6 +80,38 @@
   profiles with the same one-pass check, so a screen and the command line say
   the same sentence, and reports an environment variable written twice.
 
+### Removed
+
+- **The old WebUI screens are gone; `hergy serve` shows the profiles and the
+  roles**: every page now carries one band with four screens — 活動, チーム定義,
+  プロファイル and ロール — and only プロファイル (`/profiles`) and ロール
+  (`/roles`) open; 活動 and チーム定義 are drawn struck through and are not
+  pressable yet. `/` moves to `/profiles` (it no longer opens the team
+  definitions). Walking to the other screen with the band carries the changes
+  that were not saved yet, and the band shows a dot beside a screen that holds
+  them. The screens the old WebUI had are gone, and every path under them
+  answers 404 with the band on the page: `/definitions`, `/activity`,
+  `/agreement`, `/teams`, `/team`, `/running`, `/rules`, `/diff`, `/bump`,
+  `/figure`, `/panel`, a definition's field paths
+  (`/definitions/<name>/members/<member>` and the like), and the old
+  `/roles/<role>` pages. `/static/hergy.css` and `/static/htmx-2.0.4.min.js`
+  are gone too. A 404 is a page, not a redirect: a bookmark lands on one that
+  says there is no such screen. `hergy serve` writes nothing now but a role
+  document and the two profiles.yaml files.
+
+  Before:
+  - `/definitions/core`, fix the mission.
+  - `/agreement`, fix a rule every team reads.
+
+  After:
+  - edit `.hergy/teams/core/team.yaml`, then `hergy validate`.
+  - edit `.hergy/agreement.yaml` (a team's own rules stay in
+    `.hergy/teams/<team>/agreement.yaml`), then `hergy validate`.
+  - what `/activity` showed (a running team and what it is doing) is
+    `hergy status`.
+  - what `/definitions/core/members/lead` wrote (a member's role and profile)
+    is `members[].role` and `members[].profile` in that team.yaml.
+
 ## 0.7.0 - 2026-10-17
 
 ### Changed

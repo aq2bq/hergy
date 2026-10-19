@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -26,11 +25,11 @@ import (
 
 // r2PageData is one tab's page.
 type r2PageData struct {
-	Lang    string
-	Project string
-	Tab     string
-	Token   string
-	Data    template.JS
+	Lang  string
+	Nav   navData
+	Tab   string
+	Token string
+	Data  template.JS
 }
 
 // r2Page draws one tab of the role screen. The page is its own, not the frame's:
@@ -43,7 +42,7 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 		return
 	}
 	data := r2PageData{
-		Lang: i18n.Language(), Project: filepath.Base(s.cat.Base()), Tab: tab,
+		Lang: i18n.Language(), Nav: s.navOf("roles"), Tab: tab,
 		Token: s.token, Data: template.JS(raw), //nolint:gosec // raw is json.Marshal output, which escapes <, > and &, so it cannot close the script element that carries it
 	}
 	var buf bytes.Buffer

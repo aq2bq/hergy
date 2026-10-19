@@ -1,0 +1,30 @@
+{{define "nav_band"}}
+<div class="bar">
+  <div class="crumb"><a class="mark" href="/">hergy</a><span class="sep">/</span><span>{{.Project}}</span></div>
+  <nav class="screens" aria-label="画面" data-key="{{.Key}}">
+    <span class="scr soon" aria-disabled="true">活動</span>
+    <span class="scr soon" aria-disabled="true">チーム定義<span class="n">{{.Teams}}</span></span>
+    {{if eq .Current "profiles"}}<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></span>{{else}}<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></a>{{end}}
+    {{if eq .Current "roles"}}<span class="scr on" aria-current="page" data-screen="roles">ロール<span class="n">{{.Roles}}</span></span>{{else}}<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">{{.Roles}}</span></a>{{end}}
+  </nav>
+</div>
+{{end}}
+
+{{define "nav_page"}}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hergy</title>
+<link rel="stylesheet" href="/static/profiles-v2.css">
+<link rel="stylesheet" href="/static/nav.css">
+<script src="/static/nav.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  {{template "nav_band" .Nav}}
+  <main id="view"><p class="gone">{{.Text}}</p></main>
+</div>
+</body>
+</html>
+{{end}}
