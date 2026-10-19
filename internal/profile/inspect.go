@@ -186,6 +186,11 @@ func readEntry(name string, key, value *yaml.Node, path string) (Entry, []Proble
 	if entry.Kind != "" && name == entry.Kind {
 		add(Warn, "name", key.Line, i18n.Tf("validate.profile_named_after_kind", name))
 	}
+	for i, pair := range entry.Env {
+		if pair.Key == ActorEnv {
+			add(Warn, fmt.Sprintf("env.%d.key", i), entry.EnvLines[i], i18n.Tf("validate.profile_env_actor", name))
+		}
+	}
 	entry.Problems = problems
 	return entry, problems
 }
@@ -294,6 +299,9 @@ func CheckDraft(draft Draft, saved []Entry, original string) []Problem {
 			add(Err, field+".key", i18n.Tf("error.env_key_twice", label, pair.Key))
 		}
 		seen[pair.Key] = true
+		if pair.Key == ActorEnv {
+			add(Warn, field+".key", i18n.Tf("validate.profile_env_actor", draft.Name))
+		}
 	}
 	return out
 }

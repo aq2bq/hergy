@@ -148,14 +148,14 @@ const tail = `Running against herdr:
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
   refresh starts a member that is not live again in the pane hergy named after it, when that pane is still at its shell; a pane that is gone or busy is an error, and refresh points at down then up.
-  env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env.
+  env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env. Every pane hergy makes also gets GY_ACTOR=<herdr name>: the name the agent writes into gy. A profile's own GY_ACTOR does not win, and validate warns when a profile writes it.
 
 Reading the output:
   Most lines are "name: value" (for example "team: demo", or "team definition: demo" for a team definition). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
   --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
-  A JSON member always has name, role, kind, args, cwd (an absolute path) and prompt; profile, env, workers, turns and sources appear only when set.
+  A JSON member always has name, role, kind, args, env, cwd (an absolute path) and prompt: env is the pane's environment, the profile's own variables plus GY_ACTOR. profile, workers, turns and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
   validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin).
   It then prints the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns when one is over the provisional limit. Neither the count nor a warning changes the exit code: only a broken file makes it 1.
@@ -227,7 +227,7 @@ Settings files and their keys:
       <name>:
         kind: <kind>       required, string; herdr's agent kind.
         args: [<arg>...]   list of strings; passed to the agent CLI as is. Quote numbers.
-        env: {NAME: value} mapping of string to string; environment for the pane.
+        env: {NAME: value} mapping of string to string; environment for the pane. hergy adds GY_ACTOR itself, so a value written here does not win.
       A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
   A team definition reads the project's profiles.yaml over the one outside it, wherever the definition sits: a profile of the same name resolves to the project's.
 
@@ -273,6 +273,7 @@ new:
 Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
   %{role_doc}  the role document     %{docs}  the agreements     %{roster}  the roster
+  %{actor}  the name hergy passes to gy as GY_ACTOR (the herdr name)
   %{herdr}  how to reach others over herdr, and how to add a teammate
   %{turns}  who the member hands the turn to, from the definition's turns:
   %{workers}  what the member may hire, with the command (only when workers: names one for it). The old %{spawn} is gone: a template that still writes it is an error that says so.

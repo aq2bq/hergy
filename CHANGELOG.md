@@ -80,6 +80,20 @@
   profiles with the same one-pass check, so a screen and the command line say
   the same sentence, and reports an environment variable written twice.
 
+- **Every pane hergy makes gets `GY_ACTOR`**: `hergy up` and `hergy hire` set
+  `GY_ACTOR=<herdr name>` in each pane's environment — the member's or worker's
+  herdr name, `<team>-<name>` — so an agent's records in gy carry the name herdr
+  knows it by. A profile that writes `GY_ACTOR` does not win: hergy's value does,
+  and `hergy validate` warns when one writes it. The bootstrap prompt gains one
+  sentence (`%{actor}`) telling the member or worker not to change the name. One
+  visible difference: a member's `env` in `hergy up --dry --json` is no longer
+  absent when the profile writes none, because `GY_ACTOR` is always there.
+
+  Before: a profile could set `env: {GY_ACTOR: builder}` and the pane carried
+  `builder`.
+  After: the pane carries the member's herdr name (`<team>-<member>`); take
+  `GY_ACTOR` out of the profile, which `hergy validate` now warns about.
+
 ### Removed
 
 - **The old WebUI screens are gone; `hergy serve` shows the profiles and the
