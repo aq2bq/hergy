@@ -247,7 +247,7 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 			Profile: node.Profile,
 			Kind:    value.Kind,
 			Args:    value.Args,
-			Env:     value.Env,
+			Env:     profile.PaneEnv(value.Env, herdr),
 			Cwd:     node.Cwd,
 			Prompt:  built.Text,
 			RoleDoc: built.Role,

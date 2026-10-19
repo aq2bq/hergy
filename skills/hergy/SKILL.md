@@ -28,6 +28,7 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - `hergy reprompt` keeps each member's conversation; `hergy refresh` ends the agent and starts it again, so the conversation starts empty. After editing a document the member reads, `reprompt`; after editing a profile (its `kind`, `args` or `env`), `refresh`. `refresh` also starts a member that is no longer running, when the pane hergy named after it is still at its shell; if the pane is gone or busy, it changes nothing and points at `hergy down` then `hergy up`.
 - A member cannot `refresh` itself: hergy runs inside a member's pane, and stopping that member would stop hergy before it could start the agent again. Run it from another pane, or as the human.
 - `env` is fixed when a pane is made: after changing `env`, run `hergy down` then `hergy up`; `hergy refresh` keeps the pane and its env.
+- `hergy` sets `GY_ACTOR=<herdr name>` in every pane it makes, so an agent's records in gy carry the name herdr knows it by; the bootstrap prompt tells the agent not to change it. A profile that writes `GY_ACTOR` does not win, and `hergy validate` warns when one does.
 - `hergy down` closes the panes of the team you are in, your own pane included, and that pane last.
 - To read output, add `--lang en`, or use `--dry --json`; the `next:` line names what to type next.
 

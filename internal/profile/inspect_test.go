@@ -66,6 +66,44 @@ func TestReadAllCollectsEveryProblemAndItsLine(t *testing.T) {
 	}
 }
 
+// TestWarnsAboutAProfileThatWritesGYActor: hergy sets GY_ACTOR in every pane it
+// makes, so a profile's own value never reaches the agent. The file still reads,
+// so it is a warning, on the env key's field (r-1c42).
+func TestWarnsAboutAProfileThatWritesGYActor(t *testing.T) {
+	text := "version: 1\n" +
+		"profiles:\n" +
+		"  dev:\n" +
+		"    kind: claude\n" +
+		"    env:\n" +
+		"      GY_ACTOR: builder\n" +
+		"      FOO: bar\n"
+	_, problems := ReadAll(text, "profiles.yaml")
+	want := i18n.Tf("validate.profile_env_actor", "dev")
+	found := 0
+	for _, problem := range problems {
+		if problem.Text != want {
+			continue
+		}
+		found++
+		if problem.Sev != Warn {
+			t.Errorf("the GY_ACTOR problem is %v, want a warning", problem.Sev)
+		}
+		if problem.Field != "env.0.key" {
+			t.Errorf("the GY_ACTOR problem is on field %q, want env.0.key", problem.Field)
+		}
+	}
+	if found != 1 {
+		t.Fatalf("the file has %d GY_ACTOR warnings, want 1: %+v", found, problems)
+	}
+	if hasError(problems) {
+		t.Errorf("a warning stops the file: %+v", problems)
+	}
+	draft := Draft{Name: "dev", Kind: "claude", Env: []EnvPair{{Key: "GY_ACTOR", Value: "builder"}}}
+	if got := CheckDraft(draft, nil, ""); len(got) != 1 || got[0].Text != want || got[0].Sev != Warn {
+		t.Errorf("CheckDraft on a draft that writes GY_ACTOR = %+v, want one warning %q", got, want)
+	}
+}
+
 // TestReadAllNamesTheFileProblems: a file that does not read at all says why,
 // on the line the reading stopped.
 func TestReadAllNamesTheFileProblems(t *testing.T) {

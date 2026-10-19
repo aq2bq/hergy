@@ -875,6 +875,7 @@ func TestShowShape(t *testing.T) {
 		"  role: lead",
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
+		"  env: GY_ACTOR",
 		"  cwd: .",
 		"  turns: builder, human",
 		"  role document: .hergy/roles/lead.yaml",
@@ -883,6 +884,7 @@ func TestShowShape(t *testing.T) {
 		"  role: builder",
 		"  kind: claude",
 		"  profile: claude-default (.hergy/profiles.yaml)",
+		"  env: GY_ACTOR",
 		"  cwd: .",
 		"  turns: lead",
 		"  role document: .hergy/roles/builder.yaml",
@@ -947,6 +949,136 @@ func TestUpDryJSONIsTheSameJSON(t *testing.T) {
 	}
 	if strings.Contains(got, "next:") {
 		t.Fatalf("--json output must be the JSON alone:\n%s", got)
+	}
+}
+
+// memberEnv reads one member's env out of an --dry --json plan, by member name.
+func memberEnv(t *testing.T, plan map[string]any, name string) map[string]string {
+	t.Helper()
+	members, _ := plan["members"].([]any)
+	for _, raw := range members {
+		member, _ := raw.(map[string]any)
+		if member["name"] != name {
+			continue
+		}
+		out := map[string]string{}
+		env, _ := member["env"].(map[string]any)
+		for key, value := range env {
+			out[key], _ = value.(string)
+		}
+		return out
+	}
+	t.Fatalf("no member %q in the plan: %v", name, plan)
+	return nil
+}
+
+// TestUpDryNamesTheActorInEveryPane: hergy puts GY_ACTOR in each member's pane,
+// set to the member's herdr name, and a profile that writes GY_ACTOR itself does
+// not win (r-1c42).
+func TestUpDryNamesTheActorInEveryPane(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	// A profile that writes GY_ACTOR: hergy's value wins, the rest of the
+	// profile's env stays.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    env:\n      GY_ACTOR: from-the-profile\n      FOO: bar\n")
+	got := mustRun(t, "up", "demo", "--dry", "--json")
+	var plan map[string]any
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, got)
+	}
+	for _, name := range []string{"demo-lead", "demo-builder"} {
+		env := memberEnv(t, plan, name)
+		if env["GY_ACTOR"] != name {
+			t.Errorf("%s's env has GY_ACTOR=%q, want %q: %v", name, env["GY_ACTOR"], name, env)
+		}
+		if env["FOO"] != "bar" {
+			t.Errorf("%s's env lost the profile's own variable: %v", name, env)
+		}
+	}
+	if text := mustRun(t, "up", "demo", "--dry"); !strings.Contains(text, "GY_ACTOR") {
+		t.Errorf("up --dry does not show GY_ACTOR:\n%s", text)
+	}
+}
+
+// TestUpDryActorFollowsTheTeamName: the name hergy passes is the herdr name of
+// the run, so --as moves it with the member's name (r-1c42).
+func TestUpDryActorFollowsTheTeamName(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo")
+	got := mustRun(t, "up", "demo", "--as", "dev2", "--dry", "--json")
+	var plan map[string]any
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, got)
+	}
+	if env := memberEnv(t, plan, "dev2-lead"); env["GY_ACTOR"] != "dev2-lead" {
+		t.Errorf("the actor with --as is %q, want dev2-lead", env["GY_ACTOR"])
+	}
+}
+
+// TestHireDryNamesTheActorInTheWorkersPane: a worker's pane gets GY_ACTOR set to
+// the worker's herdr name (r-1c42).
+func TestHireDryNamesTheActorInTheWorkersPane(t *testing.T) {
+	workersFixture(t)
+	got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry", "--json")
+	var plan map[string]any
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, got)
+	}
+	if env := memberEnv(t, plan, "dev-researcher"); env["GY_ACTOR"] != "dev-researcher" {
+		t.Errorf("the worker's env has GY_ACTOR=%q, want dev-researcher", env["GY_ACTOR"])
+	}
+}
+
+// TestBootstrapPromptNamesTheActor: the prompt hergy hands a member and a worker
+// says the name gy is written under, in the language in use (r-1c42).
+func TestBootstrapPromptNamesTheActor(t *testing.T) {
+	workersFixture(t)
+	if got := mustRun(t, "up", "dev", "--dry"); !strings.Contains(got, i18n.Tf("prompt.actor", "dev-lead")) {
+		t.Errorf("the member's prompt does not name the actor:\n%s", got)
+	}
+	if got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry"); !strings.Contains(got, i18n.Tf("prompt.actor", "dev-researcher")) {
+		t.Errorf("the worker's prompt does not name the actor:\n%s", got)
+	}
+	// The sentence is translated too; ask for Japanese and read it back.
+	if got := mustRun(t, "up", "dev", "--dry", "--lang", "ja"); !strings.Contains(got, i18n.Tf("prompt.actor", "dev-lead")) {
+		t.Errorf("the Japanese prompt does not name the actor:\n%s", got)
+	}
+}
+
+// TestValidateWarnsAboutAProfileThatWritesGYActor: a profile's own GY_ACTOR
+// never reaches the agent, because hergy sets that name; validate warns and the
+// exit code stays 0 (r-1c42).
+func TestValidateWarnsAboutAProfileThatWritesGYActor(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    env:\n      GY_ACTOR: builder\n")
+	got, _, code := run("validate")
+	if code != 0 {
+		t.Fatalf("validate failed on a profile that writes GY_ACTOR:\n%s", got)
+	}
+	if !strings.Contains(got, i18n.Tf("validate.profile_env_actor", "claude-default")) {
+		t.Fatalf("validate does not warn about GY_ACTOR:\n%s", got)
+	}
+}
+
+// TestRefreshKeepsThePanesEnv: env reaches a pane only when the pane is made,
+// and refresh starts the member again in the pane it already has, so GY_ACTOR
+// stays. The check is that refresh makes no pane: the recorded herdr calls hold
+// no tab create and no pane split, the two places hergy passes env (r-1c42).
+func TestRefreshKeepsThePanesEnv(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	log := f.refreshDeadHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "w0:p1")
+	mustRun(t, "refresh", "lead")
+	record := readFile(t, log)
+	for _, made := range []string{"tab create", "pane split"} {
+		if strings.Contains(record, made) {
+			t.Errorf("refresh made a pane (%q), which would drop GY_ACTOR:\n%s", made, record)
+		}
 	}
 }
 

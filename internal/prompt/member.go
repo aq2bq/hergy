@@ -186,6 +186,11 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		"team": func() string { return run.Team },
 		"role": func() string { return node.Role },
 		"name": func() string { return memberName },
+		"actor": func() string {
+			// The name hergy writes into the pane's env as GY_ACTOR; the member's
+			// herdr name, which follows --as.
+			return run.textf("prompt.actor", memberName)
+		},
 		"role_doc": func() string {
 			if buildErr != nil {
 				return ""

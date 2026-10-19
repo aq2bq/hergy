@@ -53,6 +53,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		"lead_role": func() string { return lead.Role },
 		"purpose":   func() string { return purpose },
 		"name":      func() string { return herdrName },
+		"actor":     func() string { return i18n.Tf("prompt.actor", herdrName) },
 		"task":      func() string { return task },
 		"herdr": func() string {
 			return prompt.HerdrWorker(i18n.Tf("prompt.self_intro_worker", team, purpose, herdrName))
@@ -69,7 +70,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		Role:    i18n.Tf("role.worker", purpose),
 		Kind:    profileValue.Kind,
 		Args:    profileValue.Args,
-		Env:     profileValue.Env,
+		Env:     profile.PaneEnv(profileValue.Env, herdrName),
 		Cwd:     lead.Cwd,
 		Prompt:  text,
 		Profile: profileValue.Name,
