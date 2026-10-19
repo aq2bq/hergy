@@ -1,6 +1,6 @@
 version: 1
 title: hergy-dev チームの約束
-revision: 3
+revision: 4
 sections:
   - heading: 進め方
     style: ids
@@ -119,14 +119,3 @@ sections:
             date: "2026-10-16"
             refs: [d-207f]
             note: もとは LEAD-6（spec の監査）と DESIGN-5。いまのチームに spec はいないので、監査は designer がする
-  - heading: ハーネスの事情（プロファイルに置き場所ができたら移す）
-    style: ids
-    rules:
-      - id: T12
-        text: designer のデザインの基準は、Claude Code の組み込みのデザインのスキル（Skill ツールの artifact-design）。designer は毎ターンの最初にそれを読む。
-        why: 2026-10-17、用意されていたスキルを読まずに自前の規則で画面を決め、PO が「直しても無理」と言った。
-        origin:
-          - kind: incident
-            date: "2026-10-17"
-            refs: [d-4e32, d-d475]
-            note: もとは DESIGN-1。Claude Code でしか成り立たないので d-ad20 でロールから外した
