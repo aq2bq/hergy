@@ -6,6 +6,10 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px;
   padding-block: 14px 12px;
 }
+/* The pages under the band carry their own link rules (a.tab, a.fchip,
+   a.uchip), so the band's own links take the underline out here. hergy's own
+   underline on hover stands below, which is the more specific rule. */
+.bar a { text-decoration: none; }
 .crumb { font-family: var(--f-mono); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
 .crumb .mark { color: var(--ink); font-weight: 600; letter-spacing: .02em; border-radius: 2px; }
 .crumb .mark:hover { text-decoration: underline; text-underline-offset: 3px; }

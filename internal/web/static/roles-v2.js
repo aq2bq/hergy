@@ -1052,6 +1052,9 @@
     }
     markPanel(c.sec);
     scheduleCheck(c.r, c.l, c.sec);
+    // A field inside a row changes what is unsaved without a redraw, so the
+    // band is told here (R3).
+    tellDirty();
   });
 
   view.addEventListener('change', (e) => {
@@ -1066,6 +1069,7 @@
     const f = t.dataset.f || (t.closest('[data-f]') ? t.closest('[data-f]').dataset.f : '');
     if (f === 'style') { c.d.sections[c.si].style = t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
     if (f === 'level') { c.d.sections[c.si].level = +t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
+    tellDirty();
   });
 
   function moveRule(d, si, ri, dir) {

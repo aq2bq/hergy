@@ -386,9 +386,9 @@ func e2eNavAnotherTab(t *testing.T, ctx context.Context, allocCtx context.Contex
 	}
 }
 
-// e2eNavCarry is N6〜N9: a pick made and not saved is carried to the other
-// screen and back, is dropped when the file moved outside, and is not put back
-// by a reload.
+// e2eNavCarry is N6〜N9 and R2/R3: a pick made and not saved is carried to the
+// other screen and back, is dropped when the file moved outside, is not put
+// back by a reload, and a draft the band did not carry is spent for good.
 func e2eNavCarry(t *testing.T, ctx context.Context, base string, f *fixture) {
 	t.Helper()
 	const pick = `.team[data-g="core"] .arow[data-k="m-2"]`
@@ -433,6 +433,39 @@ func e2eNavCarry(t *testing.T, ctx context.Context, base string, f *fixture) {
 		t.Errorf("N9: a reload put %d changed picks back, want none", changed)
 	}
 
+	// R2: a draft the band did not carry is spent, not put back later. Make a
+	// pick, walk to the role screen with the band, then open the profile screen
+	// by typing its URL — the draft is dropped there. Walking the band back and
+	// forth afterwards must not bring it back.
+	e2eNavSelect(t, ctx, pick+" select", "opus-deep")
+	e2eNavWait(t, ctx, `document.querySelector(`+strconv.Quote(pick)+`).classList.contains('changed')`)
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles")
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows')`)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/assign"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.team[data-g="core"]')`)
+	if changed := e2eNavInt(t, ctx, `document.querySelectorAll('.arow.changed').length`); changed != 0 {
+		t.Errorf("R2: opening the profile screen by URL put %d changed picks back, want none", changed)
+	}
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+		t.Errorf("R2: the band marks a screen after a typed URL dropped the draft")
+	}
+	e2eNavClick(t, ctx, `a.scr[data-screen="roles"]`)
+	e2eNavWaitPath(t, ctx, "/roles")
+	e2eNavWait(t, ctx, `!!document.querySelector('#rows')`)
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('a.scr[data-screen="profiles"] .dot'))`); dot != "false" {
+		t.Errorf("R2: the profile screen still shows a dot after its draft was dropped")
+	}
+	e2eNavClick(t, ctx, `a.scr[data-screen="profiles"]`)
+	e2eNavWaitPath(t, ctx, "/profiles/assign")
+	e2eNavWait(t, ctx, `!!document.querySelector('.team[data-g="core"]')`)
+	if v := e2eNavText(t, ctx, `document.querySelector(`+strconv.Quote(pick+" select")+`).value`); v != "codex-high" {
+		t.Errorf("R2: the pick reads %q after the dropped draft, want codex-high", v)
+	}
+	if changed := e2eNavInt(t, ctx, `document.querySelectorAll('.arow.changed').length`); changed != 0 {
+		t.Errorf("R2: a draft the band did not carry came back (%d changed picks), want none", changed)
+	}
+
 	// N6 again, for N8: carry the pick over, change team.yaml outside, and walk
 	// back — the draft is not put back, and the band's mark goes.
 	e2eNavSelect(t, ctx, pick+" select", "opus-deep")
@@ -449,6 +482,21 @@ func e2eNavCarry(t *testing.T, ctx context.Context, base string, f *fixture) {
 	}
 	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
 		t.Errorf("N8: the band still marks a screen after the draft was dropped")
+	}
+
+	// R3: a field inside a role's row does not redraw the screen, but it is a
+	// change all the same — the band's mark comes with it and goes when the
+	// field is put back. (Last, so the place it leaves on the role screen does
+	// not stand in for the band's walk of N6.)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"))
+	e2eNavWait(t, ctx, `!!document.querySelector('.role.open .panel[data-l="project"] [data-f="title"]')`)
+	const title = `document.querySelector('.role.open .panel[data-l="project"] [data-f="title"]')`
+	e2eNavSet(t, ctx, title, "設計と実装")
+	e2eNavWait(t, ctx, `!!document.querySelector('.scr.on[data-screen="roles"] .dot')`)
+	e2eNavSet(t, ctx, title, "設計実装")
+	e2eNavWait(t, ctx, `!document.querySelector('.scr.on[data-screen="roles"] .dot')`)
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+		t.Errorf("R3: the band still marks a screen after the field was put back")
 	}
 }
 
@@ -471,6 +519,12 @@ func e2eNavWidths(t *testing.T, ctx context.Context, base string) {
 				}
 				if over := e2eNavInt(t, ctx, `document.documentElement.scrollWidth - window.innerWidth`); over > 1 {
 					t.Errorf("%s at %d/%s flows %dpx sideways", path, size, theme, over)
+				}
+				// R1: the band's own links take the browser's underline out;
+				// only hergy's crumb keeps one, on hover.
+				deco := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('.screens a.scr')).textDecorationLine`)
+				if deco != "none" {
+					t.Errorf("%s at %d/%s: the band's links read %q, want no underline", path, size, theme, deco)
 				}
 				rows := e2eNavText(t, ctx, `getComputedStyle(document.querySelector('.screens')).display`)
 				if size > 760 && rows != "flex" {

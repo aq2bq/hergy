@@ -177,7 +177,7 @@ Web UI:
   A band stands at the top of every screen: hergy with the project's folder name, then the four screens. プロファイル and ロール are the two that open; 活動 and チーム定義 are drawn struck through and are not pressable yet. The screen a person is on is the dark one, and the band shows a dot beside a screen that holds changes no save wrote.
   Walking from one screen to the other with the band carries the changes that were not saved yet, and puts them back when that screen comes round again.
   What the fields write today: a role document, and the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs).
-  The screens the old WebUI had are gone. /definitions, /activity and /agreement, and every path under them, answer 404 with the band on the page and one line saying there is no such screen, as do /teams, /team, /running, /rules, /diff, /bump, /figure, /panel and the old /roles/<role> paths. The old files /static/hergy.css and /static/htmx-2.0.4.min.js are gone too.
+  The screens the old WebUI had are gone. /definitions, /activity and /agreement, and every path under them, answer 404 with the band on the page and one line saying there is no such screen, as do /teams, /team, /running, /rules, /diff, /bump, /figure and /panel. The old files /static/hergy.css and /static/htmx-2.0.4.min.js are gone too. A page that is still there moves instead: /profiles/<name>, and /roles/<role> with /new or /<rule> behind it, go to the list with that profile or role opened.
 
 Resolution:
   A team definition is teams/<definition>/ under the project's .hergy/, or under $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).

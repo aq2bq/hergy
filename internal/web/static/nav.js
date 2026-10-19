@@ -66,14 +66,18 @@
   // Only the band's own walk carries the changes: pressing a link here writes
   // the draft of the screen being left and marks the screen being entered, and
   // only that arrival reads it back. A reload, the back button, a typed URL and
-  // hergy go without them.
+  // hergy go without them — and a draft they left behind is dropped, so it
+  // cannot come back later (R2). The mark is written even from a page that is
+  // no screen (a 404), so a draft waiting for the screen it points at comes
+  // back the same way from there.
   band.querySelectorAll('a.scr').forEach((a) => {
     a.addEventListener('click', () => {
+      write(at('carry', a.dataset.screen), '1');
       const screen = mine();
       if (!screen) return;
-      write(at('carry', a.dataset.screen), '1');
       const p = page();
       if (p && p.dirty && p.dirty()) write(at('draft', screen), JSON.stringify(p.take()));
+      else drop(at('draft', screen));
     });
   });
 
@@ -81,14 +85,15 @@
 
   window.hergyNav = {
     // takeDraft hands one screen's unsaved changes over when the band walked
-    // here, once, and forgets them. It answers null when the band did not, or
-    // when the screen held nothing.
+    // here, once, and forgets them. It answers null when the band did not walk
+    // here, or when the screen held nothing. The draft is dropped either way:
+    // one this page did not take is one nobody may put back (R2).
     takeDraft(screen) {
-      if (!read(at('carry', screen))) return null;
-      drop(at('carry', screen));
       const raw = read(at('draft', screen));
-      if (raw === null) return null;
+      const carried = !!read(at('carry', screen));
+      drop(at('carry', screen));
       drop(at('draft', screen));
+      if (!raw || !carried) return null;
       try { return JSON.parse(raw); } catch (e) { return null; }
     },
     // setCount is how a page keeps the band's number the same as its own when a

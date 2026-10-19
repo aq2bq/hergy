@@ -92,12 +92,14 @@
   them. The screens the old WebUI had are gone, and every path under them
   answers 404 with the band on the page: `/definitions`, `/activity`,
   `/agreement`, `/teams`, `/team`, `/running`, `/rules`, `/diff`, `/bump`,
-  `/figure`, `/panel`, a definition's field paths
-  (`/definitions/<name>/members/<member>` and the like), and the old
-  `/roles/<role>` pages. `/static/hergy.css` and `/static/htmx-2.0.4.min.js`
-  are gone too. A 404 is a page, not a redirect: a bookmark lands on one that
-  says there is no such screen. `hergy serve` writes nothing now but a role
-  document and the two profiles.yaml files.
+  `/figure`, `/panel` and a definition's field paths
+  (`/definitions/<name>/members/<member>` and the like). `/static/hergy.css` and
+  `/static/htmx-2.0.4.min.js` are gone too. A 404 is a page, not a redirect: a
+  bookmark lands on one that says there is no such screen. A page that is still
+  there moves: `/profiles/<name>`, and `/roles/<role>` with `/new` or
+  `/<rule>` behind it, go to the list with that profile or role opened (a
+  bookmark keeps working). `hergy serve` writes nothing now but a role document
+  and the two profiles.yaml files.
 
   Before:
   - `/definitions/core`, fix the mission.
