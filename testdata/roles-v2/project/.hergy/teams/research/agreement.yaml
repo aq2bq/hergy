@@ -1,0 +1,29 @@
+version: 1
+title: research チームの約束
+revision: 1
+sections:
+  - heading: 進め方
+    style: ids
+    rules:
+      - id: RES-1
+        text: 調べる問いは lead が台帳に 1 つずつ立てる。台帳に無い問いを調べ始めない。
+      - id: RES-2
+        text: 調べた結果は、問いの記録に 1 つの文書としてつなぐ。会話の中だけに結果を書かない。
+        origin:
+          - kind: instruction
+            date: "2026-10-06"
+            refs: [d-9a70]
+      - id: RES-3
+        text: 検索の改善案は、いまの検索で利用者が困っている場面に結び付けて書く。場面の無い案は「場面なし」と書いて分ける。
+        why: 技術として面白い案ばかりが集まり、どれも利用者の困りごとに結び付かなかった。
+        origin:
+          - kind: incident
+            date: "2026-10-07"
+            refs: [d-9b11]
+  - heading: 終わり
+    style: ids
+    rules:
+      - id: RES-4
+        text: 1 つの問いにかける時間は半日までにする。半日で答えが出なければ、分かったことと分からないことを書いて lead に返す。
+      - id: RES-5
+        text: 提案は 1 つの問いにつき 1 つにする。複数の案を並べるときは、どれを勧めるかを最初の行に書く。

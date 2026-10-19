@@ -75,6 +75,9 @@ const (
 	// KindHidden is the warning that a global definition of this name is hidden
 	// by the project's own (I11).
 	KindHidden
+	// KindModel is the warning that a role document's rule text names a model
+	// (C8): a role document is meant to read the same whatever model runs it.
+	KindModel
 )
 
 // Input is what one check needs: the catalog to read through, the definition's
@@ -108,8 +111,62 @@ func Definition(in Input) []Finding {
 	breaks := promptFindings(in, def)
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
+	warnings = append(warnings, modelFindings(in, def)...)
 	warnings = append(warnings, hiddenGlobalFindings(in)...)
 	return append(breaks, warnings...)
+}
+
+// modelFindings is the warning about a role document that names a model in a
+// rule's text (C8): a role document is meant to read the same whatever model
+// runs it. Each role a member reads is read once, however many members play it,
+// so one document gets one warning per rule that names a model. A document that
+// does not read is left out: the break was reported where it stops the
+// definition, and a text that cannot be parsed has no rule to name.
+func modelFindings(in Input, def *definition.Definition) []Finding {
+	var out []Finding
+	seen := map[string]bool{}
+	reader := in.Catalog.Reader()
+	for i := range def.Graph.Members {
+		role := def.Graph.Members[i].Role
+		if seen[role] {
+			continue
+		}
+		seen[role] = true
+		doc, ok := in.Catalog.Role(role)
+		if !ok {
+			continue
+		}
+		text, err := reader.Read(doc)
+		if err != nil {
+			continue
+		}
+		parsed, err := rules.Parse(text, doc.Path)
+		if err != nil {
+			continue
+		}
+		out = append(out, modelDocFindings(doc.Path, parsed)...)
+	}
+	return out
+}
+
+// modelDocFindings is one role document's warnings: one finding per rule whose
+// text names a model, in the written order, with the field that puts the
+// sentence on that rule's slip (N3).
+func modelDocFindings(path string, doc *rules.Document) []Finding {
+	var out []Finding
+	for _, rule := range doc.Rules() {
+		words := rules.ModelWords(rule.Text)
+		if len(words) == 0 {
+			continue
+		}
+		out = append(out, Finding{
+			Field: "rule:" + path + "#" + rule.ID,
+			Kind:  KindModel,
+			Text: i18n.Tf("validate.rule_model_name", rule.ID,
+				strings.Join(words, i18n.T("list.separator"))),
+		})
+	}
+	return out
 }
 
 // breakFindings is what stops a definition from reading. A graph the definition
@@ -428,17 +485,10 @@ func graphHasTurn(g *definition.Graph, from, to definition.NodeID) bool {
 	return false
 }
 
-// turnReading is the members and the rule files the reading of a rule text's
-// turn arrows needs: the members of the team, and the documents a member reads
-// (段 4: the agreement every team of the layer shares, the team's own agreement,
-// and each member's role document), with the rules parsed. It reads what the
-// definition names, not what one prompt happened to ask for, so a team whose
-// prompt drops %{docs} still has its rule texts compared with turns:. It reads
-// through the catalog, so a text the screen is editing (C3b, With) is the text
-// that is compared, rather than the file on disk. A file that cannot be read is
-// left out: the definition was built a moment ago with the same reading, so the
-// break was already reported.
-func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.Member, []topology.Doc) {
+// topologyMembers is the members of one definition as the arrow reader wants
+// them (topology.Member): the short name, the role, and the workers that member
+// may hire, so a word a rule's text writes can be told from a purpose.
+func topologyMembers(def *definition.Definition) []topology.Member {
 	members := make([]topology.Member, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
@@ -450,6 +500,21 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 		}
 		members = append(members, topology.Member{Name: member.Name, Role: member.Role, Workers: workers})
 	}
+	return members
+}
+
+// turnReading is the members and the rule files the reading of a rule text's
+// turn arrows needs: the members of the team, and the documents a member reads
+// (段 4: the agreement every team of the layer shares, the team's own agreement,
+// and each member's role document), with the rules parsed. It reads what the
+// definition names, not what one prompt happened to ask for, so a team whose
+// prompt drops %{docs} still has its rule texts compared with turns:. It reads
+// through the catalog, so a text the screen is editing (C3b, With) is the text
+// that is compared, rather than the file on disk. A file that cannot be read is
+// left out: the definition was built a moment ago with the same reading, so the
+// break was already reported.
+func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.Member, []topology.Doc) {
+	members := topologyMembers(def)
 	var docs []topology.Doc
 	seen := map[string]bool{}
 	reader := cat.Reader()
@@ -485,6 +550,83 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 		}
 	}
 	return members, docs
+}
+
+// MemberSize is what one member is handed, with the name the command line and a
+// screen write (C7).
+type MemberSize struct {
+	Name string
+	Size rules.MemberSize
+}
+
+// Size is one team definition's size: what it keeps, and what each of its
+// members is handed (C7).
+type Size struct {
+	Team    rules.TeamSize
+	Members []MemberSize
+}
+
+// SizeOf counts what one team definition keeps and what each of its members is
+// handed, from the members as starts and a reader (C7). Each rule file is read
+// and parsed once; a file two members read counts in the team's sources once,
+// because a person maintains it once. The command line and a screen both count
+// the amount a member is handed here, so they cannot drift apart.
+func SizeOf(starts []definition.Start, reader source.Reader) Size {
+	parsed := map[string]*rules.Document{}
+	texts := map[string]string{}
+	load := func(doc source.Doc) *rules.Document {
+		if document, ok := parsed[doc.Path]; ok {
+			return document
+		}
+		text, err := reader.Read(doc)
+		if err != nil {
+			parsed[doc.Path] = nil
+			return nil
+		}
+		texts[doc.Path] = text
+		document, err := rules.Parse(text, doc.Path)
+		if err != nil {
+			parsed[doc.Path] = nil
+			return nil
+		}
+		parsed[doc.Path] = document
+		return document
+	}
+	var out Size
+	var team rules.TeamSize
+	for _, member := range starts {
+		var read rules.MemberSize
+		files := make([]source.Doc, 0, len(member.Read)+1)
+		if member.HasRole {
+			files = append(files, member.RoleDoc)
+		}
+		files = append(files, member.Read...)
+		for _, doc := range files {
+			if document := load(doc); document != nil {
+				read.Add(document)
+			}
+			if text, ok := texts[doc.Path]; ok {
+				team.AddSource(doc.Path, text)
+			}
+		}
+		out.Members = append(out.Members, MemberSize{Name: member.Name, Size: read})
+	}
+	out.Team = team
+	return out
+}
+
+// MemberRulesWarning is the sentence a member that is handed too many rules
+// gets, and MemberCharsWarning the one for too many characters. Both hergy
+// validate and a screen print these, so a person reads one sentence in both
+// places (C7).
+func MemberRulesWarning(name string, count int) string {
+	return i18n.Tf("size.member_rules", name, count, rules.MemberRuleLimit)
+}
+
+// MemberCharsWarning is the sentence a member that is handed too many
+// characters gets (C7).
+func MemberCharsWarning(name string, chars int) string {
+	return i18n.Tf("size.member_chars", name, chars, rules.MemberCharLimit)
 }
 
 // isFile reports whether a path is a regular file.

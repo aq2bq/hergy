@@ -1,0 +1,19 @@
+version: 1
+mission: "決済の仕組みを新しい基盤へ移す"
+members:
+  - name: lead
+    role: lead
+    profile: sonnet-fast
+  - name: impl
+    role: builder
+    profile: codex-high
+  - name: tester
+    role: reviewer
+    profile: codex-mini
+turns:
+  - human -> lead
+  - lead -> human
+  - lead -> impl
+  - impl -> lead
+  - lead -> tester
+  - tester -> lead

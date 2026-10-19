@@ -212,10 +212,6 @@ func TestEveryPathAnswers(t *testing.T) {
 		{"/definitions/demo/agreement/new?section=0", "新しい規則"},
 		{"/activity", "活動"},
 		{"/activity/demo", "チーム demo"},
-		{"/roles", "ロール"},
-		{"/roles/lead", "ロール lead"},
-		{"/roles/lead/LEAD-1", "規則 LEAD-1"},
-		{"/roles/lead/new?section=0", "新しい規則"},
 		{"/agreement", "共通の約束"},
 		{"/agreement/SHARED-1", "規則 SHARED-1"},
 		{"/agreement/new?section=0", "新しい規則"},
@@ -577,8 +573,6 @@ func TestMissingFieldsAreNotFound(t *testing.T) {
 		{"/definitions/demo/turns/lead/nosuch", "ターン lead → nosuch はありません"},
 		{"/definitions/demo/agreement/NOPE", "規則 NOPE はありません"},
 		{"/definitions/demo/agreement2", ""},
-		{"/roles/nosuch", "ロール nosuch はありません"},
-		{"/roles/lead/NOPE", "ロール lead に規則 NOPE はありません"},
 		{"/agreement/NOPE", "共通の約束に規則 NOPE はありません"},
 	}
 	for _, test := range cases {
@@ -604,7 +598,6 @@ func TestTheTrailNamesTheOpenField(t *testing.T) {
 		{"/definitions/demo/turns/lead/builder", "lead → builder"},
 		{"/definitions/demo/human", "人間"},
 		{"/definitions/demo/agreement/TEAM-1", "TEAM-1"},
-		{"/roles/lead/LEAD-1", "LEAD-1"},
 	}
 	for _, test := range cases {
 		_, body := f.get(t, server, test.path)
@@ -2402,13 +2395,6 @@ func TestTheCardCarriesTheRuleWarning(t *testing.T) {
 	if !strings.Contains(list, want) {
 		t.Errorf("the card in the document does not carry validate's warning:\n%s", list)
 	}
-	// The same warning reaches a role document's card, through the definitions
-	// that read it.
-	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead → impl に渡す。\n")
-	_, body = f.get(t, server, "/roles/lead/LEAD-1")
-	if !strings.Contains(body, "impl") {
-		t.Errorf("a role document's card does not carry the warning:\n%s", body)
-	}
 }
 
 // TestTheNewRuleGoesAtTheEndOfTheSection: 足す opens a card with the id the core
@@ -2502,77 +2488,29 @@ func TestTheRuleIsDeletedOnTheSecondPress(t *testing.T) {
 	}
 }
 
-// TestADocumentThatIsNotThereIsMade: a role a member plays whose document no
-// layer holds offers 作る, which writes an empty document at the place K2 names
-// (W8). The shared agreement is made the same way.
+// TestADocumentThatIsNotThereIsMade: the shared agreement is made through 作る,
+// which writes an empty document at the place K2 names (W8).
 func TestADocumentThatIsNotThereIsMade(t *testing.T) {
 	f := newFixture(t)
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
-	if err := os.Remove(rolePath); err != nil {
-		t.Fatal(err)
-	}
 	agreementPath := filepath.Join(f.proj, ".hergy", "agreement.yaml")
 	if err := os.Remove(agreementPath); err != nil {
 		t.Fatal(err)
 	}
 	server := f.server(t)
 
-	_, body := f.get(t, server, "/roles")
-	if !strings.Contains(body, `action="/roles/builder"`) {
-		t.Errorf("the roles list offers no way to make the document:\n%s", body)
-	}
-	// The place is written beside 作る, before it is pressed (spec/42 T1).
-	if !strings.Contains(body, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")) {
-		t.Errorf("the roles list does not say where the document is made:\n%s", body)
-	}
-	_, body = f.get(t, server, "/")
+	_, body := f.get(t, server, "/")
 	if !strings.Contains(body, `action="/agreement"`) {
 		t.Errorf("the definitions list offers no way to make the shared agreement:\n%s", body)
 	}
-	for _, made := range []struct{ path, action string }{
-		{rolePath, "/roles/builder"},
-		{agreementPath, "/agreement"},
-	} {
-		resp, body := f.post(t, server, made.action, url.Values{"hash": {source.Hash("")}, "make": {"1"}})
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("POST %s answered %d", made.action, resp.StatusCode)
-		}
-		if got := readFile(t, made.path); got != "version: 1\nsections:\n  - heading: 規則\n" {
-			t.Errorf("%s is\n%q\nwant an empty document with the heading 規則", made.path, got)
-		}
-		if !strings.Contains(body, "を作りました") {
-			t.Errorf("%s shows no made line:\n%s", made.action, body)
-		}
+	resp, body := f.post(t, server, "/agreement", url.Values{"hash": {source.Hash("")}, "make": {"1"}})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /agreement answered %d", resp.StatusCode)
 	}
-	// The document that was made reads: the role's page holds the empty section
-	// with the card to add the first rule to.
-	_, body = f.get(t, server, "/roles/builder")
-	if !strings.Contains(body, "/roles/builder/new?section=0") {
-		t.Errorf("the made role document offers no way to add a rule:\n%s", body)
+	if got := readFile(t, agreementPath); got != "version: 1\nsections:\n  - heading: 規則\n" {
+		t.Errorf("%s is\n%q\nwant an empty document with the heading 規則", agreementPath, got)
 	}
-}
-
-// TestTheHandoverNamesEveryTeamThatReadsTheDocument: a role document is read by
-// the members that play the role in every definition, so every running team is
-// told to take the change up (設計 3.0 の表、C8).
-func TestTheHandoverNamesEveryTeamThatReadsTheDocument(t *testing.T) {
-	f := newFixture(t)
-	f.writeTeam(t, "other", "other の使命")
-	f.running = []effect.Running{{Team: "a", Definition: "demo"}, {Team: "b", Definition: "other"}}
-	server := f.server(t)
-	path := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
-	before := readFile(t, path)
-	_, body := f.post(t, server, "/roles/lead/LEAD-1", url.Values{
-		"text": {"lead は最初に動く（直した）。"}, "hash": {source.Hash(before)},
-		"origin_kind": {""},
-	})
-	for _, team := range []string{"a", "b"} {
-		if !strings.Contains(body, "<b>"+team+":</b>") {
-			t.Errorf("the handover does not name team %s:\n%s", team, body)
-		}
-	}
-	if got := strings.Count(body, "hergy reprompt --all --team"); got != 2 {
-		t.Errorf("the handover holds %d reprompts, want one per reading team:\n%s", got, body)
+	if !strings.Contains(body, "を作りました") {
+		t.Errorf("/agreement shows no made line:\n%s", body)
 	}
 }
 

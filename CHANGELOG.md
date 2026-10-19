@@ -4,6 +4,48 @@
 
 ### Changed
 
+- **The role document screen is rebuilt around the three things a person does
+  with roles**: `/roles` now has three tabs — ロール / 割り当て / YAML. The
+  role tab lists every role document of the project and of the shared directory
+  (name, title, place, rule count, the origin/reason/check marks of every rule,
+  the largest amount one reader is handed, and who reads it), with chips for
+  the rules that have no origin, no reason or a problem, and a search over the
+  rules. A row opens in place: the people that read it, then one panel per file
+  (the project's above the shared one of the same name, which says 効いている /
+  隠れている), where a role is renamed, gives sections and rules with their
+  origin, reason and check, and is written in place — every field is checked
+  while it is typed with the sentences `hergy validate` prints, the Markdown a
+  member's prompt will carry is drawn live beside the editor with its line
+  count, character count and diff, and a save writes only the lines that
+  changed (a move rewrites no line of the rule's own). The 割り当て tab shows
+  every team definition's members with their role and the amount they read, and
+  writes a new role into that team.yaml. The YAML tab shows a file as text with
+  line numbers and validate's problems beside it, and writes the text back as
+  typed. The old `/roles/<role>`, `/roles/<role>/new` and
+  `/roles/<role>/<rule>` paths move to the opened row or rule with a 301, and
+  the old role screen and its write paths are gone.
+
+  The check and the write live in the core, so the screen and the command line
+  say the same sentence: `rules.ReadAll` collects every problem of a document
+  instead of stopping at the first, `rules.CheckAll` does the same across the
+  documents one member reads, `check.Role` brings one role document's problems,
+  its order warnings, its arrows and each reader's amount together, and
+  `rules.Rewrite` writes a whole set of changes back in one pass.
+  `rules.Document.Lines` is the one place the Markdown a member reads is cut
+  into lines, so the screen's preview and the prompt cannot drift apart.
+
+- **`hergy validate` warns when a rule body names a model**: a role document
+  that says `claude`, `opus`, `gpt-4o` or the like in a rule's text is reported
+  (`validate.rule_model_name`), because a role document is meant to read the
+  same whatever model runs it. This adds lines to `hergy validate` output for
+  documents that name a model.
+
+### Added
+
+- **The amount a member is handed has one sentence**: `size.member_rules` and
+  `size.member_chars`, used both by `hergy validate` and by the role screen's
+  assign tab, so a person reads the same warning in both places.
+
 - **The profile screen is rebuilt around the three things a person does with
   profiles**: `/profiles` now lists every profile from the project's own file
   and the one outside it (name, kind, place, args, env and who uses it), with

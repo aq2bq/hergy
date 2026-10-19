@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
 )
@@ -81,7 +82,7 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 	wantLarge := strings.Join([]string{
 		i18n.Tf("validate.size_team", large.dir, 2, large.sourceChars),
 		i18n.Tf("validate.size_member", "large-lead", rules.MemberRuleLimit+1, large.memberChars),
-		i18n.Tf("validate.size_warn_member_rules", "large-lead", rules.MemberRuleLimit+1, rules.MemberRuleLimit),
+		i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("large-lead", rules.MemberRuleLimit+1)),
 	}, "\n")
 	if !strings.Contains(got, wantLarge+"\n") {
 		t.Errorf("validate does not print the large definition with its member under it:\n%s", got)
@@ -129,7 +130,7 @@ func TestValidateTellsTwoDefinitionsOfTheSameNameApart(t *testing.T) {
 	}
 
 	localBlock := block(t, got, i18n.Tf("validate.size_team", local.dir, 2, local.sourceChars))
-	if !strings.Contains(localBlock, i18n.Tf("validate.size_warn_member_rules", "dup-lead", rules.MemberRuleLimit+1, rules.MemberRuleLimit)) {
+	if !strings.Contains(localBlock, i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("dup-lead", rules.MemberRuleLimit+1))) {
 		t.Errorf("the local definition's warning is not in its block:\n%s", localBlock)
 	}
 	globalBlock := block(t, got, i18n.Tf("validate.size_team", global.dir, 2, global.sourceChars))

@@ -1,0 +1,21 @@
+{{define "r2_page"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hergy ロール</title>
+<link rel="stylesheet" href="/static/roles-v2.css">
+<script src="/static/roles-v2.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="crumb"><span class="mark">hergy</span><span class="sep">/</span><span>{{.Project}}</span></div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main id="view" data-token="{{.Token}}"></main>
+</div>
+<script id="roles-data" type="application/json">{{.Data}}</script>
+</body>
+</html>
+{{end}}

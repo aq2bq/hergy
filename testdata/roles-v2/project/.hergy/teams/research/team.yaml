@@ -1,0 +1,28 @@
+version: 1
+mission: "検索の改善案を調べる"
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: scout
+    role: scout
+    profile: gemini-pro
+  - name: scout-2
+    role: scout
+    profile: opencode-deepseek
+  - name: digest
+    role: writer
+    profile: haiku-chore
+workers:
+  - from: lead
+    purpose: ログの調査
+    profile: haiku-chore
+turns:
+  - human -> lead
+  - lead -> human
+  - lead -> scout
+  - scout -> lead
+  - lead -> scout-2
+  - scout-2 -> lead
+  - lead -> digest
+  - digest -> lead

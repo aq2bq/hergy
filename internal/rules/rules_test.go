@@ -17,12 +17,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// file is a rule file body with one section and one rule, so a test can write
-// the part it cares about.
-func file(body string) string {
-	return "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n" + body
-}
-
 func parse(t *testing.T, text string) *Document {
 	t.Helper()
 	doc, err := Parse(text, "rules.yaml")
@@ -292,7 +286,7 @@ func TestCheckRefusesABreakAcrossDocuments(t *testing.T) {
 		want string
 	}{
 		{"a rule id that stands twice", []string{one, one}, "R1"},
-		{"a report name that stands twice", []string{file(report), file(report)}, "A"},
+		{"a report name that stands twice", []string{oneRuleFile(report), oneRuleFile(report)}, "A"},
 		{"a report that is not there", []string{oneRuleFile("        report: A.absent\n")}, "A.absent"},
 		{"a report with no field", []string{oneRuleFile("        report: A\n")}, "A"},
 		{"a derived rule that is not there", []string{oneRuleFile("        origin:\n          - kind: derived\n            refs: [R9]\n")}, "R9"},
