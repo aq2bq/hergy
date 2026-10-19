@@ -18,6 +18,7 @@ import (
 	"github.com/aq2bq/hergy/internal/layout"
 	"github.com/aq2bq/hergy/internal/progress"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/status"
 )
 
@@ -196,11 +197,20 @@ func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 		if kind == "" {
 			kind = member.Kind
 		}
-		rows = append(rows, status.Row{
+		row := status.Row{
 			Name: member.Name, State: agent.Status, Live: live,
 			Title: agent.Title, PaneID: agent.PaneID,
 			Role: member.Role, Kind: kind,
-		})
+		}
+		// A live member's screen is read so status can tell a long turn from a
+		// stall. A screen that cannot be read leaves the hash empty, and the row
+		// is reported without the mark rather than failing the whole command.
+		if live {
+			if screen, err := l.herdr.Read(member.Name); err == nil {
+				row.Screen = screenlog.Hash(screen)
+			}
+		}
+		rows = append(rows, row)
 	}
 	workers, err := l.workerAgents(agents)
 	if err != nil {
@@ -214,6 +224,81 @@ func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 		})
 	}
 	return rows, nil
+}
+
+// Focus moves the focus to one member's pane, so a person can answer it there.
+// It changes nothing else.
+func (l *Launcher) Focus(member *definition.Start) error {
+	if err := l.herdr.Verify(protocol.ModeFocus); err != nil {
+		return err
+	}
+	if err := l.herdr.Focus(member.Name); err != nil {
+		return err
+	}
+	fmt.Fprintf(l.out, i18n.T("focus.focused"), member.Name)
+	return nil
+}
+
+// Nudge sends one member a short push to carry on, only when it is idle or done:
+// a member that is working or blocked is left alone, and the whole command
+// errors. text is the message to send, already carrying who it is from.
+func (l *Launcher) Nudge(member *definition.Start, text string) error {
+	if err := l.herdr.Verify(protocol.ModePrompt); err != nil {
+		return err
+	}
+	agent, err := l.herdr.Agent(member.Name)
+	if err != nil {
+		return err
+	}
+	if agent.Status != "idle" && agent.Status != "done" {
+		return i18n.Errorf("error.nudge_busy", member.Name, agent.Status)
+	}
+	if err := l.herdr.Prompt(member.Name, text); err != nil {
+		return err
+	}
+	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name, text)
+	return nil
+}
+
+// Tell sends one member a message, whoever it is from. Unlike a nudge it does
+// not read the member's state: a person's message reaches an agent in any state.
+// text already carries who it is from.
+func (l *Launcher) Tell(member *definition.Start, text string) error {
+	if err := l.herdr.Verify(protocol.ModePrompt); err != nil {
+		return err
+	}
+	if err := l.herdr.Prompt(member.Name, text); err != nil {
+		return err
+	}
+	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name, text)
+	return nil
+}
+
+// Stop interrupts one member's current turn with esc, keeping its conversation.
+// An agent that is not working is left alone, and the command still succeeds:
+// there is nothing to stop. A member running in hergy's own pane (selfPane) is
+// refused, because hergy itself runs there. stopped is whether esc was sent, so
+// the caller names refresh as the next step only when something actually stopped.
+func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool, err error) {
+	if err := l.herdr.Verify(protocol.ModeStop); err != nil {
+		return false, err
+	}
+	agent, err := l.herdr.Agent(member.Name)
+	if err != nil {
+		return false, err
+	}
+	if selfPane != "" && agent.PaneID == selfPane {
+		return false, i18n.Errorf("error.stop_self", member.Name)
+	}
+	if agent.Status != "working" {
+		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name, agent.Status)
+		return false, nil
+	}
+	if err := l.herdr.SendKeys(member.Name, "esc"); err != nil {
+		return false, err
+	}
+	fmt.Fprintf(l.out, i18n.T("stop.stopped"), member.Name)
+	return true, nil
 }
 
 // refreshTarget is one member a refresh acts on: its pane, and whether an agent

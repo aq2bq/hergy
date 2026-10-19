@@ -12,6 +12,7 @@ import (
 // advertised is every subcommand the launcher may need, as a help text shows it.
 var advertised = []string{
 	"herdr agent get", "herdr agent prompt", "herdr agent start", "herdr agent list",
+	"herdr agent read", "herdr agent focus", "herdr agent send-keys",
 	"herdr pane current", "herdr pane split", "herdr pane rename", "herdr pane close", "herdr pane process-info", "herdr pane list",
 	"herdr tab create", "herdr tab list",
 }
@@ -58,7 +59,7 @@ func TestJSONKeepsTheErrorCode(t *testing.T) {
 }
 
 func TestVerifyAcceptsAdvertisedCommands(t *testing.T) {
-	for _, mode := range []string{protocol.ModeBoot, protocol.ModeRefresh, protocol.ModeReprompt, protocol.ModeDown, protocol.ModeStatus} {
+	for _, mode := range []string{protocol.ModeBoot, protocol.ModeRefresh, protocol.ModeReprompt, protocol.ModeDown, protocol.ModeStatus, protocol.ModeFocus, protocol.ModePrompt, protocol.ModeStop} {
 		t.Run(mode, func(t *testing.T) {
 			if err := fakeHerdr(t, helpScript(advertised)).Verify(mode); err != nil {
 				t.Fatalf("Verify(%s): %v", mode, err)

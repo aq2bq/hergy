@@ -23,6 +23,14 @@ const (
 	Refresh
 	// Reprompt re-submits a bootstrap prompt, keeping the conversation.
 	Reprompt
+	// Focus moves a person's focus to a member's pane.
+	Focus
+	// Nudge pushes a member that has stopped to carry on.
+	Nudge
+	// Stop interrupts a member's current turn, keeping the conversation.
+	Stop
+	// Tell sends one member a message from a person or another member.
+	Tell
 	// Hire starts one worker.
 	Hire
 	// Ls lists visible teams.
@@ -50,15 +58,16 @@ const (
 type Options struct {
 	Kind Kind
 
-	Team   string // up/show/new: a team definition name; down/status/refresh/reprompt/hire: a team name
-	Member string // refresh/reprompt positional
+	Team   string // up/show/new: a team definition name; down/status/refresh/reprompt/hire/focus/nudge/stop/tell: a team name
+	Member string // refresh/reprompt/focus/nudge/stop positional, and tell's target
+	Body   string // nudge/tell positional: the message text
 	All    bool   // refresh/reprompt --all
 	Name   string // hire positional
 	As     string // up only: the team name to boot under (defaults to the team definition name)
 
 	Purpose string
 	Task    string
-	From    string
+	From    string // hire: the hiring member; tell: who the message is from (default: the pane's member, else the human)
 
 	Dry     bool
 	JSON    bool   // --json: print the --dry plan as JSON instead of text
@@ -206,6 +215,8 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) == 1 {
 			o.Member = positionals[0]
 		}
+	case Focus, Nudge, Stop, Tell:
+		return assignMemberPositionals(o, positionals)
 	case Hire:
 		if len(positionals) != 1 {
 			return i18n.Errorf("error.hire_needs_name")
@@ -229,6 +240,39 @@ func assignPositionals(o *Options, positionals []string) error {
 		}
 	default:
 		// help and version take no positionals; they are handled before parsing.
+	}
+	return nil
+}
+
+// assignMemberPositionals reads the positionals of the commands that act on one
+// member: focus and stop take exactly one member name, nudge takes a member and
+// an optional body, and tell takes a member and the body to send.
+func assignMemberPositionals(o *Options, positionals []string) error {
+	switch o.Kind {
+	case Focus, Stop:
+		if len(positionals) != 1 {
+			return i18n.Errorf("error.one_member", commandName(o.Kind))
+		}
+		o.Member = positionals[0]
+	case Nudge:
+		if len(positionals) < 1 {
+			return i18n.Errorf("error.one_member", commandName(o.Kind))
+		}
+		if len(positionals) > 2 {
+			return i18n.Errorf("error.too_many_args", positionals)
+		}
+		o.Member = positionals[0]
+		if len(positionals) == 2 {
+			o.Body = positionals[1]
+		}
+	case Tell:
+		if len(positionals) != 2 {
+			return i18n.Errorf("error.tell_needs_body")
+		}
+		o.Member = positionals[0]
+		o.Body = positionals[1]
+	default:
+		// unreachable: the caller only sends the four kinds above.
 	}
 	return nil
 }
@@ -272,7 +316,7 @@ func validateValues(o *Options) error {
 	if o.Port < 0 || o.Port > maxPort {
 		return i18n.Errorf("error.port_range", maxPort)
 	}
-	if o.JSON && !o.Dry {
+	if o.JSON && !o.Dry && o.Kind != Status {
 		return i18n.Errorf("error.json_needs_dry")
 	}
 	if o.As != "" && !scaffold.NamePattern.MatchString(o.As) {

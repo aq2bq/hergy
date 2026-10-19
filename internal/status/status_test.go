@@ -29,7 +29,9 @@ func TestRowText(t *testing.T) {
 		{"live", Row{Name: "a", State: "working", Live: true}, "working"},
 		{"idle", Row{Name: "a", State: "idle", Live: true}, "idle"},
 		{"absent", Row{Name: "a"}, "not present"},
-		{"live worker", Row{Name: "w", State: "blocked", Live: true, Worker: true}, "blocked (worker)"},
+		{"blocked", Row{Name: "a", State: "blocked", Live: true}, "blocked (waiting for permission)"},
+		{"working unchanged", Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(7)}, "working (unchanged for 7 min)"},
+		{"live worker", Row{Name: "w", State: "blocked", Live: true, Worker: true}, "blocked (waiting for permission) (worker)"},
 		{"absent worker", Row{Name: "w", Worker: true}, "not present (worker)"},
 	}
 	for _, c := range cases {
@@ -136,5 +138,11 @@ func TestWordsFollowTheLanguage(t *testing.T) {
 	}
 	if got, want := (Row{Name: "b"}).Text(), "動いていない"; got != want {
 		t.Fatalf("Japanese absent text = %q, want %q", got, want)
+	}
+	if got, want := (Row{Name: "a", State: "blocked", Live: true}).Text(), "blocked（許可待ち）"; got != want {
+		t.Fatalf("Japanese blocked text = %q, want %q", got, want)
+	}
+	if got, want := (Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(9)}).Text(), "作業中（9 分変化なし）"; got != want {
+		t.Fatalf("Japanese unchanged text = %q, want %q", got, want)
 	}
 }

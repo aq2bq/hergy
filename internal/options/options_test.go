@@ -10,6 +10,7 @@ func TestParse(t *testing.T) {
 		argv    []string
 		kind    Kind
 		dry     bool
+		json    bool
 		ai      bool
 		noOpen  bool
 		wantErr bool
@@ -32,8 +33,19 @@ func TestParse(t *testing.T) {
 		{name: "status", argv: []string{"status"}, kind: Status},
 		{name: "status with a team", argv: []string{"status", "demo"}, kind: Status},
 		{name: "status rejects --dry", argv: []string{"status", "--dry"}, wantErr: true},
-		{name: "status rejects --json", argv: []string{"status", "--json"}, wantErr: true},
+		{name: "status takes --json", argv: []string{"status", "--json"}, kind: Status, json: true},
 		{name: "status takes at most one team", argv: []string{"status", "a", "b"}, wantErr: true},
+		{name: "focus", argv: []string{"focus", "lead"}, kind: Focus},
+		{name: "focus needs a member", argv: []string{"focus"}, wantErr: true},
+		{name: "focus takes one member", argv: []string{"focus", "a", "b"}, wantErr: true},
+		{name: "nudge with no text", argv: []string{"nudge", "lead"}, kind: Nudge},
+		{name: "nudge with text", argv: []string{"nudge", "lead", "carry on"}, kind: Nudge},
+		{name: "nudge needs a member", argv: []string{"nudge"}, wantErr: true},
+		{name: "stop", argv: []string{"stop", "lead"}, kind: Stop},
+		{name: "stop takes one member", argv: []string{"stop", "a", "b"}, wantErr: true},
+		{name: "tell with text", argv: []string{"tell", "lead", "hi"}, kind: Tell},
+		{name: "tell needs text", argv: []string{"tell", "lead"}, wantErr: true},
+		{name: "tell takes --from", argv: []string{"tell", "lead", "hi", "--from", "dev"}, kind: Tell},
 		{name: "--as must match the name pattern", argv: []string{"up", "--as", "Alpha"}, wantErr: true},
 		{name: "--as is not allowed on ls", argv: []string{"ls", "--as", "alpha"}, wantErr: true},
 		{name: "cheat", argv: []string{"cheat"}, kind: Cheat},
@@ -75,6 +87,9 @@ func TestParse(t *testing.T) {
 			}
 			if got.Dry != tt.dry {
 				t.Fatalf("Parse(%v).Dry = %v, want %v", tt.argv, got.Dry, tt.dry)
+			}
+			if got.JSON != tt.json {
+				t.Fatalf("Parse(%v).JSON = %v, want %v", tt.argv, got.JSON, tt.json)
 			}
 			if got.AI != tt.ai {
 				t.Fatalf("Parse(%v).AI = %v, want %v", tt.argv, got.AI, tt.ai)

@@ -45,6 +45,19 @@ func (c CLI) JSON(args ...string) (map[string]any, error) {
 	return protocol.Result(args, stdout, stderr, status)
 }
 
+// Text runs one herdr command and returns its plain-text output: what a command
+// such as `herdr agent read` answers, which is not JSON.
+func (c CLI) Text(args ...string) (string, error) {
+	stdout, stderr, status, err := c.capture(args...)
+	if err != nil {
+		return "", err
+	}
+	if status != 0 {
+		return "", protocol.Failure(args, stdout, stderr, status)
+	}
+	return stdout, nil
+}
+
 func (c CLI) capture(args ...string) (stdout, stderr string, status int, err error) {
 	cmd := exec.Command(c.Bin, args...) //nolint:gosec // G204: c.Bin is herdr and args are the subcommand hergy builds
 	var out, errBuf bytes.Buffer

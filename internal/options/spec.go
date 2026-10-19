@@ -110,6 +110,9 @@ var specs = []Spec{
 			Desc: text("The team name (left out: every running team)", "チーム名（省くと、動いているチームをすべて一覧する）"),
 		}},
 		Flags: []Use{
+			use(flagJSON, text(
+				"Print the rows as JSON (state and unchanged_minutes) instead of text",
+				"行を JSON で表示する（state と unchanged_minutes）")),
 			use(flagDir, descDir),
 		},
 	},
@@ -155,6 +158,100 @@ var specs = []Spec{
 				"Print what would be sent and send nothing\nIt never reads herdr",
 				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
 			use(flagJSON, descJSON),
+			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Focus, Name: "focus",
+		Summary: text("Move the focus to a member's pane", "メンバーのペインに移動する"),
+		Detail: text(
+			"Move the focus to a member's pane, so a person can answer it there. It changes nothing else.",
+			"メンバーのペインに移動する。人がそこで答えるため。ほかのことは何も変えない。"),
+		Args: []Arg{{
+			Name: text("member", "メンバー"),
+			Desc: text(
+				"The member to move to, by short member name or herdr name",
+				"移動先のメンバー（短いメンバー名か herdr 名）"),
+		}},
+		Flags: []Use{
+			use(flagTeam, descTeam),
+			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Nudge, Name: "nudge",
+		Summary: text("Push a member that has stopped to carry on", "止まっているメンバーに続けるよううながす"),
+		Detail: text(
+			"Send a member a short push to carry on, only when it is idle or done.\nA working or blocked member is left alone, and the command errors.",
+			"待機中（idle か done）のときだけ、メンバーに続けるよう短く送る。\n作業中か許可待ちのメンバーには送らず、エラーになる。"),
+		Args: []Arg{
+			{
+				Name: text("member", "メンバー"),
+				Desc: text(
+					"The member to push, by short member name or herdr name",
+					"うながすメンバー（短いメンバー名か herdr 名）"),
+			},
+			{
+				Name: text("text", "本文"), Optional: true,
+				Desc: text(
+					"What to send (left out: a short \"carry on\")",
+					"送る本文（省くと、続けるよう短く送る）"),
+			},
+		},
+		Flags: []Use{
+			use(flagTeam, descTeam),
+			use(flagDry, text(
+				"Print what would be sent and send nothing\nIt never reads herdr",
+				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
+			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Stop, Name: "stop",
+		Summary: text("Interrupt a member's current turn", "メンバーの今のターンを止める"),
+		Detail: text(
+			"Send esc to a working member, ending its current turn and keeping its conversation.\nAn idle or done member is left alone, and the command still succeeds.",
+			"作業中のメンバーに esc を送り、今のターンを終わらせる。会話は残る。\n待機中（idle か done）のメンバーには何もしないが、コマンドは成功する。"),
+		Args: []Arg{{
+			Name: text("member", "メンバー"),
+			Desc: text(
+				"The member to stop, by short member name or herdr name",
+				"止めるメンバー（短いメンバー名か herdr 名）"),
+		}},
+		Flags: []Use{
+			use(flagTeam, descTeam),
+			use(flagDry, text(
+				"Print what would stop and change nothing\nIt never reads herdr",
+				"止める予定だけを表示し、何も変えない\nherdr は読まない")),
+			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Tell, Name: "tell",
+		Summary: text("Send a member a message from you or another member", "メンバーに伝える（誰からかを付けられる）"),
+		Detail: text(
+			"Send a member a message, headed by who it is from. It does not check the\nmember's state: the message reaches an agent in any state.",
+			"誰からかを頭に付けて、メンバーに本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。"),
+		Args: []Arg{
+			{
+				Name: text("member", "メンバー"),
+				Desc: text(
+					"The member to send to, by short member name or herdr name",
+					"送る相手のメンバー（短いメンバー名か herdr 名）"),
+			},
+			{
+				Name: text("text", "本文"),
+				Desc: text("What to send", "送る本文"),
+			},
+		},
+		Flags: []Use{
+			use(flagFrom, text(
+				"Who the message is from (short member name or herdr name)\nLeft out: the member whose pane you type in, else the human",
+				"誰からの本文か（短いメンバー名か herdr 名）\n省くと、打ったペインのメンバー。ペインがメンバーでなければ人間")),
+			use(flagTeam, descTeam),
+			use(flagDry, text(
+				"Print what would be sent and send nothing\nIt never reads herdr",
+				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
 			use(flagDir, descDir),
 		},
 	},

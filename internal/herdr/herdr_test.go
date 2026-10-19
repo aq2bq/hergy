@@ -24,6 +24,11 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 	return p.reply(len(p.calls), args)
 }
 
+func (p *fakePort) Text(args ...string) (string, error) {
+	p.calls = append(p.calls, args)
+	return "", nil
+}
+
 // herdrFailure is the error herdrcli builds from a failed herdr reply. The code
 // is what Start reads to tell a busy pane from a real failure.
 func herdrFailure(code string) error {

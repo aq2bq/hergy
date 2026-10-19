@@ -48,6 +48,28 @@
 
 ### Added
 
+- **Four commands reach a member by name, and `hergy status` says more**:
+  `hergy focus <member>` moves herdr's focus to that member's pane;
+  `hergy nudge <member> [text]` sends a short push when the member is idle or
+  done (a working or blocked member is refused and nothing is sent, and with no
+  text it sends a short "carry on"); `hergy stop <member>` sends esc to end the
+  member's current turn and names `hergy refresh <member>` as the next step (a
+  member that is not working is left alone, and the command still succeeds); and
+  `hergy tell <member> "<text>" [--from <member>]` sends a message headed by who
+  it is from — `--from`, else the member whose pane you type in, else the human —
+  without reading the member's state. All four take a member by short member name
+  or herdr name, take `--team <team>` to pick the running team, need no
+  herdr-managed pane of their own, and refuse a member that is not the team's;
+  `--dry` prints what would be sent and sends nothing (focus has no `--dry`), and
+  a member cannot stop itself, the same reason refresh refuses it. Alongside,
+  `hergy status` now adds what a state carries: `blocked (waiting for
+  permission)`, and, when a working member's screen has not changed since the
+  last status, `working (unchanged for N min)` — kept under
+  `$XDG_STATE_HOME/hergy/screens.json` from what `herdr agent read` shows, with
+  the count in whole minutes. `hergy status --json` prints the same rows as JSON
+  (`name`, `state`, `unchanged_minutes`, `live`, `worker`) and is the one command
+  that takes `--json` without `--dry`.
+
 - **The amount a member is handed has one sentence**: `size.member_rules` and
   `size.member_chars`, used both by `hergy validate` and by the role screen's
   assign tab, so a person reads the same warning in both places.
