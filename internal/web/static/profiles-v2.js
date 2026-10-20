@@ -8,8 +8,15 @@
 
   const view = document.getElementById('view');
   if (!view) return;
-  const token = view.dataset.token;
   const tab = view.dataset.tab;
+  // The page's own reading of the files comes in as one island of JSON
+  // (spec-boundary 1, 2): the rows, the cards and the YAML sections are drawn
+  // from it here, and the Go templates draw none of them.
+  const ISLAND = (() => {
+    const el = document.getElementById('profiles-data');
+    if (!el) return {};
+    try { return JSON.parse(el.textContent || '{}'); } catch (e) { return {}; }
+  })();
   const otherKinds = () => {
     try { return JSON.parse(view.dataset.otherKinds || '[]'); } catch (e) { return []; }
   };
@@ -23,36 +30,22 @@
   const pathOf = (file) => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject);
   const otherOf = (file) => (file === 'global' ? 'project' : 'global');
 
-  // post sends one write: the token of this run and the form's fields.
-  async function post(url, fields) {
-    const body = new URLSearchParams();
-    body.set('token', token);
-    for (const [key, value] of Object.entries(fields)) body.set(key, value);
-    const response = await fetch(url, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body,
-    });
-    const text = await response.text();
-    let json = null;
-    if ((response.headers.get('content-type') || '').includes('application/json')) {
-      try { json = JSON.parse(text); } catch (e) { json = null; }
-    }
-    return { ok: response.ok, status: response.status, html: text, json, headers: response.headers };
-  }
+  // Every read and write goes through the one boundary (spec-boundary 5, 7);
+  // the YAML tab is the shared part (yamltab.js).
+  const API = window.hergyAPI;
+  const YAML = window.hergyYaml;
 
-  function updateCounts(headers) {
-    const assign = $$('#tabs .tab')[1];
-    const p = headers.get('X-Hergy-Profiles');
-    const a = headers.get('X-Hergy-Assign');
-    // The number of profiles stands in the band now; the first tab is 一覧 and
-    // carries none (spec-nav.md 1.1, 1.2).
-    if (p !== null && window.hergyNav) window.hergyNav.setCount('profiles', Number(p));
-    if (a !== null && assign) $('.n', assign).textContent = a;
-    const hp = headers.get('X-Hergy-Hash-Project');
-    const hs = headers.get('X-Hergy-Hash-Shared');
-    if (hp !== null) view.dataset.hashProject = hp;
-    if (hs !== null) view.dataset.hashShared = hs;
+  // applyList puts a list answer's counts and hashes in place: a save answers
+  // with the list, because the counts move with it.
+  function applyList(data) {
+    if (!data) return;
+    if (data.profileCount !== undefined && window.hergyNav) window.hergyNav.setCount('profiles', data.profileCount);
+    if (data.assignCount !== undefined) {
+      const assign = $$('#tabs .tab')[1];
+      if (assign) $('.n', assign).textContent = data.assignCount;
+    }
+    if (data.hashProject) view.dataset.hashProject = data.hashProject;
+    if (data.hashShared) view.dataset.hashShared = data.hashShared;
   }
 
   const chip = (sev) => `<span class="sev ${sev === 'err' ? 'err' : 'warn'}">${sev === 'err' ? '問題' : '警告'}</span>`;
@@ -192,8 +185,8 @@
     const draft = panelValues(panel);
     const seq = (panel._seq || 0) + 1;
     panel._seq = seq;
-    const answer = await post('/profiles/check', {
-      file: panel.dataset.file, original: saved ? saved.name : '', profile: JSON.stringify(draft),
+    const answer = await API.check('profile', {
+      place: panel.dataset.file, original: saved ? saved.name : '', doc: draft,
     });
     if (seq !== panel._seq || !panel.isConnected) return;
     const problems = (answer.json && answer.json.problems) || [];
@@ -215,23 +208,26 @@
     if (row.classList.contains('open')) $$('.panel', row).forEach(initPanel);
   }
 
-  // replaceRows puts the list a save answered with in place of the rows, so a
+  // renderRows puts the list a save answered with in place of the rows, so a
   // rename that split one row into two shows both, in the list's order (N1).
-  function replaceRows(html) {
+  // Which rows stay open travels with the answer, or, for a delete, is carried
+  // over from the rows that were open.
+  function renderRows(data, keepOpen) {
     const rows = $('#rows');
+    const open = keepOpen ? $$('#rows .row.open').map((row) => row.dataset.name) : null;
     $$('.row', rows).forEach((row) => row.remove());
-    rows.insertAdjacentHTML('beforeend', html || '');
-    $$('.row', rows).forEach(initRow);
-    afterRowsChanged();
-  }
-
-  function replaceRow(old, html) {
-    const holder = document.createElement('div');
-    holder.innerHTML = (html || '').trim();
-    const row = holder.firstElementChild;
-    if (!row) { old.remove(); afterRowsChanged(); return; }
-    old.replaceWith(row);
-    initRow(row);
+    rows.insertAdjacentHTML('beforeend', (data.rows || []).map(rowHTML).join(''));
+    $$('.row', rows).forEach((row) => {
+      if (open && open.includes(row.dataset.name)) {
+        row.classList.add('open');
+        const detail = $('.detail', row);
+        if (detail) detail.hidden = false;
+        const sum = $('.sum', row);
+        if (sum) sum.setAttribute('aria-expanded', 'true');
+      }
+      initRow(row);
+    });
+    applyList(data);
     afterRowsChanged();
   }
 
@@ -262,12 +258,7 @@
   }
 
   function showRefusal(box, text) {
-    $$('.refusal', box).forEach((el) => el.remove());
-    const span = document.createElement('span');
-    span.className = 'sev err refusal';
-    span.textContent = text;
-    const acts = $('.acts', box);
-    if (acts) acts.parentNode.insertBefore(span, acts); else box.appendChild(span);
+    API.refusal(box, text);
   }
 
   function kindButtons(kind) {
@@ -316,6 +307,122 @@
     <button class="btn primary" data-act="save" disabled>保存</button><span class="dirty"></span><span class="vcount"></span>
     <span class="acts"><button class="btn danger" data-act="discard">取り消し</button></span>
   </footer>
+</section>`;
+  }
+
+  // ---- the list, drawn from the server's JSON --------------------------
+  // The rows, their panels, the assign cards and the YAML sections are all drawn
+  // here from what the server read (spec-boundary 2): no Go template draws a row,
+  // and a save answers with the list rather than an HTML fragment.
+
+  function pillHTML(place) {
+    return `<span class="pill ${esc(place.state)}">${esc(place.label)}</span>`;
+  }
+
+  function chipHTML(c) {
+    const inner = c.worker
+      ? `<span class="wk">ワーカー</span><span class="r">${esc(c.role)}</span>`
+      : `${esc(c.who)}<span class="g">${esc(c.role)}</span>`;
+    return `<a class="uchip" href="/profiles/assign#${esc(c.def)}.${esc(c.id)}" data-act="goto" data-g="${esc(c.def)}" data-k="${esc(c.id)}"><span class="g">${esc(c.def)}</span>${inner}</a>`;
+  }
+
+  function savedPanelHTML(p) {
+    const head = `<span class="ln">${esc(p.label)}</span>`;
+    const state = p.both ? `<span class="state ${p.shadowed ? 'off' : 'on'}">${p.shadowed ? '隠れている' : '効いている'}</span>` : '';
+    const acts = `${p.saved ? '<button class="btn" data-act="dup">複製</button>' : ''}` +
+      `${p.saved && !p.both ? `<button class="btn" data-act="copy">${esc(p.otherLabel)}にコピー</button>` : ''}` +
+      `${p.saved ? '<button class="btn danger" data-act="del">削除</button>' : '<button class="btn danger" data-act="discard">取り消し</button>'}`;
+    const saved = p.saved
+      ? ` data-saved="1" data-users="${p.users}" data-rename-users="${p.renameUsers}" data-saved-name="${esc(p.savedName)}" data-saved-kind="${esc(p.savedKind)}" data-saved-args="${esc(p.savedArgs)}" data-saved-env="${esc(p.savedEnv)}" data-hash="${esc(p.hash)}"`
+      : ` data-users="${p.users}" data-rename-users="${p.renameUsers}" data-hash="${esc(p.hash)}" data-draft-kind="${esc(p.kind)}"`;
+    return `<section class="panel${p.shadowed ? ' shadowed' : ''}" data-file="${esc(p.file)}"${saved}>
+  <header class="ph">${head}<code class="path">${esc(p.path)}</code>${state}</header>
+  <div class="field"><label>名前</label><div>
+    <input class="in-name" data-f="name" value="${esc(p.name)}" spellcheck="false" autocomplete="off">
+    <label class="rename" hidden><input type="checkbox" checked><span></span></label>
+    <ul class="vm" data-for="name"></ul>
+  </div></div>
+  <div class="field"><label>kind</label><div>
+    <div class="seg" data-f="kind">${kindButtons(p.kind)}${kindSelect(p.kind)}</div>
+    <ul class="vm" data-for="kind"></ul>
+  </div></div>
+  <div class="field"><label>引数</label><div>
+    <div class="args"><span class="bin">${esc(p.kind)}</span>${(p.args || []).map((arg, i) => argHTML(i, arg)).join('')}<button class="add" data-act="arg-add" aria-label="引数を足す">＋</button></div>
+    <ul class="vm" data-for="args"></ul>
+  </div></div>
+  <div class="field"><label>環境変数</label><div>
+    <div class="env">${(p.env || []).map((pair, i) => envHTML(i, pair.key, pair.value)).join('')}<button class="add" data-act="env-add" aria-label="環境変数を足す">＋</button></div>
+    <ul class="vm" data-for="env"></ul>
+  </div></div>
+  <footer class="pf">
+    <button class="btn primary" data-act="save" disabled>保存</button><span class="dirty"></span><span class="vcount">${counts(p.err, p.warn)}</span>${p.savedLine ? '<span class="ok">保存しました</span>' : ''}
+    <span class="acts">${acts}</span>
+  </footer>
+</section>`;
+  }
+
+  function detailHTML(row) {
+    const chips = (row.chips && row.chips.length)
+      ? `<div class="usage"><span class="lbl">使っている人</span>${row.chips.map(chipHTML).join('')}</div>`
+      : '';
+    const panels = row.panels || [];
+    return `${chips}<div class="panels${panels.length > 1 ? ' two' : ''}">${panels.map(savedPanelHTML).join('')}</div>`;
+  }
+
+  function rowHTML(row) {
+    const name = row.name ? esc(row.name) : '<span class="none">—</span>';
+    const kind = row.kind ? `<i class="sw ${esc(row.kindClass)}"></i>${esc(row.kind)}` : '';
+    const args = row.args ? esc(row.args) : '<span class="none">—</span>';
+    const env = (row.env && row.env.length)
+      ? row.env.map((value) => `<span>${esc(value)}</span>`).join('') + (row.more > 0 ? `<span class="more">+${row.more}</span>` : '')
+      : '<span class="none">—</span>';
+    const users = row.users > 0 ? `<b>${row.users}</b><span>${esc(row.roles)}</span>` : '<span class="none">0</span>';
+    const sev = row.err > 0 ? `<span class="sev err">問題 ${row.err}</span>` : (row.warn > 0 ? `<span class="sev warn">警告 ${row.warn}</span>` : '');
+    return `<div class="row${row.open ? ' open' : ''}" data-name="${esc(row.name)}" data-kind="${esc(row.kind)}">
+  <div class="sum" role="button" tabindex="0" aria-expanded="${row.open ? 'true' : 'false'}" data-act="toggle">
+    <span class="chev"></span>
+    <span class="c-name"><span class="nm">${name}</span>${row.new ? '<span class="tag">新規</span>' : ''}${sev}</span>
+    <span class="c-kind">${kind}</span>
+    <span class="c-place">${(row.places || []).map(pillHTML).join('')}</span>
+    <span class="c-args">${args}</span>
+    <span class="c-env">${env}</span>
+    <span class="c-users">${users}</span>
+  </div>
+  <div class="detail"${row.open ? '' : ' hidden'}>
+    ${detailHTML(row)}
+  </div>
+</div>`;
+  }
+
+  // The assign card and its rows, drawn from the island's own reading of the
+  // team definitions.
+  function arowHTML(a) {
+    const pick = `<div class="pick"><i class="sw ${esc(a.kindCls)}"></i><span class="sel"><select data-k="${esc(a.id)}" aria-label="${esc(a.name)} のプロファイル">` +
+      `${a.missing ? `<option selected value="${esc(a.profile)}" data-kind="">${esc(a.profile)}</option>` : ''}` +
+      `${(a.options || []).map((g) => `<optgroup label="${esc(g.kind)}">${g.names.map((n) => `<option value="${esc(n)}" data-kind="${esc(g.kind)}"${n === a.profile ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`).join('')}</select></span></div>`;
+    const who = a.kind === 'm'
+      ? `<code>${esc(a.name)}</code><span class="role"><code>role ${esc(a.role)}</code></span>`
+      : `<span class="purpose">${esc(a.name)}</span><span class="role"><code>from ${esc(a.role)}</code></span>`;
+    const problem = a.missing ? `<ul class="vm"><li><span class="sev err">問題</span><span>${esc(a.error)}</span></li></ul>` : '';
+    return `<div class="arow${a.missing ? ' missing' : ''}${a.dim ? ' dim' : ''}" data-k="${esc(a.id)}" data-saved="${esc(a.profile)}">
+  <div class="who">${who}</div>
+  ${pick}
+  ${problem}
+</div>`;
+  }
+
+  function teamHTML(team) {
+    const members = (team.rows || []).filter((r) => r.kind === 'm').map(arowHTML).join('');
+    const workers = team.workers > 0
+      ? `<div class="sub">ワーカー</div>` + (team.rows || []).filter((r) => r.kind === 'w').map(arowHTML).join('')
+      : '';
+    return `<section class="team" data-g="${esc(team.name)}" data-hash="${esc(team.hash)}">
+  <header class="th"><span class="tl">チーム定義</span><code class="tid">${esc(team.name)}</code><span class="tn">${team.members}</span>
+    <span class="tside">${team.err > 0 ? `<span class="sev err">問題 ${team.err}</span>` : ''}${team.saved ? '<span class="ok">保存しました</span>' : ''}</span>
+    <code class="path">${esc(team.path)}</code>
+  </header>
+  ${members}
+  ${workers}
 </section>`;
   }
 
@@ -390,8 +497,7 @@
   }
 
   function initProfiles() {
-    $$('#rows .row').forEach(initRow);
-    applyFilter();
+    renderRows(ISLAND);
   }
 
   // ---- the assign tab --------------------------------------------------
@@ -456,6 +562,12 @@
   }
 
   function initAssign() {
+    applyList(ISLAND);
+    const holder = $('.teams');
+    const assign = ISLAND.assign || {};
+    if (holder) {
+      holder.innerHTML = (assign.empty ? '<p class="none">チーム定義はありません</p>' : '') + (assign.teams || []).map(teamHTML).join('');
+    }
     $$('.team').forEach(updateTeam);
     updateKindbar();
     applyAssignKind();
@@ -504,103 +616,88 @@
   }
 
   async function saveTeam(team) {
-    const changes = [];
+    // The picks that moved, as the doc `PUT /api/team/{name}` writes: a member's
+    // or a worker's profile, and nothing else (spec-boundary 6).
+    const members = [];
+    const workers = [];
     $$('.arow select', team).forEach((select) => {
       const row = select.closest('.arow');
       if (select.value === (row.dataset.saved || '')) return;
-      const key = row.dataset.k;
-      if (key.startsWith('m')) {
-        changes.push({ member: $('.who code', row).textContent, profile: select.value });
+      if (row.dataset.k.startsWith('m')) {
+        members.push({ name: $('.who code', row).textContent, profile: select.value });
       } else {
-        changes.push({
-          from: $('.role code', row).textContent.replace(/^from /, ''),
-          purpose: $('.purpose', row).textContent,
-          profile: select.value,
-        });
+        workers.push({ from: $('.role code', row).textContent.replace(/^from /, ''), purpose: $('.purpose', row).textContent, profile: select.value });
       }
     });
-    const answer = await post('/profiles/assign/save', {
-      definition: team.dataset.g, changes: JSON.stringify(changes), hash: team.dataset.hash,
+    const answer = await API.save('team', team.dataset.g, {
+      place: 'project', doc: { name: team.dataset.g, members, workers }, hash: team.dataset.hash,
     });
     if (!answer.ok) {
-      const side = $('.tside', team);
-      let refusal = $('.refusal', side);
-      if (!refusal) { refusal = document.createElement('span'); refusal.className = 'sev err refusal'; side.appendChild(refusal); }
-      refusal.textContent = (answer.json && answer.json.text) || '保存できませんでした';
+      API.refusal(team, API.problemText(answer, '保存できませんでした'));
       return;
     }
-    const holder = document.createElement('div');
-    holder.innerHTML = answer.html.trim();
-    const card = holder.firstElementChild;
-    if (card) { team.replaceWith(card); initAssign(); }
-    updateCounts(answer.headers);
+    team.dataset.hash = (answer.json && answer.json.hash) || team.dataset.hash;
+    const side = $('.tside', team);
+    $$('.arow', team).forEach((row) => {
+      const select = $('select', row);
+      if (select.value === (row.dataset.saved || '')) return;
+      row.dataset.saved = select.value;
+      row.classList.remove('changed');
+      const was = $('s.was', row);
+      if (was) was.remove();
+    });
+    $$('.dirty, [data-act=g-save], .ok', side).forEach((el) => el.remove());
+    const ok = document.createElement('span');
+    ok.className = 'ok';
+    ok.textContent = '保存しました';
+    side.appendChild(ok);
+    updateTeam(team);
+    updateKindbar();
     tellDirty();
   }
 
   // ---- the YAML tab ----------------------------------------------------
+  // The tab's behaviour — the numbered gutter, the check the typing rides on and
+  // the save — is the shared part in yamltab.js (spec-boundary 7). This screen
+  // only draws each file's section from the island, and hands it to the part.
 
-  function autosize(textarea) {
-    if (CSS.supports('field-sizing', 'content')) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight + 2) + 'px';
+  function yedHTML(y) {
+    const problems = y.problems || [];
+    const gutter = (y.lines || []).map((line) => `<span class="${esc(line.mark)}">${line.n}</span>`).join('');
+    const counts = (y.err || y.warn)
+      ? `<span class="vcount">${y.err > 0 ? `<span class="sev err">問題 ${y.err}</span>` : ''}${y.warn > 0 ? `<span class="sev warn">警告 ${y.warn}</span>` : ''}</span>`
+      : '<span class="vclean">✓ 問題なし</span>';
+    const items = problems.map((p) => `<button class="vitem" data-act="yaml-jump" data-line="${p.line}"><span class="sev ${esc(p.sev)}">${p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">${p.line} 行</span><span class="msg">${esc(p.text)}</span></button>`).join('');
+    return `<section class="yed" data-file="${esc(y.file)}" data-hash="${esc(y.hash)}">
+  <header class="ph"><span class="ln">${esc(y.label)}</span><code class="path">${esc(y.path)}</code></header>
+  <div class="ybody">
+    <div class="code ${esc(y.height || '')}"><pre class="gutter" aria-hidden="true">${gutter}</pre><textarea class="ytext" data-file="${esc(y.file)}" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(y.path)}">${esc(y.text || '')}</textarea></div>
+    <div class="vlist"><div class="vhead"><span class="vt">validate</span>${counts}</div>${items}</div>
+  </div>
+  <footer class="pf">
+    <button class="btn primary" data-act="yaml-save" disabled>保存</button><span class="dirty"></span>
+    <span class="acts"><button class="btn" data-act="yaml-revert" hidden>元に戻す</button></span>
+  </footer>
+</section>`;
   }
 
-  function yamlFoot(section, problems) {
-    const textarea = $('.ytext', section);
-    const dirty = textarea.value !== section._base;
-    $('.dirty', section).textContent = dirty ? '変更あり' : '';
-    $('[data-act=yaml-save]', section).disabled = !dirty || problems.some((p) => p.sev === 'err');
-    $('[data-act=yaml-revert]', section).hidden = !dirty;
-    tellDirty();
+  function renderYeds(files) {
+    const yeds = $('.yeds');
+    if (!yeds) return;
+    yeds.innerHTML = (files || []).map(yedHTML).join('');
+    $$('.yed', yeds).forEach((section, i) => YAML.mount(section, {
+      kind: 'profile', place: section.dataset.file, name: '_yaml', problems: (files[i] || {}).problems || [],
+    }));
   }
 
-  function renderYaml(section, problems) {
-    const textarea = $('.ytext', section);
-    const text = textarea.value;
-    const lines = text.split('\n');
-    const marks = {};
-    problems.forEach((p) => { if (marks[p.line] !== 'err') marks[p.line] = p.sev; });
-    $('.gutter', section).innerHTML = lines.map((_, i) => `<span class="${marks[i + 1] || ''}">${i + 1}</span>`).join('');
-    const height = Math.min(Math.max(lines.length, 6), 28);
-    const code = $('.code', section);
-    code.className = code.className.replace(/\bh\d+\b/g, '').replace(/\s+/g, ' ').trim() + ' h' + height;
-    const errs = problems.filter((p) => p.sev === 'err').length;
-    const warns = problems.length - errs;
-    $('.vlist', section).innerHTML = `<div class="vhead"><span class="vt">validate</span>${problems.length ? `<span class="vcount">${counts(errs, warns)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>` +
-      problems.map((p) => `<button class="vitem" data-act="yaml-jump" data-line="${p.line}">${chip(p.sev)}<span class="lno">${p.line} 行</span><span class="msg">${esc(p.text)}</span></button>`).join('');
-    $('.gutter', section).scrollTop = textarea.scrollTop;
-    yamlFoot(section, problems);
-    section._problems = problems;
-  }
+  function initYaml() { renderYeds(ISLAND.files || []); }
 
-  function scheduleYaml(section) {
-    clearTimeout(section._timer);
-    section._timer = setTimeout(() => checkYaml(section), 300);
-  }
-
-  async function checkYaml(section) {
-    const textarea = $('.ytext', section);
-    const answer = await post('/profiles/yaml/check', { file: section.dataset.file, text: textarea.value });
-    const problems = (answer.json && answer.json.problems) || [];
-    if (!section.isConnected) return;
-    renderYaml(section, problems);
-  }
-
-  function initYaml() {
-    $$('.yed').forEach((section) => {
-      const textarea = $('.ytext', section);
-      section._base = textarea.value;
-      section._problems = [];
-      renderYaml(section, []);
-      checkYaml(section);
-    });
-  }
-
-  function insertTab(textarea) {
-    const start = textarea.selectionStart;
-    textarea.setRangeText('  ', start, textarea.selectionEnd, 'end');
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  const autosize = (textarea) => YAML.autosize(textarea);
+  const insertTab = (textarea) => YAML.insertTab(textarea);
+  const yamlFoot = (section) => YAML.foot(section);
+  const renderYaml = (section, problems) => YAML.render(section, problems);
+  const scheduleYaml = (section) => YAML.schedule(section);
+  const checkYaml = (section) => YAML.check(section);
 
   // ---- the page's presses ----------------------------------------------
 
@@ -805,10 +902,9 @@
     if (act === 'del-yes' && panel) {
       const saved = savedOf(panel);
       if (!saved) return;
-      post('/profiles/delete', { file: panel.dataset.file, name: saved.name, hash: hashOf(panel.dataset.file) }).then((answer) => {
-        if (!answer.ok) { showRefusal(panel, (answer.json && answer.json.text) || '削除できませんでした'); return; }
-        updateCounts(answer.headers);
-        replaceRow(row, answer.html);
+      API.del('profile', saved.name, panel.dataset.file, hashOf(panel.dataset.file)).then((answer) => {
+        if (!answer.ok) { showRefusal(panel, API.problemText(answer, '削除できませんでした')); return; }
+        renderRows(answer.json, true);
       });
       return;
     }
@@ -835,27 +931,17 @@
     if (act === 'g-save' && team) { saveTeam(team); return; }
 
     if (act === 'yaml-jump' && section) {
-      const textarea = $('.ytext', section);
-      const line = Number(button.dataset.line);
-      const lines = textarea.value.split('\n');
-      const start = lines.slice(0, line - 1).reduce((n, s) => n + s.length + 1, 0);
-      textarea.focus({ preventScroll: true });
-      textarea.setSelectionRange(start, start + (lines[line - 1] || '').length);
-      textarea.scrollTop = Math.max(0, (line - 4) * 20);
-      textarea.scrollLeft = 0;
+      YAML.jump(section, Number(button.dataset.line));
       return;
     }
 
     if (act === 'yaml-revert' && section) {
-      const textarea = $('.ytext', section);
-      textarea.value = section._base;
-      renderYaml(section, section._problems || []);
-      checkYaml(section);
+      YAML.revert(section);
       return;
     }
 
     if (act === 'yaml-save' && section) {
-      saveYaml(section);
+      YAML.save(section);
       return;
     }
   });
@@ -868,31 +954,16 @@
     const saved = savedOf(panel);
     const draft = panelValues(panel);
     const hint = $('.rename input', panel);
-    const answer = await post('/profiles/save', {
-      file: panel.dataset.file,
+    const answer = await API.save('profile', saved ? saved.name : (draft.name || '_'), {
+      place: panel.dataset.file,
       original: saved ? saved.name : '',
-      profile: JSON.stringify(draft),
-      renameUsers: hint && hint.checked ? '1' : '0',
+      doc: draft,
+      rename_users: !!(hint && hint.checked),
       hash: hashOf(panel.dataset.file),
-      open: $$('#rows .row.open').map((row) => row.dataset.name).filter(Boolean).join(','),
+      open: $$('#rows .row.open').map((row) => row.dataset.name).filter(Boolean),
     });
-    if (!answer.ok) { showRefusal(panel, (answer.json && answer.json.text) || '保存できませんでした'); return; }
-    updateCounts(answer.headers);
-    replaceRows(answer.html);
-  }
-
-  async function saveYaml(section) {
-    const textarea = $('.ytext', section);
-    const answer = await post('/profiles/yaml/save', { file: section.dataset.file, text: textarea.value, hash: hashOf(section.dataset.file) });
-    if (!answer.ok) { showRefusal(section, (answer.json && answer.json.text) || '保存できませんでした'); return; }
-    updateCounts(answer.headers);
-    const holder = document.createElement('div');
-    holder.innerHTML = answer.html.trim();
-    const yeds = $('.yeds');
-    if (yeds) {
-      yeds.innerHTML = holder.innerHTML;
-      initYaml();
-    }
+    if (!answer.ok) { showRefusal(panel, API.problemText(answer, '保存できませんでした')); return; }
+    renderRows(answer.json);
   }
 
   view.addEventListener('input', (event) => {
@@ -902,7 +973,7 @@
     if (target.classList.contains('ytext')) {
       const section = target.closest('.yed');
       section._dirty = target.value !== section._base;
-      yamlFoot(section, section._problems || []);
+      yamlFoot(section);
       scheduleYaml(section);
       return;
     }
@@ -1118,7 +1189,7 @@
     if (tab === 'profiles') afterRowsChanged(); else tellDirty();
   }
 
-  window.hergyPage = { screen: 'profiles', dirty, take };
+  window.hergyPage = { screen: 'profiles', dirty, take, tellDirty };
   // A change a person makes, and a save's answer, both move the dot.
   document.addEventListener('input', tellDirty);
   document.addEventListener('change', tellDirty);

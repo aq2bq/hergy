@@ -47,8 +47,8 @@ type Problem struct {
 // EnvPair is one environment variable as the file writes it: the order of the
 // file is kept, so a screen shows the pairs in the order a person wrote them.
 type EnvPair struct {
-	Key   string
-	Value string
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // Entry is one profile as a file writes it: the values a screen shows, and the

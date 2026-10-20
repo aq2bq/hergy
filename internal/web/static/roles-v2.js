@@ -16,7 +16,6 @@
   const view = document.getElementById('view');
   if (!view) return;
   const RD = window.hergyRuleDoc;
-  const token = view.dataset.token;
   let DATA = { project: '', roles: [], teams: [] };
   const island = document.getElementById('roles-data');
   if (island) { try { DATA = JSON.parse(island.textContent || '{}'); } catch (e) { DATA = { project: '', roles: [], teams: [] }; } }
@@ -42,21 +41,13 @@
   const inP = RD.inP;
   let uid = 0;
 
-  async function post(url, payload) {
-    const body = new URLSearchParams();
-    body.set('token', token);
-    body.set('payload', JSON.stringify(payload));
-    const res = await fetch(url, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
-    });
-    const text = await res.text();
-    let json = null;
-    if ((res.headers.get('content-type') || '').includes('application/json')) {
-      try { json = JSON.parse(text); } catch (e) { json = null; }
-    }
-    return { ok: res.ok, status: res.status, json, text };
-  }
+  // Every read and write goes through the one boundary (spec-boundary 5, 7):
+  // api.js holds the call, the token of this run, the 300ms wait and the place a
+  // refusal is shown; yamltab.js holds the YAML tab. Every kind of thing answers
+  // under /api/ in one shape, whether the screen draws it as a row, a card or a
+  // YAML section.
+  const API = window.hergyAPI;
+  const YAML = window.hergyYaml;
 
   // ---- the model -------------------------------------------------------
   const fromJSON = RD.fromJSON;
@@ -142,7 +133,7 @@
     const k = keyOf(r, l);
     const id = (reqs[k] || 0) + 1;
     reqs[k] = id;
-    const res = await post('/roles/check', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
+    const res = await API.check('role', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
     if (reqs[k] !== id) return;
     if (!res.ok || !res.json) return;
     checks[k] = {
@@ -590,7 +581,7 @@
   function ykey(place, name) { return place + '.' + name; }
 
   async function askYAML(place, name, text, base) {
-    const res = await post('/roles/yaml/check', { place, name, text });
+    const res = await API.check('role', { place, name, text });
     if (!res.ok || !res.json) return;
     const probs = res.json.problems || [];
     if (base) ybase[ykey(place, name)] = new Set(probs.filter((m) => m.sev === 'err').map((m) => m.text));
@@ -673,7 +664,7 @@
     if (!sec) return;
     const text = sec.querySelector('.ytext').value;
     const name = e.saved ? e.saved.name : e.draft.name;
-    const res = await post('/roles/yaml/save', { place: l, name, text, hash: e.hash || '' });
+    const res = await API.save('role', name, { place: l, name, text, hash: e.hash || '' });
     if (!res.ok) {
       const el = sec.querySelector('.errline');
       if (el) { el.hidden = false; el.textContent = (res.json && res.json.text) || '保存できませんでした'; }
@@ -697,8 +688,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum')) { e.preventDefault(); e.target.click(); }
     if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) {
       e.preventDefault();
-      e.target.setRangeText('  ', e.target.selectionStart, e.target.selectionEnd, 'end');
-      e.target.dispatchEvent(new Event('input', { bubbles: true }));
+      YAML.insertTab(e.target);
     }
   });
 
@@ -854,7 +844,7 @@
   function showRefusal(sec, json) {
     if (!sec) return;
     clearRefusal(sec);
-    const el = sec.querySelector(json && json.field === 'name' ? '.errline.name' : '.errline.doc');
+    const el = sec.querySelector(json && json.at === 'name' ? '.errline.name' : '.errline.doc');
     if (el) { el.hidden = false; el.textContent = (json && json.text) || '保存できませんでした'; }
   }
 
@@ -863,7 +853,7 @@
     const keepRename = (() => { const cb = document.getElementById('rn' + r.uid + l); return cb ? cb.checked : true; })();
     const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
     if (e.basePlace) payload.base = e.basePlace;
-    const res = await post('/roles/save', payload);
+    const res = await API.save('role', e.draft.name || (e.saved ? e.saved.name : '_'), payload);
     if (!res.ok) {
       showRefusal(sec, res.json);
       return;
@@ -902,7 +892,7 @@
   async function doDelete(r, l) {
     const e = r[l];
     if (!e || !e.saved) return;
-    const res = await post('/roles/delete', { place: l, name: e.saved.name, hash: e.hash || '' });
+    const res = await API.del('role', e.saved.name, l, e.hash || '');
     if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); showRefusal(sec, res.json); return; }
     ychecks[ykey(l, e.saved.name)] = undefined;
     delete r[l];
@@ -915,7 +905,7 @@
     if (!t) return;
     const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
     if (!changes.length) return;
-    const res = await post('/roles/assign/save', { definition: id, changes, hash: t.hash || '' });
+    const res = await API.save('team', id, { place: 'project', doc: { name: id, members: changes.map((m) => ({ name: m.member, role: m.role })) }, hash: t.hash || '' });
     if (!res.ok) {
       const card = $(`.team[data-t="${id}"]`);
       if (card) { let el = card.querySelector('.errline'); if (!el) { el = document.createElement('span'); el.className = 'errline'; card.querySelector('.th').appendChild(el); } el.hidden = false; el.textContent = (res.json && res.json.text) || '保存できませんでした'; }

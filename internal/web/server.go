@@ -130,24 +130,21 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /roles/{role}", s.r2OldRole)
 	mux.HandleFunc("GET /roles/{role}/new", s.r2OldRoleNew)
 	mux.HandleFunc("GET /roles/{role}/{rule}", s.r2OldRoleRule)
-	mux.HandleFunc("POST /roles/check", s.p2Post(s.r2Check))
-	mux.HandleFunc("POST /roles/yaml/check", s.p2Post(s.r2YAMLCheck))
-	mux.HandleFunc("POST /roles/save", s.p2Post(s.r2Save))
-	mux.HandleFunc("POST /roles/delete", s.p2Post(s.r2Delete))
-	mux.HandleFunc("POST /roles/yaml/save", s.p2Post(s.r2YAMLSave))
-	mux.HandleFunc("POST /roles/assign/save", s.p2Post(s.r2AssignSave))
 
-	// プロファイル (r-c683): the three tabs, their checks and their writes.
+	// プロファイル (r-c683): the three tabs.
 	mux.HandleFunc("GET /profiles", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "profiles") })
 	mux.HandleFunc("GET /profiles/assign", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "assign") })
 	mux.HandleFunc("GET /profiles/yaml", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "yaml") })
 	mux.HandleFunc("GET /profiles/{name}", s.oldProfile)
-	mux.HandleFunc("POST /profiles/check", s.p2Post(s.p2Check))
-	mux.HandleFunc("POST /profiles/yaml/check", s.p2Post(s.p2YAMLCheck))
-	mux.HandleFunc("POST /profiles/save", s.p2Post(s.p2Save))
-	mux.HandleFunc("POST /profiles/delete", s.p2Post(s.p2Delete))
-	mux.HandleFunc("POST /profiles/yaml/save", s.p2Post(s.p2YAMLSave))
-	mux.HandleFunc("POST /profiles/assign/save", s.p2Post(s.p2AssignSave))
+
+	// 受け口 (spec-boundary 5, r-2cc2): every kind of thing the screens read and
+	// write answers under /api/, in one shape, through one set of handlers. The
+	// old per-screen URLs (/profiles/check ほか, /roles/check ほか) are gone.
+	mux.HandleFunc("GET /api/{kind}", s.apiList)
+	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)
+	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)
+	mux.HandleFunc("PUT /api/{kind}/{name}", s.apiSave)
+	mux.HandleFunc("DELETE /api/{kind}/{name}", s.apiDelete)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	mux.HandleFunc("/", s.notFound)

@@ -1,8 +1,6 @@
 package web
 
 import (
-	"encoding/json"
-	"net/http"
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -337,9 +335,4 @@ func (s *Server) r2AgreementSize(teamPath string) r2Size {
 	}
 	add(filepath.Join(filepath.Dir(teamPath), "agreement.yaml"))
 	return out
-}
-
-// r2Decode reads one POST's payload into a value.
-func r2Decode(r *http.Request, into any) error {
-	return json.Unmarshal([]byte(r.PostFormValue("payload")), into)
 }
