@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,6 +95,20 @@ func TestE2ERoles(t *testing.T) {
 	defer stop2()
 	t.Run("rows without a document", func(t *testing.T) { e2eRolesNoDoc(t, ctx, base2, f2) })
 
+	// The additions of 版 7.1 (A1〜A5) write a document, move a section and move
+	// a rule, so they run over a project of their own: the counts and the files
+	// the tests above read stay as the fixture wrote them.
+	f3 := newFixture(t)
+	copyRolesFixture(t, f3, cwd)
+	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f3.runningHerdr(t, "", "")
+	base3, stop3 := startServe(t, f3)
+	defer stop3()
+	t.Run("the prompt switch", func(t *testing.T) { e2eRolesInPrompt(t, ctx, base3, f3) })
+	t.Run("the heading depth", func(t *testing.T) { e2eRolesHeadingDepth(t, ctx, base3, f3) })
+	t.Run("the section order", func(t *testing.T) { e2eRolesSectionOrder(t, ctx, base3, f3) })
+	t.Run("the rule drag", func(t *testing.T) { e2eRolesRuleDrag(t, ctx, base3, f3) })
+
 	mu.Lock()
 	defer mu.Unlock()
 	if len(console) > 0 {
@@ -138,6 +153,13 @@ func e2eRolesWait(t *testing.T, ctx context.Context, script string) {
 // e2eRolesRowJS is a JS expression for the list row one role name stands on.
 func e2eRolesRowJS(name string) string {
 	return `[...document.querySelectorAll('#rows .role')].find(function(r){var n=r.querySelector('.c-name .nm');return n&&n.textContent.trim()===` + strconv.Quote(name) + `})`
+}
+
+// e2eRolesSecJS is a JS expression for the section one heading stands on, in the
+// open role's project document. A test reaches a section by its heading rather
+// than by its place, because the tests behind it move the sections.
+func e2eRolesSecJS(heading string) string {
+	return `[...document.querySelectorAll('#rows .role.open .panel .sec')].find(function(s){var h=s.querySelector('[data-f=heading]');return h&&h.value===` + strconv.Quote(heading) + `})`
 }
 
 // e2eRolesClick presses the element one expression stands for, the way a person
@@ -340,6 +362,14 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	}
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=style]').length`); got != 0 {
 		t.Errorf("the section header offers %d style pickers, want none", got)
+	}
+	// I6: nowhere the level says — (the old header read "level —" before the
+	// picker), and no control of the panel is a select any more.
+	if got := e2eRolesValue(t, ctx, `[...document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]')].map(function(b){return b.textContent.trim()}).join(',')`); got != "##,##" {
+		t.Errorf("the sections' depth reads %q, want ##,##", got)
+	}
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel select').length`); got != 0 {
+		t.Errorf("the panel still shows %d selects", got)
 	}
 	if got := e2eRolesInt(t, ctx, `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].filter(function(e){return e.textContent.indexOf('- **BUILD-')===0}).length`); got != 7 {
 		t.Errorf("the Markdown preview shows %d items with the id at their head, want the 7 rules'", got)
@@ -771,11 +801,12 @@ const e2eRolesContrast = `(function(){
 func e2eRolesWidths(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	ready := map[string]string{
-		"/roles?open=builder": `!!document.querySelector('#rows .role.open .panel')`,
-		"/roles/assign":       `!!document.querySelector('.teams')`,
-		"/roles/yaml":         `!!document.querySelector('.yed .ytext')`,
+		"/roles?open=builder":                              `!!document.querySelector('#rows .role.open .panel')`,
+		"/roles?open=builder&rule=builder.project.BUILD-1": `!!document.querySelector('#rows .role.open .rule.open .redit .whyrow [data-act=send-why]')`,
+		"/roles/assign":                                    `!!document.querySelector('.teams')`,
+		"/roles/yaml":                                      `!!document.querySelector('.yed .ytext')`,
 	}
-	paths := []string{"/roles?open=builder", "/roles/assign", "/roles/yaml"}
+	paths := []string{"/roles?open=builder", "/roles?open=builder&rule=builder.project.BUILD-1", "/roles/assign", "/roles/yaml"}
 
 	for _, size := range []int64{2000, 1440, 500} {
 		for _, theme := range []string{"", "light", "dark"} {
@@ -944,4 +975,309 @@ func e2eRolesNoDoc(t *testing.T, ctx context.Context, base string, f *fixture) {
 	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .c-name .nm').textContent.trim()`); got != "nosuch-2" {
 		t.Errorf("the saved row shows the name %q", got)
 	}
+}
+
+// e2eRolesInPrompt is I1・I2・A1: the 規則 switch keeps one rule out of the
+// prompt, and the six places the screen shows it change together — the rule dims
+// with 含めない in its marks, the section's head and the list's 規則 column count
+// it, the reader's amount falls, the Markdown draws the rule as one struck line
+// with no number, and the save writes the rule's own in_prompt: false on one
+// line. The why's own switch, under なぜ, dims the why alone.
+func e2eRolesInPrompt(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	path := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	before := readFile(t, path)
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=lead&rule=lead.project.LEAD-9"),
+		chromedp.WaitReady("#rows .role.open .rule.open .redit [data-act=in-prompt]"))
+	panel := `document.querySelector('#rows .role.open .panel[data-l=project]')`
+	row := `document.querySelector('#rows .role.open')`
+
+	// A1: the rule's own switch stands under the field's name 規則.
+	if got := e2eRolesValue(t, ctx, panel+`.querySelector('.redit .field.scope .fl').textContent.trim()`); got != "規則" {
+		t.Errorf("the rule's own switch stands under %q, want 規則", got)
+	}
+	lines0, chars0 := e2eRolesVT(t, e2eRolesValue(t, ctx, panel+`.querySelector('.yprev .yinfo .vt').textContent`))
+	if got := e2eRolesValue(t, ctx, panel+`.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`); got != "3 規則" {
+		t.Errorf("the last section before the switch reads %q, want 3 規則", got)
+	}
+	if got := e2eRolesInt(t, ctx, row+`.querySelectorAll('.c-count .outn').length`); got != 0 {
+		t.Errorf("the list marks an 含めない rule before any was made")
+	}
+	if got := e2eRolesValue(t, ctx, row+`.querySelector('.c-amount .amt .v').firstChild.textContent`); got != "18" {
+		t.Errorf("the lead reader's amount before the switch reads %q, want 18", got)
+	}
+
+	// 含めない.
+	outRule := `[...document.querySelectorAll('#rows .role.open .panel .rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()==='LEAD-9'})`
+	e2eRolesClick(t, ctx, outRule+`.querySelector('[data-act=in-prompt][data-v=false]')`)
+	// The rule dims, and its marks carry 含めない.
+	e2eRolesWait(t, ctx, outRule+`.classList.contains('out') && !!`+outRule+`.querySelector('.marks .mk.out')`)
+	// The section's head and the list's 規則 column count it, and the layer's
+	// rules travel to the readers.
+	e2eRolesWait(t, ctx, panel+`.querySelector('.sec[data-si="2"] .sech .n').textContent.indexOf('含めない 1')>=0`)
+	e2eRolesWait(t, ctx, row+`.querySelector('.c-count .outn') && `+row+`.querySelector('.c-count .outn').textContent.trim()==='含めない 1'`)
+	// The reader's amount falls by the one rule.
+	e2eRolesWait(t, ctx, row+`.querySelector('.c-amount .amt .v').firstChild.textContent==='17'`)
+	// The Markdown draws the rule as one struck line, with no number.
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .yprev .yl.ghost .yt s')`)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .yprev .yl.ghost .lno').textContent`); got != "" {
+		t.Errorf("the excluded rule's line carries the number %q, want none", got)
+	}
+	lines1, chars1 := e2eRolesVT(t, e2eRolesValue(t, ctx, panel+`.querySelector('.yprev .yinfo .vt').textContent`))
+	if lines1 >= lines0 || chars1 >= chars0 {
+		t.Errorf("the preview reads %d 行 · %d 文字 after the switch, want below %d 行 · %d 文字", lines1, chars1, lines0, chars0)
+	}
+	if got := e2eRolesValue(t, ctx, panel+`.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`); got != "3 規則含めない 1" {
+		t.Errorf("the last section after the switch reads %q, want 3 規則含めない 1", got)
+	}
+	if got := e2eRolesValue(t, ctx, row+`.querySelector('.pf .dirty').textContent`); got != "1 か所" {
+		t.Errorf("the switch reads %q in the footer, want 1 か所", got)
+	}
+
+	// I1: the save writes the one line and keeps every other line of the file.
+	e2ePressWhenEnabled(t, ctx, row+`.querySelector('.pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!`+row+`.querySelector('.ok')`)
+	after := readFile(t, path)
+	changed := e2eRolesChangedLines(before, after)
+	if len(changed) != 1 {
+		t.Errorf("the save changed %d lines, want the rule's in_prompt line alone: %v", len(changed), changed)
+	}
+	for line, text := range changed {
+		if text != "        in_prompt: false" {
+			t.Errorf("line %d became %q, want the rule's in_prompt: false", line, text)
+		}
+	}
+	if !strings.Contains(after, "- id: LEAD-9\n        text: ") {
+		t.Errorf("the save did not keep LEAD-9's item:\n%s", after)
+	}
+
+	// I2: the why's switch stands under なぜ, and 含めない there dims the why's
+	// own line alone — the rule stays in the prompt.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder&rule=builder.project.BUILD-1"),
+		chromedp.WaitReady("#rows .role.open .rule.open .redit .whyrow [data-act=send-why]"))
+	bpanel := `document.querySelector('#rows .role.open .panel[data-l=project]')`
+	whyField := `(function(){var f=[...document.querySelectorAll('#rows .role.open .rule.open .redit > .field')].find(function(d){var l=d.querySelector('label');return l&&l.textContent.trim()==='なぜ'});return f?f.querySelector('.whyrow [data-f=send_why]')?'yes':'no':'none'})()`
+	if got := e2eRolesValue(t, ctx, whyField); got != "yes" {
+		t.Errorf("the why's switch is not under なぜ (%s)", got)
+	}
+	e2eRolesClick(t, ctx, bpanel+`.querySelector('.rule.open .whyrow [data-act=send-why][data-v=false]')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .rule.open .redit textarea.held-why')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .yprev .yl .held s')`)
+	if got := e2eRolesValue(t, ctx, bpanel+`.querySelector('.rule.open .rsum .mk.why').className`); !strings.Contains(got, "held") {
+		t.Errorf("the rule's なぜ mark reads %q after its own 含めない, want held", got)
+	}
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel .rule.out').length`); got != 0 {
+		t.Errorf("the why's 含めない dimmed %d whole rules, want none", got)
+	}
+	if got := e2eRolesValue(t, ctx, bpanel+`.querySelector('.rule.open .redit [data-f=why]').value`); got == "" {
+		t.Errorf("the why's 含めない emptied the why, want the text kept and writable")
+	}
+}
+
+// e2eRolesHeadingDepth is I3・A2: the mark at a section's head opens the three
+// depths; ### makes the Markdown's heading deeper and the save add the section's
+// one level: 3 line, and nothing else.
+func e2eRolesHeadingDepth(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	path := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
+	before := readFile(t, path)
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"),
+		chromedp.WaitReady("#rows .role.open .panel .sec [data-act=sec-pick]"))
+	make := e2eRolesSecJS("作り方")
+	if got := e2eRolesValue(t, ctx, make+`.querySelector('.sech [data-f=level]').textContent.trim()`); got != "##" {
+		t.Errorf("作り方's depth reads %q, want ##", got)
+	}
+	e2eRolesClick(t, ctx, make+`.querySelector('.sech [data-act=sec-pick][data-w=lvl]')`)
+	e2eRolesWait(t, ctx, make+`.querySelectorAll('.pickrow .lvl').length===3`)
+	if got := e2eRolesValue(t, ctx, `[...`+make+`.querySelectorAll('.pickrow .lvl')].map(function(b){return b.textContent.trim().split(' ')[0]}).join(',')`); got != "##,###,####" {
+		t.Errorf("the depth's three marks read %q, want ##,###,####", got)
+	}
+	e2eRolesClick(t, ctx, make+`.querySelector('.pickrow [data-act=sec-level][data-v="3"]')`)
+	e2eRolesWait(t, ctx, make+`.querySelector('.sech [data-f=level]').textContent.trim()==='###'`)
+	// The Markdown's heading follows the draft, and the footer counts the change
+	// as the one place it is.
+	e2eRolesWait(t, ctx, `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].some(function(e){return e.textContent.trim()==='### 作り方'})`)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .pf .dirty').textContent`); got != "1 か所" {
+		t.Errorf("the depth change reads %q in the footer, want 1 か所", got)
+	}
+	if got := e2eRolesValue(t, ctx, make+`.querySelector('.sech [data-f=level]').className`); !strings.Contains(got, "changed") {
+		t.Errorf("the depth mark reads %q after the change, want changed", got)
+	}
+
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .role.open .pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .ok')`)
+	after := readFile(t, path)
+	if strings.Replace(after, "    level: 3\n", "", 1) != before {
+		t.Errorf("the save did not add the one level: 3 line to 作り方, and nothing else:\n%s", after)
+	}
+	if n := strings.Count(after, "\n") - strings.Count(before, "\n"); n != 1 {
+		t.Errorf("the save added %d lines, want the level's one", n)
+	}
+}
+
+// e2eRolesSectionOrder is I4・A4: a section's ↑ moves the whole section up, the
+// Markdown follows, the footer counts the move as the one place it is, and the
+// save comes back as the same lines with the two sections swapped.
+func e2eRolesSectionOrder(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	path := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
+	before := readFile(t, path)
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"),
+		chromedp.WaitReady("#rows .role.open .panel .sec [data-act=sec-up]"))
+	// The first section's ↑ and the last's ↓ are shut.
+	if got := e2eRolesValue(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec')[0].querySelector('[data-act=sec-up]').disabled+''`); got != "true" {
+		t.Errorf("the first section's ↑ is not shut")
+	}
+	if got := e2eRolesValue(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec')[1].querySelector('[data-act=sec-down]').disabled+''`); got != "true" {
+		t.Errorf("the last section's ↓ is not shut")
+	}
+	e2eRolesClick(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec')[1].querySelector('[data-act=sec-up]')`)
+	e2eRolesWait(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=heading]')[0].value==='確かめ方'`)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .pf .dirty').textContent`); got != "1 か所" {
+		t.Errorf("moving the sections reads %q in the footer, want 1 か所", got)
+	}
+	e2eRolesWait(t, ctx, `(function(){var t=[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].map(function(e){return e.textContent});var a=t.findIndex(function(s){return s.indexOf('確かめ方')>=0});var b=t.findIndex(function(s){return s.indexOf('作り方')>=0});return a>=0&&b>=0&&a<b})()`)
+
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .role.open .pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .ok')`)
+	after := readFile(t, path)
+	e2eRolesSameLines(t, before, after)
+	if strings.Index(after, "  - heading: 確かめ方") > strings.Index(after, "  - heading: 作り方") {
+		t.Errorf("the moved section did not land first:\n%s", after)
+	}
+	if got, want := e2eRolesSectionBlock(t, after, "確かめ方"), e2eRolesSectionBlock(t, before, "確かめ方"); got != want {
+		t.Errorf("the moved section's own lines changed:\n%s\nwant\n%s", got, want)
+	}
+	if got, want := e2eRolesSectionBlock(t, after, "作り方"), e2eRolesSectionBlock(t, before, "作り方"); got != want {
+		t.Errorf("the other section's own lines changed:\n%s\nwant\n%s", got, want)
+	}
+}
+
+// e2eRolesRuleDrag is I5・A5: a rule is dragged by its ⋮ handle below another
+// rule, the row that moved flashes, the footer counts the move as the one place
+// it is, and the save comes back as the same lines with the rule's item moved.
+func e2eRolesRuleDrag(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	path := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
+	before := readFile(t, path)
+
+	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"),
+		chromedp.WaitReady("#rows .role.open .panel .sec .rule .grip"))
+	makeOrder := `[...` + e2eRolesSecJS("作り方") + `.querySelectorAll('.rule .rid b')].map(function(b){return b.textContent.trim()}).join(',')`
+	if got := e2eRolesValue(t, ctx, makeOrder); got != "BUILD-1,BUILD-2,BUILD-3,BUILD-4" {
+		t.Fatalf("作り方's rules stand %q before the drag, want BUILD-1..BUILD-4", got)
+	}
+	// The drag is the events a person's mouse fires: the ⋮ makes the row
+	// draggable, the row is lifted, and it is dropped on BUILD-3's lower half.
+	drag := `(function(){
+		var make=` + e2eRolesSecJS("作り方") + `;
+		var byId=function(id){return [...make.querySelectorAll('.rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()===id})};
+		var a=byId('BUILD-1'), b=byId('BUILD-3');
+		if(!a||!b){return 'missing';}
+		a.querySelector('.grip').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+		a.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:new DataTransfer()}));
+		var rc=b.getBoundingClientRect(), y=rc.top+rc.height*0.75;
+		b.dispatchEvent(new DragEvent('dragover',{bubbles:true,clientY:y,dataTransfer:new DataTransfer()}));
+		b.dispatchEvent(new DragEvent('drop',{bubbles:true,clientY:y,dataTransfer:new DataTransfer()}));
+		a.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:new DataTransfer()}));
+		return 'dragged';
+	})()`
+	if got := e2eVerdict(t, ctx, drag); got != "dragged" {
+		t.Fatalf("the drag did not start: %s", got)
+	}
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .panel .sec .rule.flash')`)
+	if got := e2eRolesValue(t, ctx, makeOrder); got != "BUILD-2,BUILD-3,BUILD-1,BUILD-4" {
+		t.Errorf("the dropped rule landed as %q, want it below BUILD-3", got)
+	}
+	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .pf .dirty').textContent`); got != "1 か所" {
+		t.Errorf("the drag reads %q in the footer, want 1 か所", got)
+	}
+
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .role.open .pf [data-act=save]')`)
+	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .ok')`)
+	after := readFile(t, path)
+	e2eRolesSameLines(t, before, after)
+	if got, want := e2eRolesItemBlock(t, after, "BUILD-1"), e2eRolesItemBlock(t, before, "BUILD-1"); got != want {
+		t.Errorf("the moved rule's own lines changed:\n%s\nwant\n%s", got, want)
+	}
+	at := 0
+	for _, id := range []string{"BUILD-2", "BUILD-3", "BUILD-1", "BUILD-4"} {
+		i := strings.Index(after, "- id: "+id)
+		if i < 0 {
+			t.Fatalf("%s left the file:\n%s", id, after)
+		}
+		if i < at {
+			t.Errorf("the file puts %s above the rule before it:\n%s", id, after)
+		}
+		at = i
+	}
+}
+
+// e2eRolesVT reads the Markdown preview's "N 行 · N 文字" as the two numbers.
+func e2eRolesVT(t *testing.T, text string) (int, int) {
+	t.Helper()
+	f := strings.Fields(text)
+	if len(f) < 4 {
+		t.Fatalf("the Markdown preview's counts read %q", text)
+	}
+	lines, err1 := strconv.Atoi(f[0])
+	chars, err2 := strconv.Atoi(f[3])
+	if err1 != nil || err2 != nil {
+		t.Fatalf("the Markdown preview's counts read %q", text)
+	}
+	return lines, chars
+}
+
+// e2eRolesSameLines holds a save to moving lines about rather than changing
+// them: the file comes back with the same lines in another order.
+func e2eRolesSameLines(t *testing.T, before, after string) {
+	t.Helper()
+	b, a := strings.Split(before, "\n"), strings.Split(after, "\n")
+	if len(b) != len(a) {
+		t.Fatalf("the file went from %d lines to %d:\n%s", len(b), len(a), after)
+	}
+	sort.Strings(b)
+	sort.Strings(a)
+	if strings.Join(b, "\n") != strings.Join(a, "\n") {
+		t.Fatalf("the file's lines changed, not only their order:\n%s\nwant the same lines as the fixture", after)
+	}
+}
+
+// e2eRolesItemBlock is one rule's own lines: its "- id:" line and the keys under
+// it, up to the next line that is indented less.
+func e2eRolesItemBlock(t *testing.T, text, id string) string {
+	t.Helper()
+	return e2eRolesBlock(t, text, "- id: "+id, "        ")
+}
+
+// e2eRolesSectionBlock is one section's own lines: its "- heading:" line and the
+// lines under it, up to the next section.
+func e2eRolesSectionBlock(t *testing.T, text, heading string) string {
+	t.Helper()
+	return e2eRolesBlock(t, text, "- heading: "+heading, "    ")
+}
+
+// e2eRolesBlock is the lines from the one a heading stands on, down to the first
+// line that is not indented deeper than it.
+func e2eRolesBlock(t *testing.T, text, head, deeper string) string {
+	t.Helper()
+	lines := strings.Split(text, "\n")
+	start := -1
+	for i, l := range lines {
+		if strings.TrimSpace(l) == head {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("the file no longer holds %q:\n%s", head, text)
+	}
+	end := start + 1
+	for end < len(lines) && strings.HasPrefix(lines[end], deeper) {
+		end++
+	}
+	return strings.Join(lines[start:end], "\n")
 }

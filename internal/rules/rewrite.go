@@ -30,9 +30,17 @@ type Place struct {
 // them, and, for each rule of Doc, where that rule stood in the saved document
 // (From is as long as Doc.Rules(), in the same order). A rule whose place says
 // Section below zero is new; a rule whose place names another section was moved.
+//
+// SectionFrom is where each section of Doc stood in the saved document, in the
+// same order as Doc.Sections: a saved section index, or -1 for a section the
+// file did not hold (C7). A section whose place is below zero, or whose place
+// differs from its own index, was moved: its item's lines are carried to where
+// the draft puts it. Nil means the sections' places are read from the rules'
+// From.
 type Draft struct {
-	Doc  *Document
-	From []Place
+	Doc         *Document
+	From        []Place
+	SectionFrom []int
 }
 
 // Rewrite writes the saved document (text, as saved holds it) the way the draft
@@ -61,21 +69,133 @@ func Rewrite(text []byte, saved *Document, draft Draft) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ops) == 0 {
-		// Nothing to write. The draft may still differ from the file (a value
-		// hergy does not write, such as a change to the reports block): that is
-		// caught here rather than written.
-		if err := sameValuesAs(draft.Doc, text, path); err != nil {
-			return nil, err
-		}
-		return text, nil
-	}
 	applyOps(src, ops)
 	out := src.Bytes()
+	// The sections the draft moved are carried to their new place after the
+	// values are written, so the inside of a moved section is rewritten where it
+	// stood and its own lines travel whole (C7).
+	out, err = reorderSections(out, saved, draft, path)
+	if err != nil {
+		return nil, err
+	}
 	if err := sameValuesAs(draft.Doc, out, path); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// reorderSections carries the sections the draft moved to where the draft puts
+// them (C7): a section the draft keeps in its saved order stays on its own
+// lines, and one it moved keeps its item's lines, moved whole — the lines
+// inside a section, a comment among them, are not rewritten. The file must be
+// one hergy writes: a sections sequence, not flow.
+func reorderSections(out []byte, saved *Document, draft Draft, path string) ([]byte, error) {
+	if saved == nil || draft.Doc == nil || len(draft.Doc.Sections) == 0 {
+		return out, nil
+	}
+	target := sectionTargets(saved.Sections, draft.Doc, draft)
+	where := make([]int, len(draft.Doc.Sections))
+	for ds := range where {
+		where[ds] = -1
+	}
+	for ds, ss := range target {
+		where[ds] = ss
+	}
+	if sectionsInSavedOrder(where) {
+		return out, nil
+	}
+	root, err := readRoot(out, path)
+	if err != nil {
+		return nil, err
+	}
+	sections := yamledit.MappingValue(root, "sections")
+	if sections == nil || sections.Kind != yaml.SequenceNode || sections.Style&yaml.FlowStyle != 0 || len(sections.Content) == 0 {
+		return nil, i18n.Errorf("error.edit_shape", path, "sections")
+	}
+	src := yamledit.New(out, path)
+	items := sections.Content
+	// The file's items are the saved sections the draft still holds, in the
+	// file's order, then the sections the draft added. A saved section no draft
+	// section holds is not there: the plan took it out.
+	used := map[int]bool{}
+	for _, ss := range where {
+		if ss >= 0 {
+			used[ss] = true
+		}
+	}
+	var kept []int
+	for ss := range saved.Sections {
+		if used[ss] {
+			kept = append(kept, ss)
+		}
+	}
+	added := 0
+	for _, ss := range where {
+		if ss < 0 {
+			added++
+		}
+	}
+	if len(items) != len(kept)+added {
+		return nil, i18n.Errorf("error.edit_shape", path, "sections")
+	}
+	bySaved := map[int][]string{}
+	for i, ss := range kept {
+		bySaved[ss] = itemLines(src, items[i])
+	}
+	var addedLines [][]string
+	for i := len(kept); i < len(items); i++ {
+		addedLines = append(addedLines, itemLines(src, items[i]))
+	}
+	lines := make([]string, 0, len(items)*3)
+	next := 0
+	for _, ss := range where {
+		if ss >= 0 {
+			lines = append(lines, bySaved[ss]...)
+			continue
+		}
+		if next >= len(addedLines) {
+			return nil, i18n.Errorf("error.edit_shape", path, "sections")
+		}
+		lines = append(lines, addedLines[next]...)
+		next++
+	}
+	src.Replace(src.ItemStartLine(items[0]), yamledit.NodeEndLine(items[len(items)-1]), lines)
+	return src.Bytes(), nil
+}
+
+// itemLines is one sequence item's own lines, as the file writes them.
+func itemLines(src *yamledit.Source, item *yaml.Node) []string {
+	from, to := src.ItemStartLine(item), yamledit.NodeEndLine(item)
+	lines := make([]string, 0, to-from+1)
+	for n := from; n <= to; n++ {
+		lines = append(lines, src.Line(n))
+	}
+	return lines
+}
+
+// sectionsInSavedOrder reports whether the draft's sections stand in the order
+// the saved document writes them: a section that stayed at its own index, and
+// every added section after them, needs no carry. A section that moved makes the
+// draft's places fall out of the file's order.
+func sectionsInSavedOrder(where []int) bool {
+	last := -1
+	for ds, ss := range where {
+		if ss < 0 {
+			// An added section stands after the ones the file held: it is only
+			// in order when every saved section is already behind it.
+			for _, later := range where[ds:] {
+				if later >= 0 {
+					return false
+				}
+			}
+			return true
+		}
+		if ss < last {
+			return false
+		}
+		last = ss
+	}
+	return true
 }
 
 // pathOf is the path a document was read from, or "" when there is none.
@@ -207,12 +327,24 @@ func planRewrite(src *yamledit.Source, root *yaml.Node, saved *Document, draft D
 	return ops, nil
 }
 
-// sectionTargets is the saved section each draft section is: the one most of the
-// draft section's rules came from (their From places). A draft section whose
-// rules came from nowhere — or which holds no rule at all — is new. A saved
+// sectionTargets is the saved section each draft section is: the one the draft
+// says it stood at (SectionFrom), or, when the draft does not say, the one most
+// of the draft section's rules came from (their From places). A draft section
+// whose rules came from nowhere — or which holds no rule at all — is new. A saved
 // section two draft sections name is claimed by the first, so the other reads as
 // new rather than moving the same place twice.
 func sectionTargets(saved []Section, want *Document, draft Draft) map[int]int {
+	if len(draft.SectionFrom) == len(want.Sections) {
+		out := map[int]int{}
+		used := map[int]bool{}
+		for ds, ss := range draft.SectionFrom {
+			if ss >= 0 && ss < len(saved) && !used[ss] {
+				out[ds] = ss
+				used[ss] = true
+			}
+		}
+		return out
+	}
 	out := map[int]int{}
 	used := map[int]bool{}
 	global := 0

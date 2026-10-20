@@ -157,7 +157,7 @@ func (s *Server) r2Save(r *http.Request) p2Answer {
 		if saved == nil {
 			saved = &rules.Document{Path: basePath}
 		}
-		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{Doc: draftDoc, From: in.Doc.froms()})
+		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{Doc: draftDoc, From: in.Doc.froms(), SectionFrom: in.Doc.sectionFroms()})
 	}
 	if err != nil {
 		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())

@@ -305,7 +305,7 @@ func TestTheOldFilesAreGone(t *testing.T) {
 			t.Errorf("GET %s answers %d, want 404", path, resp.StatusCode)
 		}
 	}
-	for _, path := range []string{"/static/profiles-v2.css", "/static/roles-v2.css", "/static/nav.css", "/static/nav.js"} {
+	for _, path := range []string{"/static/profiles-v2.css", "/static/roles-v2.css", "/static/ruledoc.css", "/static/ruledoc.js", "/static/nav.css", "/static/nav.js"} {
 		resp, _ := f.get(t, server, path)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET %s answers %d, want 200", path, resp.StatusCode)

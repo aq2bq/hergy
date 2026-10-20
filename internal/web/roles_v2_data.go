@@ -53,6 +53,7 @@ type r2Doc struct {
 }
 
 type r2Section struct {
+	From    *int     `json:"from,omitempty"`
 	Heading string   `json:"heading"`
 	Level   int      `json:"level"`
 	Intro   string   `json:"intro"`
@@ -273,6 +274,25 @@ func (d r2Doc) froms() []rules.Place {
 			}
 			out = append(out, rules.Place{Section: rule.From.Section, Rule: rule.From.Rule})
 		}
+	}
+	return out
+}
+
+// sectionFroms is where each draft section stood in the saved document, in the
+// order the draft writes its sections (the place Rewrite reads, C7). Nil when no
+// section says: the write then reads the places from the rules' from.
+func (d r2Doc) sectionFroms() []int {
+	out := make([]int, len(d.Sections))
+	found := false
+	for i, section := range d.Sections {
+		out[i] = -1
+		if section.From != nil {
+			out[i] = *section.From
+			found = true
+		}
+	}
+	if !found {
+		return nil
 	}
 	return out
 }
