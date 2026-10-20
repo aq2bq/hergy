@@ -14,10 +14,8 @@ workers:
     profile: coder
 turns:
   - human -> lead
-  - human -> designer
   - lead -> designer
   - designer -> lead
-  - designer -> human
   - lead -> human
 ledger:
   - req approve by lead
