@@ -202,7 +202,7 @@ func TestMemberReadsTheRoleThenTheSharedThenTheTeamAgreement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "role doc\nshared doc\n\nteam doc\n"
+	want := "- **R0** role doc\n- **S1** shared doc\n\n- **T1** team doc\n"
 	if got.starts[0].Prompt != want {
 		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, want)
 	}
@@ -232,8 +232,8 @@ func TestMemberReadsNoAgreement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.starts[0].Prompt != "role doc" {
-		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, "role doc")
+	if got.starts[0].Prompt != "- **R0** role doc" {
+		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, "- **R0** role doc")
 	}
 	if len(got.starts[0].Read) != 0 {
 		t.Errorf("Read = %v, want none", got.starts[0].Read)

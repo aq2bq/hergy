@@ -335,6 +335,18 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`); got != 2 {
 		t.Errorf("the Markdown preview marks %d lines as a warning, want 2", got)
 	}
+	// The layout of a section is one way now (d-f4f6): the section header offers
+	// no style to pick — the level picker stands where it did — and every rule's
+	// line in the Markdown preview is one bullet item with the id at its head.
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]').length`); got != 2 {
+		t.Errorf("builder shows %d level pickers, want the 2 sections'", got)
+	}
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=style]').length`); got != 0 {
+		t.Errorf("the section header offers %d style pickers, want none", got)
+	}
+	if got := e2eRolesInt(t, ctx, `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].filter(function(e){return e.textContent.indexOf('- **BUILD-')===0}).length`); got != 7 {
+		t.Errorf("the Markdown preview shows %d items with the id at their head, want the 7 rules'", got)
+	}
 	// R1: the page's CSP stops a style attribute written through innerHTML, so
 	// the meter's fill and a kept line's indent are put on the elements from the
 	// CSSOM after they are drawn. The meter paints, and a line that stands under
@@ -652,24 +664,24 @@ func e2eRolesYAML(t *testing.T, ctx context.Context, base string, f *fixture) {
 		t.Errorf("opening the lead file left %q in the URL", got)
 	}
 
-	// T1・T3: a style the format does not know is an error on its own line.
-	broken := strings.Replace(orig, "    style: ids", "    style: nope", 1)
+	// T1・T3: a value of the wrong shape is an error on its own line.
+	broken := strings.Replace(orig, "- id: LEAD-1\n", "- id: lead-1\n", 1)
 	if broken == orig {
 		t.Fatalf("the fixture's lead.yaml no longer holds the line the test breaks")
 	}
 	e2eRolesSet(t, ctx, `document.querySelector('.yed .ytext')`, broken)
 	e2eRolesWait(t, ctx, `document.querySelectorAll('.yed .vitem').length>0`)
-	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .vitem .lno').textContent`); got != "6 行" {
-		t.Errorf("the broken line reads %q, want 6 行", got)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .vitem .lno').textContent`); got != "7 行" {
+		t.Errorf("the broken line reads %q, want 7 行", got)
 	}
-	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .vitem .msg').textContent`); !strings.Contains(got, `style "nope"`) {
-		t.Errorf("the broken style says %q", got)
+	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .vitem .msg').textContent`); !strings.Contains(got, "lead-1") {
+		t.Errorf("the broken line says %q", got)
 	}
-	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .gutter span:nth-child(6)').classList.contains('err')+''`); got != "true" {
-		t.Errorf("the gutter does not mark line 6 as broken")
+	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .gutter span:nth-child(7)').classList.contains('err')+''`); got != "true" {
+		t.Errorf("the gutter does not mark line 7 as broken")
 	}
-	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .gutter span:nth-child(5)').classList.contains('err')+''`); got != "false" {
-		t.Errorf("the gutter marks line 5 as broken")
+	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .gutter span:nth-child(6)').classList.contains('err')+''`); got != "false" {
+		t.Errorf("the gutter marks line 6 as broken")
 	}
 	if got := e2eRolesValue(t, ctx, `document.querySelector('[data-act=yaml-save]').disabled+''`); got != "true" {
 		t.Errorf("a text with a new problem can be saved")
@@ -677,7 +689,7 @@ func e2eRolesYAML(t *testing.T, ctx context.Context, base string, f *fixture) {
 
 	// 元に戻す puts the file's own text back and leaves nothing to save.
 	e2eRolesClick(t, ctx, `document.querySelector('[data-act=yaml-revert]')`)
-	e2eRolesWait(t, ctx, `document.querySelector('.yed .ytext').value.indexOf('style: nope')<0`)
+	e2eRolesWait(t, ctx, `document.querySelector('.yed .ytext').value.indexOf('lead-1')<0`)
 	if got := e2eRolesValue(t, ctx, `document.querySelector('[data-act=yaml-save]').disabled+''`); got != "true" {
 		t.Errorf("a reverted text can be saved")
 	}

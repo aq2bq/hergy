@@ -25,7 +25,6 @@
   const fill = (s, ...a) => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() : ''));
   const LNAME = { project: 'プロジェクト', global: '共通' };
   const KIND = { incident: 'インシデント', instruction: '指示', derived: '導出' };
-  const STYLES = ['ids', 'bullets', 'numbered', 'paragraphs'];
   const LIMIT = { rules: 20, chars: 6000 };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -58,7 +57,7 @@
     return {
       name: d.name || '', title: d.title || '', revision: d.revision === null || d.revision === undefined ? null : d.revision,
       sections: (d.sections || []).map((s) => ({
-        heading: s.heading || '', level: s.level || 0, intro: s.intro || '', style: s.style || 'ids',
+        heading: s.heading || '', level: s.level || 0, intro: s.intro || '',
         rules: (s.rules || []).map((x) => ({
           _k: ++kseq, id: x.id || '', text: x.text || '', why: x.why || '', send_why: x.send_why !== false,
           note: x.note || '', report: x.report || '', tests: (x.tests || []).slice(),
@@ -76,7 +75,7 @@
     return {
       name: d.name, title: d.title, revision: d.revision,
       sections: (d.sections || []).map((s) => ({
-        heading: s.heading, level: s.level, intro: s.intro, style: s.style,
+        heading: s.heading, level: s.level, intro: s.intro,
         rules: (s.rules || []).map((x) => {
           const f = at.get(x._k);
           return {
@@ -540,7 +539,6 @@
     return `<section class="sec" data-si="${si}">
       <div class="sech">
         <input id="h${key}" class="in-head" data-f="heading" value="${esc(sec.heading)}" placeholder="見出し" autocomplete="off">
-        <span class="sel"><select id="st${key}" class="mini" data-f="style" aria-label="style">${STYLES.map((x) => `<option ${sec.style === x ? 'selected' : ''}>${x}</option>`).join('')}</select></span>
         <span class="sel"><select id="lv${key}" class="mini" data-f="level" aria-label="level">${[0, 2, 3, 4].map((x) => `<option value="${x}" ${sec.level === x ? 'selected' : ''}>${x ? 'level ' + x : 'level —'}</option>`).join('')}</select></span>
         <span class="end">
           ${sec.intro === '' && state.introOpen !== key && !state.confirm[ck] ? `<button class="add sm" data-act="intro-add">＋ 前置き</button>` : ''}
@@ -621,7 +619,7 @@
     sr.forEach((v, k) => { if (!dr.some((x) => x._k === k)) n++; });
     for (let i = 0; i < Math.max(s.sections.length, d.sections.length); i++) {
       const a = s.sections[i], b = d.sections[i];
-      if (!a || !b || ['heading', 'style', 'level', 'intro'].some((f) => a[f] !== b[f])) n++;
+      if (!a || !b || ['heading', 'level', 'intro'].some((f) => a[f] !== b[f])) n++;
     }
     if (!n && sr.size && rulesOf(s).map((x) => x._k).join() !== dr.map((x) => x._k).join()) n++;
     return n;
@@ -641,7 +639,6 @@
       const si = +el.dataset.si, a = s && s.sections[si], b = d.sections[si];
       if (!b) return;
       mark(el.querySelector('[data-f=heading]'), !a || a.heading !== b.heading);
-      mark(el.querySelector('[data-f=style]'), !a || a.style !== b.style);
       mark(el.querySelector('[data-f=level]'), !a || a.level !== b.level);
       mark(el.querySelector('[data-f=intro]'), !a || a.intro !== b.intro);
     });
@@ -796,7 +793,7 @@
     if (['id', 'text', 'why', 'note', 'report', 'title', 'revision'].includes(f)) return f;
     if (f === 'send_why') return 'why';
     if (f === 'test' || t.closest('.ckrow')) return 'tests';
-    if (['heading', 'style', 'level'].includes(f)) { const se = t.closest('.sec'); return se ? `sec.${se.dataset.si}` : ''; }
+    if (['heading', 'level'].includes(f)) { const se = t.closest('.sec'); return se ? `sec.${se.dataset.si}` : ''; }
     if (f === 'intro') { const se = t.closest('.sec'); return se ? `sec.${se.dataset.si}.intro` : ''; }
     return '';
   }
@@ -1067,7 +1064,6 @@
     const c = ctx(t);
     if (!c.sec || !c.d) return;
     const f = t.dataset.f || (t.closest('[data-f]') ? t.closest('[data-f]').dataset.f : '');
-    if (f === 'style') { c.d.sections[c.si].style = t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
     if (f === 'level') { c.d.sections[c.si].level = +t.value; markPanel(c.sec); scheduleCheck(c.r, c.l, c.sec); }
     tellDirty();
   });
@@ -1103,7 +1099,7 @@
       }
       case 'filter': state.filter = b.dataset.f || null; render(); syncURL(false); break;
       case 'new': {
-        const d = { name: '', title: '', revision: 1, sections: [{ heading: '使命', level: 0, intro: '', style: 'ids', rules: [{ _k: ++kseq, id: '', text: '', why: '', send_why: true, note: '', report: '', tests: [], origin: [] }] }] };
+        const d = { name: '', title: '', revision: 1, sections: [{ heading: '使命', level: 0, intro: '', rules: [{ _k: ++kseq, id: '', text: '', why: '', send_why: true, note: '', report: '', tests: [], origin: [] }] }] };
         const nr = { uid: ++uid, isNew: true, project: { saved: null, draft: d, hash: '', text: '' }, global: null };
         roles.unshift(nr); state.open.add(nr.uid); state.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`); state.filter = null; state.q = '';
         render(); askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
@@ -1113,7 +1109,7 @@
         if (b.dataset.x !== c.l) { r[b.dataset.x] = r[c.l]; r[c.l] = null; renderList(); }
         break;
       case 'sec-add':
-        c.d.sections.push({ heading: '', level: 0, intro: '', style: 'ids', rules: [] });
+        c.d.sections.push({ heading: '', level: 0, intro: '', rules: [] });
         re(`.sec[data-si="${c.d.sections.length - 1}"] [data-f=heading]`);
         scheduleCheck(r, c.l, c.sec); break;
       case 'sec-del': state.confirm[sk] = 1; re(`.sec[data-si="${c.si}"] [data-act=sec-del-yes]`); break;

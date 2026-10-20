@@ -37,7 +37,7 @@ sections:
 	}
 	// The characters are the ones of the Markdown hergy renders: the title, the
 	// heading, the intro, the rules and the reason, and not a prompt's frame.
-	want := CharCount("# T\n\n## H\n\nI\n\none\n\ntwo because\n")
+	want := CharCount("# T\n\n## H\n\nI\n\n- **R1** one\n- **R2** two because\n")
 	if size.Chars != want {
 		t.Errorf("Chars = %d, want %d", size.Chars, want)
 	}

@@ -2,6 +2,7 @@ package rules
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -17,7 +18,6 @@ sections:
   - heading: H
     level: 3
     intro: I
-    style: numbered
     rules:
       - id: R1
         text: one
@@ -53,7 +53,6 @@ sections:
   - heading: H
     level: 3
     intro: I
-    style: numbered
     rules:
       - id: R1
         text: one
@@ -92,6 +91,19 @@ reports:
 	}
 	if got != want {
 		t.Errorf("Emit() =\n%s\nwant\n%s", got, want)
+	}
+}
+
+// TestEmitLeavesOutALeftoverStyle: hergy writes no style:, so the first save of
+// a file that still writes one leaves the line out (d-f4f6).
+func TestEmitLeavesOutALeftoverStyle(t *testing.T) {
+	doc := parse(t, "version: 1\nsections:\n  - heading: H\n    style: ids\n    rules:\n      - id: R1\n        text: one\n")
+	written, err := Emit(doc)
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	if strings.Contains(written, "style") {
+		t.Errorf("Emit wrote a style: back:\n%s", written)
 	}
 }
 
@@ -134,7 +146,7 @@ reports:
 `},
 		{"the optional keys left out", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n"},
 		{"a section with no heading and no rules", "version: 1\nsections:\n  - heading: H\n    rules: []\n  - rules: []\n"},
-		{"a style of each kind", "version: 1\nsections:\n  - style: paragraphs\n    rules:\n      - id: R1\n        text: a\n  - style: bullets\n    rules:\n      - id: R2\n        text: b\n  - style: numbered\n    rules:\n      - id: R3\n        text: c\n  - style: ids\n    rules:\n      - id: R4\n        text: d\n"},
+		{"a style: line of each kind left out", "version: 1\nsections:\n  - style: paragraphs\n    rules:\n      - id: R1\n        text: a\n  - style: bullets\n    rules:\n      - id: R2\n        text: b\n  - style: numbered\n    rules:\n      - id: R3\n        text: c\n  - style: ids\n    rules:\n      - id: R4\n        text: d\n"},
 		{"a body that keeps its last line break", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: |\n          a\n          b\n"},
 		{"a body that would read as something else", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: '5'\n      - id: R2\n        text: 'true'\n      - id: R3\n        text: '# no comment'\n      - id: R4\n        text: '- not a list'\n"},
 		{"one string where a list is taken", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n        tests: T-1\n        origin:\n          - kind: derived\n            refs: I7\n"},

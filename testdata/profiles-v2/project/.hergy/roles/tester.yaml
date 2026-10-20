@@ -1,6 +1,5 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: T1
         text: 再現の手順を残す。

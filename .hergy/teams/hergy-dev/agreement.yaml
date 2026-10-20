@@ -3,7 +3,6 @@ title: hergy-dev チームの約束
 revision: 4
 sections:
   - heading: 進め方
-    style: ids
     rules:
       - id: T1
         text: gy-loop スキルに従い、台帳（gy）から始めて台帳に書く。会話にしかない合意は無いものとして扱う。設計書と記録は .local/<日付-ニーズ>/ に置き、冒頭に書き手と読み手を書く。
@@ -39,7 +38,6 @@ sections:
             refs: [r-bb9c]
             note: W1〜W3 の直しのあとの撮り直し。PO「その割にはかなり時間かかってるね」
   - heading: 境界
-    style: ids
     rules:
       - id: T5
         text: 並行する要求はパッケージだけでなく共有ファイル（CSS、locale、cheat、SKILL、CHANGELOG）でも境界を引き、共有ファイルは同時には 1 人だけが触る。
@@ -62,7 +60,6 @@ sections:
             date: "2026-10-15"
             note: AGENTS.md の品質ゲート
   - heading: メンバーの間の決まり
-    style: ids
     rules:
       - id: T8
         text: PO と話すのは lead だけ（lead → 人間）。AI 同士の行き違い、要求の改訂、進行の中身は台帳に書く。要求の承認は lead がする。画面の場面は PO の言葉（台帳の決定と原文）から起こし、lead が PO に 1 行ずつ はい/いいえ で確かめる。
@@ -105,7 +102,6 @@ sections:
             refs: [r-7d38]
             note: もとは LEAD-5（土台の実装記録「main に入れる担当が hergy-lead」）
   - heading: このプロジェクトの事情
-    style: ids
     rules:
       - id: T11
         text: hergy の画面の「本物の規模」は、チーム定義 4 つ、メンバー 5 人・ターン 16 本のチーム、開いている問い 55 件、動いているチーム 2 つ、幅 2000・1440・500。作り物は testdata の本物の規模のものを使う。PO に見せる前に designer と lead がそれで歩き、designer の監査と lead の確認の二重にする。hergy-dev の小さな定義だけで歩いて PO に見せない。

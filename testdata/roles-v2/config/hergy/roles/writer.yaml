@@ -3,7 +3,6 @@ title: 執筆
 revision: 3
 sections:
   - heading: 書き方
-    style: bullets
     rules:
       - id: WRITE-1
         text: 書く前に読み手を 1 人に決め、その人が読み終えたあとにできるようになることを 1 文で書く。
@@ -23,7 +22,6 @@ sections:
       - id: WRITE-4
         text: 見出しだけで中身が分かるようにする。「概要」「その他」のような、どの文書にも付けられる見出しを使わない。
   - heading: 仕上げ
-    style: bullets
     rules:
       - id: WRITE-5
         text: 書き終えたら、声に出して読める速さで 1 回通して読み、引っかかった文を直す。

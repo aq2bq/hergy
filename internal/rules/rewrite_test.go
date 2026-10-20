@@ -8,13 +8,12 @@ import (
 )
 
 // builderRole is the shape the roles fixture writes: two sections with heading
-// and style, and the rules of one section.
+// and a rule list, and the rules of one section.
 const builderRole = `version: 1
 title: 設計実装
 revision: 5
 sections:
   - heading: 作り方
-    style: ids
     rules:
       - id: BUILD-1
         text: 最初の本文。
@@ -23,7 +22,6 @@ sections:
       - id: BUILD-3
         text: 3 番目の本文。
   - heading: 確かめ方
-    style: ids
     rules:
       - id: BUILD-4
         text: 4 番目の本文。
@@ -104,18 +102,23 @@ func TestRewriteChangesASectionHeading(t *testing.T) {
 	}
 }
 
-// TestRewriteChangesASectionStyle: the style value is written where it stands.
-func TestRewriteChangesASectionStyle(t *testing.T) {
-	saved := mustParse(t, builderRole, "roles/builder.yaml")
-	want := mustParse(t, builderRole, "roles/builder.yaml")
-	want.Sections[1].Style = "numbered"
+// TestRewriteTakesOutALeftoverStyle: a file that still writes a section's style:
+// loses the line on the first save, even when the draft changes nothing else
+// (d-f4f6).
+func TestRewriteTakesOutALeftoverStyle(t *testing.T) {
+	const text = "version: 1\nsections:\n  - heading: 使命\n    style: ids\n    rules:\n      - id: R1\n        text: 本文。\n"
+	saved := mustParse(t, text, "roles/lead.yaml")
+	want := mustParse(t, text, "roles/lead.yaml")
 
-	out, err := Rewrite([]byte(builderRole), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
+	out, err := Rewrite([]byte(text), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "heading: 確かめ方\n    style: numbered\n") {
-		t.Errorf("the style did not change:\n%s", out)
+	if strings.Contains(string(out), "style") {
+		t.Errorf("the style: line stayed:\n%s", out)
+	}
+	if wantText := "version: 1\nsections:\n  - heading: 使命\n    rules:\n      - id: R1\n        text: 本文。\n"; string(out) != wantText {
+		t.Errorf("Rewrite wrote\n%q\nwant\n%q", string(out), wantText)
 	}
 }
 
@@ -212,7 +215,6 @@ title: 進行管理
 revision: 1
 sections:
   - heading: 使命
-    style: ids
     rules:
       - id: LEAD-1
         text: 最初の本文。
@@ -270,13 +272,13 @@ func TestRewriteMovesARuleToTheNextSection(t *testing.T) {
 func TestRewriteAddsASection(t *testing.T) {
 	saved := mustParse(t, builderRole, "roles/builder.yaml")
 	want := mustParse(t, builderRole, "roles/builder.yaml")
-	want.Sections = append(want.Sections, Section{Heading: "新しい節", Style: StyleIDs})
+	want.Sections = append(want.Sections, Section{Heading: "新しい節"})
 
 	out, err := Rewrite([]byte(builderRole), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "  - heading: 新しい節\n    style: ids\n") {
+	if !strings.Contains(string(out), "  - heading: 新しい節\n") {
 		t.Errorf("the new section is not there:\n%s", out)
 	}
 	back := mustParse(t, string(out), "roles/builder.yaml")

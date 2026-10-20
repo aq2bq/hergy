@@ -1,7 +1,6 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: L1
         text: 受け手が会話を読まずに着手できる依頼を渡す。
         why: 受け手は依頼者の会話を見ていない。足りない前提は推測で埋められる。

@@ -19,8 +19,9 @@ import (
 // back: Emit is idempotent, and the Markdown a member reads is unchanged. Two
 // things a file may hold are not carried over, and both are in the CHANGELOG:
 // a comment (F7) and a value spelled out that equals a default (send_why: true).
-// The first save of a file thus rewrites the whole file and shows one large
-// diff in git.
+// A style: line of a section is not written either: the layout of a section is
+// one way now (d-f4f6). The first save of a file thus rewrites the whole file
+// and shows one large diff in git.
 //
 // The order of the keys comes from the same lists the parser reads a file with,
 // so a key cannot move in one place and stay in the other.
@@ -71,9 +72,6 @@ func emitSections(sections []Section) *yaml.Node {
 		}
 		if section.Intro != "" {
 			values["intro"] = emitText(section.Intro)
-		}
-		if section.Style != "" {
-			values["style"] = emitText(section.Style)
 		}
 		if len(section.Rules) > 0 {
 			values["rules"] = emitRules(section.Rules)

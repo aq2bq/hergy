@@ -1,7 +1,6 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: B1
         text: Do only what you were asked. If you need to go beyond it, ask whoever asked you.
         why: Changes outside the request are ones the requester cannot check.

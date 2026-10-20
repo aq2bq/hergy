@@ -3,7 +3,6 @@ title: core チームの約束
 revision: 3
 sections:
   - heading: 進め方
-    style: ids
     rules:
       - id: CORE-1
         text: 仕事は台帳の要求 1 つから始め、台帳に書いてから動く。会話の中にしかない合意は、無いものとして扱う。
@@ -27,7 +26,6 @@ sections:
             date: "2026-09-14"
             refs: [d-4c11]
   - heading: 境界
-    style: ids
     rules:
       - id: CORE-5
         text: 同じファイルを 2 人が同時に直さない。触る前に台帳でそのファイルの名前を探し、ほかの人の作業中なら lead に順番を問う。
@@ -47,7 +45,6 @@ sections:
             date: "2026-08-27"
             refs: [d-0f31]
   - heading: 終わり
-    style: ids
     rules:
       - id: CORE-8
         text: 仕事の終わりは、コミットと実装記録の 2 つがそろったとき。どちらか一方だけで「できた」と言わない。

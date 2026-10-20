@@ -17,9 +17,10 @@ import (
 
 // The two severities a Problem carries, as the screen and a JSON answer write
 // them (the words the profiles screen uses too): an error stops the file from
-// reading, a warning does not. A rule file's own shape gives errors alone; a
-// warning is added by the checks that span documents (CheckAll) and by the
-// model-name check (ModelWords).
+// reading, a warning does not. A rule file's own shape gives errors and, for a
+// style: line a file still writes, one warning; a warning is also added by the
+// checks that span documents (CheckAll) and by the model-name check
+// (ModelWords).
 const (
 	// SevError is a problem that stops the file from reading.
 	SevError = "err"
@@ -66,10 +67,19 @@ func newProblem(path string, section, rule int, field string, line int, err erro
 	}
 }
 
+// newWarning is one problem a file reads through: the sentence a person reads,
+// and no error to stop the file with.
+func newWarning(path string, section, rule int, field string, line int, err error) Problem {
+	return Problem{
+		Sev: SevWarning, Path: path, Section: section, Rule: rule,
+		Field: field, Line: line, Text: err.Error(),
+	}
+}
+
 // ReadAll reads one rule file into the document it holds and every problem it
 // has, in the order the file writes them. A file that does not read at all
 // (empty, broken YAML, a version hergy does not read) gives its problems and the
-// document as far as it was read. The first problem is the one Parse returns.
+// document as far as it was read. The first error is the one Parse returns.
 func ReadAll(text, path string) (*Document, []Problem) {
 	root, err := decode(text, path)
 	if err != nil {
@@ -201,13 +211,12 @@ func collectSection(value *yaml.Node, path, label string, index int) (Section, [
 		s.Intro = intro
 	}
 
-	if style, err := n.str("style"); err != nil {
-		problems = append(problems, newProblem(path, index, -1, sectionField(index, "style"), valueLine(n, "style"), err))
-	} else if style != "" && !slices.Contains(styles, style) {
-		problems = append(problems, newProblem(path, index, -1, sectionField(index, "style"), valueLine(n, "style"),
-			i18n.Errorf("error.rules_style_unknown", path, n.at("style"), style)))
-	} else {
-		s.Style = style
+	if style, ok := n.atNode("style"); ok {
+		// The layout is one way now, so a style: line is left alone and named
+		// once: the file keeps reading, and the person is told to take the line
+		// out (d-f4f6).
+		problems = append(problems, newWarning(path, index, -1, sectionField(index, "style"), style.Line,
+			i18n.Errorf("rules.style_gone", path, sectionName(s, index))))
 	}
 
 	if rules, ok := n.atNode("rules"); ok {
@@ -221,6 +230,16 @@ func collectSection(value *yaml.Node, path, label string, index int) (Section, [
 // sectionField is where a section's own key stands: sections[i].key.
 func sectionField(index int, key string) string {
 	return fmt.Sprintf("sections[%d].%s", index, key)
+}
+
+// sectionName is how a sentence names a section: its heading, or, when the
+// section has none and continues the one before it, the place the file writes it
+// in.
+func sectionName(s Section, index int) string {
+	if s.Heading != "" {
+		return s.Heading
+	}
+	return fmt.Sprintf("sections[%d]", index)
 }
 
 // collectRules reads the rules of one section, filing every problem of every one.

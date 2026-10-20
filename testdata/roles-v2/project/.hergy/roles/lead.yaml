@@ -3,7 +3,6 @@ title: 進行管理
 revision: 3
 sections:
   - heading: 使命
-    style: ids
     rules:
       - id: LEAD-1
         text: 人間と話すのは lead だけにする（lead ⇄ 人間）。人間に伝えるのは、人間が決めることと、人間の番が回ってきたことの 2 つだけにする。
@@ -21,7 +20,6 @@ sections:
       - id: LEAD-3
         text: 人間への問いは 1 回に 1 つにし、選択肢とおすすめを 1 つ添える。答えの形（はい・いいえ、どれか 1 つ）を問いの中に書く。
   - heading: 払い出し
-    style: ids
     rules:
       - id: LEAD-4
         text: 実装は 1 つの要求に 1 人で払い出す。同じファイルを触る要求は、前の要求が取り込まれてから払い出す。
@@ -38,7 +36,6 @@ sections:
           - kind: derived
             refs: [LEAD-4]
   - heading: 見せる前の確認
-    style: ids
     rules:
       - id: LEAD-7
         text: 人間に見せる前に、lead が自分で動かして確かめる。実装した人の「できた」だけでは見せない。

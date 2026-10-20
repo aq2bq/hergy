@@ -56,7 +56,6 @@ type r2Section struct {
 	Heading string   `json:"heading"`
 	Level   int      `json:"level"`
 	Intro   string   `json:"intro"`
-	Style   string   `json:"style"`
 	Rules   []r2Rule `json:"rules"`
 }
 
@@ -189,7 +188,7 @@ func (s *Server) r2Read(path string) *r2Doc {
 func r2DocOf(doc *rules.Document, hash, text string) *r2Doc {
 	out := &r2Doc{Name: roleNameOf(doc.Path), Title: doc.Title, Revision: doc.Revision, Hash: hash, Text: text}
 	for _, section := range doc.Sections {
-		sec := r2Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro, Style: section.Style}
+		sec := r2Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
 		for i := range section.Rules {
 			rule := &section.Rules[i]
 			send := rule.SendWhy == nil || *rule.SendWhy
@@ -211,8 +210,8 @@ func r2NewRole(name string) *r2Doc {
 	return &r2Doc{
 		Name: name, Revision: &revision,
 		Sections: []r2Section{{
-			Heading: "使命", Style: "ids",
-			Rules: []r2Rule{{SendWhy: true}},
+			Heading: "使命",
+			Rules:   []r2Rule{{SendWhy: true}},
 		}},
 	}
 }
@@ -231,7 +230,7 @@ func roleNameOf(path string) string {
 func (d r2Doc) document() *rules.Document {
 	out := &rules.Document{Title: d.Title, Revision: d.Revision}
 	for _, section := range d.Sections {
-		sec := rules.Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro, Style: section.Style}
+		sec := rules.Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
 		for i := range section.Rules {
 			rule := &section.Rules[i]
 			// send_why true is the format's default and the file leaves it

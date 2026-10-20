@@ -3,7 +3,6 @@ title: 要求定義と監査
 revision: 1
 sections:
   - heading: 設計書
-    style: ids
     rules:
       - id: SPEC-1
         text: 設計書には「何を見せるか」だけでなく「どう見えるか」の正を書く。試作があるときは試作が正で、設計書に書いていない見た目は試作のとおりと明記する。
@@ -25,7 +24,6 @@ sections:
             date: "2026-10-15"
             refs: [d-6c54]
   - heading: 監査
-    style: ids
     rules:
       - id: SPEC-4
         text: 実装担当から「できた」が届いたら（実装 → spec）、設計書と試作に対して監査し、.local の spec/NN_<要求>監査.md に差し戻しを番号つきで書く。試作がある要求は、1440×1000 のヘッドレス Chrome で試作と並べたスクリーンショットの見比べを入れる。結果は lead に 1 行で知らせる（spec → lead）。

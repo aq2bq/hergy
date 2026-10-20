@@ -3,7 +3,6 @@ title: 要求定義
 revision: 2
 sections:
   - heading: 要求の書き方
-    style: ids
     rules:
       - id: REQ-1
         text: 要求は使う人の言葉で 1 文にする。使う人が何に困っていて、何ができるようになれば困らなくなるかを書く。
@@ -27,7 +26,6 @@ sections:
           - kind: derived
             refs: [REQ-1]
   - heading: 受け入れ条件
-    style: numbered
     rules:
       - id: REQ-5
         text: 受け入れ条件は、使う人が画面かコマンドで確かめられる形で書く。「〜できる」で終わる文を 3 つ以内にする。
@@ -48,7 +46,6 @@ sections:
       - id: REQ-8
         text: 受け入れ条件を後から変えるときは、変えた理由と変える前の文を台帳に残し、実装している人に知らせる。
   - heading: 問いの扱い
-    style: ids
     rules:
       - id: REQ-9
         text: 分からないことは自分で決めずに lead に問う（analyst → lead）。問いには、決まらないと止まる作業の名前を添える。

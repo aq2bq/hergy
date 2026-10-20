@@ -3,7 +3,6 @@ title: docs チームの約束
 revision: 1
 sections:
   - heading: 進め方
-    style: ids
     rules:
       - id: DOCS-1
         text: 文書の変更は 1 つの要求に 1 つの差分にする。体裁の直しと中身の直しを同じ差分に混ぜない。
@@ -21,7 +20,6 @@ sections:
             date: "2026-09-03"
             refs: [d-2b10]
   - heading: 確かめ
-    style: ids
     rules:
       - id: DOCS-4
         text: 手順の文書は、書いた人以外が 1 回その通りに動かして確かめる。確かめた人の名前と日付を差分に添える。

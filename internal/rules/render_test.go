@@ -63,13 +63,12 @@ sections:
 		{Part: PartBlank, Section: -1, Rule: -1},
 		{Text: "I", Part: PartIntro, Section: 0, Rule: -1},
 		{Part: PartBlank, Section: -1, Rule: -1},
-		{Text: "one because", Part: PartRule, Section: 0, Rule: 0},
-		{Part: PartBlank, Section: -1, Rule: -1},
-		{Text: "two", Part: PartRule, Section: 0, Rule: 1, Held: "hidden"},
+		{Text: "- **R1** one because", Part: PartRule, Section: 0, Rule: 0},
+		{Text: "- **R2** two", Part: PartRule, Section: 0, Rule: 1, Held: "hidden"},
 		{Part: PartBlank, Section: -1, Rule: -1},
 		{Text: "### H2", Part: PartHeading, Section: 1, Rule: -1},
 		{Part: PartBlank, Section: -1, Rule: -1},
-		{Text: "three", Part: PartRule, Section: 1, Rule: 0},
+		{Text: "- **R3** three", Part: PartRule, Section: 1, Rule: 0},
 	}
 	got := doc.Lines()
 	if len(got) != len(want) {
@@ -82,15 +81,16 @@ sections:
 	}
 }
 
-// TestLinesOfAListKeepTheItemsInOneBlock: a list lays its items out with no
-// blank line between them, and the continuation lines of a multi-line body stay
-// in that one block (C1).
+// TestLinesOfAListKeepTheItemsInOneBlock: the rules of a section are one block
+// of list items, with no blank line between them, and the continuation lines of
+// a multi-line body stay in that one block (C1). A style: a file still writes
+// makes no difference.
 func TestLinesOfAListKeepTheItemsInOneBlock(t *testing.T) {
 	doc := parse(t, "version: 1\nsections:\n  - style: bullets\n    rules:\n      - id: R1\n        text: |-\n          a\n          b\n      - id: R2\n        text: two\n")
 	want := []MDLine{
-		{Text: "- a", Part: PartRule, Section: 0, Rule: 0},
+		{Text: "- **R1** a", Part: PartRule, Section: 0, Rule: 0},
 		{Text: "   b", Part: PartRule, Section: 0, Rule: 0},
-		{Text: "- two", Part: PartRule, Section: 0, Rule: 1},
+		{Text: "- **R2** two", Part: PartRule, Section: 0, Rule: 1},
 	}
 	got := doc.Lines()
 	if len(got) != len(want) {
@@ -112,7 +112,7 @@ func TestLinesHoldNothingWithoutAReason(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("lines = %+v, want the one rule line", lines)
 	}
-	if lines[0].Held != "" || lines[0].Text != "one" {
+	if lines[0].Held != "" || lines[0].Text != "- **R1** one" {
 		t.Errorf("line = %+v, want the text with no held reason", lines[0])
 	}
 }

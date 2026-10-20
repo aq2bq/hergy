@@ -1,6 +1,5 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: A1
         text: 要求は利用者の言葉で書く。

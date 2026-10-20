@@ -1,5 +1,67 @@
 # Changelog
 
+## Unreleased
+
+A section's rules are laid out one way now: a bullet list with the id first.
+The `style:` key is gone from a rule file, so what a member's prompt carries no
+longer depends on a key.
+
+### Breaking
+
+- **A rule file no longer writes `style:`**: a section's rules are rendered as
+  `- **<id>** <text>`, and a rule with no id as `- <text>`. The id is at the
+  head of the item, so the ids are in the prompt wherever a section used to say
+  `style: bullets`, `numbered` or `paragraphs`. A file that still writes
+  `style:` reads — the line is ignored — and `hergy validate` warns once for each
+  section that writes one, however many teams read the file, naming the file,
+  the heading and the line to delete (`rules.style_gone`, in both languages; it
+  moves no exit code). The role
+  screen no longer offers a style to pick, and the first save through it removes
+  the line. `hergy new` writes no `style:` in the files it lays down.
+
+### Moving from 0.8
+
+1. Delete the `style:` line of every section of a role document and an
+   agreement. hergy keeps reading the file and warns until the line is gone:
+
+   ```yaml
+   # 0.8
+   sections:
+     - heading: Team agreements
+       style: bullets
+       rules:
+         - id: C1
+           text: ...
+   # now
+   sections:
+     - heading: Team agreements
+       rules:
+         - id: C1
+           text: ...
+   ```
+
+2. Expect the prompt to change where a section wrote a style other than `ids`.
+   The rules keep the file's order in every case, and only the shape of the
+   items moves — a `style: bullets` section, before and after:
+
+   ```markdown
+   ## Team agreements
+
+   - Hand the turn to whoever acts next.          # 0.8, style: bullets
+   - Say what you need from them.
+   ## Team agreements
+
+   - **C1** Hand the turn to whoever acts next.   # now
+   - **C2** Say what you need from them.
+   ```
+
+   - `style: paragraphs` (the default) and `style: bullets`: each rule becomes
+     one bullet item, and both gain the id at the head of the item.
+   - `style: numbered`: the numbers are gone; the items are the same bullets.
+
+   Nothing else changes: the heading, the `intro`, the text, the reason and the
+   reports a member reads are the same.
+
 ## 0.8.0 - 2026-10-20
 
 ### Changed
