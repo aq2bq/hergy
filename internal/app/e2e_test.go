@@ -53,15 +53,14 @@ func TestE2ENav(t *testing.T) {
 	// The URLs a person hands the address bar, over the real serve (O1〜O4).
 	t.Run("the address", func(t *testing.T) { e2eNavAddress(t, base) })
 
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
-		append(chromedp.DefaultExecAllocatorOptions[:], chromedp.ExecPath(chrome), chromedp.Headless)...)
-	defer cancelAlloc()
-	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
-	defer cancelBrowser()
+	// The run's one browser, and this test's tab in it (r-a107).
+	browser := e2eChrome(t, chrome)
+	ctx, stopTab := e2eTab(t, browser, 5*time.Minute)
+	defer stopTab()
 
 	var mu sync.Mutex
 	var console []string
-	chromedp.ListenTarget(browserCtx, func(event any) {
+	chromedp.ListenTarget(ctx, func(event any) {
 		switch e := event.(type) {
 		case *runtime.EventConsoleAPICalled:
 			if e.Type != "error" {
@@ -83,13 +82,11 @@ func TestE2ENav(t *testing.T) {
 		}
 	})
 
-	ctx, cancel := context.WithTimeout(browserCtx, 5*time.Minute)
-	defer cancel()
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
 	t.Run("band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
-	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, ctx, allocCtx, base) })
+	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, browser, base) })
 	t.Run("the place a person stood", func(t *testing.T) { e2eNavPlace(t, ctx, base) })
 	t.Run("widths and lights", func(t *testing.T) { e2eNavWidths(t, ctx, base) })
 
@@ -370,20 +367,19 @@ func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 }
 
 // e2eNavAnotherTab is O5: a browser tab that was not there when the place was
-// remembered walks the band's plain links.
-func e2eNavAnotherTab(t *testing.T, ctx context.Context, allocCtx context.Context, base string) {
+// remembered walks the band's plain links. It is a second tab in the run's one
+// browser, not a browser of its own: a person's new tab is a tab (r-a107).
+func e2eNavAnotherTab(t *testing.T, browser context.Context, base string) {
 	t.Helper()
-	otherCtx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
-	runCtx, cancelRun := context.WithTimeout(otherCtx, 30*time.Second)
-	defer cancelRun()
-	e2eThrottle(t, runCtx)
-	e2eRun(t, runCtx, chromedp.Navigate(base+"/profiles"))
-	e2eNavWait(t, runCtx, `!!document.querySelector('a.scr[data-screen="roles"]')`)
-	if href := e2eNavText(t, runCtx, `document.querySelector('a.scr[data-screen="roles"]').getAttribute('href')`); href != "/roles" {
+	ctx, stop := e2eTab(t, browser, 30*time.Second)
+	defer stop()
+	e2eThrottle(t, ctx)
+	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
+	e2eNavWait(t, ctx, `!!document.querySelector('a.scr[data-screen="roles"]')`)
+	if href := e2eNavText(t, ctx, `document.querySelector('a.scr[data-screen="roles"]').getAttribute('href')`); href != "/roles" {
 		t.Errorf("a fresh tab's band points the role screen at %q, want /roles", href)
 	}
-	if dot := e2eNavText(t, runCtx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
+	if dot := e2eNavText(t, ctx, `String(!!document.querySelector('.screens .dot'))`); dot != "false" {
 		t.Errorf("a fresh tab's band shows a change mark, want none")
 	}
 }

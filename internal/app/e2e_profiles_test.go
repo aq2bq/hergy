@@ -44,15 +44,14 @@ func TestE2EProfiles(t *testing.T) {
 	base, stop := startServe(t, f)
 	defer stop()
 
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
-		append(chromedp.DefaultExecAllocatorOptions[:], chromedp.ExecPath(chrome), chromedp.Headless)...)
-	defer cancelAlloc()
-	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
-	defer cancelBrowser()
+	// The run's one browser, and this test's tab in it (r-a107).
+	browser := e2eChrome(t, chrome)
+	ctx, stopTab := e2eTab(t, browser, 3*time.Minute)
+	defer stopTab()
 
 	var mu sync.Mutex
 	var console []string
-	chromedp.ListenTarget(browserCtx, func(event any) {
+	chromedp.ListenTarget(ctx, func(event any) {
 		if called, ok := event.(*runtime.EventConsoleAPICalled); ok && called.Type == "error" {
 			var parts []string
 			for _, arg := range called.Args {
@@ -64,8 +63,6 @@ func TestE2EProfiles(t *testing.T) {
 		}
 	})
 
-	ctx, cancel := context.WithTimeout(browserCtx, 3*time.Minute)
-	defer cancel()
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
