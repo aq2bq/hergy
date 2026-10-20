@@ -5,14 +5,140 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 )
+
+// The e2e run drives one Chrome, not one per test (r-a107). Four browsers used
+// to be started — one for each e2e test, and one more for the tab the "another
+// tab" case opens — and each start was a chance for the whole run to die while
+// the browser came up: on a loaded CI machine Chrome missed the 20 second wait
+// for its WebSocket URL, and a test failed with "websocket url timeout reached"
+// without a page having been driven. One browser is now started for the whole
+// run, and each test opens and closes its own tab in it (a tab has a page and a
+// sessionStorage of its own, so one test does not read what another left). One
+// start also means the wait for it can be a long one.
+const (
+	// e2eStartDeadline is how long the run waits for its one Chrome to come up.
+	// It is one wait for the whole run, so it can be far longer than the 20
+	// seconds chromedp waits by default — the number reached on CI (r-a107).
+	e2eStartDeadline = 60 * time.Second
+	// e2eCloseDeadline is how long the run waits for that browser to close,
+	// after its tests have passed. The run is over either way; this only says
+	// how long it holds the terminal.
+	e2eCloseDeadline = 15 * time.Second
+)
+
+// The run's one browser: started the first time a test asks for it, closed once
+// by TestMain after the last test (r-a107).
+var (
+	e2eChromeOnce sync.Once
+	e2eChromeCtx  context.Context
+	e2eChromeDone func()
+	e2eChromeErr  error
+)
+
+// TestMain closes the one browser the run drives, after the tests that drove it
+// (r-a107). A run that never started a browser — no Chrome on this machine, so
+// every e2e test skipped — has nothing to close.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if e2eChromeDone != nil {
+		e2eChromeDone()
+	}
+	os.Exit(code)
+}
+
+// e2eChrome returns the one browser the whole run drives, starting it the first
+// time it is asked for; every later test is handed the same one (r-a107). chrome
+// is where Chrome is, from chromeBinary. A browser that did not come up is told
+// to every test that asks, with the reason Chrome or its allocator gave, so a
+// run that fails says why instead of leaving the reader to guess.
+func e2eChrome(t *testing.T, chrome string) context.Context {
+	t.Helper()
+	e2eChromeOnce.Do(func() {
+		e2eChromeCtx, e2eChromeDone, e2eChromeErr = e2eStartChrome(chrome)
+	})
+	if e2eChromeErr != nil {
+		t.Fatalf("the e2e run could not start its browser: %v (r-a107)", e2eChromeErr)
+	}
+	return e2eChromeCtx
+}
+
+// e2eStartChrome starts the one browser: an allocator with Chrome's path and a
+// long wait for its WebSocket URL, and a browser on it. The Run is what starts
+// Chrome — chromedp starts it on the first Run of a context, not when the
+// context is made — so it happens here, once, where a failure is one reason to
+// tell every test. What it returns closes the browser (and the allocator) once.
+func e2eStartChrome(chrome string) (context.Context, func(), error) {
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
+		append(chromedp.DefaultExecAllocatorOptions[:], chromedp.ExecPath(chrome), chromedp.Headless,
+			chromedp.WSURLReadTimeout(e2eStartDeadline))...)
+	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
+	// done closes the browser and its allocator, and the end of the run calls it
+	// whether or not the start worked: a Run that was still waiting when the
+	// deadline passed is unblocked by this, not left behind.
+	done := func() {
+		closed := make(chan struct{})
+		go func() {
+			cancelBrowser()
+			close(closed)
+		}()
+		select {
+		case <-closed:
+		case <-time.After(e2eCloseDeadline):
+			fmt.Fprintf(os.Stderr, "the e2e browser did not close within %s\n", e2eCloseDeadline)
+		}
+		cancelAlloc()
+	}
+	if err := e2eAwaitChrome(browserCtx); err != nil {
+		return nil, done, err
+	}
+	return browserCtx, done, nil
+}
+
+// e2eAwaitChrome starts Chrome and waits for it to answer: the first Run of a
+// context is what starts the browser and attaches to its first tab, and a Chrome
+// that comes up but never answers a call would otherwise hold the whole run
+// until go test's own timeout, ten minutes later and with nothing said about
+// why. The Run is handed the browser's own context — a deadline on that context
+// would end the browser itself, as chromedp says — so the wait is a watch
+// beside it, and a Run that goes on after the watch has given up is unblocked
+// when the run closes the browser at the end.
+func e2eAwaitChrome(browserCtx context.Context) error {
+	done := make(chan error, 1)
+	go func() { done <- chromedp.Run(browserCtx) }()
+	timer := time.NewTimer(e2eStartDeadline)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		return fmt.Errorf("Chrome did not come up within %s", e2eStartDeadline)
+	}
+}
+
+// e2eTab opens one tab in the run's browser and returns a context that drives
+// it, with the function that closes the tab — not the browser, which stays up
+// for the next test (r-a107). A test works in its own tab, so the page one test
+// left behind is not the page the next one finds. life bounds the tab: a page
+// that will not answer fails that test instead of the run.
+func e2eTab(t *testing.T, browser context.Context, life time.Duration) (context.Context, context.CancelFunc) {
+	t.Helper()
+	tabCtx, cancelTab := chromedp.NewContext(browser)
+	ctx, cancelLife := context.WithTimeout(tabCtx, life)
+	return ctx, func() {
+		cancelLife()
+		cancelTab()
+	}
+}
 
 // The e2e run drives the real screens over a real Chrome, so the driver is
 // always a little ahead of the person: it can read an element that is not drawn
