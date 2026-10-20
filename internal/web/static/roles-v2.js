@@ -16,16 +16,19 @@
   const view = document.getElementById('view');
   if (!view) return;
   const RD = window.hergyRuleDoc;
-  const token = view.dataset.token;
-  let DATA = { project: '', roles: [], teams: [] };
-  const island = document.getElementById('roles-data');
-  if (island) { try { DATA = JSON.parse(island.textContent || '{}'); } catch (e) { DATA = { project: '', roles: [], teams: [] }; } }
-  DATA.roles = DATA.roles || [];
-  DATA.teams = DATA.teams || [];
+  // The page carries the kind answers in the boundary's shape (spec-boundary 5):
+  // the role list, the team definitions the 割り当て tab reads, and the few words
+  // and places only the server can make. The screen reads its model of them in
+  // one place (api.js) and never reads an answer's fields itself.
+  const ISLAND = (() => {
+    const el = document.getElementById('roles-data');
+    if (!el) return {};
+    try { return JSON.parse(el.textContent || '{}'); } catch (e) { return {}; }
+  })();
 
   const PLACES = ['project', 'global'];
-  const DIR = Object.assign({ project: '.hergy/roles/', global: '~/.config/hergy/roles/' }, DATA.places || {});
-  const TEXT = DATA.texts || {};
+  const DIR = Object.assign({ project: '.hergy/roles/', global: '~/.config/hergy/roles/' }, ISLAND.places || {});
+  const TEXT = ISLAND.texts || {};
   // fill is the server's sentence with the screen's numbers in it: the words
   // stay the server's (the same ones hergy validate prints).
   const fill = (s, ...a) => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() : ''));
@@ -42,27 +45,19 @@
   const inP = RD.inP;
   let uid = 0;
 
-  async function post(url, payload) {
-    const body = new URLSearchParams();
-    body.set('token', token);
-    body.set('payload', JSON.stringify(payload));
-    const res = await fetch(url, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
-    });
-    const text = await res.text();
-    let json = null;
-    if ((res.headers.get('content-type') || '').includes('application/json')) {
-      try { json = JSON.parse(text); } catch (e) { json = null; }
-    }
-    return { ok: res.ok, status: res.status, json, text };
-  }
+  // Every read and write goes through the one boundary (spec-boundary 5, 7):
+  // api.js holds the call, the token of this run, the 300ms wait and the place a
+  // refusal is shown; yamltab.js holds the YAML tab. Every kind of thing answers
+  // under /api/ in one shape, whether the screen draws it as a row, a card or a
+  // YAML section.
+  const API = window.hergyAPI;
+  const YAML = window.hergyYaml;
 
   // ---- the model -------------------------------------------------------
   const fromJSON = RD.fromJSON;
   const toDoc = RD.toDoc;
 
-  const roles = DATA.roles.map((r) => {
+  const roles = API.roleModel(ISLAND.role).roles.map((r) => {
     const row = { uid: r.uid };
     if (r.markdown) { row.markdown = r.markdown; row.name = r.name || ''; row.project = null; row.global = null; return row; }
     for (const l of PLACES) {
@@ -79,7 +74,7 @@
     if (r.isNew) row.isNew = true;
     return row;
   });
-  const teams = DATA.teams.map((t) => ({
+  const teams = API.teamModel(ISLAND.team).teams.map((t) => ({
     id: t.id, hash: t.hash || '', turns: t.turns || [],
     agree: t.agreement || { rules: 0, chars: 0 },
     members: (t.members || []).map((m) => ({ name: m.name, saved: m.saved, draft: m.draft })),
@@ -142,13 +137,15 @@
     const k = keyOf(r, l);
     const id = (reqs[k] || 0) + 1;
     reqs[k] = id;
-    const res = await post('/roles/check', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
+    const res = await API.check('role', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
     if (reqs[k] !== id) return;
     if (!res.ok || !res.json) return;
+    const c = API.checkAnswer(res);
     checks[k] = {
-      issues: convertProblems(e.draft, res.json.problems), markdown: res.json.markdown || { lines: [], chars: 0 },
-      diff: res.json.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      turns: res.json.turns || [], readers: res.json.readers || [],
+      issues: convertProblems(e.draft, c.problems),
+      markdown: c.preview || { lines: [], chars: 0 },
+      diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
+      turns: c.turns || [], readers: c.readers,
     };
     if (cb) cb();
   }
@@ -274,7 +271,7 @@
       .map(([t, label, n]) => `<button class="tab ${state.tab === t ? 'on' : ''}" data-act="tab" data-t="${t}" aria-pressed="${state.tab === t}">${label}${n !== '' ? `<span class="n">${n}</span>` : ''}</button>`).join('');
     view.innerHTML = state.tab === 'roles' ? viewRoles() : state.tab === 'assign' ? viewAssign() : viewYAML();
     if (state.tab === 'roles') renderList();
-    if (state.tab === 'yaml') $$('.yed').forEach(refreshYed);
+    if (state.tab === 'yaml') $$('.yed').forEach(mountYed);
     applyStyles();
     // The number of roles stands in the band now; the first tab is 一覧 and
     // carries none (spec-nav.md 1.1, 1.2). Every save, delete and copy comes
@@ -585,17 +582,11 @@
   }
 
   // ---- the YAML tab ----------------------------------------------------
+  // The tab's drawing, its check, its save and its jump are the shared part in
+  // yamltab.js (spec-boundary 7). This screen draws each file's section — the
+  // file nav, the head and the 保存しました line — and hands it to the part.
   const ychecks = {};
-  const ybase = {};
   function ykey(place, name) { return place + '.' + name; }
-
-  async function askYAML(place, name, text, base) {
-    const res = await post('/roles/yaml/check', { place, name, text });
-    if (!res.ok || !res.json) return;
-    const probs = res.json.problems || [];
-    if (base) ybase[ykey(place, name)] = new Set(probs.filter((m) => m.sev === 'err').map((m) => m.text));
-    ychecks[ykey(place, name)] = probs;
-  }
 
   function filesList() { return allEntries().filter(({ r, l }) => live(r, l)); }
 
@@ -605,8 +596,7 @@
     if (!state.yfile || !files.some(({ r, l }) => r.uid + l === state.yfile)) state.yfile = files[0] ? files[0].r.uid + files[0].l : null;
     return `<div class="ylay">
       <nav class="files">${PLACES.map((l) => `<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
-        const key = r.uid + l, is = issuesOf(r, l), hid = l === 'global' && live(r, 'project'), y = ychecks[ykey(l, e.saved.name)];
-        const dirty = y && y !== ybase ? false : false;
+        const key = r.uid + l, is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
         return `<button class="file ${state.yfile === key ? 'on' : ''} ${hid ? 'hid' : ''}" data-act="yfile" data-key="${key}" aria-pressed="${state.yfile === key}"><code>${esc(e.saved.name)}.yaml</code><span class="fs">${ychecksText(l, e.saved.name)}${RD.badge(is) || rulesOf(e.saved).length}</span><span class="ft">${esc(e.saved.title)}${hid ? '・隠れている' : ''}</span></button>`;
       }).join('')}</div>`).join('')}</nav>
       ${state.yfile ? yedHTML(state.yfile) : '<div class="none">ロールの文書はありません</div>'}
@@ -624,7 +614,6 @@
     if (!m) return '';
     const r = byUid(m[1]), l = m[2], e = r[l];
     const hid = l === 'global' && live(r, 'project');
-    const ok = state.ok['y' + key] ? (delete state.ok['y' + key], '<span class="ok">保存しました</span>') : '';
     return `<section class="yed" data-key="${key}">
       <header class="ph"><span class="ln">${LNAME[l]}</span><code class="path">${esc(pathOf(l, e.saved))}</code>${live(r, 'project') && live(r, 'global') ? `<span class="state ${hid ? 'off' : 'on'}">${hid ? '隠れている' : '効いている'}</span>` : ''}</header>
       <div class="ybody">
@@ -632,59 +621,35 @@
         <div class="vlist"></div>
       </div>
       <footer class="pf">
-        <button class="btn primary" data-act="yaml-save">保存</button><span class="dirty"></span>${ok}
+        <button class="btn primary" data-act="yaml-save">保存</button><span class="dirty"></span>
         <span class="acts"><button class="btn" data-act="yaml-revert" hidden>元に戻す</button></span>
       </footer>
-      <span class="errline" hidden></span>
     </section>`;
   }
 
-  function refreshYed(sec) {
+  // mountYed hands one file's section to the shared YAML part: it remembers the
+  // row, the place and the name the check runs under, and takes the problems the
+  // part finds back, so the file nav can mark a file that is wrong. The part
+  // shows 保存しました and the refusal itself (r-0f8c); a save only tells this
+  // screen the row's new hash and text.
+  function mountYed(sec) {
     const m = /^(\d+)(project|global)$/.exec(sec.dataset.key);
     if (!m) return;
     const r = byUid(m[1]), l = m[2], e = r[l];
-    const ta = sec.querySelector('.ytext');
-    if (!ta) return;
-    const text = ta.value;
+    if (!e || !e.saved) return;
     const name = e.saved ? e.saved.name : e.draft.name;
-    const probs = ychecks[ykey(l, name)] || [];
-    const marks = {};
-    probs.forEach((mm) => { if (marks[mm.line] !== 'err') marks[mm.line] = mm.sev; });
-    const n = text.split('\n').length;
-    sec.querySelector('.gutter').innerHTML = Array.from({ length: n }, (_, i) => `<span class="${marks[i + 1] || ''}">${i + 1}</span>`).join('');
-    sec.querySelector('.code').style.height = Math.min(Math.max(n, 6), 34) * 20 + 32 + 'px';
-    sec.querySelector('.gutter').scrollTop = ta.scrollTop;
-    sec.querySelector('.vlist').innerHTML = `<div class="vhead"><span class="vt">validate</span>${probs.length ? `<span class="vcount">${RD.counts(probs.map((mm) => ({ sev: mm.sev })))}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
-      + probs.map((mm) => `<button class="vitem" data-act="yaml-jump" data-line="${mm.line}">${RD.sevChip(mm.sev)}<span class="lno">${mm.line} 行</span><span class="msg">${esc(mm.text)}</span></button>`).join('');
-    const base = ybase[ykey(l, name)] || new Set();
-    const errs = probs.filter((mm) => mm.sev === 'err');
-    const dirty = text !== (e.text || '');
-    sec.querySelector('.dirty').textContent = dirty ? '変更あり' : '';
-    const grew = errs.some((mm) => !base.has(mm.text));
-    sec.querySelector('[data-act=yaml-save]').disabled = !dirty || grew;
-    sec.querySelector('[data-act=yaml-revert]').hidden = !dirty;
-    tellDirty();
-  }
-
-  async function saveYAML(key) {
-    const m = /^(\d+)(project|global)$/.exec(key);
-    if (!m) return;
-    const r = byUid(m[1]), l = m[2], e = r[l], sec = $(`.yed[data-key="${key}"]`);
-    if (!sec) return;
-    const text = sec.querySelector('.ytext').value;
-    const name = e.saved ? e.saved.name : e.draft.name;
-    const res = await post('/roles/yaml/save', { place: l, name, text, hash: e.hash || '' });
-    if (!res.ok) {
-      const el = sec.querySelector('.errline');
-      if (el) { el.hidden = false; el.textContent = (res.json && res.json.text) || '保存できませんでした'; }
-      return;
-    }
-    e.hash = (res.json && res.json.hash) || e.hash;
-    e.text = text;
-    if (res.json && res.json.doc) { e.saved = fromJSON(res.json.doc); e.draft = clone(e.saved); }
-    e.ytext = undefined;
-    state.ok['y' + key] = 1;
-    render();
+    sec.dataset.hash = e.hash || '';
+    YAML.mount(sec, {
+      kind: 'role', place: l, name, problems: ychecks[ykey(l, name)] || [],
+      onProblems: (section, probs) => { ychecks[ykey(l, name)] = probs; },
+      onSaved: (section, answer) => {
+        const json = API.answer(answer);
+        e.hash = json.hash || e.hash;
+        e.text = section.querySelector('.ytext').value;
+        if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
+        e.ytext = undefined;
+      },
+    });
   }
 
   // ---- operations ------------------------------------------------------
@@ -697,8 +662,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum')) { e.preventDefault(); e.target.click(); }
     if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) {
       e.preventDefault();
-      e.target.setRangeText('  ', e.target.selectionStart, e.target.selectionEnd, 'end');
-      e.target.dispatchEvent(new Event('input', { bubbles: true }));
+      YAML.insertTab(e.target);
     }
   });
 
@@ -711,14 +675,9 @@
     if (t.id === 'q') { state.q = t.value; render(); syncURL(false); const q = document.getElementById('q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); return; }
     if (t.matches('.ytext')) {
       const sec = t.closest('.yed'), m = /^(\d+)(project|global)$/.exec(sec.dataset.key);
-      const r = byUid(m[1]), l = m[2], e = r[l];
-      e.ytext = t.value;
-      clearTimeout(timers['y' + sec.dataset.key]);
-      timers['y' + sec.dataset.key] = setTimeout(async () => {
-        await askYAML(l, e.saved ? e.saved.name : e.draft.name, e.ytext);
-        refreshYed(sec);
-      }, 300);
-      refreshYed(sec);
+      const r = byUid(m[1]), l = m[2];
+      r[l].ytext = t.value;
+      YAML.schedule(sec);
     }
   });
 
@@ -795,29 +754,17 @@
       }
       case 'role-hi': state.roleHi = state.roleHi === b.dataset.n ? null : b.dataset.n; render(); syncURL(false); break;
       case 't-save': await doAssignSave(b.closest('.team').dataset.t); break;
-      case 'yfile': state.yfile = b.dataset.key; render(); syncURL(false); await ensureYAML(b.dataset.key); break;
-      case 'yaml-jump': {
-        const ta = b.closest('.yed').querySelector('.ytext'), line = +b.dataset.line;
-        const lines = ta.value.split('\n'), start = lines.slice(0, line - 1).reduce((n2, s) => n2 + s.length + 1, 0);
-        ta.focus({ preventScroll: true }); ta.setSelectionRange(start, start + (lines[line - 1] || '').length);
-        ta.scrollTop = Math.max(0, (line - 4) * 20); ta.scrollLeft = 0;
-        break;
-      }
+      case 'yfile': state.yfile = b.dataset.key; render(); syncURL(false); break;
+      case 'yaml-jump': YAML.jump(b.closest('.yed'), Number(b.dataset.line)); break;
       case 'yaml-revert': {
         const el = b.closest('.yed'), m = /^(\d+)(project|global)$/.exec(el.dataset.key);
-        const rr = byUid(m[1]), l = m[2], e = rr[l], name = e.saved ? e.saved.name : e.draft.name;
-        // The text goes back to the saved one, so the checked text and its
-        // findings go with it: a result for the thrown-away text must not stay.
-        clearTimeout(timers['y' + el.dataset.key]);
-        e.ytext = undefined;
-        delete ychecks[ykey(l, name)];
-        render();
-        await askYAML(l, name, docText(rr, l), true);
-        const sec = $(`.yed[data-key="${el.dataset.key}"]`);
-        if (sec) refreshYed(sec);
+        // The text goes back to the saved one, and the shared part checks the
+        // text it now shows: a result for the thrown-away text must not stay.
+        if (m) { const rr = byUid(m[1]), l = m[2]; if (rr && rr[l]) delete rr[l].ytext; }
+        YAML.revert(el);
         break;
       }
-      case 'yaml-save': await saveYAML(b.closest('.yed').dataset.key); break;
+      case 'yaml-save': YAML.save(b.closest('.yed')); break;
     }
   });
 
@@ -828,19 +775,6 @@
     if (!panel) return {};
     const r = byUid(panel.dataset.uid);
     return { panel, r, l: panel.dataset.l, key: `${panel.dataset.uid}${panel.dataset.l}` };
-  }
-
-  async function ensureYAML(key) {
-    const m = /^(\d+)(project|global)$/.exec(key);
-    if (!m) return;
-    const r = byUid(m[1]), l = m[2], e = r[l];
-    if (!e || !e.saved) return;
-    const name = e.saved.name;
-    if (ychecks[ykey(l, name)] === undefined) {
-      await askYAML(l, name, docText(r, l), true);
-      const sec = $(`.yed[data-key="${key}"]`);
-      if (sec) refreshYed(sec);
-    }
   }
 
   // ---- writes ----------------------------------------------------------
@@ -854,7 +788,7 @@
   function showRefusal(sec, json) {
     if (!sec) return;
     clearRefusal(sec);
-    const el = sec.querySelector(json && json.field === 'name' ? '.errline.name' : '.errline.doc');
+    const el = sec.querySelector(json && json.at === 'name' ? '.errline.name' : '.errline.doc');
     if (el) { el.hidden = false; el.textContent = (json && json.text) || '保存できませんでした'; }
   }
 
@@ -863,19 +797,20 @@
     const keepRename = (() => { const cb = document.getElementById('rn' + r.uid + l); return cb ? cb.checked : true; })();
     const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
     if (e.basePlace) payload.base = e.basePlace;
-    const res = await post('/roles/save', payload);
+    const res = await API.save('role', e.draft.name || (e.saved ? e.saved.name : '_'), payload);
+    const json = API.answer(res);
     if (!res.ok) {
-      showRefusal(sec, res.json);
+      showRefusal(sec, json);
       return;
     }
     clearRefusal(sec);
     const old = e.saved;
     const newName = e.draft.name;
     e.saved = clone(e.draft);
-    e.hash = (res.json && res.json.hash) || e.hash;
+    e.hash = json.hash || e.hash;
     // The written text comes back with the answer, so the YAML tab shows the file
     // this save just made (a moved line, a rule the write re-emitted).
-    if (res.json && typeof res.json.text === 'string') e.text = res.json.text;
+    if (typeof json.text === 'string') e.text = json.text;
     delete e.base;
     delete e.basePlace;
     delete r.isNew;
@@ -896,14 +831,13 @@
     // A rename changes the name the address opens the row by, so the address
     // follows the save (spec-roles 2 節).
     syncURL(false);
-    await ensureYAML(keyOf(r, l));
   }
 
   async function doDelete(r, l) {
     const e = r[l];
     if (!e || !e.saved) return;
-    const res = await post('/roles/delete', { place: l, name: e.saved.name, hash: e.hash || '' });
-    if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); showRefusal(sec, res.json); return; }
+    const res = await API.del('role', e.saved.name, l, e.hash || '');
+    if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); showRefusal(sec, API.answer(res)); return; }
     ychecks[ykey(l, e.saved.name)] = undefined;
     delete r[l];
     if (!r.project && !r.global) { const i = roles.indexOf(r); if (i >= 0) roles.splice(i, 1); state.open.delete(r.uid); }
@@ -915,14 +849,17 @@
     if (!t) return;
     const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
     if (!changes.length) return;
-    const res = await post('/roles/assign/save', { definition: id, changes, hash: t.hash || '' });
+    // The pick travels as the team kind's own op, so the save writes one line of
+    // team.yaml and no other (spec-boundary 6, spec-teams 1.3).
+    const res = await API.save('team', id, { place: 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } });
+    const json = API.answer(res);
     if (!res.ok) {
       const card = $(`.team[data-t="${id}"]`);
-      if (card) { let el = card.querySelector('.errline'); if (!el) { el = document.createElement('span'); el.className = 'errline'; card.querySelector('.th').appendChild(el); } el.hidden = false; el.textContent = (res.json && res.json.text) || '保存できませんでした'; }
+      if (card) { let el = card.querySelector('.errline'); if (!el) { el = document.createElement('span'); el.className = 'errline'; card.querySelector('.th').appendChild(el); } el.hidden = false; el.textContent = json.text || '保存できませんでした'; }
       return;
     }
     t.members.forEach((m) => { m.saved = m.draft; });
-    t.hash = (res.json && res.json.hash) || t.hash;
+    t.hash = json.hash || t.hash;
     state.ok['t' + id] = 1;
     await Promise.all(savedRoles().map((r) => { const l = eff(r); return askCheck(r, l, null); }));
     render();
@@ -1020,7 +957,6 @@
     const carried = window.hergyNav && window.hergyNav.takeDraft('roles');
     if (carried) restore(carried);
     render();
-    if (state.yfile) await ensureYAML(state.yfile);
   }
 
   boot();

@@ -130,37 +130,28 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /roles/{role}", s.r2OldRole)
 	mux.HandleFunc("GET /roles/{role}/new", s.r2OldRoleNew)
 	mux.HandleFunc("GET /roles/{role}/{rule}", s.r2OldRoleRule)
-	mux.HandleFunc("POST /roles/check", s.p2Post(s.r2Check))
-	mux.HandleFunc("POST /roles/yaml/check", s.p2Post(s.r2YAMLCheck))
-	mux.HandleFunc("POST /roles/save", s.p2Post(s.r2Save))
-	mux.HandleFunc("POST /roles/delete", s.p2Post(s.r2Delete))
-	mux.HandleFunc("POST /roles/yaml/save", s.p2Post(s.r2YAMLSave))
-	mux.HandleFunc("POST /roles/assign/save", s.p2Post(s.r2AssignSave))
 
-	// チーム定義 (r-0f8c): the list and the YAML tab, the figure's and the
-	// agreement's checks, and the writes of team.yaml and agreement.yaml. The
-	// old /teams that moved to /definitions is gone: /teams is this screen now.
+	// チーム定義 (r-0f8c): the list and the YAML tab. The figure's and the
+	// agreement's checks and every write go through /api/team (spec-boundary 5),
+	// so this screen owns only its two pages. The old /teams that moved to
+	// /definitions is gone: /teams is this screen now.
 	mux.HandleFunc("GET /teams", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "list") })
 	mux.HandleFunc("GET /teams/yaml", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "yaml") })
-	mux.HandleFunc("POST /teams/check", s.p2Post(s.t2Check))
-	mux.HandleFunc("POST /teams/effect", s.p2Post(s.t2Effect))
-	mux.HandleFunc("POST /teams/save", s.p2Post(s.t2Save))
-	mux.HandleFunc("POST /teams/agreement/check", s.p2Post(s.t2AgreeCheck))
-	mux.HandleFunc("POST /teams/agreement/save", s.p2Post(s.t2AgreeSave))
-	mux.HandleFunc("POST /teams/yaml/check", s.p2Post(s.t2YamlCheck))
-	mux.HandleFunc("POST /teams/yaml/save", s.p2Post(s.t2YamlSave))
 
-	// プロファイル (r-c683): the three tabs, their checks and their writes.
+	// プロファイル (r-c683): the three tabs.
 	mux.HandleFunc("GET /profiles", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "profiles") })
 	mux.HandleFunc("GET /profiles/assign", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "assign") })
 	mux.HandleFunc("GET /profiles/yaml", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "yaml") })
 	mux.HandleFunc("GET /profiles/{name}", s.oldProfile)
-	mux.HandleFunc("POST /profiles/check", s.p2Post(s.p2Check))
-	mux.HandleFunc("POST /profiles/yaml/check", s.p2Post(s.p2YAMLCheck))
-	mux.HandleFunc("POST /profiles/save", s.p2Post(s.p2Save))
-	mux.HandleFunc("POST /profiles/delete", s.p2Post(s.p2Delete))
-	mux.HandleFunc("POST /profiles/yaml/save", s.p2Post(s.p2YAMLSave))
-	mux.HandleFunc("POST /profiles/assign/save", s.p2Post(s.p2AssignSave))
+
+	// 受け口 (spec-boundary 5, r-2cc2): every kind of thing the screens read and
+	// write answers under /api/, in one shape, through one set of handlers. The
+	// old per-screen URLs (/profiles/check ほか, /roles/check ほか) are gone.
+	mux.HandleFunc("GET /api/{kind}", s.apiList)
+	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)
+	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)
+	mux.HandleFunc("PUT /api/{kind}/{name}", s.apiSave)
+	mux.HandleFunc("DELETE /api/{kind}/{name}", s.apiDelete)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	mux.HandleFunc("/", s.notFound)

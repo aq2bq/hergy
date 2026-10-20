@@ -1,0 +1,183 @@
+// api.js — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
+// Every kind of thing a screen reads and writes answers under /api/ in one shape
+// (spec-boundary 5): a list, one document, a check, a save, a delete. This file
+// holds the call, the token of this run, the 300ms wait a check rides on, and the
+// place a refusal is shown. A screen keeps its own look and sides with it.
+window.hergyAPI = (() => {
+  'use strict';
+
+  const view = document.getElementById('view');
+  const token = (view && view.dataset.token) || '';
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
+
+  // call sends one request with the token of this run. A write carries its body
+  // as JSON, and the token rides in the header, so POST, PUT and DELETE are one
+  // shape (a DELETE carries no body at all).
+  async function call(method, url, payload) {
+    const opts = { method, credentials: 'same-origin', headers: { 'X-Hergy-Token': token } };
+    if (payload !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(payload);
+    }
+    const response = await fetch(url, opts);
+    const text = await response.text();
+    let json = null;
+    if ((response.headers.get('content-type') || '').includes('application/json')) {
+      try { json = JSON.parse(text); } catch (e) { json = null; }
+    }
+    return { ok: response.ok, status: response.status, json, text };
+  }
+
+  // ---- reading an answer's shape (spec-boundary 5) ---------------------
+  // One place reads what the server answers; a screen asks for its kind's model
+  // and draws that. No screen digs into the fields of an answer itself.
+
+  const PLACES = ['project', 'global'];
+  const PLACE_LABEL = { project: 'プロジェクト', global: '共通' };
+  const countOf = (c) => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
+  const jsonOf = (v) => JSON.stringify(v || []);
+
+  // profileModel is GET /api/profile read as the profile screen's model: the
+  // rows of the list, the two files the YAML tab draws, and the files' hashes.
+  function profileModel(list, openNames) {
+    const open = openNames || [];
+    return {
+      rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
+      files: ((list && list.files) || []).map((f) => ({
+        file: f.place, label: f.label, path: f.path, text: f.text, hash: f.hash,
+        problems: f.problems || [],
+      })),
+      hashes: (list && list.hashes) || {},
+    };
+  }
+
+  // profileRow is one item read as the row the list draws: each place becomes a
+  // panel, and the item's summary its columns.
+  function profileRow(item, isOpen) {
+    const places = item.places || {};
+    const hidden = item.hidden || [];
+    const s = item.summary || {};
+    const names = PLACES.filter((f) => places[f]);
+    const both = names.length > 1;
+    const panels = names.map((file) => {
+      const place = places[file] || {}, doc = place.doc || {};
+      const other = file === 'project' ? 'global' : 'project';
+      const c = countOf(place.problems);
+      return {
+        file, label: PLACE_LABEL[file], path: place.path || '', saved: true,
+        shadowed: hidden.indexOf(file) >= 0, both, other, otherLabel: PLACE_LABEL[other],
+        name: doc.name || '', kind: doc.kind || '',
+        args: doc.args || [], env: doc.env || [],
+        argsJSON: jsonOf(doc.args), envJSON: jsonOf(doc.env),
+        savedName: doc.name || '', savedKind: doc.kind || '',
+        savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
+        hash: place.hash || '', users: both ? 0 : (s.users || 0),
+        renameUsers: place.readers || 0, err: c.err, warn: c.warn,
+        savedLine: !!place.savedLine,
+      };
+    });
+    const c = countOf(item.problems);
+    return {
+      name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '',
+      new: false, open: !!isOpen,
+      places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? 'shadow' : 'on' })),
+      args: s.args || '', env: s.env || [], more: s.more || 0,
+      users: s.users || 0, roles: s.roles || '', err: c.err, warn: c.warn,
+      chips: s.chips || [], panels,
+    };
+  }
+
+  // roleModel is GET /api/role read as the role screen's model: the rows, each
+  // place holding the document behind it.
+  function roleModel(list) {
+    return { roles: ((list && list.items) || []).map(roleRow) };
+  }
+
+  function roleRow(item, i) {
+    const places = item.places || {}, s = item.summary || {};
+    const row = { uid: i + 1 };
+    if (s.markdown) { row.markdown = s.markdown; row.name = item.name || ''; return row; }
+    PLACES.forEach((l) => {
+      const place = places[l];
+      row[l] = (place && place.doc)
+        ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '' })
+        : null;
+    });
+    if (s.noDoc) row.noDoc = true;
+    if (s.isNew) row.isNew = true;
+    return row;
+  }
+
+  // teamModel is GET /api/team read as the role screen's 割り当て model: one team
+  // per definition, with the members' roles and the amount one member reads. The
+  // hash a save carries is the project file's: the assign tab writes there.
+  function teamModel(list) {
+    return {
+      teams: ((list && list.items) || []).map((item) => {
+        const places = item.places || {}, s = item.summary || {};
+        const eff = item.effective || (places.project ? 'project' : 'global');
+        const place = places[eff] || {}, proj = places.project || {};
+        return {
+          id: item.name || '', hash: proj.hash || '',
+          turns: ((place.doc || {}).turns || []).map((t) => [t.from, t.to]),
+          agreement: s.amount || { rules: 0, chars: 0 },
+          members: (s.members || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
+        };
+      }),
+    };
+  }
+
+  return {
+    token,
+    $,
+    $$,
+    call,
+    profileModel,
+    roleModel,
+    teamModel,
+    // list is GET /api/{kind}: every item and the hashes behind them.
+    list: (kind) => call('GET', `/api/${kind}`),
+    // get is GET /api/{kind}/{name}?place=: one document.
+    get: (kind, name, place) => call('GET', `/api/${kind}/${enc(name)}${place ? `?place=${enc(place)}` : ''}`),
+    // check is POST /api/{kind}/check: what is wrong with a draft or a text.
+    check: (kind, payload) => call('POST', `/api/${kind}/check`, payload),
+    // save is PUT /api/{kind}/{name}: write one document.
+    save: (kind, name, payload) => call('PUT', `/api/${kind}/${enc(name)}`, payload),
+    // del is DELETE /api/{kind}/{name}?place=&hash=: take one document away.
+    del: (kind, name, place, hash) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}`),
+    // after waits ms and calls fn, forgetting an earlier wait on the same box.
+    after: (box, ms, fn) => {
+      clearTimeout(box._apiTimer);
+      box._apiTimer = setTimeout(fn, ms);
+    },
+    // refusal puts the server's own sentence beside a box's acts, the way every
+    // screen shows one. The screen builds no sentence of its own (spec-boundary
+    // 3).
+    refusal: (box, text) => {
+      $$('.refusal', box).forEach((el) => el.remove());
+      const span = document.createElement('span');
+      span.className = 'sev err refusal';
+      span.textContent = text;
+      const acts = $('.acts', box);
+      if (acts) acts.parentNode.insertBefore(span, acts); else box.appendChild(span);
+    },
+    // problemText is the sentence one refusal carries, or the fallback word.
+    problemText: (answer, fallback) => (answer.json && answer.json.text) || fallback,
+    // ---- reading an answer (spec-boundary 5) ----------------------------
+    // A save, a check and a refusal answer under /api/, and the fields they
+    // carry are read here, once, so no screen digs into an answer itself.
+    answer: (a) => (a && a.json) || {},
+    problems: (a) => ((a && a.json && a.json.problems) || []),
+    // checkAnswer is a check's whole answer: the problems, the Markdown a person
+    // reads, how the change moved it, and the people it named.
+    checkAnswer: (a) => {
+      const json = (a && a.json) || {}, effect = json.effect || {};
+      return {
+        problems: json.problems || [], preview: json.preview || null,
+        diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
+      };
+    },
+  };
+})();

@@ -1,0 +1,33 @@
+/* yamltab.css — the YAML tab's shared part (yamltab.js). One section's height
+   follows the lines in the file: six at the fewest and 34 at the most, on every
+   screen (the designer put the number in the part, r-0f8c). The `h` class is the
+   one yamltab.js writes; the box around the text is `.code` on every screen. */
+.code.h6 { height: 152px; }
+.code.h7 { height: 172px; }
+.code.h8 { height: 192px; }
+.code.h9 { height: 212px; }
+.code.h10 { height: 232px; }
+.code.h11 { height: 252px; }
+.code.h12 { height: 272px; }
+.code.h13 { height: 292px; }
+.code.h14 { height: 312px; }
+.code.h15 { height: 332px; }
+.code.h16 { height: 352px; }
+.code.h17 { height: 372px; }
+.code.h18 { height: 392px; }
+.code.h19 { height: 412px; }
+.code.h20 { height: 432px; }
+.code.h21 { height: 452px; }
+.code.h22 { height: 472px; }
+.code.h23 { height: 492px; }
+.code.h24 { height: 512px; }
+.code.h25 { height: 532px; }
+.code.h26 { height: 552px; }
+.code.h27 { height: 572px; }
+.code.h28 { height: 592px; }
+.code.h29 { height: 612px; }
+.code.h30 { height: 632px; }
+.code.h31 { height: 652px; }
+.code.h32 { height: 672px; }
+.code.h33 { height: 692px; }
+.code.h34 { height: 712px; }

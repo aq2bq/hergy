@@ -12,12 +12,16 @@
   const view = document.getElementById('view');
   if (!view) return;
   const DATA = JSON.parse(document.getElementById('teams-data').textContent);
-  const TOKEN = view.dataset.token || '';
+  const API = window.hergyAPI;
   const RD = window.hergyRuleDoc;
+  const YAML = window.hergyYaml;
   const PLACES = ['project', 'global'];
   const PLACE = DATA.places || { project: 'プロジェクト', global: '共通' };
   const DIR = DATA.dirs || { project: '', global: '' };
   const PROFILES = DATA.profiles || [];
+  // The island is the same list answer GET /api/team gives (spec-boundary 5):
+  // the items, and the files the YAML tab can open.
+  const LIST = DATA.team || { items: [], files: [] };
 
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
@@ -42,26 +46,20 @@
   const memberOf = (t, n) => (t.members || []).find((m) => m.name === n);
 
   // ---- サーバとのやり取り ---------------------------------------------
-  async function post(path, payload) {
-    const form = new FormData();
-    form.set('token', TOKEN);
-    form.set('payload', JSON.stringify(payload));
-    let res;
-    try { res = await fetch(path, { method: 'POST', body: form }); } catch (e) { return { ok: false, json: null }; }
-    const text = await res.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch (e) { json = null; }
-    return { ok: res.ok, json };
-  }
+  // Every check and every write goes through the boundary (spec-boundary 5):
+  // this screen says which kind and carries its own part, and reads the answer
+  // with the fields api.js lays out. It builds no payload shape of its own.
   const timers = {};
   const debounce = (k, fn, ms = 260) => { clearTimeout(timers[k]); timers[k] = setTimeout(fn, ms); };
+  const teamIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'team' }, extra || {});
+  const agreeIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'agreement' }, extra || {});
 
   // ---- 下書き（姿） ----------------------------------------------------
   const cloneTeam = (t) => ({
     mission: (t && t.mission) || '',
     members: ((t && t.members) || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
     workers: ((t && t.workers) || []).map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })),
-    turns: ((t && t.turns) || []).map(([a, b]) => [a, b]),
+    turns: ((t && t.turns) || []).map((x) => (Array.isArray(x) ? [x[0], x[1]] : [x.from, x.to])),
   });
   function applyOps(saved, ops) {
     const t = cloneTeam(saved);
@@ -89,32 +87,48 @@
   // ---- 記録（1 定義ごと） ---------------------------------------------
   const recs = new Map();
   let uids = 0;
-  function recOf(json) {
-    const k = json.name + '.' + json.place;
-    let r = recs.get(k);
+
+  // defOf is one item of GET /api/team read as the record the screen draws: the
+  // definition as one place reads it, the team's own agreement document, and the
+  // number of problems the server counted for the row (api.js lays the list out,
+  // so this screen reads no answer field by hand).
+  function defOf(item) {
+    const places = item.places || {};
+    const eff = item.effective || (places.project ? 'project' : 'global');
+    const place = places[eff] || {};
+    const doc = place.doc || {};
+    const agree = doc.agreement || { path: '', hash: '', has: false, doc: null };
+    const key = (item.name || '') + '.' + eff;
+    let r = recs.get(key);
     if (r) return r;
-    let doc = null;
-    if (json.agree) {
-      doc = RD.fromJSON(json.agree);
-      doc.__path = json.agreePath;
+    let saved = null;
+    if (agree.doc) {
+      saved = RD.fromJSON(agree.doc);
+      saved.__path = agree.path;
     }
+    const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
+      place: p, path: (places[p] || {}).path, hash: (places[p] || {}).hash,
+    }));
     r = {
-      name: json.name, place: json.place, places: json.places || [], key: k,
-      teamPath: json.teamPath, agreePath: json.agreePath,
-      hash: json.hash || '', agreeHash: json.agreeHash || '', hasAgree: !!json.hasAgree, broken: !!json.broken,
-      hidden: json.hidden || [], ins: json.prompt || { turns: {}, workers: {} },
+      name: item.name || '', place: eff, places: PLACES.filter((p) => places[p]), key,
+      teamPath: place.path || '', agreePath: agree.path || '',
+      hash: place.hash || '', agreeHash: agree.hash || '', hasAgree: !!agree.has, broken: !!doc.broken,
+      hidden, ins: doc.prompt || { turns: {}, workers: {} },
       ops: [], uid: ++uids,
-      team: { saved: cloneTeam(json.team), draft: cloneTeam(json.team) },
+      team: { saved: cloneTeam(doc), draft: cloneTeam(doc) },
       agree: {
-        saved: doc,
-        draft: doc ? clone(doc) : RD.fromJSON({ name: '', title: json.name + ' チームの約束', revision: 1, sections: [] }),
+        saved,
+        draft: saved ? clone(saved) : RD.fromJSON({ name: '', title: (item.name || '') + ' チームの約束', revision: 1, sections: [] }),
+        // The saved document's own problems are the agreement save's baseline:
+        // a save stops only when an error the saved text did not hold has
+        // appeared (spec-teams X3).
+        savedIssues: null,
       },
-      savedTurns: (json.savedTurns || []).map(([a, b]) => [a, b]),
-      findings: json.findings || [], turnsFindings: json.turnsFindings || [],
-      report: json.agreeReport || null, check: null, req: 0, areq: 0,
+      savedTurns: cloneTeam(doc).turns,
+      findings: [], turnsFindings: [],
+      problems: item.problems || {}, report: null, check: null, req: 0, areq: 0,
     };
-    if (r.report) r.check = buildCheck(r.agree.draft, r.report);
-    recs.set(k, r);
+    recs.set(key, r);
     return r;
   }
   const byKey = (k) => recs.get(k);
@@ -131,15 +145,38 @@
     sev: p.sev, k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
     f: p.field || '', msg: p.text || '', definition: p.definition || '',
   }));
-  const buildCheck = (doc, report) => ({
-    issues: convProblems(doc, report.problems || []),
-    markdown: report.markdown || { lines: [], chars: 0 },
-    diff: report.diff || { added: [], removedBefore: [], removedAtEnd: false },
-    turns: report.turns || [], readers: report.readers || [],
-  });
+  const buildCheck = (doc, json) => {
+    const effect = json.effect || {};
+    return {
+      issues: convProblems(doc, json.problems || []),
+      markdown: json.preview || { lines: [], chars: 0 },
+      diff: effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
+      turns: effect.turns || [], readers: json.readers || [],
+    };
+  };
+
+  // figFindings is the figure's problems as the panel draws them: the field the
+  // server names ("mission", "members[1].profile", "workers[0]", "turns[2]", a
+  // rule) becomes the node, the worker or the word a row stands by. The server
+  // writes every sentence; this only says where it goes (spec-teams X1).
+  function figFindings(r, problems) {
+    const t = r.team.draft;
+    return (problems || []).map((p) => {
+      const at = p.at || p.field || '';
+      let node = null, worker = null, field = at, m;
+      if ((m = /^members\[(\d+)\]/.exec(at))) { const mem = t.members[Number(m[1])]; node = mem ? mem.name : null; field = 'members'; }
+      else if ((m = /^workers\[(\d+)\]/.exec(at))) { worker = Number(m[1]); field = 'workers'; }
+      else if (at === 'mission') { field = 'mission'; }
+      else if (at.startsWith('rule:')) { field = at; }
+      else { field = ''; }
+      return { sev: p.sev, field, node, worker, text: p.text };
+    });
+  }
   const agreeIssues = (r) => (r.check ? r.check.issues : []);
   const agreeDiff = (r) => RD.diffCount(r.agree);
   const teamIssues = (r) => r.findings;
+  const pcountList = (c) => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
+  const rowCounts = (r) => counts(pcountList(r.problems));
   const dirtyDef = (r) => r.ops.length > 0 || (r.agree.saved ? agreeDiff(r) > 0 : false);
 
   // ---- 姿：図の配置（モック 1.4.2 から逐語） ---------------------------
@@ -248,9 +285,10 @@
   let effectSeq = 0;
   async function askEffect(r, op, pk, after) {
     const id = ++effectSeq;
-    const res = await post('/teams/effect', { definition: r.name, place: r.place, ops: r.ops, op });
-    if (id !== effectSeq || !res.ok || !res.json) return;
-    state.effect[pk] = { lines: res.json.lines || [], problems: res.json.problems || [] };
+    const res = await API.check('team', teamIn(r, { doc: { ops: r.ops, op } }));
+    if (id !== effectSeq || !res.ok) return;
+    const effect = API.answer(res).effect || {};
+    state.effect[pk] = { lines: effect.lines || [], problems: figFindings(r, effect.problems || []) };
     if (after) after();
   }
   const effectLines = (pk) => {
@@ -358,13 +396,24 @@
   }
 
   function teamPanelHTML(r) {
-    const t = r.team, n = r.ops.length, k = dkey(r);
+    const n = r.ops.length, k = dkey(r);
+    const head = `<header class="ph"><code class="path">${esc(r.teamPath)}</code>
+      <span class="phr">${(r.places || []).length > 1 ? `<span class="state ${r.place === 'global' ? 'off' : 'on'}">${r.place === 'global' ? '隠れている' : '効いている'}</span>` : ''}</span></header>`;
+    // A team.yaml that does not read draws no figure and offers no shape save:
+    // the check column alone says what stopped it, and the YAML tab is where the
+    // text is put right (spec-teams 1.9).
+    if (r.broken) return `<section class="panel team-p" data-key="${k}">
+    ${head}
+    <div class="gbody"><div class="vlist">${vlistHTML(r)}</div></div>
+  </section>`;
     const ok = state.ok['t' + k] ? (delete state.ok['t' + k], '<span class="ok">保存しました</span>') : '';
-    const before = new Set((r.report ? convProblems(r.agree.draft, r.report.problems) : []).filter((m) => m.sev === 'err').map((m) => m.msg));
-    const issues = teamIssues(r), grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
+    // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
+    // stops only when an error the file did not hold has appeared.
+    const issues = teamIssues(r);
+    const before = new Set((r.baseFindings || []).filter((m) => m.sev === 'err').map((m) => m.text));
+    const grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
     return `<section class="panel team-p" data-key="${k}">
-    <header class="ph"><code class="path">${esc(r.teamPath)}</code>
-      <span class="phr">${(r.places || []).length > 1 ? '<span class="state on">効いている</span>' : ''}</span></header>
+    ${head}
     <div class="gbody">
       <div class="gwrap"><div class="gscroll">${graphSVG(r)}</div>${cardHTML(r)}</div>
       <div class="vlist">${vlistHTML(r)}</div>
@@ -399,6 +448,7 @@
     return {
       uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft,
       issues: agreeIssues(r),
+      savedIssues: e.savedIssues,
       markdown: r.check ? r.check.markdown : { lines: [], chars: 0 },
       diff: r.check ? r.check.diff : { added: [], removedBefore: [], removedAtEnd: false },
       turns: r.check ? r.check.turns : [],
@@ -409,16 +459,21 @@
   // ---- 一覧の行 --------------------------------------------------------
   function sumInner(r) {
     const t = r.team.draft, open = state.open.has(r.name), rules = rulesOf(r.agree.draft);
+    // A team.yaml that does not read has no figure and no numbers to count, so
+    // its row says 使命 —, keeps the problems validate named, and leaves the
+    // counts blank (spec-teams 1.9). It is fixed in the YAML tab.
+    const broken = r.broken;
     const pills = (r.places || []).map((p) => `<span class="pill ${p === r.place ? 'on' : 'shadow'}">${PLACE[p]}</span>`).join('');
-    const cell = open
-      ? `<input id="m-${esc(r.name)}" class="in-mission ${t.mission !== r.team.saved.mission ? 'changed' : ''}" data-f="mission" value="${esc(t.mission)}" autocomplete="off" aria-label="${esc(r.name)} の使命">`
-      : t.mission ? esc(t.mission) : '—';
+    const cell = broken ? '—'
+      : open
+        ? `<input id="m-${esc(r.name)}" class="in-mission ${t.mission !== r.team.saved.mission ? 'changed' : ''}" data-f="mission" value="${esc(t.mission)}" autocomplete="off" aria-label="${esc(r.name)} の使命">`
+        : t.mission ? esc(t.mission) : '—';
     return `<span class="chev"></span>
-    <span class="c-name"><span class="nm">${esc(r.name)}</span><span class="vcount">${counts(r.findings)}</span></span>
-    <span class="c-mission ${t.mission || open ? '' : 'none'}">${cell}</span>
+    <span class="c-name"><span class="nm">${esc(r.name)}</span><span class="vcount">${rowCounts(r)}</span></span>
+    <span class="c-mission ${broken || !(t.mission || open) ? 'none' : ''}">${cell}</span>
     <span class="c-place">${pills}</span>
-    <span class="c-members c-num">${t.members.length}</span>
-    <span class="c-turns c-num">${t.workers.length}</span>
+    <span class="c-members c-num">${broken ? '—' : t.members.length}</span>
+    <span class="c-turns c-num">${broken ? '—' : t.workers.length}</span>
     <span class="c-agree c-num">${rules.length}${outNote(outCount(rules))}</span>`;
   }
   const dtabOf = (r) => state.dtab[r.name] || 'shape';
@@ -456,7 +511,7 @@
     const t = r.team.draft;
     row.classList.toggle('unsaved', dirtyDef(r));
     const q = (s) => row.querySelector(s);
-    const vc = q('.c-name .vcount'); if (vc) vc.innerHTML = counts(r.findings);
+    const vc = q('.c-name .vcount'); if (vc) vc.innerHTML = rowCounts(r);
     const ms = q('.c-members'); if (ms) ms.textContent = t.members.length;
     const tu = q('.c-turns'); if (tu) tu.textContent = t.workers.length;
     const ag = q('.c-agree'); if (ag) { const rs = rulesOf(r.agree.draft); ag.innerHTML = `${rs.length}${outNote(outCount(rs))}`; }
@@ -471,61 +526,75 @@
   }
 
   // ---- YAML のタブ ----------------------------------------------------
-  const fileByKey = new Map((DATA.files || []).map((f) => [f.file, f]));
-  function yState(key) {
-    const f = fileByKey.get(key);
-    if (!state.yaml[key]) state.yaml[key] = { text: f ? f.text : '', base: f ? f.text : '' };
-    return state.yaml[key];
-  }
+  // The tab itself is the shared part (yamltab.js, spec-boundary 7): this screen
+  // draws the file nav and one section per file, and hands the section to the
+  // part, which runs the check and the save through /api/team with the file's own
+  // part. The part shows 保存しました and the refusal (r-0f8c).
+  const FILES = (LIST.files || []).map((f) => ({
+    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name, kind: f.kind,
+    label: f.label || PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
+    text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
+  }));
+  const fileByKey = new Map(FILES.map((f) => [f.file, f]));
+  const recFor = (f) => { const r = byName(f.name); return r && r.place === f.place ? r : null; };
+  const fileText = (file) => (state.ytext[file] !== undefined ? state.ytext[file] : ((fileByKey.get(file) || {}).text || ''));
+  const fileDirty = (file) => state.ytext[file] !== undefined && state.ytext[file] !== ((fileByKey.get(file) || {}).text || '');
+  function yIssues(file) { return state.yc[file] || (fileByKey.get(file) || {}).problems || []; }
   function filesHTML() {
-    const keys = PLACES.flatMap((p) => (DATA.files || []).filter((f) => f.place === p).map((f) => f.file));
+    const keys = PLACES.flatMap((p) => FILES.filter((f) => f.place === p).map((f) => f.file));
     if (!state.yfile || !keys.includes(state.yfile)) state.yfile = keys[0] || null;
     return `<nav class="files">${PLACES.map((p) => {
-      const fs = (DATA.files || []).filter((f) => f.place === p);
+      const fs = FILES.filter((f) => f.place === p);
       if (!fs.length) return '';
       return `<div class="fgroup"><div class="gh"><b>${PLACE[p]}</b><code>${esc(DIR[p] || '')}</code></div>${fs.map((f) => {
-        const y = yState(f.file), is = yIssues(f.file), dirty = y.text !== y.base;
-        return `<button class="file ${state.yfile === f.file ? 'on' : ''} ${f.hidden ? 'hid' : ''}" data-act="yfile" data-file="${esc(f.file)}" aria-pressed="${state.yfile === f.file}"><code>${esc(f.name)}/${f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">${dirty ? '<span class="dirty">●</span>' : ''}${badge(is) || (f.kind === 'agreement' ? rulesOf(rByFile(f.file).agree.saved || rByFile(f.file).agree.draft).length : '')}</span><span class="ft">${f.hidden ? '隠れている' : esc(f.path)}</span></button>`;
+        const r = recFor(f);
+        const n = f.kind === 'agreement' && r ? rulesOf(r.agree.saved || r.agree.draft).length : '';
+        return `<button class="file ${state.yfile === f.file ? 'on' : ''} ${f.hidden ? 'hid' : ''}" data-act="yfile" data-file="${esc(f.file)}" aria-pressed="${state.yfile === f.file}"><code>${esc(f.name)}/${f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">${fileDirty(f.file) ? '<span class="dirty">●</span>' : ''}${badge(yIssues(f.file)) || n}</span><span class="ft">${f.hidden ? '隠れている' : esc(f.path)}</span></button>`;
       }).join('')}</div>`;
     }).join('')}</nav>`;
   }
-  const rByFile = (file) => byKey(file.split('.').slice(0, 2).join('.'));
-  function yIssues(file) {
-    if (state.yc[file]) return state.yc[file];
-    const f = fileByKey.get(file);
-    return (f && f.problems) || [];
+  function refreshFileDot(file) {
+    const b = $(`.file[data-file="${CSS.escape(file)}"]`);
+    if (!b) return;
+    const fs = $('.fs', b), dot = $('.dirty', b);
+    if (fileDirty(file) && !dot) fs.insertAdjacentHTML('afterbegin', '<span class="dirty">●</span>');
+    if (!fileDirty(file) && dot) dot.remove();
   }
   function yedHTML() {
     const key = state.yfile, f = fileByKey.get(key);
     if (!key || !f) return '<section class="yed"><p class="none">ファイルを選んでください</p></section>';
-    const ok = state.ok['y' + key] ? (delete state.ok['y' + key], '<span class="ok">保存しました</span>') : '';
-    return `<section class="yed" data-key="${esc(key)}">
-    <header class="ph"><span class="ln">${PLACE[f.place]}</span><code class="path">${esc(f.path)}</code>${(rByFile(key) && (rByFile(key).places || []).length > 1) ? `<span class="state ${f.hidden ? 'off' : 'on'}">${f.hidden ? '隠れている' : '効いている'}</span>` : ''}</header>
+    const r = recFor(f), both = r ? (r.places || []).length > 1 : false;
+    return `<section class="yed" data-key="${esc(key)}" data-hash="${esc(f.hash)}">
+    <header class="ph"><span class="ln">${esc(f.label)}</span><code class="path">${esc(f.path)}</code>${both ? `<span class="state ${f.hidden ? 'off' : 'on'}">${f.hidden ? '隠れている' : '効いている'}</span>` : ''}</header>
     <div class="ybody">
-      <div class="code"><pre class="gutter" aria-hidden="true"></pre><textarea class="ytext" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(f.path)}">${esc(yState(key).text)}</textarea></div>
+      <div class="code"><pre class="gutter" aria-hidden="true"></pre><textarea class="ytext" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(f.path)}">${esc(fileText(key))}</textarea></div>
       <div class="vlist"></div>
     </div>
-    <footer class="pf"><button class="btn primary" data-act="y-save">保存</button><span class="dirty"></span>${ok}<span class="acts"><button class="btn" data-act="y-revert" hidden>元に戻す</button></span></footer></section>`;
+    <footer class="pf">
+      <button class="btn primary" data-act="yaml-save">保存</button><span class="dirty"></span>
+      <span class="acts"><button class="btn" data-act="yaml-revert" hidden>元に戻す</button></span>
+    </footer></section>`;
   }
-  function refreshYed() {
-    const sec = $('.yed');
-    if (!sec) return;
-    const key = sec.dataset.key, y = yState(key), issues = yIssues(key), marks = {};
-    issues.forEach((m) => { if (marks[m.line] !== 'err') marks[m.line] = m.sev; });
-    const ta = $('.ytext', sec), lines = y.text.split('\n').length;
-    if (ta.value !== y.text) ta.value = y.text;
-    const g = $('.gutter', sec);
-    g.innerHTML = Array.from({ length: lines }, (_, i) => `<span class="${marks[i + 1] || ''}">${i + 1}</span>`).join('');
-    $('.code', sec).style.height = Math.min(Math.max(lines, 8), 32) * 20 + 18 + 'px';
-    g.scrollTop = ta.scrollTop;
-    $('.vlist', sec).innerHTML = `<div class="vhead"><span class="vt">validate</span>${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
-      + issues.map((m) => `<button class="vitem" data-act="y-jump" data-line="${m.line || 0}">${sevChip(m.sev)}<span class="lno">${m.line ? `${m.line} 行` : esc(m.field || '')}</span><span class="msg">${esc(m.text)}</span></button>`).join('');
-    const dirty = y.text !== y.base;
-    const was = new Set(yIssues(key).filter((m) => m.sev === 'err').map((m) => m.text));
-    $('.pf .dirty', sec).textContent = dirty ? '変更あり' : '';
-    $('[data-act=y-save]', sec).disabled = !dirty;
-    $('[data-act=y-revert]', sec).hidden = !dirty;
-    void was;
+  // mountYed hands one file's section to the shared part: the kind is this
+  // screen's own, the part word says which of the definition's two documents the
+  // file is, and the problems the part finds come back so the file nav marks a
+  // file that is wrong.
+  function mountYed(sec) {
+    const f = sec && fileByKey.get(sec.dataset.key);
+    if (!f) return;
+    sec.dataset.hash = f.hash;
+    YAML.mount(sec, {
+      kind: 'team', place: f.place, name: f.name, extra: { part: f.kind },
+      problems: yIssues(f.file),
+      onProblems: (section, probs) => { state.yc[f.file] = probs; },
+      onSaved: (section, answer) => {
+        const json = API.answer(answer);
+        f.hash = json.hash || f.hash;
+        f.text = section.querySelector('.ytext').value;
+        state.ytext[f.file] = f.text;
+        delete state.yc[f.file];
+      },
+    });
   }
   const yamlTabHTML = () => `<div class="ylay">${filesHTML()}${yedHTML()}</div>`;
 
@@ -537,8 +606,9 @@
     if (state.tab === 'list') {
       $$('.panel.team-p', view).forEach(placeCard);
       $$('.panel.agree-p', view).forEach(markPanel);
+      $$('.tdef.open', view).forEach((row) => { const r = byName(row.dataset.name); if (r && dtabOf(r) === 'agree') checkAgree(r); });
     } else {
-      refreshYed();
+      mountYed($('.yed', view));
     }
     setStick();
     tellDirty();
@@ -592,7 +662,7 @@
   function tellDirty() {
     let dirty = false;
     for (const r of recs.values()) if (dirtyDef(r)) dirty = true;
-    for (const f of DATA.files || []) if (state.yaml[f.file] && state.yaml[f.file].text !== state.yaml[f.file].base) dirty = true;
+    for (const f of FILES) if (fileDirty(f.file)) dirty = true;
     if (window.hergyPage) window.hergyPage.dirty = dirty;
   }
 
@@ -616,28 +686,40 @@
   }
   async function checkTeam(r) {
     const id = ++r.req;
-    const res = await post('/teams/check', { definition: r.name, place: r.place, ops: r.ops });
-    if (id !== r.req || !res.ok || !res.json) return;
-    r.findings = res.json.findings || [];
-    r.turnsFindings = res.json.turnsFindings || [];
+    const res = await API.check('team', teamIn(r, { doc: { ops: r.ops } }));
+    if (id !== r.req || !res.ok) return;
+    const json = API.answer(res);
+    r.findings = figFindings(r, json.problems || []);
+    // The saved file's own findings are the save gate's baseline: a save stops
+    // only when an error the file did not hold has appeared (spec-teams X3).
+    if (!r.ops.length) r.baseFindings = r.findings;
     rerenderSides(r);
   }
+  // afterAgree re-marks the panel the check answered for: the shared part reads
+  // the Markdown, the diff and the problems through host.row, so it draws the
+  // answer without this screen rebuilding the panel (spec-boundary 7).
+  const afterAgree = (r) => { const p = $(`.panel.agree-p[data-key="${CSS.escape(dkey(r))}"]`); if (p) markPanel(p); };
   async function checkAgree(r, after) {
     const id = ++r.areq;
     const doc = RD.toDoc(r.agree.draft, r.agree.saved);
-    const res = await post('/teams/agreement/check', { definition: r.name, place: r.place, ops: r.ops, doc });
-    if (id !== r.areq || !res.ok || !res.json) return;
-    r.check = buildCheck(r.agree.draft, res.json);
-    if (after) after();
+    const res = await API.check('team', agreeIn(r, { doc: { ops: r.ops, doc } }));
+    if (id !== r.areq || !res.ok) return;
+    r.check = buildCheck(r.agree.draft, API.answer(res));
+    if (!agreeDiff(r)) r.agree.savedIssues = r.check.issues;
+    (after || afterAgree)(r);
   }
   function scheduleAgree(r, panel) { debounce('a' + r.key, () => syncAgree(r, panel)); }
 
   async function saveTeam(r, panel) {
-    const res = await post('/teams/save', { definition: r.name, place: r.place, ops: r.ops, hash: r.hash });
-    if (!res.ok || !res.json) { showErr(panel, res.json && res.json.text); return; }
-    r.hash = res.json.hash; r.team.saved = cloneTeam(r.team.draft); r.ops = [];
-    r.savedTurns = (res.json.graph && res.json.graph.savedTurns) || [];
-    r.findings = res.json.findings || []; r.turnsFindings = res.json.turnsFindings || [];
+    const res = await API.save('team', r.name, teamIn(r, { hash: r.hash, doc: { ops: r.ops } }));
+    if (!res.ok) { API.refusal(panel, API.problemText(res, '保存できませんでした')); return; }
+    const json = API.answer(res);
+    r.hash = json.hash || r.hash;
+    r.team.saved = cloneTeam(r.team.draft);
+    r.savedTurns = cloneTeam(r.team.draft).turns;
+    r.ops = [];
+    r.baseFindings = r.findings;
+    setProblems(json.items);
     state.ok['t' + dkey(r)] = 1;
     delete state.gsel[dkey(r)];
     rerenderRow(r);
@@ -645,13 +727,19 @@
   }
   async function saveAgree(r, panel) {
     const doc = RD.toDoc(r.agree.draft, r.agree.saved);
-    const res = await post('/teams/agreement/save', { definition: r.name, place: r.place, doc, hash: r.agreeHash });
-    if (!res.ok || !res.json) { showErr(panel, res.json && res.json.text); return; }
-    r.agreeHash = res.json.hash; r.hasAgree = true;
-    if (res.json.doc) { const d2 = RD.fromJSON(res.json.doc); d2.__path = r.agreePath; r.agree.saved = d2; r.agree.draft = clone(d2); }
+    const res = await API.save('team', r.name, agreeIn(r, { hash: r.agreeHash, doc: { ops: r.ops, doc } }));
+    if (!res.ok) { showErr(panel, API.problemText(res, '保存できませんでした')); return; }
+    const json = API.answer(res);
+    r.agreeHash = json.hash || r.agreeHash;
+    r.hasAgree = true;
+    if (json.doc) { const d2 = RD.fromJSON(json.doc); d2.__path = r.agreePath; r.agree.saved = d2; r.agree.draft = clone(d2); }
+    setProblems(json.items);
     state.ok['a' + dkey(r)] = 1;
     rerenderSides(r);
     tellDirty();
+    // The saved text's own problems are the new baseline, and the check the
+    // panel shows is the one it now holds.
+    checkAgree(r);
   }
   function showErr(panel, text) {
     if (!panel) return;
@@ -659,33 +747,29 @@
     if (!el) { el = document.createElement('span'); el.className = 'errline doc'; const pf = $('.pf', panel); if (pf) pf.appendChild(el); }
     if (el) { el.hidden = false; el.textContent = text || '保存できませんでした'; }
   }
-  function yamlCheck(file) {
-    debounce('y' + file, async () => {
-      const y = yState(file);
-      const res = await post('/teams/yaml/check', { file, text: y.text });
-      if (!res.ok || !res.json) return;
-      state.yc[file] = res.json.problems || [];
-      if (state.tab === 'yaml' && state.yfile === file) refreshYed();
-    });
-  }
-  async function yamlSave(file) {
-    const y = yState(file), f = fileByKey.get(file);
-    const res = await post('/teams/yaml/save', { file, text: y.text, hash: f ? f.hash : '' });
-    const yed = $('.yed');
-    if (!res.ok || !res.json) { showErr(yed, res.json && res.json.text); return; }
-    y.base = y.text;
-    if (f) { f.text = y.text; f.hash = res.json.hash; }
-    delete state.yc[file];
-    state.ok['y' + file] = 1;
-    render();
-    yamlCheck(file);
-  }
 
   // ---- URL -------------------------------------------------------------
   function syncURL() {
     const params = new URLSearchParams();
     if (state.tab === 'yaml') { if (state.yfile) params.set('file', state.yfile); }
-    else { const opens = [...state.open]; if (opens.length) params.set('open', opens.join(',')); }
+    else {
+      const opens = [...state.open];
+      if (opens.length) params.set('open', opens.join(','));
+      const agrees = opens.filter((n) => { const r = byName(n); return r && dtabOf(r) === 'agree'; });
+      if (agrees.length) params.set('agree', agrees.join(','));
+      const rules = [];
+      opens.forEach((n) => {
+        const r = byName(n);
+        if (!r) return;
+        RD.state.ropen.forEach((kk) => {
+          const head = `${r.uid}${r.place}:`;
+          if (!kk.startsWith(head)) return;
+          const hit = rulesOf(r.agree.draft).find((x) => x._k === Number(kk.slice(head.length)));
+          if (hit && hit.id) rules.push(`${r.name}.${hit.id}`);
+        });
+      });
+      if (rules.length) params.set('rule', rules.join(','));
+    }
     const path = state.tab === 'yaml' ? '/teams/yaml' : '/teams';
     const q = params.toString();
     history.replaceState({}, '', q ? `${path}?${q}` : path);
@@ -694,21 +778,41 @@
     const p = new URLSearchParams(location.search);
     const open = p.get('open');
     if (open) open.split(',').filter(Boolean).forEach((n) => state.open.add(n));
+    const agree = p.get('agree');
+    if (agree) agree.split(',').filter(Boolean).forEach((n) => { state.dtab[n] = 'agree'; });
+    const rule = p.get('rule');
+    if (rule) rule.split(',').filter(Boolean).forEach((spec) => {
+      const i = spec.indexOf('.');
+      if (i < 0) return;
+      const r = byName(spec.slice(0, i));
+      if (!r) return;
+      const hit = rulesOf(r.agree.draft).find((x) => x.id === spec.slice(i + 1));
+      if (hit) { state.open.add(r.name); state.dtab[r.name] = 'agree'; RD.state.ropen.add(`${r.uid}${r.place}:${hit._k}`); }
+    });
     const file = p.get('file');
     if (file) state.yfile = file;
     if (location.pathname === '/teams/yaml') state.tab = 'yaml';
   }
 
   // ---- 操作 ------------------------------------------------------------
-  function viewOf(json) { return recOf(json); }
   function pushOp(r, op) { r.ops.push(op); }
+  // setProblems takes the counts a save answered with back into the rows, so the
+  // row's 問題/警告 chip is the server's own count again (spec-boundary 5).
+  function setProblems(items) {
+    (items || []).forEach((item) => {
+      const places = item.places || {};
+      const eff = item.effective || (places.project ? 'project' : 'global');
+      const r = recs.get((item.name || '') + '.' + eff);
+      if (r) r.problems = item.problems || {};
+    });
+  }
 
   const state = {
     tab: view.dataset.tab === 'yaml' ? 'yaml' : 'list',
     open: new Set(), dtab: {}, gsel: {}, confirm: {}, effect: {},
-    ok: {}, yfile: null, yaml: {}, yc: {}, pmode: {},
+    ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {},
   };
-  (DATA.defs || []).forEach(viewOf);
+  (LIST.items || []).forEach(defOf);
   readURL();
 
   const ctx = (el) => {
@@ -753,20 +857,23 @@
       case 'turn-del': { const a = b.dataset.a, bb = b.dataset.b; delete state.confirm[`t:${tk}:${a}>${bb}`]; pushOp(td, { kind: 'removeTurn', from: a, to: bb }); syncTeam(td); break; }
       case 'worker-add': pushOp(td, { kind: 'addWorker', from: b.dataset.from, purpose: '', profile: PROFILES[0] || '' }); state.gsel[tk] = { type: 'worker', i: td.team.draft.workers.length }; syncTeam(td); break;
       case 'worker-del': { const pk = `w:${tk}:${b.dataset.i}`; delete state.confirm[pk]; const w = td.team.draft.workers[+b.dataset.i]; if (w) pushOp(td, { kind: 'removeWorker', from: w.from, purpose: w.purpose }); delete state.gsel[tk]; syncTeam(td); break; }
-      case 'vpick': state.gsel[tk] = b.dataset.node ? { type: 'node', id: b.dataset.node } : { type: 'worker', i: +b.dataset.worker }; rerenderTeam(td); break;
+      case 'vpick': if (b.dataset.node) state.gsel[tk] = { type: 'node', id: b.dataset.node }; else if (b.dataset.worker != null) state.gsel[tk] = { type: 'worker', i: +b.dataset.worker }; rerenderTeam(td); break;
       case 't-save': saveTeam(td, tp); break;
       case 't-revert': td.ops = []; delete state.gsel[tk]; state.confirm = {}; syncTeam(td); rerenderRow(td); break;
-      case 'to-yaml': state.tab = 'yaml'; state.yfile = b.dataset.key; render(); window.scrollTo(0, 0); break;
-      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
+      case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
+      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); if (b.dataset.t === 'agree') checkAgree(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
       case 'yfile': state.yfile = b.dataset.file; render(); break;
-      case 'y-jump': { const sec = b.closest('.yed'), ta = $('.ytext', sec), line = +b.dataset.line, lines = ta.value.split('\n'); const start = lines.slice(0, Math.max(0, line - 1)).reduce((s2, x) => s2 + x.length + 1, 0); ta.focus({ preventScroll: true }); ta.setSelectionRange(start, start + ((lines[line - 1] || '').length)); ta.scrollTop = Math.max(0, (line - 4) * 20); break; }
-      case 'y-revert': { const sec = b.closest('.yed'), y = yState(sec.dataset.key); y.text = y.base; delete state.yc[sec.dataset.key]; render(); break; }
-      case 'y-save': yamlSave(b.closest('.yed').dataset.key); break;
+      case 'yaml-jump': YAML.jump(b.closest('.yed'), Number(b.dataset.line)); break;
+      case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; YAML.revert(sec); refreshFileDot(sec.dataset.key); break; }
+      case 'yaml-save': YAML.save(b.closest('.yed')); break;
       case 'save': if (c.d) saveAgree(c.d, c.panel); break;
       case 'revert': if (c.d) { c.d.agree.draft = clone(c.d.agree.saved); checkAgree(c.d, () => re()); re(); } break;
       case 'pmode': if (c.d) { state.pmode[dkey(c.d)] = b.dataset.v; re(`[data-act=pmode][data-v="${b.dataset.v}"]`); } break;
       default: break;
     }
+    // The list's tab, the open rows, the open rule and the chosen file ride in
+    // the address (spec-teams 2 章): a reload comes back to the same place.
+    if (act === 'tab' || act === 'toggle' || act === 'to-yaml' || act === 'yfile' || act === 'dtab') syncURL();
   });
 
   view.addEventListener('change', (e) => {
@@ -783,7 +890,7 @@
 
   view.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.matches('.ytext')) { const sec = t.closest('.yed'); state.yaml[sec.dataset.key].text = t.value; refreshYed(); yamlCheck(sec.dataset.key); return; }
+    if (t.matches('.ytext')) { const sec = t.closest('.yed'); state.ytext[sec.dataset.key] = t.value; YAML.schedule(sec); refreshFileDot(sec.dataset.key); tellDirty(); return; }
     if (t.matches('.in-mission')) {
       const r = byName(t.closest('.tdef').dataset.name);
       const text = t.value.replace(/\n/g, ' ');
@@ -827,7 +934,7 @@
   view.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum, .vitem, [role=button]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Escape' && e.target.closest('.gwrap')) { const p = e.target.closest('.panel'); delete state.gsel[p.dataset.key]; rerenderTeam(byKey(p.dataset.key)); }
-    if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) { e.preventDefault(); e.target.setRangeText('  ', e.target.selectionStart, e.target.selectionEnd, 'end'); e.target.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) { e.preventDefault(); YAML.insertTab(e.target); }
     if (e.key === 'Enter' && e.target.matches('.in-mission, .in-purpose')) e.preventDefault();
   });
 
@@ -864,12 +971,16 @@
     for (const r of recs.values()) if (r.ops.length) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
     const agrees = [];
     for (const r of recs.values()) if (r.agree.saved && agreeDiff(r)) agrees.push({ place: r.place, name: r.name, hash: r.agreeHash, doc: RD.toDoc(r.agree.draft, r.agree.saved) });
-    const files = (DATA.files || []).filter((f) => state.yaml[f.file] && state.yaml[f.file].text !== state.yaml[f.file].base)
-      .map((f) => ({ file: f.file, hash: f.hash, text: state.yaml[f.file].text }));
+    const files = FILES.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.ytext[f.file] }));
     return { teams, agrees, files };
   }
-  window.hergyPage = { screen: 'teams', dirty: false, take };
+  window.hergyPage = { screen: 'teams', dirty: false, take, tellDirty };
 
   render();
   setStick();
+  // Every definition is checked once at open, so the figure's problems and the
+  // node badges are the server's own reading of the saved file, and the
+  // agreement's saved problems are the baseline its save is held to
+  // (spec-teams C2, X3).
+  for (const r of recs.values()) { checkTeam(r); checkAgree(r); }
 })();

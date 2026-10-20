@@ -49,6 +49,38 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   save writes the one line that changed and leaves every other line of the file
   as it was; a move writes the same lines in another order.
 
+### Changed
+
+- **The screens read and write through one boundary**: every screen `hergy serve`
+  serves now answers JSON under `/api/` — `GET /api/{kind}`, `GET
+  /api/{kind}/{name}`, `POST /api/{kind}/check`, `PUT /api/{kind}/{name}` and
+  `DELETE /api/{kind}/{name}`, where `kind` is `profile`, `role` or `team` — with
+  the run's token on the `X-Hergy-Token` header, and draws its rows, cards and
+  YAML sections in the page's own script from one island of JSON, where it used
+  to receive HTML fragments. Nothing a person sees or does changes: the screens
+  look and behave as they did, and `hergy validate` still decides whether the
+  settings hold. The old per-screen endpoints (`/profiles/save`,
+  `/profiles/yaml/check`, `/roles/assign/save` and their pairs) are gone. Every
+  answer carries the shape the boundary's table names: `GET /api/{kind}` answers
+  `items` — each name with its `places` (each place's `doc`, `text`, `hash`,
+  `path` and the problems it holds), its `effective` and `hidden` places, its
+  `summary` (the columns its list shows) and its `problems` counts — and
+  `hashes`; `GET /api/{kind}/{name}` answers `{doc, text, hash, path, effective,
+  hidden}`; a check answers `{problems: [{sev, at, text}], preview?, effect?,
+  readers?}`, with `at` the document's field path or `line` for a file's text; a
+  save answers the document and the list, a delete the list. A screen's island
+  is that same list answer, `api.js` is the one place that reads it — no screen
+  reads an answer's fields itself — and the role screen's YAML tab is drawn by
+  the shared `yamltab.js` part, as the profile screen's already was.
+- **Every screen's YAML tab saves and answers the same way**: which text may be
+  saved, where `保存しました` stands and how tall the box is are the shared
+  `yamltab.js` part's now, not each screen's. A save is stopped only when a
+  problem the written file did not hold has appeared, so a file that already has
+  a problem can still be edited and saved; a text that changed while the page was
+  open is refused with the server's sentence beside the save; `保存しました` is
+  drawn by the part, and the role screen's own copy is gone. The box stands
+  between 6 and 34 lines on every screen.
+
 ### Breaking
 
 - **A rule file no longer writes `style:`**: a section's rules are rendered as
