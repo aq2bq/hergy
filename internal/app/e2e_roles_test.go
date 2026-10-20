@@ -505,8 +505,7 @@ func e2eRolesSaveRule(t *testing.T, ctx context.Context, base string, f *fixture
 	e2eRolesClick(t, ctx, `[...document.querySelectorAll('#rows .role.open .panel .rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()==='BUILD-5'}).querySelector('.rsum')`)
 	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .rule.open .redit [data-f=text]')`)
 	e2eRolesSet(t, ctx, `document.querySelector('#rows .role.open .rule.open .redit [data-f=text]')`, want)
-	e2eRolesWait(t, ctx, `!`+e2eRolesRowJS("builder")+`.querySelector('.pf [data-act=save]').disabled`)
-	e2eRolesClick(t, ctx, e2eRolesRowJS("builder")+`.querySelector('.pf [data-act=save]')`)
+	e2ePressWhenEnabled(t, ctx, e2eRolesRowJS("builder")+`.querySelector('.pf [data-act=save]')`)
 	e2eRolesWait(t, ctx, `!!document.querySelector('#rows .role.open .ok')`)
 	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .ok').textContent`); got != "保存しました" {
 		t.Errorf("the saved line reads %q, want 保存しました", got)
@@ -551,8 +550,7 @@ func e2eRolesSaveNew(t *testing.T, ctx context.Context, base string, f *fixture)
 	e2eRolesSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "e2e-new")
 	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NEW-1")
 	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "新しく足したロールの規則。")
-	e2eRolesWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
-	e2eRolesClick(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2ePressWhenEnabled(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
 	e2eRolesWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
 	added := readFile(t, filepath.Join(projDir, "e2e-new.yaml"))
 	for _, want := range []string{"id: NEW-1", "新しく足したロールの規則。"} {
@@ -574,8 +572,7 @@ func e2eRolesSaveNew(t *testing.T, ctx context.Context, base string, f *fixture)
 	dupPanel := `.panel[data-uid="` + dupUid + `"][data-l=project]`
 	at := func(sel string) string { return `document.querySelector(` + strconv.Quote(dupPanel+" "+sel) + `)` }
 	e2eRolesSet(t, ctx, at("[data-f=name]"), "e2e-dup")
-	e2eRolesWait(t, ctx, `!`+at(".pf [data-act=save]")+`.disabled`)
-	e2eRolesClick(t, ctx, at(".pf [data-act=save]"))
+	e2ePressWhenEnabled(t, ctx, at(".pf [data-act=save]"))
 	e2eRolesWait(t, ctx, `!!`+at(".ok"))
 	if got := readFile(t, filepath.Join(projDir, "e2e-dup.yaml")); got != before {
 		t.Errorf("the duplicate does not keep the original's lines:\n%s", got)
@@ -588,8 +585,7 @@ func e2eRolesSaveNew(t *testing.T, ctx context.Context, base string, f *fixture)
 	e2eRolesClick(t, ctx, at(".pf [data-act=copy]"))
 	glob := `document.querySelector(` + strconv.Quote(`.panel[data-uid="`+dupUid+`"][data-l=global]`) + `)`
 	e2eRolesWait(t, ctx, `!!`+glob)
-	e2eRolesWait(t, ctx, `!`+glob+`.querySelector('.pf [data-act=save]').disabled`)
-	e2eRolesClick(t, ctx, glob+`.querySelector('.pf [data-act=save]')`)
+	e2ePressWhenEnabled(t, ctx, glob+`.querySelector('.pf [data-act=save]')`)
 	e2eRolesWait(t, ctx, `!!`+glob+`.querySelector('.ok')`)
 	if got := readFile(t, filepath.Join(cfgDir, "e2e-dup.yaml")); got != before {
 		t.Errorf("the copy does not keep the original's lines:\n%s", got)
@@ -604,8 +600,7 @@ func e2eRolesSaveNew(t *testing.T, ctx context.Context, base string, f *fixture)
 		return `document.querySelector('#rows .role.open ' + ` + strconv.Quote(bad+" "+sel) + `)`
 	}
 	e2eRolesSet(t, ctx, atBad("[data-f=name]"), "Bad Name")
-	e2eRolesWait(t, ctx, `!`+atBad(".pf [data-act=save]")+`.disabled`)
-	e2eRolesClick(t, ctx, atBad(".pf [data-act=save]"))
+	e2ePressWhenEnabled(t, ctx, atBad(".pf [data-act=save]"))
 	e2eRolesWait(t, ctx, `!`+atBad(".errline.name")+`.hidden`)
 	if got := e2eRolesValue(t, ctx, atBad(".errline.name")+`.textContent`); !strings.Contains(got, "ロール名") {
 		t.Errorf("the refusal under the name field reads %q", got)
@@ -637,7 +632,7 @@ func e2eRolesAssign(t *testing.T, ctx context.Context, base string, f *fixture) 
 	if got := e2eRolesValue(t, ctx, `document.querySelector('.team[data-t=research] .arow[data-m=scout-2] s.was').textContent`); got != "scout" {
 		t.Errorf("the old role reads %q, want scout", got)
 	}
-	e2eRolesClick(t, ctx, `document.querySelector('.team[data-t=research] [data-act=t-save]')`)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('.team[data-t=research] [data-act=t-save]')`)
 	e2eRolesWait(t, ctx, `!!document.querySelector('.team[data-t=research] .ok')`)
 	if got := e2eRolesValue(t, ctx, `document.querySelector('.team[data-t=research] .ok').textContent`); got != "保存しました" {
 		t.Errorf("the card's saved line reads %q", got)
@@ -718,8 +713,7 @@ func e2eRolesYAML(t *testing.T, ctx context.Context, base string, f *fixture) {
 		t.Fatalf("the fixture's lead.yaml no longer holds the title the test changes")
 	}
 	e2eRolesSet(t, ctx, `document.querySelector('.yed .ytext')`, good)
-	e2eRolesWait(t, ctx, `!document.querySelector('[data-act=yaml-save]').disabled`)
-	e2eRolesClick(t, ctx, `document.querySelector('[data-act=yaml-save]')`)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('[data-act=yaml-save]')`)
 	e2eRolesWait(t, ctx, `!!document.querySelector('.yed .ok')`)
 	if got := e2eRolesValue(t, ctx, `document.querySelector('.yed .ok').textContent`); got != "保存しました" {
 		t.Errorf("the YAML save line reads %q", got)
@@ -943,8 +937,7 @@ func e2eRolesNoDoc(t *testing.T, ctx context.Context, base string, f *fixture) {
 	e2eRolesSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "nosuch-2")
 	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NOSUCH-1")
 	e2eRolesSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "文書の無いロールに足した規則。")
-	e2eRolesWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
-	e2eRolesClick(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2ePressWhenEnabled(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
 	e2eRolesWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
 	written := readFile(t, filepath.Join(projDir, "nosuch-2.yaml"))
 	for _, want := range []string{"NOSUCH-1", "文書の無いロールに足した規則。"} {

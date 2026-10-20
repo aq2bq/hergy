@@ -327,8 +327,7 @@ func e2eProfilesSave(t *testing.T, ctx context.Context, base string, f *fixture)
 	e2eRun(t, ctx, chromedp.Click(`[data-act="new"]`))
 	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name=""] [data-f=name]')`)
 	e2eRun(t, ctx, chromedp.SendKeys(`#rows .row[data-name=""] [data-f=name]`, "fresh-one"))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] [data-act=save]').disabled`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] [data-act=save]`))
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .row[data-name="fresh-one"] [data-act=save]')`)
 	e2eProfilesWait(t, ctx, `[...document.querySelectorAll('#rows .row')].some(r=>r.dataset.name==='fresh-one' && !r.querySelector('.tag'))`)
 	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); !strings.Contains(got, "  fresh-one:\n    kind: claude\n") {
 		t.Errorf("the new profile is not in the file:\n%s", got)
@@ -342,8 +341,7 @@ func e2eProfilesSave(t *testing.T, ctx context.Context, base string, f *fixture)
 	if got := e2eProfilesValue(t, ctx, `document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] .bin').textContent`); got != "gemini" {
 		t.Errorf("the args' head reads %q after the kind change", got)
 	}
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]').disabled`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]`))
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]')`)
 	e2eProfilesFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "  fresh-one:\n    kind: gemini\n")
 
 	// R5: a rename moves the name in the URL's open= too.
@@ -351,8 +349,7 @@ func e2eProfilesSave(t *testing.T, ctx context.Context, base string, f *fixture)
 		var input=document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-f=name]');
 		input.value='fresh-two'; input.dispatchEvent(new Event('input',{bubbles:true}));
 	})()`, nil))
-	e2eProfilesWait(t, ctx, `!document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]').disabled`)
-	e2eRun(t, ctx, chromedp.Click(`#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]`))
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .row[data-name="fresh-one"] .panel[data-file=project] [data-act=save]')`)
 	e2eProfilesWait(t, ctx, `!!document.querySelector('#rows .row[data-name="fresh-two"]')`)
 	if got := e2eProfilesValue(t, ctx, `window.location.search`); !strings.Contains(got, "open=fresh-two") || strings.Contains(got, "fresh-one") {
 		t.Errorf("the URL after the rename reads %q", got)

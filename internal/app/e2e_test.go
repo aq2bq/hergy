@@ -568,8 +568,7 @@ func e2eNavNumbers(t *testing.T, ctx context.Context, base string) {
 	e2eNavSet(t, ctx, panel+`.querySelector('[data-f=name]')`, "nav-new")
 	e2eNavSet(t, ctx, panel+`.querySelector('.rule.open [data-f=id]')`, "NAV-1")
 	e2eNavSet(t, ctx, panel+`.querySelector('.rule.open [data-f=text]')`, "帯の数のために足した規則。")
-	e2eNavWait(t, ctx, `!`+panel+`.querySelector('.pf [data-act=save]').disabled`)
-	e2eNavPress(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
+	e2ePressWhenEnabled(t, ctx, panel+`.querySelector('.pf [data-act=save]')`)
 	e2eNavWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
 	if n := e2eNavText(t, ctx, band); n != "7" {
 		t.Errorf("after a save the band counts %s roles, want 7", n)
@@ -587,8 +586,7 @@ func e2eNavNumbers(t *testing.T, ctx context.Context, base string) {
 	}
 	e2eNavClick(t, ctx, `[data-act=new]`)
 	e2eNavSet(t, ctx, `document.querySelector('#rows .row[data-name=""] [data-f=name]')`, "nav-count")
-	e2eNavWait(t, ctx, `!document.querySelector('#rows .row[data-name="nav-count"] [data-act=save]').disabled`)
-	e2eNavClick(t, ctx, `#rows .row[data-name="nav-count"] [data-act=save]`)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('#rows .row[data-name="nav-count"] [data-act=save]')`)
 	e2eNavWait(t, ctx, `!!document.querySelector('#rows .row[data-name="nav-count"] .ok')`)
 	if n := e2eNavText(t, ctx, bandP); n != "12" {
 		t.Errorf("after a save the band counts %s profiles, want 12", n)
@@ -663,11 +661,27 @@ func e2eNavClick(t *testing.T, ctx context.Context, selector string) {
 	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
 }
 
-// e2eNavPress presses the element one expression stands for.
-func e2eNavPress(t *testing.T, ctx context.Context, find string) {
+// e2ePressWhenEnabled presses the button one expression stands for, and waits
+// for the screen to open it. A press on a button the screen has shut is no
+// press at all — the click() of a disabled form control returns without
+// dispatching (HTML) — and the screen writes a save's shut state from the
+// check's answer, which lands after the fields were written (roles 1.2.9), so a
+// reading taken one round trip before the press can be the answer for the text
+// before the typing. Reading and pressing are one act here, and are tried again
+// until the screen takes it (r-3c41).
+func e2ePressWhenEnabled(t *testing.T, ctx context.Context, find string) {
 	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.click();})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}if(el.disabled){return true;}el.click();return false;})()`
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		var shut bool
+		e2eRun(t, ctx, chromedp.Evaluate(script, &shut))
+		if !shut {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("never became pressable: %s", find)
 }
 
 // e2eNavSet writes one field's value and fires the input event a person's
