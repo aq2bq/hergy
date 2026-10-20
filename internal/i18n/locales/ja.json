@@ -141,6 +141,7 @@
   "error.tell_needs_body": "hergy tell には <メンバー> と \"<本文>\" を指定してください",
   "error.nudge_busy": "%s はいま %q です。idle か done のときだけ送れます",
   "error.stop_self": "%s はこのペインで動いています。自分自身は止められないので、別のペインから実行するか、人間が実行してください",
+  "error.stop_not_stopped": "esc を 2 回送っても %s は作業中のままです。ターンは終わっていません",
   "error.tell_from_unknown": "--from の %s は、このチームのメンバーではありません",
   "status.blocked_suffix": "（許可待ち）",
   "status.unchanged": "作業中（%d 分変化なし）",

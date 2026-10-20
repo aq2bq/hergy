@@ -1449,6 +1449,12 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	stopped, err := newLauncher(r, opts.Timeout, stdout).Stop(member, os.Getenv("HERDR_PANE_ID"))
 	if err != nil {
+		// esc twice did not end the turn. The next step is the same one a stop
+		// that worked names: the member has to be started again.
+		var notStopped launcher.StopNotStopped
+		if errors.As(err, &notStopped) {
+			printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
+		}
 		return err
 	}
 	if stopped {

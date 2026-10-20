@@ -16,11 +16,19 @@ import (
 // answer from it. Every call is recorded in <cfg>/herdr.log, and every prompt in
 // <cfg>/prompts.txt as "<target>\t<text>" with newlines turned to spaces, so a
 // test can read the body a member was handed.
+//
+// agent send-keys counts the escs sent to each member in <cfg>/esc.txt and, when
+// a test wrote a stop plan, moves the member to the state that plan gives after
+// that count (<cfg>/stop-plan.txt, one "<herdr name> <esc count> <status>" line
+// per step). That is how the fake herdr stands for a harness that stops on the
+// first esc, one that stops on the second, and one that never stops.
 func (f *fixture) controlHerdr(t *testing.T, agents string) (logPath, promptsPath string) {
 	t.Helper()
 	status := filepath.Join(f.cfg, "status.txt")
 	logPath = filepath.Join(f.cfg, "herdr.log")
 	promptsPath = filepath.Join(f.cfg, "prompts.txt")
+	esc := filepath.Join(f.cfg, "esc.txt")
+	plan := filepath.Join(f.cfg, "stop-plan.txt")
 	if err := os.WriteFile(status, []byte(agents), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -28,6 +36,8 @@ func (f *fixture) controlHerdr(t *testing.T, agents string) (logPath, promptsPat
 status='` + status + `'
 log='` + logPath + `'
 prompts='` + promptsPath + `'
+esc='` + esc + `'
+plan='` + plan + `'
 printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
@@ -72,12 +82,54 @@ case "$g $s" in
     echo '{"result":{}}'
     ;;
   "agent focus")     echo '{"result":{}}' ;;
-  "agent send-keys") echo '{"result":{}}' ;;
+  "agent send-keys")
+    name="$3"
+    case "$3" in p-*) name="${3#p-}" ;; esac
+    n=0
+    if [ -f "$esc" ]; then n=$(cat "$esc"); fi
+    n=$((n+1))
+    printf '%s' "$n" > "$esc"
+    if [ -f "$plan" ]; then
+      new=$(awk -v n="$n" -v nm="$name" '$1==nm && $2==n {print $3}' "$plan")
+      if [ -n "$new" ]; then
+        awk -v nm="$name" -v st="$new" '{ if ($1==nm) $2=st; print }' "$status" > "$status.new"
+        mv "$status.new" "$status"
+      fi
+    fi
+    echo '{"result":{}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
 	f.herdr(t, script)
 	return logPath, promptsPath
+}
+
+// stopPlan tells the fake herdr when each esc ends a member's turn: one
+// "<herdr name> <esc count> <status>" line per step. A plan with no line for a
+// member leaves it working through every esc.
+func (f *fixture) stopPlan(t *testing.T, plan string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(f.cfg, "stop-plan.txt"), []byte(plan), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// logCallCount is how many times the fake herdr recorded a call whose first two
+// words are group and sub.
+func logCallCount(t *testing.T, path, group, sub string) int {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == group && fields[1] == sub {
+			n++
+		}
+	}
+	return n
 }
 
 // mustFail runs a command that is expected to exit non-zero and returns what a
@@ -180,12 +232,15 @@ func TestNudgeTakesTheBodyAndThePaneItWasTypedIn(t *testing.T) {
 	}
 }
 
-// TestStopSendsEscToAWorkingMember: stop ends a working member's turn and names
-// refresh as the next step; a member that is not working is left alone.
-func TestStopSendsEscToAWorkingMember(t *testing.T) {
+// TestStopSendsEscOnceToAHarnessThatStopsAtOnce: stop ends a working member's
+// turn with one esc and names refresh as the next step; a harness that stops on
+// the first esc is never sent a second, because on some harnesses the second esc
+// does something else. A member that is not working is left alone.
+func TestStopSendsEscOnceToAHarnessThatStopsAtOnce(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	logPath, _ := f.controlHerdr(t, "demo-lead working p1 screen-lead\ndemo-builder idle p2 screen-builder\n")
+	f.stopPlan(t, "demo-lead 1 idle\n")
 
 	got := mustRun(t, "stop", "lead")
 	for _, line := range []string{"stopped demo-lead\n", "next: refresh demo-lead --team demo\n"} {
@@ -195,6 +250,9 @@ func TestStopSendsEscToAWorkingMember(t *testing.T) {
 	}
 	if !logHasCall(t, logPath, "agent", "send-keys") {
 		t.Fatalf("stop did not call agent send-keys:\n%s", readFile(t, logPath))
+	}
+	if n := logCallCount(t, logPath, "agent", "send-keys"); n != 1 {
+		t.Fatalf("stop sent esc %d times to a member that stopped at once, want 1:\n%s", n, readFile(t, logPath))
 	}
 
 	before := readFile(t, logPath)
@@ -207,6 +265,49 @@ func TestStopSendsEscToAWorkingMember(t *testing.T) {
 	}
 	if !strings.Contains(before, "send-keys demo-lead") {
 		t.Fatalf("stop of a working member did not send esc:\n%s", before)
+	}
+}
+
+// TestStopSendsASecondEscWhenTheMemberKeepsWorking: a harness whose first esc
+// only asks it to interrupt (opencode) is sent a second esc, and the stop is
+// reported as done, with refresh still the next step.
+func TestStopSendsASecondEscWhenTheMemberKeepsWorking(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	logPath, _ := f.controlHerdr(t, "demo-lead working p1 screen-lead\n")
+	f.stopPlan(t, "demo-lead 2 idle\n")
+
+	got := mustRun(t, "stop", "lead")
+	for _, line := range []string{"stopped demo-lead\n", "next: refresh demo-lead --team demo\n"} {
+		if !strings.Contains(got, line) {
+			t.Fatalf("stop is missing %q:\n%s", line, got)
+		}
+	}
+	if n := logCallCount(t, logPath, "agent", "send-keys"); n != 2 {
+		t.Fatalf("stop sent esc %d times to a member that needed two, want 2:\n%s", n, readFile(t, logPath))
+	}
+}
+
+// TestStopSaysWhenTwoEscsDidNotStop: a member that keeps working through both
+// escs is reported as not stopped, the command fails, and refresh is named as
+// the next step, because starting the member again is what is left to do.
+func TestStopSaysWhenTwoEscsDidNotStop(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	logPath, _ := f.controlHerdr(t, "demo-lead working p1 screen-lead\n")
+
+	stdout, stderr := mustFail(t, "stop", "lead")
+	if !strings.Contains(stderr, "demo-lead") {
+		t.Fatalf("stop of a member that did not stop does not name it:\n%s", stderr)
+	}
+	if !strings.Contains(stdout, "next: refresh demo-lead --team demo\n") {
+		t.Fatalf("stop that did not stop does not name refresh:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "stopped demo-lead") {
+		t.Fatalf("stop of a member that did not stop says it stopped:\n%s", stdout)
+	}
+	if n := logCallCount(t, logPath, "agent", "send-keys"); n != 2 {
+		t.Fatalf("stop sent esc %d times, want 2 before it gives up:\n%s", n, readFile(t, logPath))
 	}
 }
 

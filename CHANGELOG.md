@@ -51,6 +51,17 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Changed
 
+- **`hergy stop` sends esc a second time when the member keeps working**: some
+  agents need two escs — the first only asks them to interrupt and they carry on
+  (opencode answers `esc interrupt`) — so `hergy stop` watches the member's state
+  for a few seconds after each esc and sends a second esc only while the member
+  is still working. An agent that stops on the first esc is never sent a second,
+  because on some harnesses the second esc does something else. A member still
+  working after two escs is reported as not stopped (exit 1), where it used to be
+  reported as stopped, and `hergy refresh <member>` is named as the next step,
+  the same step a stop that worked names. hergy carries no rule per harness. The
+  wording of `hergy stop --help`, `hergy cheat --ai` and the `hergy` skill moves
+  with it.
 - **The screens read and write through one boundary**: every screen `hergy serve`
   serves now answers JSON under `/api/` — `GET /api/{kind}`, `GET
   /api/{kind}/{name}`, `POST /api/{kind}/check`, `PUT /api/{kind}/{name}` and

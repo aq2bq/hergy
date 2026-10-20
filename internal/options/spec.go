@@ -210,8 +210,8 @@ var specs = []Spec{
 		Kind: Stop, Name: "stop",
 		Summary: text("Interrupt a member's current turn", "メンバーの今のターンを止める"),
 		Detail: text(
-			"Send esc to a working member, ending its current turn and keeping its conversation.\nAn idle or done member is left alone, and the command still succeeds.",
-			"作業中のメンバーに esc を送り、今のターンを終わらせる。会話は残る。\n待機中（idle か done）のメンバーには何もしないが、コマンドは成功する。"),
+			"Send esc to a working member, ending its current turn and keeping its conversation.\nAn idle or done member is left alone, and the command still succeeds.\nSome agents need esc twice: the first only asks them to interrupt. hergy watches the member's\nstate after each esc and sends a second esc only while the member is still working, so an agent\nthat stops on the first is never sent a second. A member still working after two escs is reported\nas not stopped (exit 1), and refresh is named as the next step.",
+			"作業中のメンバーに esc を送り、今のターンを終わらせる。会話は残る。\n待機中（idle か done）のメンバーには何もしないが、コマンドは成功する。\nesc を 2 回必要とするエージェントがある（1 回目の esc では止まらない）。hergy は esc を\n送るたびにメンバーの状態を見て、作業中のままならもう 1 回送る。1 回で止まったエージェントには\n2 回目を送らない。2 回送っても作業中のままなら、止まらなかったと言って失敗し（exit 1）、\nrefresh を next に出す。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"),
 			Desc: text(
