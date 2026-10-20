@@ -172,7 +172,7 @@ func e2eNavAddress(t *testing.T, base string) {
 		"/definitions/core/turns/lead/analyst", "/definitions/core/agreement",
 		"/definitions/core/agreement/new", "/definitions/core/agreement/TEAM-1",
 		"/activity", "/activity/core", "/agreement", "/agreement/new", "/agreement/SHARED-1",
-		"/teams", "/running", "/team", "/team?name=core",
+		"/running", "/team", "/team?name=core",
 		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
 	}
 	for _, path := range gone {
@@ -225,7 +225,7 @@ func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 
 	got := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
 		return [e.textContent.replace(/\s+/g,''), e.tagName, e.getAttribute('aria-current')||'', e.getAttribute('aria-disabled')||''];}))`)
-	want := `[["活動","SPAN","","true"],["チーム定義6","SPAN","","true"],["プロファイル11","SPAN","page",""],["ロール6","A","",""]]`
+	want := `[["活動","SPAN","","true"],["チーム定義6","A","",""],["プロファイル11","SPAN","page",""],["ロール6","A","",""]]`
 	if got != want {
 		t.Errorf("the band on /profiles reads\n%s\nwant\n%s", got, want)
 	}
@@ -265,7 +265,7 @@ func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 	e2eNavWait(t, ctx, `!!document.querySelector('#rows .role.open .panel')`)
 	roles := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
 		return [e.textContent.replace(/\s+/g,''), e.tagName];}))`)
-	wantRoles := `[["活動","SPAN"],["チーム定義6","SPAN"],["プロファイル11","A"],["ロール6","SPAN"]]`
+	wantRoles := `[["活動","SPAN"],["チーム定義6","A"],["プロファイル11","A"],["ロール6","SPAN"]]`
 	if roles != wantRoles {
 		t.Errorf("the band on /roles reads\n%s\nwant\n%s", roles, wantRoles)
 	}
@@ -301,14 +301,14 @@ func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 		t.Errorf("the screen the person is on is a %s, want a span", tag)
 	}
 
-	// N2: the two screens that are not built yet are not links, they do not
-	// offer a finger, and pressing one changes nothing.
+	// N2: the screen that is not built yet is not a link, it does not offer a
+	// finger, and pressing it changes nothing.
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
 	e2eNavWait(t, ctx, `!!document.querySelector('.scr.soon')`)
-	if n := e2eNavInt(t, ctx, `document.querySelectorAll('.scr.soon').length`); n != 2 {
-		t.Errorf("the band shows %d screens struck through, want 2", n)
+	if n := e2eNavInt(t, ctx, `document.querySelectorAll('.scr.soon').length`); n != 1 {
+		t.Errorf("the band shows %d screens struck through, want 1", n)
 	}
-	for _, name := range []string{"活動", "チーム定義"} {
+	for _, name := range []string{"活動"} {
 		script := `(function(){var el=[...document.querySelectorAll('.scr.soon')].find(function(e){return e.textContent.indexOf(` + strconv.Quote(name) + `)===0;});return [el.tagName, getComputedStyle(el).cursor, el.hasAttribute('href')];})()`
 		got := e2eNavText(t, ctx, `JSON.stringify(`+script+`)`)
 		if got != `["SPAN","default",false]` {

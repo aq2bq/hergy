@@ -1,0 +1,20 @@
+version: 1
+title: docs チームの約束
+revision: 4
+sections:
+  - heading: 書き方
+    rules:
+      - id: GDOC-1
+        text: 文書の冒頭に、読み手と、読み終えたあとにできるようになることを書く。
+      - id: GDOC-2
+        text: 手順は番号つきで書き、1 つの番号に 1 つの操作だけを書く。
+        origin:
+          - kind: instruction
+            date: "2026-07-14"
+            refs: [d-2210]
+      - id: GDOC-3
+        text: 画面の文字とコマンドの出力は、実際に出したものから写す。
+      - id: GDOC-4
+        text: 用語は、そのプロジェクトの用語集に合わせる。
+      - id: GDOC-5
+        text: 公開する前に、書いた人以外が 1 回読み通す。

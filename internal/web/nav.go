@@ -10,8 +10,8 @@ import (
 
 // navData is the band every screen hangs at the top (spec-nav.md 1.1): where
 // the person is, which project this is, and the three counts. Current is the
-// screen the page is ("profiles" or "roles"), or empty for a page that is no
-// screen, which marks none of them.
+// screen the page is ("profiles", "roles" or "teams"), or empty for a page that
+// is no screen, which marks none of them.
 type navData struct {
 	Current  string
 	Project  string

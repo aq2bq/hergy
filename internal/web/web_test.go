@@ -184,7 +184,7 @@ func TestRootGoesToTheProfileScreen(t *testing.T) {
 
 // TestTheBandNamesTheFourScreensAndCountsThem: the band stands on both screens
 // with the four names, the three numbers, one screen marked as where the person
-// is and the two not built yet struck through (spec-nav.md 1.1, 1.2).
+// is and the one not built yet struck through (spec-nav.md 1.1, 1.2).
 func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
@@ -194,7 +194,7 @@ func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 		`aria-label="画面"`,
 		`<a class="mark" href="/">hergy</a>`,
 		`<span class="scr soon" aria-disabled="true">活動</span>`,
-		`<span class="scr soon" aria-disabled="true">チーム定義<span class="n">1</span></span>`,
+		`<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">1</span></a>`,
 		`<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">2</span></span>`,
 		`<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">2</span></a>`,
 		`<a class="tab on" href="/profiles" aria-current="page">一覧</a>`,
@@ -261,7 +261,7 @@ func TestTheRemovedScreensAreNotFound(t *testing.T) {
 		"/definitions/demo/turns/lead/builder", "/definitions/demo/agreement",
 		"/definitions/demo/agreement/new", "/definitions/demo/agreement/TEAM-1",
 		"/activity", "/activity/demo", "/agreement", "/agreement/new", "/agreement/SHARED-1",
-		"/teams", "/running", "/team", "/team?name=demo",
+		"/running", "/team", "/team?name=demo",
 		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
 	}
 	for _, path := range gone {

@@ -1,0 +1,875 @@
+// teams-v2.js — チーム定義の画面（r-0f8c, spec-teams）。一覧の行はその場で開き、
+// 「チームの姿」（team.yaml を点と線で見て直す）と「チームの約束」（ロールの画面と
+// 同じ共有の部品で agreement.yaml を直す）の 2 つのタブを持つ。YAML のタブは
+// 両方の置き場所の team.yaml と agreement.yaml を文字で見せる。
+//
+// 見た目と図の置き方はモック（mock-teams.html 版 6.1）が正。図の配置 layout() と
+// 札の置き場所 placeCard() はそこから逐語で写した。検査の文はすべてサーバ
+// （check.Team / check.Agreement）が作るので、この画面は文を作らない。
+(() => {
+  'use strict';
+
+  const view = document.getElementById('view');
+  if (!view) return;
+  const DATA = JSON.parse(document.getElementById('teams-data').textContent);
+  const TOKEN = view.dataset.token || '';
+  const RD = window.hergyRuleDoc;
+  const PLACES = ['project', 'global'];
+  const PLACE = DATA.places || { project: 'プロジェクト', global: '共通' };
+  const DIR = DATA.dirs || { project: '', global: '' };
+  const PROFILES = DATA.profiles || [];
+
+  const $ = (s, root = document) => root.querySelector(s);
+  const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
+  const esc = RD.esc;
+  const num = RD.num;
+  const clone = RD.clone;
+  const rulesOf = RD.rulesOf;
+  const outNote = RD.outNote;
+  const outCount = RD.outCount;
+  const sevChip = RD.sevChip;
+  const vmItem = RD.vmItem;
+  const counts = RD.counts;
+  const badge = RD.badge;
+
+  const dkey = (d) => d.name + '.' + d.place;
+  const pairKey = (a, b) => [a, b].sort().join('|');
+  const other = (p) => (p === 'project' ? 'global' : 'project');
+  const herdr = (d, n) => d.name + '-' + n;
+  const nodeName = (x) => (x === 'human' ? '人間' : x);
+  const same = (a, b) => a && b && a.from === b.from && a.purpose === b.purpose && a.profile === b.profile;
+  const hasTurn = (t, a, b) => (t.turns || []).some(([p, q]) => p === a && q === b);
+  const memberOf = (t, n) => (t.members || []).find((m) => m.name === n);
+
+  // ---- サーバとのやり取り ---------------------------------------------
+  async function post(path, payload) {
+    const form = new FormData();
+    form.set('token', TOKEN);
+    form.set('payload', JSON.stringify(payload));
+    let res;
+    try { res = await fetch(path, { method: 'POST', body: form }); } catch (e) { return { ok: false, json: null }; }
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) { json = null; }
+    return { ok: res.ok, json };
+  }
+  const timers = {};
+  const debounce = (k, fn, ms = 260) => { clearTimeout(timers[k]); timers[k] = setTimeout(fn, ms); };
+
+  // ---- 下書き（姿） ----------------------------------------------------
+  const cloneTeam = (t) => ({
+    mission: (t && t.mission) || '',
+    members: ((t && t.members) || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
+    workers: ((t && t.workers) || []).map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })),
+    turns: ((t && t.turns) || []).map(([a, b]) => [a, b]),
+  });
+  function applyOps(saved, ops) {
+    const t = cloneTeam(saved);
+    for (const op of ops) {
+      switch (op.kind) {
+        case 'mission': t.mission = op.text; break;
+        case 'addTurn': if (!hasTurn(t, op.from, op.to)) t.turns.push([op.from, op.to]); break;
+        case 'removeTurn': t.turns = t.turns.filter(([a, b]) => !(a === op.from && b === op.to)); break;
+        case 'addWorker': t.workers.push({ from: op.from, purpose: op.purpose, profile: op.profile }); break;
+        case 'removeWorker': t.workers = t.workers.filter((w) => !(w.from === op.from && w.purpose === op.purpose)); break;
+        case 'workerProfile': { const w = t.workers.find((w) => w.from === op.from && w.purpose === op.purpose); if (w) w.profile = op.profile; break; }
+        case 'workerPurpose': { const w = t.workers.find((w) => w.from === op.from && w.purpose === op.old); if (w) w.purpose = op.new; break; }
+        case 'memberRole': { const m = t.members.find((m) => m.name === op.member); if (m) m.role = op.role; break; }
+        case 'memberProfile': { const m = t.members.find((m) => m.name === op.member); if (m) m.profile = op.profile; break; }
+        default: break;
+      }
+    }
+    return t;
+  }
+
+  const turnLabel = (d, t, b) => (b === 'human'
+    ? '人間（ターンを渡したら、止まって人の答えを待つ）'
+    : `${herdr(d, b)}（ロール ${(memberOf(t, b) || {}).role || '?'}）`);
+
+  // ---- 記録（1 定義ごと） ---------------------------------------------
+  const recs = new Map();
+  let uids = 0;
+  function recOf(json) {
+    const k = json.name + '.' + json.place;
+    let r = recs.get(k);
+    if (r) return r;
+    let doc = null;
+    if (json.agree) {
+      doc = RD.fromJSON(json.agree);
+      doc.__path = json.agreePath;
+    }
+    r = {
+      name: json.name, place: json.place, places: json.places || [], key: k,
+      teamPath: json.teamPath, agreePath: json.agreePath,
+      hash: json.hash || '', agreeHash: json.agreeHash || '', hasAgree: !!json.hasAgree, broken: !!json.broken,
+      hidden: json.hidden || [], ins: json.prompt || { turns: {}, workers: {} },
+      ops: [], uid: ++uids,
+      team: { saved: cloneTeam(json.team), draft: cloneTeam(json.team) },
+      agree: {
+        saved: doc,
+        draft: doc ? clone(doc) : RD.fromJSON({ name: '', title: json.name + ' チームの約束', revision: 1, sections: [] }),
+      },
+      savedTurns: (json.savedTurns || []).map(([a, b]) => [a, b]),
+      findings: json.findings || [], turnsFindings: json.turnsFindings || [],
+      report: json.agreeReport || null, check: null, req: 0, areq: 0,
+    };
+    if (r.report) r.check = buildCheck(r.agree.draft, r.report);
+    recs.set(k, r);
+    return r;
+  }
+  const byKey = (k) => recs.get(k);
+  const byName = (n) => [...recs.values()].find((r) => r.name === n);
+  const live = (n) => byName(n);
+
+  function ruleKeyAt(doc, si, ri) {
+    const s = doc && doc.sections[si];
+    if (!s) return 0;
+    const x = s.rules[ri];
+    return x ? x._k : 0;
+  }
+  const convProblems = (doc, list) => (list || []).map((p) => ({
+    sev: p.sev, k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
+    f: p.field || '', msg: p.text || '', definition: p.definition || '',
+  }));
+  const buildCheck = (doc, report) => ({
+    issues: convProblems(doc, report.problems || []),
+    markdown: report.markdown || { lines: [], chars: 0 },
+    diff: report.diff || { added: [], removedBefore: [], removedAtEnd: false },
+    turns: report.turns || [], readers: report.readers || [],
+  });
+  const agreeIssues = (r) => (r.check ? r.check.issues : []);
+  const agreeDiff = (r) => RD.diffCount(r.agree);
+  const teamIssues = (r) => r.findings;
+  const dirtyDef = (r) => r.ops.length > 0 || (r.agree.saved ? agreeDiff(r) > 0 : false);
+
+  // ---- 姿：図の配置（モック 1.4.2 から逐語） ---------------------------
+  const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.5 : 7.4), 0);
+  const narrow = () => window.innerWidth <= 760;
+  function layout(t) {
+    const nodes = [{ id: 'human', kind: 'human', w: 72, h: 36 }, ...t.members.map((m) => ({ id: m.name, kind: 'member', role: m.role, w: Math.max(textW(m.name, true), textW(m.role)) + 30, h: 48 }))];
+    const n = nodes.length, R = n <= 3 ? 140 : 112 + n * 14, thin = narrow();
+    const rx = thin ? (n <= 3 ? 95 : 105) : R, ry = thin ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
+    nodes.forEach((nd, i) => { const th = (-90 + i * 360 / n) * Math.PI / 180; nd.th = th; nd.x = rx * Math.cos(th); nd.y = ry * Math.sin(th); });
+    const wn = [];
+    t.members.forEach((m) => {
+      const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === m.name);
+      const host = nodes.find((x) => x.id === m.name), k = ws.length;
+      ws.forEach(({ w, i }, j) => {
+        const label = w.purpose || '（目的）', ww = Math.max(textW(label), textW(w.profile, true) * 0.92) + 24;
+        let x, y;
+        if (thin) {
+          const dir = host.y <= 0 ? -1 : 1;
+          x = host.x + Math.sign(host.x || 1) * (18 + Math.abs(host.y) * 0.08); y = host.y + dir * (host.h / 2 + 34 + j * 46);
+        } else {
+          const k2 = Math.max(k, 1), spread = Math.min(0.42, 1.6 / k2), th = host.th + (j - (k2 - 1) / 2) * spread, r2 = 98 + (k2 > 3 ? (j % 2) * 34 : 0);
+          x = host.x + r2 * Math.cos(th) * 1.15; y = host.y + r2 * Math.sin(th);
+        }
+        wn.push({ id: 'w' + i, kind: 'worker', wi: i, from: m.name, w: ww, h: 38, x, y, label, prof: w.profile });
+      });
+    });
+    const all = [...nodes, ...wn];
+    const xs = all.flatMap((z) => [z.x - z.w / 2, z.x + z.w / 2]), ys = all.flatMap((z) => [z.y - z.h / 2, z.y + z.h / 2]);
+    const pad = 28;
+    const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad, minY = Math.min(...ys) - pad - 10, maxY = Math.max(...ys) + pad;
+    return { nodes, wn, all, byId: Object.fromEntries(all.map((z) => [z.id, z])), vb: [minX, minY, maxX - minX, maxY - minY] };
+  }
+  function edgePt(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+    const t = Math.min((a.w / 2 + 3) / Math.abs(ux || 1e-9), (a.h / 2 + 3) / Math.abs(uy || 1e-9));
+    return { x: a.x + ux * t, y: a.y + uy * t };
+  }
+  function bdg(m, z) {
+    const label = m.sev === 'err' ? '問題' : '警告', w = 34;
+    return `<g class="bdg ${m.sev}" transform="translate(${(z.w / 2 - w / 2 - 2).toFixed(1)},${(-z.h / 2 - 6).toFixed(1)})"><rect x="${-w / 2}" y="-9" width="${w}" height="17" rx="3"></rect><text x="0" y="4" text-anchor="middle">${label}</text></g>`;
+  }
+
+  function graphSVG(r) {
+    const t = r.team.draft, s = r.team.saved, L = layout(t), sel = state.gsel[dkey(r)] || null, issues = teamIssues(r);
+    const byId = L.byId;
+    const pk = new Map();
+    const touch = (a, b, which) => { const k = pairKey(a, b); if (!pk.has(k)) { const [x, y] = k.split('|'); pk.set(k, { a: x, b: y, d: {}, s: {} }); } pk.get(k)[which][a + '>' + b] = true; };
+    t.turns.forEach(([a, b]) => touch(a, b, 'd'));
+    s.turns.forEach(([a, b]) => { if (byId[a] && byId[b]) touch(a, b, 's'); });
+    const selKey = sel && sel.type === 'edge' ? sel.k : null;
+    const focusNode = sel && sel.type === 'node' ? sel.id : null;
+    const edges = [...pk.values()].map((p) => {
+      const A = byId[p.a], Bn = byId[p.b];
+      if (!A || !Bn) return '';
+      const ab = p.a + '>' + p.b, ba = p.b + '>' + p.a;
+      const now = [p.d[ab], p.d[ba]], was = [p.s[ab], p.s[ba]];
+      const gone = !now[0] && !now[1];
+      const added = !gone && ((now[0] && !was[0]) || (now[1] && !was[1]));
+      const k = p.a + '|' + p.b, isSel = selKey === k;
+      const dim = focusNode && p.a !== focusNode && p.b !== focusNode;
+      const p1 = edgePt(A, Bn), p2 = edgePt(Bn, A);
+      const mk = isSel ? 'a' : added || gone ? 'c' : 'n';
+      const start = (gone ? was[1] : now[1]) ? `marker-start="url(#ar-${mk})"` : '', end = (gone ? was[0] : now[0]) ? `marker-end="url(#ar-${mk})"` : '';
+      const dd = `M${p1.x.toFixed(1)},${p1.y.toFixed(1)} L${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+      return `<g><path class="hit" d="${dd}" data-act="edge" data-k="${k}" tabindex="0" role="button" aria-label="${nodeName(p.a)} と ${nodeName(p.b)} のターン"></path><path class="ge ${isSel ? 'sel' : ''} ${added ? 'add' : ''} ${gone ? 'gone' : ''} ${dim ? 'dim' : ''}" d="${dd}" ${start} ${end}></path></g>`;
+    }).join('');
+    const wedges = L.wn.map((w) => {
+      const host = byId[w.from], p1 = edgePt(host, w), p2 = edgePt(w, host);
+      const dim = focusNode && w.from !== focusNode;
+      return `<path class="ge wk ${dim ? 'dim' : ''}" d="M${p1.x.toFixed(1)},${p1.y.toFixed(1)} L${p2.x.toFixed(1)},${p2.y.toFixed(1)}"></path>`;
+    }).join('');
+    const nodes = L.nodes.map((z) => {
+      const is = issues.filter((m) => m.node === z.id), err = is.some((m) => m.sev === 'err');
+      const dim = focusNode && focusNode !== z.id && !hasTurn(t, focusNode, z.id) && !hasTurn(t, z.id, focusNode);
+      const label = z.kind === 'human' ? '<text class="nm" x="0" y="5" text-anchor="middle">人間</text>'
+        : `<text class="nm" x="0" y="-3" text-anchor="middle">${esc(z.id)}</text><text class="rl" x="0" y="14" text-anchor="middle">${esc(z.role)}</text>`;
+      return `<g class="gn ${z.kind} ${focusNode === z.id ? 'sel' : ''} ${err ? 'err' : ''} ${dim ? 'dim' : ''}" transform="translate(${z.x.toFixed(1)},${z.y.toFixed(1)})" data-act="node" data-id="${esc(z.id)}" tabindex="0" role="button" aria-label="${esc(nodeName(z.id))}">
+      <rect class="box" x="${-z.w / 2}" y="${-z.h / 2}" width="${z.w}" height="${z.h}" rx="${z.kind === 'human' ? 18 : 6}"></rect>${label}${is.length ? bdg(is[0], z) : ''}</g>`;
+    }).join('');
+    const wnodes = L.wn.map((z) => {
+      const is = issues.filter((m) => m.worker === z.wi), err = is.some((m) => m.sev === 'err');
+      const isSel = sel && sel.type === 'worker' && sel.i === z.wi, dim = focusNode && z.from !== focusNode;
+      const fresh = !s.workers.some((w) => same(w, t.workers[z.wi]));
+      return `<g class="gn worker ${isSel ? 'sel' : ''} ${err ? 'err' : ''} ${dim ? 'dim' : ''} ${fresh ? 'newer' : ''}" transform="translate(${z.x.toFixed(1)},${z.y.toFixed(1)})" data-act="worker" data-i="${z.wi}" tabindex="0" role="button" aria-label="${esc(z.from)} の ${esc(z.label)}">
+      <rect class="box" x="${-z.w / 2}" y="${-z.h / 2}" width="${z.w}" height="${z.h}" rx="5"></rect>
+      <text class="nm" x="0" y="-2" text-anchor="middle">${esc(z.label)}</text><text class="rl" x="0" y="13" text-anchor="middle">${esc(z.prof)}</text>${is.length ? bdg(is[0], z) : ''}</g>`;
+    }).join('');
+    const plus = focusNode ? L.nodes.filter((z) => z.id !== focusNode && !hasTurn(t, focusNode, z.id)).map((z) => {
+      const p = edgePt(z, byId[focusNode]);
+      return `<g class="plus" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})" data-act="turn-add" data-a="${esc(focusNode)}" data-b="${esc(z.id)}" tabindex="0" role="button" aria-label="${esc(nodeName(focusNode))} から ${esc(nodeName(z.id))} へ渡す"><circle r="11"></circle><text x="0" y="5" text-anchor="middle">+</text></g>`;
+    }).join('') : '';
+    const [x, y, w, h] = L.vb;
+    const mi = dkey(r).replace('.', '-');
+    const marker = (id, cls) => `<marker id="ar-${mi}-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class="mk-${cls}" d="M0,0 L10,5 L0,10 z"></path></marker>`;
+    const svg = `<svg style="--gw:${w.toFixed(0)}px" viewBox="${x.toFixed(0)} ${y.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}" data-vb="${[x, y, w, h].map((v) => v.toFixed(0)).join(' ')}" role="group" aria-label="${esc(r.name)} のチームの姿">
+    <defs>${marker('n', 'n')}${marker('a', 'a')}${marker('c', 'c')}${marker('w', 'w')}</defs>
+    ${wedges}${edges}${nodes}${wnodes}${plus}</svg>`;
+    return svg.replace(/url\(#ar-(\w)\)/g, (m, c) => `url(#ar-${mi}-${c})`);
+  }
+
+  // ---- 押した点・線の札 ------------------------------------------------
+  // The card shows what one more op would move and what it would add; the
+  // sentences come from the server (check.TeamEffect, C4), so neither this file
+  // nor the card writes one (spec-teams X1).
+  let effectSeq = 0;
+  async function askEffect(r, op, pk, after) {
+    const id = ++effectSeq;
+    const res = await post('/teams/effect', { definition: r.name, place: r.place, ops: r.ops, op });
+    if (id !== effectSeq || !res.ok || !res.json) return;
+    state.effect[pk] = { lines: res.json.lines || [], problems: res.json.problems || [] };
+    if (after) after();
+  }
+  const effectLines = (pk) => {
+    const e = state.effect[pk];
+    if (!e) return '';
+    const lines = e.lines.flatMap((l) => (l.removed || []).map((x) => ({ sev: 'warn', msg: `${l.member}: ${x}` })));
+    const ms = [...lines, ...(e.problems || []).map((m) => ({ sev: m.sev, msg: m.text }))];
+    return ms.length ? `<ul class="vm">${ms.map(vmItem).join('')}</ul>` : '';
+  };
+
+  function dirHTML(r, a, b) {
+    const d = r, t = r.team.draft, s = r.team.saved, here = hasTurn(t, a, b), was = hasTurn(s, a, b);
+    const pl = a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span>${was ? `<span class="ln2">- ${esc(turnLabel(d, t, b))}</span>` : `<ins>- ${esc(turnLabel(d, t, b))}</ins>`}</div>`;
+    if (!here) return `<div class="gdir"><div class="gdl"><code>${esc(nodeName(a))} → ${esc(nodeName(b))}</code><span class="tag">消した</span><span class="acts"><button class="btn sm" data-act="turn-add" data-a="${esc(a)}" data-b="${esc(b)}">戻す</button></span></div></div>`;
+    const pk = `t:${dkey(d)}:${a}>${b}`, asking = state.confirm[pk];
+    return `<div class="gdir">
+    <div class="gdl"><code>${esc(nodeName(a))} → ${esc(nodeName(b))}</code>${!was ? '<span class="tag">足した</span>' : ''}
+      <span class="acts">${asking ? `<button class="btn danger solid sm" data-act="turn-del" data-a="${esc(a)}" data-b="${esc(b)}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-a="${esc(a)}" data-b="${esc(b)}" data-pk="${esc(pk)}">消す</button>`}</span></div>
+    ${asking ? (a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span><s>- ${esc(turnLabel(d, t, b))}</s></div>`) + effectLines(pk) : pl}
+  </div>`;
+  }
+
+  function cardHTML(r) {
+    const sel = state.gsel[dkey(r)];
+    if (!sel) return '';
+    const t = r.team.draft, s = r.team.saved;
+    if (sel.type === 'edge') {
+      const [a, b] = sel.k.split('|');
+      const dirs = [[a, b], [b, a]].filter(([p, q]) => hasTurn(t, p, q) || hasTurn(s, p, q));
+      return `<div class="gcard" data-sel="edge" data-k="${esc(sel.k)}">
+      <div class="gch"><code>${esc(nodeName(a))}</code><span class="ar">${dirs.length > 1 ? '⇄' : '→'}</span><code>${esc(nodeName(b))}</code><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
+      ${dirs.map(([p, q]) => dirHTML(r, p, q)).join('')}</div>`;
+    }
+    if (sel.type === 'worker') {
+      const w = t.workers[sel.i];
+      if (!w) return '';
+      const is = teamIssues(r).filter((m) => m.worker === sel.i), pk = `w:${dkey(r)}:${sel.i}`, asking = state.confirm[pk];
+      const profs = (PROFILES.includes(w.profile) ? [] : [w.profile]).concat(PROFILES);
+      return `<div class="gcard" data-sel="worker" data-i="${sel.i}">
+      <div class="gch"><code>${esc(w.from)}</code><span class="ar">→</span><span class="rl">ワーカー</span><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
+      <div class="wrow"><input class="in-purpose" data-i="${sel.i}" value="${esc(w.purpose)}" placeholder="目的" autocomplete="off" aria-label="目的">
+        <span class="sel"><select class="pickp" data-act-change="worker-prof" data-i="${sel.i}" aria-label="プロファイル">${profs.map((p) => `<option ${p === w.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span></div>
+      ${is.length ? `<ul class="vm">${is.map(vmItem).join('')}</ul>` : ''}
+      <div class="gdir"><div class="gpl"><span class="pk">${esc(herdr(r, w.from))} · ワーカーの追加</span>${asking ? `<s>${esc(w.purpose)} → ${esc(w.profile)}</s>` : `<span class="ln2">${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span>`}</div>
+        ${asking ? effectLines(pk) : ''}
+        <div class="gdl"><span class="acts">${asking ? `<button class="btn danger solid sm" data-act="worker-del" data-i="${sel.i}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-pk="${esc(pk)}">消す</button>`}</span></div></div>
+    </div>`;
+    }
+    const id = sel.id, m = memberOf(t, id), outs = t.turns.filter(([p]) => p === id).map(([, q]) => q);
+    const gone = s.turns.filter(([p, q]) => p === id && !hasTurn(t, p, q)).map(([, q]) => q);
+    const cand = ['human', ...t.members.map((x) => x.name)].filter((x) => x !== id && !outs.includes(x));
+    const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
+    const is = teamIssues(r).filter((x) => x.node === id);
+    return `<div class="gcard" data-sel="node" data-id="${esc(id)}">
+      <div class="gch"><code>${esc(nodeName(id))}</code><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
+      ${m ? `<div class="links"><span class="uchip">ロール ${esc(m.role)}</span><span class="uchip">プロファイル ${esc(m.profile)}</span></div>` : ''}
+      ${is.length ? `<ul class="vm">${is.map(vmItem).join('')}</ul>` : ''}
+      <div class="tl"><span class="gsub">${id === 'human' ? '人間が渡す相手' : `${esc(herdr(r, id))} · ターンを渡す相手`}</span>
+        ${outs.map((q) => `<div class="row ${hasTurn(s, id, q) ? '' : 'new'}"><span>- ${esc(id === 'human' ? nodeName(q) : turnLabel(r, t, q))}</span><button class="x" data-act="pick-edge" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="${esc(nodeName(q))} へのターン">›</button></div>`).join('')}
+        ${gone.map((q) => `<div class="row"><span><s>- ${esc(nodeName(q))}</s></span><span class="tag">消した</span><button class="x" data-act="turn-add" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="戻す">↺</button></div>`).join('')}
+        ${cand.length ? `<span class="sel"><select class="pickp" data-act-change="turn-add-sel" data-a="${esc(id)}" aria-label="渡す相手を足す"><option value="">＋ 渡す相手</option>${cand.map((c) => `<option value="${esc(c)}">${esc(nodeName(c))}</option>`).join('')}</select></span>` : ''}
+      </div>
+      ${m ? `<div class="tl"><span class="gsub">${esc(herdr(r, id))} · ワーカーの追加</span>
+        ${ws.map(({ w, i }) => `<div class="row"><span>${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span><button class="x" data-act="worker" data-i="${i}" aria-label="${esc(w.purpose)}">›</button></div>`).join('')}
+        <button class="add sm" data-act="worker-add" data-from="${esc(id)}" style="justify-self:start">＋ ワーカー</button></div>` : ''}
+    </div>`;
+  }
+
+  // 札を、押した点・線の横に置く。点を隠さない場所を、右・左・下・上・図の外の右から選ぶ
+  function placeCard(panel) {
+    const card = $('.gcard', panel), wrap = $('.gwrap', panel), svg = $('svg', wrap);
+    if (!card || !svg || getComputedStyle(card).position !== 'absolute') return;
+    const [vx, vy, vw, vh] = svg.dataset.vb.split(' ').map(Number), sc = svg.clientWidth / vw;
+    const d = byKey(panel.dataset.key), L = layout(d.team.draft);
+    const sel = state.gsel[dkey(d)];
+    if (!sel) return;
+    let ax, ay, aw = 6, ah = 6;
+    if (sel.type === 'edge') { const [a, b] = sel.k.split('|'); if (!L.byId[a] || !L.byId[b]) return; ax = (L.byId[a].x + L.byId[b].x) / 2; ay = (L.byId[a].y + L.byId[b].y) / 2; }
+    else { const z = sel.type === 'node' ? L.byId[sel.id] : L.byId['w' + sel.i]; if (!z) return; ax = z.x; ay = z.y; aw = z.w / 2; ah = z.h / 2; }
+    const svg0 = svg.getBoundingClientRect(), wrap0 = wrap.getBoundingClientRect();
+    const ox = svg0.left - wrap0.left, oy = svg0.top - wrap0.top;
+    const toPx = (x, y) => [ox + (x - vx) * sc, oy + (y - vy) * sc];
+    const [px, py] = toPx(ax, ay), W = wrap.clientWidth, H = Math.max(wrap.clientHeight, 200), cw = card.offsetWidth, ch = card.offsetHeight, g = 16;
+    const boxes = L.all.map((z) => { const [x, y] = toPx(z.x, z.y); return [x - z.w / 2 * sc, y - z.h / 2 * sc, x + z.w / 2 * sc, y + z.h / 2 * sc]; });
+    const clampX = (x) => Math.max(8, Math.min(x, W - cw - 8)), clampY = (y) => Math.max(8, Math.min(y, Math.max(8, H - ch - 8)));
+    const cands = [
+      [px + aw * sc + g, py - 30], [px - aw * sc - g - cw, py - 30],
+      [px - cw / 2, py + ah * sc + g], [px - cw / 2, py - ah * sc - g - ch],
+      [ox + svg.clientWidth + 12, py - 30], [ox - cw - 12, py - 30],
+    ].map(([x, y]) => [clampX(x), clampY(y)]);
+    const cover = ([x, y]) => boxes.reduce((s2, [l, t, rr, bb]) => s2 + Math.max(0, Math.min(rr, x + cw) - Math.max(l, x)) * Math.max(0, Math.min(bb, y + ch) - Math.max(t, y)), 0)
+      + (px > x - 4 && px < x + cw + 4 && py > y - 4 && py < y + ch + 4 ? 1e6 : 0);
+    const best = cands.map((c) => [c, cover(c) + Math.hypot(c[0] + cw / 2 - px, c[1] + ch / 2 - py) * 2]).sort((a, b) => a[1] - b[1])[0][0];
+    card.style.left = best[0] + 'px'; card.style.top = best[1] + 'px';
+  }
+
+  function vlistHTML(r) {
+    const issues = teamIssues(r);
+    const out = issues.filter((m) => m.field && m.field.startsWith('rule:'));
+    const own = issues.filter((m) => !(m.field && m.field.startsWith('rule:')));
+    const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : '');
+    return `<div class="vhead"><span class="vt">validate</span>${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
+      + own.map((m) => `<button class="vitem" data-act="vpick" ${m.node ? `data-node="${esc(m.node)}"` : ''} ${m.worker != null && m.worker >= 0 ? `data-worker="${m.worker}"` : ''}>${sevChip(m.sev)}<span class="lno">${esc(where(m))}</span><span class="msg">${esc(m.text)}</span></button>`).join('')
+      + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="/roles">${sevChip(m.sev)}<span class="lno">${esc((m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop())}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
+  }
+
+  function teamPanelHTML(r) {
+    const t = r.team, n = r.ops.length, k = dkey(r);
+    const ok = state.ok['t' + k] ? (delete state.ok['t' + k], '<span class="ok">保存しました</span>') : '';
+    const before = new Set((r.report ? convProblems(r.agree.draft, r.report.problems) : []).filter((m) => m.sev === 'err').map((m) => m.msg));
+    const issues = teamIssues(r), grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
+    return `<section class="panel team-p" data-key="${k}">
+    <header class="ph"><code class="path">${esc(r.teamPath)}</code>
+      <span class="phr">${(r.places || []).length > 1 ? '<span class="state on">効いている</span>' : ''}</span></header>
+    <div class="gbody">
+      <div class="gwrap"><div class="gscroll">${graphSVG(r)}</div>${cardHTML(r)}</div>
+      <div class="vlist">${vlistHTML(r)}</div>
+    </div>
+    <footer class="pf">
+      <button class="btn primary" data-act="t-save" ${!n || grew ? 'disabled' : ''}>保存</button><span class="dirty">${n ? `${n} か所` : ''}</span>${ok}
+      <span class="acts"><button class="btn" data-act="t-revert" ${n ? '' : 'hidden'}>元に戻す</button></span>
+    </footer>
+  </section>`;
+  }
+
+  // ---- 約束のパネル（ロールの画面と同じ共有の部品） --------------------
+  function agreePanelHTML(r) {
+    const e = r.agree, both = (r.places || []).length > 1, shadowed = r.place === 'global' && (r.places || []).includes('project');
+    const mode = state.pmode[dkey(r)] || 'edit';
+    const ok = state.ok['a' + dkey(r)] ? (delete state.ok['a' + dkey(r)], '<span class="ok">保存しました</span>') : '';
+    return `<section class="panel agree-p ${shadowed ? 'shadowed' : ''}" data-uid="${r.uid}" data-l="${r.place}" data-key="${dkey(r)}" data-mode="${mode}">
+    <header class="ph"><span class="ln">${PLACE[r.place] || ''}</span>
+      <code class="path">${esc(r.agreePath)}</code>
+      <span class="phr">
+        ${both ? `<span class="state ${shadowed ? 'off' : 'on'}">${shadowed ? '隠れている' : '効いている'}</span>` : ''}
+        <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => `<button class="${mode === v ? 'on' : ''}" data-act="pmode" data-v="${v}" aria-pressed="${mode === v}">${label}</button>`).join('')}</span>
+      </span></header>
+    <div class="pmain">${RD.body(rowOfPanel(r))}</div>
+    <footer class="pf">
+      <button class="btn primary" data-act="save">保存</button><span class="errline doc" hidden></span><span class="dirty"></span><span class="vcount"></span>${ok}
+      <span class="acts"><button class="btn" data-act="revert">元に戻す</button></span>
+    </footer></section>`;
+  }
+  function rowOfPanel(r) {
+    const e = r.agree;
+    return {
+      uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft,
+      issues: agreeIssues(r),
+      markdown: r.check ? r.check.markdown : { lines: [], chars: 0 },
+      diff: r.check ? r.check.diff : { added: [], removedBefore: [], removedAtEnd: false },
+      turns: r.check ? r.check.turns : [],
+    };
+  }
+  const markPanel = (panel) => { if (panel) RD.mark(panel); };
+
+  // ---- 一覧の行 --------------------------------------------------------
+  function sumInner(r) {
+    const t = r.team.draft, open = state.open.has(r.name), rules = rulesOf(r.agree.draft);
+    const pills = (r.places || []).map((p) => `<span class="pill ${p === r.place ? 'on' : 'shadow'}">${PLACE[p]}</span>`).join('');
+    const cell = open
+      ? `<input id="m-${esc(r.name)}" class="in-mission ${t.mission !== r.team.saved.mission ? 'changed' : ''}" data-f="mission" value="${esc(t.mission)}" autocomplete="off" aria-label="${esc(r.name)} の使命">`
+      : t.mission ? esc(t.mission) : '—';
+    return `<span class="chev"></span>
+    <span class="c-name"><span class="nm">${esc(r.name)}</span><span class="vcount">${counts(r.findings)}</span></span>
+    <span class="c-mission ${t.mission || open ? '' : 'none'}">${cell}</span>
+    <span class="c-place">${pills}</span>
+    <span class="c-members c-num">${t.members.length}</span>
+    <span class="c-turns c-num">${t.workers.length}</span>
+    <span class="c-agree c-num">${rules.length}${outNote(outCount(rules))}</span>`;
+  }
+  const dtabOf = (r) => state.dtab[r.name] || 'shape';
+  function dtabsHTML(r) {
+    const cur = dtabOf(r), dot = (on) => (on ? '<i class="dot"></i>' : '');
+    return [['shape', 'チームの姿', '', r.ops.length > 0], ['agree', 'チームの約束', String(rulesOf(r.agree.draft).length), r.agree.saved ? agreeDiff(r) > 0 : false]]
+      .map(([t, label, n, ch]) => `<button class="dtab ${cur === t ? 'on' : ''}" data-act="dtab" data-t="${t}" aria-pressed="${cur === t}">${label}${n !== '' ? `<span class="n">${n}</span>` : ''}${dot(ch)}</button>`).join('');
+  }
+  function detailHTML(r) {
+    const hidden = r.hidden || [];
+    return `<div class="detail">
+    <ul class="vm mvm"></ul>
+    <nav class="dtabs">${dtabsHTML(r)}</nav>
+    ${dtabOf(r) === 'shape' ? teamPanelHTML(r) : agreePanelHTML(r)}
+    ${hidden.map((h) => `<section class="panel shadowed"><header class="ph"><span class="ln">${PLACE[h.place]}</span><code class="path">${esc((DIR[h.place] || '') + r.name)}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key="${esc(r.name)}.${h.place}.team">YAML</button></span></header></section>`).join('')}
+  </div>`;
+  }
+  function rowHTML(r) {
+    const open = state.open.has(r.name);
+    return `<div class="tdef ${open ? 'open' : ''} ${dirtyDef(r) ? 'unsaved' : ''}" data-name="${esc(r.name)}" data-key="${dkey(r)}">
+    <div class="sum" role="button" tabindex="0" aria-expanded="${open}" data-act="toggle">${sumInner(r)}</div>
+    ${open ? detailHTML(r) : ''}</div>`;
+  }
+  function listHTML() {
+    if (!recs.size) return '<div class="list"><p class="none">チーム定義はありません</p></div>';
+    return `<div class="list">
+    <div class="head"><span></span><span>名前</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>約束</span></div>
+    ${[...recs.values()].map(rowHTML).join('')}</div>`;
+  }
+  function refreshRow(name) {
+    const r = byName(name);
+    if (!r) return;
+    const row = $(`.tdef[data-name="${CSS.escape(name)}"]`);
+    if (!row) return;
+    const t = r.team.draft;
+    row.classList.toggle('unsaved', dirtyDef(r));
+    const q = (s) => row.querySelector(s);
+    const vc = q('.c-name .vcount'); if (vc) vc.innerHTML = counts(r.findings);
+    const ms = q('.c-members'); if (ms) ms.textContent = t.members.length;
+    const tu = q('.c-turns'); if (tu) tu.textContent = t.workers.length;
+    const ag = q('.c-agree'); if (ag) { const rs = rulesOf(r.agree.draft); ag.innerHTML = `${rs.length}${outNote(outCount(rs))}`; }
+    const dt = q('.dtabs .dtab[data-t=agree]');
+    if (dt) { const rs = rulesOf(r.agree.draft); dt.innerHTML = `チームの約束<span class="n">${rs.length}</span>${r.agree.saved && agreeDiff(r) > 0 ? '<i class="dot"></i>' : ''}`; }
+    const st = q('.dtabs .dtab[data-t=shape]');
+    if (st) { const dot = st.querySelector('.dot'); if (r.ops.length && !dot) st.insertAdjacentHTML('beforeend', '<i class="dot"></i>'); else if (!r.ops.length && dot) dot.remove(); }
+    const cell = q('.c-mission .in-mission');
+    if (cell) cell.classList.toggle('changed', cell.value !== r.team.saved.mission);
+    const mvm = q('.mvm');
+    if (mvm) mvm.innerHTML = r.findings.filter((m) => m.field === 'mission').map((m) => vmItem({ sev: m.sev, msg: m.text })).join('');
+  }
+
+  // ---- YAML のタブ ----------------------------------------------------
+  const fileByKey = new Map((DATA.files || []).map((f) => [f.file, f]));
+  function yState(key) {
+    const f = fileByKey.get(key);
+    if (!state.yaml[key]) state.yaml[key] = { text: f ? f.text : '', base: f ? f.text : '' };
+    return state.yaml[key];
+  }
+  function filesHTML() {
+    const keys = PLACES.flatMap((p) => (DATA.files || []).filter((f) => f.place === p).map((f) => f.file));
+    if (!state.yfile || !keys.includes(state.yfile)) state.yfile = keys[0] || null;
+    return `<nav class="files">${PLACES.map((p) => {
+      const fs = (DATA.files || []).filter((f) => f.place === p);
+      if (!fs.length) return '';
+      return `<div class="fgroup"><div class="gh"><b>${PLACE[p]}</b><code>${esc(DIR[p] || '')}</code></div>${fs.map((f) => {
+        const y = yState(f.file), is = yIssues(f.file), dirty = y.text !== y.base;
+        return `<button class="file ${state.yfile === f.file ? 'on' : ''} ${f.hidden ? 'hid' : ''}" data-act="yfile" data-file="${esc(f.file)}" aria-pressed="${state.yfile === f.file}"><code>${esc(f.name)}/${f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">${dirty ? '<span class="dirty">●</span>' : ''}${badge(is) || (f.kind === 'agreement' ? rulesOf(rByFile(f.file).agree.saved || rByFile(f.file).agree.draft).length : '')}</span><span class="ft">${f.hidden ? '隠れている' : esc(f.path)}</span></button>`;
+      }).join('')}</div>`;
+    }).join('')}</nav>`;
+  }
+  const rByFile = (file) => byKey(file.split('.').slice(0, 2).join('.'));
+  function yIssues(file) {
+    if (state.yc[file]) return state.yc[file];
+    const f = fileByKey.get(file);
+    return (f && f.problems) || [];
+  }
+  function yedHTML() {
+    const key = state.yfile, f = fileByKey.get(key);
+    if (!key || !f) return '<section class="yed"><p class="none">ファイルを選んでください</p></section>';
+    const ok = state.ok['y' + key] ? (delete state.ok['y' + key], '<span class="ok">保存しました</span>') : '';
+    return `<section class="yed" data-key="${esc(key)}">
+    <header class="ph"><span class="ln">${PLACE[f.place]}</span><code class="path">${esc(f.path)}</code>${(rByFile(key) && (rByFile(key).places || []).length > 1) ? `<span class="state ${f.hidden ? 'off' : 'on'}">${f.hidden ? '隠れている' : '効いている'}</span>` : ''}</header>
+    <div class="ybody">
+      <div class="code"><pre class="gutter" aria-hidden="true"></pre><textarea class="ytext" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(f.path)}">${esc(yState(key).text)}</textarea></div>
+      <div class="vlist"></div>
+    </div>
+    <footer class="pf"><button class="btn primary" data-act="y-save">保存</button><span class="dirty"></span>${ok}<span class="acts"><button class="btn" data-act="y-revert" hidden>元に戻す</button></span></footer></section>`;
+  }
+  function refreshYed() {
+    const sec = $('.yed');
+    if (!sec) return;
+    const key = sec.dataset.key, y = yState(key), issues = yIssues(key), marks = {};
+    issues.forEach((m) => { if (marks[m.line] !== 'err') marks[m.line] = m.sev; });
+    const ta = $('.ytext', sec), lines = y.text.split('\n').length;
+    if (ta.value !== y.text) ta.value = y.text;
+    const g = $('.gutter', sec);
+    g.innerHTML = Array.from({ length: lines }, (_, i) => `<span class="${marks[i + 1] || ''}">${i + 1}</span>`).join('');
+    $('.code', sec).style.height = Math.min(Math.max(lines, 8), 32) * 20 + 18 + 'px';
+    g.scrollTop = ta.scrollTop;
+    $('.vlist', sec).innerHTML = `<div class="vhead"><span class="vt">validate</span>${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
+      + issues.map((m) => `<button class="vitem" data-act="y-jump" data-line="${m.line || 0}">${sevChip(m.sev)}<span class="lno">${m.line ? `${m.line} 行` : esc(m.field || '')}</span><span class="msg">${esc(m.text)}</span></button>`).join('');
+    const dirty = y.text !== y.base;
+    const was = new Set(yIssues(key).filter((m) => m.sev === 'err').map((m) => m.text));
+    $('.pf .dirty', sec).textContent = dirty ? '変更あり' : '';
+    $('[data-act=y-save]', sec).disabled = !dirty;
+    $('[data-act=y-revert]', sec).hidden = !dirty;
+    void was;
+  }
+  const yamlTabHTML = () => `<div class="ylay">${filesHTML()}${yedHTML()}</div>`;
+
+  // ---- 描く ------------------------------------------------------------
+  function render() {
+    $('#tabs').innerHTML = [['list', '一覧'], ['yaml', 'YAML']]
+      .map(([t, label]) => `<button class="tab ${state.tab === t ? 'on' : ''}" data-act="tab" data-t="${t}" aria-pressed="${state.tab === t}">${label}</button>`).join('');
+    view.innerHTML = state.tab === 'list' ? listHTML() : yamlTabHTML();
+    if (state.tab === 'list') {
+      $$('.panel.team-p', view).forEach(placeCard);
+      $$('.panel.agree-p', view).forEach(markPanel);
+    } else {
+      refreshYed();
+    }
+    setStick();
+    tellDirty();
+  }
+  function rerenderTeam(r, sel) {
+    const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (!panel) { refreshRow(r.name); return; }
+    const box = $('.gscroll', panel);
+    const scroll = box ? box.scrollLeft : 0;
+    panel.outerHTML = teamPanelHTML(r);
+    const fresh = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (fresh) {
+      const gc = $('.gscroll', fresh);
+      if (gc) gc.scrollLeft = scroll;
+      placeCard(fresh);
+      if (sel) { const el = fresh.querySelector(sel); if (el) el.focus({ preventScroll: true }); }
+    }
+    refreshRow(r.name);
+  }
+  function rerenderAgree(panel, sel) {
+    const r = panel && byKey(panel.dataset.key);
+    if (!r) return panel;
+    const box = $('.ybox', panel);
+    if (box && box.clientHeight) RD.state.yscroll[r.uid + r.place] = box.scrollTop;
+    panel.outerHTML = agreePanelHTML(r);
+    const fresh = $(`.panel.agree-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (fresh) { markPanel(fresh); if (sel) { const el = fresh.querySelector(sel); if (el) { el.focus({ preventScroll: true }); el.select?.(); } } }
+    refreshRow(r.name);
+    return fresh;
+  }
+  function rerenderSides(r) {
+    const row = $(`.tdef[data-name="${CSS.escape(r.name)}"]`);
+    if (!row) return;
+    if (!state.open.has(r.name)) { row.outerHTML = rowHTML(r); return; }
+    const team = $(`.panel.team-p`, row);
+    if (team) team.outerHTML = teamPanelHTML(r);
+    const ag = $(`.panel.agree-p`, row);
+    if (ag) ag.outerHTML = agreePanelHTML(r);
+    $$('.dtabs', row).forEach((n) => { n.innerHTML = dtabsHTML(r); });
+    if (state.open.has(r.name)) $$('.panel.team-p', row).forEach(placeCard);
+    $$('.panel.agree-p', row).forEach(markPanel);
+    row.classList.toggle('unsaved', dirtyDef(r));
+    refreshRow(r.name);
+  }
+  function rerenderRow(r) {
+    const row = $(`.tdef[data-name="${CSS.escape(r.name)}"]`);
+    if (row) row.outerHTML = rowHTML(r);
+  }
+  const setStick = () => { const bar = $('.bar'); document.documentElement.style.setProperty('--stick', (bar ? bar.offsetHeight : 48) + 'px'); };
+
+  function tellDirty() {
+    let dirty = false;
+    for (const r of recs.values()) if (dirtyDef(r)) dirty = true;
+    for (const f of DATA.files || []) if (state.yaml[f.file] && state.yaml[f.file].text !== state.yaml[f.file].base) dirty = true;
+    if (window.hergyPage) window.hergyPage.dirty = dirty;
+  }
+
+  // ---- 検査と保存 ------------------------------------------------------
+  function syncTeam(r) {
+    r.team.draft = applyOps(r.team.saved, r.ops);
+    rerenderSides(r);
+    checkTeam(r);
+  }
+  function syncAgree(r, panel) {
+    rerenderRowForAgree(r);
+    checkAgree(r, () => { const p = $(`.panel.agree-p[data-key="${CSS.escape(dkey(r))}"]`); if (p) markPanel(p); const ag = $(`.tdef[data-name="${CSS.escape(r.name)}"] .c-agree`); if (ag) { const rs = rulesOf(r.agree.draft); ag.innerHTML = `${rs.length}${outNote(outCount(rs))}`; } void panel; });
+  }
+  function rerenderRowForAgree(r) {
+    const row = $(`.tdef[data-name="${CSS.escape(r.name)}"]`);
+    if (!row) return;
+    const dt = $('.dtabs .dtab[data-t=agree]', row);
+    if (dt) { const rs = rulesOf(r.agree.draft); dt.innerHTML = `チームの約束<span class="n">${rs.length}</span>${r.agree.saved && agreeDiff(r) > 0 ? '<i class="dot"></i>' : ''}`; }
+    row.classList.toggle('unsaved', dirtyDef(r));
+    tellDirty();
+  }
+  async function checkTeam(r) {
+    const id = ++r.req;
+    const res = await post('/teams/check', { definition: r.name, place: r.place, ops: r.ops });
+    if (id !== r.req || !res.ok || !res.json) return;
+    r.findings = res.json.findings || [];
+    r.turnsFindings = res.json.turnsFindings || [];
+    rerenderSides(r);
+  }
+  async function checkAgree(r, after) {
+    const id = ++r.areq;
+    const doc = RD.toDoc(r.agree.draft, r.agree.saved);
+    const res = await post('/teams/agreement/check', { definition: r.name, place: r.place, ops: r.ops, doc });
+    if (id !== r.areq || !res.ok || !res.json) return;
+    r.check = buildCheck(r.agree.draft, res.json);
+    if (after) after();
+  }
+  function scheduleAgree(r, panel) { debounce('a' + r.key, () => syncAgree(r, panel)); }
+
+  async function saveTeam(r, panel) {
+    const res = await post('/teams/save', { definition: r.name, place: r.place, ops: r.ops, hash: r.hash });
+    if (!res.ok || !res.json) { showErr(panel, res.json && res.json.text); return; }
+    r.hash = res.json.hash; r.team.saved = cloneTeam(r.team.draft); r.ops = [];
+    r.savedTurns = (res.json.graph && res.json.graph.savedTurns) || [];
+    r.findings = res.json.findings || []; r.turnsFindings = res.json.turnsFindings || [];
+    state.ok['t' + dkey(r)] = 1;
+    delete state.gsel[dkey(r)];
+    rerenderRow(r);
+    tellDirty();
+  }
+  async function saveAgree(r, panel) {
+    const doc = RD.toDoc(r.agree.draft, r.agree.saved);
+    const res = await post('/teams/agreement/save', { definition: r.name, place: r.place, doc, hash: r.agreeHash });
+    if (!res.ok || !res.json) { showErr(panel, res.json && res.json.text); return; }
+    r.agreeHash = res.json.hash; r.hasAgree = true;
+    if (res.json.doc) { const d2 = RD.fromJSON(res.json.doc); d2.__path = r.agreePath; r.agree.saved = d2; r.agree.draft = clone(d2); }
+    state.ok['a' + dkey(r)] = 1;
+    rerenderSides(r);
+    tellDirty();
+  }
+  function showErr(panel, text) {
+    if (!panel) return;
+    let el = $('.errline.doc', panel);
+    if (!el) { el = document.createElement('span'); el.className = 'errline doc'; const pf = $('.pf', panel); if (pf) pf.appendChild(el); }
+    if (el) { el.hidden = false; el.textContent = text || '保存できませんでした'; }
+  }
+  function yamlCheck(file) {
+    debounce('y' + file, async () => {
+      const y = yState(file);
+      const res = await post('/teams/yaml/check', { file, text: y.text });
+      if (!res.ok || !res.json) return;
+      state.yc[file] = res.json.problems || [];
+      if (state.tab === 'yaml' && state.yfile === file) refreshYed();
+    });
+  }
+  async function yamlSave(file) {
+    const y = yState(file), f = fileByKey.get(file);
+    const res = await post('/teams/yaml/save', { file, text: y.text, hash: f ? f.hash : '' });
+    const yed = $('.yed');
+    if (!res.ok || !res.json) { showErr(yed, res.json && res.json.text); return; }
+    y.base = y.text;
+    if (f) { f.text = y.text; f.hash = res.json.hash; }
+    delete state.yc[file];
+    state.ok['y' + file] = 1;
+    render();
+    yamlCheck(file);
+  }
+
+  // ---- URL -------------------------------------------------------------
+  function syncURL() {
+    const params = new URLSearchParams();
+    if (state.tab === 'yaml') { if (state.yfile) params.set('file', state.yfile); }
+    else { const opens = [...state.open]; if (opens.length) params.set('open', opens.join(',')); }
+    const path = state.tab === 'yaml' ? '/teams/yaml' : '/teams';
+    const q = params.toString();
+    history.replaceState({}, '', q ? `${path}?${q}` : path);
+  }
+  function readURL() {
+    const p = new URLSearchParams(location.search);
+    const open = p.get('open');
+    if (open) open.split(',').filter(Boolean).forEach((n) => state.open.add(n));
+    const file = p.get('file');
+    if (file) state.yfile = file;
+    if (location.pathname === '/teams/yaml') state.tab = 'yaml';
+  }
+
+  // ---- 操作 ------------------------------------------------------------
+  function viewOf(json) { return recOf(json); }
+  function pushOp(r, op) { r.ops.push(op); }
+
+  const state = {
+    tab: view.dataset.tab === 'yaml' ? 'yaml' : 'list',
+    open: new Set(), dtab: {}, gsel: {}, confirm: {}, effect: {},
+    ok: {}, yfile: null, yaml: {}, yc: {}, pmode: {},
+  };
+  (DATA.defs || []).forEach(viewOf);
+  readURL();
+
+  const ctx = (el) => {
+    const panel = el.closest('.panel.agree-p');
+    if (!panel) return {};
+    const r = byKey(panel.dataset.key);
+    if (!r) return {};
+    const a = r.agree.draft;
+    const ruleEl = el.closest('.rule'), f = ruleEl ? RD.findRule(a, ruleEl.dataset.k) : null;
+    const secEl = el.closest('.sec'), si = f ? f.si : secEl ? +secEl.dataset.si : null;
+    const oi = el.closest('.orow') ? +el.closest('.orow').dataset.oi : null;
+    return { panel, d: r, a, x: f && f.x, si, ri: f && f.ri, oi, key: `${dkey(r)}-${f ? f.x._k : ''}` };
+  };
+
+  view.addEventListener('click', (e) => {
+    if (e.target.closest('.in-mission')) return;
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act, row = b.closest('.tdef'), n = row && row.dataset.name;
+    const tp = b.closest('.panel.team-p'), td = tp && byKey(tp.dataset.key), tk = td && dkey(td);
+    const c = ctx(b);
+    const re = (sel) => rerenderAgree(c.panel, sel);
+    switch (act) {
+      case 'tab': state.tab = b.dataset.t; render(); break;
+      case 'toggle': if (state.open.has(n)) state.open.delete(n); else state.open.add(n); render(); break;
+      case 'node': { const id = b.dataset.id, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'node' && cur.id === id ? null : { type: 'node', id }; rerenderTeam(td, `.gn[data-id="${CSS.escape(id)}"]`); break; }
+      case 'edge': { const k = b.dataset.k, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'edge' && cur.k === k ? null : { type: 'edge', k }; rerenderTeam(td, `.hit[data-k="${CSS.escape(k)}"]`); break; }
+      case 'pick-edge': state.gsel[tk] = { type: 'edge', k: pairKey(b.dataset.a, b.dataset.b) }; rerenderTeam(td); break;
+      case 'worker': { const i = +b.dataset.i, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'worker' && cur.i === i && b.closest('svg') ? null : { type: 'worker', i }; rerenderTeam(td); break; }
+      case 'gclose': delete state.gsel[tk]; rerenderTeam(td); break;
+      case 'turn-add': { const a = b.dataset.a, bb = b.dataset.b; pushOp(td, { kind: 'addTurn', from: a, to: bb }); state.gsel[tk] = { type: 'edge', k: pairKey(a, bb) }; syncTeam(td); break; }
+      case 'turn-ask': {
+        const pk = b.dataset.pk; state.confirm[pk] = 1; rerenderTeam(td, '.gcard .btn.danger.solid');
+        const card = b.closest('.gcard');
+        let op = null;
+        if (b.dataset.a) op = { kind: 'removeTurn', from: b.dataset.a, to: b.dataset.b };
+        else if (card && card.dataset.sel === 'worker') { const w = td.team.draft.workers[+card.dataset.i]; if (w) op = { kind: 'removeWorker', from: w.from, purpose: w.purpose }; }
+        if (op) askEffect(td, op, pk, () => rerenderTeam(td));
+        break;
+      }
+      case 'turn-ask-no': delete state.confirm[b.dataset.pk]; rerenderTeam(td); break;
+      case 'turn-del': { const a = b.dataset.a, bb = b.dataset.b; delete state.confirm[`t:${tk}:${a}>${bb}`]; pushOp(td, { kind: 'removeTurn', from: a, to: bb }); syncTeam(td); break; }
+      case 'worker-add': pushOp(td, { kind: 'addWorker', from: b.dataset.from, purpose: '', profile: PROFILES[0] || '' }); state.gsel[tk] = { type: 'worker', i: td.team.draft.workers.length }; syncTeam(td); break;
+      case 'worker-del': { const pk = `w:${tk}:${b.dataset.i}`; delete state.confirm[pk]; const w = td.team.draft.workers[+b.dataset.i]; if (w) pushOp(td, { kind: 'removeWorker', from: w.from, purpose: w.purpose }); delete state.gsel[tk]; syncTeam(td); break; }
+      case 'vpick': state.gsel[tk] = b.dataset.node ? { type: 'node', id: b.dataset.node } : { type: 'worker', i: +b.dataset.worker }; rerenderTeam(td); break;
+      case 't-save': saveTeam(td, tp); break;
+      case 't-revert': td.ops = []; delete state.gsel[tk]; state.confirm = {}; syncTeam(td); rerenderRow(td); break;
+      case 'to-yaml': state.tab = 'yaml'; state.yfile = b.dataset.key; render(); window.scrollTo(0, 0); break;
+      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
+      case 'yfile': state.yfile = b.dataset.file; render(); break;
+      case 'y-jump': { const sec = b.closest('.yed'), ta = $('.ytext', sec), line = +b.dataset.line, lines = ta.value.split('\n'); const start = lines.slice(0, Math.max(0, line - 1)).reduce((s2, x) => s2 + x.length + 1, 0); ta.focus({ preventScroll: true }); ta.setSelectionRange(start, start + ((lines[line - 1] || '').length)); ta.scrollTop = Math.max(0, (line - 4) * 20); break; }
+      case 'y-revert': { const sec = b.closest('.yed'), y = yState(sec.dataset.key); y.text = y.base; delete state.yc[sec.dataset.key]; render(); break; }
+      case 'y-save': yamlSave(b.closest('.yed').dataset.key); break;
+      case 'save': if (c.d) saveAgree(c.d, c.panel); break;
+      case 'revert': if (c.d) { c.d.agree.draft = clone(c.d.agree.saved); checkAgree(c.d, () => re()); re(); } break;
+      case 'pmode': if (c.d) { state.pmode[dkey(c.d)] = b.dataset.v; re(`[data-act=pmode][data-v="${b.dataset.v}"]`); } break;
+      default: break;
+    }
+  });
+
+  view.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.actChange === 'turn-add-sel' && t.value) {
+      const p = t.closest('.panel'), r = byKey(p.dataset.key), a = t.dataset.a, bb = t.value;
+      pushOp(r, { kind: 'addTurn', from: a, to: bb });
+      state.gsel[dkey(r)] = { type: 'edge', k: pairKey(a, bb) };
+      syncTeam(r);
+      return;
+    }
+    if (t.dataset.actChange === 'worker-prof') { const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i, w = r.team.draft.workers[i]; if (w) pushOp(r, { kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: t.value }); syncTeam(r); return; }
+  });
+
+  view.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.matches('.ytext')) { const sec = t.closest('.yed'); state.yaml[sec.dataset.key].text = t.value; refreshYed(); yamlCheck(sec.dataset.key); return; }
+    if (t.matches('.in-mission')) {
+      const r = byName(t.closest('.tdef').dataset.name);
+      const text = t.value.replace(/\n/g, ' ');
+      r.ops = r.ops.filter((o) => o.kind !== 'mission');
+      if (text !== r.team.saved.mission) pushOp(r, { kind: 'mission', text });
+      r.team.draft = applyOps(r.team.saved, r.ops);
+      refreshRow(r.name);
+      rerenderSides(r);
+      checkTeam(r);
+      return;
+    }
+    if (t.matches('.in-purpose')) {
+      const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i, pos = t.selectionStart;
+      const cur = r.team.draft.workers[i];
+      if (!cur) return;
+      pushOp(r, { kind: 'workerPurpose', from: cur.from, old: cur.purpose, new: t.value });
+      r.team.draft = applyOps(r.team.saved, r.ops);
+      rerenderTeam(r, `.in-purpose[data-i="${i}"]`);
+      const ni = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"] .in-purpose[data-i="${i}"]`);
+      if (ni) ni.setSelectionRange(pos, pos);
+      checkTeam(r);
+      return;
+    }
+    // The agreement panel's own inputs are the shared part's: ruledoc updates the
+    // draft and calls host.edited (r-02f6). This screen only owns the mission and
+    // the worker's purpose, which are not in the agreement document.
+  });
+
+  // 入力の途中でも、ルールのまとめと Markdown を行番号に合わせて引き直す
+  view.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (!t.closest('.pedit')) return;
+    const c = ctx(t);
+    if (!c.panel) return;
+    RD.state.pfocus[c.d.uid + c.d.place] = { k: c.x ? c.x._k : 0 };
+  });
+  view.addEventListener('scroll', (e) => {
+    if (e.target.matches?.('.ytext')) { const g = $('.gutter', e.target.closest('.code')); if (g) g.scrollTop = e.target.scrollTop; }
+    if (e.target.matches?.('.ybox')) { const p = e.target.closest('.panel'); if (p) RD.state.yscroll[p.dataset.uid + p.dataset.l] = e.target.scrollTop; }
+  }, true);
+  view.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum, .vitem, [role=button]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+    if (e.key === 'Escape' && e.target.closest('.gwrap')) { const p = e.target.closest('.panel'); delete state.gsel[p.dataset.key]; rerenderTeam(byKey(p.dataset.key)); }
+    if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) { e.preventDefault(); e.target.setRangeText('  ', e.target.selectionStart, e.target.selectionEnd, 'end'); e.target.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (e.key === 'Enter' && e.target.matches('.in-mission, .in-purpose')) e.preventDefault();
+  });
+
+  // ---- 共有の部品の受け口 ----------------------------------------------
+  const host = {
+    hasName: false,
+    row: (panel) => { const r = panel && byKey(panel.dataset.key); return r ? rowOfPanel(r) : null; },
+    rerender: (panel, sel) => rerenderAgree(panel, sel),
+    edited: (c) => { const p = c && c.panel; const r = p && byKey(p.dataset.key); if (r) scheduleAgree(r, p); },
+    readerCount: () => 0,
+    filtering: () => false,
+    shown: () => true,
+    query: () => '',
+    path: (l, d) => (d && d.__path) || '',
+    mode: (panel, v) => { const r = panel && byKey(panel.dataset.key); if (r) state.pmode[dkey(r)] = v; },
+    url: () => syncURL(),
+  };
+  RD.mount(view, host);
+
+  let wasNarrow = narrow();
+  let rt = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => {
+      setStick();
+      if (narrow() !== wasNarrow) { wasNarrow = narrow(); $$('.panel.team-p').forEach((p) => rerenderTeam(byKey(p.dataset.key))); }
+      else $$('.panel.team-p').forEach(placeCard);
+    }, 160);
+  });
+  window.addEventListener('popstate', () => { state.open = new Set(); readURL(); render(); });
+
+  function take() {
+    const teams = [];
+    for (const r of recs.values()) if (r.ops.length) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
+    const agrees = [];
+    for (const r of recs.values()) if (r.agree.saved && agreeDiff(r)) agrees.push({ place: r.place, name: r.name, hash: r.agreeHash, doc: RD.toDoc(r.agree.draft, r.agree.saved) });
+    const files = (DATA.files || []).filter((f) => state.yaml[f.file] && state.yaml[f.file].text !== state.yaml[f.file].base)
+      .map((f) => ({ file: f.file, hash: f.hash, text: state.yaml[f.file].text }));
+    return { teams, agrees, files };
+  }
+  window.hergyPage = { screen: 'teams', dirty: false, take };
+
+  render();
+  setStick();
+})();

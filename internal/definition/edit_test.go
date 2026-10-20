@@ -555,6 +555,51 @@ func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
 	}
 }
 
+// TestEditYAMLChangesOneWorkersPurposeOnly: WorkerPurpose changes exactly the
+// purpose: line of the one worker the (from, old) pair names, and every other
+// byte of a file with several workers comes back as it was (C3). A pair the file
+// does not hold is refused rather than written.
+func TestEditYAMLChangesOneWorkersPurposeOnly(t *testing.T) {
+	before := "version: 1\nmission: m\nmembers:\n" +
+		"  - name: lead\n    role: lead\n    profile: planner\n" +
+		"  - name: spec\n    role: spec\n    profile: reviewer\n" +
+		"workers:\n" +
+		"  - from: lead\n    purpose: 実装\n    profile: coder\n" +
+		"  - from: lead\n    purpose: 調査\n    profile: reader\n" +
+		"  - from: spec\n    purpose: 試作\n    profile: planner\n" +
+		"turns:\n" +
+		"  - human -> lead\n  - lead -> spec\n  - spec -> human\n  - lead -> human\n"
+
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.WorkerPurpose("lead", "実装", "実装する"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Replace(before, "    purpose: 実装\n", "    purpose: 実装する\n", 1)
+	if string(got) != want {
+		t.Errorf("EditYAML changed more than the one purpose:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+	assertOnly(t, before, string(got), []string{"    purpose: 実装"}, []string{"    purpose: 実装する"})
+
+	for _, tc := range []struct {
+		name string
+		op   definition.Op
+		want string
+	}{
+		{"no such worker", definition.WorkerPurpose("lead", "ない", "x"), i18n.Tf("error.edit_no_worker", "ない", "lead")},
+		{"no such member", definition.WorkerPurpose("nope", "実装", "x"), i18n.Tf("error.edit_no_worker", "実装", "nope")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
+			if err == nil {
+				t.Fatalf("EditYAML wrote %q, want an error", out)
+			}
+			if err.Error() != tc.want {
+				t.Errorf("error = %q, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 // TestEditYAMLKeepsTheShapeTheFileWroteASequenceIn: a flow worker stays a flow
 // worker when one is added, and a turns: written on one line (a lone scalar or
 // a flow sequence) is written as a block when it is added to, and stays a flow

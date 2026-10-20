@@ -146,7 +146,7 @@
   function editHTML(row) {
     const d = row.draft, key = row.uid + row.l;
     return `<div class="dh">
-      <div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"><span class="errline name" hidden></span></div>
+      ${host.hasName === false ? '' : `<div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"><span class="errline name" hidden></span></div>`}
       <div class="dhf"><label for="t${key}">タイトル</label><input id="t${key}" class="in-title" data-f="title" value="${esc(d.title)}" autocomplete="off"></div>
       <div class="dhf"><label for="v${key}">revision</label><input id="v${key}" class="in-rev" data-f="revision" type="number" min="1" value="${d.revision === null ? '' : d.revision}"></div>
       <label class="rename" hidden><input type="checkbox" id="rn${key}" checked><span></span></label>

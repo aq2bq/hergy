@@ -137,6 +137,19 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("POST /roles/yaml/save", s.p2Post(s.r2YAMLSave))
 	mux.HandleFunc("POST /roles/assign/save", s.p2Post(s.r2AssignSave))
 
+	// チーム定義 (r-0f8c): the list and the YAML tab, the figure's and the
+	// agreement's checks, and the writes of team.yaml and agreement.yaml. The
+	// old /teams that moved to /definitions is gone: /teams is this screen now.
+	mux.HandleFunc("GET /teams", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "list") })
+	mux.HandleFunc("GET /teams/yaml", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "yaml") })
+	mux.HandleFunc("POST /teams/check", s.p2Post(s.t2Check))
+	mux.HandleFunc("POST /teams/effect", s.p2Post(s.t2Effect))
+	mux.HandleFunc("POST /teams/save", s.p2Post(s.t2Save))
+	mux.HandleFunc("POST /teams/agreement/check", s.p2Post(s.t2AgreeCheck))
+	mux.HandleFunc("POST /teams/agreement/save", s.p2Post(s.t2AgreeSave))
+	mux.HandleFunc("POST /teams/yaml/check", s.p2Post(s.t2YamlCheck))
+	mux.HandleFunc("POST /teams/yaml/save", s.p2Post(s.t2YamlSave))
+
 	// プロファイル (r-c683): the three tabs, their checks and their writes.
 	mux.HandleFunc("GET /profiles", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "profiles") })
 	mux.HandleFunc("GET /profiles/assign", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "assign") })

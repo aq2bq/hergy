@@ -9,6 +9,19 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Added
 
+- **The team-definition screen (`/teams`)**: the band's チーム定義 leads to the
+  screen now (it was a struck-through name). A row opens in place: its mission is
+  edited where it stands, and the open row has the two tabs チームの姿 and
+  チームの約束. チームの姿 draws team.yaml as a figure — the human and the
+  members as points, the turns as lines — and lets a turn be added or taken away
+  by pressing a point or a line; a card beside it shows what the change would do
+  to the prompt before it is made, and the checks are the ones `hergy validate`
+  prints. チームの約束 edits the team's own agreement.yaml with the same shared
+  part the role screen uses (the sections, the rules, the `in_prompt` switch, the
+  reordering, the Markdown box), and a save writes the one line that changed. A
+  YAML tab keeps every team.yaml and agreement.yaml of both layers. A name the
+  project and the shared layer both hold shows the shared one as hidden, and the
+  band carries the team-definition count.
 - **A rule can stay out of the prompt**: `in_prompt: false` keeps the rule in its
   file and out of every member's prompt — neither the one `hergy up` sends nor
   the one `hergy reprompt` rebuilds — and out of the amount counted for that
