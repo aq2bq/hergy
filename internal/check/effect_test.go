@@ -2,6 +2,7 @@ package check
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -67,5 +68,32 @@ func TestTeamEffectChangesAWorkersPurpose(t *testing.T) {
 	}
 	if len(got.Problems) != 0 {
 		t.Errorf("problems = %+v, want none", got.Problems)
+	}
+}
+
+// TestTeamEffectShowsTheLineAStoppingChangeTakesAway: the last turn a member
+// hands out is a change that stops the definition, so no prompt reads after it
+// (spec-teams 1.9). The card still shows the line the change takes away — the
+// parts a change moves are read from a graph that cannot hold — with the
+// sentence the change adds beside it (1.4.4, X3, 監査 R11).
+func TestTeamEffectShowsTheLineAStoppingChangeTakesAway(t *testing.T) {
+	f := newFixture(t)
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
+	f.roles()
+
+	got := TeamEffect(teamInput(f), definition.RemoveTurn(memberNode("spec"), humanNode()))
+	if len(got.Lines) != 1 {
+		t.Fatalf("lines = %+v, want the one line of spec", got.Lines)
+	}
+	line := got.Lines[0]
+	if line.Member != "demo-spec" || line.Part != "turns" {
+		t.Errorf("line = %+v, want demo-spec's turns", line)
+	}
+	if want := []string{i18n.T("turns.human_item")}; !slices.Equal(line.Removed, want) {
+		t.Errorf("removed = %q, want %q", line.Removed, want)
+	}
+	want := i18n.Tf("error.graph_member_no_turn", "spec", "spec")
+	if len(got.Problems) != 1 || !got.Problems[0].Stops || !strings.Contains(got.Problems[0].Text, want) {
+		t.Errorf("problems = %+v, want the one that stops: %s", got.Problems, want)
 	}
 }

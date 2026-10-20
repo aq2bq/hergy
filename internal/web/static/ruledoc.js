@@ -487,6 +487,33 @@
 
   function re(c, sel) { return rerender(c.panel, sel); }
 
+  // goRule opens one rule of a document and puts the cursor in its body
+  // (spec-roles 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from
+  // a check, or from the address, reads through this, so the rule stands open
+  // where the editor shows, brought into the window — never under the save's band
+  // — with the body ready to be typed in. A rule the document does not hold
+  // leaves the panel as it is.
+  function goRule(panel, k) {
+    const row = rowOf(panel);
+    if (!row || !k) return null;
+    S.ropen.add(rkey(row, { _k: k }));
+    if (host.mode) host.mode(panel, 'edit');
+    S.pfocus[row.uid + row.l] = { k, f: 'text' };
+    const fresh = rerender(panel, null);
+    const el = fresh && fresh.querySelector(`.rule[data-k="${k}"] [data-f=text]`);
+    if (el) {
+      // The rule is brought into the middle of the window, so the band the
+      // screen pins to the bottom never hides it; a rule taller than the window
+      // keeps its head in it.
+      el.scrollIntoView({ block: 'center' });
+      const top = el.getBoundingClientRect().top;
+      if (top < 0) window.scrollBy(0, top);
+      el.focus({ preventScroll: true });
+    }
+    if (host.url) host.url();
+    return fresh;
+  }
+
   function handleClick(b) {
     const act = b.dataset.act, c = ctx(b);
     const row = c.row;
@@ -658,6 +685,7 @@
     mark,
     refreshPrev,
     rerender,
+    goRule,
     state: S,
     rkey,
     rulesOf,

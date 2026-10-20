@@ -12,6 +12,7 @@
 package definition_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -107,6 +108,50 @@ type built struct {
 func parseTeam(t *testing.T, l layer, text string) (*built, error) {
 	t.Helper()
 	return parse(text, "t", "", l, testProfiles(l.team))
+}
+
+// TestReadHandsBackADefinitionWhoseTurnsCannotHold: a member that hands its turn
+// to nobody stops the definition (I12a, I12b), and every command that reads it
+// stops on the sentence. The definition itself comes back beside the error,
+// because the parts of a prompt a change moves are readable from a graph that
+// cannot hold: a screen's card shows the line a change takes away even when the
+// change is what stops the definition (spec-teams 1.4.4, 監査 R11).
+func TestReadHandsBackADefinitionWhoseTurnsCannotHold(t *testing.T) {
+	l := newLayer(t, "")
+	text := "version: 1\nmission: 何かをする。\nmembers:\n" +
+		"  - name: a\n    role: r\n    profile: claude-default\n" +
+		"  - name: b\n    role: r\n    profile: claude-default\n" +
+		"turns:\n  - human -> a\n  - a -> human\n  - a -> b\n"
+
+	def, err := definition.Read(definition.Input{
+		YAML:         text,
+		Name:         "t",
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
+		TeamDir:      l.team,
+		Base:         l.team,
+		Reader:       source.Disk{},
+	})
+	var gerr *definition.GraphError
+	if !errors.As(err, &gerr) {
+		t.Fatalf("read = %v, want the one that stops on b handing its turn to nobody", err)
+	}
+	if len(gerr.Problems) != 1 || gerr.Problems[0].Key != "error.graph_member_no_turn" {
+		t.Errorf("the problems read %+v, want b handing its turn to nobody", gerr.Problems)
+	}
+	if def == nil || def.Graph == nil {
+		t.Fatalf("the definition came back as %v, want it with its graph, for the parts a change moves", def)
+	}
+	if def.Name != "t" {
+		t.Errorf("the definition came back named %q, want t", def.Name)
+	}
+	b := definition.NodeID{Kind: definition.KindMember, Name: "b"}
+	if _, ok := def.Graph.Member("b"); !ok {
+		t.Error("the definition came back without b, want its members")
+	}
+	if got := def.Graph.Out(b); len(got) != 0 {
+		t.Errorf("b hands its turn to %+v, want nobody", got)
+	}
 }
 
 func parse(text, name, runName string, l layer, profiles map[string]profile.Profile) (*built, error) {

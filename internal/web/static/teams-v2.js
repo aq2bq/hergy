@@ -930,17 +930,40 @@
     const agree = p.get('agree');
     if (agree) agree.split(',').filter(Boolean).forEach((n) => { state.dtab[n] = 'agree'; });
     const rule = p.get('rule');
+    state.wantRule = null;
     if (rule) rule.split(',').filter(Boolean).forEach((spec) => {
       const i = spec.indexOf('.');
       if (i < 0) return;
       const r = byName(spec.slice(0, i));
       if (!r) return;
       const hit = rulesOf(r.agree.draft).find((x) => x.id === spec.slice(i + 1));
-      if (hit) { state.open.add(r.name); state.dtab[r.name] = 'agree'; RD.state.ropen.add(`${r.uid}${r.place}:${hit._k}`); }
+      if (hit) {
+        state.open.add(r.name);
+        state.dtab[r.name] = 'agree';
+        RD.state.ropen.add(`${r.uid}${r.place}:${hit._k}`);
+        state.wantRule = { name: r.name, k: hit._k };
+      }
     });
     const file = p.get('file');
     if (file) state.yfile = file;
     if (location.pathname === '/teams/yaml') state.tab = 'yaml';
+  }
+
+  // jumpToRule opens one rule of a team's own agreement and puts the cursor in
+  // its body, brought into the window so the save's band never hides it
+  // (spec-teams 1.4.5, spec-roles 1.2.4, 監査 R12). The check's column reads
+  // through this, and so does the address — jumpWantRule is the same jump once
+  // the panel the address names has been drawn.
+  function jumpToRule(r, k) {
+    const p = $(`.panel.agree-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (p) RD.goRule(p, k);
+  }
+  function jumpWantRule() {
+    const w = state.wantRule;
+    state.wantRule = null;
+    if (!w) return;
+    const r = byName(w.name);
+    if (r) jumpToRule(r, w.k);
   }
 
   // ---- 操作 ------------------------------------------------------------
@@ -959,7 +982,7 @@
   const state = {
     tab: view.dataset.tab === 'yaml' ? 'yaml' : 'list',
     open: new Set(), dtab: {}, gsel: {}, confirm: {}, effect: {},
-    ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {},
+    ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
   };
   (LIST.items || []).forEach(defOf);
   readURL();
@@ -1017,16 +1040,17 @@
       case 'vpick': if (b.dataset.node) state.gsel[tk] = { type: 'node', id: b.dataset.node }; else if (b.dataset.worker != null) state.gsel[tk] = { type: 'worker', i: +b.dataset.worker }; rerenderTeam(td); break;
       case 'vrule': {
         // A warning about the team's own agreement opens that rule (spec-teams
-        // 1.4.5, 1.7, 監査 R9).
+        // 1.4.5, 監査 R9) in the 約束 tab, where a person can see it, with the
+        // cursor in its body (監査 R12).
         const r2 = byName(b.dataset.name);
         if (!r2) break;
         state.open.add(r2.name);
         state.dtab[r2.name] = 'agree';
         const hit = rulesOf(r2.agree.draft).find((x) => String(x.id) === b.dataset.id);
-        if (hit) RD.state.ropen.add(`${r2.uid}${r2.place}:${hit._k}`);
         render();
         checkAgree(r2);
         syncURL();
+        if (hit) jumpToRule(r2, hit._k);
         break;
       }
       case 't-save': saveTeam(td, tp); break;
@@ -1135,7 +1159,7 @@
       else $$('.panel.team-p').forEach(placeCard);
     }, 160);
   });
-  window.addEventListener('popstate', () => { state.open = new Set(); readURL(); render(); });
+  window.addEventListener('popstate', () => { state.open = new Set(); readURL(); render(); jumpWantRule(); });
 
   function take() {
     const teams = [];
@@ -1153,5 +1177,11 @@
   // node badges are the server's own reading of the saved file, and the
   // agreement's saved problems are the baseline its save is held to
   // (spec-teams C2, X3).
-  for (const r of recs.values()) { checkTeam(r); checkAgree(r); }
+  const first = [...recs.values()];
+  Promise.all(first.flatMap((r) => [checkTeam(r), checkAgree(r)])).then(() => {
+    // A rule the address names opens with the cursor in its body, once the
+    // panels the first checks redrew have settled (spec-teams 2, spec-roles
+    // 1.2.4, 監査 R12).
+    jumpWantRule();
+  });
 })();

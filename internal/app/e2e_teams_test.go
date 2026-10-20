@@ -713,11 +713,15 @@ func e2eTeamsWorkerPurpose(t *testing.T, ctx context.Context, base string) {
 	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()===''`)
 }
 
-// e2eTeamsGraphProblems is R8・R9: the card of a line that would take a member's
-// last turn says the problem the change would add before it is made (5.4 M3),
-// the problem of the draft then stands on that member's own point and names it
-// in the check column (1.4.1・1.7), and a warning about the team's own agreement
-// stands under チームの約束 and opens that rule in the 約束 tab (1.4.5).
+// e2eTeamsGraphProblems is R8・R9, with the two leftovers R11・R12: the card of a
+// line that would take a member's last turn says the problem the change would add
+// before it is made (5.4 M3) — and keeps the line that would leave beside it even
+// though the change is what stops the definition (1.4.4, R11) — the problem of
+// the draft then stands on that member's own point and names it in the check
+// column (1.4.1・1.7), and a warning about the team's own agreement stands under
+// チームの約束 and opens that rule in the 約束 tab, brought into the window with
+// the cursor in the rule's body, from the press and from the address alike
+// (1.4.5, 2, 監査 R12).
 func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"), chromedp.WaitReady(`.tdef[data-name="core"] .panel.team-p .gwrap svg`))
@@ -727,15 +731,21 @@ func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 	// R8: analyst hands out three turns and hires no worker, so taking the last
 	// one away leaves it handing the turn to nobody. The card says so before the
 	// press; the two cards before it do not.
-	for _, to := range []string{"lead", "impl-a", "impl-b"} {
+	for _, to := range []string{"impl-a", "impl-b", "lead"} {
 		e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=analyst]')`)
 		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=node]')`)
 		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .row button[data-act=pick-edge][data-b=`+to+`]')`)
 		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=edge]')`)
 		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-ask][data-a=analyst][data-b=`+to+`]')`)
 		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard [data-act=turn-del]')`)
-		if to == "impl-b" {
+		if to == "lead" {
 			e2eTeamsWait(t, ctx, stop)
+			// R11: the line the change would take away stands on the card even
+			// though the change itself is what stops the definition (1.4.4).
+			e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard .gpl s')`)
+			if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard .gpl s').textContent`); got != "- core-lead（ロール lead）" {
+				t.Errorf("the card's line that would leave reads %q, want - core-lead（ロール lead）", got)
+			}
 		} else if got := e2eTeamsValue(t, ctx, `(`+stop+`)+''`); got != "false" {
 			t.Errorf("the card of the %s turn already names the problem that would come", to)
 		}
@@ -755,7 +765,10 @@ func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 
 	// R9: scout's turn to the human goes, so the team's own agreement's rule
 	// RES-6 warns. It stands under チームの約束 — the role documents' head is not
-	// its place — and its press opens that rule in the 約束 tab (1.4.5).
+	// its place — and its press opens that rule in the 約束 tab (1.4.5). The
+	// window is the one a person reads on (1440×1000), where the rule a press
+	// opens falls below the save's band (監査 R12).
+	e2eRun(t, ctx, chromedp.EmulateViewport(1440, 1000))
 	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=research"), chromedp.WaitReady(`.tdef[data-name="research"] .panel.team-p .gwrap svg`))
 	rp := e2eTeamsPanelJS("research")
 	e2eTeamsClick(t, ctx, rp+`.querySelector('.gn.member[data-id=scout]')`)
@@ -782,6 +795,21 @@ func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsValue(t, ctx, `window.location.search`); !strings.Contains(got, "agree=research") {
 		t.Errorf("opening the rule left %q in the address", got)
 	}
+
+	// R12: the rule the press opened stands in the window — its head below the
+	// top, its body above the save's band — and its body has the cursor (1.7).
+	// Without the press's own move the rule falls below the band, where the
+	// person who pressed the check cannot see it.
+	above := `(function(){var p=` + e2eTeamsAgreeJS("research") + `;var r=p.querySelector('.rule.open'),t=p.querySelector('.rule.open [data-f=text]'),f=p.querySelector('footer.pf');if(!r||!t||!f)return false;var rr=r.getBoundingClientRect(),tr=t.getBoundingClientRect(),fr=f.getBoundingClientRect();return rr.top>=0&&tr.top>rr.top&&tr.bottom<=fr.top})()`
+	cursor := `(document.activeElement&&document.activeElement.dataset.f)==='text'`
+	e2eTeamsWait(t, ctx, above)
+	e2eTeamsWait(t, ctx, cursor)
+
+	// R12: the address opens the same rule the same way.
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?agree=research&rule=research.RES-6"), chromedp.WaitReady(`.tdef[data-name="research"] .panel.agree-p .rule.open`))
+	e2eTeamsWait(t, ctx, above)
+	e2eTeamsWait(t, ctx, cursor)
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 }
 
 // e2eTeamsWidths is W1〜W2 and D1: no page flows sideways at 2000, 1440 or 500, in

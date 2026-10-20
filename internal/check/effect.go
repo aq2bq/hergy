@@ -33,8 +33,11 @@ type EffectReport struct {
 // The problems are counted whatever the two views read, because a definition a
 // screen draws still has problems a change can add (spec-teams 1.9, 監査 R8): a
 // definition the change makes unreadable has the sentence itself as its one
-// problem. Only the lines need a prompt to compare, so a view that does not read
-// leaves them empty.
+// problem. The lines are the parts of a prompt the two views write, and those
+// parts are read from a definition whose turns cannot hold too (監査 R11), so a
+// change that stops the definition still shows the line it takes away. Only a
+// view that does not read at all — a file that does not parse, an op that does
+// not apply — leaves the lines empty.
 func TeamEffect(in TeamInput, op definition.Op) EffectReport {
 	cat := in.Catalog
 	if cat == nil {
@@ -58,7 +61,10 @@ func TeamEffect(in TeamInput, op definition.Op) EffectReport {
 
 // teamView is one read state of a team definition, as effect.Of wants it: the
 // ops applied, laid over the catalog, with the profiles and the facts a prompt
-// is built with. A definition that does not read is an error.
+// is built with. The definition is read the way a screen's card needs it, so a
+// change whose result stops the definition (the last turn a member hands out,
+// say) still has its parts compared and the line it takes away is shown (監査
+// R11); the sentence itself is the problem the same change adds.
 func teamView(cat *catalog.Catalog, in TeamInput) (effect.View, error) {
 	path := cat.TeamYAML(in.Name, in.Layer)
 	text, err := cat.Reader().Read(source.Doc{Path: path})
@@ -70,7 +76,7 @@ func teamView(cat *catalog.Catalog, in TeamInput) (effect.View, error) {
 		return effect.View{}, err
 	}
 	overlay := cat.With(path, text)
-	def, err := overlay.Definition(in.Name, in.Layer)
+	def, err := overlay.DefinitionForEffect(in.Name, in.Layer)
 	if err != nil {
 		return effect.View{}, err
 	}

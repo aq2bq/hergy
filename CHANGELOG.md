@@ -111,9 +111,12 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   takes away is struck through once, in the prompt's own words, with the checks
   it adds beside it; a worker's purpose can be typed to its end with the cursor
   staying in the field, and the worker it wrote counts as one change; the card
-  of the last turn a member hands out names the problem the press would add; and
-  the checks of the team's own agreement stand under `チームの約束` and open that
-  rule in the 約束 tab.
+  of the last turn a member hands out names the problem the press would add and
+  keeps the line that would leave beside it, though the change itself is what
+  stops the definition reading; and the checks of the team's own agreement stand
+  under `チームの約束` and open that rule in the 約束 tab, brought into the window
+  above the save's band with the cursor in the rule's body — the same from the
+  address the press writes.
 - **A document-wide sentence marks the first line alone**: the Markdown box of
   the shared part (the role screen and the team screen alike) marks a check
   about a document as a whole — a member's reading volume, say — on the first

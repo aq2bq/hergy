@@ -136,6 +136,9 @@ const spawnPlaceholder = "%{spawn}"
 // member may hire, and the team's own agreement. It builds the graph, so the
 // readers of a definition share one graph (d-11f8). It does not build a prompt:
 // that is a projection (prompt.Member), and this package does not import it.
+// A definition whose turns cannot hold comes back with a GraphError and with
+// the definition itself: a caller that reads the parts of a prompt a change
+// moves may use it (監査 R11), and every other caller stops on the error.
 func Read(in Input) (*Definition, error) {
 	version, err := profile.ReadVersion(in.YAML, "team.yaml", in.TeamYAMLPath)
 	if err != nil {
@@ -183,14 +186,7 @@ func Read(in Input) (*Definition, error) {
 		return nil, err
 	}
 	graph := NewGraph(members, workers, turns)
-	// A graph whose turns the definition cannot hold stops every command that
-	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
-	// member and of the human, and a turn reaching the human.
-	if problems := graph.Check(); len(problems) > 0 {
-		return nil, &GraphError{Path: in.TeamYAMLPath, Problems: problems}
-	}
-
-	return &Definition{
+	def := &Definition{
 		Name:         in.Name,
 		Mission:      mission,
 		Graph:        graph,
@@ -202,7 +198,18 @@ func Read(in Input) (*Definition, error) {
 		HasAgreement: in.Reader.IsFile(agreement),
 		Prompt:       prompt,
 		Ledger:       ledger,
-	}, nil
+	}
+	// A graph whose turns the definition cannot hold stops every command that
+	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
+	// member and of the human, and a turn reaching the human. The definition is
+	// handed back with the error, because the parts of a prompt a change moves
+	// are readable from a graph that cannot hold: a screen's card shows the line
+	// a change would take away even when the change is what stops the definition
+	// (spec-teams 1.4.4, 監査 R11). A caller that stops, stops on the error.
+	if problems := graph.Check(); len(problems) > 0 {
+		return def, &GraphError{Path: in.TeamYAMLPath, Problems: problems}
+	}
+	return def, nil
 }
 
 // teamAgreement is where a team's own agreement sits: agreement.yaml in the

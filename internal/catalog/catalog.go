@@ -310,15 +310,43 @@ func (c *Catalog) Definitions() []Listing {
 // Definition reads a team definition by name. layer forces one layer ("local" or
 // "global", for a screen that shows one); empty means the one way, local first.
 // It is the read validate and the screens that show one layer take; a screen
-// reads by name alone (Read).
+// reads by name alone (Read). A definition whose turns cannot hold does not read
+// (I12a, I12b): it stops here, the way a file that does not read does.
+// DefinitionForEffect is the one reading that takes such a definition.
 func (c *Catalog) Definition(name, layer string) (*definition.Definition, error) {
-	if name == "" {
-		return c.defaultDefinition(layer)
-	}
-	return c.definitionIn(name, layer)
+	return c.definition(name, layer, readStops)
 }
 
-func (c *Catalog) definitionIn(name, layer string) (*definition.Definition, error) {
+// DefinitionForEffect reads a team definition the way a screen's card needs it:
+// one whose turns cannot hold is read with its graph rather than refused, because
+// the parts of a prompt a change would move are readable from a graph that stops
+// the definition (spec-teams 1.4.4, 監査 R11). check.TeamEffect reads the two
+// views of a change through this, so a card shows the line a change takes away
+// even when the change itself is what stops the definition. Every command, and
+// every other reading of a definition, goes through Definition, which refuses.
+func (c *Catalog) DefinitionForEffect(name, layer string) (*definition.Definition, error) {
+	return c.definition(name, layer, readForEffect)
+}
+
+// readMode is which reading a caller needs of a definition whose turns cannot
+// hold: readStops refuses it, the way every command is stopped (I12a, I12b), and
+// readForEffect hands it back with its graph, for the parts of a prompt a change
+// moves (監査 R11).
+type readMode int
+
+const (
+	readStops readMode = iota
+	readForEffect
+)
+
+func (c *Catalog) definition(name, layer string, mode readMode) (*definition.Definition, error) {
+	if name == "" {
+		return c.defaultDefinition(layer, mode)
+	}
+	return c.definitionIn(name, layer, mode)
+}
+
+func (c *Catalog) definitionIn(name, layer string, mode readMode) (*definition.Definition, error) {
 	local := c.TeamYAML(name, source.LayerLocal)
 	global := c.TeamYAML(name, source.LayerGlobal)
 	hasLocal := c.hasFile(local)
@@ -346,34 +374,34 @@ func (c *Catalog) definitionIn(name, layer string) (*definition.Definition, erro
 			return nil, c.missing(name)
 		}
 	}
-	return c.readDefinition(name, chosen, chosenLayer)
+	return c.readDefinition(name, chosen, chosenLayer, mode)
 }
 
 // defaultDefinition is what a missing name does: the single local definition, or
 // a list of candidates to choose from.
-func (c *Catalog) defaultDefinition(layer string) (*definition.Definition, error) {
+func (c *Catalog) defaultDefinition(layer string, mode readMode) (*definition.Definition, error) {
 	switch layer {
 	case source.LayerGlobal:
 		names := teamNames(c.globalDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerGlobal)
+			return c.definitionIn(names[0], source.LayerGlobal, mode)
 		}
 	case source.LayerLocal:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerLocal)
+			return c.definitionIn(names[0], source.LayerLocal, mode)
 		}
 	default:
 		names := teamNames(c.localDir)
 		if len(names) == 1 {
-			return c.definitionIn(names[0], source.LayerLocal)
+			return c.definitionIn(names[0], source.LayerLocal, mode)
 		}
 	}
 	return nil, c.candidates(layer)
 }
 
 // readDefinition reads one team.yaml with the profiles its layer reads.
-func (c *Catalog) readDefinition(name, path, layer string) (*definition.Definition, error) {
+func (c *Catalog) readDefinition(name, path, layer string, mode readMode) (*definition.Definition, error) {
 	text, err := c.readText(path)
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
@@ -394,6 +422,14 @@ func (c *Catalog) readDefinition(name, path, layer string) (*definition.Definiti
 		Reader:       c.reader,
 	})
 	if err != nil {
+		var gerr *definition.GraphError
+		if mode == readForEffect && def != nil && errors.As(err, &gerr) {
+			// The turns cannot hold, so every command stops on the sentence
+			// (I12a, I12b). The definition is handed back all the same, because
+			// the parts of a prompt a change moves are readable from it (監査
+			// R11).
+			return def, nil
+		}
 		return nil, &ReadError{Path: path, Err: err}
 	}
 	return def, nil
