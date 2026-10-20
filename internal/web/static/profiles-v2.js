@@ -623,21 +623,20 @@
   }
 
   async function saveTeam(team) {
-    // The picks that moved, as the doc `PUT /api/team/{name}` writes: a member's
-    // or a worker's profile, and nothing else (spec-boundary 6).
-    const members = [];
-    const workers = [];
+    // The picks that moved, as the team kind's own ops: each writes one line of
+    // team.yaml and no other (spec-boundary 6, spec-teams 1.3).
+    const ops = [];
     $$('.arow select', team).forEach((select) => {
       const row = select.closest('.arow');
       if (select.value === (row.dataset.saved || '')) return;
       if (row.dataset.k.startsWith('m')) {
-        members.push({ name: $('.who code', row).textContent, profile: select.value });
+        ops.push({ kind: 'memberProfile', member: $('.who code', row).textContent, profile: select.value });
       } else {
-        workers.push({ from: $('.role code', row).textContent.replace(/^from /, ''), purpose: $('.purpose', row).textContent, profile: select.value });
+        ops.push({ kind: 'workerProfile', from: $('.role code', row).textContent.replace(/^from /, ''), purpose: $('.purpose', row).textContent, profile: select.value });
       }
     });
     const answer = await API.save('team', team.dataset.g, {
-      place: 'project', doc: { name: team.dataset.g, members, workers }, hash: team.dataset.hash,
+      place: 'project', doc: { ops }, hash: team.dataset.hash,
     });
     if (!answer.ok) {
       API.refusal(team, API.problemText(answer, '保存できませんでした'));

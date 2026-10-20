@@ -22,9 +22,12 @@ window.hergyYaml = (() => {
     return (answer.json && answer.json.problems) || [];
   }
 
-  // saveText writes one file's whole text. The answer carries the new hash.
+  // saveText writes one file's whole text. The answer carries the new hash. The
+  // name travels in the body as well as the path: a kind that reads the file's
+  // name from the body rather than from the path writes the file it was handed
+  // (r-8e85).
   async function saveText(kind, name, place, text, hash) {
-    return API.save(kind, name, { place, text, hash: hash || '' });
+    return API.save(kind, name, { place, name, text, hash: hash || '' });
   }
 
   // tellDirty lets the page mark itself as carrying unsaved work, the same way

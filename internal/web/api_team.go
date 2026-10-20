@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -38,13 +39,26 @@ type apiTeamWorker struct {
 }
 
 // apiTeamDraft is the doc one 割り当て tab sends on a save: the picks it changed,
-// and nothing else. A member's role or profile is left out when that pick did
-// not move, so a card that only changed roles does not blank the profiles
-// (spec-boundary 6).
+// and nothing else. The picks travel as the team kind's own ops (r-8e85); the
+// rows are the older form, which a member's role or profile is left out of when
+// that pick did not move, so a card that only changed roles does not blank the
+// profiles (spec-boundary 6).
 type apiTeamDraft struct {
 	Name    string            `json:"name"`
 	Members []apiTeamDraftRow `json:"members"`
 	Workers []apiTeamDraftRow `json:"workers"`
+	Ops     []apiTeamOp       `json:"ops"`
+}
+
+// apiTeamOp is one pick as the team kind's own op: one line of team.yaml, and
+// no other (spec-boundary 6, spec-teams 1.3).
+type apiTeamOp struct {
+	Kind    string `json:"kind"`
+	Member  string `json:"member"`
+	Role    string `json:"role"`
+	From    string `json:"from"`
+	Purpose string `json:"purpose"`
+	Profile string `json:"profile"`
 }
 
 type apiTeamDraftRow struct {
@@ -160,7 +174,10 @@ func (k apiTeam) Save(name string, in apiIn) (any, *apiErr) {
 	if in.Hash != source.Hash(text) {
 		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", def.display))
 	}
-	ops, changes := apiTeamOps(def, doc)
+	ops, changes, err := apiTeamPicks(def, doc)
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
 	edited := text
 	for _, op := range ops {
 		next, err := definition.EditYAML([]byte(edited), def.display, op)
@@ -196,6 +213,34 @@ func (k apiTeam) Delete(name, _ string, hash string) (any, *apiErr) {
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}
 	return k.List()
+}
+
+// apiTeamPicks is the ops one save means: the picks the tab sent as the team
+// kind's own ops, or, from a tab that still sends its rows, the picks that moved
+// over the saved file. The changes are the same picks in the words
+// p2MissingProfile reads.
+func apiTeamPicks(def p2Def, doc apiTeamDraft) ([]definition.Op, []p2AssignChange, error) {
+	if len(doc.Ops) == 0 {
+		ops, changes := apiTeamOps(def, doc)
+		return ops, changes, nil
+	}
+	var ops []definition.Op
+	var changes []p2AssignChange
+	for _, row := range doc.Ops {
+		switch row.Kind {
+		case "memberRole":
+			ops = append(ops, definition.MemberRole(row.Member, row.Role))
+		case "memberProfile":
+			ops = append(ops, definition.MemberProfile(row.Member, row.Profile))
+			changes = append(changes, p2AssignChange{Member: row.Member, Profile: row.Profile})
+		case "workerProfile":
+			ops = append(ops, definition.WorkerProfile(row.From, row.Purpose, row.Profile))
+			changes = append(changes, p2AssignChange{From: row.From, Purpose: row.Purpose, Profile: row.Profile})
+		default:
+			return nil, nil, fmt.Errorf("unknown op %q", row.Kind)
+		}
+	}
+	return ops, changes, nil
 }
 
 // apiTeamOps is the ops one draft means: every member's and worker's pick that

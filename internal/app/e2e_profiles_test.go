@@ -73,7 +73,7 @@ func TestE2EProfiles(t *testing.T) {
 	t.Run("duplicate copy delete", func(t *testing.T) { e2eProfilesCopy(t, ctx, base, f) })
 	t.Run("assign", func(t *testing.T) { e2eProfilesAssign(t, ctx, base, f) })
 	t.Run("usage jumps", func(t *testing.T) { e2eProfilesUsage(t, ctx, base) })
-	t.Run("yaml", func(t *testing.T) { e2eProfilesYAML(t, ctx, base) })
+	t.Run("yaml", func(t *testing.T) { e2eProfilesYAML(t, ctx, base, f) })
 	t.Run("widths and lights", func(t *testing.T) { e2eProfilesWidths(t, ctx, base) })
 	t.Run("delete a used profile", func(t *testing.T) { e2eProfilesDeleteUsed(t, ctx, base) })
 
@@ -416,6 +416,8 @@ func e2eProfilesAssign(t *testing.T, ctx context.Context, base string, f *fixtur
 		t.Errorf("a card with a problem shows a save button")
 	}
 
+	path := filepath.Join(f.proj, ".hergy", "teams", "migrate", "team.yaml")
+	before := readFile(t, path)
 	e2eProfilesSelect(t, ctx, `document.querySelector('.team[data-g=migrate] .arow[data-k="m-1"] select')`, "sonnet-fast")
 	e2eProfilesWait(t, ctx, `!!document.querySelector('.team[data-g=migrate] [data-act="g-save"]')`)
 	if got := e2eProfilesValue(t, ctx, `document.querySelector('.team[data-g=migrate] .tside .dirty').textContent`); got != "1 人" {
@@ -426,8 +428,14 @@ func e2eProfilesAssign(t *testing.T, ctx context.Context, base string, f *fixtur
 	}
 	e2eProfilesClick(t, ctx, `.team[data-g=migrate] [data-act="g-save"]`)
 	e2eProfilesWait(t, ctx, `!!document.querySelector('.team[data-g=migrate] .ok')`)
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "migrate", "team.yaml")); !strings.Contains(got, "  - name: impl\n    role: builder\n    profile: sonnet-fast\n") {
-		t.Errorf("the pick was not written:\n%s", got)
+	after := readFile(t, path)
+	if !strings.Contains(after, "  - name: impl\n    role: builder\n    profile: sonnet-fast\n") {
+		t.Errorf("the pick was not written:\n%s", after)
+	}
+	// The pick travels as the team kind's own op, so it writes that line and no
+	// other (spec-teams 1.3, r-8e85).
+	if changed := e2eRolesChangedLines(before, after); len(changed) != 1 {
+		t.Errorf("the assign save changed %d lines, want the one it picked: %v", len(changed), changed)
 	}
 
 	// P13・R6: a kind dims the rest, and the address keeps the choice.
@@ -487,7 +495,7 @@ func e2eProfilesUsage(t *testing.T, ctx context.Context, base string) {
 
 // e2eProfilesYAML is T3・V4: the editor shows the text and its problems on their
 // lines, and a broken text stops the save.
-func e2eProfilesYAML(t *testing.T, ctx context.Context, base string) {
+func e2eProfilesYAML(t *testing.T, ctx context.Context, base string, f *fixture) {
 	t.Helper()
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles/yaml"), chromedp.WaitReady(".yed"))
 	if got := e2eProfilesValue(t, ctx, `document.querySelector('.yed[data-file=project] .ytext').value`); !strings.Contains(got, "opencode-deepseek:") {
@@ -506,6 +514,25 @@ func e2eProfilesYAML(t *testing.T, ctx context.Context, base string) {
 	}
 	e2eProfilesClick(t, ctx, `.yed[data-file=project] [data-act="yaml-revert"]`)
 	e2eProfilesWait(t, ctx, `document.querySelector('.yed[data-file=project] .ytext').value.indexOf('version: 1')===0 && document.querySelectorAll('.yed[data-file=project] .vitem').length===0`)
+
+	// T2・V4: a good change is written as typed, through the shared YAML part.
+	// The save carries the name of the file the section drew as well as the
+	// text, so the kind writes the file the screen handed it (r-8e85).
+	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	before := readFile(t, path)
+	good := strings.Replace(before, "version: 1", "version: 1 # e2e", 1)
+	if good == before {
+		t.Fatalf("the fixture's profiles.yaml no longer starts with the line the test marks")
+	}
+	e2eProfilesSet(t, ctx, `document.querySelector('.yed[data-file=project] .ytext')`, good)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('.yed[data-file=project] [data-act=yaml-save]')`)
+	e2eProfilesFile(t, path, "# e2e")
+	if got := readFile(t, path); got != good {
+		t.Errorf("the YAML save wrote %q, want the typed text", got)
+	}
+	// Put the fixture back: the tests behind this one open the profiles this
+	// file names.
+	writeFile(t, path, before)
 }
 
 // e2eProfilesWidths is W1〜W4 and D1: the three widths lay out as the spec says,
