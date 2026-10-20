@@ -652,11 +652,14 @@ func SizeOf(starts []definition.Start, reader source.Reader) Size {
 		}
 		files = append(files, member.Read...)
 		for _, doc := range files {
-			if document := load(doc); document != nil {
+			document := load(doc)
+			excluded := 0
+			if document != nil {
 				read.Add(document)
+				excluded = document.ExcludedCount()
 			}
 			if text, ok := texts[doc.Path]; ok {
-				team.AddSource(doc.Path, text)
+				team.AddSource(doc.Path, text, excluded)
 			}
 		}
 		out.Members = append(out.Members, MemberSize{Name: member.Name, Size: read})

@@ -795,9 +795,9 @@ func TestValidateShape(t *testing.T) {
 		"no origin: .hergy/roles/lead.yaml: L1, L2",
 		"no origin: .hergy/teams/demo/agreement.yaml: C1, C2",
 		"no origin: .hergy/roles/builder.yaml: B1, B2",
-		"  team .hergy/teams/demo: sources 3, characters 1507",
-		"    member demo-lead: rules 4, characters 372",
-		"    member demo-builder: rules 4, characters 434",
+		"  team .hergy/teams/demo: sources 3, characters 1507, not in the prompt 0",
+		"    member demo-lead: rules 4, characters 372, not in the prompt 0",
+		"    member demo-builder: rules 4, characters 434, not in the prompt 0",
 	)
 }
 
@@ -958,6 +958,32 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "next: up demo\n") {
 		t.Fatalf("up --dry does not end with next:\n%s", got)
+	}
+}
+
+// TestUpDryLeavesOutARuleThatIsNotInThePrompt: a rule a file keeps out of the
+// prompt (in_prompt: false) is in neither the prompt up hands a member nor the
+// one reprompt sends; the rules that are in the prompt stand unchanged
+// (d-f187).
+func TestUpDryLeavesOutARuleThatIsNotInThePrompt(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:demo@demo"}`, "")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
+		"version: 1\nsections:\n  - heading: 進め方\n    rules:\n"+
+			"      - id: L1\n        text: 渡す本文。\n"+
+			"      - id: L2\n        text: 渡さない本文。\n        in_prompt: false\n")
+	for _, argv := range [][]string{
+		{"up", "demo", "--dry"},
+		{"reprompt", "lead", "--team", "demo", "--dry"},
+	} {
+		got := mustRun(t, argv...)
+		if strings.Contains(got, "渡さない本文。") || strings.Contains(got, "L2") {
+			t.Errorf("%v hands out a rule the file keeps out of the prompt:\n%s", argv, got)
+		}
+		if !strings.Contains(got, "- **L1** 渡す本文。") {
+			t.Errorf("%v lost the rule that is in the prompt:\n%s", argv, got)
+		}
 	}
 }
 

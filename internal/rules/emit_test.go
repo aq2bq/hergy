@@ -107,6 +107,35 @@ func TestEmitLeavesOutALeftoverStyle(t *testing.T) {
 	}
 }
 
+// TestEmitWritesInPromptFalseAndLeavesTrueOut: the default is true, so a rule a
+// file keeps out of the prompt is the one Emit writes the key for, and a file
+// that spelled the default out comes back without it.
+func TestEmitWritesInPromptFalseAndLeavesTrueOut(t *testing.T) {
+	doc := parse(t, "version: 1\nsections:\n  - rules:\n"+
+		"      - id: R1\n        text: a\n        in_prompt: false\n"+
+		"      - id: R2\n        text: b\n        in_prompt: true\n")
+	written, err := Emit(doc)
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	if n := strings.Count(written, "in_prompt: false"); n != 1 {
+		t.Errorf("Emit wrote %d in_prompt: false, want 1:\n%s", n, written)
+	}
+	if strings.Contains(written, "in_prompt: true") {
+		t.Errorf("Emit wrote the default in_prompt: true:\n%s", written)
+	}
+	again, err := Parse(written, "rules.yaml")
+	if err != nil {
+		t.Fatalf("the file Emit wrote does not read back: %v\n%s", err, written)
+	}
+	if again.Sections[0].Rules[0].Included() {
+		t.Error("the rule kept out of the prompt came back in it")
+	}
+	if !again.Sections[0].Rules[1].Included() {
+		t.Error("the rule left in the prompt came back out of it")
+	}
+}
+
 // TestEmitIsTheSameDocumentReadBack: what hergy writes, hergy reads back as the
 // same document, and the Markdown a member reads is unchanged. Emit is
 // idempotent, so writing a file twice gives the same bytes.
@@ -147,6 +176,7 @@ reports:
 		{"the optional keys left out", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n"},
 		{"a section with no heading and no rules", "version: 1\nsections:\n  - heading: H\n    rules: []\n  - rules: []\n"},
 		{"a style: line of each kind left out", "version: 1\nsections:\n  - style: paragraphs\n    rules:\n      - id: R1\n        text: a\n  - style: bullets\n    rules:\n      - id: R2\n        text: b\n  - style: numbered\n    rules:\n      - id: R3\n        text: c\n  - style: ids\n    rules:\n      - id: R4\n        text: d\n"},
+		{"a rule the file keeps out of the prompt", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: a\n        in_prompt: false\n      - id: R2\n        text: b\n        in_prompt: true\n"},
 		{"a body that keeps its last line break", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: |\n          a\n          b\n"},
 		{"a body that would read as something else", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: '5'\n      - id: R2\n        text: 'true'\n      - id: R3\n        text: '# no comment'\n      - id: R4\n        text: '- not a list'\n"},
 		{"one string where a list is taken", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n        tests: T-1\n        origin:\n          - kind: derived\n            refs: I7\n"},
@@ -183,11 +213,11 @@ reports:
 	}
 }
 
-// canonical is a document with the one value hergy does not write folded into
-// the empty one: send_why true, written out or left out, means the same thing,
-// and Emit leaves it out. Empty lists become nil too, so a file that wrote
-// tests: [] is the same document as one that left tests out. Two documents with
-// the same canonical form are the same document.
+// canonical is a document with the values hergy does not write folded into the
+// empty one: send_why true and in_prompt true, written out or left out, mean the
+// same thing, and Emit leaves them out. Empty lists become nil too, so a file
+// that wrote tests: [] is the same document as one that left tests out. Two
+// documents with the same canonical form are the same document.
 func canonical(d *Document) Document {
 	out := *d
 	out.Sections = append([]Section(nil), d.Sections...)
@@ -196,6 +226,9 @@ func canonical(d *Document) Document {
 		for j, rule := range section.Rules {
 			if rule.SendWhy != nil && *rule.SendWhy {
 				rule.SendWhy = nil
+			}
+			if rule.InPrompt != nil && *rule.InPrompt {
+				rule.InPrompt = nil
 			}
 			rule.Origin = append([]Origin(nil), rule.Origin...)
 			for k, origin := range rule.Origin {
@@ -221,6 +254,7 @@ func canonical(d *Document) Document {
 // -fuzz.
 func FuzzEmit(f *testing.F) {
 	f.Add("version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n")
+	f.Add("version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n        in_prompt: false\n")
 	f.Add("version: 1\ntitle: T\nrevision: 1\nsections:\n  - heading: H\n    level: 3\n    intro: I\n    style: ids\n    rules:\n      - id: R1\n        text: |-\n          a\n          b\n        why: w\n        send_why: false\n        note: n\n        report: A.f\n        tests: [T-1]\n        origin:\n          - kind: derived\n            refs: [R1]\nreports:\n  A:\n    where: W\n    fields:\n      f: d\n")
 	f.Add("version: 1\nsections:\n  - rules:\n      - id: R1\n        text: |\n          a\n")
 	f.Add("version: 1\nsections:\n  - rules:\n      - id: R1\n        text: '5'\n")

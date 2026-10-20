@@ -30,15 +30,24 @@ const (
 // into its prompt, and the characters of the Markdown hergy renders from them.
 // The prompt's own frame (its template, and the roster and contact hergy adds)
 // is not counted, and the same document read twice counts twice: it is handed
-// over twice.
+// over twice. A rule the file keeps out of the prompt (in_prompt: false) is not
+// handed over: it is counted in Excluded, and neither its text nor its reason
+// counts here.
 type MemberSize struct {
-	Rules int
-	Chars int
+	Rules    int
+	Chars    int
+	Excluded int
 }
 
 // Add counts one document of a member's prompt.
 func (s *MemberSize) Add(doc *Document) {
-	s.Rules += len(doc.Rules())
+	for _, rule := range doc.Rules() {
+		if rule.Included() {
+			s.Rules++
+		} else {
+			s.Excluded++
+		}
+	}
 	s.Chars += CharCount(doc.Markdown())
 }
 
@@ -52,15 +61,20 @@ func (s MemberSize) OverMemberChars() bool { return s.Chars > MemberCharLimit }
 
 // TeamSize is what one team definition keeps: the rule files its members read. A
 // person maintains these files, so one that two members read is counted once.
+// Excluded is how many rules those files keep out of the members' prompts, also
+// counted once per file: the file is what holds them.
 type TeamSize struct {
-	Sources int
-	Chars   int
-	seen    map[string]bool
+	Sources  int
+	Chars    int
+	Excluded int
+	seen     map[string]bool
 }
 
 // AddSource counts one rule file of a team, once, from the text as it is on
-// disk.
-func (t *TeamSize) AddSource(path, text string) {
+// disk. excluded is how many of its rules the file keeps out of the members'
+// prompts: they are counted, and the file's characters are not narrowed by them
+// (a person maintains the whole file).
+func (t *TeamSize) AddSource(path, text string, excluded int) {
 	if t.seen == nil {
 		t.seen = map[string]bool{}
 	}
@@ -70,6 +84,7 @@ func (t *TeamSize) AddSource(path, text string) {
 	t.seen[path] = true
 	t.Sources++
 	t.Chars += CharCount(text)
+	t.Excluded += excluded
 }
 
 // OverTeamSources says whether the team reads more rule files than the

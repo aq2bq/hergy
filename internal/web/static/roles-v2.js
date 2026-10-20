@@ -59,7 +59,7 @@
       sections: (d.sections || []).map((s) => ({
         heading: s.heading || '', level: s.level || 0, intro: s.intro || '',
         rules: (s.rules || []).map((x) => ({
-          _k: ++kseq, id: x.id || '', text: x.text || '', why: x.why || '', send_why: x.send_why !== false,
+          _k: ++kseq, id: x.id || '', text: x.text || '', why: x.why || '', send_why: x.send_why !== false, in_prompt: x.in_prompt !== false,
           note: x.note || '', report: x.report || '', tests: (x.tests || []).slice(),
           origin: (x.origin || []).map((o) => ({ kind: o.kind || 'incident', date: o.date || '', refs: (o.refs || []).slice(), note: o.note || '' })),
         })),
@@ -79,7 +79,7 @@
         rules: (s.rules || []).map((x) => {
           const f = at.get(x._k);
           return {
-            from: f ? { section: f[0], rule: f[1] } : null, id: x.id, text: x.text, why: x.why, send_why: x.send_why,
+            from: f ? { section: f[0], rule: f[1] } : null, id: x.id, text: x.text, why: x.why, send_why: x.send_why, in_prompt: x.in_prompt,
             note: x.note, report: x.report, tests: x.tests, origin: x.origin,
           };
         }),
@@ -580,7 +580,7 @@
       <div class="field"><label for="id${key}">ID</label><div><input id="id${key}" class="in-id" data-f="id" value="${esc(x.id)}" spellcheck="false" autocomplete="off"><ul class="vm" data-for="id"></ul></div></div>
       <div class="field"><label for="tx${key}">本文</label><div><textarea id="tx${key}" class="ta" data-f="text" rows="2">${esc(x.text)}</textarea><div class="tchk"></div><ul class="vm" data-for="text"></ul></div></div>
       <div class="field"><label for="wy${key}">なぜ</label><div><textarea id="wy${key}" class="ta" data-f="why" rows="1">${esc(x.why)}</textarea>
-        <div class="whyrow"><div class="seg" data-f="send_why">${[[true, 'メンバーに渡す'], [false, '渡さない']].map(([v, label]) => `<button class="${x.send_why === v ? 'on' : ''}" data-act="send-why" data-v="${v}" aria-pressed="${x.send_why === v}">${label}</button>`).join('')}</div></div></div></div>
+        <div class="whyrow"><div class="seg" data-f="send_why">${[[true, 'プロンプトに含める'], [false, '含めない']].map(([v, label]) => `<button class="${x.send_why === v ? 'on' : ''}" data-act="send-why" data-v="${v}" aria-pressed="${x.send_why === v}">${label}</button>`).join('')}</div></div></div></div>
       <div class="field"><span class="fl">由来</span><div><div class="origins">${x.origin.map((o, oi) => `<div class="orow" data-oi="${oi}">
           <div class="seg" data-f="o-kind">${Object.entries(KIND).map(([k, label]) => `<button class="${o.kind === k ? 'on' : ''}" data-act="o-kind" data-v="${k}" aria-pressed="${o.kind === k}"><i class="sw o-${k}"></i>${label}</button>`).join('')}</div>
           <input id="od${key}-${oi}" data-f="o-date" value="${esc(o.date)}" placeholder="YYYY-MM-DD" spellcheck="false" autocomplete="off" aria-label="日付">
@@ -828,7 +828,7 @@
     const r = roleByName(roleName);
     if (!r) return null;
     const l = eff(r), c = checks[r.uid + l];
-    const rules = rulesOf(r[l].draft).length + t.agree.rules;
+    const rules = rulesOf(r[l].draft).filter((x) => x.in_prompt !== false).length + t.agree.rules;
     const chars = (c ? c.markdown.chars : 0) + t.agree.chars;
     return { rules, chars, over: rules > LIMIT.rules || chars > LIMIT.chars };
   }
@@ -1099,7 +1099,7 @@
       }
       case 'filter': state.filter = b.dataset.f || null; render(); syncURL(false); break;
       case 'new': {
-        const d = { name: '', title: '', revision: 1, sections: [{ heading: '使命', level: 0, intro: '', rules: [{ _k: ++kseq, id: '', text: '', why: '', send_why: true, note: '', report: '', tests: [], origin: [] }] }] };
+        const d = { name: '', title: '', revision: 1, sections: [{ heading: '使命', level: 0, intro: '', rules: [{ _k: ++kseq, id: '', text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] }] }] };
         const nr = { uid: ++uid, isNew: true, project: { saved: null, draft: d, hash: '', text: '' }, global: null };
         roles.unshift(nr); state.open.add(nr.uid); state.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`); state.filter = null; state.q = '';
         render(); askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
@@ -1117,7 +1117,7 @@
       case 'sec-del-yes': delete state.confirm[sk]; c.d.sections.splice(c.si, 1); re(); scheduleCheck(r, c.l, c.sec); break;
       case 'intro-add': state.introOpen = `${r.uid}${c.l}-s${c.si}`; re(`.sec[data-si="${c.si}"] [data-f=intro]`); break;
       case 'rule-add': {
-        const x = { _k: ++kseq, id: '', text: '', why: '', send_why: true, note: '', report: '', tests: [], origin: [] };
+        const x = { _k: ++kseq, id: '', text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] };
         c.d.sections[c.si].rules.push(x); state.ropen.add(rkey(r, c.l, x));
         re(`.rule[data-k="${x._k}"] [data-f=id]`); scheduleCheck(r, c.l, c.sec); break;
       }

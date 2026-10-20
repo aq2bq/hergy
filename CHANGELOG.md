@@ -4,7 +4,21 @@
 
 A section's rules are laid out one way now: a bullet list with the id first.
 The `style:` key is gone from a rule file, so what a member's prompt carries no
-longer depends on a key.
+longer depends on a key. A rule can now also stay out of the prompt by itself:
+`in_prompt: false` keeps it in the file and out of what a member is handed.
+
+### Added
+
+- **A rule can stay out of the prompt**: `in_prompt: false` keeps the rule in its
+  file and out of every member's prompt — neither the one `hergy up` sends nor
+  the one `hergy reprompt` rebuilds — and out of the amount counted for that
+  member, its rules and its characters. The rule is a rule still: its id cannot
+  stand twice, another rule may still be derived from it, and its origin, its
+  reason and its check are counted and checked. `hergy validate` says how many
+  rules are not handed over (`not in the prompt N`) beside each member and each
+  team definition. A file that leaves the key unsaid hands the rule over, so
+  files that do not use it are unchanged, and a save through the role screen
+  keeps the key. `hergy cheat --ai` and the `hergy` skill name it.
 
 ### Breaking
 

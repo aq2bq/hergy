@@ -60,15 +60,16 @@ type r2Section struct {
 }
 
 type r2Rule struct {
-	From    *r2From    `json:"from,omitempty"`
-	ID      string     `json:"id"`
-	Text    string     `json:"text"`
-	Why     string     `json:"why"`
-	SendWhy bool       `json:"send_why"`
-	Note    string     `json:"note"`
-	Report  string     `json:"report"`
-	Tests   []string   `json:"tests"`
-	Origin  []r2Origin `json:"origin"`
+	From     *r2From    `json:"from,omitempty"`
+	ID       string     `json:"id"`
+	Text     string     `json:"text"`
+	Why      string     `json:"why"`
+	SendWhy  bool       `json:"send_why"`
+	InPrompt bool       `json:"in_prompt"`
+	Note     string     `json:"note"`
+	Report   string     `json:"report"`
+	Tests    []string   `json:"tests"`
+	Origin   []r2Origin `json:"origin"`
 }
 
 type r2From struct {
@@ -192,7 +193,7 @@ func r2DocOf(doc *rules.Document, hash, text string) *r2Doc {
 		for i := range section.Rules {
 			rule := &section.Rules[i]
 			send := rule.SendWhy == nil || *rule.SendWhy
-			row := r2Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
+			row := r2Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, InPrompt: rule.Included(), Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
 			for _, origin := range rule.Origin {
 				row.Origin = append(row.Origin, r2Origin{Kind: origin.Kind, Date: origin.Date, Refs: origin.Refs, Note: origin.Note})
 			}
@@ -211,7 +212,7 @@ func r2NewRole(name string) *r2Doc {
 		Name: name, Revision: &revision,
 		Sections: []r2Section{{
 			Heading: "使命",
-			Rules:   []r2Rule{{SendWhy: true}},
+			Rules:   []r2Rule{{SendWhy: true, InPrompt: true}},
 		}},
 	}
 }
@@ -241,7 +242,15 @@ func (d r2Doc) document() *rules.Document {
 				no := false
 				send = &no
 			}
-			parsed := rules.Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
+			// in_prompt true is the default the same way, so a rule that is in
+			// the prompt comes back with the key unsaid. The screen offers no
+			// switch for the key yet (d-f187; the switch is a later request).
+			var inPrompt *bool
+			if !rule.InPrompt {
+				no := false
+				inPrompt = &no
+			}
+			parsed := rules.Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, InPrompt: inPrompt, Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
 			for _, origin := range rule.Origin {
 				parsed.Origin = append(parsed.Origin, rules.Origin{Kind: origin.Kind, Date: origin.Date, Refs: origin.Refs, Note: origin.Note})
 			}
@@ -300,7 +309,7 @@ func (s *Server) r2AgreementSize(teamPath string) r2Size {
 		if doc == nil {
 			return
 		}
-		out.Rules += len(doc.Rules())
+		out.Rules += len(doc.IncludedRules())
 		out.Chars += rules.CharCount(doc.Markdown())
 	}
 	if shared, ok := s.cat.SharedAgreement(); ok {

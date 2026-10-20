@@ -46,6 +46,43 @@ sections:
 	}
 }
 
+// TestMemberSizeLeavesOutARuleKeptOutOfThePrompt: a rule a file keeps out of the
+// prompt (in_prompt: false) is not handed over: neither the rule nor the
+// characters of its text and reason count in the amount, and it is counted as a
+// rule that is not in the prompt instead.
+func TestMemberSizeLeavesOutARuleKeptOutOfThePrompt(t *testing.T) {
+	doc := parse(t, `version: 1
+title: T
+sections:
+  - heading: H
+    rules:
+      - id: R1
+        text: one
+      - id: R2
+        text: two
+        why: because
+        in_prompt: false
+`)
+	var size MemberSize
+	size.Add(doc)
+	if size.Rules != 1 {
+		t.Errorf("Rules = %d, want 1", size.Rules)
+	}
+	if size.Excluded != 1 {
+		t.Errorf("Excluded = %d, want 1", size.Excluded)
+	}
+	want := CharCount("# T\n\n## H\n\n- **R1** one\n")
+	if size.Chars != want {
+		t.Errorf("Chars = %d, want %d", size.Chars, want)
+	}
+	if got := doc.ExcludedCount(); got != 1 {
+		t.Errorf("ExcludedCount = %d, want 1", got)
+	}
+	if got := len(doc.IncludedRules()); got != 1 {
+		t.Errorf("IncludedRules = %d, want 1", got)
+	}
+}
+
 // TestMemberSizeCountsADocumentTwiceWhenItIsHandedTwice: the same text handed
 // over twice is two handovers, so a file split in two cannot hide the amount.
 func TestMemberSizeCountsADocumentTwiceWhenItIsHandedTwice(t *testing.T) {
@@ -99,17 +136,21 @@ func TestMemberSizeIsOverItsLimits(t *testing.T) {
 }
 
 // TestTeamSizeCountsASourceOnce: a person maintains a file once, however many
-// members read it.
+// members read it. The rules a file keeps out of the prompt are counted once
+// too, and the file's characters are not narrowed by them.
 func TestTeamSizeCountsASourceOnce(t *testing.T) {
 	var size TeamSize
-	size.AddSource("protocol.yaml", "abc")
-	size.AddSource("roles/lead.yaml", "de")
-	size.AddSource("protocol.yaml", "abc") // the second member reads the same file
+	size.AddSource("protocol.yaml", "abc", 1)
+	size.AddSource("roles/lead.yaml", "de", 0)
+	size.AddSource("protocol.yaml", "abc", 1) // the second member reads the same file
 	if size.Sources != 2 {
 		t.Errorf("Sources = %d, want 2", size.Sources)
 	}
 	if size.Chars != 5 {
 		t.Errorf("Chars = %d, want 5", size.Chars)
+	}
+	if size.Excluded != 1 {
+		t.Errorf("Excluded = %d, want 1", size.Excluded)
 	}
 }
 

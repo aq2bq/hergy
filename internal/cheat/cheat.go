@@ -256,6 +256,7 @@ Rule files (what the role documents and the agreements are):
       text: <text>  required, string; what the member reads, in Markdown. A rule may still write a turn between two of the team as "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. hergy reads turns from the team definition's turns: now, and validate warns when a rule text claims a turn turns: does not hold. The figure draws turns: and nothing else.
       why: <text>   string, optional; one space and the reason follow the text, unless send_why is false.
       send_why: false   boolean, optional; keeps the reason in the file and out of the prompt.
+      in_prompt: false  boolean, optional; keeps the rule in the file and out of the prompt. Its id, its origin and its checks are still counted and checked.
       note: <text>  string, optional; for whoever maintains the file; never sent, and not a reason.
       origin:       list, optional; where the rule came from:
         kind: incident|instruction|derived   required; derived needs refs, the rule ids it came from.
