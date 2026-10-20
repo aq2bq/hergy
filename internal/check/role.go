@@ -97,15 +97,23 @@ type RoleReader struct {
 	Over       bool   `json:"over"`
 }
 
-// RoleReport is what one role document's check found (C6). A screen's
-// /roles/check and /roles/yaml/check call Role alone and read this.
-type RoleReport struct {
+// DocReport is what one rule document's check found: the document's own
+// problems, the Markdown a screen draws (C1), how that changed from the saved
+// document, the arrows the document's rules write, and the members that read it
+// with the amount each one is handed. It is the shape both a role document's
+// check (Role) and a team's agreement check (Agreement, spec-teams C6) answer
+// with, so the two screens share one part (spec-teams 7).
+type DocReport struct {
 	Problems []RoleProblem `json:"problems"`
 	Markdown RoleMarkdown  `json:"markdown"`
 	Diff     RoleDiff      `json:"diff"`
 	Turns    []RoleTurn    `json:"turns"`
 	Readers  []RoleReader  `json:"readers"`
 }
+
+// RoleReport is the old name of DocReport, kept so a caller that reads one role
+// document keeps its name (spec-teams 7).
+type RoleReport = DocReport
 
 // Role checks one role document the way the role screen needs it (C6): the
 // document's own problems read to the end (C2), the problems between the
@@ -119,10 +127,10 @@ type RoleReport struct {
 // readers and their sizes see it. A definition that cannot build a prompt still
 // gives its warnings and its readers' sizes, because the check builds only the
 // members' frames (C6), not their prompts, so a broken template hides nothing.
-func Role(in RoleInput) RoleReport {
+func Role(in RoleInput) DocReport {
 	cat := in.Catalog
 	if cat == nil {
-		return RoleReport{}
+		return DocReport{}
 	}
 	path := rolePath(cat, in.Place, in.Name)
 	savedName := in.Original
@@ -156,8 +164,8 @@ func Role(in RoleInput) RoleReport {
 		overlay = overlay.Without(rolePath(cat, source.LayerLocal, in.Name))
 	}
 
-	report := RoleReport{
-		Markdown: RoleMarkdown{Lines: doc.Lines(), Chars: rules.CharCount(doc.Markdown())},
+	report := DocReport{
+		Markdown: RoleMarkdown{Lines: doc.PreviewLines(), Chars: rules.CharCount(doc.Markdown())},
 		Diff:     roleDiff(saved, doc),
 	}
 	for _, p := range problems {

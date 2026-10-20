@@ -19,6 +19,22 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   team definition. A file that leaves the key unsaid hands the rule over, so
   files that do not use it are unchanged, and a save through the role screen
   keeps the key. `hergy cheat --ai` and the `hergy` skill name it.
+- **The role screen's rule document (版 7.1)**: the part of a screen that edits a
+  rule document — the title and revision, the sections, the rules, a rule's own
+  `in_prompt` switch and its reason's `send_why` switch, the heading depth, the
+  reordering and the Markdown box a member reads — is one shared part now, so the
+  team screen can mount the same one. The role screen draws what 版 7.1 agreed: a
+  rule's `プロンプトに含める / 含めない` switch under the field `規則` (the
+  excluded rule dims with a dashed `含めない` mark, the section's head and the
+  list's 規則 column count it, the reader's amount falls by the rule, and the
+  Markdown draws it struck through with no line number), the why's own switch
+  under `なぜ` (its reason struck through, the rule itself still in the prompt),
+  the `##` mark at a section's head opening `##` / `###` / `####`, a section's
+  ↑ ↓ moving the whole section, and a rule dragged by its ⋮ handle. The
+  Markdown box shows the reason a rule holds beside it, and a changed line is
+  marked without the server's answer being mistaken for the text before it. A
+  save writes the one line that changed and leaves every other line of the file
+  as it was; a move writes the same lines in another order.
 
 ### Breaking
 

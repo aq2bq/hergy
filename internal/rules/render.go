@@ -24,6 +24,11 @@ const (
 	PartReports = "reports"
 	// PartBlank is a blank line between two blocks.
 	PartBlank = "blank"
+	// PartExcluded is a rule the file keeps out of the prompt (in_prompt:
+	// false), as a screen's preview draws it: it stands where the rule stands,
+	// with no line number, and is in no prompt and in no line count
+	// (spec-teams C1).
+	PartExcluded = "excluded"
 )
 
 // MDLine is one physical line of the document as a member reads it: the line's
@@ -48,6 +53,22 @@ func (d *Document) Lines() []MDLine {
 	blocks := d.mdBlocks()
 	var out []MDLine
 	for i, block := range blocks {
+		if i > 0 {
+			out = append(out, MDLine{Part: PartBlank, Section: -1, Rule: -1})
+		}
+		out = append(out, block...)
+	}
+	return out
+}
+
+// PreviewLines is the document as a screen draws it: Lines(), with the rules the
+// file keeps out of the prompt added back where they stand, each as one
+// PartExcluded line ("<id> <first line of the body>"). Lines() and Markdown()
+// are not changed: an excluded rule is in no prompt and in no line count
+// (spec-teams C1, spec-roles A1).
+func (d *Document) PreviewLines() []MDLine {
+	var out []MDLine
+	for i, block := range d.mdPreviewBlocks() {
 		if i > 0 {
 			out = append(out, MDLine{Part: PartBlank, Section: -1, Rule: -1})
 		}
@@ -89,6 +110,22 @@ func (d *Document) mdBlocks() [][]MDLine {
 	return out
 }
 
+// mdPreviewBlocks is mdBlocks with the rules the file keeps out of the prompt
+// still in their place, so a screen can draw them (spec-teams C1).
+func (d *Document) mdPreviewBlocks() [][]MDLine {
+	var out [][]MDLine
+	if d.Title != "" {
+		out = append(out, []MDLine{{Text: "# " + d.Title, Part: PartTitle, Section: -1, Rule: -1}})
+	}
+	for i, section := range d.Sections {
+		out = append(out, section.mdPreviewBlocks(i)...)
+	}
+	if len(d.Reports) > 0 {
+		out = append(out, d.reportBlocks()...)
+	}
+	return out
+}
+
 // blocks is one section as the blocks it is made of: the heading, the intro and
 // the rules. It is what SectionMarkdown joins.
 func (s Section) blocks() []string {
@@ -121,6 +158,49 @@ func (s Section) mdBlocks(index int) [][]MDLine {
 		}
 	}
 	return out
+}
+
+// mdPreviewBlocks is mdBlocks with the rules the file keeps out of the prompt
+// still in their place: an excluded rule is one PartExcluded line, so a screen
+// draws it where the rule stands (spec-teams C1).
+func (s Section) mdPreviewBlocks(index int) [][]MDLine {
+	var out [][]MDLine
+	if s.Heading != "" {
+		out = append(out, []MDLine{{
+			Text: strings.Repeat("#", s.level()) + " " + s.Heading,
+			Part: PartHeading, Section: index, Rule: -1,
+		}})
+	}
+	if intro := strings.TrimSpace(s.Intro); intro != "" {
+		out = append(out, textLines(intro, PartIntro, index, -1))
+	}
+	var lines []MDLine
+	for i, rule := range s.Rules {
+		if !rule.Included() {
+			lines = append(lines, excludedLine(rule, index, i))
+			continue
+		}
+		lines = append(lines, mdRuleLines(item(rule), index, i, rule)...)
+	}
+	if blockText(lines) != "" {
+		out = append(out, lines)
+	}
+	return out
+}
+
+// excludedLine is one rule the file keeps out of the prompt, as a screen's
+// preview draws it: the rule's id and the first line of its body, so a person
+// still sees what the rule says without it counting as a line a member reads
+// (spec-teams C1, spec-roles A1).
+func excludedLine(rule Rule, section, index int) MDLine {
+	text := strings.TrimSpace(rule.Text)
+	if at := strings.IndexByte(text, '\n'); at >= 0 {
+		text = strings.TrimSpace(text[:at])
+	}
+	if rule.ID != "" {
+		text = rule.ID + " " + text
+	}
+	return MDLine{Text: text, Part: PartExcluded, Section: section, Rule: index}
 }
 
 func (s Section) level() int {

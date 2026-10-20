@@ -441,3 +441,104 @@ func TestWriteRefusalStillNamesTheDocument(t *testing.T) {
 		t.Errorf("error = %q, want %q", err, want)
 	}
 }
+
+// TestRewriteCarriesAMovedSection: a section the draft moved keeps its item's
+// lines and is written where the draft puts it; every other line stays byte for
+// byte (C7, spec-roles I4).
+func TestRewriteCarriesAMovedSection(t *testing.T) {
+	saved := mustParse(t, builderRole, "roles/builder.yaml")
+	want := mustParse(t, builderRole, "roles/builder.yaml")
+	want.Sections[0], want.Sections[1] = want.Sections[1], want.Sections[0]
+	out, err := Rewrite([]byte(builderRole), saved, Draft{Doc: want, From: fromByID(t, saved, want), SectionFrom: []int{1, 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expect = `version: 1
+title: 設計実装
+revision: 5
+sections:
+  - heading: 確かめ方
+    rules:
+      - id: BUILD-4
+        text: 4 番目の本文。
+      - id: BUILD-5
+        text: 5 番目の本文。
+  - heading: 作り方
+    rules:
+      - id: BUILD-1
+        text: 最初の本文。
+      - id: BUILD-2
+        text: 2 番目の本文。
+      - id: BUILD-3
+        text: 3 番目の本文。
+`
+	if string(out) != expect {
+		t.Errorf("the moved sections are not the two items swapped:\n%s", out)
+	}
+}
+
+// TestRewriteCarriesTheLastSectionToTheFront: the section written last is moved
+// to the front, with the section that held a comment keeping it (C7).
+func TestRewriteCarriesTheLastSectionToTheFront(t *testing.T) {
+	const text = `version: 1
+title: T
+sections:
+  # 最初の節
+  - heading: A
+    rules:
+      - id: A-1
+        text: one
+  - heading: B
+    rules:
+      - id: B-1
+        text: two
+`
+	saved := mustParse(t, text, "roles/x.yaml")
+	want := mustParse(t, text, "roles/x.yaml")
+	want.Sections[0], want.Sections[1] = want.Sections[1], want.Sections[0]
+	out, err := Rewrite([]byte(text), saved, Draft{Doc: want, From: fromByID(t, saved, want), SectionFrom: []int{1, 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expect = `version: 1
+title: T
+sections:
+  - heading: B
+    rules:
+      - id: B-1
+        text: two
+  # 最初の節
+  - heading: A
+    rules:
+      - id: A-1
+        text: one
+`
+	if string(out) != expect {
+		t.Errorf("the last section did not land first:\n%s", out)
+	}
+}
+
+// TestRewriteCarriesAMovedSectionAndWritesIt: a section moved and changed inside
+// is carried to its new place with the change written on its own lines (C7).
+func TestRewriteCarriesAMovedSectionAndWritesIt(t *testing.T) {
+	saved := mustParse(t, builderRole, "roles/builder.yaml")
+	want := mustParse(t, builderRole, "roles/builder.yaml")
+	want.Sections[0], want.Sections[1] = want.Sections[1], want.Sections[0]
+	want.Sections[1].Rules[0].Text = "1 番目の本文を直した。"
+	out, err := Rewrite([]byte(builderRole), saved, Draft{Doc: want, From: fromByID(t, saved, want), SectionFrom: []int{1, 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	i4 := strings.Index(got, "確かめ方")
+	i1 := strings.Index(got, "作り方")
+	if i4 < 0 || i1 < 0 || i4 > i1 {
+		t.Errorf("the sections are not in the draft's order:\n%s", got)
+	}
+	if !strings.Contains(got, "- id: BUILD-1\n        text: 1 番目の本文を直した。\n") {
+		t.Errorf("the change inside the moved section was not written:\n%s", got)
+	}
+	if !strings.Contains(got, "- id: BUILD-2\n        text: 2 番目の本文。\n") {
+		t.Errorf("a line the draft did not touch changed:\n%s", got)
+	}
+}

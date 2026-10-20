@@ -166,3 +166,51 @@ func TestLinesOfNothingIsEmpty(t *testing.T) {
 		t.Errorf("Lines() = %+v, want empty", got)
 	}
 }
+
+// TestPreviewLinesKeepAnExcludedRuleInItsPlace: the preview a screen draws
+// (PreviewLines) holds a rule the file keeps out of the prompt where the rule
+// stands, as one line with no line number, while Lines and Markdown leave it out
+// (spec-teams C1).
+func TestPreviewLinesKeepAnExcludedRuleInItsPlace(t *testing.T) {
+	doc := parse(t, `version: 1
+title: T
+sections:
+  - heading: H
+    rules:
+      - id: R1
+        text: one
+      - id: R2
+        text: two
+        why: because
+        in_prompt: false
+      - id: R3
+        text: |-
+          three
+          more
+`)
+	want := []MDLine{
+		{Text: "# T", Part: PartTitle, Section: -1, Rule: -1},
+		{Part: PartBlank, Section: -1, Rule: -1},
+		{Text: "## H", Part: PartHeading, Section: 0, Rule: -1},
+		{Part: PartBlank, Section: -1, Rule: -1},
+		{Text: "- **R1** one", Part: PartRule, Section: 0, Rule: 0},
+		{Text: "R2 two", Part: PartExcluded, Section: 0, Rule: 1},
+		{Text: "- **R3** three", Part: PartRule, Section: 0, Rule: 2},
+		{Text: "   more", Part: PartRule, Section: 0, Rule: 2},
+	}
+	got := doc.PreviewLines()
+	if len(got) != len(want) {
+		t.Fatalf("preview lines = %d, want %d:\n%+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if got := doc.Lines(); len(got) != len(want)-1 {
+		t.Errorf("Lines() = %d lines, want the excluded rule left out", len(got))
+	}
+	if want := "# T\n\n## H\n\n- **R1** one\n- **R3** three\n   more\n"; doc.Markdown() != want {
+		t.Errorf("Markdown() = %q, want %q", doc.Markdown(), want)
+	}
+}
