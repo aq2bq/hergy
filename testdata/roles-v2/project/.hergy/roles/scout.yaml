@@ -3,7 +3,6 @@ title: 調査
 revision: 1
 sections:
   - heading: 調べ方
-    style: ids
     rules:
       - id: SCOUT-1
         text: 調べる前に、問いを 1 文で書き、答えが出たら何が決まるかを添える。決まるものが無い調査は始めない。

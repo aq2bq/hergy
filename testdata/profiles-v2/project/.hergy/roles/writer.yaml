@@ -1,6 +1,5 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: W1
         text: 一つの文に一つのことを書く。

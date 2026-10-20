@@ -3,7 +3,6 @@ title: designer の文書
 revision: 3
 sections:
   - heading: 使命
-    style: ids
     rules:
       - id: DESIGN-1
         text: デザインの基準を 1 つ持ち、毎ターンその基準で画面を決め、確かめ、差し戻す。自分の規則やほかの人の規則を基準に足さない。
@@ -20,7 +19,6 @@ sections:
             refs: [d-4e32]
             note: PO「無理なのは 3（WebUI 全体）」「WebUI のユースケースはいつ誰がどうやって決めるつもりなの？」
   - heading: 作り方と確かめ方
-    style: ids
     rules:
       - id: DESIGN-3
         text: 画面はまず動かない試作として作り、本物の規模の作り物で歩いてから、作りの仕様として渡す。小さな定義だけで済ませない。
@@ -37,7 +35,6 @@ sections:
             refs: [d-d475]
             note: PO「画面の上で何かをクリックしたら視界外の画面の下が変化する UI をどうやって人間が使うの？」
   - heading: 見せ方
-    style: ids
     rules:
       - id: DESIGN-5
         text: 1 画面につき見せるのは 1 回。見せるのは実物のスクリーンショット 1 枚と、確かめてほしい文 1 つ。1 画面が通るまで次の画面を作らない。

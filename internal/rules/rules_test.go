@@ -26,6 +26,9 @@ func parse(t *testing.T, text string) *Document {
 	return doc
 }
 
+// TestParseReadsTheWholeShape: every key of a document is read, and a style: a
+// file still writes is read and left alone (d-f4f6), so the fixture below keeps
+// one and still parses.
 func TestParseReadsTheWholeShape(t *testing.T) {
 	doc := parse(t, `version: 1
 title: TEAM PROTOCOL
@@ -70,7 +73,7 @@ reports:
 		t.Fatalf("sections = %d, want 1", len(doc.Sections))
 	}
 	section := doc.Sections[0]
-	if section.Heading != "通信" || section.Level != 3 || section.Intro != "前置きである。" || section.Style != StyleNumbered {
+	if section.Heading != "通信" || section.Level != 3 || section.Intro != "前置きである。" {
 		t.Errorf("section = %+v", section)
 	}
 	rule := doc.Rules()[0]
@@ -155,7 +158,6 @@ func TestParseRefusesBreaks(t *testing.T) {
 		{"a level with no heading", "version: 1\nsections:\n  - rules: []\n    level: 3\n", "level"},
 		{"a level outside 2..4", "version: 1\nsections:\n  - heading: H\n    level: 5\n", "5"},
 		{"a level that is not an integer", "version: 1\nsections:\n  - heading: H\n    level: three\n", "integer"},
-		{"a style that does not exist", "version: 1\nsections:\n  - style: table\n", "table"},
 		{"rules not a list", "version: 1\nsections:\n  - rules: one\n", "list"},
 		{"a rule with no id", "version: 1\nsections:\n  - rules:\n      - text: x\n", "id"},
 		{"a rule with no text", "version: 1\nsections:\n  - rules:\n      - id: R1\n", "text"},
@@ -214,37 +216,45 @@ sections:
       - id: R3
         text: three
 `)
-	want := "# T\n\n## H\n\nI\n\none because\n\ntwo\n\n### H2\n\nthree\n"
+	want := "# T\n\n## H\n\nI\n\n- **R1** one because\n- **R2** two\n\n### H2\n\n- **R3** three\n"
 	if got := doc.Markdown(); got != want {
 		t.Errorf("Markdown() =\n%q\nwant\n%q", got, want)
 	}
 }
 
-// TestMarkdownRendersEachStyle: the four ways a section lays its rules out, with
-// the continuation lines of a multi-line body kept inside the item.
-func TestMarkdownRendersEachStyle(t *testing.T) {
-	cases := []struct {
-		style string
-		want  string
-	}{
-		{"paragraphs", "one\n\ntwo\n"},
-		{"bullets", "- one\n- two\n"},
-		{"numbered", "1. one\n2. two\n"},
-		{"ids", "- **R1** one\n- **R2** two\n"},
+// TestMarkdownLaysRulesOutAsOneList: whatever a section wrote as a style, its
+// rules are one bullet list with the id at the head of the item, and a section
+// that writes no style is the same list (d-f4f6).
+func TestMarkdownLaysRulesOutAsOneList(t *testing.T) {
+	want := "- **R1** one\n- **R2** two\n"
+	texts := []string{
+		"version: 1\nsections:\n  - rules:\n      - id: R1\n        text: one\n      - id: R2\n        text: two\n",
 	}
-	for _, tc := range cases {
-		t.Run(tc.style, func(t *testing.T) {
-			doc := parse(t, "version: 1\nsections:\n  - style: "+tc.style+"\n    rules:\n      - id: R1\n        text: one\n      - id: R2\n        text: two\n")
-			if got := doc.Markdown(); got != tc.want {
-				t.Errorf("Markdown() = %q, want %q", got, tc.want)
-			}
-		})
+	for _, style := range []string{"paragraphs", "bullets", "numbered", "ids"} {
+		texts = append(texts, "version: 1\nsections:\n  - style: "+style+"\n    rules:\n      - id: R1\n        text: one\n      - id: R2\n        text: two\n")
+	}
+	for _, text := range texts {
+		doc := parse(t, text)
+		if got := doc.Markdown(); got != want {
+			t.Errorf("Markdown() = %q, want %q", got, want)
+		}
+	}
+}
+
+// TestMarkdownLaysARuleWithoutAnIDAsOneItem: a rule with no id — a document read
+// as far as a draft got, with an id still being typed — is a list item too, with
+// no id at its head.
+func TestMarkdownLaysARuleWithoutAnIDAsOneItem(t *testing.T) {
+	doc := &Document{Sections: []Section{{Heading: "H", Rules: []Rule{{Text: "one"}, {ID: "R2", Text: "two"}}}}}
+	want := "## H\n\n- one\n- **R2** two\n"
+	if got := doc.Markdown(); got != want {
+		t.Errorf("Markdown() = %q, want %q", got, want)
 	}
 }
 
 func TestMarkdownKeepsAMultiLineBodyInsideItsItem(t *testing.T) {
-	doc := parse(t, "version: 1\nsections:\n  - style: bullets\n    rules:\n      - id: R1\n        text: |-\n          a\n          b\n        why: |-\n          c\n          d\n")
-	want := "- a\n   b c\n   d\n"
+	doc := parse(t, "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: |-\n          a\n          b\n        why: |-\n          c\n          d\n")
+	want := "- **R1** a\n   b c\n   d\n"
 	if got := doc.Markdown(); got != want {
 		t.Errorf("Markdown() = %q, want %q", got, want)
 	}

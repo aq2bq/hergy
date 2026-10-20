@@ -3,7 +3,6 @@ title: 調査
 revision: 2
 sections:
   - heading: 調べ方
-    style: ids
     rules:
       - id: SCOUT-1
         text: 調べる前に、問いを 1 文で書く。答えが出たら何が決まるかも書き、決まるものが無い調査は始めない。
@@ -21,7 +20,6 @@ sections:
       - id: SCOUT-3
         text: 一次資料（公式の文書、原典、統計の元データ）を先に当たり、まとめ記事は手がかりとしてだけ使う。
   - heading: まとめ方
-    style: ids
     rules:
       - id: SCOUT-4
         text: 結果は 1 画面に収まる長さでまとめ、反対の立場の根拠も 1 つは書く。

@@ -1,7 +1,6 @@
 package rules
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -101,8 +100,8 @@ func (s Section) blocks() []string {
 	return out
 }
 
-// mdBlocks is one section as its blocks: the heading, the intro and, in the
-// section's own layout, the rules.
+// mdBlocks is one section as its blocks: the heading, the intro and the rules
+// as one list.
 func (s Section) mdBlocks(index int) [][]MDLine {
 	var out [][]MDLine
 	if s.Heading != "" {
@@ -131,38 +130,28 @@ func (s Section) level() int {
 	return s.Level
 }
 
-// ruleBlocks is the rules of one section, laid out the way the section says: in
-// paragraphs, one block per rule so a blank line stands between them; in a list,
-// one block whose lines are the items.
+// ruleBlocks is the rules of one section, as the one block of a list: a rule
+// with an id is "- **<id>** <body>", a rule without one is "- <body>", and the
+// lines of a multi-line body stay inside their item.
 func (s Section) ruleBlocks(index int) [][]MDLine {
 	if len(s.Rules) == 0 {
 		return nil
 	}
-	if s.Style == "" || s.Style == StyleParagraphs {
-		out := make([][]MDLine, 0, len(s.Rules))
-		for i, rule := range s.Rules {
-			out = append(out, mdRuleLines(rule.Sent(), index, i, rule))
-		}
-		return out
-	}
 	var lines []MDLine
 	for i, rule := range s.Rules {
-		lines = append(lines, mdRuleLines(s.item(rule, i+1), index, i, rule)...)
+		lines = append(lines, mdRuleLines(item(rule), index, i, rule)...)
 	}
 	return [][]MDLine{lines}
 }
 
-// item is one rule as a list item, with a multi-line body kept inside it.
-func (s Section) item(rule Rule, number int) string {
+// item is one rule as a list item, with a multi-line body kept inside it. A rule
+// carries its id into the prompt as the item's head.
+func item(rule Rule) string {
 	body := strings.ReplaceAll(rule.Sent(), "\n", "\n   ")
-	switch s.Style {
-	case StyleBullets:
+	if rule.ID == "" {
 		return "- " + body
-	case StyleNumbered:
-		return strconv.Itoa(number) + ". " + body
-	default:
-		return "- **" + rule.ID + "** " + body
 	}
+	return "- **" + rule.ID + "** " + body
 }
 
 // Sent is the rule as a member reads it: its text, and its reason after one

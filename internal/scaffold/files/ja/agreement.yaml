@@ -1,7 +1,6 @@
 version: 1
 sections:
   - heading: チームの約束
-    style: ids
     rules:
       - id: C1
         text: gy-loop スキルに従い、会話が切れても gy から続けられるようにする。

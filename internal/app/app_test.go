@@ -767,7 +767,7 @@ func TestValidateShape(t *testing.T) {
 		"no origin: .hergy/roles/lead.yaml: L1, L2",
 		"no origin: .hergy/teams/demo/agreement.yaml: C1, C2",
 		"no origin: .hergy/roles/builder.yaml: B1, B2",
-		"  team .hergy/teams/demo: sources 3, characters 1552",
+		"  team .hergy/teams/demo: sources 3, characters 1507",
 		"    member demo-lead: rules 4, characters 372",
 		"    member demo-builder: rules 4, characters 434",
 	)
@@ -920,6 +920,8 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
+		"    - **L1** Hand over a task the receiver can start without reading your conversation.",
+		"    - **C1** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
 		"next: up demo",
 	} {
 		if !strings.Contains(got, line+"\n") {

@@ -98,7 +98,7 @@ func (f *fixture) role(name, rules string) {
 // can hand it what it wrote.
 func (f *fixture) roleText(name, rules string) string {
 	f.t.Helper()
-	text := "version: 1\ntitle: " + name + "\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" + rules
+	text := "version: 1\ntitle: " + name + "\nsections:\n  - heading: 仕事\n    rules:\n" + rules
 	f.write(filepath.Join(f.proj, ".hergy", "roles", name+".yaml"), text)
 	return text
 }
@@ -447,7 +447,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 				f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
 				f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 				f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
-					"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n"+
+					"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 						"      - id: SPEC-1\n        text: 何かをする。\n")
 			},
 			want: func(*fixture) []string { return []string{"members[1]"} },
@@ -551,14 +551,14 @@ func TestADraftRuleIdIsCheckedAgainstTheAgreement(t *testing.T) {
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	// The agreement holds an id the draft of the lead's role document takes.
 	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
-		"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n"+
+		"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 			"      - id: DUP-1\n        text: 何かをする。\n")
 
 	if got := stopFields(f.findings()); len(got) != 0 {
 		t.Fatalf("the definition stops on the files as they are: %v", got)
 	}
 
-	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
 		"      - id: LEAD-1\n        text: 何かをする。\n" +
 		"      - id: DUP-1\n        text: 書きかけの規則。\n"
 	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
@@ -603,7 +603,7 @@ func TestATurnWarningReadsTheDraft(t *testing.T) {
 		}
 	}
 
-	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
 		"      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n"
 	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
 	var warned int
@@ -642,7 +642,7 @@ func TestTurnWarningNamesItsRule(t *testing.T) {
 	f.role("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
-	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n"+
+	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 		"      - id: AGREE-1\n        text: 設計は spec に渡す（lead → spec）。\n")
 
 	got := f.findings()
@@ -664,5 +664,43 @@ func TestTurnWarningNamesItsRule(t *testing.T) {
 		if !seen[key] {
 			t.Errorf("no warning names the rule %s of its own document (%s): %v", id, key, seen)
 		}
+	}
+}
+
+// TestDefinitionWarnsAboutALeftoverStyle: a rule file that still writes a
+// section's style: reads, and hergy warns once for it, naming the file and the
+// heading, so a person reading hergy validate is told which line to delete
+// (d-f4f6). The warning stops nothing and moves no exit code.
+func TestDefinitionWarnsAboutALeftoverStyle(t *testing.T) {
+	f := newFixture(t)
+	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.write(f.leadRolePath(), "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n"+
+		"      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: bullets\n    rules:\n"+
+		"      - id: AGREE-1\n        text: 何かをする。\n")
+
+	var joined []string
+	for _, finding := range f.findings() {
+		if finding.Stops {
+			t.Fatalf("a style: line stopped the definition: %+v", finding)
+		}
+		if finding.Kind != KindStyle {
+			continue
+		}
+		joined = append(joined, finding.Text)
+	}
+	text := strings.Join(joined, "\n")
+	for _, want := range []string{
+		i18n.Tf("rules.style_gone", f.leadRolePath(), "仕事"),
+		i18n.Tf("rules.style_gone", agreement, "約束"),
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("no warning %q:\n%s", want, text)
+		}
+	}
+	if len(joined) != 2 {
+		t.Errorf("warnings = %d, want one per file:\n%s", len(joined), text)
 	}
 }

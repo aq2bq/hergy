@@ -405,8 +405,10 @@ func replaceScalarAt(line string, v *yaml.Node, literal string, flow bool) (stri
 }
 
 // sectionKeyOrder is the order hergy writes a section's own keys in, so a key
-// that is added stands where Emit would write it.
-var sectionKeyOrder = []string{"heading", "level", "intro", "style"}
+// that is added stands where Emit would write it. style is not here: hergy does
+// not write one any more, and a file that still holds one loses it on the first
+// save (d-f4f6).
+var sectionKeyOrder = []string{"heading", "level", "intro"}
 
 // placement is a run of rules written after one line, in order. Consecutive
 // rules that go to the same place are written as one insert, so their order is
@@ -714,9 +716,10 @@ func sameStrings(a, b []string) bool {
 	return true
 }
 
-// planSectionKeys plans the heading, level, intro and style of one section: the
-// value on the line it stands on, a key added where hergy writes it, or a key
-// taken out when the draft empties it.
+// planSectionKeys plans the heading, level and intro of one section — the value
+// on the line it stands on, a key added where hergy writes it, or a key taken out
+// when the draft empties it — and takes out a style: line a file still holds:
+// nothing lays a section out but the one list now (d-f4f6).
 func (p *plan) planSectionKeys(node *yaml.Node, want Section) ([]op, error) {
 	var ops []op
 	for _, key := range sectionKeyOrder {
@@ -742,6 +745,9 @@ func (p *plan) planSectionKeys(node *yaml.Node, want Section) ([]op, error) {
 			}
 		}
 	}
+	if yamledit.MappingKeyNode(node, "style") != nil {
+		ops = append(ops, removeKeyOp(p.src, node, "style"))
+	}
 	return ops, nil
 }
 
@@ -758,8 +764,6 @@ func sectionKeyValue(key string, section Section) string {
 		return strconv.Itoa(section.Level)
 	case "intro":
 		return section.Intro
-	case "style":
-		return section.Style
 	}
 	return ""
 }

@@ -29,14 +29,6 @@ import (
 // segments after it (C1, P-TURN-1, SPEC-AUD-5).
 var RuleIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 
-// Styles say how a section lays its rules out when it is sent.
-const (
-	StyleParagraphs = "paragraphs"
-	StyleBullets    = "bullets"
-	StyleNumbered   = "numbered"
-	StyleIDs        = "ids"
-)
-
 // Kinds say where a rule came from.
 const (
 	KindIncident    = "incident"
@@ -45,10 +37,12 @@ const (
 )
 
 var (
-	styles      = []string{StyleParagraphs, StyleBullets, StyleNumbered, StyleIDs}
-	kinds       = []string{KindIncident, KindInstruction, KindDerived}
-	dateLayout  = "2006-01-02"
-	docKeys     = []string{"version", "title", "revision", "sections", "reports"}
+	kinds      = []string{KindIncident, KindInstruction, KindDerived}
+	dateLayout = "2006-01-02"
+	docKeys    = []string{"version", "title", "revision", "sections", "reports"}
+	// sectionKeys is what a section may hold. style is read and left alone: a
+	// file that still writes one keeps reading, and says so once as a warning
+	// (d-f4f6). Nothing lays a section out but the one list below.
 	sectionKeys = []string{"heading", "level", "intro", "style", "rules"}
 	ruleKeys    = []string{"id", "text", "why", "send_why", "note", "origin", "report", "tests"}
 	originKeys  = []string{"kind", "date", "refs", "note"}
@@ -71,7 +65,6 @@ type Section struct {
 	Heading string
 	Level   int // 0 means the default level, 2
 	Intro   string
-	Style   string // empty means paragraphs
 	Rules   []Rule
 }
 
@@ -118,14 +111,17 @@ func (d *Document) Rules() []Rule {
 }
 
 // Parse reads one rule file. path is where the text came from, and it is what
-// an error names. It returns the document when the file holds no problem, and
-// the file's first problem when it holds one: the whole reading is ReadAll, so
-// a screen that shows every problem and the command line that stops at the
-// first cannot say different sentences (C2).
+// an error names. It returns the document when the file holds no error, and the
+// file's first error when it holds one: the whole reading is ReadAll, so a
+// screen that shows every problem and the command line that stops at the first
+// cannot say different sentences (C2). A warning — a style: line a file still
+// writes — does not stop the file from reading.
 func Parse(text, path string) (*Document, error) {
 	doc, problems := ReadAll(text, path)
-	if len(problems) > 0 {
-		return nil, problems[0].err
+	for _, p := range problems {
+		if p.Sev == SevError {
+			return nil, p.err
+		}
 	}
 	return doc, nil
 }

@@ -251,7 +251,6 @@ Rule files (what the role documents and the agreements are):
     heading: <text> string, optional; a section with no heading continues the one before it.
     level: 2..4     int, optional; how deep the heading is; not allowed without a heading; default 2.
     intro: <text>   string, optional; a paragraph before the rules; not a rule.
-    style: paragraphs|bullets|numbered|ids   how the rules are laid out; default paragraphs.
     rules:          list; each rule is an entry:
       id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
       text: <text>  required, string; what the member reads, in Markdown. A rule may still write a turn between two of the team as "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. hergy reads turns from the team definition's turns: now, and validate warns when a rule text claims a turn turns: does not hold. The figure draws turns: and nothing else.

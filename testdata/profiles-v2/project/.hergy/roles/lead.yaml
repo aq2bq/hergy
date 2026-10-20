@@ -1,6 +1,5 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: L1
         text: 依頼には完了条件を添える。

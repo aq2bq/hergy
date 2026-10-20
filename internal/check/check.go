@@ -79,6 +79,10 @@ const (
 	// KindModel is the warning that a role document's rule text names a model
 	// (C8): a role document is meant to read the same whatever model runs it.
 	KindModel
+	// KindStyle is the warning that a rule file still writes a section's style:
+	// (d-f4f6): the layout of a section is one way now, and the line does
+	// nothing.
+	KindStyle
 	// KindLedger is the warning that a write a member of this team made broke a
 	// rule the definition's ledger: gives (spec-ledger). It does not stop a run
 	// (d-db1b).
@@ -117,8 +121,49 @@ func Definition(in Input) []Finding {
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
 	warnings = append(warnings, modelFindings(in, def)...)
+	warnings = append(warnings, styleFindings(in, def)...)
 	warnings = append(warnings, hiddenGlobalFindings(in)...)
 	return append(breaks, warnings...)
+}
+
+// styleFindings is the warning about a rule file that still writes a section's
+// style: (d-f4f6). The layout of a section is one way now, so the line does
+// nothing: the file reads, and the person is told to take the line out. Every
+// file a member reads — the role documents, the agreement every team shares and
+// the team's own agreement — is read once, however many members read it, so one
+// file gets one warning per section that writes a style:.
+func styleFindings(in Input, def *definition.Definition) []Finding {
+	var out []Finding
+	seen := map[string]bool{}
+	reader := in.Catalog.Reader()
+	add := func(doc source.Doc) {
+		if seen[doc.Path] {
+			return
+		}
+		seen[doc.Path] = true
+		text, err := reader.Read(doc)
+		if err != nil {
+			return
+		}
+		_, problems := rules.ReadAll(text, in.Catalog.Display(doc.Path))
+		for _, problem := range problems {
+			if problem.Sev == rules.SevWarning {
+				out = append(out, Finding{Kind: KindStyle, Text: problem.Text})
+			}
+		}
+	}
+	if shared, ok := in.Catalog.SharedAgreement(); ok {
+		add(shared)
+	}
+	if def.HasAgreement {
+		add(def.Agreement)
+	}
+	for i := range def.Graph.Members {
+		if doc, ok := in.Catalog.Role(def.Graph.Members[i].Role); ok {
+			add(doc)
+		}
+	}
+	return out
 }
 
 // modelFindings is the warning about a role document that names a model in a

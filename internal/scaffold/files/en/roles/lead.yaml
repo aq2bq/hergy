@@ -1,7 +1,6 @@
 version: 1
 sections:
-  - style: ids
-    rules:
+  - rules:
       - id: L1
         text: Hand over a task the receiver can start without reading your conversation.
         why: The receiver has not seen your conversation. Missing premises get filled in by guesswork.

@@ -163,10 +163,10 @@ func TestSectionMarkdownIsOneSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SectionMarkdown: %v", err)
 	}
-	if want := "## H\n\nI\n\n- one\n"; got != want {
+	if want := "## H\n\nI\n\n- **R1** one\n"; got != want {
 		t.Errorf("SectionMarkdown(0) = %q, want %q", got, want)
 	}
-	if got, err := doc.SectionMarkdown(1); err != nil || got != "## K\n\ntwo\n" {
+	if got, err := doc.SectionMarkdown(1); err != nil || got != "## K\n\n- **R2** two\n" {
 		t.Errorf("SectionMarkdown(1) = %q, %v", got, err)
 	}
 	if _, err := doc.SectionMarkdown(2); err == nil {

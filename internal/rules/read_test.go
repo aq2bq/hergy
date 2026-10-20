@@ -121,3 +121,61 @@ func TestReadAllOfAFileThatIsNotAMappingStillGivesADocument(t *testing.T) {
 		t.Errorf("doc.Sections = %+v, want none", doc.Sections)
 	}
 }
+
+// TestReadAllWarnsAboutALeftoverStyle: the layout of a section is one way now,
+// so a style: line is read, left alone, and named once as a warning that asks
+// for the line to be deleted (d-f4f6). The file still reads, and the sentence
+// names the file and the section: its heading, or the place the file writes it
+// in when the section has no heading.
+func TestReadAllWarnsAboutALeftoverStyle(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want string
+	}{
+		{
+			"a section with a heading",
+			"version: 1\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n      - id: R1\n        text: one\n",
+			"約束",
+		},
+		{
+			"a section with no heading",
+			"version: 1\nsections:\n  - style: bullets\n    rules: []\n",
+			"sections[0]",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, problems := ReadAll(tc.text, "roles/lead.yaml")
+			if doc == nil || len(doc.Sections) != 1 {
+				t.Fatalf("the file with a style: did not read: %+v", doc)
+			}
+			if len(problems) != 1 {
+				t.Fatalf("problems = %+v, want one warning", problems)
+			}
+			p := problems[0]
+			if p.Sev != SevWarning || p.Section != 0 || p.Rule != -1 || p.Field != "sections[0].style" || p.Line == 0 {
+				t.Errorf("problem = %+v, want a warning about the section's style on its line", p)
+			}
+			if !strings.Contains(p.Text, "roles/lead.yaml") || !strings.Contains(p.Text, tc.want) {
+				t.Errorf("the warning does not name the file and %q: %q", tc.want, p.Text)
+			}
+			if _, err := Parse(tc.text, "roles/lead.yaml"); err != nil {
+				t.Errorf("Parse stopped on a style: line: %v", err)
+			}
+		})
+	}
+}
+
+// TestReadAllWarnsOnceForEachSection: every section that writes a style: gets
+// its own warning, in the written order, and the file reads without one.
+func TestReadAllWarnsOnceForEachSection(t *testing.T) {
+	text := "version: 1\nsections:\n  - heading: A\n    style: ids\n    rules:\n      - id: R1\n        text: one\n  - heading: B\n    rules:\n      - id: R2\n        text: two\n      - id: R3\n        text: three\n"
+	_, problems := ReadAll(text, "roles/lead.yaml")
+	if len(problems) != 1 || problems[0].Sev != SevWarning {
+		t.Fatalf("problems = %+v, want one warning", problems)
+	}
+	if _, err := Parse(text, "roles/lead.yaml"); err != nil {
+		t.Errorf("Parse stopped: %v", err)
+	}
+}

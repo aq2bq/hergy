@@ -34,7 +34,7 @@ func TestRoleWarnsAboutAModelNameInARuleText(t *testing.T) {
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 8,
+		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 7,
 		Text: i18n.Tf("validate.rule_model_name", "LEAD-1", "claude"+i18n.T("list.separator")+"opus"),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
@@ -53,7 +53,7 @@ func TestRoleNamesTheDefinitionAtTheHeadOfATurnWarning(t *testing.T) {
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 8,
+		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 7,
 		Definition: "demo",
 		Text:       "demo: " + i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl"),
 	}
@@ -102,7 +102,7 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	saved := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+	saved := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
 		"      - id: LEAD-1\n        text: 何かをする。\n"
 	f.write(f.leadRolePath(), saved)
 
@@ -152,13 +152,13 @@ func TestRoleReadsTheRoleTabsDraftAsIfItWereSaved(t *testing.T) {
 	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
-	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: ids\n    rules:\n"+
+	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 		"      - id: DUP-1\n        text: 何かをする。\n")
 
 	draft := &rules.Document{
 		Version: 1, Title: "lead",
 		Sections: []rules.Section{{
-			Heading: "仕事", Style: rules.StyleIDs,
+			Heading: "仕事",
 			Rules: []rules.Rule{
 				{ID: "LEAD-1", Text: "何かをする。"},
 				{ID: "DUP-1", Text: "書きかけの規則。"},
@@ -167,7 +167,7 @@ func TestRoleReadsTheRoleTabsDraftAsIfItWereSaved(t *testing.T) {
 	}
 	report := reportFor(f, RoleInput{Name: "lead", Draft: draft})
 	want := RoleProblem{
-		Sev: rules.SevError, Section: 0, Rule: 1, Field: "id", Line: 9, Definition: "demo",
+		Sev: rules.SevError, Section: 0, Rule: 1, Field: "id", Line: 8, Definition: "demo",
 		Text: i18n.Tf("error.rules_duplicate_id", agreement, "DUP-1", f.leadRolePath()),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {

@@ -1,7 +1,6 @@
 version: 1
 sections:
   - heading: Team agreements
-    style: ids
     rules:
       - id: C1
         text: Work along the gy-loop skill, so that work can resume from gy when a conversation ends.
