@@ -170,7 +170,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	var parsed []*rules.Document
 
 	readDoc := func(doc source.Doc, what Where) string {
-		document, err := readRuleFile(run.Reader, doc)
+		document, err := readRuleFile(run, doc)
 		if err != nil {
 			if buildErr == nil {
 				buildErr = withWhere(what, err)
@@ -320,13 +320,17 @@ func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 }
 
 // readRuleFile reads one rule file and renders it to the Markdown a member's
-// prompt carries.
-func readRuleFile(reader source.Reader, doc source.Doc) (*rules.Document, error) {
-	text, err := reader.Read(doc)
+// prompt carries. The document is parsed under the path a person reads it by
+// (Run.shown), not the machine's own: the sentences about the documents one
+// member reads — a rule id two of them hold, a rule derived from one that is not
+// there — name the files the way hergy prints a path everywhere else (C2, X1),
+// so the same sentence reads the same on a screen and in hergy validate.
+func readRuleFile(run Run, doc source.Doc) (*rules.Document, error) {
+	text, err := run.Reader.Read(doc)
 	if err != nil {
 		return nil, err
 	}
-	return rules.Parse(text, doc.Path)
+	return rules.Parse(text, run.shown(doc.Path))
 }
 
 // hireCommand is embedded in a member's prompt. It names the exact team and

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -287,49 +286,6 @@ func p2RenameInTeam(text string, def p2Def, old, next, display string) string {
 		}
 	}
 	return out
-}
-
-// p2AssignChange is one change the assign tab sends.
-type p2AssignChange struct {
-	Member  string `json:"member"`
-	From    string `json:"from"`
-	Purpose string `json:"purpose"`
-	Profile string `json:"profile"`
-}
-
-// p2FindDef is one definition, freshly read.
-func (s *Server) p2FindDef(name string) (p2Def, bool) {
-	for _, def := range s.p2Defs() {
-		if def.name == name {
-			return def, true
-		}
-	}
-	return p2Def{}, false
-}
-
-// p2MissingProfile is the sentence a save is refused with when a picked profile
-// is not one the definition reads.
-func (s *Server) p2MissingProfile(def p2Def, changes []p2AssignChange) (string, bool) {
-	project, shared, _ := s.p2Read()
-	_, kinds := p2Resolved(def, project, shared)
-	members := map[string]int{}
-	for i, member := range def.members {
-		members[member.Name] = i
-	}
-	workers := map[string]int{}
-	for i, worker := range def.workers {
-		workers[worker.From+"\x00"+worker.Purpose] = i
-	}
-	for _, change := range changes {
-		if _, ok := kinds[change.Profile]; ok {
-			continue
-		}
-		if change.Member != "" {
-			return tf("error.no_profile", fmt.Sprintf("members[%d]", members[change.Member]), change.Profile), true
-		}
-		return tf("error.workers_no_profile", fmt.Sprintf("workers[%d]", workers[change.From+"\x00"+change.Purpose]), change.Profile), true
-	}
-	return "", false
 }
 
 // oldProfile moves a profile's old page link to the row it names, opened: the

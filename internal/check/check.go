@@ -118,6 +118,7 @@ func Definition(in Input) []Finding {
 		return append(breakFindings(in, err), warnings...)
 	}
 	breaks := promptFindings(in, def)
+	breaks = append(breaks, profileFindings(in, def)...)
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
 	warnings = append(warnings, modelFindings(in, def)...)
@@ -190,11 +191,14 @@ func modelFindings(in Input, def *definition.Definition) []Finding {
 		if err != nil {
 			continue
 		}
-		parsed, err := rules.Parse(text, doc.Path)
+		// The rule's field names the document the way a person reads it, which
+		// is how the screen's own head names it too.
+		path := in.Catalog.Display(doc.Path)
+		parsed, err := rules.Parse(text, path)
 		if err != nil {
 			continue
 		}
-		out = append(out, modelDocFindings(doc.Path, parsed)...)
+		out = append(out, modelDocFindings(path, parsed)...)
 	}
 	return out
 }
@@ -267,6 +271,23 @@ func BreakLine(display func(string) string, path string, err error) string {
 	return strings.Join(strings.Fields(msg), " ")
 }
 
+// withoutOwnName is one problem's sentence without the name of the file the
+// problem stands in, which the sentence carries at its head: the path a person
+// reads the file by, or the file's own name when the problem is about the file
+// as a whole. The place a person reads a problem of one document — a screen
+// panel's head, the YAML tab's file — names that file already, so the head would
+// be read twice. What the sentence keeps is the location it gives at its end and
+// the names of the other files it is about, which no line above gives (lead
+// 2026-10-21).
+func withoutOwnName(text, file string) string {
+	for _, head := range []string{file + ": ", filepath.Base(file) + ": "} {
+		if after, ok := strings.CutPrefix(text, head); ok {
+			return after
+		}
+	}
+	return text
+}
+
 // promptFindings is the break a member's prompt cannot be built from: a role
 // document that is not there (spec/32 D2), a template that drops a door (I4), a
 // rule id two documents of one member both hold, and a herdr name that is too
@@ -302,6 +323,50 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 		}
 		seen[one] = true
 		out = append(out, finding)
+	}
+	return out
+}
+
+// profileFindings names a profile a member or a worker writes and profiles.yaml
+// does not hold (spec-teams 1.9): the definition reads — a screen draws it, with
+// the mission, the numbers and the figure, so a person can fix the name — but
+// hergy does not start the member from it. The reading no longer refuses this
+// name, so the sentence is written here, and it is the same sentence the reading
+// used to stop with.
+func profileFindings(in Input, def *definition.Definition) []Finding {
+	if def.Graph == nil {
+		return nil
+	}
+	profiles, _, err := in.Catalog.Profiles()
+	if err != nil {
+		return nil
+	}
+	var out []Finding
+	for i := range def.Graph.Members {
+		node := &def.Graph.Members[i]
+		if _, ok := profiles[node.Profile]; ok {
+			continue
+		}
+		label := fmt.Sprintf("members[%d]", i)
+		out = append(out, Finding{
+			Field: label + ".profile",
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.no_profile", label, node.Profile)),
+			Kind:  KindRead,
+			Stops: true,
+		})
+	}
+	for i := range def.Graph.Workers {
+		worker := &def.Graph.Workers[i]
+		if _, ok := profiles[worker.Profile]; ok {
+			continue
+		}
+		label := fmt.Sprintf("workers[%d]", i)
+		out = append(out, Finding{
+			Field: label,
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
+			Kind:  KindRead,
+			Stops: true,
+		})
 	}
 	return out
 }
@@ -581,7 +646,7 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 		if err != nil {
 			return
 		}
-		entry := topology.Doc{Key: doc.Path, Label: parsed.Title, Role: role}
+		entry := topology.Doc{Key: cat.Display(doc.Path), Label: parsed.Title, Role: role}
 		for _, rule := range parsed.Rules() {
 			entry.Rules = append(entry.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
 		}

@@ -1,0 +1,28 @@
+{{define "t2_page"}}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hergy チーム定義</title>
+<link rel="stylesheet" href="/static/ruledoc.css">
+<link rel="stylesheet" href="/static/teams-v2.css">
+<link rel="stylesheet" href="/static/yamltab.css">
+<link rel="stylesheet" href="/static/nav.css">
+<script src="/static/nav.js" defer></script>
+<script src="/static/api.js" defer></script>
+<script src="/static/yamltab.js" defer></script>
+<script src="/static/ruledoc.js" defer></script>
+<script src="/static/teams-v2.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  {{template "nav_band" .Nav}}
+  <header class="top">
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main id="view" data-tab="{{.Tab}}" data-token="{{.Token}}"></main>
+</div>
+<script id="teams-data" type="application/json">{{.Data}}</script>
+</body>
+</html>
+{{end}}

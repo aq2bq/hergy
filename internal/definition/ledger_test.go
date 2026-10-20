@@ -91,18 +91,18 @@ func TestLedgerBrokenLineNamesTheLine(t *testing.T) {
 	}
 }
 
-// TestLedgerRefusesTheUnknownProfileIsNotThePoint guards that the parse still
-// stops on a profile that is not there when a ledger: line is written, so the
-// ledger check does not hide the reading errors beside it.
-func TestLedgerRefusesTheUnknownProfileIsNotThePoint(t *testing.T) {
+// TestLedgerReadsTheUnknownProfile: a profile that is not there does not stop
+// the parse, with a ledger: line beside it or without one (spec-teams 1.9): the
+// check reports the name, and the ledger is read.
+func TestLedgerReadsTheUnknownProfile(t *testing.T) {
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{"claude-default": {Name: "claude-default", Kind: "claude"}}
-	_, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: absent\n"+
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: absent\n"+
 		"turns:\n  - human -> a\n  - a -> human\nledger:\n  - req approve by a\n", "t", "", l, profiles)
-	if err == nil {
-		t.Fatal("a profile that does not exist did not stop the parse")
+	if err != nil {
+		t.Fatalf("a profile that does not exist stopped the parse: %v", err)
 	}
-	if !strings.Contains(err.Error(), "absent") {
-		t.Errorf("error %q does not name the missing profile", err)
+	if got := got.def.Graph.Members[0].Profile; got != "absent" {
+		t.Errorf("the member's profile reads %q, want the name as it is written", got)
 	}
 }

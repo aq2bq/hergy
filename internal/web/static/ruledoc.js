@@ -146,7 +146,7 @@
   function editHTML(row) {
     const d = row.draft, key = row.uid + row.l;
     return `<div class="dh">
-      <div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"><span class="errline name" hidden></span></div>
+      ${host.hasName === false ? '' : `<div class="dhf"><label for="n${key}">名前</label><input id="n${key}" class="in-name" data-f="name" value="${esc(d.name)}" spellcheck="false" autocomplete="off"><span class="errline name" hidden></span></div>`}
       <div class="dhf"><label for="t${key}">タイトル</label><input id="t${key}" class="in-title" data-f="title" value="${esc(d.title)}" autocomplete="off"></div>
       <div class="dhf"><label for="v${key}">revision</label><input id="v${key}" class="in-rev" data-f="revision" type="number" min="1" value="${d.revision === null ? '' : d.revision}"></div>
       <label class="rename" hidden><input type="checkbox" id="rn${key}" checked><span></span></label>
@@ -266,7 +266,11 @@
         return `<div class="yl ghost go ${fc && fc.k && k === fc.k ? 'cur' : ''}" data-act="yline" data-k="${k}" data-part="rule"><span class="lno"></span><span class="yt" data-h="0"><span class="mk out">含めない</span><s>${esc(z.text || '')}</s></span></div>`;
       }
       ri++;
-      const ms = all.filter((m) => (z.section >= 0 ? m.k === k : m.k === 0));
+      // A problem about the document as a whole (no rule of its own) is marked
+      // on the first line alone; a problem about a rule is marked on the lines
+      // that rule stands on (spec-roles 1.2.6). A heading or a blank line has no
+      // rule of its own, so it is not one of a rule's lines.
+      const ms = all.filter((m) => (k ? m.k === k : m.k === 0 && ri === 0));
       const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
       const { h, html } = mdHL(z.text || '', z.held || '');
       const go = k || z.section >= 0 || z.part === 'title';
@@ -483,6 +487,33 @@
 
   function re(c, sel) { return rerender(c.panel, sel); }
 
+  // goRule opens one rule of a document and puts the cursor in its body
+  // (spec-roles 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from
+  // a check, or from the address, reads through this, so the rule stands open
+  // where the editor shows, brought into the window — never under the save's band
+  // — with the body ready to be typed in. A rule the document does not hold
+  // leaves the panel as it is.
+  function goRule(panel, k) {
+    const row = rowOf(panel);
+    if (!row || !k) return null;
+    S.ropen.add(rkey(row, { _k: k }));
+    if (host.mode) host.mode(panel, 'edit');
+    S.pfocus[row.uid + row.l] = { k, f: 'text' };
+    const fresh = rerender(panel, null);
+    const el = fresh && fresh.querySelector(`.rule[data-k="${k}"] [data-f=text]`);
+    if (el) {
+      // The rule is brought into the middle of the window, so the band the
+      // screen pins to the bottom never hides it; a rule taller than the window
+      // keeps its head in it.
+      el.scrollIntoView({ block: 'center' });
+      const top = el.getBoundingClientRect().top;
+      if (top < 0) window.scrollBy(0, top);
+      el.focus({ preventScroll: true });
+    }
+    if (host.url) host.url();
+    return fresh;
+  }
+
   function handleClick(b) {
     const act = b.dataset.act, c = ctx(b);
     const row = c.row;
@@ -654,6 +685,7 @@
     mark,
     refreshPrev,
     rerender,
+    goRule,
     state: S,
     rkey,
     rulesOf,

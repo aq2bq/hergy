@@ -1,0 +1,42 @@
+version: 1
+mission: "利用者向けの文書を整える"
+members:
+  - name: lead
+    role: lead
+    profile: sonnet-fast
+  - name: writer
+    role: writer
+    profile: opus-deep
+  - name: checker
+    role: reviewer
+    profile: haiku-chore
+workers:
+  - from: writer
+    purpose: 翻訳
+    profile: gemini-flash
+  - from: writer
+    purpose: 校正
+    profile: haiku-chore
+  - from: writer
+    purpose: 図の作成
+    profile: gemini-pro
+  - from: lead
+    purpose: 下調べ
+    profile: opencode-deepseek
+  - from: lead
+    purpose: リンクの確認
+    profile: codex-mini
+  - from: lead
+    purpose: 版の比較
+    profile: haiku-chore
+turns:
+  - human -> lead
+  - lead -> human
+  - lead -> writer
+  - writer -> lead
+  - lead -> checker
+  - checker -> lead
+  - writer -> checker
+  - checker -> writer
+  - writer -> human
+  - human -> writer

@@ -12,6 +12,7 @@
 package definition_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -109,6 +110,50 @@ func parseTeam(t *testing.T, l layer, text string) (*built, error) {
 	return parse(text, "t", "", l, testProfiles(l.team))
 }
 
+// TestReadHandsBackADefinitionWhoseTurnsCannotHold: a member that hands its turn
+// to nobody stops the definition (I12a, I12b), and every command that reads it
+// stops on the sentence. The definition itself comes back beside the error,
+// because the parts of a prompt a change moves are readable from a graph that
+// cannot hold: a screen's card shows the line a change takes away even when the
+// change is what stops the definition (spec-teams 1.4.4, 監査 R11).
+func TestReadHandsBackADefinitionWhoseTurnsCannotHold(t *testing.T) {
+	l := newLayer(t, "")
+	text := "version: 1\nmission: 何かをする。\nmembers:\n" +
+		"  - name: a\n    role: r\n    profile: claude-default\n" +
+		"  - name: b\n    role: r\n    profile: claude-default\n" +
+		"turns:\n  - human -> a\n  - a -> human\n  - a -> b\n"
+
+	def, err := definition.Read(definition.Input{
+		YAML:         text,
+		Name:         "t",
+		Layer:        source.LayerLocal,
+		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
+		TeamDir:      l.team,
+		Base:         l.team,
+		Reader:       source.Disk{},
+	})
+	var gerr *definition.GraphError
+	if !errors.As(err, &gerr) {
+		t.Fatalf("read = %v, want the one that stops on b handing its turn to nobody", err)
+	}
+	if len(gerr.Problems) != 1 || gerr.Problems[0].Key != "error.graph_member_no_turn" {
+		t.Errorf("the problems read %+v, want b handing its turn to nobody", gerr.Problems)
+	}
+	if def == nil || def.Graph == nil {
+		t.Fatalf("the definition came back as %v, want it with its graph, for the parts a change moves", def)
+	}
+	if def.Name != "t" {
+		t.Errorf("the definition came back named %q, want t", def.Name)
+	}
+	b := definition.NodeID{Kind: definition.KindMember, Name: "b"}
+	if _, ok := def.Graph.Member("b"); !ok {
+		t.Error("the definition came back without b, want its members")
+	}
+	if got := def.Graph.Out(b); len(got) != 0 {
+		t.Errorf("b hands its turn to %+v, want nobody", got)
+	}
+}
+
 func parse(text, name, runName string, l layer, profiles map[string]profile.Profile) (*built, error) {
 	def, err := definition.Read(definition.Input{
 		YAML:         text,
@@ -116,7 +161,6 @@ func parse(text, name, runName string, l layer, profiles map[string]profile.Prof
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
 		TeamDir:      l.team,
-		Profiles:     profiles,
 		Base:         l.team,
 		Reader:       source.Disk{},
 	})
@@ -551,7 +595,6 @@ func TestWorkersStopsOnBrokenEntries(t *testing.T) {
 		{"an entry without a member", "  - purpose: research\n    profile: seeker\n", "from"},
 		{"an entry without a purpose", "  - from: lead\n    profile: seeker\n", "purpose"},
 		{"an entry without a profile", "  - from: lead\n    purpose: research\n", "profile"},
-		{"a profile that is not in profiles.yaml", "  - from: lead\n    purpose: research\n    profile: absent\n", "absent"},
 		{"two workers of one member and purpose", "  - from: lead\n    purpose: research\n    profile: seeker\n  - from: lead\n    purpose: research\n    profile: developer\n", "research"},
 	}
 	for _, tc := range cases {
@@ -711,19 +754,17 @@ func TestTurnLeavesThePromptWithItsEdge(t *testing.T) {
 	}
 }
 
-func TestParseUnknownProfileStops(t *testing.T) {
-	_, err := definition.Read(definition.Input{
-		YAML:         "version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\n",
-		Name:         "t",
-		Layer:        source.LayerLocal,
-		TeamYAMLPath: "team.yaml",
-		Reader:       source.Disk{},
-	})
-	if err == nil {
-		t.Fatal("a profile that does not exist did not stop the parse")
+// TestParseKeepsAnUnknownProfile: a profile profiles.yaml does not hold is not
+// the reading's business (spec-teams 1.9): the file reads with the name as it is
+// written, so a screen draws the definition and a person fixes the name, and
+// the check reports the name the definition cannot resolve.
+func TestParseKeepsAnUnknownProfile(t *testing.T) {
+	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nmembers:\n  - name: a\n    role: r\n    profile: absent\nturns:\n  - human -> a\n  - a -> human\n", "t", "", newLayer(t, ""), testProfiles(""))
+	if err != nil {
+		t.Fatalf("a profile that does not exist stopped the parse: %v", err)
 	}
-	if !strings.Contains(err.Error(), "absent") {
-		t.Errorf("error %q does not name the missing profile", err)
+	if got.def.Graph.Members[0].Profile != "absent" {
+		t.Errorf("the member's profile reads %q, want the name as it is written", got.def.Graph.Members[0].Profile)
 	}
 }
 

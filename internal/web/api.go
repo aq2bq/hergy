@@ -26,6 +26,7 @@ import (
 type apiIn struct {
 	Place       string          `json:"place"`
 	Name        string          `json:"name"`
+	Part        string          `json:"part"`
 	Original    string          `json:"original"`
 	Doc         json.RawMessage `json:"doc"`
 	Text        string          `json:"text"`
@@ -99,13 +100,19 @@ type apiPlace struct {
 }
 
 // apiFile is one file of a kind whose files hold many names: what the YAML tab
-// draws, with the problems of the whole text.
+// draws, with the problems of the whole text. Name, Kind and Hidden belong to a
+// kind whose one name holds more than one file (a team definition's team.yaml
+// and agreement.yaml): the name the file belongs to, which of the two it is,
+// and whether another place's file of the same name hides it.
 type apiFile struct {
 	Place    string       `json:"place"`
 	Label    string       `json:"label"`
 	Path     string       `json:"path"`
 	Text     string       `json:"text"`
 	Hash     string       `json:"hash"`
+	Name     string       `json:"name,omitempty"`
+	Kind     string       `json:"kind,omitempty"`
+	Hidden   bool         `json:"hidden,omitempty"`
 	Problems []apiProblem `json:"problems"`
 }
 

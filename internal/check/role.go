@@ -145,13 +145,16 @@ func Role(in RoleInput) DocReport {
 
 	// The text the draft stands for: the role tab's document written back out,
 	// or the YAML tab's own text. ReadAll gathers every problem and, with it,
-	// the document as far as it reads (C2).
+	// the document as far as it reads (C2). The document is parsed under the path
+	// a person reads it by, so a sentence that names it names it the way the
+	// panel's own head does.
 	text := draftText(in)
-	doc, problems := rules.ReadAll(text, path)
+	display := cat.Display(path)
+	doc, problems := rules.ReadAll(text, display)
 	if doc == nil {
-		doc = &rules.Document{Path: path}
+		doc = &rules.Document{Path: display}
 	}
-	lines := rules.LinesOf(text, path)
+	lines := rules.LinesOf(text, display)
 
 	// Everything else reads through a catalog that carries the draft (C5).
 	overlay := cat.With(path, text)
@@ -171,18 +174,18 @@ func Role(in RoleInput) DocReport {
 	for _, p := range problems {
 		report.Problems = append(report.Problems, RoleProblem{
 			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
-			Line: p.Line, Text: p.Text,
+			Line: p.Line, Text: withoutOwnName(p.Text, display),
 		})
 	}
 	index := ruleIndex(doc)
-	report.Problems = append(report.Problems, roleModelProblems(path, doc, index, lines)...)
+	report.Problems = append(report.Problems, roleModelProblems(display, doc, index, lines)...)
 
 	for _, def := range roleDefinitions(cat, in.Name) {
 		size := SizeOf(roleStarts(overlay, def, in.Name), overlay.Reader())
-		report.Problems = append(report.Problems, roleDocProblems(overlay, def, in.Name, path, index, lines)...)
-		report.Problems = append(report.Problems, roleTurnProblems(overlay, def, path, index, lines)...)
+		report.Problems = append(report.Problems, roleDocProblems(overlay, def, in.Name, display, index, lines)...)
+		report.Problems = append(report.Problems, roleTurnProblems(overlay, def, display, index, lines)...)
 		report.Problems = append(report.Problems, roleSizeProblems(def.Name, size)...)
-		report.Turns = append(report.Turns, roleTurns(overlay, def, in.Name, path, index)...)
+		report.Turns = append(report.Turns, roleTurns(overlay, def, in.Name, display, index)...)
 		report.Readers = append(report.Readers, roleReaders(def.Name, size)...)
 	}
 	report.Problems = orderProblems(dedupeProblems(report.Problems))
@@ -327,16 +330,20 @@ func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, pat
 	var out []RoleProblem
 	for _, p := range rules.CheckAll(roleDocs(cat, def, name)) {
 		section, rule := -1, -1
+		text := p.Text
 		switch {
 		case p.Path == path:
 			section, rule = p.Section, p.Rule
+			// The problem stands in the document this report is about, whose
+			// panel head names it: the sentence leaves the name to that head.
+			text = withoutOwnName(text, path)
 		case p.RuleID() != "":
 			section, rule = index.placeID(p.RuleID())
 		}
 		out = append(out, RoleProblem{
 			Sev: p.Sev, Section: section, Rule: rule, Field: p.Field,
 			Line:       lines.At(section, rule, p.Field),
-			Definition: def.Name, Text: p.Text,
+			Definition: def.Name, Text: text,
 		})
 	}
 	return out
@@ -367,13 +374,15 @@ func roleDocs(cat *catalog.Catalog, def *definition.Definition, name string) []*
 }
 
 // parseRoleDoc reads one rule document through the catalog, or nil when it does
-// not read.
+// not read. It is parsed under the path a person reads it by (Catalog.Display):
+// the problems between the documents one member reads name a file each, and a
+// screen draws those names under the panel's own head (C3, X1).
 func parseRoleDoc(cat *catalog.Catalog, doc source.Doc) *rules.Document {
 	text, err := cat.Reader().Read(doc)
 	if err != nil {
 		return nil
 	}
-	parsed, err := rules.Parse(text, doc.Path)
+	parsed, err := rules.Parse(text, cat.Display(doc.Path))
 	if err != nil {
 		return nil
 	}

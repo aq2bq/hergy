@@ -415,12 +415,8 @@ func TestAssignSaveWritesOneProfileLine(t *testing.T) {
 	path := f.teamYAML()
 	before := readFile(t, path)
 	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/team/demo", map[string]any{
-		"place": "project", "hash": source.Hash(before),
-		"doc": map[string]any{
-			"name":    "demo",
-			"members": []map[string]string{{"name": "builder", "profile": "planner"}},
-			"workers": []map[string]string{},
-		},
+		"place": "project", "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberProfile", "member": "builder", "profile": "planner"}}},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the assign save answered %d: %v", resp.StatusCode, decoded)
@@ -431,6 +427,27 @@ func TestAssignSaveWritesOneProfileLine(t *testing.T) {
 	want := strings.Replace(before, "  - name: builder\n    role: builder\n    profile: coder", "  - name: builder\n    role: builder\n    profile: planner", 1)
 	if got := readFile(t, path); got != want {
 		t.Errorf("the assign save changed more than the one line:\n%s", got)
+	}
+}
+
+// TestAssignSaveKeepsTheProfilesItWasNotToldAbout: an op that carries a role and
+// no profile leaves the profiles alone, so the role screen's save cannot blank
+// them (spec-boundary 6).
+func TestAssignSaveKeepsTheProfilesItWasNotToldAbout(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberRole", "member": "builder", "role": "lead"}}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the role-only save answered %d: %s", resp.StatusCode, body)
+	}
+	got := readFile(t, path)
+	if !strings.Contains(got, "  - name: builder\n    role: lead\n    profile: coder\n") {
+		t.Errorf("the role-only save changed the profile as well:\n%s", got)
 	}
 }
 
@@ -469,13 +486,13 @@ func TestAssignSaveTakesARoleOp(t *testing.T) {
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "hash": source.Hash(before),
 		"doc": map[string]any{
-			"ops": []map[string]string{{"kind": "memberRole", "member": "builder", "role": "planner"}},
+			"ops": []map[string]string{{"kind": "memberRole", "member": "builder", "role": "lead"}},
 		},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the role op answered %d: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, path); !strings.Contains(got, "  - name: builder\n    role: planner\n    profile: coder\n") {
+	if got := readFile(t, path); !strings.Contains(got, "  - name: builder\n    role: lead\n    profile: coder\n") {
 		t.Errorf("the role op did not write the one role line:\n%s", got)
 	}
 }
@@ -512,7 +529,7 @@ func TestAssignSaveRefusesAnOpTheTeamDoesNotKnow(t *testing.T) {
 	resp, _ := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "hash": source.Hash(before),
 		"doc": map[string]any{
-			"ops": []map[string]string{{"kind": "mission", "text": "別の使命"}},
+			"ops": []map[string]string{{"kind": "nosuch", "text": "別の使命"}},
 		},
 	})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
@@ -535,7 +552,7 @@ func TestAssignSaveKeepsTheRolesItWasNotToldAbout(t *testing.T) {
 		"place": "project", "hash": source.Hash(before),
 		"doc": map[string]any{
 			"name":    "demo",
-			"members": []map[string]string{{"name": "builder", "role": "planner"}},
+			"members": []map[string]string{{"name": "builder", "role": "lead"}},
 			"workers": []map[string]string{},
 		},
 	})
@@ -543,7 +560,7 @@ func TestAssignSaveKeepsTheRolesItWasNotToldAbout(t *testing.T) {
 		t.Fatalf("the role-only save answered %d: %s", resp.StatusCode, body)
 	}
 	got := readFile(t, path)
-	if !strings.Contains(got, "  - name: builder\n    role: planner\n    profile: coder\n") {
+	if !strings.Contains(got, "  - name: builder\n    role: lead\n    profile: coder\n") {
 		t.Errorf("the role-only save changed the profile as well:\n%s", got)
 	}
 }

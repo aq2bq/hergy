@@ -614,7 +614,6 @@
     if (!m) return '';
     const r = byUid(m[1]), l = m[2], e = r[l];
     const hid = l === 'global' && live(r, 'project');
-    const ok = state.ok['y' + key] ? (delete state.ok['y' + key], '<span class="ok">保存しました</span>') : '';
     return `<section class="yed" data-key="${key}">
       <header class="ph"><span class="ln">${LNAME[l]}</span><code class="path">${esc(pathOf(l, e.saved))}</code>${live(r, 'project') && live(r, 'global') ? `<span class="state ${hid ? 'off' : 'on'}">${hid ? '隠れている' : '効いている'}</span>` : ''}</header>
       <div class="ybody">
@@ -622,16 +621,17 @@
         <div class="vlist"></div>
       </div>
       <footer class="pf">
-        <button class="btn primary" data-act="yaml-save">保存</button><span class="dirty"></span>${ok}
+        <button class="btn primary" data-act="yaml-save">保存</button><span class="dirty"></span>
         <span class="acts"><button class="btn" data-act="yaml-revert" hidden>元に戻す</button></span>
       </footer>
-      <span class="errline" hidden></span>
     </section>`;
   }
 
   // mountYed hands one file's section to the shared YAML part: it remembers the
   // row, the place and the name the check runs under, and takes the problems the
-  // part finds back, so the file nav can mark a file that is wrong.
+  // part finds back, so the file nav can mark a file that is wrong. The part
+  // shows 保存しました and the refusal itself (r-0f8c); a save only tells this
+  // screen the row's new hash and text.
   function mountYed(sec) {
     const m = /^(\d+)(project|global)$/.exec(sec.dataset.key);
     if (!m) return;
@@ -642,29 +642,14 @@
     YAML.mount(sec, {
       kind: 'role', place: l, name, problems: ychecks[ykey(l, name)] || [],
       onProblems: (section, probs) => { ychecks[ykey(l, name)] = probs; },
+      onSaved: (section, answer) => {
+        const json = API.answer(answer);
+        e.hash = json.hash || e.hash;
+        e.text = section.querySelector('.ytext').value;
+        if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
+        e.ytext = undefined;
+      },
     });
-  }
-
-  async function saveYAML(key) {
-    const m = /^(\d+)(project|global)$/.exec(key);
-    if (!m) return;
-    const r = byUid(m[1]), l = m[2], e = r[l], sec = $(`.yed[data-key="${key}"]`);
-    if (!sec) return;
-    const text = sec.querySelector('.ytext').value;
-    const name = e.saved ? e.saved.name : e.draft.name;
-    const res = await API.save('role', name, { place: l, name, text, hash: e.hash || '' });
-    const json = API.answer(res);
-    if (!res.ok) {
-      const el = sec.querySelector('.errline');
-      if (el) { el.hidden = false; el.textContent = json.text || '保存できませんでした'; }
-      return;
-    }
-    e.hash = json.hash || e.hash;
-    e.text = text;
-    if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
-    e.ytext = undefined;
-    state.ok['y' + key] = 1;
-    render();
   }
 
   // ---- operations ------------------------------------------------------
@@ -779,7 +764,7 @@
         YAML.revert(el);
         break;
       }
-      case 'yaml-save': await saveYAML(b.closest('.yed').dataset.key); break;
+      case 'yaml-save': YAML.save(b.closest('.yed')); break;
     }
   });
 
@@ -864,7 +849,9 @@
     if (!t) return;
     const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
     if (!changes.length) return;
-    const res = await API.save('team', id, { place: 'project', doc: { name: id, members: changes.map((m) => ({ name: m.member, role: m.role })) }, hash: t.hash || '' });
+    // The pick travels as the team kind's own op, so the save writes one line of
+    // team.yaml and no other (spec-boundary 6, spec-teams 1.3).
+    const res = await API.save('team', id, { place: 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } });
     const json = API.answer(res);
     if (!res.ok) {
       const card = $(`.team[data-t="${id}"]`);

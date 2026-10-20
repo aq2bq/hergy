@@ -90,7 +90,6 @@ func (l layer) read(t *testing.T, text string) *definition.Definition {
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
 		TeamDir:      l.team,
-		Profiles:     l.profiles(),
 		Base:         l.team,
 		Reader:       source.Disk{},
 	})

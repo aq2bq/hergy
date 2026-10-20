@@ -28,6 +28,8 @@ const (
 	OpRemoveWorker
 	// OpSetWorkerProfile changes one worker's profile.
 	OpSetWorkerProfile
+	// OpSetWorkerPurpose changes one worker's purpose.
+	OpSetWorkerPurpose
 )
 
 // Op is one edit to team.yaml: one place, one change. Build it with the
@@ -43,8 +45,11 @@ type Op struct {
 	Role    string // OpSetMemberRole
 	Profile string // OpSetMemberProfile, OpAddWorker, OpSetWorkerProfile
 	Turn    Edge   // OpAddTurn, OpRemoveTurn
-	From    string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile
-	Purpose string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile
+	From    string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose
+	Purpose string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose (the worker's identity)
+	// NewPurpose is the purpose an OpSetWorkerPurpose writes in place of the
+	// worker's own.
+	NewPurpose string // OpSetWorkerPurpose
 }
 
 // Mission is the op that writes team.yaml's mission.
@@ -83,6 +88,11 @@ func RemoveWorker(from, purpose string) Op {
 // WorkerProfile is the op that changes one worker's profile.
 func WorkerProfile(from, purpose, profile string) Op {
 	return Op{Kind: OpSetWorkerProfile, From: from, Purpose: purpose, Profile: profile}
+}
+
+// WorkerPurpose is the op that changes one worker's purpose.
+func WorkerPurpose(from, old, next string) Op {
+	return Op{Kind: OpSetWorkerPurpose, From: from, Purpose: old, NewPurpose: next}
 }
 
 // EditYAML changes one place in a team.yaml and writes the file back (C3).
@@ -158,6 +168,8 @@ func applyTree(root *yaml.Node, op Op) error {
 		return removeWorker(root, op.From, op.Purpose)
 	case OpSetWorkerProfile:
 		return setWorkerProfile(root, op.From, op.Purpose, op.Profile)
+	case OpSetWorkerPurpose:
+		return setWorkerPurpose(root, op.From, op.Purpose, op.NewPurpose)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
@@ -183,6 +195,8 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		return removeWorkerLines(src, root, op.From, op.Purpose)
 	case OpSetWorkerProfile:
 		return setWorkerProfileLines(src, root, op.From, op.Purpose, op.Profile)
+	case OpSetWorkerPurpose:
+		return setWorkerPurposeLines(src, root, op.From, op.Purpose, op.NewPurpose)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
@@ -398,6 +412,21 @@ func setWorkerProfileLines(src *yamledit.Source, root *yaml.Node, from, purpose,
 	return i18n.Errorf("error.edit_no_worker", purpose, from)
 }
 
+// setWorkerPurposeLines changes the purpose of one workers: entry, named by the
+// member that hires it and the purpose the file holds. Only the entry's own
+// purpose: line moves; every other line is left as it was.
+func setWorkerPurposeLines(src *yamledit.Source, root *yaml.Node, from, purpose, next string) error {
+	seq := yamledit.MappingValue(root, "workers")
+	if seq != nil && seq.Kind == yaml.SequenceNode {
+		for _, item := range seq.Content {
+			if f, p, ok := workerKey(item); ok && f == from && p == purpose {
+				return putKeyLines(src, item, "purpose", next)
+			}
+		}
+	}
+	return i18n.Errorf("error.edit_no_worker", purpose, from)
+}
+
 // editMember changes one key of the member named, or stops when the file has no
 // such member.
 func editMember(root *yaml.Node, member, key, value string) error {
@@ -530,6 +559,21 @@ func setWorkerProfile(root *yaml.Node, from, purpose, profile string) error {
 		for _, item := range seq.Content {
 			if f, p, ok := workerKey(item); ok && f == from && p == purpose {
 				putKey(item, "profile", profile)
+				return nil
+			}
+		}
+	}
+	return i18n.Errorf("error.edit_no_worker", purpose, from)
+}
+
+// setWorkerPurpose changes the purpose of one workers: entry, on the tree (the
+// intended value).
+func setWorkerPurpose(root *yaml.Node, from, purpose, next string) error {
+	seq := yamledit.MappingValue(root, "workers")
+	if seq != nil && seq.Kind == yaml.SequenceNode {
+		for _, item := range seq.Content {
+			if f, p, ok := workerKey(item); ok && f == from && p == purpose {
+				putKey(item, "purpose", next)
 				return nil
 			}
 		}

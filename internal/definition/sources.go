@@ -56,7 +56,6 @@ type Input struct {
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
-	Profiles     map[string]profile.Profile
 	Base         string // the project root, for cwd values
 	Reader       source.Reader
 }
@@ -137,6 +136,9 @@ const spawnPlaceholder = "%{spawn}"
 // member may hire, and the team's own agreement. It builds the graph, so the
 // readers of a definition share one graph (d-11f8). It does not build a prompt:
 // that is a projection (prompt.Member), and this package does not import it.
+// A definition whose turns cannot hold comes back with a GraphError and with
+// the definition itself: a caller that reads the parts of a prompt a change
+// moves may use it (監査 R11), and every other caller stops on the error.
 func Read(in Input) (*Definition, error) {
 	version, err := profile.ReadVersion(in.YAML, "team.yaml", in.TeamYAMLPath)
 	if err != nil {
@@ -171,7 +173,7 @@ func Read(in Input) (*Definition, error) {
 	if err != nil {
 		return nil, err
 	}
-	workers, err := parseWorkers(raw, in)
+	workers, err := parseWorkers(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -184,14 +186,7 @@ func Read(in Input) (*Definition, error) {
 		return nil, err
 	}
 	graph := NewGraph(members, workers, turns)
-	// A graph whose turns the definition cannot hold stops every command that
-	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
-	// member and of the human, and a turn reaching the human.
-	if problems := graph.Check(); len(problems) > 0 {
-		return nil, &GraphError{Path: in.TeamYAMLPath, Problems: problems}
-	}
-
-	return &Definition{
+	def := &Definition{
 		Name:         in.Name,
 		Mission:      mission,
 		Graph:        graph,
@@ -203,7 +198,18 @@ func Read(in Input) (*Definition, error) {
 		HasAgreement: in.Reader.IsFile(agreement),
 		Prompt:       prompt,
 		Ledger:       ledger,
-	}, nil
+	}
+	// A graph whose turns the definition cannot hold stops every command that
+	// reads it (I12a, I12b, d-edd4): no team runs without a turn out of each
+	// member and of the human, and a turn reaching the human. The definition is
+	// handed back with the error, because the parts of a prompt a change moves
+	// are readable from a graph that cannot hold: a screen's card shows the line
+	// a change would take away even when the change is what stops the definition
+	// (spec-teams 1.4.4, 監査 R11). A caller that stops, stops on the error.
+	if problems := graph.Check(); len(problems) > 0 {
+		return def, &GraphError{Path: in.TeamYAMLPath, Problems: problems}
+	}
+	return def, nil
 }
 
 // teamAgreement is where a team's own agreement sits: agreement.yaml in the
@@ -286,7 +292,7 @@ func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 // parseWorkers reads the top-level workers: into the worker nodes the graph
 // makes the two edges of each from (I12c). Each one names the member that hires
 // it, the purpose, and the profile the worker runs.
-func parseWorkers(raw rawTeam, in Input) ([]WorkerNode, error) {
+func parseWorkers(raw rawTeam) ([]WorkerNode, error) {
 	workers := make([]WorkerNode, 0, len(raw.Workers))
 	seen := map[string]bool{}
 	for i, rw := range raw.Workers {
@@ -300,9 +306,10 @@ func parseWorkers(raw rawTeam, in Input) ([]WorkerNode, error) {
 		if rw.Profile == "" {
 			return nil, field(label, i18n.Errorf("error.workers_profile_empty", label))
 		}
-		if _, ok := in.Profiles[rw.Profile]; !ok {
-			return nil, field(label, i18n.Errorf("error.workers_no_profile", label, rw.Profile))
-		}
+		// A profile profiles.yaml does not hold is not the reading's business
+		// (spec-teams 1.9): the file reads, a screen draws it so a person can
+		// fix the name, and the check reports the name the definition cannot
+		// resolve.
 		// A worker's identity is the member that hires it and the purpose
 		// (I12c): two workers of the same pair are one node twice.
 		key := rw.From + "\x00" + rw.Purpose
@@ -407,7 +414,7 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 	if strings.TrimSpace(rm.Role) == "" {
 		return MemberNode{}, field(label+".role", i18n.Errorf("error.role_empty", label))
 	}
-	name, err := engineProfile(rm, label, in.Profiles)
+	name, err := engineProfile(rm, label)
 	if err != nil {
 		return MemberNode{}, err
 	}
@@ -437,16 +444,16 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 // profile's (I7): a member that writes one of them is stopped here, with the
 // sentence that says where they go, so the file is fixed before a team boots
 // from it.
-func engineProfile(rm rawMember, label string, profiles map[string]profile.Profile) (string, error) {
+func engineProfile(rm rawMember, label string) (string, error) {
 	if key := inlineEngineKey(rm); key != "" {
 		return "", field(label+"."+key, i18n.Errorf("error.member_writes_engine", rm.Name, key, key))
 	}
 	if rm.Profile == "" {
 		return "", field(label+".profile", i18n.Errorf("error.member_needs_profile", rm.Name))
 	}
-	if _, ok := profiles[rm.Profile]; !ok {
-		return "", field(label+".profile", i18n.Errorf("error.no_profile", label, rm.Profile))
-	}
+	// The name stays as it is written, even when profiles.yaml does not hold it
+	// (spec-teams 1.9): a screen draws the definition so the name can be fixed,
+	// and the check reports it.
 	return rm.Profile, nil
 }
 

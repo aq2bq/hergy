@@ -131,6 +131,13 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /roles/{role}/new", s.r2OldRoleNew)
 	mux.HandleFunc("GET /roles/{role}/{rule}", s.r2OldRoleRule)
 
+	// チーム定義 (r-0f8c): the list and the YAML tab. The figure's and the
+	// agreement's checks and every write go through /api/team (spec-boundary 5),
+	// so this screen owns only its two pages. The old /teams that moved to
+	// /definitions is gone: /teams is this screen now.
+	mux.HandleFunc("GET /teams", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "list") })
+	mux.HandleFunc("GET /teams/yaml", func(w http.ResponseWriter, r *http.Request) { s.t2Page(w, r, "yaml") })
+
 	// プロファイル (r-c683): the three tabs.
 	mux.HandleFunc("GET /profiles", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "profiles") })
 	mux.HandleFunc("GET /profiles/assign", func(w http.ResponseWriter, r *http.Request) { s.p2Page(w, r, "assign") })

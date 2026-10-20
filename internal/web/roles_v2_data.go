@@ -174,7 +174,7 @@ func (s *Server) r2ReadingOf() r2Reading {
 // words and places only the server can make.
 type r2Island struct {
 	Role   apiList           `json:"role"`
-	Team   apiTeamList       `json:"team"`
+	Team   apiList           `json:"team"`
 	Texts  map[string]string `json:"texts"`
 	Places map[string]string `json:"places"`
 }
@@ -183,7 +183,7 @@ type r2Island struct {
 // are built from.
 func (s *Server) r2PageIsland() r2Island {
 	reading := s.r2ReadingOf()
-	return r2Island{Role: s.r2ListOf(reading), Team: s.apiTeamList(), Texts: reading.Texts, Places: reading.Places}
+	return r2Island{Role: s.r2ListOf(reading), Team: s.t2List(), Texts: reading.Texts, Places: reading.Places}
 }
 
 // r2Read is one role document as the island carries it: the fields a person

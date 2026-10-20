@@ -9,6 +9,19 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Added
 
+- **The team-definition screen (`/teams`)**: the band's チーム定義 leads to the
+  screen now (it was a struck-through name). A row opens in place: its mission is
+  edited where it stands, and the open row has the two tabs チームの姿 and
+  チームの約束. チームの姿 draws team.yaml as a figure — the human and the
+  members as points, the turns as lines — and lets a turn be added or taken away
+  by pressing a point or a line; a card beside it shows what the change would do
+  to the prompt before it is made, and the checks are the ones `hergy validate`
+  prints. チームの約束 edits the team's own agreement.yaml with the same shared
+  part the role screen uses (the sections, the rules, the `in_prompt` switch, the
+  reordering, the Markdown box), and a save writes the one line that changed. A
+  YAML tab keeps every team.yaml and agreement.yaml of both layers. A name the
+  project and the shared layer both hold shows the shared one as hidden, and the
+  band carries the team-definition count.
 - **A rule can stay out of the prompt**: `in_prompt: false` keeps the rule in its
   file and out of every member's prompt — neither the one `hergy up` sends nor
   the one `hergy reprompt` rebuilds — and out of the amount counted for that
@@ -59,9 +72,41 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   is that same list answer, `api.js` is the one place that reads it — no screen
   reads an answer's fields itself — and the role screen's YAML tab is drawn by
   the shared `yamltab.js` part, as the profile screen's already was.
+- **Every screen's YAML tab saves and answers the same way**: which text may be
+  saved, where `保存しました` stands and how tall the box is are the shared
+  `yamltab.js` part's now, not each screen's. A save is stopped only when a
+  problem the written file did not hold has appeared, so a file that already has
+  a problem can still be edited and saved; a text that changed while the page was
+  open is refused with the server's sentence beside the save; `保存しました` is
+  drawn by the part, and the role screen's own copy is gone. The box stands
+  between 6 and 34 lines on every screen.
+- **A team.yaml names a profile `profiles.yaml` does not hold**: it reads. A
+  member or a worker that writes such a name used to make the whole file
+  unreadable, so a screen could only show its checks and the text; now the
+  definition is read and drawn — the mission, the numbers, the figure and the
+  agreement — so the name can be fixed where it stands, and the check names the
+  profile as a problem that stops the definition (`members[i].profile`,
+  `workers[i]`), which `hergy validate` prints where it printed the reading's
+  refusal (its exit code is unchanged). `hergy up` refuses for such a member in
+  the same sentence as before; a worker's missing profile no longer stops the
+  boot — it is refused when that worker is hired, as the hire has always been
+  checked.
 
 ### Fixed
 
+- **A screen's problem sentence writes a path the way a person reads it**: a file
+  inside the project reads `.hergy/profiles.yaml`, a file of the layer every team
+  shares reads under the home directory (`~/.config/hergy/…`), and the machine's
+  own path reads nowhere. The figure's check column, a team's own agreement's, a
+  role document's, the profiles screen's YAML tab and the save the shared YAML
+  tab answers with all name a file the way `hergy` prints it on the command
+  line, so the same problem reads the same sentence wherever it is shown. A
+  sentence about the file it stands in no longer opens with that file's name as
+  well: the place a screen draws the problem — a panel's head, the YAML tab's
+  file — gives the name already, and the sentence keeps the location it gives at
+  its end and the names of the other files it is about. `hergy validate` and
+  `hergy up` are unchanged: the file's own location still leads the line there
+  (spec/32 D2).
 - **The 割り当て saves and the shared YAML tab**: a save from a 割り当て tab
   (`PUT /api/team/{name}`) carries the picks as the team kind's own ops
   (`memberRole`, `memberProfile`, `workerProfile`) — the rows the role screen
@@ -71,6 +116,24 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   (`yamltab.js`) sends the file's name with the text it saves, so a kind whose
   file is the name it was handed (a role's file is the row's own name) writes
   that file rather than an empty one.
+- **The team screen's figure, tabs and cards**: the figure is drawn at the width
+  of its own viewBox, so an open card stands beside the points instead of over
+  them; the band's `一覧` / `YAML` tabs carry the address again when they are
+  pressed; the agreement panel's head is its path alone; `元に戻す` stands in the
+  agreement's foot only while the draft differs from the file; a line a change
+  takes away is struck through once, in the prompt's own words, with the checks
+  it adds beside it; a worker's purpose can be typed to its end with the cursor
+  staying in the field, and the worker it wrote counts as one change; the card
+  of the last turn a member hands out names the problem the press would add and
+  keeps the line that would leave beside it, though the change itself is what
+  stops the definition reading; and the checks of the team's own agreement stand
+  under `チームの約束` and open that rule in the 約束 tab, brought into the window
+  above the save's band with the cursor in the rule's body — the same from the
+  address the press writes.
+- **A document-wide sentence marks the first line alone**: the Markdown box of
+  the shared part (the role screen and the team screen alike) marks a check
+  about a document as a whole — a member's reading volume, say — on the first
+  line, not on every heading and blank line beside it.
 
 ### Breaking
 
