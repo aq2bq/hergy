@@ -545,9 +545,17 @@ func (c *Catalog) Profiles() (map[string]profile.Profile, string, error) {
 		if !ok {
 			continue
 		}
-		more, err := profile.ParseProfiles(text, path)
+		// The reading is told how a person reads the file, so a sentence about
+		// one that does not read names the place a person fixes, not the
+		// machine's path (X1). Each profile keeps the file's own path: hergy
+		// reads and writes the file it found.
+		more, err := profile.ParseProfiles(text, c.Display(path))
 		if err != nil {
 			return nil, "", err
+		}
+		for name, one := range more {
+			one.Path = path
+			more[name] = one
 		}
 		maps.Copy(profiles, more)
 		paths = append([]string{path}, paths...)

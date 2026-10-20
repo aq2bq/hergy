@@ -191,11 +191,14 @@ func modelFindings(in Input, def *definition.Definition) []Finding {
 		if err != nil {
 			continue
 		}
-		parsed, err := rules.Parse(text, doc.Path)
+		// The rule's field names the document the way a person reads it, which
+		// is how the screen's own head names it too.
+		path := in.Catalog.Display(doc.Path)
+		parsed, err := rules.Parse(text, path)
 		if err != nil {
 			continue
 		}
-		out = append(out, modelDocFindings(doc.Path, parsed)...)
+		out = append(out, modelDocFindings(path, parsed)...)
 	}
 	return out
 }
@@ -266,6 +269,23 @@ func BreakLine(display func(string) string, path string, err error) string {
 		msg = fmt.Sprintf("%s: %s", display(path), msg)
 	}
 	return strings.Join(strings.Fields(msg), " ")
+}
+
+// withoutOwnName is one problem's sentence without the name of the file the
+// problem stands in, which the sentence carries at its head: the path a person
+// reads the file by, or the file's own name when the problem is about the file
+// as a whole. The place a person reads a problem of one document — a screen
+// panel's head, the YAML tab's file — names that file already, so the head would
+// be read twice. What the sentence keeps is the location it gives at its end and
+// the names of the other files it is about, which no line above gives (lead
+// 2026-10-21).
+func withoutOwnName(text, file string) string {
+	for _, head := range []string{file + ": ", filepath.Base(file) + ": "} {
+		if after, ok := strings.CutPrefix(text, head); ok {
+			return after
+		}
+	}
+	return text
 }
 
 // promptFindings is the break a member's prompt cannot be built from: a role
@@ -626,7 +646,7 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 		if err != nil {
 			return
 		}
-		entry := topology.Doc{Key: doc.Path, Label: parsed.Title, Role: role}
+		entry := topology.Doc{Key: cat.Display(doc.Path), Label: parsed.Title, Role: role}
 		for _, rule := range parsed.Rules() {
 			entry.Rules = append(entry.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
 		}

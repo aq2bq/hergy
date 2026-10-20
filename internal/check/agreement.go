@@ -39,11 +39,12 @@ func Agreement(in AgreementInput) DocReport {
 	saved := readRoleDoc(cat, path)
 
 	text := agreementText(in)
-	doc, problems := rules.ReadAll(text, path)
+	display := cat.Display(path)
+	doc, problems := rules.ReadAll(text, display)
 	if doc == nil {
-		doc = &rules.Document{Path: path}
+		doc = &rules.Document{Path: display}
 	}
-	lines := rules.LinesOf(text, path)
+	lines := rules.LinesOf(text, display)
 	overlay := cat.With(path, text)
 
 	report := DocReport{
@@ -53,7 +54,7 @@ func Agreement(in AgreementInput) DocReport {
 	for _, p := range problems {
 		report.Problems = append(report.Problems, RoleProblem{
 			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
-			Line: p.Line, Text: p.Text,
+			Line: p.Line, Text: withoutOwnName(p.Text, display),
 		})
 	}
 
@@ -64,12 +65,12 @@ func Agreement(in AgreementInput) DocReport {
 	}
 
 	index := ruleIndex(doc)
-	report.Problems = append(report.Problems, roleModelProblems(path, doc, index, lines)...)
-	report.Problems = append(report.Problems, roleDocProblems(overlay, def, "", path, index, lines)...)
-	report.Problems = append(report.Problems, roleTurnProblems(overlay, def, path, index, lines)...)
+	report.Problems = append(report.Problems, roleModelProblems(display, doc, index, lines)...)
+	report.Problems = append(report.Problems, roleDocProblems(overlay, def, "", display, index, lines)...)
+	report.Problems = append(report.Problems, roleTurnProblems(overlay, def, display, index, lines)...)
 	size := SizeOf(agreementStarts(overlay, def), overlay.Reader())
 	report.Problems = append(report.Problems, agreementSizeProblems(def.Name, size)...)
-	report.Turns = agreementTurns(overlay, def, path, index)
+	report.Turns = agreementTurns(overlay, def, display, index)
 	report.Readers = roleReaders(def.Name, size)
 	report.Problems = orderProblems(dedupeProblems(report.Problems))
 	return report

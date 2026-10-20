@@ -357,7 +357,7 @@ func (s *Server) t2FileOf(place, kind, name, path string, hidden bool) apiFile {
 			sev = "err"
 		}
 		out.Problems = append(out.Problems, apiProblem{
-			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(text, finding.Field), Text: finding.Text,
+			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(text, finding.Field), Text: withoutOwnHead(finding.Text, display),
 		})
 	}
 	return out
@@ -498,15 +498,16 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 		return nil, refusal
 	}
 	layer := catalog.Layer(in.Place)
+	own := k.s.cat.Display(k.s.cat.TeamYAML(in.Name, layer))
 	team := check.Team(check.TeamInput{Catalog: k.s.cat, Name: in.Name, Layer: layer, Ops: body.ops})
-	out := apiCheck{Problems: t2FigureProblems(team.Problems)}
+	out := apiCheck{Problems: t2FigureProblems(team.Problems, own)}
 	if body.in.Op != nil {
 		op, err := body.in.Op.op()
 		if err != nil {
 			return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 		}
 		report := check.TeamEffect(check.TeamInput{Catalog: k.s.cat, Name: in.Name, Layer: layer, Ops: body.ops}, op)
-		out.Effect = apiTeamEffect{Lines: report.Lines, Problems: t2FigureProblems(report.Problems)}
+		out.Effect = apiTeamEffect{Lines: report.Lines, Problems: t2FigureProblems(report.Problems, own)}
 	}
 	return out, nil
 }
@@ -576,17 +577,29 @@ func (k apiTeam) overlay(name, place string, ops []definition.Op) (*catalog.Cata
 }
 
 // t2FigureProblems is the figure's findings in the boundary's shape: the field
-// each one names is where a screen shows it (spec-boundary 5).
-func t2FigureProblems(findings []check.Finding) []apiProblem {
+// each one names is where a screen shows it (spec-boundary 5). The file the
+// definition's own findings stand in — its team.yaml — is named by the panel's
+// head, so the sentences leave that name to the head; the command line keeps it,
+// because its detail line stands on its own (spec/32 D2).
+func t2FigureProblems(findings []check.Finding, own string) []apiProblem {
 	out := make([]apiProblem, 0, len(findings))
 	for _, finding := range findings {
 		sev := "warn"
 		if finding.Stops {
 			sev = "err"
 		}
-		out = append(out, apiProblem{Sev: sev, At: finding.Field, Field: finding.Field, Text: finding.Text})
+		out = append(out, apiProblem{Sev: sev, At: finding.Field, Field: finding.Field, Text: withoutOwnHead(finding.Text, own)})
 	}
 	return out
+}
+
+// withoutOwnHead is one problem's sentence as a screen draws it: the name of the
+// file the problem stands in comes off, because the place the screen draws the
+// problem — a panel's head, the YAML tab's file — gives that name already. What
+// the sentence keeps is the names of the other files it is about, which no line
+// above gives.
+func withoutOwnHead(text, file string) string {
+	return strings.TrimPrefix(text, file+": ")
 }
 
 // checkYAML answers what is wrong with the YAML a person is typing: the same
@@ -604,6 +617,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 		return out, nil
 	}
 	path := k.s.cat.TeamYAML(in.Name, layer)
+	display := k.s.cat.Display(path)
 	findings := check.Definition(check.Input{Catalog: k.s.cat.With(path, in.Text), Name: in.Name, Layer: layer})
 	for _, finding := range findings {
 		sev := "warn"
@@ -611,7 +625,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 			sev = "err"
 		}
 		out.Problems = append(out.Problems, apiProblem{
-			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: finding.Text,
+			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: withoutOwnHead(finding.Text, display),
 		})
 	}
 	return out, nil
@@ -807,7 +821,7 @@ func t2RefuseNewTeamText(cat *catalog.Catalog, path, name, layer, before, after 
 	}
 	for _, finding := range check.Definition(check.Input{Catalog: cat.With(path, after), Name: name, Layer: layer}) {
 		if finding.Stops && !known[finding.Text] {
-			return refuse(http.StatusUnprocessableEntity, finding.Text)
+			return refuse(http.StatusUnprocessableEntity, withoutOwnHead(finding.Text, cat.Display(path)))
 		}
 	}
 	return nil

@@ -94,6 +94,19 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Fixed
 
+- **A screen's problem sentence writes a path the way a person reads it**: a file
+  inside the project reads `.hergy/profiles.yaml`, a file of the layer every team
+  shares reads under the home directory (`~/.config/hergy/…`), and the machine's
+  own path reads nowhere. The figure's check column, a team's own agreement's, a
+  role document's, the profiles screen's YAML tab and the save the shared YAML
+  tab answers with all name a file the way `hergy` prints it on the command
+  line, so the same problem reads the same sentence wherever it is shown. A
+  sentence about the file it stands in no longer opens with that file's name as
+  well: the place a screen draws the problem — a panel's head, the YAML tab's
+  file — gives the name already, and the sentence keeps the location it gives at
+  its end and the names of the other files it is about. `hergy validate` and
+  `hergy up` are unchanged: the file's own location still leads the line there
+  (spec/32 D2).
 - **The 割り当て saves and the shared YAML tab**: a save from a 割り当て tab
   (`PUT /api/team/{name}`) carries the picks as the team kind's own ops
   (`memberRole`, `memberProfile`, `workerProfile`) — the rows the role screen
