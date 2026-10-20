@@ -35,11 +35,14 @@ type apiTeam struct{ s *Server }
 
 // apiTeamIn is the team kind's own draft, carried in apiIn.Doc. Ops are the
 // figure's edits, Op is the one more op a card is trying (so the answer carries
-// its effect), and Doc is the agreement's own document.
+// its effect), and Doc is the agreement's own document. Members and Workers are
+// the rows a 割り当て tab that still sends rows writes (r-8e85).
 type apiTeamIn struct {
-	Ops []t2Op `json:"ops"`
-	Op  *t2Op  `json:"op,omitempty"`
-	Doc *r2Doc `json:"doc,omitempty"`
+	Ops     []t2Op            `json:"ops"`
+	Op      *t2Op             `json:"op,omitempty"`
+	Doc     *r2Doc            `json:"doc,omitempty"`
+	Members []apiTeamDraftRow `json:"members"`
+	Workers []apiTeamDraftRow `json:"workers"`
 }
 
 // apiTeamSummary is the team list's columns: the mission, who is on the team,
@@ -76,6 +79,38 @@ type apiTeamWorker struct {
 // team's own agreement.
 type apiTeamDoc struct {
 	Mission   string          `json:"mission"`
+	Members   []apiTeamMember `json:"members"`
+	Workers   []apiTeamWorker `json:"workers"`
+	Turns     []t2Turn        `json:"turns"`
+	Prompt    t2Prompt        `json:"prompt"`
+	Agreement *apiTeamAgree   `json:"agreement,omitempty"`
+	Broken    bool            `json:"broken,omitempty"`
+}
+
+// apiTeamDraft is the doc a 割り当て tab that still sends rows writes: the picks
+// it changed, and nothing else. A member's role or profile is left out when that
+// pick did not move, so a card that only changed roles does not blank the
+// profiles (spec-boundary 6, r-8e85). The team screen sends its picks as the
+// kind's own ops instead (t2Op); both are read.
+type apiTeamDraft struct {
+	Name    string            `json:"name"`
+	Members []apiTeamDraftRow `json:"members"`
+	Workers []apiTeamDraftRow `json:"workers"`
+}
+
+type apiTeamDraftRow struct {
+	Name    string  `json:"name"`
+	From    string  `json:"from"`
+	Purpose string  `json:"purpose"`
+	Role    *string `json:"role"`
+	Profile *string `json:"profile"`
+}
+
+// apiTeamItem is one team definition in the list.
+type apiTeamItem struct {
+	Name      string          `json:"name"`
+	Path      string          `json:"path"`
+	Hash      string          `json:"hash"`
 	Members   []apiTeamMember `json:"members"`
 	Workers   []apiTeamWorker `json:"workers"`
 	Turns     []t2Turn        `json:"turns"`
@@ -525,6 +560,11 @@ func t2DecodeOps(in apiIn) (t2Body, *apiErr) {
 	if err != nil {
 		return t2Body{}, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
+	if len(ops) == 0 {
+		// A 割り当て tab that still sends rows: the picks it names are the ops
+		// (r-8e85).
+		ops = apiTeamRowOps(apiTeamDraft{Members: body.Members, Workers: body.Workers})
+	}
 	return t2Body{in: body, ops: ops}, nil
 }
 
@@ -853,4 +893,26 @@ func (s *Server) t2SortedNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// apiTeamRowOps is the ops one row-shaped draft means: a 割り当て tab that still
+// sends rows writes the picks it names, one line each (spec-boundary 6, r-8e85).
+// A row leaves a pick out when it did not move, so a card that only changed
+// roles does not blank the profiles.
+func apiTeamRowOps(doc apiTeamDraft) []definition.Op {
+	var ops []definition.Op
+	for _, row := range doc.Members {
+		if row.Profile != nil {
+			ops = append(ops, definition.MemberProfile(row.Name, *row.Profile))
+		}
+		if row.Role != nil {
+			ops = append(ops, definition.MemberRole(row.Name, *row.Role))
+		}
+	}
+	for _, row := range doc.Workers {
+		if row.Profile != nil {
+			ops = append(ops, definition.WorkerProfile(row.From, row.Purpose, *row.Profile))
+		}
+	}
+	return ops
 }

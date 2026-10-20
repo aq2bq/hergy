@@ -26,9 +26,9 @@ window.hergyYaml = (() => {
   }
 
   // saveText writes one file's whole text. The answer carries the new hash. The
-  // name travels in the payload as well as in the URL: a kind whose files hold
-  // many names (a role's project and shared files, a profile file) reads the
-  // name from the payload, the way its check does.
+  // name travels in the payload as well as in the URL: a kind that reads the
+  // file's name from the body rather than from the path (a role's file is the
+  // row's own name) writes the file it was handed (r-8e85).
   async function saveText(kind, name, place, text, hash, extra) {
     return API.save(kind, name, Object.assign({ place, name, text, hash: hash || '' }, extra || {}));
   }

@@ -81,6 +81,18 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   drawn by the part, and the role screen's own copy is gone. The box stands
   between 6 and 34 lines on every screen.
 
+### Fixed
+
+- **The 割り当て saves and the shared YAML tab**: a save from a 割り当て tab
+  (`PUT /api/team/{name}`) carries the picks as the team kind's own ops
+  (`memberRole`, `memberProfile`, `workerProfile`) — the rows the role screen
+  still sends are read as before — so the save writes the one line each pick
+  names, and the team kind refuses an op it does not know or a profile the
+  definition does not read instead of writing. The shared YAML tab
+  (`yamltab.js`) sends the file's name with the text it saves, so a kind whose
+  file is the name it was handed (a role's file is the row's own name) writes
+  that file rather than an empty one.
+
 ### Breaking
 
 - **A rule file no longer writes `style:`**: a section's rules are rendered as

@@ -636,7 +636,7 @@
       }
     });
     const answer = await API.save('team', team.dataset.g, {
-      place: 'project', part: 'team', doc: { ops }, hash: team.dataset.hash,
+      place: 'project', doc: { ops }, hash: team.dataset.hash,
     });
     if (!answer.ok) {
       API.refusal(team, API.problemText(answer, '保存できませんでした'));
