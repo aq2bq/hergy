@@ -279,6 +279,14 @@ func (l *Launcher) Tell(member *definition.Start, text string) error {
 // there is nothing to stop. A member running in hergy's own pane (selfPane) is
 // refused, because hergy itself runs there. stopped is whether esc was sent, so
 // the caller names refresh as the next step only when something actually stopped.
+//
+// Some agents need esc twice: the first only asks them to interrupt and they
+// carry on (opencode answers "esc interrupt"), the second ends the turn. hergy
+// keeps no rule per harness (d-bd76): it sends esc, watches the member's state,
+// and sends a second esc only while the member is still working. An agent that
+// stopped on the first esc is never sent a second, because on some harnesses the
+// second esc does something else. A member that is still working after two escs
+// is StopNotStopped: the turn did not end.
 func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool, err error) {
 	if err := l.herdr.Verify(protocol.ModeStop); err != nil {
 		return false, err
@@ -294,11 +302,65 @@ func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool
 		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name, agent.Status)
 		return false, nil
 	}
-	if err := l.herdr.SendKeys(member.Name, "esc"); err != nil {
-		return false, err
+	for range stopTries {
+		if err := l.herdr.SendKeys(member.Name, "esc"); err != nil {
+			return false, err
+		}
+		stopped, err := l.stoppedByNow(member.Name)
+		if err != nil {
+			return false, err
+		}
+		if stopped {
+			fmt.Fprintf(l.out, i18n.T("stop.stopped"), member.Name)
+			return true, nil
+		}
 	}
-	fmt.Fprintf(l.out, i18n.T("stop.stopped"), member.Name)
-	return true, nil
+	return false, StopNotStopped{Member: member.Name}
+}
+
+// stopTries is how many escs Stop sends at most before it says the turn did not
+// end: the first, and one more for a harness that asks twice.
+const stopTries = 2
+
+const (
+	// stopWatchStep is how long Stop waits between two readings of a member's
+	// state, and stopWatchFor how long it watches after one esc before it sends
+	// the next. An agent that ends its turn at once is not made to wait for a
+	// second esc, and one that needs it is not made to wait long either.
+	stopWatchStep = 300 * time.Millisecond
+	stopWatchFor  = 3 * time.Second
+)
+
+// StopNotStopped is what Stop returns when the member is still working after
+// esc was sent twice: the turn did not end, and starting the member again
+// (refresh) is the next step. It is told apart from the other failures so the
+// caller can name that step.
+type StopNotStopped struct{ Member string }
+
+func (e StopNotStopped) Error() string {
+	return i18n.Tf("error.stop_not_stopped", e.Member)
+}
+
+// stoppedByNow watches the member's state after one esc, up to stopWatchFor, and
+// answers whether it is no longer working. An agent Herdr no longer knows is
+// stopped: its turn ended with the agent.
+func (l *Launcher) stoppedByNow(name string) (bool, error) {
+	deadline := time.Now().Add(stopWatchFor)
+	for {
+		agent, err := l.herdr.Agent(name)
+		switch {
+		case err == nil && agent.Status != "working":
+			return true, nil
+		case err != nil && protocol.ErrorCode(err) == herdr.AgentNotFound:
+			return true, nil
+		case err != nil:
+			return false, err
+		}
+		if !time.Now().Before(deadline) {
+			return false, nil
+		}
+		time.Sleep(stopWatchStep)
+	}
 }
 
 // refreshTarget is one member a refresh acts on: its pane, and whether an agent

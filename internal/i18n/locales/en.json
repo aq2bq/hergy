@@ -141,6 +141,7 @@
   "error.tell_needs_body": "hergy tell needs a <member> and a \"<text>\"",
   "error.nudge_busy": "%s: status=%q; a nudge is sent only when the agent is idle or done",
   "error.stop_self": "%s runs in your own pane; a member cannot stop itself. Run it from another pane, or as the human",
+  "error.stop_not_stopped": "%s is still working after esc was sent twice; the turn did not end",
   "error.tell_from_unknown": "--from %s is not a member of this team",
   "status.blocked_suffix": " (waiting for permission)",
   "status.unchanged": "working (unchanged for %d min)",
