@@ -86,6 +86,7 @@ func TestE2ENav(t *testing.T) {
 	ctx, cancel := context.WithTimeout(browserCtx, 5*time.Minute)
 	defer cancel()
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
+	e2eThrottle(t, ctx)
 
 	t.Run("band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
 	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, ctx, allocCtx, base) })
@@ -292,7 +293,7 @@ func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 	if outline != "2px" {
 		t.Errorf("the focused band link has an outline of %s, want 2px", outline)
 	}
-	e2eRun(t, ctx, chromedp.KeyEvent(kb.Enter))
+	e2eKey(t, ctx, kb.Enter)
 	e2eNavWait(t, ctx, `!!document.querySelector('.scr.on') && document.querySelector('.scr.on').dataset.screen === 'roles'`)
 	if path := e2eNavText(t, ctx, `location.pathname`); path != "/roles" {
 		t.Errorf("after Enter the page is at %q, want /roles (or the place the screen was left)", path)
@@ -376,6 +377,7 @@ func e2eNavAnotherTab(t *testing.T, ctx context.Context, allocCtx context.Contex
 	defer cancel()
 	runCtx, cancelRun := context.WithTimeout(otherCtx, 30*time.Second)
 	defer cancelRun()
+	e2eThrottle(t, runCtx)
 	e2eRun(t, runCtx, chromedp.Navigate(base+"/profiles"))
 	e2eNavWait(t, runCtx, `!!document.querySelector('a.scr[data-screen="roles"]')`)
 	if href := e2eNavText(t, runCtx, `document.querySelector('a.scr[data-screen="roles"]').getAttribute('href')`); href != "/roles" {
@@ -593,35 +595,23 @@ func e2eNavNumbers(t *testing.T, ctx context.Context, base string) {
 	}
 }
 
-// e2eNavText evaluates one expression and returns its string value.
+// e2eNavText reads one expression as the text the page draws. The reading waits
+// until the page can give it, the way every act does (e2eRead, r-3c41).
 func e2eNavText(t *testing.T, ctx context.Context, script string) string {
 	t.Helper()
-	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
-	return value
+	return e2eRead[string](t, ctx, script)
 }
 
-// e2eNavInt evaluates one expression and returns its number.
+// e2eNavInt reads one expression as the number the page draws.
 func e2eNavInt(t *testing.T, ctx context.Context, script string) int {
 	t.Helper()
-	var value int
-	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
-	return value
+	return e2eRead[int](t, ctx, script)
 }
 
 // e2eNavWait waits until one expression is true.
 func e2eNavWait(t *testing.T, ctx context.Context, script string) {
 	t.Helper()
-	deadline := time.Now().Add(8 * time.Second)
-	for time.Now().Before(deadline) {
-		var ok bool
-		e2eRun(t, ctx, chromedp.Evaluate(script, &ok))
-		if ok {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("never became true: %s", script)
+	e2eWait(t, ctx, script)
 }
 
 // e2eNavWaitPath waits until the page's address ends with one path, and the
@@ -631,87 +621,51 @@ func e2eNavWait(t *testing.T, ctx context.Context, script string) {
 // addresses the server wrote, not on the band's (r-3c41).
 func e2eNavWaitPath(t *testing.T, ctx context.Context, path string) {
 	t.Helper()
-	deadline := time.Now().Add(8 * time.Second)
+	deadline := time.Now().Add(e2eDeadline)
+	loc := ""
 	for time.Now().Before(deadline) {
-		var loc string
-		e2eRun(t, ctx, chromedp.Evaluate(`location.pathname + location.search`, &loc))
+		loc, _, _ = e2eLook[string](t, ctx, `location.pathname + location.search`)
 		if loc == path {
-			e2eNavLoaded(t, ctx)
+			e2eReady(t, ctx)
 			return
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(e2eStep)
 	}
-	var loc string
-	e2eRun(t, ctx, chromedp.Evaluate(`location.pathname + location.search`, &loc))
 	t.Fatalf("the page never reached %q (it is at %q)", path, loc)
 }
 
-// e2eNavLoaded waits until the document has loaded. A person cannot press
-// before the page is there; a driver can, so the test waits for it.
-func e2eNavLoaded(t *testing.T, ctx context.Context) {
-	t.Helper()
-	e2eNavWait(t, ctx, `document.readyState === 'complete'`)
-}
-
-// e2eNavClick presses one element the way a person presses it.
+// e2eNavClick presses one element the way a person presses it: by the selector
+// the test names it with.
 func e2eNavClick(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
-	e2eNavLoaded(t, ctx)
-	script := `(function(){var el=document.querySelector(` + strconv.Quote(selector) + `);if(!el){throw new Error('no element for '+` + strconv.Quote(selector) + `);}el.click();})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
-}
-
-// e2ePressWhenEnabled presses the button one expression stands for, and waits
-// for the screen to open it. A press on a button the screen has shut is no
-// press at all — the click() of a disabled form control returns without
-// dispatching (HTML) — and the screen writes a save's shut state from the
-// check's answer, which lands after the fields were written (roles 1.2.9), so a
-// reading taken one round trip before the press can be the answer for the text
-// before the typing. Reading and pressing are one act here, and are tried again
-// until the screen takes it (r-3c41).
-func e2ePressWhenEnabled(t *testing.T, ctx context.Context, find string) {
-	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}if(el.disabled){return true;}el.click();return false;})()`
-	deadline := time.Now().Add(8 * time.Second)
-	for time.Now().Before(deadline) {
-		var shut bool
-		e2eRun(t, ctx, chromedp.Evaluate(script, &shut))
-		if !shut {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("never became pressable: %s", find)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector(`+strconv.Quote(selector)+`)`)
 }
 
 // e2eNavSet writes one field's value and fires the input event a person's
 // typing fires.
 func e2eNavSet(t *testing.T, ctx context.Context, find, value string) {
 	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('input',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	e2eSet(t, ctx, find, value)
 }
 
 // e2eNavSelect picks one option of a select and fires the change event a
 // person's picking fires.
 func e2eNavSelect(t *testing.T, ctx context.Context, selector, value string) {
 	t.Helper()
-	script := `(function(){var el=document.querySelector(` + strconv.Quote(selector) + `);if(!el){throw new Error('no select for '+` + strconv.Quote(selector) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('change',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	e2eSelect(t, ctx, `document.querySelector(`+strconv.Quote(selector)+`)`, value)
 }
 
 // e2eNavFocus presses Tab until one element has the keyboard, the way a person
 // reaches it.
 func e2eNavFocus(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
+	e2eReady(t, ctx)
 	focused := `document.activeElement === document.querySelector(` + strconv.Quote(selector) + `)`
 	for i := 0; i < 12; i++ {
-		var ok bool
-		e2eRun(t, ctx, chromedp.Evaluate(focused, &ok))
-		if ok {
+		if ok, _, answered := e2eLook[bool](t, ctx, focused); answered && ok {
 			return
 		}
-		e2eRun(t, ctx, chromedp.KeyEvent(kb.Tab))
+		e2eKey(t, ctx, kb.Tab)
 	}
 	t.Fatalf("Tab never reached %s", selector)
 }

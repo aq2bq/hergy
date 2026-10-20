@@ -70,6 +70,7 @@ func TestE2ERoles(t *testing.T) {
 	ctx, cancel := context.WithTimeout(browserCtx, 3*time.Minute)
 	defer cancel()
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
+	e2eThrottle(t, ctx)
 
 	t.Run("structure", func(t *testing.T) { e2eRolesStructure(t, ctx, base) })
 	t.Run("open and checks", func(t *testing.T) { e2eRolesOpen(t, ctx, base) })
@@ -112,43 +113,29 @@ func copyRolesFixture(t *testing.T, f *fixture, cwd string) {
 	copyDir(t, filepath.Join(src, "config", "hergy"), filepath.Join(f.cfg, "hergy"))
 }
 
-// e2eRolesValue evaluates one expression and returns its string value.
+// e2eRolesValue reads one expression as the text the page draws. The reading
+// waits until the page can give it, the way every act does (e2eRead, r-3c41).
 func e2eRolesValue(t *testing.T, ctx context.Context, script string) string {
 	t.Helper()
-	var value string
-	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
-	return value
+	return e2eRead[string](t, ctx, script)
 }
 
-// e2eRolesInt evaluates one expression and returns its number.
+// e2eRolesInt reads one expression as the number the page draws.
 func e2eRolesInt(t *testing.T, ctx context.Context, script string) int {
 	t.Helper()
-	var value int
-	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
-	return value
+	return e2eRead[int](t, ctx, script)
 }
 
-// e2eRolesFloat evaluates one expression and returns its decimal number.
+// e2eRolesFloat reads one expression as the decimal number the page draws.
 func e2eRolesFloat(t *testing.T, ctx context.Context, script string) float64 {
 	t.Helper()
-	var value float64
-	e2eRun(t, ctx, chromedp.Evaluate(script, &value))
-	return value
+	return e2eRead[float64](t, ctx, script)
 }
 
 // e2eRolesWait waits until one expression is true.
 func e2eRolesWait(t *testing.T, ctx context.Context, script string) {
 	t.Helper()
-	deadline := time.Now().Add(8 * time.Second)
-	for time.Now().Before(deadline) {
-		var ok bool
-		e2eRun(t, ctx, chromedp.Evaluate(script, &ok))
-		if ok {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("never became true: %s", script)
+	e2eWait(t, ctx, script)
 }
 
 // e2eRolesRowJS is a JS expression for the list row one role name stands on.
@@ -156,29 +143,26 @@ func e2eRolesRowJS(name string) string {
 	return `[...document.querySelectorAll('#rows .role')].find(function(r){var n=r.querySelector('.c-name .nm');return n&&n.textContent.trim()===` + strconv.Quote(name) + `})`
 }
 
-// e2eRolesClick presses one element the way a person presses it. It reaches the
-// element by the script it is given, so a row is found by its name rather than
-// by a column it may not have.
+// e2eRolesClick presses the element one expression stands for, the way a person
+// presses it. It reaches the element by the script it is given, so a row is
+// found by its name rather than by a column it may not have.
 func e2eRolesClick(t *testing.T, ctx context.Context, find string) {
 	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.click();})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	e2ePressWhenEnabled(t, ctx, find)
 }
 
 // e2eRolesSet writes one field's value and fires the input event a person's
 // typing fires.
 func e2eRolesSet(t *testing.T, ctx context.Context, find, value string) {
 	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('input',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	e2eSet(t, ctx, find, value)
 }
 
 // e2eRolesSelect picks one option of a select and fires the change event a
 // person's picking fires.
 func e2eRolesSelect(t *testing.T, ctx context.Context, find, value string) {
 	t.Helper()
-	script := `(function(){var el=` + find + `;if(!el){throw new Error('no element for '+` + strconv.Quote(find) + `);}el.value=` + strconv.Quote(value) + `;el.dispatchEvent(new Event('change',{bubbles:true}));})()`
-	e2eRun(t, ctx, chromedp.Evaluate(script, nil))
+	e2eSelect(t, ctx, find, value)
 }
 
 // e2eRolesChangedLines is the 1-based numbers of the lines that differ between
