@@ -9,9 +9,10 @@
   const view = document.getElementById('view');
   if (!view) return;
   const tab = view.dataset.tab;
-  // The page's own reading of the files comes in as one island of JSON
-  // (spec-boundary 1, 2): the rows, the cards and the YAML sections are drawn
-  // from it here, and the Go templates draw none of them.
+  // The page carries the kind answers in the boundary's shape (spec-boundary 1,
+  // 2, 5): the profile list and, on the 割り当て tab, the assignment cards. The
+  // rows, the panels and the YAML sections are drawn from them here, and the Go
+  // templates draw none of them.
   const ISLAND = (() => {
     const el = document.getElementById('profiles-data');
     if (!el) return {};
@@ -35,17 +36,21 @@
   const API = window.hergyAPI;
   const YAML = window.hergyYaml;
 
-  // applyList puts a list answer's counts and hashes in place: a save answers
-  // with the list, because the counts move with it.
-  function applyList(data) {
-    if (!data) return;
-    if (data.profileCount !== undefined && window.hergyNav) window.hergyNav.setCount('profiles', data.profileCount);
-    if (data.assignCount !== undefined) {
-      const assign = $$('#tabs .tab')[1];
-      if (assign) $('.n', assign).textContent = data.assignCount;
-    }
-    if (data.hashProject) view.dataset.hashProject = data.hashProject;
-    if (data.hashShared) view.dataset.hashShared = data.hashShared;
+  // Which rows the address opens (spec-boundary 5: the list carries no screen
+  // state). The screen reads its model of the answers here, once, and redraws
+  // from a model after every save.
+  const OPEN = (new URLSearchParams(location.search).get('open') || '').split(',').filter(Boolean);
+  let PROFILE = API.profileModel(ISLAND.profile, OPEN);
+
+  // applyList puts a list model's counts and hashes in place: a save answers
+  // with the list, because the counts move with it (spec-boundary 5).
+  function applyList(model) {
+    if (!model) return;
+    const count = (model.rows || []).length;
+    if (window.hergyNav) window.hergyNav.setCount('profiles', count);
+    const hashes = model.hashes || {};
+    if (hashes.project) view.dataset.hashProject = hashes.project;
+    if (hashes.global) view.dataset.hashShared = hashes.global;
   }
 
   const chip = (sev) => `<span class="sev ${sev === 'err' ? 'err' : 'warn'}">${sev === 'err' ? '問題' : '警告'}</span>`;
@@ -161,9 +166,10 @@
     $$('.vm[data-for]', panel).forEach((ul) => { ul.innerHTML = ''; });
     const groups = {};
     for (const problem of problems) {
-      const field = (problem.field || '').split('.')[0];
+      const at = problem.at === 'line' ? '' : (problem.at || '');
+      const field = at.split('.')[0];
       (groups[field] = groups[field] || []).push(problem);
-      markBad(panel, problem.field || '');
+      markBad(panel, at);
     }
     for (const [field, list] of Object.entries(groups)) {
       const ul = $(`.vm[data-for="${field}"]`, panel);
@@ -189,7 +195,7 @@
       place: panel.dataset.file, original: saved ? saved.name : '', doc: draft,
     });
     if (seq !== panel._seq || !panel.isConnected) return;
-    const problems = (answer.json && answer.json.problems) || [];
+    const problems = API.problems(answer);
     renderProblems(panel, problems);
     panel._errors = problems.filter((p) => p.sev === 'err').length;
     updateSave(panel);
@@ -210,15 +216,16 @@
 
   // renderRows puts the list a save answered with in place of the rows, so a
   // rename that split one row into two shows both, in the list's order (N1).
-  // Which rows stay open travels with the answer, or, for a delete, is carried
-  // over from the rows that were open.
-  function renderRows(data, keepOpen) {
+  // Which rows are open is carried over from the DOM, and a save also opens the
+  // row it wrote by its new name.
+  function renderRows(model, keepOpen, alsoOpen) {
     const rows = $('#rows');
-    const open = keepOpen ? $$('#rows .row.open').map((row) => row.dataset.name) : null;
+    const open = keepOpen ? $$('#rows .row.open').map((row) => row.dataset.name) : [];
+    if (alsoOpen) open.push(alsoOpen);
     $$('.row', rows).forEach((row) => row.remove());
-    rows.insertAdjacentHTML('beforeend', (data.rows || []).map(rowHTML).join(''));
+    rows.insertAdjacentHTML('beforeend', (model.rows || []).map(rowHTML).join(''));
     $$('.row', rows).forEach((row) => {
-      if (open && open.includes(row.dataset.name)) {
+      if (open.indexOf(row.dataset.name) >= 0) {
         row.classList.add('open');
         const detail = $('.detail', row);
         if (detail) detail.hidden = false;
@@ -227,7 +234,7 @@
       }
       initRow(row);
     });
-    applyList(data);
+    applyList(model);
     afterRowsChanged();
   }
 
@@ -497,7 +504,7 @@
   }
 
   function initProfiles() {
-    renderRows(ISLAND);
+    renderRows(PROFILE);
   }
 
   // ---- the assign tab --------------------------------------------------
@@ -562,7 +569,7 @@
   }
 
   function initAssign() {
-    applyList(ISLAND);
+    applyList(PROFILE);
     const holder = $('.teams');
     const assign = ISLAND.assign || {};
     if (holder) {
@@ -636,7 +643,7 @@
       API.refusal(team, API.problemText(answer, '保存できませんでした'));
       return;
     }
-    team.dataset.hash = (answer.json && answer.json.hash) || team.dataset.hash;
+    team.dataset.hash = API.answer(answer).hash || team.dataset.hash;
     const side = $('.tside', team);
     $$('.arow', team).forEach((row) => {
       const select = $('select', row);
@@ -662,17 +669,11 @@
   // only draws each file's section from the island, and hands it to the part.
 
   function yedHTML(y) {
-    const problems = y.problems || [];
-    const gutter = (y.lines || []).map((line) => `<span class="${esc(line.mark)}">${line.n}</span>`).join('');
-    const counts = (y.err || y.warn)
-      ? `<span class="vcount">${y.err > 0 ? `<span class="sev err">問題 ${y.err}</span>` : ''}${y.warn > 0 ? `<span class="sev warn">警告 ${y.warn}</span>` : ''}</span>`
-      : '<span class="vclean">✓ 問題なし</span>';
-    const items = problems.map((p) => `<button class="vitem" data-act="yaml-jump" data-line="${p.line}"><span class="sev ${esc(p.sev)}">${p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">${p.line} 行</span><span class="msg">${esc(p.text)}</span></button>`).join('');
     return `<section class="yed" data-file="${esc(y.file)}" data-hash="${esc(y.hash)}">
   <header class="ph"><span class="ln">${esc(y.label)}</span><code class="path">${esc(y.path)}</code></header>
   <div class="ybody">
-    <div class="code ${esc(y.height || '')}"><pre class="gutter" aria-hidden="true">${gutter}</pre><textarea class="ytext" data-file="${esc(y.file)}" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(y.path)}">${esc(y.text || '')}</textarea></div>
-    <div class="vlist"><div class="vhead"><span class="vt">validate</span>${counts}</div>${items}</div>
+    <div class="code"><pre class="gutter" aria-hidden="true"></pre><textarea class="ytext" data-file="${esc(y.file)}" wrap="off" spellcheck="false" autocomplete="off" aria-label="${esc(y.path)}">${esc(y.text || '')}</textarea></div>
+    <div class="vlist"><div class="vhead"><span class="vt">validate</span><span class="vclean">✓ 問題なし</span></div></div>
   </div>
   <footer class="pf">
     <button class="btn primary" data-act="yaml-save" disabled>保存</button><span class="dirty"></span>
@@ -690,7 +691,7 @@
     }));
   }
 
-  function initYaml() { renderYeds(ISLAND.files || []); }
+  function initYaml() { renderYeds(PROFILE.files || []); }
 
   const autosize = (textarea) => YAML.autosize(textarea);
   const insertTab = (textarea) => YAML.insertTab(textarea);
@@ -904,7 +905,8 @@
       if (!saved) return;
       API.del('profile', saved.name, panel.dataset.file, hashOf(panel.dataset.file)).then((answer) => {
         if (!answer.ok) { showRefusal(panel, API.problemText(answer, '削除できませんでした')); return; }
-        renderRows(answer.json, true);
+        PROFILE = API.profileModel(API.answer(answer));
+        renderRows(PROFILE, true);
       });
       return;
     }
@@ -960,10 +962,10 @@
       doc: draft,
       rename_users: !!(hint && hint.checked),
       hash: hashOf(panel.dataset.file),
-      open: $$('#rows .row.open').map((row) => row.dataset.name).filter(Boolean),
     });
     if (!answer.ok) { showRefusal(panel, API.problemText(answer, '保存できませんでした')); return; }
-    renderRows(answer.json);
+    PROFILE = API.profileModel(API.answer(answer));
+    renderRows(PROFILE, true, draft.name);
   }
 
   view.addEventListener('input', (event) => {

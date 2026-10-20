@@ -57,26 +57,40 @@ type apiTeamDraftRow struct {
 
 // apiTeamItem is one team definition in the list.
 type apiTeamItem struct {
-	Name    string          `json:"name"`
-	Path    string          `json:"path"`
-	Hash    string          `json:"hash"`
-	Members []apiTeamMember `json:"members"`
-	Workers []apiTeamWorker `json:"workers"`
+	Name      string          `json:"name"`
+	Path      string          `json:"path"`
+	Hash      string          `json:"hash"`
+	Members   []apiTeamMember `json:"members"`
+	Workers   []apiTeamWorker `json:"workers"`
+	Agreement r2Size          `json:"agreement"`
+}
+
+// apiTeamList is the answer of GET /api/team: every team definition and the
+// people in it.
+type apiTeamList struct {
+	Items []apiTeamItem `json:"items"`
 }
 
 // List is GET /api/team: every team definition and the people in it.
 func (k apiTeam) List() (any, *apiErr) {
-	defs := k.s.p2Defs()
-	items := make([]apiTeamItem, 0, len(defs))
-	for _, def := range defs {
-		items = append(items, apiTeamItemOf(def))
-	}
-	return map[string]any{"items": items}, nil
+	return k.s.apiTeamList(), nil
 }
 
-// apiTeamItemOf is one definition as the list carries it.
-func apiTeamItemOf(def p2Def) apiTeamItem {
-	item := apiTeamItem{Name: def.name, Path: def.display, Hash: def.hash}
+// apiTeamList is every definition as the list carries it.
+func (s *Server) apiTeamList() apiTeamList {
+	defs := s.p2Defs()
+	items := make([]apiTeamItem, 0, len(defs))
+	for _, def := range defs {
+		items = append(items, s.apiTeamItemOf(def))
+	}
+	return apiTeamList{Items: items}
+}
+
+// apiTeamItemOf is one definition as the list carries it. The agreement's size
+// travels with it so the role screen's 割り当て tab can count a member's amount
+// without asking again.
+func (s *Server) apiTeamItemOf(def p2Def) apiTeamItem {
+	item := apiTeamItem{Name: def.name, Path: def.display, Hash: def.hash, Agreement: s.r2AgreementSize(def.path)}
 	for _, member := range def.members {
 		item.Members = append(item.Members, apiTeamMember(member))
 	}
@@ -162,7 +176,7 @@ func (k apiTeam) Save(name string, in apiIn) (any, *apiErr) {
 		return p2WriteError(err, def.display)
 	}
 	def2, _ := s.p2FindDef(name)
-	return map[string]any{"hash": source.Hash(edited), "team": apiTeamItemOf(def2)}, nil
+	return map[string]any{"hash": source.Hash(edited), "team": s.apiTeamItemOf(def2)}, nil
 }
 
 // Delete is DELETE /api/team/{name}: take one team definition's file away.

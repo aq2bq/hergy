@@ -35,7 +35,7 @@ type r2PageData struct {
 // the client script draws the tabs, the rows and the three tab bodies from the
 // data island.
 func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
-	raw, err := json.Marshal(s.r2IslandOf())
+	raw, err := json.Marshal(s.r2PageIsland())
 	if err != nil {
 		s.problem(w, r, err)
 		return

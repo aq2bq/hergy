@@ -47,7 +47,18 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   to receive HTML fragments. Nothing a person sees or does changes: the screens
   look and behave as they did, and `hergy validate` still decides whether the
   settings hold. The old per-screen endpoints (`/profiles/save`,
-  `/profiles/yaml/check`, `/roles/assign/save` and their pairs) are gone.
+  `/profiles/yaml/check`, `/roles/assign/save` and their pairs) are gone. Every
+  answer carries the shape the boundary's table names: `GET /api/{kind}` answers
+  `items` — each name with its `places` (each place's `doc`, `text`, `hash`,
+  `path` and the problems it holds), its `effective` and `hidden` places, its
+  `summary` (the columns its list shows) and its `problems` counts — and
+  `hashes`; `GET /api/{kind}/{name}` answers `{doc, text, hash, path, effective,
+  hidden}`; a check answers `{problems: [{sev, at, text}], preview?, effect?,
+  readers?}`, with `at` the document's field path or `line` for a file's text; a
+  save answers the document and the list, a delete the list. A screen's island
+  is that same list answer, `api.js` is the one place that reads it — no screen
+  reads an answer's fields itself — and the role screen's YAML tab is drawn by
+  the shared `yamltab.js` part, as the profile screen's already was.
 
 ### Breaking
 
