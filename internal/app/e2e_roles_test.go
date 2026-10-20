@@ -751,6 +751,17 @@ func e2eRolesYAML(t *testing.T, ctx context.Context, base string, f *fixture) {
 			t.Errorf("line %d became %q, want the new title", line, text)
 		}
 	}
+
+	// The save answers with the hash of what it wrote, so the change after it
+	// rides on the file the save left and is not refused as one over a stale
+	// file (r-8e85).
+	again := strings.Replace(readFile(t, path), "title: 進行管理E2E", "title: 進行管理E2E2", 1)
+	e2eRolesSet(t, ctx, `document.querySelector('.yed .ytext')`, again)
+	e2ePressWhenEnabled(t, ctx, `document.querySelector('[data-act=yaml-save]')`)
+	e2eRolesWait(t, ctx, `document.querySelector('.yed .dirty').textContent === ''`)
+	if got := readFile(t, path); !strings.Contains(got, "title: 進行管理E2E2") {
+		t.Errorf("the save after the first one did not write:\n%s", got)
+	}
 }
 
 // e2eRolesOldURLs is 設計 6 節: the old page-per-role URLs move with a 301 to the

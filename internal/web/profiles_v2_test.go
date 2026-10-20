@@ -434,6 +434,95 @@ func TestAssignSaveWritesOneProfileLine(t *testing.T) {
 	}
 }
 
+// TestAssignSaveTakesThePicksAsOps: the picks the assign tabs send as the team
+// kind's own ops write the one line each names, and no other (r-8e85).
+func TestAssignSaveTakesThePicksAsOps(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "hash": source.Hash(before),
+		"doc": map[string]any{
+			"ops": []map[string]string{{"kind": "memberProfile", "member": "builder", "profile": "planner"}},
+		},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the ops save answered %d: %v", resp.StatusCode, decoded)
+	}
+	if decoded["hash"] != source.Hash(readFile(t, path)) {
+		t.Errorf("the answer does not carry the written file's hash")
+	}
+	want := strings.Replace(before, "  - name: builder\n    role: builder\n    profile: coder", "  - name: builder\n    role: builder\n    profile: planner", 1)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the ops write changed more than the one line:\n%s", got)
+	}
+}
+
+// TestAssignSaveTakesARoleOp: a role pick is one op too, and the profiles of the
+// members it does not name stay as the file had them (r-8e85).
+func TestAssignSaveTakesARoleOp(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "hash": source.Hash(before),
+		"doc": map[string]any{
+			"ops": []map[string]string{{"kind": "memberRole", "member": "builder", "role": "planner"}},
+		},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the role op answered %d: %s", resp.StatusCode, body)
+	}
+	if got := readFile(t, path); !strings.Contains(got, "  - name: builder\n    role: planner\n    profile: coder\n") {
+		t.Errorf("the role op did not write the one role line:\n%s", got)
+	}
+}
+
+// TestAssignSaveRefusesAProfileTheTeamDoesNotRead: a picked profile that is not
+// one the definition reads is refused, whether the pick came as an op or a row
+// (r-8e85).
+func TestAssignSaveRefusesAProfileTheTeamDoesNotRead(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "hash": source.Hash(before),
+		"doc": map[string]any{
+			"ops": []map[string]string{{"kind": "memberProfile", "member": "builder", "profile": "nosuch"}},
+		},
+	})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("a pick of a profile the team does not read answered %d, want 422: %v", resp.StatusCode, decoded)
+	}
+	if got := readFile(t, path); got != before {
+		t.Errorf("a refused save wrote the file:\n%s", got)
+	}
+}
+
+// TestAssignSaveRefusesAnOpTheTeamDoesNotKnow: an op the team kind does not know
+// is refused rather than written (r-8e85).
+func TestAssignSaveRefusesAnOpTheTeamDoesNotKnow(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	path := f.teamYAML()
+	before := readFile(t, path)
+	resp, _ := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "hash": source.Hash(before),
+		"doc": map[string]any{
+			"ops": []map[string]string{{"kind": "mission", "text": "別の使命"}},
+		},
+	})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an op the team kind does not know answered %d, want 422", resp.StatusCode)
+	}
+	if got := readFile(t, path); got != before {
+		t.Errorf("a refused save wrote the file:\n%s", got)
+	}
+}
+
 // TestAssignSaveKeepsTheRolesItWasNotToldAbout: a doc that carries a role and no
 // profile leaves the profiles alone, so the role screen's save cannot blank them
 // (spec-boundary 6).
