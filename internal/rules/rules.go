@@ -5,7 +5,8 @@
 // What a person keeps in the file and what an agent reads are different. The
 // file carries the origin of each rule, a note for whoever maintains it, and
 // the report or test that shows the rule was kept; the prompt carries only the
-// text, its heading and, unless send_why says otherwise, its reason.
+// text, its heading and, unless send_why says otherwise, its reason. A rule the
+// file keeps out of the prompt (in_prompt: false) is left out whole.
 //
 // The parser walks the YAML by hand rather than decoding into structs: it has
 // to name the position of a break (sections[1].rules[2]), refuse a key that
@@ -44,9 +45,12 @@ var (
 	// file that still writes one keeps reading, and says so once as a warning
 	// (d-f4f6). Nothing lays a section out but the one list below.
 	sectionKeys = []string{"heading", "level", "intro", "style", "rules"}
-	ruleKeys    = []string{"id", "text", "why", "send_why", "note", "origin", "report", "tests"}
-	originKeys  = []string{"kind", "date", "refs", "note"}
-	reportKeys  = []string{"where", "fields"}
+	// ruleKeys is what a rule may hold, in the order hergy writes it. The two
+	// switches that say what reaches a member stand together: send_why narrows
+	// the reason, and in_prompt (d-f187) keeps the whole rule out of the prompt.
+	ruleKeys   = []string{"id", "text", "why", "send_why", "in_prompt", "note", "origin", "report", "tests"}
+	originKeys = []string{"kind", "date", "refs", "note"}
+	reportKeys = []string{"where", "fields"}
 )
 
 // Document is one rule file.
@@ -74,11 +78,19 @@ type Rule struct {
 	Text    string
 	Why     string
 	SendWhy *bool // nil means true
-	Note    string
-	Origin  []Origin
-	Report  string // "report.field"
-	Tests   []string
+	// InPrompt is whether the rule goes into a member's prompt: nil means true,
+	// a file that writes in_prompt: false keeps the rule in the document and
+	// out of the prompt (d-f187).
+	InPrompt *bool
+	Note     string
+	Origin   []Origin
+	Report   string // "report.field"
+	Tests    []string
 }
+
+// Included reports whether a rule goes into a member's prompt. A file that
+// leaves in_prompt unsaid hands the rule over.
+func (r Rule) Included() bool { return r.InPrompt == nil || *r.InPrompt }
 
 // Origin is where one rule came from.
 type Origin struct {
@@ -108,6 +120,38 @@ func (d *Document) Rules() []Rule {
 		out = append(out, section.Rules...)
 	}
 	return out
+}
+
+// IncludedRules is every rule of the document that goes into a member's prompt,
+// in the written order. A rule the file keeps out of the prompt (in_prompt:
+// false) is a rule of the document still: it keeps its id, its origin and its
+// checks, the checks that span documents read it (CheckAll), and another rule
+// may be derived from it; it is only kept out of what a member is handed, and
+// out of the amount counted for that member (d-f187).
+func (d *Document) IncludedRules() []Rule {
+	var out []Rule
+	for _, section := range d.Sections {
+		for _, rule := range section.Rules {
+			if rule.Included() {
+				out = append(out, rule)
+			}
+		}
+	}
+	return out
+}
+
+// ExcludedCount is how many rules of the document a file keeps out of a
+// member's prompt.
+func (d *Document) ExcludedCount() int {
+	n := 0
+	for _, section := range d.Sections {
+		for _, rule := range section.Rules {
+			if !rule.Included() {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // Parse reads one rule file. path is where the text came from, and it is what

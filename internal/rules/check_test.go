@@ -51,6 +51,27 @@ func TestCheckAllGathersEveryBreakWithItsPlace(t *testing.T) {
 	}
 }
 
+// TestCheckSeesARuleKeptOutOfThePrompt: a rule a file keeps out of the prompt is
+// a rule still (d-f187). Two rules that share an id are one break even
+// when one of them is out of the prompt, and a rule derived from one that is out
+// of the prompt is not broken.
+func TestCheckSeesARuleKeptOutOfThePrompt(t *testing.T) {
+	same := parseAt(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n"+
+		"      - id: R1\n        text: x\n        in_prompt: false\n"+
+		"      - id: R1\n        text: y\n")
+	problems := CheckAll([]*Document{same})
+	if len(problems) != 1 || problems[0].Field != "id" || problems[0].Rule != 1 {
+		t.Errorf("two rules share an id, one of them out of the prompt: problems = %+v, want the one repeated id at rule 1", problems)
+	}
+
+	derived := parseAt(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n"+
+		"      - id: R1\n        text: x\n        in_prompt: false\n"+
+		"      - id: R2\n        text: y\n        origin:\n          - kind: derived\n            refs: [R1]\n")
+	if problems := CheckAll([]*Document{derived}); len(problems) != 0 {
+		t.Errorf("a rule derived from one that is out of the prompt is called broken: %+v", problems)
+	}
+}
+
 // TestCheckAllNamesTheDocumentANameStandsInTwice: a name taken in one document
 // and written again in another is one break, and the sentence names both sides
 // so a person can find them (C3).

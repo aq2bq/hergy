@@ -145,6 +145,62 @@ func TestRewriteRewritesOneRuleAndKeepsTheRest(t *testing.T) {
 	}
 }
 
+// TestRewriteKeepsARuleOutOfThePrompt: the switch the screen does not offer yet
+// (d-f187) travels in the draft, so the line stays where it is when the rule is
+// written back, and a draft that brings the rule into the prompt takes the line
+// out.
+func TestRewriteKeepsARuleOutOfThePrompt(t *testing.T) {
+	const source = `version: 1
+title: 設計実装
+sections:
+  - heading: 作り方
+    rules:
+      - id: BUILD-1
+        text: 最初の本文。
+        in_prompt: false
+      - id: BUILD-2
+        text: 2 番目の本文。
+`
+	saved := mustParse(t, source, "roles/builder.yaml")
+
+	// A draft that edits the other rule leaves the line alone.
+	want := mustParse(t, source, "roles/builder.yaml")
+	want.Sections[0].Rules[1].Text = "2 番目を書き換えた本文。"
+	out, err := Rewrite([]byte(source), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "in_prompt: false") {
+		t.Errorf("the write dropped in_prompt: false from the rule it did not touch:\n%s", out)
+	}
+	if mustParse(t, string(out), "roles/builder.yaml").Sections[0].Rules[0].Included() {
+		t.Error("the rule came back into the prompt")
+	}
+
+	// A draft that edits the rule itself writes the line back with it.
+	want = mustParse(t, source, "roles/builder.yaml")
+	want.Sections[0].Rules[0].Text = "最初を書き換えた本文。"
+	out, err = Rewrite([]byte(source), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "in_prompt: false") {
+		t.Errorf("the write dropped in_prompt: false from the rule it rewrote:\n%s", out)
+	}
+
+	// A draft that brings the rule into the prompt takes the line out.
+	want = mustParse(t, source, "roles/builder.yaml")
+	want.Sections[0].Rules[0].Text = "最初を書き換えた本文。"
+	want.Sections[0].Rules[0].InPrompt = nil
+	out, err = Rewrite([]byte(source), saved, Draft{Doc: want, From: fromByID(t, saved, want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "in_prompt") {
+		t.Errorf("the write kept in_prompt for a rule the draft brought into the prompt:\n%s", out)
+	}
+}
+
 // TestRewriteAddsARuleAtTheEnd: 足す writes the new rule after the last one.
 func TestRewriteAddsARuleAtTheEnd(t *testing.T) {
 	saved := mustParse(t, builderRole, "roles/builder.yaml")

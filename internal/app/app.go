@@ -1001,7 +1001,7 @@ func printSize(w io.Writer, teams []teamSize) {
 	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
 	warned := false
 	for _, team := range teams {
-		line(i18n.Tf("validate.size_team", team.name, team.size.Sources, team.size.Chars))
+		line(i18n.Tf("validate.size_team", team.name, team.size.Sources, team.size.Chars, team.size.Excluded))
 		if team.size.OverTeamSources() {
 			line(i18n.Tf("validate.size_warn_team_sources", team.name, team.size.Sources, rules.TeamSourceLimit))
 			warned = true
@@ -1011,7 +1011,7 @@ func printSize(w io.Writer, teams []teamSize) {
 			warned = true
 		}
 		for _, member := range team.members {
-			line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars))
+			line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars, member.size.Excluded))
 			if member.size.OverMemberRules() {
 				line(i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning(member.name, member.size.Rules)))
 				warned = true

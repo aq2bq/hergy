@@ -689,6 +689,12 @@ func sameRule(a, b Rule) bool {
 	if a.SendWhy != nil && *a.SendWhy != *b.SendWhy {
 		return false
 	}
+	if (a.InPrompt == nil) != (b.InPrompt == nil) {
+		return false
+	}
+	if a.InPrompt != nil && *a.InPrompt != *b.InPrompt {
+		return false
+	}
 	if !sameStrings(a.Tests, b.Tests) {
 		return false
 	}

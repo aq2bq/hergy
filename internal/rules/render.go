@@ -132,14 +132,19 @@ func (s Section) level() int {
 
 // ruleBlocks is the rules of one section, as the one block of a list: a rule
 // with an id is "- **<id>** <body>", a rule without one is "- <body>", and the
-// lines of a multi-line body stay inside their item.
+// lines of a multi-line body stay inside their item. A rule the file keeps out
+// of the prompt (in_prompt: false) has no line here; its place in the section is
+// kept, so a line that does stand here points at the rule it is (C6).
 func (s Section) ruleBlocks(index int) [][]MDLine {
-	if len(s.Rules) == 0 {
-		return nil
-	}
 	var lines []MDLine
 	for i, rule := range s.Rules {
+		if !rule.Included() {
+			continue
+		}
 		lines = append(lines, mdRuleLines(item(rule), index, i, rule)...)
+	}
+	if len(lines) == 0 {
+		return nil
 	}
 	return [][]MDLine{lines}
 }

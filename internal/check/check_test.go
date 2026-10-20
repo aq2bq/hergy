@@ -212,6 +212,28 @@ func TestTurnFindings(t *testing.T) {
 	}
 }
 
+// TestATurnWarningReadsARuleKeptOutOfThePrompt: a rule a file keeps out of the
+// prompt (in_prompt: false) is a rule still, so the arrow its text writes is
+// compared with the definition's turns: and warned about the same way
+// (d-f187).
+func TestATurnWarningReadsARuleKeptOutOfThePrompt(t *testing.T) {
+	f := newFixture(t)
+	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.role("lead", "      - id: LEAD-1\n        text: 設計は spec に渡す（lead → spec）。\n        in_prompt: false\n")
+	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+
+	want := i18n.Tf("validate.turn_not_in_turns", "LEAD-1", "lead → spec")
+	found := false
+	for _, finding := range f.findings() {
+		if finding.Kind == KindTurn && strings.Contains(finding.Text, want) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("a rule kept out of the prompt is not compared with turns: (want %q)", want)
+	}
+}
+
 // TestDefinitionSaysWhenTheGlobalOneIsHidden: a name in both layers is read from
 // the project's own; the global one is reported where a person reading it finds
 // it (I11). The one way a name is looked up reports nothing.

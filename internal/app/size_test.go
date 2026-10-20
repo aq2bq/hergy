@@ -80,8 +80,8 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 
 	// A definition comes first; its members and their warnings stand under it.
 	wantLarge := strings.Join([]string{
-		i18n.Tf("validate.size_team", large.dir, 2, large.sourceChars),
-		i18n.Tf("validate.size_member", "large-lead", rules.MemberRuleLimit+1, large.memberChars),
+		i18n.Tf("validate.size_team", large.dir, 2, large.sourceChars, 0),
+		i18n.Tf("validate.size_member", "large-lead", rules.MemberRuleLimit+1, large.memberChars, 0),
 		i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("large-lead", rules.MemberRuleLimit+1)),
 	}, "\n")
 	if !strings.Contains(got, wantLarge+"\n") {
@@ -94,14 +94,46 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 	// The definition exactly on the limit warns about nothing. The block is what
 	// belongs to it: the next definition's line ends it.
 	wantSmall := strings.Join([]string{
-		i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars),
-		i18n.Tf("validate.size_member", "small-lead", rules.MemberRuleLimit, small.memberChars),
+		i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars, 0),
+		i18n.Tf("validate.size_member", "small-lead", rules.MemberRuleLimit, small.memberChars, 0),
 	}, "\n")
 	if !strings.Contains(got, wantSmall+"\n") {
 		t.Errorf("validate does not print the small definition with its member under it:\n%s", got)
 	}
-	if smallBlock := block(t, got, i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars)); strings.Contains(smallBlock, "warning") {
+	if smallBlock := block(t, got, i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars, 0)); strings.Contains(smallBlock, "warning") {
 		t.Errorf("a definition inside every limit is warned about:\n%s", smallBlock)
+	}
+}
+
+// TestValidateSaysHowManyRulesAreNotInThePrompt: the amount a member is handed
+// leaves out the rules a file keeps out of the prompt (in_prompt: false), and
+// the count line says how many they are, for the member and for the team
+// definition's files (d-f187).
+func TestValidateSaysHowManyRulesAreNotInThePrompt(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	team := writeSizedTeam(t, f, false, "small", 2)
+	writeFile(t, team.agreement, "version: 1\nsections:\n  - rules:\n"+
+		"      - id: R0\n        text: rule 0\n        in_prompt: false\n"+
+		"      - id: R1\n        text: rule 1\n")
+	document, err := rules.Parse(readRule(t, team.agreement), team.agreement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberChars := rules.CharCount(document.Markdown())
+	sourceChars := rules.CharCount(readRule(t, team.agreement)) + rules.CharCount(readRule(t, team.role))
+
+	got, _, code := run("validate")
+	if code != 0 {
+		t.Fatalf("a team with a rule kept out of the prompt is a break?\n%s", got)
+	}
+	for _, want := range []string{
+		i18n.Tf("validate.size_team", team.dir, 2, sourceChars, 1),
+		i18n.Tf("validate.size_member", "small-lead", 1, memberChars, 1),
+	} {
+		if !strings.Contains(got, want+"\n") {
+			t.Errorf("validate does not print %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -121,23 +153,23 @@ func TestValidateTellsTwoDefinitionsOfTheSameNameApart(t *testing.T) {
 	// Both members carry the same name, and each stands under its own
 	// definition exactly once.
 	for _, want := range []string{
-		i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars),
-		i18n.Tf("validate.size_member", "dup-lead", rules.MemberRuleLimit+1, local.memberChars),
+		i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars, 0),
+		i18n.Tf("validate.size_member", "dup-lead", rules.MemberRuleLimit+1, local.memberChars, 0),
 	} {
 		if n := strings.Count(got, want); n != 1 {
 			t.Errorf("validate prints %q %d times, want once:\n%s", want, n, got)
 		}
 	}
 
-	localBlock := block(t, got, i18n.Tf("validate.size_team", local.dir, 2, local.sourceChars))
+	localBlock := block(t, got, i18n.Tf("validate.size_team", local.dir, 2, local.sourceChars, 0))
 	if !strings.Contains(localBlock, i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("dup-lead", rules.MemberRuleLimit+1))) {
 		t.Errorf("the local definition's warning is not in its block:\n%s", localBlock)
 	}
-	globalBlock := block(t, got, i18n.Tf("validate.size_team", global.dir, 2, global.sourceChars))
+	globalBlock := block(t, got, i18n.Tf("validate.size_team", global.dir, 2, global.sourceChars, 0))
 	if strings.Contains(globalBlock, "warning") {
 		t.Errorf("the global definition, inside the limit, carries a warning:\n%s", globalBlock)
 	}
-	if !strings.Contains(globalBlock, i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars)) {
+	if !strings.Contains(globalBlock, i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars, 0)) {
 		t.Errorf("the global definition's member is not in its block:\n%s", globalBlock)
 	}
 }

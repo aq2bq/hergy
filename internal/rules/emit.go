@@ -18,7 +18,8 @@ import (
 // The format is decided once so a file hergy writes is the same file it reads
 // back: Emit is idempotent, and the Markdown a member reads is unchanged. Two
 // things a file may hold are not carried over, and both are in the CHANGELOG:
-// a comment (F7) and a value spelled out that equals a default (send_why: true).
+// a comment (F7) and a value spelled out that equals a default (send_why: true,
+// in_prompt: true).
 // A style: line of a section is not written either: the layout of a section is
 // one way now (d-f4f6). The first save of a file thus rewrites the whole file
 // and shows one large diff in git.
@@ -94,6 +95,9 @@ func emitRules(rules []Rule) *yaml.Node {
 		// The default is true, and a default is not written.
 		if rule.SendWhy != nil && !*rule.SendWhy {
 			values["send_why"] = emitFalse()
+		}
+		if !rule.Included() {
+			values["in_prompt"] = emitFalse()
 		}
 		if rule.Note != "" {
 			values["note"] = emitText(rule.Note)
@@ -206,8 +210,8 @@ func emitInt(value int) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(value)}
 }
 
-// emitFalse is the only boolean the format writes: send_why: false, the one
-// value of that key that is not the default.
+// emitFalse is the only boolean the format writes: send_why: false and
+// in_prompt: false, the one value of each of those keys that is not the default.
 func emitFalse() *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"}
 }

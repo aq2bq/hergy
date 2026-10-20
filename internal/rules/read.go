@@ -31,7 +31,8 @@ const (
 // Problem is one thing wrong with a rule file. Field is where it stands, empty
 // for the file as a whole: the keys title and revision, a section's
 // sections[i].heading / .level / .intro / .style, a rule's id / text / why /
-// report / tests, its origin.i / origin.i.date / origin.i.refs.j. Section and
+// send_why / in_prompt / report / tests, its origin.i / origin.i.date /
+// origin.i.refs.j. Section and
 // Rule are the rule's place, or -1 when the problem is not about one rule. Line
 // is the YAML line the problem stands on, or 0 when it stands on none. The err
 // is the value Parse returns for the file's first problem.
@@ -314,6 +315,11 @@ func fillRuleAll(r Rule, n node, path, label string, section, rule int, problems
 		problems = append(problems, newProblem(path, section, rule, "send_why", valueLine(n, "send_why"), err))
 	} else if ok {
 		r.SendWhy = &send
+	}
+	if in, ok, err := n.boolean("in_prompt"); err != nil {
+		problems = append(problems, newProblem(path, section, rule, "in_prompt", valueLine(n, "in_prompt"), err))
+	} else if ok {
+		r.InPrompt = &in
 	}
 	if r.Report, err = n.str("report"); err != nil {
 		problems = append(problems, newProblem(path, section, rule, "report", valueLine(n, "report"), err))

@@ -258,6 +258,17 @@ var glossary = []term{
 		meaning:  "why a rule is there; written as why, and sent unless send_why is false",
 	},
 	{
+		id:       "in-prompt",
+		english:  "in the prompt",
+		japanese: "プロンプトに含める",
+		meaning:  "whether a rule goes into a member's prompt; written in the file as in_prompt: false, and left unsaid when the rule goes in. A rule that is not in the prompt is a rule still: it keeps its id, its origin and its checks, and it is not counted in the amount a member is handed",
+		banned: []ban{
+			// メンバーに渡す was the older name for this switch (d-30a3).
+			{lang: "ja", word: "メンバーに渡す"},
+			{lang: "ja", word: "渡さない"},
+		},
+	},
+	{
 		id:       "check",
 		english:  "check",
 		japanese: "検証方法",

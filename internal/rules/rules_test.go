@@ -45,6 +45,7 @@ sections:
           続きである。
         why: 理由である。
         send_why: false
+        in_prompt: false
         note: 保守する人のメモ
         report: 監査.scope
         tests: [T-1, T-2]
@@ -82,6 +83,9 @@ reports:
 	}
 	if rule.Why != "理由である。" || rule.SendWhy == nil || *rule.SendWhy {
 		t.Errorf("why/send_why = %q/%v", rule.Why, rule.SendWhy)
+	}
+	if rule.Included() {
+		t.Errorf("in_prompt: false was read as in the prompt: %+v", rule.InPrompt)
 	}
 	if rule.Report != "監査.scope" || strings.Join(rule.Tests, ",") != "T-1,T-2" {
 		t.Errorf("report/tests = %q/%v", rule.Report, rule.Tests)
@@ -168,6 +172,7 @@ func TestParseRefusesBreaks(t *testing.T) {
 		{"a text that is not a string", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: 5\n", "string"},
 		{"an unknown key in a rule", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\n        incident: y\n", "incident"},
 		{"send_why that is not a boolean", section + "        send_why: maybe\n", "false"},
+		{"in_prompt that is not a boolean", section + "        in_prompt: maybe\n", "false"},
 		{"origin not a list", section + "        origin: {kind: incident}\n", "list"},
 		{"an unknown kind", section + "        origin:\n          - kind: accident\n", "accident"},
 		{"a missing kind", section + "        origin:\n          - note: x\n", "kind"},

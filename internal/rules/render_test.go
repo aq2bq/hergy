@@ -81,6 +81,47 @@ sections:
 	}
 }
 
+// TestLinesLeaveOutARuleKeptOutOfThePrompt: a rule the file keeps out of the
+// prompt (in_prompt: false) has no line, and the rules around it keep the place
+// they stand in, so a line that does stand points at the rule it is
+// (d-f187, C6).
+func TestLinesLeaveOutARuleKeptOutOfThePrompt(t *testing.T) {
+	doc := parse(t, `version: 1
+title: T
+sections:
+  - heading: H
+    rules:
+      - id: R1
+        text: one
+      - id: R2
+        text: two
+        why: because
+        in_prompt: false
+      - id: R3
+        text: three
+`)
+	want := []MDLine{
+		{Text: "# T", Part: PartTitle, Section: -1, Rule: -1},
+		{Part: PartBlank, Section: -1, Rule: -1},
+		{Text: "## H", Part: PartHeading, Section: 0, Rule: -1},
+		{Part: PartBlank, Section: -1, Rule: -1},
+		{Text: "- **R1** one", Part: PartRule, Section: 0, Rule: 0},
+		{Text: "- **R3** three", Part: PartRule, Section: 0, Rule: 2},
+	}
+	got := doc.Lines()
+	if len(got) != len(want) {
+		t.Fatalf("lines = %d, want %d:\n%+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if want := "# T\n\n## H\n\n- **R1** one\n- **R3** three\n"; doc.Markdown() != want {
+		t.Errorf("Markdown = %q, want %q", doc.Markdown(), want)
+	}
+}
+
 // TestLinesOfAListKeepTheItemsInOneBlock: the rules of a section are one block
 // of list items, with no blank line between them, and the continuation lines of
 // a multi-line body stay in that one block (C1). A style: a file still writes

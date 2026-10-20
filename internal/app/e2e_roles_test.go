@@ -383,8 +383,8 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .rule.open .redit [data-f=text]').value`); !strings.HasPrefix(got, "大きな設計の判断") {
 		t.Errorf("the opened rule's text reads %q", got)
 	}
-	if got := e2eRolesValue(t, ctx, e2eRolesRowJS("builder")+`.querySelector('.pedit [data-f=send_why] button.on').textContent`); got != "メンバーに渡す" {
-		t.Errorf("the why switch reads %q, want the default メンバーに渡す", got)
+	if got := e2eRolesValue(t, ctx, e2eRolesRowJS("builder")+`.querySelector('.pedit [data-f=send_why] button.on').textContent`); got != "プロンプトに含める" {
+		t.Errorf("the why switch reads %q, want the default プロンプトに含める", got)
 	}
 	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .rule.open .redit [data-act=rule-revert]:not([hidden])').length`); got != 0 {
 		t.Errorf("a rule nothing changed shows 元に戻す")
