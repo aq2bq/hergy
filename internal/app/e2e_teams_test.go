@@ -4,19 +4,15 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/chromedp/cdproto/emulation"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -50,19 +46,7 @@ func TestE2ETeams(t *testing.T) {
 	ctx, stopTab := e2eTab(t, browser, 4*time.Minute)
 	defer stopTab()
 
-	var mu sync.Mutex
-	var console []string
-	chromedp.ListenTarget(ctx, func(event any) {
-		if called, ok := event.(*runtime.EventConsoleAPICalled); ok && called.Type == "error" {
-			var parts []string
-			for _, arg := range called.Args {
-				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
-			}
-			mu.Lock()
-			console = append(console, strings.Join(parts, " | "))
-			mu.Unlock()
-		}
-	})
+	console := e2eListen(ctx, false)
 
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
@@ -85,10 +69,8 @@ func TestE2ETeams(t *testing.T) {
 	t.Run("mission and turns", func(t *testing.T) { e2eTeamsSaveShape(t, ctx, base2, f2) })
 	t.Run("agreement and yaml", func(t *testing.T) { e2eTeamsSaveAgreement(t, ctx, base2, f2) })
 
-	mu.Lock()
-	defer mu.Unlock()
-	if len(console) > 0 {
-		t.Errorf("the team screen logged %d console errors: %v", len(console), console)
+	if lines := console.Lines(); len(lines) > 0 {
+		t.Errorf("the team screen logged %d console errors: %v", len(lines), lines)
 	}
 }
 
@@ -832,9 +814,9 @@ func e2eTeamsWidths(t *testing.T, ctx context.Context, base string) {
 				e2eRun(t, ctx, chromedp.Navigate(base+path))
 				e2eTeamsWait(t, ctx, ready[path])
 				if theme == "" {
-					e2eRun(t, ctx, chromedp.Evaluate(`delete document.documentElement.dataset.theme`, nil))
+					e2eTheme(t, ctx, "")
 				} else {
-					e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.dataset.theme=`+strconv.Quote(theme), nil))
+					e2eTheme(t, ctx, theme)
 				}
 				if over := e2eTeamsInt(t, ctx, `document.documentElement.scrollWidth - window.innerWidth`); over > 1 {
 					t.Errorf("%s at %d/%s flows %dpx sideways", path, size, theme, over)
@@ -881,15 +863,13 @@ func e2eTeamsWidths(t *testing.T, ctx context.Context, base string) {
 	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"))
 	e2eTeamsWait(t, ctx, ready["/teams?open=core"])
 	for _, theme := range []string{"light", "dark"} {
-		e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.dataset.theme=`+strconv.Quote(theme), nil))
+		e2eTheme(t, ctx, theme)
 		if got := e2eRead[float64](t, ctx, e2eRolesContrast); got < 4.5 {
 			t.Errorf("the body's ink against its ground is %.2f in %s, want at least 4.5", got, theme)
 		}
 	}
-	e2eRun(t, ctx, chromedp.Evaluate(`delete document.documentElement.dataset.theme`, nil))
-	e2eRun(t, ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		return emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: "dark"}}).Do(ctx)
-	}))
+	e2eTheme(t, ctx, "")
+	e2eDark(t, ctx)
 	if got := e2eTeamsValue(t, ctx, `getComputedStyle(document.body).backgroundColor`); got != "rgb(15, 18, 24)" {
 		t.Errorf("the OS dark ground is %q", got)
 	}

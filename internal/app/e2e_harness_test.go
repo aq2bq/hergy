@@ -8,15 +8,26 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
-// The e2e run drives one Chrome, not one per test (r-a107). Four browsers used
+// The e2e run drives the screens through chromedp's generic API (v0.14 以降,
+// r-36b4): an action is Action[T], an action that returns nothing is
+// Action[chromedp.Void], several such actions go through Do, and reading the
+// page is chromedp.Run with one chromedp.Evaluate[T]. The older, non-generic
+// API — Run with any number of actions, Evaluate with a result pointer — is
+// gone, and this file is where the difference is kept: the tests call its parts
+// the way they did before, and nothing a test asserts changed with the API.
+//
+// It drives one Chrome, not one per test (r-a107). Four browsers used
 // to be started — one for each e2e test, and one more for the tab the "another
 // tab" case opens — and each start was a chance for the whole run to die while
 // the browser came up: on a loaded CI machine Chrome missed the 20 second wait
@@ -114,7 +125,7 @@ func e2eStartChrome(chrome string) (context.Context, func(), error) {
 // when the run closes the browser at the end.
 func e2eAwaitChrome(browserCtx context.Context) error {
 	done := make(chan error, 1)
-	go func() { done <- chromedp.Run(browserCtx) }()
+	go func() { done <- chromedp.Do(browserCtx) }()
 	timer := time.NewTimer(e2eStartDeadline)
 	defer timer.Stop()
 	select {
@@ -272,9 +283,130 @@ func e2eSetField(t *testing.T, ctx context.Context, script, find string) {
 // — still fails the test.
 func e2eVerdict(t *testing.T, ctx context.Context, script string) string {
 	t.Helper()
-	var word string
-	e2eRun(t, ctx, chromedp.Evaluate(script, &word))
-	return word
+	return e2eValue[string](t, ctx, script)
+}
+
+// e2eValue runs one script and returns what it answered, once. It is the
+// generic API's reading: chromedp.Run with one chromedp.Evaluate[T]. Nothing is
+// waited for here, so a caller that retries (e2eVerdict, e2eSetField) or that
+// reads again (e2eLook) does its own waiting.
+func e2eValue[T any](t *testing.T, ctx context.Context, script string) T {
+	t.Helper()
+	value, err := chromedp.Run(ctx, chromedp.Evaluate[T](script))
+	if err != nil {
+		t.Fatalf("chromedp: %v", err)
+	}
+	return value
+}
+
+// e2eScript runs one script in the page for its effect, and fails the test when
+// the page cannot run it. The script's answer is thrown away (chromedp.Void is
+// the generic API's "no value").
+func e2eScript(t *testing.T, ctx context.Context, script string) {
+	t.Helper()
+	e2eReady(t, ctx)
+	if _, err := chromedp.Run(ctx, chromedp.Evaluate[chromedp.Void](script)); err != nil {
+		t.Fatalf("chromedp: %v", err)
+	}
+}
+
+// e2eTheme sets the theme the screens read, the way a person's choice lands in
+// the page: the dataset attribute, or none at all, where the screens fall back
+// to the browser's own preference (r-3c41 の 明暗の確かめ).
+func e2eTheme(t *testing.T, ctx context.Context, theme string) {
+	t.Helper()
+	if theme == "" {
+		e2eScript(t, ctx, `delete document.documentElement.dataset.theme`)
+		return
+	}
+	e2eScript(t, ctx, `document.documentElement.dataset.theme=`+strconv.Quote(theme))
+}
+
+// e2eDark asks the page to read prefers-color-scheme as dark, which is what a
+// machine set to a dark theme reports to the screens.
+func e2eDark(t *testing.T, ctx context.Context) {
+	t.Helper()
+	e2eCall(t, ctx, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{
+		Features: []*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: "dark"}},
+	})
+}
+
+// e2eCall runs one protocol command on the tab (chromedp.Call is the generic
+// API's way to the protocol from a part that holds the context, not an action).
+func e2eCall[P, R any](t *testing.T, ctx context.Context, cmd cdp.Command[P, R], params P) {
+	t.Helper()
+	if _, err := chromedp.Call(ctx, cmd, params); err != nil {
+		t.Fatalf("chromedp: %v", err)
+	}
+}
+
+// e2eConsole holds what the page said in red while a test drove it, so the test
+// can check at the end that a screen logged nothing. It is the run's one way to
+// listen: chromedp.Events is the generic API's replacement for ListenTarget
+// (chromedp v0.14 以降), and each event is a cdp.Event value (runtime.
+// ConsoleAPICalled, runtime.ExceptionThrown).
+type e2eConsole struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+// e2eListen starts listening on one tab's context and returns what it hears;
+// exceptions says whether an uncaught exception is counted as well as a console
+// error (an uncaught exception is not a console call, but it is the same promise
+// to the person: nothing red in the drawer). It must be called before the first
+// page loads. Each listener ends with the context, so closing the tab ends it.
+func e2eListen(ctx context.Context, exceptions bool) *e2eConsole {
+	heard := &e2eConsole{}
+	go func() {
+		for called, err := range chromedp.Events(ctx, runtime.ConsoleAPICalled) {
+			if err != nil {
+				return
+			}
+			if called.Type != "error" {
+				continue
+			}
+			var parts []string
+			for _, arg := range called.Args {
+				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
+			}
+			heard.add(strings.Join(parts, " | "))
+		}
+	}()
+	if exceptions {
+		go func() {
+			for thrown, err := range chromedp.Events(ctx, runtime.ExceptionThrown) {
+				if err != nil {
+					return
+				}
+				heard.add("uncaught: " + e2eException(thrown.ExceptionDetails))
+			}
+		}()
+	}
+	return heard
+}
+
+// e2eException renders an uncaught exception: its text, and the error itself
+// when the browser sent one. The generic API's ExceptionDetails carries the
+// details but no longer renders them (chromedp v0.14 以降).
+func e2eException(d *runtime.ExceptionDetails) string {
+	text := d.Text
+	if d.Exception != nil {
+		text += ": " + d.Exception.Description
+	}
+	return text
+}
+
+// Lines is what the page said in red, in the order it said it.
+func (c *e2eConsole) Lines() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.lines...)
+}
+
+func (c *e2eConsole) add(line string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lines = append(c.lines, line)
 }
 
 // e2eReady waits until the document has loaded. A person cannot read or press
@@ -285,8 +417,8 @@ func e2eReady(t *testing.T, ctx context.Context) {
 	t.Helper()
 	deadline := time.Now().Add(e2eDeadline)
 	for time.Now().Before(deadline) {
-		var loaded bool
-		if err := chromedp.Run(ctx, chromedp.Evaluate(`document.readyState === 'complete'`, &loaded)); err == nil && loaded {
+		loaded, err := chromedp.Run(ctx, chromedp.Evaluate[bool](`document.readyState === 'complete'`))
+		if err == nil && loaded {
 			return
 		}
 		time.Sleep(e2eStep)
@@ -328,8 +460,8 @@ func e2eLook[T any](t *testing.T, ctx context.Context, script string) (T, string
 func e2eAsk(t *testing.T, ctx context.Context, script string) (json.RawMessage, string) {
 	t.Helper()
 	ask := `(function(){try{return JSON.stringify({v:(` + script + `)});}catch(e){return JSON.stringify({e:String((e&&e.message)||e)});}})()`
-	var text string
-	if err := chromedp.Run(ctx, chromedp.Evaluate(ask, &text)); err != nil {
+	text, err := chromedp.Run(ctx, chromedp.Evaluate[string](ask))
+	if err != nil {
 		return nil, err.Error()
 	}
 	var answer struct {
@@ -360,7 +492,5 @@ func e2eThrottle(t *testing.T, ctx context.Context) {
 	if err != nil || rate <= 0 {
 		t.Fatalf("HERGY_E2E_CPU_THROTTLE=%q is not a rate above zero", raw)
 	}
-	e2eRun(t, ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		return emulation.SetCPUThrottlingRate(rate).Do(ctx)
-	}))
+	e2eCall(t, ctx, emulation.SetCPUThrottlingRate, emulation.SetCPUThrottlingRateParams{Rate: rate})
 }

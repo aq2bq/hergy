@@ -4,7 +4,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -12,11 +11,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
 
@@ -58,29 +55,7 @@ func TestE2ENav(t *testing.T) {
 	ctx, stopTab := e2eTab(t, browser, 5*time.Minute)
 	defer stopTab()
 
-	var mu sync.Mutex
-	var console []string
-	chromedp.ListenTarget(ctx, func(event any) {
-		switch e := event.(type) {
-		case *runtime.EventConsoleAPICalled:
-			if e.Type != "error" {
-				return
-			}
-			var parts []string
-			for _, arg := range e.Args {
-				parts = append(parts, fmt.Sprintf("%v %v %v", arg.Value, arg.Description, arg.Preview))
-			}
-			mu.Lock()
-			console = append(console, strings.Join(parts, " | "))
-			mu.Unlock()
-		case *runtime.EventExceptionThrown:
-			// An uncaught exception is not a console call, but it is the same
-			// promise to the person: nothing red in the drawer.
-			mu.Lock()
-			console = append(console, "uncaught: "+e.ExceptionDetails.Error())
-			mu.Unlock()
-		}
-	})
+	console := e2eListen(ctx, true)
 
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
@@ -109,10 +84,8 @@ func TestE2ENav(t *testing.T) {
 	defer stop2()
 	t.Run("the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
 
-	mu.Lock()
-	defer mu.Unlock()
-	if len(console) > 0 {
-		t.Errorf("the band logged %d console errors: %v", len(console), console)
+	if lines := console.Lines(); len(lines) > 0 {
+		t.Errorf("the band logged %d console errors: %v", len(lines), lines)
 	}
 }
 
@@ -511,9 +484,9 @@ func e2eNavWidths(t *testing.T, ctx context.Context, base string) {
 				e2eRun(t, ctx, chromedp.Navigate(base+path))
 				e2eNavWait(t, ctx, `!!document.querySelector('.screens')`)
 				if theme == "" {
-					e2eRun(t, ctx, chromedp.Evaluate(`delete document.documentElement.dataset.theme`, nil))
+					e2eTheme(t, ctx, "")
 				} else {
-					e2eRun(t, ctx, chromedp.Evaluate(`document.documentElement.dataset.theme=`+strconv.Quote(theme), nil))
+					e2eTheme(t, ctx, theme)
 				}
 				if over := e2eNavInt(t, ctx, `document.documentElement.scrollWidth - window.innerWidth`); over > 1 {
 					t.Errorf("%s at %d/%s flows %dpx sideways", path, size, theme, over)
@@ -752,10 +725,12 @@ func (w urlWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// e2eRun runs the actions, failing the test on the first error.
-func e2eRun(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
+// e2eRun runs the actions, failing the test on the first error. Each action
+// returns nothing (chromedp.Void), so this is chromedp.Do, the generic API's
+// way to run a run of actions (chromedp v0.14 以降; r-36b4).
+func e2eRun(t *testing.T, ctx context.Context, actions ...chromedp.Action[chromedp.Void]) {
 	t.Helper()
-	if err := chromedp.Run(ctx, actions...); err != nil {
+	if err := chromedp.Do(ctx, actions...); err != nil {
 		t.Fatalf("chromedp: %v", err)
 	}
 }
