@@ -80,6 +80,17 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   open is refused with the server's sentence beside the save; `保存しました` is
   drawn by the part, and the role screen's own copy is gone. The box stands
   between 6 and 34 lines on every screen.
+- **A team.yaml names a profile `profiles.yaml` does not hold**: it reads. A
+  member or a worker that writes such a name used to make the whole file
+  unreadable, so a screen could only show its checks and the text; now the
+  definition is read and drawn — the mission, the numbers, the figure and the
+  agreement — so the name can be fixed where it stands, and the check names the
+  profile as a problem that stops the definition (`members[i].profile`,
+  `workers[i]`), which `hergy validate` prints where it printed the reading's
+  refusal (its exit code is unchanged). `hergy up` refuses for such a member in
+  the same sentence as before; a worker's missing profile no longer stops the
+  boot — it is refused when that worker is hired, as the hire has always been
+  checked.
 
 ### Fixed
 
@@ -92,6 +103,21 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   (`yamltab.js`) sends the file's name with the text it saves, so a kind whose
   file is the name it was handed (a role's file is the row's own name) writes
   that file rather than an empty one.
+- **The team screen's figure, tabs and cards**: the figure is drawn at the width
+  of its own viewBox, so an open card stands beside the points instead of over
+  them; the band's `一覧` / `YAML` tabs carry the address again when they are
+  pressed; the agreement panel's head is its path alone; `元に戻す` stands in the
+  agreement's foot only while the draft differs from the file; a line a change
+  takes away is struck through once, in the prompt's own words, with the checks
+  it adds beside it; a worker's purpose can be typed to its end with the cursor
+  staying in the field, and the worker it wrote counts as one change; the card
+  of the last turn a member hands out names the problem the press would add; and
+  the checks of the team's own agreement stand under `チームの約束` and open that
+  rule in the 約束 tab.
+- **A document-wide sentence marks the first line alone**: the Markdown box of
+  the shared part (the role screen and the team screen alike) marks a check
+  about a document as a whole — a member's reading volume, say — on the first
+  line, not on every heading and blank line beside it.
 
 ### Breaking
 

@@ -71,6 +71,8 @@ func TestE2ETeams(t *testing.T) {
 	t.Run("open and checks", func(t *testing.T) { e2eTeamsOpen(t, ctx, base) })
 	t.Run("yaml", func(t *testing.T) { e2eTeamsYAML(t, ctx, base) })
 	t.Run("widths and lights", func(t *testing.T) { e2eTeamsWidths(t, ctx, base) })
+	t.Run("graph problems", func(t *testing.T) { e2eTeamsGraphProblems(t, ctx, base) })
+	t.Run("worker purpose", func(t *testing.T) { e2eTeamsWorkerPurpose(t, ctx, base) })
 
 	// The writes stand in a project of their own, so the counts and the files the
 	// walks above read stay as the fixture wrote them.
@@ -207,6 +209,17 @@ func e2eTeamsStructure(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('#tabs .tab')].map(function(b){return b.dataset.t+'='+b.textContent.trim()}).join(',')`); got != "list=一覧,yaml=YAML" {
 		t.Errorf("the tabs read %q", got)
 	}
+	// R2: pressing a tab moves the screen and the address (spec-teams 2 章).
+	e2eTeamsClick(t, ctx, `document.querySelector('#tabs .tab[data-t=yaml]')`)
+	e2eTeamsWait(t, ctx, `!!document.querySelector('.yed .ytext')`)
+	if got := e2eTeamsValue(t, ctx, `window.location.pathname`); got != "/teams/yaml" {
+		t.Errorf("pressing YAML left %q in the address", got)
+	}
+	e2eTeamsClick(t, ctx, `document.querySelector('#tabs .tab[data-t=list]')`)
+	e2eTeamsWait(t, ctx, `document.querySelectorAll('#view .tdef').length===6`)
+	if got := e2eTeamsValue(t, ctx, `window.location.pathname`); got != "/teams" {
+		t.Errorf("pressing 一覧 left %q in the address", got)
+	}
 
 	// S3: the six columns, the six rows, the order the catalog reads.
 	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.list .head > span')].map(function(e){return e.textContent.trim()}).join(',')`); got != ",名前,使命,置き場所,メンバー,ワーカー,約束" {
@@ -229,12 +242,16 @@ func e2eTeamsStructure(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.c-name .vcount').textContent.trim()`); got != "問題 2警告 11" {
 		t.Errorf("the core row's problems read %q", got)
 	}
-	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.c-name .vcount').textContent.trim()`); got != "問題 1" {
-		t.Errorf("the docs row's problems read %q, want the one problem of its broken worker", got)
+	// S3・R10: the docs definition reads — only a name it writes is not in
+	// profiles.yaml — so its row counts its problem and the role documents
+	// behind it, like every other row (spec-teams 1.9).
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.c-name .vcount').textContent.trim()`); got != "問題 1警告 6" {
+		t.Errorf("the docs row's problems read %q, want the problem of its unresolved worker profile", got)
 	}
-	// 1.9: a team.yaml that does not read says 使命 — and leaves its counts blank.
-	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.c-mission').textContent.trim()+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-mission').classList.contains('none')+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-members').textContent+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-turns').textContent`); got != "—,true,—,—" {
-		t.Errorf("the docs row reads %q, want 使命 — and no counts", got)
+	// 1.9・R10: the mission, the members and the workers stand for a file that
+	// reads, and only a file that is not YAML at all draws — and counts — nothing.
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.c-mission').textContent.trim()+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-mission').classList.contains('none')+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-members').textContent+','+`+e2eTeamsRowJS("docs")+`.querySelector('.c-turns').textContent`); got != "利用者向けの文書を整える,false,3,6" {
+		t.Errorf("the docs row reads %q, want the mission and its counts", got)
 	}
 
 	// T1・T5: the words the screen uses on the list, and none of the words it must not.
@@ -386,25 +403,57 @@ func e2eTeamsOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsValue(t, ctx, `(document.querySelector('#view').textContent.indexOf('チームの約束')>=0)+''`); got != "true" {
 		t.Errorf("the 約束 tab does not read チームの約束")
 	}
+	// R4: a sentence about the document as a whole — the members' reading volume
+	// — marks the first line of the preview alone, not every heading and blank
+	// line (spec-roles 1.2.6); the roles screen's own part reads the same way.
+	if got := e2eTeamsInt(t, ctx, agree+`.querySelectorAll('.yprev .yl.warn').length`); got != 1 {
+		t.Errorf("the agreement's preview marks %d lines as a warning, want the first line alone", got)
+	}
+	if got := e2eTeamsInt(t, ctx, agree+`.querySelectorAll('.yprev .yl.err').length`); got != 0 {
+		t.Errorf("the agreement's preview marks %d lines as a problem, want none", got)
+	}
+	// R3: the head is the path alone — the place stands in the row's pills, not
+	// here (spec-teams 1.5).
+	if got := e2eTeamsValue(t, ctx, `(`+agree+`.querySelector('.ph').textContent.indexOf('プロジェクト')>=0)+''`); got != "false" {
+		t.Errorf("the agreement panel's head names a place")
+	}
+	// R5: nothing has changed, so 元に戻す is not offered — the same as the roles
+	// screen's own part.
+	if got := e2eTeamsValue(t, ctx, agree+`.querySelector('.pf [data-act=revert]').hidden+''`); got != "true" {
+		t.Errorf("the agreement's foot offers 元に戻す with nothing changed")
+	}
 
-	// 1.3・1.4.5・1.9: a definition that does not read draws no figure and no
-	// save — the check column alone — while the same name's shared file is shown
-	// as hidden; a definition in both places says which one is in effect.
+	// 1.3・1.4.5・1.9・R10: a definition whose names do not resolve is drawn like
+	// one that reads — the figure, the mission, the counts and the save — and its
+	// one problem stands on the worker it names; the same name's shared file is
+	// shown as hidden, and a definition in both places says which one is in
+	// effect.
 	docsPanel := e2eTeamsPanelJS("docs")
 	e2eTeamsClick(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.sum')`)
 	e2eTeamsWait(t, ctx, `!!`+docsPanel+`.querySelector('.vlist .vitem .msg')`)
-	if got := e2eTeamsInt(t, ctx, docsPanel+`.querySelectorAll('.gwrap, footer.pf [data-act=t-save]').length`); got != 0 {
-		t.Errorf("the broken definition's panel draws %d figures or saves, want the check column alone", got)
+	if got := e2eTeamsInt(t, ctx, docsPanel+`.querySelectorAll('.gwrap svg, footer.pf [data-act=t-save]').length`); got != 2 {
+		t.Errorf("the definition whose profile does not resolve draws %d figures and saves, want the figure and the save", got)
+	}
+	// V1・R10: its own sentence stands in the check column, which counts the one
+	// problem (the role documents behind the row are not this column's).
+	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('.vlist .vcount').textContent.trim()`); got != "問題 1" {
+		t.Errorf("the docs panel's check reads %q, want its one problem", got)
+	}
+	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('.vlist .vitem .msg').textContent`); !strings.Contains(got, "gemini-flash") {
+		t.Errorf("the docs figure's problem reads %q", got)
+	}
+	// 1.4.1・R10: the problem stands on the worker 翻訳's own point, with 問題.
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="docs"] .panel.team-p .gn.worker.err`)+`)].map(function(g){return g.dataset.i}).join(',')`); got != "0" {
+		t.Errorf("the workers in problem read %q, want the 翻訳 worker alone", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="docs"] .panel.team-p .gn.worker.err`)+`)].map(function(g){return g.querySelector('.bdg text').textContent}).join(',')`); got != "問題" {
+		t.Errorf("the worker's badge reads %q, want 問題", got)
 	}
 	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('.ph .state').textContent`); got != "効いている" {
 		t.Errorf("the shared definition's state reads %q", got)
 	}
 	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("docs")+`.querySelector('.panel.shadowed .state').textContent`); got != "隠れている" {
 		t.Errorf("the hidden panel's state reads %q", got)
-	}
-	// V1: the broken worker's sentence stands in the figure's own check column.
-	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('.vlist .vitem .msg').textContent`); !strings.Contains(got, "gemini-flash") {
-		t.Errorf("the docs figure's problem reads %q", got)
 	}
 }
 
@@ -488,6 +537,15 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 		t.Errorf("the line that would leave reads %q", got)
 	}
 	e2eTeamsWait(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .panel.team-p .gcard .vm li`)+`)].some(function(li){return li.textContent.indexOf('CORE-12')>=0})`)
+	// R6: the line the change would take away stands once, in the server's own
+	// words (effect.lines[].removed), and the check column under it holds the
+	// server's problems alone — the screen builds no sentence of its own (X3).
+	if got := e2eTeamsInt(t, ctx, `(function(){var s=`+panel+`.querySelector('.gcard .gpl s');return s?[...s.parentElement.children].filter(function(n){return n.tagName==='S'&&n.textContent.indexOf('core-reviewer')>=0}).length:0})()`); got != 1 {
+		t.Errorf("the card strikes the line that would leave %d times, want once", got)
+	}
+	if got := e2eTeamsInt(t, ctx, `[...`+panel+`.querySelectorAll('.gcard .vm li')].filter(function(li){return li.textContent.indexOf('core-reviewer')>=0}).length`); got != 0 {
+		t.Errorf("the check column holds %d lines of the change as a problem, want none", got)
+	}
 	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-del]')`)
 	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard .gdl .tag')`)
 	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard .gdl .tag').textContent`); got != "消した" {
@@ -505,10 +563,10 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 		t.Errorf("the turn save lost the mission the test wrote:\n%s", after)
 	}
 
-	// F7: docs' team.yaml does not read — its worker names a profile that is not
-	// there — and the shape panel offers no save (1.9). The YAML tab is where it
-	// is put right: a text edit that only moves the mission adds no problem the
-	// saved text did not already hold, so the save goes (X3).
+	// F7・R10: docs' team.yaml reads — only a profile its worker names is not in
+	// profiles.yaml — so the YAML tab holds its text and its own problem: a text
+	// edit that only moves the mission adds no problem the saved text did not
+	// already hold, so the save goes (X3).
 	docsPath := filepath.Join(f.proj, ".hergy", "teams", "docs", "team.yaml")
 	docsBefore := readFile(t, docsPath)
 	e2eRun(t, ctx, chromedp.Navigate(base+"/teams/yaml?file=docs.project.team"), chromedp.WaitReady(".yed .ytext"))
@@ -530,6 +588,25 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 	if len(added) != 1 || len(removed) != 1 || added[0] != "mission: \""+docsMission+"\"" {
 		t.Errorf("the docs mission save wrote %v and lost %v, want the mission line alone", added, removed)
 	}
+
+	// F7・R10: the same definition's shape panel offers its save now (1.9). The
+	// problem it holds is the file's own, so a mission edit adds nothing new and
+	// the save goes; a change that adds a problem of its own shuts it again (X3).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=docs"), chromedp.WaitReady(`.tdef[data-name="docs"] .panel.team-p footer.pf [data-act=t-save]`))
+	docsPanel := e2eTeamsPanelJS("docs")
+	const docsMission2 = "E2E が姿から直した使命。"
+	e2eSet(t, ctx, `document.querySelector('.in-mission')`, docsMission2)
+	e2eTeamsWait(t, ctx, docsPanel+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('[data-act=t-save]').disabled+''`); got != "false" {
+		t.Errorf("the docs shape save is shut although the only problem is the file's own")
+	}
+	e2eTeamsClick(t, ctx, docsPanel+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsWait(t, ctx, `!!`+docsPanel+`.querySelector('.ok')`)
+	docsAfter2 := readFile(t, docsPath)
+	added, removed = e2eTeamsDiff(docsAfter, docsAfter2)
+	if len(added) != 1 || len(removed) != 1 || added[0] != "mission: \""+docsMission2+"\"" {
+		t.Errorf("the docs shape save wrote %v and lost %v, want the mission line alone", added, removed)
+	}
 }
 
 // e2eTeamsSaveAgreement is F4・F6 and P10: a rule's 含めない is one line of the
@@ -550,6 +627,10 @@ func e2eTeamsSaveAgreement(t *testing.T, ctx context.Context, base string, f *fi
 	e2eTeamsClick(t, ctx, agree+`.querySelector('.rule.open [data-act=in-prompt][data-v=false]')`)
 	e2eTeamsWait(t, ctx, `!!document.querySelector(`+strconv.Quote(`.tdef[data-name="research"] .dtabs .dtab[data-t=agree] .dot`)+`)`)
 	e2eTeamsWait(t, ctx, `!`+agree+`.querySelector('.pf [data-act=save]').disabled`)
+	// R5: a change is here, so 元に戻す stands.
+	if got := e2eTeamsValue(t, ctx, agree+`.querySelector('.pf [data-act=revert]').hidden+''`); got != "false" {
+		t.Errorf("the agreement's foot hides 元に戻す although the draft moved")
+	}
 	e2eTeamsClick(t, ctx, agree+`.querySelector('.pf [data-act=save]')`)
 	e2eTeamsWait(t, ctx, `!!`+agree+`.querySelector('.pf .ok')`)
 	if got := e2eTeamsValue(t, ctx, agree+`.querySelector('.pf .ok').textContent`); got != "保存しました" {
@@ -573,6 +654,133 @@ func e2eTeamsSaveAgreement(t *testing.T, ctx context.Context, base string, f *fi
 	e2eTeamsWait(t, ctx, `!!`+agree+`.querySelector('.pf .errline.doc:not([hidden]), .pf .refusal')`)
 	if got := readFile(t, path); got != outside {
 		t.Errorf("a refused save wrote the file:\n%s", got)
+	}
+
+	// R5 again: 元に戻す puts the draft back where the save is held to, and with
+	// nothing left to take back the button goes (the roles screen's part too).
+	e2eTeamsClick(t, ctx, agree+`.querySelector('.pf [data-act=revert]')`)
+	e2eTeamsWait(t, ctx, agree+`.querySelector('.pf [data-act=revert]').hidden+''==='true'`)
+	if got := e2eTeamsValue(t, ctx, agree+`.querySelector('.pf [data-act=save]').disabled+''`); got != "true" {
+		t.Errorf("the agreement's save stands with nothing changed")
+	}
+}
+
+// e2eTeamsWorkerPurpose is R7: ＋ ワーカー opens the card with the cursor in the
+// purpose, the purpose takes the whole word while the cursor stays in the field,
+// the card writes the check's own sentence rather than 問題 undefined, and the
+// added worker counts as one place — one that a save may write, until the
+// purpose it lacks adds a problem the file did not hold (1.4.4・1.4.6, X3).
+func e2eTeamsWorkerPurpose(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"), chromedp.WaitReady(`.tdef[data-name="core"] .panel.team-p .gwrap svg`))
+	panel := e2eTeamsPanelJS("core")
+	field := panel + `.querySelector('.gcard[data-sel=worker] .in-purpose')`
+
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=lead]')`)
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=node]')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=worker-add]')`)
+	e2eTeamsWait(t, ctx, `!!`+field)
+	if got := e2eTeamsValue(t, ctx, `(document.activeElement===`+field+`)+''`); got != "true" {
+		t.Errorf("＋ ワーカー left the cursor outside the purpose")
+	}
+	// A worker with no purpose is a problem the saved file did not hold, so the
+	// save is shut until the purpose is there (X3).
+	e2eTeamsWait(t, ctx, panel+`.querySelector('[data-act=t-save]').disabled+''==='true'`)
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .panel.team-p .gcard .vm li`)+`)].map(function(li){return li.textContent}).join('|')`); !strings.Contains(got, "purpose") || strings.Contains(got, "undefined") {
+		t.Errorf("the new worker's card reads %q, want the check's own sentence", got)
+	}
+	// One letter at a time, the way a person types: the field is not drawn again,
+	// so the cursor stays and the word collects.
+	const purpose = "ログの整理"
+	letters := []rune(purpose)
+	for i := 1; i <= len(letters); i++ {
+		e2eSet(t, ctx, field, string(letters[:i]))
+		e2eTeamsWait(t, ctx, `(document.activeElement===`+field+`)+''==='true'`)
+		if got := e2eTeamsValue(t, ctx, field+`.value`); got != string(letters[:i]) {
+			t.Errorf("after %d letters the purpose reads %q, want %q", i, got, string(letters[:i]))
+		}
+	}
+	// One worker, however many letters wrote its purpose (1.4.6), and the problem
+	// its empty purpose added is gone, so the save is open again.
+	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('[data-act=t-save]').disabled+''==='false'`)
+	if got := e2eTeamsValue(t, ctx, `(function(){var u=`+panel+`.querySelector('.gcard[data-sel=worker] .vm');return u?u.textContent:''})()`); strings.Contains(got, "purpose") {
+		t.Errorf("the worker's card still holds its purpose's problem: %q", got)
+	}
+	// 元に戻す puts the definition back, and the count with it.
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('[data-act=t-revert]:not([hidden])')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('[data-act=t-revert]')`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()===''`)
+}
+
+// e2eTeamsGraphProblems is R8・R9: the card of a line that would take a member's
+// last turn says the problem the change would add before it is made (5.4 M3),
+// the problem of the draft then stands on that member's own point and names it
+// in the check column (1.4.1・1.7), and a warning about the team's own agreement
+// stands under チームの約束 and opens that rule in the 約束 tab (1.4.5).
+func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"), chromedp.WaitReady(`.tdef[data-name="core"] .panel.team-p .gwrap svg`))
+	panel := e2eTeamsPanelJS("core")
+	stop := `[...document.querySelectorAll(` + strconv.Quote(`.tdef[data-name="core"] .panel.team-p .gcard .vm li`) + `)].some(function(li){return li.textContent.indexOf('analyst から出るターンがありません')>=0})`
+
+	// R8: analyst hands out three turns and hires no worker, so taking the last
+	// one away leaves it handing the turn to nobody. The card says so before the
+	// press; the two cards before it do not.
+	for _, to := range []string{"lead", "impl-a", "impl-b"} {
+		e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=analyst]')`)
+		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=node]')`)
+		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .row button[data-act=pick-edge][data-b=`+to+`]')`)
+		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=edge]')`)
+		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-ask][data-a=analyst][data-b=`+to+`]')`)
+		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard [data-act=turn-del]')`)
+		if to == "impl-b" {
+			e2eTeamsWait(t, ctx, stop)
+		} else if got := e2eTeamsValue(t, ctx, `(`+stop+`)+''`); got != "false" {
+			t.Errorf("the card of the %s turn already names the problem that would come", to)
+		}
+		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-del]')`)
+		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard .gdl .tag')`)
+	}
+
+	// R9: the problem of the draft stands on analyst's own point, wearing 問題,
+	// and the check column says where it stands (1.4.1・1.7).
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gn.member[data-id=analyst].err')`)
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gn.member[data-id=analyst] .bdg text').textContent`); got != "問題" {
+		t.Errorf("analyst's badge reads %q, want 問題", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .panel.team-p .vlist .vitem`)+`)].filter(function(b){return b.textContent.indexOf('analyst から出るターンがありません')>=0}).map(function(b){return b.querySelector('.lno').textContent}).join(',')`); got != "analyst" {
+		t.Errorf("the check column puts analyst's problem at %q, want analyst", got)
+	}
+
+	// R9: scout's turn to the human goes, so the team's own agreement's rule
+	// RES-6 warns. It stands under チームの約束 — the role documents' head is not
+	// its place — and its press opens that rule in the 約束 tab (1.4.5).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=research"), chromedp.WaitReady(`.tdef[data-name="research"] .panel.team-p .gwrap svg`))
+	rp := e2eTeamsPanelJS("research")
+	e2eTeamsClick(t, ctx, rp+`.querySelector('.gn.member[data-id=scout]')`)
+	e2eTeamsWait(t, ctx, `!!`+rp+`.querySelector('.gcard[data-sel=node]')`)
+	e2eTeamsClick(t, ctx, rp+`.querySelector('.gcard .row button[data-act=pick-edge][data-b=human]')`)
+	e2eTeamsWait(t, ctx, `!!`+rp+`.querySelector('.gcard[data-sel=edge]')`)
+	e2eTeamsClick(t, ctx, rp+`.querySelector('.gcard [data-act=turn-ask][data-a=scout][data-b=human]')`)
+	e2eTeamsWait(t, ctx, `!!`+rp+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsClick(t, ctx, rp+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsWait(t, ctx, `!!`+rp+`.querySelector('.gcard .gdl .tag')`)
+	item := `[...document.querySelectorAll(` + strconv.Quote(`.tdef[data-name="research"] .panel.team-p .vlist .vitem`) + `)].find(function(b){return b.textContent.indexOf('RES-6')>=0})`
+	e2eTeamsWait(t, ctx, `!!`+item)
+	if got := e2eTeamsValue(t, ctx, rp+`.querySelector('.vlist .vsub').textContent`); got != "チームの約束" {
+		t.Errorf("the check column's first heading reads %q, want チームの約束", got)
+	}
+	if got := e2eTeamsValue(t, ctx, item+`.querySelector('.lno').textContent`); got != "agreement.yaml" {
+		t.Errorf("the team agreement's warning stands at %q, want agreement.yaml", got)
+	}
+	e2eTeamsClick(t, ctx, item)
+	e2eTeamsWait(t, ctx, `!!`+e2eTeamsAgreeJS("research")+`.querySelector('.rule.open')`)
+	if got := e2eTeamsValue(t, ctx, e2eTeamsAgreeJS("research")+`.querySelector('.rule.open .rid b').textContent`); got != "RES-6" {
+		t.Errorf("the press opened the rule %q, want RES-6", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `window.location.search`); !strings.Contains(got, "agree=research") {
+		t.Errorf("opening the rule left %q in the address", got)
 	}
 }
 
@@ -616,6 +824,27 @@ func e2eTeamsWidths(t *testing.T, ctx context.Context, base string) {
 	}
 	if got := e2eTeamsInt(t, ctx, `(function(){var g=document.querySelector(`+strconv.Quote(`.tdef[data-name="core"] .panel.team-p .gscroll`)+`);return g?g.scrollWidth-g.clientWidth:0})()`); got > 1 {
 		t.Errorf("500: the figure flows %dpx inside its box", got)
+	}
+
+	// R1: the figure is drawn at the width of its own viewBox — the sheet takes the
+	// width the SVG carries — and the card of a chosen line covers no point
+	// (1.4.2・1.4.4). Checked at the two widths a person works at, on a team with
+	// workers and on one without.
+	for _, size := range []int64{2000, 1440} {
+		e2eRun(t, ctx, chromedp.EmulateViewport(size, 1000))
+		for _, name := range []string{"core", "research"} {
+			e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open="+name))
+			panel := e2eTeamsPanelJS(name)
+			e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gwrap svg')`)
+			if got := e2eTeamsInt(t, ctx, `(function(){var s=`+panel+`.querySelector('.gwrap svg'),vb=s.dataset.vb.split(' ');return Math.round(s.getBoundingClientRect().width)-Number(vb[2]);})()`); got != 0 {
+				t.Errorf("%s at %d: the figure stands %dpx from the width of its viewBox", name, size, got)
+			}
+			e2eTeamsClick(t, ctx, panel+`.querySelector('.hit')`)
+			e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard')`)
+			if got := e2eTeamsInt(t, ctx, `(function(){var p=`+panel+`,c=p.querySelector('.gcard');if(!c)return -1;var cr=c.getBoundingClientRect(),n=0;p.querySelectorAll('.gn .box').forEach(function(b){var r=b.getBoundingClientRect();if(Math.min(cr.right,r.right)-Math.max(cr.left,r.left)>0&&Math.min(cr.bottom,r.bottom)-Math.max(cr.top,r.top)>0)n++;});return n;})()`); got != 0 {
+				t.Errorf("%s at %d: the card of the chosen line covers %d points", name, size, got)
+			}
+		}
 	}
 
 	// D1: the ink reads against its ground in both lights, and the OS's request

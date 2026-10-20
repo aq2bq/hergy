@@ -118,6 +118,7 @@ func Definition(in Input) []Finding {
 		return append(breakFindings(in, err), warnings...)
 	}
 	breaks := promptFindings(in, def)
+	breaks = append(breaks, profileFindings(in, def)...)
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
 	warnings = append(warnings, modelFindings(in, def)...)
@@ -302,6 +303,50 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 		}
 		seen[one] = true
 		out = append(out, finding)
+	}
+	return out
+}
+
+// profileFindings names a profile a member or a worker writes and profiles.yaml
+// does not hold (spec-teams 1.9): the definition reads — a screen draws it, with
+// the mission, the numbers and the figure, so a person can fix the name — but
+// hergy does not start the member from it. The reading no longer refuses this
+// name, so the sentence is written here, and it is the same sentence the reading
+// used to stop with.
+func profileFindings(in Input, def *definition.Definition) []Finding {
+	if def.Graph == nil {
+		return nil
+	}
+	profiles, _, err := in.Catalog.Profiles()
+	if err != nil {
+		return nil
+	}
+	var out []Finding
+	for i := range def.Graph.Members {
+		node := &def.Graph.Members[i]
+		if _, ok := profiles[node.Profile]; ok {
+			continue
+		}
+		label := fmt.Sprintf("members[%d]", i)
+		out = append(out, Finding{
+			Field: label + ".profile",
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.no_profile", label, node.Profile)),
+			Kind:  KindRead,
+			Stops: true,
+		})
+	}
+	for i := range def.Graph.Workers {
+		worker := &def.Graph.Workers[i]
+		if _, ok := profiles[worker.Profile]; ok {
+			continue
+		}
+		label := fmt.Sprintf("workers[%d]", i)
+		out = append(out, Finding{
+			Field: label,
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
+			Kind:  KindRead,
+			Stops: true,
+		})
 	}
 	return out
 }

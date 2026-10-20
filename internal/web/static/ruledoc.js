@@ -266,7 +266,11 @@
         return `<div class="yl ghost go ${fc && fc.k && k === fc.k ? 'cur' : ''}" data-act="yline" data-k="${k}" data-part="rule"><span class="lno"></span><span class="yt" data-h="0"><span class="mk out">含めない</span><s>${esc(z.text || '')}</s></span></div>`;
       }
       ri++;
-      const ms = all.filter((m) => (z.section >= 0 ? m.k === k : m.k === 0));
+      // A problem about the document as a whole (no rule of its own) is marked
+      // on the first line alone; a problem about a rule is marked on the lines
+      // that rule stands on (spec-roles 1.2.6). A heading or a blank line has no
+      // rule of its own, so it is not one of a rule's lines.
+      const ms = all.filter((m) => (k ? m.k === k : m.k === 0 && ri === 0));
       const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
       const { h, html } = mdHL(z.text || '', z.held || '');
       const go = k || z.section >= 0 || z.part === 'title';

@@ -378,8 +378,10 @@ func (c *Catalog) readDefinition(name, path, layer string) (*definition.Definiti
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
 	}
-	profiles, _, err := c.Profiles()
-	if err != nil {
+	// profiles.yaml must read before a definition does, so a team file is not
+	// read against names a broken profiles file hides. The names a definition
+	// writes are the check's business, not the reading's (spec-teams 1.9).
+	if _, _, err := c.Profiles(); err != nil {
 		return nil, err
 	}
 	def, err := definition.Read(definition.Input{
@@ -388,7 +390,6 @@ func (c *Catalog) readDefinition(name, path, layer string) (*definition.Definiti
 		Layer:        layer,
 		TeamYAMLPath: path,
 		TeamDir:      filepath.Dir(path),
-		Profiles:     profiles,
 		Base:         c.base,
 		Reader:       c.reader,
 	})

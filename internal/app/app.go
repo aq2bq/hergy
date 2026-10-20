@@ -250,7 +250,14 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 		if err != nil {
 			return nil, err
 		}
-		value := profiles[node.Profile]
+		value, ok := profiles[node.Profile]
+		if !ok {
+			// A definition reads with a profile profiles.yaml does not hold, so
+			// a screen can draw it and the name can be fixed (spec-teams 1.9):
+			// this is where the name stops a run, since the member has no engine
+			// to start with.
+			return nil, i18n.Errorf("error.no_profile", fmt.Sprintf("members[%d]", i), node.Profile)
+		}
 		starts = append(starts, definition.Start{
 			Name:    herdr,
 			Short:   node.Name,

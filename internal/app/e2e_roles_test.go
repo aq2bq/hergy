@@ -436,6 +436,11 @@ func e2eRolesOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eRolesValue(t, ctx, `document.querySelector('#rows .role.open .panel .dhvm li span:last-child').textContent`); !strings.Contains(got, "core-analyst に渡る規則が 21 件です") {
 		t.Errorf("the analyst check reads %q", got)
 	}
+	// R4: the same document-wide sentence marks the first line of the preview
+	// alone — not the headings and blank lines around it (spec-roles 1.2.6).
+	if got := e2eRolesInt(t, ctx, `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`); got != 1 {
+		t.Errorf("analyst's preview marks %d lines as a warning, want the first line alone", got)
+	}
 
 	// A deep link opens the row and the rule it names.
 	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder&rule=builder.project.BUILD-5"), chromedp.WaitReady("#rows .role.open .rule.open .redit"))

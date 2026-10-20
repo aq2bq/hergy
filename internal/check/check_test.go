@@ -726,3 +726,45 @@ func TestDefinitionWarnsAboutALeftoverStyle(t *testing.T) {
 		t.Errorf("warnings = %d, want one per file:\n%s", len(joined), text)
 	}
 }
+
+// TestUnknownProfileIsAProblemNotABreak: a profile profiles.yaml does not hold
+// no longer stops the file reading (spec-teams 1.9). The definition reads — a
+// screen draws its figure, its mission and its numbers — and the check names the
+// profile at the member and at the worker that write it, as a problem that stops
+// hergy from starting them (監査 R10).
+func TestUnknownProfileIsAProblemNotABreak(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+		"  - name: lead\n    role: lead\n    profile: absent\n"+
+		specMember+
+		"workers:\n  - from: spec\n    purpose: 調査\n    profile: gone\n"+
+		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> human\n  - spec -> lead\n")
+	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+
+	got := f.findings()
+	var named []Finding
+	for _, finding := range got {
+		if finding.Field == "members[0].profile" || finding.Field == "workers[0]" {
+			named = append(named, finding)
+		}
+	}
+	if len(named) != 2 {
+		t.Fatalf("the check named %d unknown profiles, want the member's and the worker's:\n%+v", len(named), got)
+	}
+	for _, finding := range named {
+		if !finding.Stops || finding.Kind != KindRead {
+			t.Errorf("the finding at %s does not stop the definition: %+v", finding.Field, finding)
+		}
+	}
+	if text := named[0].Text + named[1].Text; !strings.Contains(text, "absent") || !strings.Contains(text, "gone") {
+		t.Errorf("the findings read %q, want the profiles' own names", text)
+	}
+	// The rest of the definition still checks: no break about the figure itself,
+	// so a screen has a figure to draw and a person a name to fix.
+	for _, finding := range got {
+		if finding.Stops && finding.Field != "members[0].profile" && finding.Field != "workers[0]" {
+			t.Errorf("the unknown profiles stopped something else too: %+v", finding)
+		}
+	}
+}

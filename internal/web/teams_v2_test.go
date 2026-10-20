@@ -386,7 +386,7 @@ func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 func TestTeamsYamlCheckFindsTheLine(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	text := "version: 1\nmission: demo\nturns:\n  - human -> lead\nmembers:\n  - name: lead\n    role: lead\n    profile: nosuch\n"
+	text := "version: 1\nmission: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: lead\n    profile: nosuch\n"
 	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
 		"place": "project", "name": "demo", "part": "team", "text": text,
 	})
@@ -397,8 +397,8 @@ func TestTeamsYamlCheckFindsTheLine(t *testing.T) {
 	if len(check.Problems) == 0 || check.Problems[0].Sev != "err" {
 		t.Fatalf("a member with a missing profile found no error: %+v", check.Problems)
 	}
-	if check.Problems[0].Line != 8 {
-		t.Errorf("the missing profile stands on line %d, want the profile's line 8", check.Problems[0].Line)
+	if check.Problems[0].Line != 9 {
+		t.Errorf("the missing profile stands on line %d, want the profile's line 9", check.Problems[0].Line)
 	}
 	if got := readFile(t, f.teamYAML()); !strings.Contains(got, "profile: coder\n") {
 		t.Errorf("the check wrote the file:\n%s", got)

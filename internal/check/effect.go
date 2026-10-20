@@ -30,28 +30,30 @@ type EffectReport struct {
 // (C4): the before/after effect.Of of the two views, written as the prompt's own
 // lines, and the problems the op would add.
 //
-// A definition either view cannot read gives an empty report: there is no prompt
-// to compare, and a screen shows the op's own refusal when it tries to save it.
+// The problems are counted whatever the two views read, because a definition a
+// screen draws still has problems a change can add (spec-teams 1.9, 監査 R8): a
+// definition the change makes unreadable has the sentence itself as its one
+// problem. Only the lines need a prompt to compare, so a view that does not read
+// leaves them empty.
 func TeamEffect(in TeamInput, op definition.Op) EffectReport {
 	cat := in.Catalog
 	if cat == nil {
 		return EffectReport{}
 	}
-	before, err := teamView(cat, in)
-	if err != nil {
-		return EffectReport{}
-	}
 	afterIn := in
 	afterIn.Ops = append(append([]definition.Op(nil), in.Ops...), op)
+	report := EffectReport{Problems: addedProblems(Team(in), Team(afterIn))}
+
+	before, err := teamView(cat, in)
+	if err != nil {
+		return report
+	}
 	after, err := teamView(cat, afterIn)
 	if err != nil {
-		return EffectReport{}
+		return report
 	}
-
-	return EffectReport{
-		Lines:    effectLines(in.Name, before, after, effect.Of(before, after)),
-		Problems: addedProblems(Team(in), Team(afterIn)),
-	}
+	report.Lines = effectLines(in.Name, before, after, effect.Of(before, after))
+	return report
 }
 
 // teamView is one read state of a team definition, as effect.Of wants it: the

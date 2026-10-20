@@ -106,19 +106,6 @@ type apiTeamDraftRow struct {
 	Profile *string `json:"profile"`
 }
 
-// apiTeamItem is one team definition in the list.
-type apiTeamItem struct {
-	Name      string          `json:"name"`
-	Path      string          `json:"path"`
-	Hash      string          `json:"hash"`
-	Members   []apiTeamMember `json:"members"`
-	Workers   []apiTeamWorker `json:"workers"`
-	Turns     []t2Turn        `json:"turns"`
-	Prompt    t2Prompt        `json:"prompt"`
-	Agreement *apiTeamAgree   `json:"agreement,omitempty"`
-	Broken    bool            `json:"broken,omitempty"`
-}
-
 // apiTeamAgree is a team's own agreement as the screen reads it: where it
 // stands, its hash, whether the file is there at all, how many rules it holds,
 // and the document itself. A team with no agreement.yaml answers with Has false

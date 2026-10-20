@@ -10,6 +10,9 @@
   'use strict';
 
   const view = document.getElementById('view');
+  // The screen's tabs stand outside #view, so the press that changes the tab is
+  // caught on the whole wrap (監査 R2).
+  const wrapEl = document.querySelector('.wrap');
   if (!view) return;
   const DATA = JSON.parse(document.getElementById('teams-data').textContent);
   const API = window.hergyAPI;
@@ -166,6 +169,9 @@
       let node = null, worker = null, field = at, m;
       if ((m = /^members\[(\d+)\]/.exec(at))) { const mem = t.members[Number(m[1])]; node = mem ? mem.name : null; field = 'members'; }
       else if ((m = /^workers\[(\d+)\]/.exec(at))) { worker = Number(m[1]); field = 'workers'; }
+      // A sentence about a node ("node:analyst") stands beside that point: the
+      // graph's own problems reach the card and the figure that way (監査 R9).
+      else if (at.startsWith('node:')) { node = at.slice('node:'.length); field = 'node'; }
       else if (at === 'mission') { field = 'mission'; }
       else if (at.startsWith('rule:')) { field = at; }
       else { field = ''; }
@@ -177,9 +183,65 @@
   const teamIssues = (r) => r.findings;
   const pcountList = (c) => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
   const rowCounts = (r) => counts(pcountList(r.problems));
-  const dirtyDef = (r) => r.ops.length > 0 || (r.agree.saved ? agreeDiff(r) > 0 : false);
+  const dirtyDef = (r) => changeCount(r) > 0 || (r.agree.saved ? agreeDiff(r) > 0 : false);
+
+  // workerOrigin is the worker of the saved file a draft worker stands in, read
+  // back through the ops that changed its purpose or profile, or null when the
+  // draft added it: it is how a purpose typed one letter at a time still counts
+  // as one worker (spec-teams 1.4.6).
+  function workerOrigin(w, ops) {
+    let from = w.from, purpose = w.purpose, profile = w.profile;
+    for (let i = ops.length - 1; i >= 0; i--) {
+      const op = ops[i];
+      if (op.kind === 'workerPurpose' && op.from === from && op.new === purpose) purpose = op.old;
+      else if (op.kind === 'workerProfile' && op.from === from && op.purpose === purpose) profile = op.profile;
+      else if (op.kind === 'addWorker' && op.from === from && op.purpose === purpose) return null;
+    }
+    return { from, purpose, profile };
+  }
+
+  // changeCount is 1.4.6's `N か所`: the mission once, each turn that came in or
+  // left, each worker added or taken away, and each worker whose purpose or
+  // profile changed — one apiece, however many keystrokes wrote it.
+  function changeCount(r) {
+    const t = r.team.draft, s = r.team.saved, ops = r.ops || [];
+    let n = t.mission !== s.mission ? 1 : 0;
+    const key = (a, b) => a + '\x00' + b;
+    const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
+    const wasT = new Set((s.turns || []).map(([a, b]) => key(a, b)));
+    nowT.forEach((k) => { if (!wasT.has(k)) n++; });
+    wasT.forEach((k) => { if (!nowT.has(k)) n++; });
+    const wasW = new Map((s.workers || []).map((w) => [key(w.from, w.purpose), w]));
+    const claimed = new Set();
+    (t.workers || []).forEach((w) => {
+      const o = workerOrigin(w, ops);
+      if (!o) { n++; return; }
+      claimed.add(key(o.from, o.purpose));
+      const sw = wasW.get(key(o.from, o.purpose));
+      if (!sw) { n++; return; }
+      if (w.purpose !== o.purpose || w.profile !== o.profile) n++;
+    });
+    wasW.forEach((sw, k) => { if (!claimed.has(k)) n++; });
+    (t.members || []).forEach((m) => {
+      const sm = (s.members || []).find((x) => x.name === m.name);
+      if (sm && (sm.role !== m.role || sm.profile !== m.profile)) n++;
+    });
+    return n;
+  }
 
   // ---- 姿：図の配置（モック 1.4.2 から逐語） ---------------------------
+  // The figure's own width is the viewBox's width. It is set here, after the SVG
+  // is drawn, because a style attribute on an SVG is what CSP stops (監査 R1):
+  // the sheet's `width: min(100%, var(--gw))` then holds, so the figure is drawn
+  // at its own size and the card has the empty room beside it to stand in.
+  function fitFigure(panel) {
+    const wrap = $('.gwrap', panel);
+    if (!wrap) return;
+    const svg = $('svg', wrap);
+    if (!svg) return;
+    const w = Number((svg.dataset.vb || '').split(' ')[2]);
+    if (w) svg.style.setProperty('--gw', w + 'px');
+  }
   const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.5 : 7.4), 0);
   const narrow = () => window.innerWidth <= 760;
   function layout(t) {
@@ -272,7 +334,7 @@
     const [x, y, w, h] = L.vb;
     const mi = dkey(r).replace('.', '-');
     const marker = (id, cls) => `<marker id="ar-${mi}-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class="mk-${cls}" d="M0,0 L10,5 L0,10 z"></path></marker>`;
-    const svg = `<svg style="--gw:${w.toFixed(0)}px" viewBox="${x.toFixed(0)} ${y.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}" data-vb="${[x, y, w, h].map((v) => v.toFixed(0)).join(' ')}" role="group" aria-label="${esc(r.name)} のチームの姿">
+    const svg = `<svg viewBox="${x.toFixed(0)} ${y.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}" data-vb="${[x, y, w, h].map((v) => v.toFixed(0)).join(' ')}" role="group" aria-label="${esc(r.name)} のチームの姿">
     <defs>${marker('n', 'n')}${marker('a', 'a')}${marker('c', 'c')}${marker('w', 'w')}</defs>
     ${wedges}${edges}${nodes}${wnodes}${plus}</svg>`;
     return svg.replace(/url\(#ar-(\w)\)/g, (m, c) => `url(#ar-${mi}-${c})`);
@@ -291,13 +353,27 @@
     state.effect[pk] = { lines: effect.lines || [], problems: figFindings(r, effect.problems || []) };
     if (after) after();
   }
-  const effectLines = (pk) => {
+  // The effect's lines are the prompt's own (spec-teams 1.4.4, X3): the screen
+  // groups them under the member and part they stand for and writes no sentence
+  // of its own. What the change takes away is struck through, once; what comes
+  // in is marked. The sentences the change would add are the server's problems.
+  const effectOf = (pk, member, part) => {
     const e = state.effect[pk];
-    if (!e) return '';
-    const lines = e.lines.flatMap((l) => (l.removed || []).map((x) => ({ sev: 'warn', msg: `${l.member}: ${x}` })));
-    const ms = [...lines, ...(e.problems || []).map((m) => ({ sev: m.sev, msg: m.text }))];
-    return ms.length ? `<ul class="vm">${ms.map(vmItem).join('')}</ul>` : '';
+    if (!e) return null;
+    const hit = (e.lines || []).filter((l) => l.member === member && (!part || l.part === part));
+    return {
+      removed: hit.flatMap((l) => l.removed || []),
+      added: hit.flatMap((l) => l.added || []),
+      problems: e.problems || [],
+    };
   };
+  const effLinesHTML = (ef) => (!ef ? ''
+    : (ef.removed || []).map((x) => `<s>${esc(x)}</s>`).join('') + (ef.added || []).map((x) => `<ins>${esc(x)}</ins>`).join(''));
+  const effProblemsHTML = (ef) => (ef && ef.problems.length
+    ? `<ul class="vm">${ef.problems.map((m) => vmItem({ sev: m.sev, msg: m.text })).join('')}</ul>` : '');
+  // vmList is the check's own sentences of a card: the finding's text, not the
+  // finding (its field and where it stands are the panel's, not the sentence's).
+  const vmList = (ms) => (ms.length ? `<ul class="vm">${ms.map((m) => vmItem({ sev: m.sev, msg: m.text })).join('')}</ul>` : '');
 
   function dirHTML(r, a, b) {
     const d = r, t = r.team.draft, s = r.team.saved, here = hasTurn(t, a, b), was = hasTurn(s, a, b);
@@ -307,7 +383,7 @@
     return `<div class="gdir">
     <div class="gdl"><code>${esc(nodeName(a))} → ${esc(nodeName(b))}</code>${!was ? '<span class="tag">足した</span>' : ''}
       <span class="acts">${asking ? `<button class="btn danger solid sm" data-act="turn-del" data-a="${esc(a)}" data-b="${esc(b)}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-a="${esc(a)}" data-b="${esc(b)}" data-pk="${esc(pk)}">消す</button>`}</span></div>
-    ${asking ? (a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span><s>- ${esc(turnLabel(d, t, b))}</s></div>`) + effectLines(pk) : pl}
+    ${asking ? (a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span>${effLinesHTML(effectOf(pk, herdr(d, a), 'turns'))}</div>`) + effProblemsHTML(effectOf(pk, herdr(d, a), 'turns')) : pl}
   </div>`;
   }
 
@@ -331,9 +407,9 @@
       <div class="gch"><code>${esc(w.from)}</code><span class="ar">→</span><span class="rl">ワーカー</span><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
       <div class="wrow"><input class="in-purpose" data-i="${sel.i}" value="${esc(w.purpose)}" placeholder="目的" autocomplete="off" aria-label="目的">
         <span class="sel"><select class="pickp" data-act-change="worker-prof" data-i="${sel.i}" aria-label="プロファイル">${profs.map((p) => `<option ${p === w.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span></div>
-      ${is.length ? `<ul class="vm">${is.map(vmItem).join('')}</ul>` : ''}
-      <div class="gdir"><div class="gpl"><span class="pk">${esc(herdr(r, w.from))} · ワーカーの追加</span>${asking ? `<s>${esc(w.purpose)} → ${esc(w.profile)}</s>` : `<span class="ln2">${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span>`}</div>
-        ${asking ? effectLines(pk) : ''}
+      ${vmList(is)}
+      <div class="gdir"><div class="gpl"><span class="pk">${esc(herdr(r, w.from))} · ワーカーの追加</span>${asking ? effLinesHTML(effectOf(pk, herdr(r, w.from), 'workers')) : `<span class="ln2">${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span>`}</div>
+        ${asking ? effProblemsHTML(effectOf(pk, herdr(r, w.from), 'workers')) : ''}
         <div class="gdl"><span class="acts">${asking ? `<button class="btn danger solid sm" data-act="worker-del" data-i="${sel.i}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-pk="${esc(pk)}">消す</button>`}</span></div></div>
     </div>`;
     }
@@ -345,7 +421,7 @@
     return `<div class="gcard" data-sel="node" data-id="${esc(id)}">
       <div class="gch"><code>${esc(nodeName(id))}</code><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
       ${m ? `<div class="links"><span class="uchip">ロール ${esc(m.role)}</span><span class="uchip">プロファイル ${esc(m.profile)}</span></div>` : ''}
-      ${is.length ? `<ul class="vm">${is.map(vmItem).join('')}</ul>` : ''}
+      ${vmList(is)}
       <div class="tl"><span class="gsub">${id === 'human' ? '人間が渡す相手' : `${esc(herdr(r, id))} · ターンを渡す相手`}</span>
         ${outs.map((q) => `<div class="row ${hasTurn(s, id, q) ? '' : 'new'}"><span>- ${esc(id === 'human' ? nodeName(q) : turnLabel(r, t, q))}</span><button class="x" data-act="pick-edge" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="${esc(nodeName(q))} へのターン">›</button></div>`).join('')}
         ${gone.map((q) => `<div class="row"><span><s>- ${esc(nodeName(q))}</s></span><span class="tag">消した</span><button class="x" data-act="turn-add" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="戻す">↺</button></div>`).join('')}
@@ -359,7 +435,8 @@
 
   // 札を、押した点・線の横に置く。点を隠さない場所を、右・左・下・上・図の外の右から選ぶ
   function placeCard(panel) {
-    const card = $('.gcard', panel), wrap = $('.gwrap', panel), svg = $('svg', wrap);
+    fitFigure(panel);
+    const card = $('.gcard', panel), wrap = $('.gwrap', panel), svg = wrap ? $('svg', wrap) : null;
     if (!card || !svg || getComputedStyle(card).position !== 'absolute') return;
     const [vx, vy, vw, vh] = svg.dataset.vb.split(' ').map(Number), sc = svg.clientWidth / vw;
     const d = byKey(panel.dataset.key), L = layout(d.team.draft);
@@ -385,18 +462,32 @@
     card.style.left = best[0] + 'px'; card.style.top = best[1] + 'px';
   }
 
+  // ownAgreement is whether a rule finding is about the team's own agreement:
+  // those are the team's promises and stand under チームの約束, while the rules of
+  // the role documents its members read stand under ロールの文書 (spec-teams 1.4.5,
+  // 1.7, 監査 R9).
+  const ownAgreement = (r, m) => {
+    const path = (m.field || '').replace(/^rule:/, '').split('#')[0];
+    return !!r.agreePath && path.endsWith('/teams/' + r.name + '/agreement.yaml');
+  };
+  const ruleID = (m) => ((m.field || '').split('#')[1] || '');
+
   function vlistHTML(r) {
     const issues = teamIssues(r);
-    const out = issues.filter((m) => m.field && m.field.startsWith('rule:'));
-    const own = issues.filter((m) => !(m.field && m.field.startsWith('rule:')));
+    const at = (m) => m.field && m.field.startsWith('rule:');
+    const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
+    const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
+    const own = issues.filter((m) => !at(m));
     const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : '');
+    const file = (m) => esc((m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop());
     return `<div class="vhead"><span class="vt">validate</span>${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
       + own.map((m) => `<button class="vitem" data-act="vpick" ${m.node ? `data-node="${esc(m.node)}"` : ''} ${m.worker != null && m.worker >= 0 ? `data-worker="${m.worker}"` : ''}>${sevChip(m.sev)}<span class="lno">${esc(where(m))}</span><span class="msg">${esc(m.text)}</span></button>`).join('')
-      + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="/roles">${sevChip(m.sev)}<span class="lno">${esc((m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop())}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
+      + (teamOut.length ? `<div class="vsub">チームの約束</div>` + teamOut.map((m) => `<button class="vitem" data-act="vrule" data-name="${esc(r.name)}" data-id="${esc(ruleID(m))}">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></button>`).join('') : '')
+      + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="/roles">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
   }
 
   function teamPanelHTML(r) {
-    const n = r.ops.length, k = dkey(r);
+    const k = dkey(r);
     const head = `<header class="ph"><code class="path">${esc(r.teamPath)}</code>
       <span class="phr">${(r.places || []).length > 1 ? `<span class="state ${r.place === 'global' ? 'off' : 'on'}">${r.place === 'global' ? '隠れている' : '効いている'}</span>` : ''}</span></header>`;
     // A team.yaml that does not read draws no figure and offers no shape save:
@@ -406,23 +497,30 @@
     ${head}
     <div class="gbody"><div class="vlist">${vlistHTML(r)}</div></div>
   </section>`;
-    const ok = state.ok['t' + k] ? (delete state.ok['t' + k], '<span class="ok">保存しました</span>') : '';
-    // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
-    // stops only when an error the file did not hold has appeared.
-    const issues = teamIssues(r);
-    const before = new Set((r.baseFindings || []).filter((m) => m.sev === 'err').map((m) => m.text));
-    const grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
     return `<section class="panel team-p" data-key="${k}">
     ${head}
     <div class="gbody">
       <div class="gwrap"><div class="gscroll">${graphSVG(r)}</div>${cardHTML(r)}</div>
       <div class="vlist">${vlistHTML(r)}</div>
     </div>
-    <footer class="pf">
+    ${footHTML(r)}
+  </section>`;
+  }
+
+  // footHTML is the shape panel's foot: the save of the ops, the count 1.4.6
+  // counts, and 元に戻す while there is something to put back.
+  function footHTML(r) {
+    const n = changeCount(r), k = dkey(r);
+    const ok = state.ok['t' + k] ? (delete state.ok['t' + k], '<span class="ok">保存しました</span>') : '';
+    // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
+    // stops only when an error the file did not hold has appeared.
+    const issues = teamIssues(r);
+    const before = new Set((r.baseFindings || []).filter((m) => m.sev === 'err').map((m) => m.text));
+    const grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
+    return `<footer class="pf">
       <button class="btn primary" data-act="t-save" ${!n || grew ? 'disabled' : ''}>保存</button><span class="dirty">${n ? `${n} か所` : ''}</span>${ok}
       <span class="acts"><button class="btn" data-act="t-revert" ${n ? '' : 'hidden'}>元に戻す</button></span>
-    </footer>
-  </section>`;
+    </footer>`;
   }
 
   // ---- 約束のパネル（ロールの画面と同じ共有の部品） --------------------
@@ -431,8 +529,7 @@
     const mode = state.pmode[dkey(r)] || 'edit';
     const ok = state.ok['a' + dkey(r)] ? (delete state.ok['a' + dkey(r)], '<span class="ok">保存しました</span>') : '';
     return `<section class="panel agree-p ${shadowed ? 'shadowed' : ''}" data-uid="${r.uid}" data-l="${r.place}" data-key="${dkey(r)}" data-mode="${mode}">
-    <header class="ph"><span class="ln">${PLACE[r.place] || ''}</span>
-      <code class="path">${esc(r.agreePath)}</code>
+    <header class="ph"><code class="path">${esc(r.agreePath)}</code>
       <span class="phr">
         ${both ? `<span class="state ${shadowed ? 'off' : 'on'}">${shadowed ? '隠れている' : '効いている'}</span>` : ''}
         <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => `<button class="${mode === v ? 'on' : ''}" data-act="pmode" data-v="${v}" aria-pressed="${mode === v}">${label}</button>`).join('')}</span>
@@ -440,7 +537,7 @@
     <div class="pmain">${RD.body(rowOfPanel(r))}</div>
     <footer class="pf">
       <button class="btn primary" data-act="save">保存</button><span class="errline doc" hidden></span><span class="dirty"></span><span class="vcount"></span>${ok}
-      <span class="acts"><button class="btn" data-act="revert">元に戻す</button></span>
+      <span class="acts"><button class="btn" data-act="revert" ${agreeDiff(r) > 0 ? '' : 'hidden'}>元に戻す</button></span>
     </footer></section>`;
   }
   function rowOfPanel(r) {
@@ -454,7 +551,13 @@
       turns: r.check ? r.check.turns : [],
     };
   }
-  const markPanel = (panel) => { if (panel) RD.mark(panel); };
+  const markPanel = (panel) => {
+    if (!panel) return;
+    RD.mark(panel);
+    const r = byKey(panel.dataset.key);
+    const rev = $('[data-act="revert"]', panel);
+    if (r && rev) rev.hidden = !(agreeDiff(r) > 0);
+  };
 
   // ---- 一覧の行 --------------------------------------------------------
   function sumInner(r) {
@@ -479,7 +582,7 @@
   const dtabOf = (r) => state.dtab[r.name] || 'shape';
   function dtabsHTML(r) {
     const cur = dtabOf(r), dot = (on) => (on ? '<i class="dot"></i>' : '');
-    return [['shape', 'チームの姿', '', r.ops.length > 0], ['agree', 'チームの約束', String(rulesOf(r.agree.draft).length), r.agree.saved ? agreeDiff(r) > 0 : false]]
+    return [['shape', 'チームの姿', '', changeCount(r) > 0], ['agree', 'チームの約束', String(rulesOf(r.agree.draft).length), r.agree.saved ? agreeDiff(r) > 0 : false]]
       .map(([t, label, n, ch]) => `<button class="dtab ${cur === t ? 'on' : ''}" data-act="dtab" data-t="${t}" aria-pressed="${cur === t}">${label}${n !== '' ? `<span class="n">${n}</span>` : ''}${dot(ch)}</button>`).join('');
   }
   function detailHTML(r) {
@@ -518,7 +621,7 @@
     const dt = q('.dtabs .dtab[data-t=agree]');
     if (dt) { const rs = rulesOf(r.agree.draft); dt.innerHTML = `チームの約束<span class="n">${rs.length}</span>${r.agree.saved && agreeDiff(r) > 0 ? '<i class="dot"></i>' : ''}`; }
     const st = q('.dtabs .dtab[data-t=shape]');
-    if (st) { const dot = st.querySelector('.dot'); if (r.ops.length && !dot) st.insertAdjacentHTML('beforeend', '<i class="dot"></i>'); else if (!r.ops.length && dot) dot.remove(); }
+    if (st) { const dot = st.querySelector('.dot'); const ch = changeCount(r) > 0; if (ch && !dot) st.insertAdjacentHTML('beforeend', '<i class="dot"></i>'); else if (!ch && dot) dot.remove(); }
     const cell = q('.c-mission .in-mission');
     if (cell) cell.classList.toggle('changed', cell.value !== r.team.saved.mission);
     const mvm = q('.mvm');
@@ -628,6 +731,39 @@
     }
     refreshRow(r.name);
   }
+  // softTeam draws again what a worker's purpose moves while a person types it
+  // (spec-teams 1.4.4, 監査 R7): the point's letters, that card's own checks and
+  // the foot's count. The field the person is typing in is not touched, so the
+  // cursor stays where it was.
+  function softTeam(r) {
+    const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (!panel) { refreshRow(r.name); return; }
+    const sc = $('.gscroll', panel);
+    if (sc) {
+      const left = sc.scrollLeft;
+      sc.outerHTML = `<div class="gscroll">${graphSVG(r)}</div>`;
+      const ns = $('.gscroll', panel);
+      if (ns) ns.scrollLeft = left;
+    }
+    const card = $('.gcard[data-sel=worker]', panel);
+    if (card) {
+      const i = +card.dataset.i, is = teamIssues(r).filter((m) => m.worker === i), w = r.team.draft.workers[i];
+      const ul = $('.vm', card);
+      if (is.length) {
+        const html = vmList(is);
+        if (ul) ul.outerHTML = html;
+        else { const gdir = $('.gdir', card); if (gdir) gdir.insertAdjacentHTML('beforebegin', html); }
+      } else if (ul) ul.remove();
+      const ln = $('.gpl .ln2', card);
+      if (w && ln) ln.textContent = `${w.purpose || '（目的）'} → ${w.profile}`;
+    }
+    const vl = $('.vlist', panel);
+    if (vl) vl.outerHTML = `<div class="vlist">${vlistHTML(r)}</div>`;
+    const ft = $('footer.pf', panel);
+    if (ft) ft.outerHTML = footHTML(r);
+    placeCard(panel);
+    refreshRow(r.name);
+  }
   function rerenderAgree(panel, sel) {
     const r = panel && byKey(panel.dataset.key);
     if (!r) return panel;
@@ -686,14 +822,27 @@
   }
   async function checkTeam(r) {
     const id = ++r.req;
+    // A check sent with no ops reads the saved file, so its findings are the
+    // baseline the save gate is held to (spec-teams X3). It is taken from the
+    // request rather than from the answer's turn, and kept even when a later
+    // check has made this answer too old to draw: the file it read is the one a
+    // save would write over, and a person who writes before the first answer
+    // has come back still gets the file's own problems as the baseline.
+    const based = !r.ops.length;
     const res = await API.check('team', teamIn(r, { doc: { ops: r.ops } }));
-    if (id !== r.req || !res.ok) return;
+    if (!res.ok) return;
     const json = API.answer(res);
-    r.findings = figFindings(r, json.problems || []);
-    // The saved file's own findings are the save gate's baseline: a save stops
-    // only when an error the file did not hold has appeared (spec-teams X3).
-    if (!r.ops.length) r.baseFindings = r.findings;
-    rerenderSides(r);
+    const findings = figFindings(r, json.problems || []);
+    if (based) r.baseFindings = findings;
+    if (id !== r.req) return;
+    r.findings = findings;
+    // Someone typing a worker's purpose keeps the field they are typing in: that
+    // card's checks and the point's letters are drawn again, the panel is not
+    // (spec-teams 1.4.4, 監査 R7).
+    const act = document.activeElement;
+    const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+    if (act && act.matches && act.matches('.in-purpose') && act.closest('.panel') === panel) softTeam(r);
+    else rerenderSides(r);
   }
   // afterAgree re-marks the panel the check answered for: the shared part reads
   // the Markdown, the diff and the problems through host.row, so it draws the
@@ -827,7 +976,7 @@
     return { panel, d: r, a, x: f && f.x, si, ri: f && f.ri, oi, key: `${dkey(r)}-${f ? f.x._k : ''}` };
   };
 
-  view.addEventListener('click', (e) => {
+  wrapEl.addEventListener('click', (e) => {
     if (e.target.closest('.in-mission')) return;
     const b = e.target.closest('[data-act]');
     if (!b) return;
@@ -855,9 +1004,31 @@
       }
       case 'turn-ask-no': delete state.confirm[b.dataset.pk]; rerenderTeam(td); break;
       case 'turn-del': { const a = b.dataset.a, bb = b.dataset.b; delete state.confirm[`t:${tk}:${a}>${bb}`]; pushOp(td, { kind: 'removeTurn', from: a, to: bb }); syncTeam(td); break; }
-      case 'worker-add': pushOp(td, { kind: 'addWorker', from: b.dataset.from, purpose: '', profile: PROFILES[0] || '' }); state.gsel[tk] = { type: 'worker', i: td.team.draft.workers.length }; syncTeam(td); break;
+      case 'worker-add': {
+        pushOp(td, { kind: 'addWorker', from: b.dataset.from, purpose: '', profile: PROFILES[0] || '' });
+        state.gsel[tk] = { type: 'worker', i: td.team.draft.workers.length };
+        syncTeam(td);
+        // The card opens with the cursor in the purpose (spec-teams 1.4.4).
+        const pi = $(`.panel.team-p[data-key="${CSS.escape(tk)}"] .gcard[data-sel=worker] .in-purpose`);
+        if (pi) pi.focus({ preventScroll: true });
+        break;
+      }
       case 'worker-del': { const pk = `w:${tk}:${b.dataset.i}`; delete state.confirm[pk]; const w = td.team.draft.workers[+b.dataset.i]; if (w) pushOp(td, { kind: 'removeWorker', from: w.from, purpose: w.purpose }); delete state.gsel[tk]; syncTeam(td); break; }
       case 'vpick': if (b.dataset.node) state.gsel[tk] = { type: 'node', id: b.dataset.node }; else if (b.dataset.worker != null) state.gsel[tk] = { type: 'worker', i: +b.dataset.worker }; rerenderTeam(td); break;
+      case 'vrule': {
+        // A warning about the team's own agreement opens that rule (spec-teams
+        // 1.4.5, 1.7, 監査 R9).
+        const r2 = byName(b.dataset.name);
+        if (!r2) break;
+        state.open.add(r2.name);
+        state.dtab[r2.name] = 'agree';
+        const hit = rulesOf(r2.agree.draft).find((x) => String(x.id) === b.dataset.id);
+        if (hit) RD.state.ropen.add(`${r2.uid}${r2.place}:${hit._k}`);
+        render();
+        checkAgree(r2);
+        syncURL();
+        break;
+      }
       case 't-save': saveTeam(td, tp); break;
       case 't-revert': td.ops = []; delete state.gsel[tk]; state.confirm = {}; syncTeam(td); rerenderRow(td); break;
       case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
@@ -903,14 +1074,14 @@
       return;
     }
     if (t.matches('.in-purpose')) {
-      const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i, pos = t.selectionStart;
+      // The field keeps its place and its cursor while the person types: only
+      // what the sentence moves is drawn again (spec-teams 1.4.4, 監査 R7).
+      const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i;
       const cur = r.team.draft.workers[i];
       if (!cur) return;
       pushOp(r, { kind: 'workerPurpose', from: cur.from, old: cur.purpose, new: t.value });
       r.team.draft = applyOps(r.team.saved, r.ops);
-      rerenderTeam(r, `.in-purpose[data-i="${i}"]`);
-      const ni = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"] .in-purpose[data-i="${i}"]`);
-      if (ni) ni.setSelectionRange(pos, pos);
+      softTeam(r);
       checkTeam(r);
       return;
     }
@@ -968,7 +1139,7 @@
 
   function take() {
     const teams = [];
-    for (const r of recs.values()) if (r.ops.length) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
+    for (const r of recs.values()) if (changeCount(r) > 0) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
     const agrees = [];
     for (const r of recs.values()) if (r.agree.saved && agreeDiff(r)) agrees.push({ place: r.place, name: r.name, hash: r.agreeHash, doc: RD.toDoc(r.agree.draft, r.agree.saved) });
     const files = FILES.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.ytext[f.file] }));
