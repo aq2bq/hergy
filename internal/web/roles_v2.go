@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
@@ -54,144 +53,6 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	_, _ = w.Write(buf.Bytes())
 }
 
-// r2CheckIn is what /roles/check carries.
-type r2CheckIn struct {
-	Place    string `json:"place"`
-	Original string `json:"original"`
-	Doc      r2Doc  `json:"doc"`
-}
-
-// r2Check answers what is wrong with the role document a panel holds. The draft
-// is checked as if it were saved (check.Role lays it over the catalog itself).
-func (s *Server) r2Check(r *http.Request) p2Answer {
-	var in r2CheckIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	original := in.Original
-	if original == in.Doc.Name {
-		original = ""
-	}
-	report := check.Role(check.RoleInput{
-		Catalog: s.cat, Place: catalog.Layer(in.Place), Name: in.Doc.Name,
-		Draft: in.Doc.document(), Original: original,
-	})
-	return p2JSONAnswer(report)
-}
-
-// r2SaveIn is what /roles/save carries.
-type r2SaveIn struct {
-	Place       string `json:"place"`
-	Original    string `json:"original"`
-	Doc         r2Doc  `json:"doc"`
-	RenameUsers bool   `json:"renameUsers"`
-	Hash        string `json:"hash"`
-	// Base is the file a duplicate or a copy is written from (spec-roles 1.2.9):
-	// the original's document, which the draft keeps the places of and the
-	// server writes its lines from. Empty means the file being replaced, or, for
-	// a row that has none, a new document written from the draft alone.
-	Base *r2Base `json:"base,omitempty"`
-}
-
-// r2Base is the file a save stands on when it is not the file it replaces.
-type r2Base struct {
-	Place string `json:"place"`
-	Name  string `json:"name"`
-}
-
-// r2Save writes one panel's draft into its role document, in one pass: every
-// value the draft changed over the lines the saved text already writes. A new
-// document is written from the draft (Emit); a duplicate or a copy is written
-// from the file it stands on, so the lines a person did not touch, a comment
-// among them, travel to the new file (spec-roles 1.2.9).
-func (s *Server) r2Save(r *http.Request) p2Answer {
-	var in r2SaveIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	if err := s.r2LayerDir(in.Place); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	target := s.cat.RolePath(in.Place, in.Doc.Name)
-	savedName := in.Original
-	if savedName == "" {
-		savedName = in.Doc.Name
-	}
-	old := s.cat.RolePath(in.Place, savedName)
-	if !catalog.RoleNamePattern.MatchString(in.Doc.Name) {
-		return r2NamedAnswer(http.StatusUnprocessableEntity, "name", tf("error.role_name_pattern", s.cat.Display(target)))
-	}
-	// The text the draft stands on: the file being replaced, or the file a
-	// duplicate or a copy is based on. A row with neither stands on nothing and
-	// is a new document.
-	basePath := old
-	if in.Base != nil {
-		basePath = s.cat.RolePath(in.Base.Place, in.Base.Name)
-	}
-	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
-	switch {
-	case readErr == nil:
-		if in.Hash != source.Hash(text) {
-			return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(old)))
-		}
-	case in.Hash != "":
-		return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(old)))
-	}
-	rename := in.Doc.Name != savedName
-	if rename {
-		if _, err := os.Stat(target); err == nil {
-			return r2NamedAnswer(http.StatusUnprocessableEntity, "name", tf("error.role_name_taken", in.Doc.Name, s.cat.Display(target)))
-		}
-	}
-	base, baseErr := text, readErr
-	if basePath != old {
-		base, baseErr = s.cat.Reader().Read(source.Doc{Path: basePath})
-	}
-	draftDoc := in.Doc.document()
-	var edited []byte
-	var err error
-	if baseErr != nil {
-		edited, err = emitNewRole(draftDoc)
-	} else {
-		saved, _ := rules.ReadAll(base, s.cat.Display(basePath))
-		if saved == nil {
-			saved = &rules.Document{Path: basePath}
-		}
-		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{Doc: draftDoc, From: in.Doc.froms(), SectionFrom: in.Doc.sectionFroms()})
-	}
-	if err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	writeHash := source.Hash("")
-	if readErr == nil {
-		writeHash = source.Hash(text)
-	}
-	if rename {
-		if err := source.WriteIfUnchanged(target, source.Hash(""), string(edited)); err != nil {
-			return r2WriteError(err, s.cat.Display(target))
-		}
-		if err := os.Remove(old); err != nil {
-			return p2TextAnswer(http.StatusInternalServerError, err.Error())
-		}
-	} else if err := source.WriteIfUnchanged(old, writeHash, string(edited)); err != nil {
-		return r2WriteError(err, s.cat.Display(old))
-	}
-	if rename && in.RenameUsers {
-		s.r2RenameUsers(savedName, in.Doc.Name)
-	}
-	doc, _ := rules.ReadAll(string(edited), s.cat.Display(target))
-	if doc == nil {
-		doc = &rules.Document{Path: target}
-	}
-	return p2JSONAnswer(map[string]any{
-		"ok":    true,
-		"hash":  source.Hash(string(edited)),
-		"text":  string(edited),
-		"rules": len(doc.Rules()),
-		"chars": rules.CharCount(doc.Markdown()),
-	})
-}
-
 // emitNewRole writes a new role document in hergy's one format.
 func emitNewRole(doc *rules.Document) ([]byte, error) {
 	text, err := rules.Emit(doc)
@@ -199,156 +60,6 @@ func emitNewRole(doc *rules.Document) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(text), nil
-}
-
-// r2NamedAnswer is a refusal that names the field the sentence belongs to, so
-// the screen puts a document's refusal at the panel's footer and a name's under
-// the name field (spec-roles 1.2.9).
-func r2NamedAnswer(status int, field, text string) p2Answer {
-	return p2Answer{
-		status: status, ctype: "application/json; charset=utf-8",
-		body: p2JSON(map[string]string{"text": text, "field": field}),
-	}
-}
-
-// r2DeleteIn is what /roles/delete carries.
-type r2DeleteIn struct {
-	Place string `json:"place"`
-	Name  string `json:"name"`
-	Hash  string `json:"hash"`
-}
-
-// r2Delete takes one role document out of its layer.
-func (s *Server) r2Delete(r *http.Request) p2Answer {
-	var in r2DeleteIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	path := s.cat.RolePath(in.Place, in.Name)
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if err == nil {
-		hash = source.Hash(text)
-	}
-	if in.Hash != hash {
-		return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(path)))
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return p2TextAnswer(http.StatusInternalServerError, err.Error())
-	}
-	return p2JSONAnswer(map[string]any{"ok": true})
-}
-
-// r2YAMLIn is what the YAML tab's checks and saves carry.
-type r2YAMLIn struct {
-	Place string `json:"place"`
-	Name  string `json:"name"`
-	Text  string `json:"text"`
-	Hash  string `json:"hash"`
-}
-
-// r2YAMLCheck answers what is wrong with the YAML a person is typing: the same
-// check.Role, read from the text, so a problem carries its YAML line.
-func (s *Server) r2YAMLCheck(r *http.Request) p2Answer {
-	var in r2YAMLIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	report := check.Role(check.RoleInput{Catalog: s.cat, Place: catalog.Layer(in.Place), Name: in.Name, Text: in.Text})
-	return p2JSONAnswer(map[string]any{"problems": report.Problems})
-}
-
-// r2YAMLSave writes one file's text as the person wrote it. It is refused only
-// when a problem the saved document did not have has appeared (spec-roles X3).
-func (s *Server) r2YAMLSave(r *http.Request) p2Answer {
-	var in r2YAMLIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	if err := s.r2LayerDir(in.Place); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	path := s.cat.RolePath(in.Place, in.Name)
-	display := s.cat.Display(path)
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if err == nil {
-		hash = source.Hash(text)
-	}
-	if in.Hash != hash {
-		return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", display))
-	}
-	_, before := rules.ReadAll(text, display)
-	known := map[string]bool{}
-	for _, problem := range before {
-		if problem.Sev == rules.SevError {
-			known[problem.Text] = true
-		}
-	}
-	_, after := rules.ReadAll(in.Text, display)
-	for _, problem := range after {
-		if problem.Sev == rules.SevError && !known[problem.Text] {
-			return p2TextAnswer(http.StatusUnprocessableEntity, problem.Text)
-		}
-	}
-	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
-		return r2WriteError(err, display)
-	}
-	doc, _ := rules.ReadAll(in.Text, display)
-	if doc == nil {
-		doc = &rules.Document{Path: path}
-	}
-	return p2JSONAnswer(map[string]any{
-		"hash": source.Hash(in.Text),
-		"doc":  r2DocOf(doc, source.Hash(in.Text), in.Text),
-	})
-}
-
-// r2AssignIn is what the assign tab carries: one card's changed picks.
-type r2AssignIn struct {
-	Definition string           `json:"definition"`
-	Changes    []r2AssignChange `json:"changes"`
-	Hash       string           `json:"hash"`
-}
-
-type r2AssignChange struct {
-	Member string `json:"member"`
-	Role   string `json:"role"`
-}
-
-// r2AssignSave writes one card's picks into its team.yaml.
-func (s *Server) r2AssignSave(r *http.Request) p2Answer {
-	var in r2AssignIn
-	if err := r2Decode(r, &in); err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	listing, ok := s.r2Listing(in.Definition)
-	if !ok {
-		return p2TextAnswer(http.StatusNotFound, tf("web.error.not_found"))
-	}
-	path := listing.GlobalPath
-	if listing.Local {
-		path = listing.LocalPath
-	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-	}
-	if in.Hash != source.Hash(text) {
-		return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(path)))
-	}
-	edited := text
-	for _, change := range in.Changes {
-		next, err := definition.EditYAML([]byte(edited), s.cat.Display(path), definition.MemberRole(change.Member, change.Role))
-		if err != nil {
-			return p2TextAnswer(http.StatusUnprocessableEntity, err.Error())
-		}
-		edited = string(next)
-	}
-	if err := source.WriteIfUnchanged(path, source.Hash(text), edited); err != nil {
-		return r2WriteError(err, s.cat.Display(path))
-	}
-	return p2JSONAnswer(map[string]any{"ok": true, "hash": source.Hash(edited)})
 }
 
 // r2LayerDir stops a write that would make a layer that is not there: a project
@@ -362,22 +73,12 @@ func (s *Server) r2LayerDir(place string) error {
 	return nil
 }
 
-// r2WriteError turns a write's failure into the answer a person reads.
-func r2WriteError(err error, display string) p2Answer {
+// r2WriteError turns a write's failure into the refusal a person reads.
+func r2WriteError(err error, display string) (any, *apiErr) {
 	if errors.Is(err, source.ErrChanged) {
-		return p2TextAnswer(http.StatusConflict, tf("error.rules_file_changed", display))
+		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", display))
 	}
-	return p2TextAnswer(http.StatusInternalServerError, err.Error())
-}
-
-// r2Listing is one team definition as the catalog lists it.
-func (s *Server) r2Listing(name string) (catalog.Listing, bool) {
-	for _, listing := range s.cat.Definitions() {
-		if listing.Name == name {
-			return listing, true
-		}
-	}
-	return catalog.Listing{}, false
+	return nil, refuse(http.StatusInternalServerError, err.Error())
 }
 
 // r2RenameUsers writes a renamed role's new name into every definition whose

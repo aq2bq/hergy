@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"slices"
 	"strings"
 
@@ -26,179 +27,180 @@ const (
 // p2Data is one answer of GET /profiles: the tab, its counts and the parts that
 // tab shows.
 type p2Data struct {
-	Lang         string
-	Nav          navData
-	Tab          string
-	Token        string
-	ProfileCount int
-	AssignCount  int
-	HashProject  string
-	HashShared   string
-	PathProject  string
-	PathShared   string
-	OtherKinds   string
-	Kinds        []p2Kind
-	Query        string
-	KindFilter   string
-	Rows         []p2Row
-	Empty        bool
-	NoMatch      bool
-	Assign       *p2Assign
-	Files        []p2Yed
+	Lang         string      `json:"-"`
+	Nav          navData     `json:"-"`
+	Token        string      `json:"-"`
+	Data         template.JS `json:"-"`
+	Tab          string      `json:"tab"`
+	ProfileCount int         `json:"profileCount"`
+	AssignCount  int         `json:"assignCount"`
+	HashProject  string      `json:"hashProject"`
+	HashShared   string      `json:"hashShared"`
+	PathProject  string      `json:"pathProject"`
+	PathShared   string      `json:"pathShared"`
+	OtherKinds   string      `json:"otherKinds"`
+	Kinds        []p2Kind    `json:"kinds"`
+	Query        string      `json:"query"`
+	KindFilter   string      `json:"kindFilter"`
+	Rows         []p2Row     `json:"rows"`
+	Empty        bool        `json:"empty"`
+	NoMatch      bool        `json:"noMatch"`
+	Assign       *p2Assign   `json:"assign,omitempty"`
+	Files        []p2Yed     `json:"files,omitempty"`
 }
 
 // p2Kind is one chip of the profile tab's toolbar.
 type p2Kind struct {
-	Name      string
-	Count     int
-	KindClass string
-	On        bool
+	Name      string `json:"name"`
+	Count     int    `json:"count"`
+	KindClass string `json:"kindClass"`
+	On        bool   `json:"on"`
 }
 
 // p2Place is one 「置き場所」 pill: プロジェクト or 共通, and whether it is the
 // one in effect.
 type p2Place struct {
-	Label string
-	State string // "on", "shadow" or "pending"
+	Label string `json:"label"`
+	State string `json:"state"` // "on", "shadow" or "pending"
 }
 
 // p2UserChip is one person a profile is used by, as the expanded row shows it.
 type p2UserChip struct {
-	Def    string
-	ID     string // m-<i> or w-<i>
-	Who    string
-	Role   string
-	Worker bool
-	Local  bool // the definition is the project's own, so it reads the project's file
+	Def    string `json:"def"`
+	ID     string `json:"id"` // m-<i> or w-<i>
+	Who    string `json:"who"`
+	Role   string `json:"role"`
+	Worker bool   `json:"worker"`
+	Local  bool   `json:"local"` // the definition is the project's own, so it reads the project's file
 }
 
 // p2Panel is one file's panel of an expanded row: the values a save would write
 // and the values the file holds now.
 type p2Panel struct {
-	File        string
-	Label       string
-	Path        string
-	Saved       bool
-	Shadowed    bool
-	Both        bool
-	Other       string
-	OtherLabel  string
-	Name        string
-	Kind        string
-	KindClass   string
-	Args        []string
-	Env         []profile.EnvPair
-	ArgsJSON    string
-	EnvJSON     string
-	SavedName   string
-	SavedKind   string
-	SavedArgs   string
-	SavedEnv    string
-	Hash        string
-	Users       int
-	RenameUsers int
-	Problems    []profile.Problem
-	Err         int
-	Warn        int
-	SavedLine   bool
+	File        string            `json:"file"`
+	Label       string            `json:"label"`
+	Path        string            `json:"path"`
+	Saved       bool              `json:"saved"`
+	Shadowed    bool              `json:"shadowed"`
+	Both        bool              `json:"both"`
+	Other       string            `json:"other"`
+	OtherLabel  string            `json:"otherLabel"`
+	Name        string            `json:"name"`
+	Kind        string            `json:"kind"`
+	KindClass   string            `json:"kindClass"`
+	Args        []string          `json:"args"`
+	Env         []profile.EnvPair `json:"env"`
+	ArgsJSON    string            `json:"argsJSON"`
+	EnvJSON     string            `json:"envJSON"`
+	SavedName   string            `json:"savedName"`
+	SavedKind   string            `json:"savedKind"`
+	SavedArgs   string            `json:"savedArgs"`
+	SavedEnv    string            `json:"savedEnv"`
+	Hash        string            `json:"hash"`
+	Users       int               `json:"users"`
+	RenameUsers int               `json:"renameUsers"`
+	Problems    []profile.Problem `json:"-"`
+	Err         int               `json:"err"`
+	Warn        int               `json:"warn"`
+	SavedLine   bool              `json:"savedLine"`
 }
 
 // p2Row is one profile of the list.
 type p2Row struct {
-	Name      string
-	Kind      string
-	KindClass string
-	New       bool
-	Open      bool
-	Places    []p2Place
-	Args      string
-	Env       []string
-	More      int
-	Users     int
-	Roles     string
-	Err       int
-	Warn      int
-	Chips     []p2UserChip
-	Panels    []p2Panel
+	Name      string       `json:"name"`
+	Kind      string       `json:"kind"`
+	KindClass string       `json:"kindClass"`
+	New       bool         `json:"new"`
+	Open      bool         `json:"open"`
+	Places    []p2Place    `json:"places"`
+	Args      string       `json:"args"`
+	Env       []string     `json:"env"`
+	More      int          `json:"more"`
+	Users     int          `json:"users"`
+	Roles     string       `json:"roles"`
+	Err       int          `json:"err"`
+	Warn      int          `json:"warn"`
+	Chips     []p2UserChip `json:"chips"`
+	Panels    []p2Panel    `json:"panels"`
 }
 
 // p2KindBar is one segment of the assign tab's kind bar.
 type p2KindBar struct {
-	Name      string
-	Count     int
-	Grow      string
-	KindClass string
-	Dim       bool
-	On        bool
+	Name      string `json:"name"`
+	Count     int    `json:"count"`
+	Grow      string `json:"grow"`
+	KindClass string `json:"kindClass"`
+	Dim       bool   `json:"dim"`
+	On        bool   `json:"on"`
 }
 
 // p2Assign is the assign tab.
 type p2Assign struct {
-	Kinds []p2KindBar
-	Teams []p2Team
-	Empty bool
+	Kinds []p2KindBar `json:"kinds"`
+	Teams []p2Team    `json:"teams"`
+	Empty bool        `json:"empty"`
 }
 
 // p2Team is one team definition's card.
 type p2Team struct {
-	Name    string
-	Path    string
-	Members int
-	Workers int
-	Err     int
-	Rows    []p2ARow
-	Hash    string
-	Saved   bool
+	Name    string   `json:"name"`
+	Path    string   `json:"path"`
+	Members int      `json:"members"`
+	Workers int      `json:"workers"`
+	Err     int      `json:"err"`
+	Rows    []p2ARow `json:"rows"`
+	Hash    string   `json:"hash"`
+	Saved   bool     `json:"saved"`
 }
 
 // p2ARow is one member or worker of a card.
 type p2ARow struct {
-	Kind    string // "m" or "w"
-	ID      string // "m-<i>" or "w-<i>"
-	Name    string
-	Role    string
-	Profile string
-	Missing bool
-	Error   string
-	Options []p2OptionGroup
-	KindOf  string
-	KindCls string
-	Dim     bool
+	Kind    string          `json:"kind"` // "m" or "w"
+	ID      string          `json:"id"`   // "m-<i>" or "w-<i>"
+	Name    string          `json:"name"`
+	Role    string          `json:"role"`
+	Profile string          `json:"profile"`
+	Missing bool            `json:"missing"`
+	Error   string          `json:"error"`
+	Options []p2OptionGroup `json:"options"`
+	KindOf  string          `json:"kindOf"`
+	KindCls string          `json:"kindCls"`
+	Dim     bool            `json:"dim"`
 }
 
 // p2OptionGroup is one kind's choices of a select.
 type p2OptionGroup struct {
-	Kind  string
-	Names []string
+	Kind  string   `json:"kind"`
+	Names []string `json:"names"`
 }
 
 // p2Yed is one file's section of the YAML tab.
 type p2Yed struct {
-	File     string
-	Label    string
-	Path     string
-	Text     string
-	Hash     string
-	Height   string
-	Lines    []p2Line
-	Problems []p2YProblem
-	Err      int
-	Warn     int
-	Dirty    bool
-	Missing  bool
+	File     string       `json:"file"`
+	Label    string       `json:"label"`
+	Path     string       `json:"path"`
+	Text     string       `json:"text"`
+	Hash     string       `json:"hash"`
+	Height   string       `json:"height"`
+	Lines    []p2Line     `json:"lines"`
+	Problems []p2YProblem `json:"problems"`
+	Err      int          `json:"err"`
+	Warn     int          `json:"warn"`
+	Dirty    bool         `json:"dirty"`
+	Missing  bool         `json:"missing"`
 }
 
 // p2Line is one line of the gutter, with the mark a problem put on it.
 type p2Line struct {
-	N    int
-	Mark string
+	N    int    `json:"n"`
+	Mark string `json:"mark"`
 }
 
 // p2YProblem is one problem of the YAML tab.
 type p2YProblem struct {
-	Sev  string
-	Line int
-	Text string
+	Sev  string `json:"sev"`
+	Line int    `json:"line"`
+	Text string `json:"text"`
 }
 
 // p2File is one profiles.yaml as this reading found it. ok says the file is

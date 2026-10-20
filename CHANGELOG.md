@@ -36,6 +36,19 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   save writes the one line that changed and leaves every other line of the file
   as it was; a move writes the same lines in another order.
 
+### Changed
+
+- **The screens read and write through one boundary**: every screen `hergy serve`
+  serves now answers JSON under `/api/` — `GET /api/{kind}`, `GET
+  /api/{kind}/{name}`, `POST /api/{kind}/check`, `PUT /api/{kind}/{name}` and
+  `DELETE /api/{kind}/{name}`, where `kind` is `profile`, `role` or `team` — with
+  the run's token on the `X-Hergy-Token` header, and draws its rows, cards and
+  YAML sections in the page's own script from one island of JSON, where it used
+  to receive HTML fragments. Nothing a person sees or does changes: the screens
+  look and behave as they did, and `hergy validate` still decides whether the
+  settings hold. The old per-screen endpoints (`/profiles/save`,
+  `/profiles/yaml/check`, `/roles/assign/save` and their pairs) are gone.
+
 ### Breaking
 
 - **A rule file no longer writes `style:`**: a section's rules are rendered as

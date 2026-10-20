@@ -398,15 +398,20 @@ func TestTheBandStandsOnAnErrorAndTheGuardHolds(t *testing.T) {
 	}
 
 	// A write without the token of this run never reaches its handler.
-	resp2, _ := f.post(t, server, "/profiles/check", url.Values{"token": {""}, "file": {"project"}})
-	if resp2.StatusCode != http.StatusForbidden {
-		t.Errorf("a write without the token answers %d, want 403", resp2.StatusCode)
+	req = httptest.NewRequest(http.MethodPost, "/api/profile/check", strings.NewReader(`{"place":"project"}`))
+	req.Host = "127.0.0.1:8787"
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	server.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("a write without the token answers %d, want 403", rec.Code)
 	}
 
 	// A write from another page is refused too.
-	req = httptest.NewRequest(http.MethodPost, "/profiles/check", strings.NewReader("token="+server.token))
+	req = httptest.NewRequest(http.MethodPost, "/api/profile/check", strings.NewReader(`{"place":"project"}`))
 	req.Host = "127.0.0.1:8787"
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hergy-Token", server.token)
 	req.Header.Set("Origin", "http://example.com")
 	rec = httptest.NewRecorder()
 	server.handler.ServeHTTP(rec, req)
