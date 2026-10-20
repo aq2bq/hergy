@@ -433,6 +433,34 @@ func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
 	}
 }
 
+// TestValidateSaysALeftoverStyleOnce: the leftover-style warning names one file
+// and one section, and a file several definitions read is one line to delete, so
+// validate says it once for the whole run rather than once per definition
+// (d-f4f6).
+func TestValidateSaysALeftoverStyleOnce(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo")
+	mustRun(t, "new", "demo2")
+	// The starter role document keeps one style: line — the shape this release
+	// takes out — and both definitions read it, because a role document is
+	// looked up by the role's name.
+	path := filepath.Join(".hergy", "roles", "lead.yaml")
+	text := readFile(t, path)
+	writeFile(t, path, strings.Replace(text, "sections:\n  - rules:", "sections:\n  - style: ids\n    rules:", 1))
+
+	got := mustRun(t, "validate")
+	if n := strings.Count(got, "file: .hergy/teams/"); n != 2 {
+		t.Fatalf("validate read %d definitions, want the 2 that read the role document:\n%s", n, got)
+	}
+	want := i18n.Tf("rules.style_gone", ".hergy/roles/lead.yaml", "sections[0]")
+	if n := strings.Count(got, want); n != 1 {
+		t.Errorf("validate says the leftover-style sentence %d times, want once:\n%s", n, got)
+	}
+	if !strings.Contains(got, "problems: 0\n") {
+		t.Errorf("a leftover style: line is not a problem:\n%s", got)
+	}
+}
+
 // TestNewWritesTheProfileTheStarterTeamNames: the starter team's members name a
 // profile, so new writes that profile into the layer's profiles.yaml when the
 // layer cannot already resolve it (I7). The name says what it picks rather than

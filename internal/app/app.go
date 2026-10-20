@@ -715,6 +715,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	tally := &rules.Tally{}
 	var teams []teamSize
 	seenFiles := map[string]bool{}
+	saidStyles := map[string]bool{}
 	ledger := &ledgerCheck{env: env}
 	report := func(path string, err error) {
 		checked++
@@ -740,7 +741,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				continue
 			}
 			checked++
-			findings := check.Definition(check.Input{Catalog: cat, Name: row.Name, Layer: layer})
+			findings := styleOnce(check.Definition(check.Input{Catalog: cat, Name: row.Name, Layer: layer}), saidStyles)
 			if stops := printFindings(stdout, env, path, findings); stops > 0 {
 				problems += stops
 				continue
@@ -807,6 +808,27 @@ func printFindings(stdout io.Writer, env team.Env, path string, findings []check
 		indentField(stdout, 1, label("warning"), finding.Text)
 	}
 	return stops
+}
+
+// styleOnce drops a leftover-style warning that an earlier definition of this
+// run already printed, and remembers the ones it prints. The sentence names one
+// file and one section (d-f4f6), and a file several teams read is one line to
+// delete: the command line says it once for the whole run, under the first
+// definition that reads the file, rather than once per team. A screen shows one
+// definition at a time, so this is the command line's own shaping of its output,
+// like the warning about a common/ directory.
+func styleOnce(findings []check.Finding, said map[string]bool) []check.Finding {
+	out := make([]check.Finding, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Kind == check.KindStyle {
+			if said[finding.Text] {
+				continue
+			}
+			said[finding.Text] = true
+		}
+		out = append(out, finding)
+	}
+	return out
 }
 
 // cliFindings is what hergy validate prints of what a check found. It is

@@ -13,8 +13,9 @@ longer depends on a key.
   head of the item, so the ids are in the prompt wherever a section used to say
   `style: bullets`, `numbered` or `paragraphs`. A file that still writes
   `style:` reads — the line is ignored — and `hergy validate` warns once for each
-  section that writes one, naming the file, the heading and the line to delete
-  (`rules.style_gone`, in both languages; it moves no exit code). The role
+  section that writes one, however many teams read the file, naming the file,
+  the heading and the line to delete (`rules.style_gone`, in both languages; it
+  moves no exit code). The role
   screen no longer offers a style to pick, and the first save through it removes
   the line. `hergy new` writes no `style:` in the files it lays down.
 
