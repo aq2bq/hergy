@@ -25,12 +25,24 @@ import (
 // page read, so a file that moved under the page is refused, never written
 // over.
 
+// p2Island is the JSON the profile pages carry (spec-boundary 5): the profile
+// list in the boundary's shape, and, on the 割り当て tab, the assignment cards
+// (the team kind stays in the shape that tab reads).
+type p2Island struct {
+	Profile apiList   `json:"profile"`
+	Assign  *p2Assign `json:"assign,omitempty"`
+}
+
 // p2Page answers one tab of the profile screen with the whole page. It is not
 // drawn inside the old frame: this screen carries its own stylesheet and loads
 // no other, so its look is the one the mock agreed on.
 func (s *Server) p2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	data := s.p2Data(tab, r.URL.Query())
-	raw, err := json.Marshal(data)
+	island := p2Island{Profile: s.p2List()}
+	if tab == "assign" {
+		island.Assign = data.Assign
+	}
+	raw, err := json.Marshal(island)
 	if err != nil {
 		s.problem(w, r, err)
 		return
@@ -116,15 +128,6 @@ func (d p2Draft) profileOf() profile.Draft {
 		env = append(env, profile.EnvPair{Key: pair.Key, Value: pair.Value})
 	}
 	return profile.Draft{Name: d.Name, Kind: d.Kind, Args: d.Args, Env: env}
-}
-
-// p2ProblemsJSON is problems as the page reads them.
-func p2ProblemsJSON(problems []profile.Problem) []map[string]any {
-	out := make([]map[string]any, 0, len(problems))
-	for _, problem := range problems {
-		out = append(out, map[string]any{"sev": problem.Sev.Word(), "field": problem.Field, "text": problem.Text})
-	}
-	return out
 }
 
 // p2EditProfile is the ops one panel's save writes: the name, kind, args and env

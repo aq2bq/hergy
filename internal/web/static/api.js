@@ -30,11 +30,104 @@ window.hergyAPI = (() => {
     return { ok: response.ok, status: response.status, json, text };
   }
 
+  // ---- reading an answer's shape (spec-boundary 5) ---------------------
+  // One place reads what the server answers; a screen asks for its kind's model
+  // and draws that. No screen digs into the fields of an answer itself.
+
+  const PLACES = ['project', 'global'];
+  const PLACE_LABEL = { project: 'プロジェクト', global: '共通' };
+  const countOf = (c) => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
+  const jsonOf = (v) => JSON.stringify(v || []);
+
+  // profileModel is GET /api/profile read as the profile screen's model: the
+  // rows of the list, the two files the YAML tab draws, and the files' hashes.
+  function profileModel(list, openNames) {
+    const open = openNames || [];
+    return {
+      rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
+      files: ((list && list.files) || []).map((f) => ({
+        file: f.place, label: f.label, path: f.path, text: f.text, hash: f.hash,
+        problems: f.problems || [],
+      })),
+      hashes: (list && list.hashes) || {},
+    };
+  }
+
+  // profileRow is one item read as the row the list draws: each place becomes a
+  // panel, and the item's summary its columns.
+  function profileRow(item, isOpen) {
+    const places = item.places || {};
+    const hidden = item.hidden || [];
+    const s = item.summary || {};
+    const names = PLACES.filter((f) => places[f]);
+    const both = names.length > 1;
+    const panels = names.map((file) => {
+      const place = places[file] || {}, doc = place.doc || {};
+      const other = file === 'project' ? 'global' : 'project';
+      const c = countOf(place.problems);
+      return {
+        file, label: PLACE_LABEL[file], path: place.path || '', saved: true,
+        shadowed: hidden.indexOf(file) >= 0, both, other, otherLabel: PLACE_LABEL[other],
+        name: doc.name || '', kind: doc.kind || '',
+        args: doc.args || [], env: doc.env || [],
+        argsJSON: jsonOf(doc.args), envJSON: jsonOf(doc.env),
+        savedName: doc.name || '', savedKind: doc.kind || '',
+        savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
+        hash: place.hash || '', users: both ? 0 : (s.users || 0),
+        renameUsers: place.readers || 0, err: c.err, warn: c.warn,
+        savedLine: !!place.savedLine,
+      };
+    });
+    const c = countOf(item.problems);
+    return {
+      name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '',
+      new: false, open: !!isOpen,
+      places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? 'shadow' : 'on' })),
+      args: s.args || '', env: s.env || [], more: s.more || 0,
+      users: s.users || 0, roles: s.roles || '', err: c.err, warn: c.warn,
+      chips: s.chips || [], panels,
+    };
+  }
+
+  // roleModel is GET /api/role read as the role screen's model: the rows, each
+  // place holding the document behind it.
+  function roleModel(list) {
+    return { roles: ((list && list.items) || []).map(roleRow) };
+  }
+
+  function roleRow(item, i) {
+    const places = item.places || {}, s = item.summary || {};
+    const row = { uid: i + 1 };
+    if (s.markdown) { row.markdown = s.markdown; row.name = item.name || ''; return row; }
+    PLACES.forEach((l) => {
+      const place = places[l];
+      row[l] = (place && place.doc)
+        ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '' })
+        : null;
+    });
+    if (s.noDoc) row.noDoc = true;
+    if (s.isNew) row.isNew = true;
+    return row;
+  }
+
+  // teamModel is GET /api/team read as the role screen's 割り当て model.
+  function teamModel(list) {
+    return {
+      teams: ((list && list.items) || []).map((t) => ({
+        id: t.name, hash: t.hash || '', agreement: t.agreement || { rules: 0, chars: 0 },
+        members: (t.members || []).map((m) => ({ name: m.name, saved: m.role, draft: m.role })),
+      })),
+    };
+  }
+
   return {
     token,
     $,
     $$,
     call,
+    profileModel,
+    roleModel,
+    teamModel,
     // list is GET /api/{kind}: every item and the hashes behind them.
     list: (kind) => call('GET', `/api/${kind}`),
     // get is GET /api/{kind}/{name}?place=: one document.
@@ -63,5 +156,19 @@ window.hergyAPI = (() => {
     },
     // problemText is the sentence one refusal carries, or the fallback word.
     problemText: (answer, fallback) => (answer.json && answer.json.text) || fallback,
+    // ---- reading an answer (spec-boundary 5) ----------------------------
+    // A save, a check and a refusal answer under /api/, and the fields they
+    // carry are read here, once, so no screen digs into an answer itself.
+    answer: (a) => (a && a.json) || {},
+    problems: (a) => ((a && a.json && a.json.problems) || []),
+    // checkAnswer is a check's whole answer: the problems, the Markdown a person
+    // reads, how the change moved it, and the people it named.
+    checkAnswer: (a) => {
+      const json = (a && a.json) || {}, effect = json.effect || {};
+      return {
+        problems: json.problems || [], preview: json.preview || null,
+        diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
+      };
+    },
   };
 })();

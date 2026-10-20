@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -17,9 +18,142 @@ import (
 // its own.
 type apiRole struct{ s *Server }
 
-// List is GET /api/role: the same reading the screen's data island carries.
+// apiRoleSummary is the role list's columns: how many rules the document puts in
+// a prompt and how much one person reads, and the row a person still has to
+// write a document for (spec-boundary 5).
+type apiRoleSummary struct {
+	Rules    int    `json:"rules"`
+	Chars    int    `json:"chars"`
+	Markdown string `json:"markdown,omitempty"`
+	NoDoc    bool   `json:"noDoc,omitempty"`
+	IsNew    bool   `json:"isNew,omitempty"`
+}
+
+// apiEffect is the effect of a document's change (spec-boundary 5): how the
+// Markdown a person reads moved, and the arrows the rules write judged for each
+// definition that reads them.
+type apiEffect struct {
+	Diff  check.RoleDiff   `json:"diff"`
+	Turns []check.RoleTurn `json:"turns"`
+}
+
+// List is GET /api/role: one item per role name, with the documents behind it.
 func (k apiRole) List() (any, *apiErr) {
-	return k.s.r2IslandOf(), nil
+	return k.s.r2List(), nil
+}
+
+// r2List is the role list answer: the rows the screen reads, as items.
+func (s *Server) r2List() apiList {
+	return s.r2ListOf(s.r2ReadingOf())
+}
+
+// r2ListOf is the list answer of one reading.
+func (s *Server) r2ListOf(reading r2Reading) apiList {
+	out := apiList{Hashes: map[string]string{}}
+	for _, row := range reading.Roles {
+		summary := r2SummaryOf(row, apiRoleSummary{Markdown: row.Markdown, NoDoc: row.NoDoc, IsNew: row.IsNew})
+		item := apiItem{
+			Name:      r2RowName(row),
+			Places:    map[string]apiPlace{},
+			Effective: r2Effective(row),
+			Summary:   summary,
+		}
+		if s.r2RowLive(row, catalog.PlaceProject) && s.r2RowLive(row, catalog.PlaceGlobal) {
+			item.Hidden = []string{catalog.PlaceGlobal}
+		}
+		for _, place := range []struct {
+			name string
+			doc  *r2Doc
+		}{{catalog.PlaceProject, row.Project}, {catalog.PlaceGlobal, row.Global}} {
+			if place.doc == nil {
+				continue
+			}
+			doc := *place.doc
+			doc.Text, doc.Hash = "", ""
+			item.Places[place.name] = apiPlace{
+				Doc: doc, Text: place.doc.Text, Hash: place.doc.Hash,
+				Path:     s.cat.Display(s.cat.RolePath(place.name, place.doc.Name)),
+				Problems: r2DocCounts(place.doc.Text, s.cat.Display(s.cat.RolePath(place.name, place.doc.Name))),
+			}
+			out.Hashes[place.name+"."+place.doc.Name] = place.doc.Hash
+		}
+		item.Summary = summary
+		out.Items = append(out.Items, item)
+	}
+	return out
+}
+
+// r2SummaryOf fills the columns only a document can answer: its rules in a
+// prompt and the amount one person reads.
+func r2SummaryOf(row r2Row, summary apiRoleSummary) apiRoleSummary {
+	doc := r2EffectiveDoc(row)
+	if doc == nil {
+		return summary
+	}
+	parsed := doc.document()
+	if parsed == nil {
+		return summary
+	}
+	summary.Rules = len(parsed.IncludedRules())
+	summary.Chars = rules.CharCount(parsed.Markdown())
+	return summary
+}
+
+// r2DocCounts is one document's own problems, counted from its text.
+func r2DocCounts(text, display string) apiCounts {
+	_, problems := rules.ReadAll(text, display)
+	var out apiCounts
+	for _, problem := range problems {
+		if problem.Sev == rules.SevError {
+			out.Err++
+		} else {
+			out.Warn++
+		}
+	}
+	return out
+}
+
+// r2RowName is the name a row carries: the one it was read with, or the name of
+// the document behind it.
+func r2RowName(row r2Row) string {
+	if row.Name != "" {
+		return row.Name
+	}
+	if row.Project != nil {
+		return row.Project.Name
+	}
+	if row.Global != nil {
+		return row.Global.Name
+	}
+	return ""
+}
+
+// r2RowLive is whether one place holds a written document for a row.
+func (s *Server) r2RowLive(row r2Row, place string) bool {
+	doc := r2PlaceDoc(row, place)
+	return doc != nil && doc.Name != "" && !row.NoDoc
+}
+
+// r2PlaceDoc is the document one place of a row holds, if either does.
+func r2PlaceDoc(row r2Row, place string) *r2Doc {
+	if place == catalog.PlaceGlobal {
+		return row.Global
+	}
+	return row.Project
+}
+
+// r2Effective is the place in effect for a row: the project's document when it
+// has one, the shared one otherwise, the place a new document would go.
+func r2Effective(row r2Row) string {
+	if row.Global != nil && row.Project == nil {
+		return catalog.PlaceGlobal
+	}
+	return catalog.PlaceProject
+}
+
+// r2EffectiveDoc is the document in effect for a row.
+func r2EffectiveDoc(row r2Row) *r2Doc {
+	return r2PlaceDoc(row, r2Effective(row))
 }
 
 // Get is GET /api/role/{name}?place=: one document, its text and its hash.
@@ -34,20 +168,39 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 	if doc == nil {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
+	effective, hidden := s.r2RowPlaces(name)
 	return map[string]any{
-		"doc":  r2DocOf(doc, source.Hash(text), text),
-		"text": text,
-		"hash": source.Hash(text),
-		"path": s.cat.Display(path),
+		"doc":       r2DocOf(doc, source.Hash(text), text),
+		"text":      text,
+		"hash":      source.Hash(text),
+		"path":      s.cat.Display(path),
+		"effective": effective,
+		"hidden":    hidden,
 	}, nil
 }
 
+// r2RowPlaces is which place of a name is in effect and which is hidden.
+func (s *Server) r2RowPlaces(name string) (string, []string) {
+	project := s.cat.RolePath(catalog.PlaceProject, name)
+	shared := s.cat.RolePath(catalog.PlaceGlobal, name)
+	_, projectErr := s.cat.Reader().Read(source.Doc{Path: project})
+	_, sharedErr := s.cat.Reader().Read(source.Doc{Path: shared})
+	hasProject, hasShared := projectErr == nil, sharedErr == nil
+	switch {
+	case hasProject && hasShared:
+		return catalog.PlaceProject, []string{catalog.PlaceGlobal}
+	case hasShared:
+		return catalog.PlaceGlobal, nil
+	}
+	return catalog.PlaceProject, nil
+}
+
 // Check is POST /api/role/check: what is wrong with a panel's draft, or with the
-// YAML a person is typing.
+// YAML a person is typing. The answer is the report as the boundary reads it.
 func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	if len(in.Doc) == 0 {
 		report := check.Role(check.RoleInput{Catalog: k.s.cat, Place: catalog.Layer(in.Place), Name: in.Name, Text: in.Text})
-		return map[string]any{"problems": report.Problems}, nil
+		return r2CheckAnswer(report, true), nil
 	}
 	var doc r2Doc
 	if err := json.Unmarshal(in.Doc, &doc); err != nil {
@@ -57,10 +210,44 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	if original == doc.Name {
 		original = ""
 	}
-	return check.Role(check.RoleInput{
+	return r2CheckAnswer(check.Role(check.RoleInput{
 		Catalog: k.s.cat, Place: catalog.Layer(in.Place), Name: doc.Name,
 		Draft: doc.document(), Original: original,
-	}), nil
+	}), false), nil
+}
+
+// r2CheckAnswer is one check report in the boundary's shape. fromText says the
+// check read a whole text rather than a draft's fields, so every problem stands
+// on its line.
+func r2CheckAnswer(report check.DocReport, fromText bool) apiCheck {
+	return apiCheck{
+		Problems: r2Problems(report.Problems, fromText),
+		Preview:  report.Markdown,
+		Effect:   apiEffect{Diff: report.Diff, Turns: report.Turns},
+		Readers:  report.Readers,
+	}
+}
+
+// r2Problems is a report's problems in the boundary's shape (spec-boundary 5):
+// the document's field each one belongs to is where a screen shows it, and a
+// problem of a whole text, or of the document as a whole, stands on its line.
+// field travels beside at so the screen stands a message under the box it names.
+func r2Problems(problems []check.RoleProblem, fromText bool) []apiProblem {
+	out := make([]apiProblem, 0, len(problems))
+	for _, problem := range problems {
+		at := "line"
+		if !fromText && problem.Section >= 0 && problem.Rule >= 0 {
+			at = fmt.Sprintf("sections.%d.rules.%d", problem.Section, problem.Rule)
+			if problem.Field != "" {
+				at += "." + problem.Field
+			}
+		}
+		out = append(out, apiProblem{
+			Sev: problem.Sev, At: at, Field: problem.Field, Text: problem.Text, Line: problem.Line,
+			Section: problem.Section, Rule: problem.Rule, Definition: problem.Definition,
+		})
+	}
+	return out
 }
 
 // Save is PUT /api/role/{name}: a panel's draft, or a file's text when the
@@ -156,14 +343,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if got == nil {
 		got = &rules.Document{Path: target}
 	}
-	return map[string]any{
-		"doc":   r2DocOf(got, source.Hash(string(edited)), string(edited)),
-		"text":  string(edited),
-		"hash":  source.Hash(string(edited)),
-		"rules": len(got.Rules()),
-		"chars": rules.CharCount(got.Markdown()),
-		"list":  s.r2IslandOf(),
-	}, nil
+	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got, source.Hash(string(edited)), string(edited))), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -204,14 +384,20 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	if doc == nil {
 		doc = &rules.Document{Path: path}
 	}
-	return map[string]any{
-		"hash": source.Hash(in.Text),
-		"doc":  r2DocOf(doc, source.Hash(in.Text), in.Text),
-	}, nil
+	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc, source.Hash(in.Text), in.Text)), nil
+}
+
+// savedAnswer is the answer of a write: the one document as GET
+// /api/role/{name} reads it now, with the whole list under it (spec-boundary 5).
+func (k apiRole) savedAnswer(place, name string, doc *r2Doc) apiSaved {
+	list := k.s.r2List()
+	out := apiSaved{Doc: doc, Text: doc.Text, Hash: doc.Hash, Path: k.s.cat.Display(k.s.cat.RolePath(place, name)), Items: list.Items, Hashes: list.Hashes}
+	out.Effective, out.Hidden = k.s.r2RowPlaces(name)
+	return out
 }
 
 // Delete is DELETE /api/role/{name}?place=&hash=: take one role document out of
-// its layer.
+// its layer. Its answer is the list as it now reads.
 func (k apiRole) Delete(name, place, hash string) (any, *apiErr) {
 	s := k.s
 	path := s.cat.RolePath(place, name)
@@ -226,5 +412,5 @@ func (k apiRole) Delete(name, place, hash string) (any, *apiErr) {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) { //nolint:gosec // G703: path is the catalog's own RolePath, which joins the layer's own roles directory with the name
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}
-	return s.r2IslandOf(), nil
+	return k.List()
 }

@@ -62,30 +62,14 @@ func (f *fixture) apiJSON(t *testing.T, server *Server, method, target string, p
 }
 
 // p2PageIsland is the reading the profile page carries inline, in the shape the
-// screen's script reads it: only the parts the tests look at.
+// screen's script reads it (spec-boundary 5): the profile kind's list and, on
+// the 割り当て tab, the assignment cards. Only the parts the tests look at.
 type p2PageIsland struct {
-	Tab          string `json:"tab"`
-	ProfileCount int    `json:"profileCount"`
-	AssignCount  int    `json:"assignCount"`
-	HashProject  string `json:"hashProject"`
-	HashShared   string `json:"hashShared"`
-	Rows         []struct {
-		Name   string `json:"name"`
-		Kind   string `json:"kind"`
-		Open   bool   `json:"open"`
-		Err    int    `json:"err"`
-		Warn   int    `json:"warn"`
-		Panels []struct {
-			File        string `json:"file"`
-			Path        string `json:"path"`
-			Saved       bool   `json:"saved"`
-			Shadowed    bool   `json:"shadowed"`
-			Both        bool   `json:"both"`
-			Users       int    `json:"users"`
-			RenameUsers int    `json:"renameUsers"`
-			SavedLine   bool   `json:"savedLine"`
-		} `json:"panels"`
-	} `json:"rows"`
+	Profile struct {
+		Items  []p2TestItem      `json:"items"`
+		Hashes map[string]string `json:"hashes"`
+		Files  []p2TestYAMLFile  `json:"files"`
+	} `json:"profile"`
 	Assign struct {
 		Empty bool `json:"empty"`
 		Teams []struct {
@@ -101,25 +85,59 @@ type p2PageIsland struct {
 			} `json:"rows"`
 		} `json:"teams"`
 	} `json:"assign"`
-	Files []struct {
-		File   string `json:"file"`
-		Label  string `json:"label"`
-		Path   string `json:"path"`
-		Text   string `json:"text"`
-		Hash   string `json:"hash"`
-		Height string `json:"height"`
-		Err    int    `json:"err"`
-		Warn   int    `json:"warn"`
-		Lines  []struct {
-			N    int    `json:"n"`
-			Mark string `json:"mark"`
-		} `json:"lines"`
-		Problems []struct {
-			Sev  string `json:"sev"`
-			Line int    `json:"line"`
-			Text string `json:"text"`
-		} `json:"problems"`
-	} `json:"files"`
+}
+
+// p2TestItem is one item of the profile list as the boundary carries it.
+type p2TestItem struct {
+	Name      string                 `json:"name"`
+	Effective string                 `json:"effective"`
+	Hidden    []string               `json:"hidden"`
+	Places    map[string]p2TestPlace `json:"places"`
+	Summary   struct {
+		Kind      string   `json:"kind"`
+		KindClass string   `json:"kindClass"`
+		Args      string   `json:"args"`
+		Env       []string `json:"env"`
+		More      int      `json:"more"`
+		Users     int      `json:"users"`
+		Roles     string   `json:"roles"`
+	} `json:"summary"`
+	Problems struct {
+		Err  int `json:"err"`
+		Warn int `json:"warn"`
+	} `json:"problems"`
+}
+
+// p2TestPlace is one place's reading of one item.
+type p2TestPlace struct {
+	Doc struct {
+		Name string   `json:"name"`
+		Kind string   `json:"kind"`
+		Args []string `json:"args"`
+	} `json:"doc"`
+	Path      string `json:"path"`
+	Hash      string `json:"hash"`
+	Readers   int    `json:"readers"`
+	SavedLine bool   `json:"savedLine"`
+	Problems  struct {
+		Err  int `json:"err"`
+		Warn int `json:"warn"`
+	} `json:"problems"`
+}
+
+// p2TestYAMLFile is one file of the profile list, as the YAML tab reads it.
+type p2TestYAMLFile struct {
+	Place    string `json:"place"`
+	Label    string `json:"label"`
+	Path     string `json:"path"`
+	Text     string `json:"text"`
+	Hash     string `json:"hash"`
+	Problems []struct {
+		Sev  string `json:"sev"`
+		At   string `json:"at"`
+		Line int    `json:"line"`
+		Text string `json:"text"`
+	} `json:"problems"`
 }
 
 // island reads the JSON one screen's page carries in its script element.
@@ -182,7 +200,7 @@ func TestProfilesTabsAreRealPages(t *testing.T) {
 		}
 	}
 	data := island(t, body, "profiles-data")
-	if got := len(data.Rows); got != 2 {
+	if got := len(data.Profile.Items); got != 2 {
 		t.Errorf("the list carries %d rows, want the fixture's 2", got)
 	}
 }
@@ -204,23 +222,21 @@ func TestProfileSaveChangesOnlyWhatWasEdited(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the save answered %d: %v", resp.StatusCode, decoded)
 	}
-	rows, _ := decoded["rows"].([]any)
+	items, _ := decoded["items"].([]any)
 	found := false
-	for _, one := range rows {
-		row, _ := one.(map[string]any)
-		if row["name"] != "coder" {
+	for _, one := range items {
+		item, _ := one.(map[string]any)
+		if item["name"] != "coder" {
 			continue
 		}
-		panels, _ := row["panels"].([]any)
-		for _, p := range panels {
-			panel, _ := p.(map[string]any)
-			if panel["file"] == "project" && panel["savedLine"] == true {
+		if places, ok := item["places"].(map[string]any); ok {
+			if place, ok := places["project"].(map[string]any); ok && place["savedLine"] == true {
 				found = true
 			}
 		}
 	}
 	if !found {
-		t.Errorf("the answer does not carry the written panel with its saved line: %v", decoded)
+		t.Errorf("the answer does not carry the written place with its saved line: %v", decoded)
 	}
 	got := readFile(t, path)
 	for _, want := range []string{"# 手で書いたファイル", "  coder:\n", "    kind: gemini\n", "  planner:\n    kind: codex\n", "A: one"} {
@@ -291,9 +307,10 @@ func TestProfileCheckSaysValidatesSentences(t *testing.T) {
 	cases := []struct {
 		doc  map[string]any
 		want string
+		at   string
 	}{
-		{map[string]any{"name": "sonnet-5.5", "kind": "claude", "args": []string{}, "env": []map[string]string{}}, i18n.Tf("error.profile_name_pattern", "profiles.sonnet-5.5")},
-		{map[string]any{"name": "coder", "kind": "claude", "args": []string{}, "env": []map[string]string{{"key": "A", "value": "1"}, {"key": "A", "value": "2"}}}, i18n.Tf("error.env_key_twice", "profiles.coder", "A")},
+		{map[string]any{"name": "sonnet-5.5", "kind": "claude", "args": []string{}, "env": []map[string]string{}}, i18n.Tf("error.profile_name_pattern", "profiles.sonnet-5.5"), "name"},
+		{map[string]any{"name": "coder", "kind": "claude", "args": []string{}, "env": []map[string]string{{"key": "A", "value": "1"}, {"key": "A", "value": "2"}}}, i18n.Tf("error.env_key_twice", "profiles.coder", "A"), "env"},
 	}
 	for _, test := range cases {
 		resp, decoded := f.apiJSON(t, server, http.MethodPost, "/api/profile/check", map[string]any{
@@ -303,15 +320,21 @@ func TestProfileCheckSaysValidatesSentences(t *testing.T) {
 			t.Fatalf("the check answered %d", resp.StatusCode)
 		}
 		problems, _ := decoded["problems"].([]any)
-		found := false
+		found, placed := false, false
 		for _, one := range problems {
 			problem, _ := one.(map[string]any)
 			if problem["text"] == test.want {
 				found = true
+				if at, _ := problem["at"].(string); strings.HasPrefix(at, test.at) {
+					placed = true
+				}
 			}
 		}
 		if !found {
 			t.Errorf("the check did not say %q: %v", test.want, problems)
+		}
+		if !placed {
+			t.Errorf("the check did not stand %q on its field %q: %v", test.want, test.at, problems)
 		}
 	}
 }
@@ -444,12 +467,12 @@ func TestProfilesPageCarriesTheFixtureScale(t *testing.T) {
 	server := f.server(t)
 
 	profiles := f.islandOf(t, server, "/profiles")
-	if profiles.ProfileCount != 11 || len(profiles.Rows) != 11 {
-		t.Errorf("the list reads %d rows (count %d), want 11", len(profiles.Rows), profiles.ProfileCount)
+	if len(profiles.Profile.Items) != 11 {
+		t.Errorf("the list reads %d rows, want 11", len(profiles.Profile.Items))
 	}
 	warned := false
-	for _, row := range profiles.Rows {
-		if row.Name == "codex" && row.Warn == 1 {
+	for _, row := range profiles.Profile.Items {
+		if row.Name == "codex" && row.Problems.Warn == 1 {
 			warned = true
 		}
 	}
@@ -458,8 +481,12 @@ func TestProfilesPageCarriesTheFixtureScale(t *testing.T) {
 	}
 
 	assign := f.islandOf(t, server, "/profiles/assign")
-	if assign.AssignCount != 18 {
-		t.Errorf("the 割り当て tab reads %d people, want 18", assign.AssignCount)
+	people := 0
+	for _, team := range assign.Assign.Teams {
+		people += team.Members + team.Workers
+	}
+	if people != 18 {
+		t.Errorf("the 割り当て tab reads %d people, want 18", people)
 	}
 	if len(assign.Assign.Teams) != 4 {
 		t.Errorf("the assign tab reads %d cards, want 4", len(assign.Assign.Teams))
@@ -467,7 +494,7 @@ func TestProfilesPageCarriesTheFixtureScale(t *testing.T) {
 
 	yaml := f.islandOf(t, server, "/profiles/yaml")
 	opencode := false
-	for _, file := range yaml.Files {
+	for _, file := range yaml.Profile.Files {
 		if strings.Contains(file.Text, "OPENCODE_CONFIG_CONTENT") {
 			opencode = true
 		}
@@ -487,8 +514,8 @@ func TestMissingProfilesFileStartsAtVersionOne(t *testing.T) {
 	}
 	server := f.server(t)
 	yaml := f.islandOf(t, server, "/profiles/yaml")
-	if len(yaml.Files) == 0 || yaml.Files[0].Text != "version: 1\n" {
-		t.Fatalf("the missing file does not read as version: 1: %+v", yaml.Files)
+	if len(yaml.Profile.Files) == 0 || yaml.Profile.Files[0].Text != "version: 1\n" {
+		t.Fatalf("the missing file does not read as version: 1: %+v", yaml.Profile.Files)
 	}
 	resp, body := f.api(t, server, http.MethodPut, "/api/profile/fresh", map[string]any{
 		"place": "project", "original": "", "hash": source.Hash(""),
@@ -533,44 +560,32 @@ func TestProfilesPageNamesTheFileAndItsReaders(t *testing.T) {
 	server := f.server(t)
 	data := f.islandOf(t, server, "/profiles?open=sonnet-fast")
 	projectPath := filepath.Join(f.proj, ".hergy", "profiles.yaml")
-	var project, shared *struct {
-		Path        string `json:"path"`
-		Users       int    `json:"users"`
-		RenameUsers int    `json:"renameUsers"`
-	}
-	for i := range data.Rows {
-		if data.Rows[i].Name != "sonnet-fast" {
+	var project, shared *p2TestPlace
+	for i := range data.Profile.Items {
+		if data.Profile.Items[i].Name != "sonnet-fast" {
 			continue
 		}
-		for j := range data.Rows[i].Panels {
-			panel := data.Rows[i].Panels[j]
-			switch panel.File {
+		for name, place := range data.Profile.Items[i].Places {
+			one := place
+			switch name {
 			case "project":
-				project = &struct {
-					Path        string `json:"path"`
-					Users       int    `json:"users"`
-					RenameUsers int    `json:"renameUsers"`
-				}{panel.Path, panel.Users, panel.RenameUsers}
+				project = &one
 			case "global":
-				shared = &struct {
-					Path        string `json:"path"`
-					Users       int    `json:"users"`
-					RenameUsers int    `json:"renameUsers"`
-				}{panel.Path, panel.Users, panel.RenameUsers}
+				shared = &one
 			}
 		}
 	}
 	if project == nil || project.Path != projectPath {
-		t.Errorf("the project's panel does not name its file: %+v", project)
+		t.Errorf("the project's place does not name its file: %+v", project)
 	}
-	if project != nil && project.RenameUsers != 3 {
-		t.Errorf("the project's panel counts %d readers of its file, want 3", project.RenameUsers)
+	if project != nil && project.Readers != 3 {
+		t.Errorf("the project's place counts %d readers of its file, want 3", project.Readers)
 	}
 	if shared == nil {
-		t.Fatalf("the row carries no shared panel")
+		t.Fatalf("the row carries no shared place")
 	}
-	if shared.RenameUsers != 0 {
-		t.Errorf("the shared panel counts %d readers it does not have", shared.RenameUsers)
+	if shared.Readers != 0 {
+		t.Errorf("the shared place counts %d readers it does not have", shared.Readers)
 	}
 }
 
@@ -584,21 +599,21 @@ func TestRenameThatSplitsAnswersWithBothRows(t *testing.T) {
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	before := readFile(t, path)
 	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/profile/sonnet-fast", map[string]any{
-		"place": "project", "original": "sonnet-fast", "hash": source.Hash(before), "open": []string{"sonnet-fast"},
+		"place": "project", "original": "sonnet-fast", "hash": source.Hash(before),
 		"doc": map[string]any{"name": "sonnet-fast2", "kind": "claude", "args": []string{"--model", "claude-sonnet-5-5"},
 			"env": []map[string]string{{"key": "MAX_THINKING_TOKENS", "value": "8000"}}},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the rename answered %d: %v", resp.StatusCode, decoded)
 	}
-	rows, _ := decoded["rows"].([]any)
-	if len(rows) != 12 {
-		t.Fatalf("the answer carries %d rows, want the split's 12", len(rows))
+	items, _ := decoded["items"].([]any)
+	if len(items) != 12 {
+		t.Fatalf("the answer carries %d rows, want the split's 12", len(items))
 	}
-	names := make([]string, 0, len(rows))
-	for _, one := range rows {
-		row, _ := one.(map[string]any)
-		name, _ := row["name"].(string)
+	names := make([]string, 0, len(items))
+	for _, one := range items {
+		item, _ := one.(map[string]any)
+		name, _ := item["name"].(string)
 		names = append(names, name)
 	}
 	at := func(name string) int {

@@ -3,8 +3,6 @@ package web
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -16,9 +14,85 @@ import (
 // lays out what the model's own reading returned; none of them decides a rule.
 type apiProfile struct{ s *Server }
 
-// List is GET /api/profile: the profiles tab as it now reads.
+// apiProfileSummary is the profile list's columns: the kind a profile runs and
+// the words it runs with, and the people that name it (spec-boundary 5).
+type apiProfileSummary struct {
+	Kind      string       `json:"kind"`
+	KindClass string       `json:"kindClass"`
+	Args      string       `json:"args"`
+	Env       []string     `json:"env"`
+	More      int          `json:"more"`
+	Users     int          `json:"users"`
+	Roles     string       `json:"roles"`
+	Chips     []p2UserChip `json:"chips"`
+}
+
+// List is GET /api/profile: both files' profiles as items, the files' hashes,
+// and the files themselves for the YAML tab.
 func (k apiProfile) List() (any, *apiErr) {
-	return k.s.p2Data("profiles", url.Values{}), nil
+	return k.s.p2List(), nil
+}
+
+// p2List is the profile list answer: one item per name, the two files' hashes,
+// and the two files' own readings.
+func (s *Server) p2List() apiList {
+	project, shared, defs := s.p2Read()
+	chips := p2Chips(defs)
+	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
+	for _, name := range p2Names(project, shared) {
+		out.Items = append(out.Items, p2ItemOf(p2RowOf(name, project, shared, chips, false), project, shared))
+	}
+	for _, file := range []p2File{project, shared} {
+		out.Files = append(out.Files, s.p2FileOf(file))
+	}
+	return out
+}
+
+// p2ItemOf is one row as the list carries it: each panel becomes the item's
+// reading of one place, and the row's columns its summary.
+func p2ItemOf(row p2Row, project, shared p2File) apiItem {
+	texts := map[string]string{p2Project: project.text, p2Shared: shared.text}
+	it := apiItem{
+		Name:     row.Name,
+		Places:   map[string]apiPlace{},
+		Problems: apiCounts{Err: row.Err, Warn: row.Warn},
+		Summary: apiProfileSummary{
+			Kind: row.Kind, KindClass: row.KindClass, Args: row.Args, Env: row.Env,
+			More: row.More, Users: row.Users, Roles: row.Roles, Chips: row.Chips,
+		},
+	}
+	for _, panel := range row.Panels {
+		if panel.Shadowed {
+			it.Hidden = append(it.Hidden, panel.File)
+		} else {
+			it.Effective = panel.File
+		}
+		it.Places[panel.File] = apiPlace{
+			Doc:      p2Draft{Name: panel.Name, Kind: panel.Kind, Args: panel.Args, Env: p2EnvPairs(panel.Env)},
+			Text:     texts[panel.File],
+			Hash:     panel.Hash,
+			Path:     panel.Path,
+			Readers:  panel.RenameUsers,
+			Problems: apiCounts{Err: panel.Err, Warn: panel.Warn},
+		}
+	}
+	return it
+}
+
+// p2FileOf is one profiles.yaml as the YAML tab reads it: the whole text and the
+// problems of that text. A file that is not there reads as the empty file a save
+// would make.
+func (s *Server) p2FileOf(file p2File) apiFile {
+	text := file.text
+	if !file.ok {
+		text = "version: 1\n"
+	}
+	_, problems := profile.ReadAll(text, s.cat.Display(file.path))
+	out := apiFile{Place: file.file, Label: file.label, Path: s.cat.Display(file.path), Text: text, Hash: file.hash}
+	for _, problem := range p2Sorted(problems) {
+		out.Problems = append(out.Problems, apiProblem{Sev: problem.Sev.Word(), At: "line", Text: problem.Text, Line: problem.Line})
+	}
+	return out
 }
 
 // apiProfileGet is one profile in one place, the answer of GET
@@ -92,14 +166,28 @@ func (k apiProfile) Check(in apiIn) (any, *apiErr) {
 		text, _ := k.s.p2Text(k.pathOf(in.Place))
 		entries, _ := profile.ReadAll(text, display)
 		problems := profile.CheckDraft(draft.profileOf(), entries, in.Original)
-		return map[string]any{"problems": p2ProblemsJSON(problems)}, nil
+		return apiCheck{Problems: p2DraftProblems(problems)}, nil
 	}
 	_, problems := profile.ReadAll(in.Text, display)
-	out := make([]map[string]any, 0, len(problems))
+	out := make([]apiProblem, 0, len(problems))
 	for _, problem := range p2Sorted(problems) {
-		out = append(out, map[string]any{"sev": problem.Sev.Word(), "line": problem.Line, "text": problem.Text})
+		out = append(out, apiProblem{Sev: problem.Sev.Word(), At: "line", Text: problem.Text, Line: problem.Line})
 	}
-	return map[string]any{"problems": out}, nil
+	return apiCheck{Problems: out}, nil
+}
+
+// p2DraftProblems is a draft's problems in the boundary's shape: the field each
+// one belongs to is the place it is shown.
+func p2DraftProblems(problems []profile.Problem) []apiProblem {
+	out := make([]apiProblem, 0, len(problems))
+	for _, problem := range problems {
+		at := problem.Field
+		if at == "" {
+			at = "line"
+		}
+		out = append(out, apiProblem{Sev: problem.Sev.Word(), At: at, Field: problem.Field, Text: problem.Text, Line: problem.Line})
+	}
+	return out
 }
 
 // pathOf is one place's profiles.yaml.
@@ -150,11 +238,12 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 	if in.Original != "" && in.Original != draft.Name && in.RenameUsers {
 		s.p2RenameUsers(in.Place, in.Original, draft.Name)
 	}
-	return k.savedList(in.Open, draft.Name, in.Place), nil
+	return k.savedAnswer(in.Place, draft.Name), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
-// /profiles/yaml/save).
+// /profiles/yaml/save). Its answer is the file as the YAML tab reads it now,
+// with the whole list under it.
 func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
 	path, display, ok := s.p2ProfilePath(in.Place)
@@ -170,15 +259,15 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, in.Hash, in.Text); err != nil {
 		return p2WriteError(err, display)
 	}
-	project, shared, _ := s.p2Read()
-	return map[string]any{
-		"hash":  source.Hash(in.Text),
-		"files": s.p2YamlData(p2Data{}, project, shared).Files,
+	list := k.s.p2List()
+	return apiSaved{
+		Text: in.Text, Hash: source.Hash(in.Text), Path: display,
+		Items: list.Items, Hashes: list.Hashes, Files: list.Files,
 	}, nil
 }
 
 // Delete is DELETE /api/profile/{name}?place=&hash=: take one profile out of one
-// file.
+// file. Its answer is the list as it now reads.
 func (k apiProfile) Delete(name, place, hash string) (any, *apiErr) {
 	s := k.s
 	path, display, ok := s.p2ProfilePath(place)
@@ -203,32 +292,35 @@ func (k apiProfile) Delete(name, place, hash string) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, pathHash, string(edited)); err != nil {
 		return p2WriteError(err, display)
 	}
-	return k.savedList(nil, "", ""), nil
+	return k.listAnswer(), nil
 }
 
-// savedList is the list a save answers with: every row as it now reads, so a
-// rename that splits one row into two answers with both in the order a reload
-// shows them (audit N1). The names the page has open stay open, and the row that
-// was written is open at its panel with its saved line.
-func (k apiProfile) savedList(open []string, savedName, file string) p2Data {
-	q := url.Values{}
-	if len(open) > 0 {
-		q.Set("open", strings.Join(open, ","))
+// listAnswer is the whole list, the answer a delete and a YAML save carry
+// because the counts move with them (spec-boundary 5).
+func (k apiProfile) listAnswer() apiList {
+	return k.s.p2List()
+}
+
+// savedAnswer is the answer of a panel's save: the one profile as GET
+// /api/profile/{name} reads it now, with the whole list under it and the written
+// panel marked as just saved, so the row says 保存しました.
+func (k apiProfile) savedAnswer(place, name string) apiSaved {
+	list := k.s.p2List()
+	out := apiSaved{Items: list.Items, Hashes: list.Hashes, Files: list.Files}
+	if one, refusal := k.Get(name, place); refusal == nil {
+		if got, ok := one.(apiProfileGet); ok {
+			out.Doc, out.Text, out.Hash, out.Path = got.Doc, got.Text, got.Hash, got.Path
+			out.Effective, out.Hidden = got.Effective, got.Hidden
+		}
 	}
-	data := k.s.p2Data("profiles", q)
-	if savedName == "" {
-		return data
-	}
-	for i := range data.Rows {
-		if data.Rows[i].Name != savedName {
+	for i := range out.Items {
+		if out.Items[i].Name != name {
 			continue
 		}
-		data.Rows[i].Open = true
-		for j := range data.Rows[i].Panels {
-			if data.Rows[i].Panels[j].File == file {
-				data.Rows[i].Panels[j].SavedLine = true
-			}
+		if panel, ok := out.Items[i].Places[place]; ok {
+			panel.SavedLine = true
+			out.Items[i].Places[place] = panel
 		}
 	}
-	return data
+	return out
 }

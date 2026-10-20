@@ -14,10 +14,10 @@ import (
 // the people that play the names. The screen's own checks come from
 // check.Role, one POST at a time, so nothing here decides what is wrong.
 
-// r2Island is the JSON the page carries: the project's name, one row per role
-// name, one entry per team definition, and the few words only the server can
-// make (the sentences of the checks, and where each place keeps its documents).
-type r2Island struct {
+// r2Reading is the role screen's reading of the catalog: one row per role name
+// and one entry per team definition. It is what the list answer and the page's
+// island are built from (spec-boundary 5).
+type r2Reading struct {
 	Project string            `json:"project"`
 	Roles   []r2Row           `json:"roles"`
 	Teams   []r2TeamEntry     `json:"teams"`
@@ -102,9 +102,9 @@ type r2TeamEntry struct {
 	Members   []r2Member `json:"members"`
 }
 
-// r2IslandOf reads the catalog into the data island.
-func (s *Server) r2IslandOf() r2Island {
-	out := r2Island{Project: filepath.Base(s.cat.Base())}
+// r2ReadingOf reads the catalog into the screen's own reading.
+func (s *Server) r2ReadingOf() r2Reading {
+	out := r2Reading{Project: filepath.Base(s.cat.Base())}
 	// The few sentences the screen shows without asking: the same words the
 	// server would say, so a screen builds no sentence of its own.
 	out.Texts = map[string]string{
@@ -167,6 +167,23 @@ func (s *Server) r2IslandOf() r2Island {
 		out.Teams = append(out.Teams, team)
 	}
 	return out
+}
+
+// r2Island is the JSON the role page carries (spec-boundary 5): the role list in
+// the boundary's shape, the team definitions the 割り当て tab reads, and the few
+// words and places only the server can make.
+type r2Island struct {
+	Role   apiList           `json:"role"`
+	Team   apiTeamList       `json:"team"`
+	Texts  map[string]string `json:"texts"`
+	Places map[string]string `json:"places"`
+}
+
+// r2PageIsland builds the role page's island from the same reading the answers
+// are built from.
+func (s *Server) r2PageIsland() r2Island {
+	reading := s.r2ReadingOf()
+	return r2Island{Role: s.r2ListOf(reading), Team: s.apiTeamList(), Texts: reading.Texts, Places: reading.Places}
 }
 
 // r2Read is one role document as the island carries it: the fields a person

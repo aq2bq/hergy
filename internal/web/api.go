@@ -31,7 +31,6 @@ type apiIn struct {
 	Text        string          `json:"text"`
 	Hash        string          `json:"hash"`
 	RenameUsers bool            `json:"rename_users"`
-	Open        []string        `json:"open"`
 	Changes     json.RawMessage `json:"changes"`
 	Base        *apiBase        `json:"base"`
 }
@@ -58,6 +57,98 @@ func refuse(status int, text string) *apiErr { return &apiErr{status: status, Te
 // refuseAt is a refusal that names the field the sentence belongs to.
 func refuseAt(status int, at, text string) *apiErr {
 	return &apiErr{status: status, At: at, Text: text}
+}
+
+// apiList is the answer of GET /api/{kind} (spec-boundary 5): one item per name
+// the kind holds, the hashes of the files behind them, and, for a kind whose
+// files hold many names, the files themselves — the reading the YAML tab draws.
+type apiList struct {
+	Items  []apiItem         `json:"items"`
+	Hashes map[string]string `json:"hashes"`
+	Files  []apiFile         `json:"files,omitempty"`
+}
+
+// apiItem is one name of a kind's list: where it stands, which place is in
+// effect, the columns the list shows, and what is wrong with it.
+type apiItem struct {
+	Name      string              `json:"name"`
+	Places    map[string]apiPlace `json:"places"`
+	Effective string              `json:"effective"`
+	Hidden    []string            `json:"hidden"`
+	Summary   any                 `json:"summary"`
+	Problems  apiCounts           `json:"problems"`
+}
+
+// apiCounts is how many errors and warnings one row carries.
+type apiCounts struct {
+	Err  int `json:"err"`
+	Warn int `json:"warn"`
+}
+
+// apiPlace is one place's reading of one name: the document in the kind's own
+// shape, the text of the file it stands in, its hash, where it stands, and the
+// few facts only a reading can know (who names it, whether it was just written).
+type apiPlace struct {
+	Doc       any       `json:"doc"`
+	Text      string    `json:"text"`
+	Hash      string    `json:"hash"`
+	Path      string    `json:"path"`
+	Readers   int       `json:"readers,omitempty"`
+	SavedLine bool      `json:"savedLine,omitempty"`
+	Problems  apiCounts `json:"problems"`
+}
+
+// apiFile is one file of a kind whose files hold many names: what the YAML tab
+// draws, with the problems of the whole text.
+type apiFile struct {
+	Place    string       `json:"place"`
+	Label    string       `json:"label"`
+	Path     string       `json:"path"`
+	Text     string       `json:"text"`
+	Hash     string       `json:"hash"`
+	Problems []apiProblem `json:"problems"`
+}
+
+// apiProblem is one thing a check found (spec-boundary 5): how bad it is, where
+// it stands (a doc field's path, or "line" for a text), and the sentence the
+// server made. The field's own name, the line it sits on and the rule it belongs
+// to travel with it, so a screen puts its mark where it looks without reading
+// the text again.
+type apiProblem struct {
+	Sev        string `json:"sev"`
+	At         string `json:"at"`
+	Field      string `json:"field,omitempty"`
+	Text       string `json:"text"`
+	Line       int    `json:"line,omitempty"`
+	Section    int    `json:"section"`
+	Rule       int    `json:"rule"`
+	Definition string `json:"definition,omitempty"`
+}
+
+// apiCheck is the answer of POST /api/{kind}/check (spec-boundary 5): what is
+// wrong, and, where the kind has them, the Markdown a member reads, the effect
+// of the change and the people that read it. A kind that has none of the latter
+// leaves them out.
+type apiCheck struct {
+	Problems []apiProblem `json:"problems"`
+	Preview  any          `json:"preview,omitempty"`
+	Effect   any          `json:"effect,omitempty"`
+	Readers  any          `json:"readers,omitempty"`
+}
+
+// apiSaved is the answer of PUT /api/{kind}/{name}: the one document as GET
+// /api/{kind}/{name} reads it now, and the whole list below it, because the
+// counts move with the save (spec-boundary 5).
+type apiSaved struct {
+	Doc       any               `json:"doc"`
+	Text      string            `json:"text"`
+	Hash      string            `json:"hash"`
+	Path      string            `json:"path"`
+	Effective string            `json:"effective,omitempty"`
+	Hidden    []string          `json:"hidden,omitempty"`
+	Items     []apiItem         `json:"items,omitempty"`
+	Hashes    map[string]string `json:"hashes,omitempty"`
+	Files     []apiFile         `json:"files,omitempty"`
 }
 
 // apiKind is one kind of thing a screen reads and writes: profiles, roles, team

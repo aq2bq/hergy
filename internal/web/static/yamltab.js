@@ -70,6 +70,7 @@ window.hergyYaml = (() => {
       problems.map((p) => `<button class="vitem" data-act="yaml-jump" data-line="${p.line}">${sevChip(p.sev)}<span class="lno">${p.line} 行</span><span class="msg">${esc(p.text)}</span></button>`).join('');
     $('.gutter', section).scrollTop = textarea.scrollTop;
     section._problems = problems;
+    if (section._onProblems) section._onProblems(section, problems);
     foot(section);
   }
 
@@ -127,6 +128,7 @@ window.hergyYaml = (() => {
     section._kind = opts.kind;
     section._place = opts.place;
     section._name = opts.name;
+    section._onProblems = opts.onProblems || null;
     const textarea = $('.ytext', section);
     section._base = textarea.value;
     section._problems = [];

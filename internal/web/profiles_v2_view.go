@@ -24,8 +24,10 @@ const (
 	p2Shared  = "global"
 )
 
-// p2Data is one answer of GET /profiles: the tab, its counts and the parts that
-// tab shows.
+// p2Data is what one profile page's shell draws: the tab, its counts, the
+// toolbar's chips and, for the 割り当て tab, the assignment cards. The rows and
+// files the script draws travel in the page's island (p2Island), in the
+// boundary's own shape (spec-boundary 5).
 type p2Data struct {
 	Lang         string      `json:"-"`
 	Nav          navData     `json:"-"`
