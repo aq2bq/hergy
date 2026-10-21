@@ -1,0 +1,1 @@
+[{"id": "q-7c2e", "kind": "Question", "title": "注文 API のページ送りを cursor に替えるか", "body": "", "data": {"Question": {"closure": "Decision", "decider": "master", "options": ["cursor に替える。古いクライアントのために offset を 2 つ先のバージョンまで残す", "offset のままにし、1 回に返す件数の上限を 1,000 件にする"]}}}]

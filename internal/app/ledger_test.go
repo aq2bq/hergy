@@ -14,7 +14,7 @@ import (
 // ledgerProject is a project with one team definition that writes ledger: rules,
 // a gy.toml, and the profiles and role documents the definition reads. script,
 // when it is not empty, is written as the fake gy HERGY_GY points at; empty
-// leaves the fixture's no-gy path, which is a gy that cannot be read.
+// leaves the fixture's no-gy path, which is no gy at all.
 func ledgerProject(t *testing.T, script string) *fixture {
 	t.Helper()
 	f := newFixture(t)

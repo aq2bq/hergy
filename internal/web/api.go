@@ -198,6 +198,8 @@ func (s *Server) apiKindOf(name string) (apiKind, bool) {
 		return apiRole{s: s}, true
 	case apiTeamKind:
 		return apiTeam{s: s}, true
+	case apiActivityKind:
+		return apiActivity{s: s}, true
 	}
 	return nil, false
 }

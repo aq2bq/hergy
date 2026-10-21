@@ -1,0 +1,387 @@
+[
+ {
+  "actor": "core-lead",
+  "node": "q-7c2e",
+  "what": "created",
+  "why": "",
+  "at": "@T-165@"
+ },
+ {
+  "actor": "core-lead",
+  "node": "q-51b9",
+  "what": "created",
+  "why": "",
+  "at": "@T-1500@"
+ },
+ {
+  "actor": "core-lead",
+  "node": "q-0d4a",
+  "what": "created",
+  "why": "",
+  "at": "@T-2900@"
+ },
+ {
+  "actor": "core-hotfix-impl-a",
+  "node": "q-9e10",
+  "what": "created",
+  "why": "",
+  "at": "@T-250@"
+ },
+ {
+  "actor": "migrate-lead",
+  "node": "q-1000",
+  "what": "created",
+  "why": "",
+  "at": "@T-600@"
+ },
+ {
+  "actor": "migrate-lead",
+  "node": "q-1025",
+  "what": "created",
+  "why": "",
+  "at": "@T-790@"
+ },
+ {
+  "actor": "research-lead",
+  "node": "q-104a",
+  "what": "created",
+  "why": "",
+  "at": "@T-980@"
+ },
+ {
+  "actor": "research-lead",
+  "node": "q-106f",
+  "what": "created",
+  "why": "",
+  "at": "@T-1170@"
+ },
+ {
+  "actor": "research-lead",
+  "node": "q-1094",
+  "what": "created",
+  "why": "",
+  "at": "@T-1360@"
+ },
+ {
+  "actor": "research-lead",
+  "node": "q-10b9",
+  "what": "created",
+  "why": "",
+  "at": "@T-1550@"
+ },
+ {
+  "actor": "research-scout",
+  "node": "q-10de",
+  "what": "created",
+  "why": "",
+  "at": "@T-1740@"
+ },
+ {
+  "actor": "research-scout",
+  "node": "q-1103",
+  "what": "created",
+  "why": "",
+  "at": "@T-1930@"
+ },
+ {
+  "actor": "core-reviewer",
+  "node": "q-1128",
+  "what": "created",
+  "why": "",
+  "at": "@T-2120@"
+ },
+ {
+  "actor": "core-reviewer",
+  "node": "q-114d",
+  "what": "created",
+  "why": "",
+  "at": "@T-2310@"
+ },
+ {
+  "actor": "core-reviewer",
+  "node": "q-1172",
+  "what": "created",
+  "why": "",
+  "at": "@T-2500@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-1197",
+  "what": "created",
+  "why": "",
+  "at": "@T-2690@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-11bc",
+  "what": "created",
+  "why": "",
+  "at": "@T-2880@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-11e1",
+  "what": "created",
+  "why": "",
+  "at": "@T-3070@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-1206",
+  "what": "created",
+  "why": "",
+  "at": "@T-3260@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-122b",
+  "what": "created",
+  "why": "",
+  "at": "@T-3450@"
+ },
+ {
+  "actor": "docs-writer",
+  "node": "q-1250",
+  "what": "created",
+  "why": "",
+  "at": "@T-3640@"
+ },
+ {
+  "actor": "docs-checker",
+  "node": "q-1275",
+  "what": "created",
+  "why": "",
+  "at": "@T-3830@"
+ },
+ {
+  "actor": "docs-checker",
+  "node": "q-129a",
+  "what": "created",
+  "why": "",
+  "at": "@T-4020@"
+ },
+ {
+  "actor": "review-reader",
+  "node": "q-12bf",
+  "what": "created",
+  "why": "",
+  "at": "@T-4210@"
+ },
+ {
+  "actor": "review-reader",
+  "node": "q-12e4",
+  "what": "created",
+  "why": "",
+  "at": "@T-4400@"
+ },
+ {
+  "actor": "review-reader",
+  "node": "q-1309",
+  "what": "created",
+  "why": "",
+  "at": "@T-4590@"
+ },
+ {
+  "actor": "draft-writer",
+  "node": "q-132e",
+  "what": "created",
+  "why": "",
+  "at": "@T-4780@"
+ },
+ {
+  "actor": "draft-writer",
+  "node": "q-1353",
+  "what": "created",
+  "why": "",
+  "at": "@T-4970@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1378",
+  "what": "created",
+  "why": "",
+  "at": "@T-5160@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-139d",
+  "what": "created",
+  "why": "",
+  "at": "@T-5350@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-13c2",
+  "what": "created",
+  "why": "",
+  "at": "@T-5540@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-13e7",
+  "what": "created",
+  "why": "",
+  "at": "@T-5730@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-140c",
+  "what": "created",
+  "why": "",
+  "at": "@T-5920@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1431",
+  "what": "created",
+  "why": "",
+  "at": "@T-6110@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1456",
+  "what": "created",
+  "why": "",
+  "at": "@T-6300@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-147b",
+  "what": "created",
+  "why": "",
+  "at": "@T-6490@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-14a0",
+  "what": "created",
+  "why": "",
+  "at": "@T-6680@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-14c5",
+  "what": "created",
+  "why": "",
+  "at": "@T-6870@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-14ea",
+  "what": "created",
+  "why": "",
+  "at": "@T-7060@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-150f",
+  "what": "created",
+  "why": "",
+  "at": "@T-7250@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1534",
+  "what": "created",
+  "why": "",
+  "at": "@T-7440@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1559",
+  "what": "created",
+  "why": "",
+  "at": "@T-7630@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-157e",
+  "what": "created",
+  "why": "",
+  "at": "@T-7820@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-15a3",
+  "what": "created",
+  "why": "",
+  "at": "@T-8010@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-15c8",
+  "what": "created",
+  "why": "",
+  "at": "@T-8200@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-15ed",
+  "what": "created",
+  "why": "",
+  "at": "@T-8390@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1612",
+  "what": "created",
+  "why": "",
+  "at": "@T-8580@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1637",
+  "what": "created",
+  "why": "",
+  "at": "@T-8770@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-165c",
+  "what": "created",
+  "why": "",
+  "at": "@T-8960@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1681",
+  "what": "created",
+  "why": "",
+  "at": "@T-9150@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-16a6",
+  "what": "created",
+  "why": "",
+  "at": "@T-9340@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-16cb",
+  "what": "created",
+  "why": "",
+  "at": "@T-9530@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-16f0",
+  "what": "created",
+  "why": "",
+  "at": "@T-9720@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-1715",
+  "what": "created",
+  "why": "",
+  "at": "@T-9910@"
+ },
+ {
+  "actor": "old-lead",
+  "node": "q-173a",
+  "what": "created",
+  "why": "",
+  "at": "@T-10100@"
+ }
+]

@@ -3,6 +3,7 @@ package activity
 import (
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func TestOfStates(t *testing.T) {
 		last     string
 		stalled  time.Duration
 		lower    bool
-		tail     string
+		tail     []string
 		nodeLead NodeState
 		nodeSpec NodeState
 	}{
@@ -83,7 +84,7 @@ func TestOfStates(t *testing.T) {
 				Seen:   map[string]Watch{"demo-lead": ago(25 * time.Minute)},
 			},
 			state: WaitingAnswer, line: i18n.Tf("activity.line_stuck", "lead", durationText(25*time.Minute, false)),
-			last: "lead", stalled: 25 * time.Minute, tail: "許可をください",
+			last: "lead", stalled: 25 * time.Minute, tail: []string{"許可をください"},
 			nodeLead: Blocked, nodeSpec: Idle,
 		},
 		{
@@ -95,7 +96,7 @@ func TestOfStates(t *testing.T) {
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
 			},
 			state: WaitingTurn, line: i18n.Tf("activity.line_waiting_human", "lead", durationText(12*time.Minute, false)),
-			last: "lead", stalled: 12 * time.Minute, tail: "lead の最後のターン",
+			last: "lead", stalled: 12 * time.Minute, tail: []string{"lead の最後のターン"},
 			nodeLead: HandedOver, nodeSpec: Idle,
 		},
 		{
@@ -108,7 +109,7 @@ func TestOfStates(t *testing.T) {
 			},
 			state: Stalled,
 			line:  i18n.Tf("activity.line_team_stuck", durationText(4*time.Minute, false)) + i18n.Tf("activity.line_last_turn", "spec"),
-			last:  "spec", stalled: 4 * time.Minute, tail: "spec の最後のターン",
+			last:  "spec", stalled: 4 * time.Minute, tail: []string{"spec の最後のターン"},
 			nodeLead: Idle, nodeSpec: Idle,
 		},
 		{
@@ -142,7 +143,7 @@ func TestOfStates(t *testing.T) {
 			if got.Stalled != c.stalled || got.Lower != c.lower {
 				t.Errorf("Stalled = %v (lower %v), want %v (lower %v)", got.Stalled, got.Lower, c.stalled, c.lower)
 			}
-			if got.Tail != c.tail {
+			if !slices.Equal(got.Tail, c.tail) {
 				t.Errorf("Tail = %q, want %q", got.Tail, c.tail)
 			}
 			if len(got.Nodes) != 2 {

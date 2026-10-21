@@ -9,28 +9,41 @@ import (
 )
 
 // navData is the band every screen hangs at the top (spec-nav.md 1.1): where
-// the person is, which project this is, and the three counts. Current is the
-// screen the page is ("profiles", "roles" or "teams"), or empty for a page that
-// is no screen, which marks none of them.
+// the person is, which project this is, and the counts. Current is the screen
+// the page is ("activity", "profiles", "roles" or "teams"), or empty for a page
+// that is no screen, which marks none of them.
 type navData struct {
 	Current  string
 	Project  string
 	Teams    int
 	Profiles int
 	Roles    int
-	Key      string
+	// Activity is how many teams of this project are running, and Waiting how
+	// many of their members are waiting for the human (spec-activity 2.1).
+	Activity int
+	Waiting  int
+	// Counts says whether the band may show the activity's two numbers: herdr
+	// was read, and there is at least one team running. With no team running the
+	// band is 活動 alone, and with a herdr that could not be read it writes no
+	// number either, rather than a zero it does not know (spec-activity 2.7).
+	Counts bool
+	Key    string
 }
 
-// navOf gathers the band for one screen. The three pages that carry the band
-// take it from here, so they cannot count the same thing differently.
+// navOf gathers the band for one screen. The pages that carry the band take it
+// from here, so they cannot count the same thing differently.
 func (s *Server) navOf(current string) navData {
 	project, shared, _ := s.p2Read()
+	list := s.activity().List()
 	return navData{
 		Current:  current,
 		Project:  filepath.Base(s.cat.Base()),
 		Teams:    len(s.cat.Definitions()),
 		Profiles: len(p2Names(project, shared)),
 		Roles:    s.navRoles(),
+		Activity: list.Running,
+		Waiting:  list.Waiting,
+		Counts:   list.Herdr.OK && list.Running > 0,
 		Key:      navKey(s.cat.Base()),
 	}
 }

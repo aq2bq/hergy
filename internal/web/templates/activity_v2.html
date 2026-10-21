@@ -1,0 +1,21 @@
+{{define "a2_page"}}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hergy 活動</title>
+<link rel="stylesheet" href="/static/activity-v2.css">
+<link rel="stylesheet" href="/static/nav.css">
+<script src="/static/nav.js" defer></script>
+<script src="/static/activity-v2.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  {{template "nav_band" .Nav}}
+  <header class="top"><nav class="tabs"><span class="tab">一覧</span></nav></header>
+  <main class="list" id="list"></main>
+</div>
+<script id="activity-words" type="application/json">{{.Words}}</script>
+</body>
+</html>
+{{end}}

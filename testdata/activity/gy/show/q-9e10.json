@@ -1,0 +1,1 @@
+[{"id": "q-9e10", "kind": "Question", "title": "本番の注文テーブルに索引を足す時間帯を決めてほしい", "body": "", "data": {"Question": {"closure": "Decision", "decider": "master", "options": ["今夜 2 時（注文が最も少ない時間）", "週末のメンテナンスの枠（土曜 6 時）"]}}}]

@@ -48,7 +48,7 @@ func herdrTabList() ([]protocol.Tab, error) {
 // URL to open by hand (d-fb89).
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	server, err := web.New(cat)
+	server, err := web.New(cat, newActivityRead(env))
 	if err != nil {
 		return err
 	}

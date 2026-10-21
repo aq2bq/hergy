@@ -126,17 +126,18 @@ func navGet(t *testing.T, base, path string) (*http.Response, string) {
 	return resp, string(body)
 }
 
-// e2eNavAddress is O1〜O4: the root moves to the profile screen, every URL of
-// the old WebUI is not found with the band on it, the old files are gone, and a
-// URL still carrying ?layer= answers like the same URL without it.
+// e2eNavAddress is O1〜O4: the root moves to the team definitions while no team
+// of this project is running, every URL of the old WebUI is not found with the
+// band on it, the old files are gone, and a URL still carrying ?layer= answers
+// like the same URL without it.
 func e2eNavAddress(t *testing.T, base string) {
 	t.Helper()
 	resp, _ := navGet(t, base, "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Errorf("GET / answers %d, want 302", resp.StatusCode)
 	}
-	if got := resp.Header.Get("Location"); got != "/profiles" {
-		t.Errorf("GET / moves to %q, want /profiles", got)
+	if got := resp.Header.Get("Location"); got != "/teams" {
+		t.Errorf("GET / moves to %q, want /teams with no team running", got)
 	}
 
 	gone := []string{
@@ -144,7 +145,7 @@ func e2eNavAddress(t *testing.T, base string) {
 		"/definitions/core/workers/lead/依存の更新", "/definitions/core/human",
 		"/definitions/core/turns/lead/analyst", "/definitions/core/agreement",
 		"/definitions/core/agreement/new", "/definitions/core/agreement/TEAM-1",
-		"/activity", "/activity/core", "/agreement", "/agreement/new", "/agreement/SHARED-1",
+		"/activity/core", "/agreement", "/agreement/new", "/agreement/SHARED-1",
 		"/running", "/team", "/team?name=core",
 		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
 	}
@@ -159,8 +160,9 @@ func e2eNavAddress(t *testing.T, base string) {
 				t.Errorf("GET %s does not hold %q:\n%s", path, want, body)
 			}
 		}
-		if !strings.Contains(body, `<span class="scr soon"`) {
-			t.Errorf("GET %s shows no screen as not built yet:\n%s", path, body)
+		// Every screen is built now, so nothing in the band is struck through.
+		if strings.Contains(body, `class="scr soon"`) {
+			t.Errorf("GET %s strikes a screen through although every screen is built:\n%s", path, body)
 		}
 		if strings.Contains(body, `aria-current="page"`) {
 			t.Errorf("GET %s marks a screen as the one the person is on:\n%s", path, body)
@@ -189,8 +191,8 @@ func e2eNavAddress(t *testing.T, base string) {
 }
 
 // e2eNavBand is S1〜S4 and W1's row: the four names in order with their numbers,
-// the two not built yet struck through, the one the person is on marked, the
-// project's folder name, and the first tab reading 一覧.
+// all of them links, the one the person is on marked, the project's folder name,
+// and the first tab reading 一覧.
 func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
@@ -198,7 +200,7 @@ func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 
 	got := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
 		return [e.textContent.replace(/\s+/g,''), e.tagName, e.getAttribute('aria-current')||'', e.getAttribute('aria-disabled')||''];}))`)
-	want := `[["活動","SPAN","","true"],["チーム定義6","A","",""],["プロファイル11","SPAN","page",""],["ロール6","A","",""]]`
+	want := `[["活動","A","",""],["チーム定義6","A","",""],["プロファイル11","SPAN","page",""],["ロール6","A","",""]]`
 	if got != want {
 		t.Errorf("the band on /profiles reads\n%s\nwant\n%s", got, want)
 	}
@@ -238,7 +240,7 @@ func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 	e2eNavWait(t, ctx, `!!document.querySelector('#rows .role.open .panel')`)
 	roles := e2eNavText(t, ctx, `JSON.stringify([...document.querySelectorAll('.screens .scr')].map(function(e){
 		return [e.textContent.replace(/\s+/g,''), e.tagName];}))`)
-	wantRoles := `[["活動","SPAN"],["チーム定義6","A"],["プロファイル11","A"],["ロール6","SPAN"]]`
+	wantRoles := `[["活動","A"],["チーム定義6","A"],["プロファイル11","A"],["ロール6","SPAN"]]`
 	if roles != wantRoles {
 		t.Errorf("the band on /roles reads\n%s\nwant\n%s", roles, wantRoles)
 	}
@@ -248,9 +250,10 @@ func e2eNavBand(t *testing.T, ctx context.Context, base string) {
 	}
 }
 
-// e2eNavPlace is N1, N3, N4, N5 and N10: the band's links walk the two screens,
+// e2eNavPlace is N1, N2, N3, N4, N5 and N10: the band's links walk the screens,
 // each screen comes back to the place it was left, the screen the person is on
-// is not a link, and hergy goes to the profile screen's list.
+// is not a link, the first name is the activity screen's own link, and hergy
+// goes to the profile screen's list.
 func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
 
@@ -274,25 +277,19 @@ func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 		t.Errorf("the screen the person is on is a %s, want a span", tag)
 	}
 
-	// N2: the screen that is not built yet is not a link, it does not offer a
-	// finger, and pressing it changes nothing.
+	// N2: 活動 is a screen of its own now, so the band's first name is a link
+	// like the rest: it offers a finger, and pressing it moves to the activity
+	// screen (with no team running that screen says so in one line).
 	e2eRun(t, ctx, chromedp.Navigate(base+"/profiles"))
-	e2eNavWait(t, ctx, `!!document.querySelector('.scr.soon')`)
-	if n := e2eNavInt(t, ctx, `document.querySelectorAll('.scr.soon').length`); n != 1 {
-		t.Errorf("the band shows %d screens struck through, want 1", n)
+	e2eNavWait(t, ctx, `!!document.querySelector('a.scr[data-screen="activity"]')`)
+	got := e2eNavText(t, ctx, `JSON.stringify((function(){var el=document.querySelector('a.scr[data-screen="activity"]');`+
+		`return [el.textContent.replace(/\s+/g,''), el.tagName, el.getAttribute('href'), getComputedStyle(el).cursor];})())`)
+	if want := `["活動","A","/activity","pointer"]`; got != want {
+		t.Errorf("the band's 活動 reads %s, want %s", got, want)
 	}
-	for _, name := range []string{"活動"} {
-		script := `(function(){var el=[...document.querySelectorAll('.scr.soon')].find(function(e){return e.textContent.indexOf(` + strconv.Quote(name) + `)===0;});return [el.tagName, getComputedStyle(el).cursor, el.hasAttribute('href')];})()`
-		got := e2eNavText(t, ctx, `JSON.stringify(`+script+`)`)
-		if got != `["SPAN","default",false]` {
-			t.Errorf("the band's %s reads %s, want a span with no finger and no link", name, got)
-		}
-	}
-	e2eNavClick(t, ctx, `.scr.soon`)
-	e2eNavWait(t, ctx, `!!document.querySelector('#rows .row')`)
-	if path := e2eNavText(t, ctx, `location.pathname`); path != "/profiles" {
-		t.Errorf("pressing a screen that is not built moved the page to %q", path)
-	}
+	e2eNavClick(t, ctx, `a.scr[data-screen="activity"]`)
+	e2eNavWaitPath(t, ctx, "/activity")
+	e2eNavWait(t, ctx, `!!document.querySelector('#list')`)
 
 	// N5: a row opened on the role screen comes back opened.
 	e2eRun(t, ctx, chromedp.Navigate(base+"/roles?open=builder"))
@@ -312,14 +309,15 @@ func e2eNavPlace(t *testing.T, ctx context.Context, base string) {
 	e2eNavWaitPath(t, ctx, "/roles/assign")
 	e2eNavWait(t, ctx, `!!document.querySelector('.teams .team')`)
 
-	// N4: hergy goes to the profile screen's list, with nothing open.
+	// N4: hergy goes to the root, which carries a person to the team definitions
+	// while no team of this project is running, with nothing open.
 	e2eNavClick(t, ctx, `.crumb a.mark`)
-	e2eNavWaitPath(t, ctx, "/profiles")
-	e2eNavWait(t, ctx, `!!document.querySelector('#rows')`)
-	if open := e2eNavInt(t, ctx, `document.querySelectorAll('#rows .row.open').length`); open != 0 {
-		t.Errorf("hergy left %d rows open on the profile screen, want none", open)
+	e2eNavWaitPath(t, ctx, "/teams")
+	e2eNavWait(t, ctx, `document.querySelectorAll('#view .tdef').length > 0`)
+	if open := e2eNavInt(t, ctx, `document.querySelectorAll('#view .tdef.open').length`); open != 0 {
+		t.Errorf("hergy left %d team definitions open, want none", open)
 	}
-	if tab := e2eNavText(t, ctx, `document.querySelector('#tabs .tab.on').textContent.replace(/\s+/g,'')`); tab != "一覧" {
+	if tab := e2eNavText(t, ctx, `(document.querySelector('#tabs .tab.on')||{}).textContent.replace(/\s+/g,'')`); tab != "一覧" {
 		t.Errorf("hergy lands on the %q tab, want 一覧", tab)
 	}
 

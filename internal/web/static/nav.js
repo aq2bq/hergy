@@ -103,6 +103,37 @@
       const num = el && el.querySelector('.n');
       if (num) num.textContent = String(n);
     },
+    // setActivity writes the activity's two numbers (spec-activity 2.1): 活動 N
+    // while this project has a team running, and 待ち N while a member waits for
+    // a human or a permission, which is dropped at zero. counts is false while
+    // herdr cannot be read or none is running, and then 活動 stands alone (2.7).
+    // The screen calls this on every re-reading, so the band's two numbers are
+    // the reading's own and not the page's first ones.
+    setActivity(running, waiting, counts) {
+      const el = scr('activity');
+      if (!el) return;
+      let num = el.querySelector('.n');
+      if (counts && !num) {
+        num = document.createElement('span');
+        num.className = 'n';
+        el.appendChild(num);
+      }
+      if (!counts && num) {
+        num.remove();
+        num = null;
+      }
+      if (num) num.textContent = String(running);
+      let wait = el.querySelector('.wait');
+      if (!wait && waiting > 0) {
+        wait = document.createElement('span');
+        wait.className = 'wait';
+        if (num) num.after(wait);
+        else el.appendChild(wait);
+      }
+      if (!wait) return;
+      if (waiting > 0) wait.textContent = '待ち ' + waiting;
+      else wait.remove();
+    },
   };
 
   // Both scripts have run by the time the document is parsed, so the page
