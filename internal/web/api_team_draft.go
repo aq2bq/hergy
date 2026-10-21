@@ -236,9 +236,10 @@ func (s *Server) t2AgreeOfText(name, layer, text string) *apiTeamAgree {
 }
 
 // checkDraft answers what is wrong with a definition that is not there yet, and
-// carries what the screen draws it from (spec-teams B2, B7). The base text is
-// laid over the catalog at the path the row would be written to, so the check
-// reads the draft as if it were saved.
+// carries what the screen draws it from (spec-teams B2, B7). The base's two
+// files are laid over the catalog at the paths the row would be written to, so
+// the check reads the draft as if it were saved, and a row named after a
+// definition that is already there is checked as its own draft.
 func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 	s := k.s
 	row, refusal := s.t2DraftRowOf(in)
@@ -249,15 +250,20 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 	if refusal != nil {
 		return nil, refusal
 	}
-	path := s.cat.TeamYAML(t2DraftCheckName(in.Name), row.Layer)
+	name := t2DraftCheckName(in.Name)
+	path := s.cat.TeamYAML(name, row.Layer)
 	display := s.cat.Display(s.cat.TeamYAML(in.Name, row.Layer))
-	cat := s.cat.With(path, row.Team)
-	report := check.Team(check.TeamInput{Catalog: cat, Name: t2DraftCheckName(in.Name), Layer: row.Layer, Ops: body.ops})
+	// The row's own agreement is laid over beside its team.yaml, so the check
+	// reads the draft's rules rather than the rules of a definition that already
+	// holds the name: a row named after a saved definition is not told about
+	// that definition's rules (spec-teams B2, 監査 R6).
+	cat := s.cat.With(path, row.Team).With(s.t2AgreeFile(name, row.Layer), row.Agree)
+	report := check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: row.Layer, Ops: body.ops})
 	findings := report.Problems
 	if row.Starter {
 		findings = t2WithoutStarter(findings)
 	}
-	def, _ := cat.Definition(t2DraftCheckName(in.Name), row.Layer)
+	def, _ := cat.Definition(name, row.Layer)
 	draft, err := t2ApplyOps(row.Team, display, body.ops)
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
@@ -292,7 +298,12 @@ func (k apiTeam) checkDraftAgreement(in apiIn) (any, *apiErr) {
 	if body.in.Doc == nil {
 		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
 	}
-	cat := s.cat.With(s.cat.TeamYAML(t2DraftCheckName(in.Name), row.Layer), row.Team)
+	// The base's two files are laid over, so the arrows are judged against the
+	// draft's turns and the diff stands against the row's own base rather than
+	// the file of a definition that already holds the name (spec-teams B2, 監査
+	// R6).
+	cat := s.cat.With(s.cat.TeamYAML(t2DraftCheckName(in.Name), row.Layer), row.Team).
+		With(s.t2AgreeFile(t2DraftCheckName(in.Name), row.Layer), row.Agree)
 	report := check.Agreement(check.AgreementInput{
 		Catalog: cat, Name: t2DraftCheckName(in.Name), Place: row.Layer, Draft: body.in.Doc.document(),
 	})

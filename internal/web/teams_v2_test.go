@@ -781,3 +781,58 @@ func TestTeamsCopyAndDeleteTakeOnePlace(t *testing.T) {
 		t.Error("the copy in the other place went away with it")
 	}
 }
+
+// TestTeamsDraftCheckReadsTheRowsOwnFiles: a definition that is not there yet is
+// checked as its own draft, so a name a saved definition already holds brings
+// that definition's rules with it no longer, and the paths the answer names are
+// the name a person typed (spec-teams B2, 監査 R6).
+func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
+	f := newFixture(t)
+	// The saved definition's own rule writes a turn the team does not hold: read
+	// against the draft's base it warns, and read against the draft's own
+	// agreement it is not there at all.
+	f.write(t, filepath.Join("teams", "demo", "agreement.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: lead → reviewer と受け渡す。\n")
+	server := f.server(t)
+	checkOne := func(name string) t2TestDraft {
+		t.Helper()
+		resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+			"place": "project", "name": name, "part": "team", "new": true,
+			"doc": map[string]any{"ops": []any{}},
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+		}
+		return teamsDraft(t, body)
+	}
+
+	starter := checkOne("ops")
+	for _, p := range starter.Problems {
+		if strings.HasPrefix(p.At, "rule:") {
+			t.Fatalf("a fresh draft answers a rule's own problem: %+v", p)
+		}
+	}
+	taken := checkOne("demo")
+	if taken.Problems[0].At != "name" {
+		t.Fatalf("a name the place holds answers %+v, want the name's problem first", taken.Problems)
+	}
+	// The saved definition's rule is not read: the row's problems are the name's
+	// and its own base's, the same as a fresh draft's.
+	for _, p := range taken.Problems[1:] {
+		if strings.HasPrefix(p.At, "rule:") {
+			t.Errorf("a row named after a saved definition is told about that definition's rule: %+v", p)
+		}
+	}
+	if len(taken.Problems)-1 != len(starter.Problems) {
+		t.Errorf("a taken name answers %d problems beside its name's, want the %d a fresh draft answers",
+			len(taken.Problems)-1, len(starter.Problems))
+	}
+	// The paths are the name a person typed, not the definition it collides with
+	// (監査 R5).
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); taken.Path != want {
+		t.Errorf("the row says it stands at %q, want %q", taken.Path, want)
+	}
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"); taken.Doc.Agreement.Path != want {
+		t.Errorf("the row's agreement says it stands at %q, want %q", taken.Doc.Agreement.Path, want)
+	}
+}

@@ -176,15 +176,19 @@ func writeFile(path string, data []byte) error {
 }
 
 // addStarterProfile adds the starter profile to the profiles.yaml at path,
-// making the file when the layer has none. An existing file the layer cannot
-// read is an error rather than something to write over (I7).
+// making the file when the layer has none. A file that is already there is
+// added to with the one edit the profiles screen makes, so every other line it
+// holds — the order of the profiles, a comment, the value form a person wrote —
+// comes back as it was (spec-boundary 5, 監査 R3). A file the layer cannot read
+// is an error rather than something to write over (I7).
 func addStarterProfile(path string) error {
-	all := map[string]profile.Profile{}
 	switch text, err := os.ReadFile(path); {
 	case err == nil:
-		if all, err = profile.ParseProfiles(string(text), path); err != nil {
-			return err
+		out, editErr := profile.EditYAML(text, path, profile.Add(scaffold.ProfileName, scaffold.ProfileKind))
+		if editErr != nil {
+			return editErr
 		}
+		return source.WriteBeside(path, string(out))
 	case errors.Is(err, os.ErrNotExist):
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
@@ -192,12 +196,13 @@ func addStarterProfile(path string) error {
 	default:
 		return err
 	}
-	all[scaffold.ProfileName] = profile.Profile{
-		Name: scaffold.ProfileName,
-		Kind: scaffold.ProfileKind,
-		Path: path,
-	}
-	text, err := profile.EmitProfiles(all)
+	text, err := profile.EmitProfiles(map[string]profile.Profile{
+		scaffold.ProfileName: {
+			Name: scaffold.ProfileName,
+			Kind: scaffold.ProfileKind,
+			Path: path,
+		},
+	})
 	if err != nil {
 		return err
 	}

@@ -233,7 +233,9 @@
     state.dtab[r.dom] = 'shape';
     render();
     const el = $(`.tdef[data-name="${CSS.escape(r.dom)}"] .in-name`) || $(`.tdef[data-name="${CSS.escape(r.dom)}"] .sum`);
-    if (el) el.focus({ preventScroll: true });
+    // The name a copy already holds is chosen, so the first letter a person
+    // types replaces it rather than landing beside it (監査 R8).
+    if (el) { el.focus({ preventScroll: true }); if (el.select) el.select(); }
     return r;
   }
   // dropDraft takes a row that is not there yet away without writing anything
@@ -694,7 +696,9 @@
     const added = df.added || [], removed = df.removedBefore || [], lastDel = !!df.removedAtEnd;
     const lines = at.map((z) => z.text);
     const prev = state.tlast[key];
-    if (prev && prev.join('\n') !== lines.join('\n')) { state.tstep[key] = [...stepOf(prev, lines)]; state.tglow[key] = Date.now(); }
+    // The first answer for a row is not a move: the text was not drawn before,
+    // so the row's whole file is not marked as changed (監査 R1).
+    if (prev && prev.length && prev.join('\n') !== lines.join('\n')) { state.tstep[key] = [...stepOf(prev, lines)]; state.tglow[key] = Date.now(); }
     state.tlast[key] = lines;
     const step = new Set(state.tstep[key] || []);
     const marks = lineMarks(r), cur = state.gsel[key], n = at.length;
@@ -708,10 +712,29 @@
     const issues = teamIssues(r), nadd = added.length, ndel = removed.length + (lastDel ? 1 : 0);
     return `<aside class="yprev tprev" aria-label="team.yaml"><div class="yph"><span class="pkl">YAML</span><span class="yinfo"><span class="vt">${n} 行</span>${nadd || ndel ? `<span class="dirty">+${nadd} −${ndel}</span>` : ''}<span class="yr">${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</span></span></div><div class="ybox">${body}</div></aside>`;
   }
+  // fitYbox caps the topology tab's YAML box at the room between the box's top
+  // and the save's band, which stands at the bottom of the window while the
+  // panel is taller than the window (spec-teams B7, 監査 R2). Without it the box
+  // runs on under the band, and the line a person just moved stands where the
+  // band hides it. The screen keeps it because where the band stands is only
+  // known once the panel is drawn; it is a cap, so a box with less text is left
+  // as it is.
+  function fitYbox(panel) {
+    const box = $('.tprev', panel);
+    if (!box) return;
+    if (getComputedStyle(box).display === 'none') { box.style.maxHeight = ''; return; }
+    const foot = $('.pf', panel), fh = foot ? foot.offsetHeight : 0;
+    const h = Math.max(160, Math.floor(window.innerHeight - fh - box.getBoundingClientRect().top - 8));
+    if (box.style.maxHeight !== h + 'px') box.style.maxHeight = h + 'px';
+  }
+  function fitYboxes(root) {
+    $$('.panel.team-p', root || view).forEach(fitYbox);
+  }
   // afterTPrev brings the lines a person is looking at into the box (spec-teams
   // B7): the lines one edit just moved after an edit, and the lines the figure
-  // has picked after a pick. It never scrolls a line under the foot, because the
-  // box is inside the panel and stops above it.
+  // has picked after a pick. It moves the box's own scroll and nothing else, so
+  // opening a row leaves the page where it stands (監査 R1); the box itself
+  // stops above the save's band (監査 R2).
   function afterTPrev(r) {
     const key = dkey(r);
     const panel = $(`.panel.team-p[data-key="${CSS.escape(key)}"]`);
@@ -720,9 +743,21 @@
     if (!box || !box.clientHeight) return;
     const at = (r.preview || { lines: [] }).lines || [];
     const step = state.tstep[key] || [];
-    let want = step.length ? step[step.length - 1] : -1;
+    const df = (r.preview || {}).diff || {};
+    // The lines a change moved are the glow's own step, and also the lines the
+    // server's diff names — the ones it added, and the place it took one from
+    // (spec-teams B7). A step the glow marks alone can miss a removal the added
+    // line's shift hides (監査 R2), so both are read, and the last of them is
+    // where the box is sent.
+    let want = -1;
+    [...step, ...(df.added || []), ...(df.removedBefore || []), ...(df.removedAtEnd ? [at.length - 1] : [])]
+      .forEach((i) => { if (i > want && i < at.length) want = i; });
     if (want < 0) { const cur = state.gsel[key]; if (cur) { for (let i = 0; i < at.length; i++) if (isCurLine(at[i], cur)) { want = i; break; } } }
-    if (want >= 0 && box.children[want]) box.children[want].scrollIntoView({ block: 'nearest' });
+    if (want >= 0 && box.children[want]) {
+      const br = box.getBoundingClientRect(), lr = box.children[want].getBoundingClientRect();
+      if (lr.top < br.top) box.scrollTop -= br.top - lr.top;
+      else if (lr.bottom > br.bottom) box.scrollTop += lr.bottom - br.bottom;
+    }
     if (state.tglow[key]) {
       const glowed = state.tglow[key];
       clearTimeout(state.tglowTimer && state.tglowTimer[key]);
@@ -844,10 +879,18 @@
       .map(([t, label, n, ch]) => `<button class="dtab ${cur === t ? 'on' : ''}" data-act="dtab" data-t="${t}" aria-pressed="${cur === t}">${label}${n !== '' ? `<span class="n">${n}</span>` : ''}${dot(ch)}</button>`).join('');
   }
   const dtabsNav = (r) => `<span class="dtl">${dtabsHTML(r)}</span><span class="dacts">${dactsHTML(r)}</span>`;
+  // mvmHTML is what one definition's own field is told: the name's problems
+  // first — the name is the field the row is read by, and a name a place
+  // already holds is what its save stops on — then the mission's warnings
+  // (spec-teams B2, 監査 R4). The sentences are the server's.
+  const mvmHTML = (r) => [
+    ...(r.nameIssues || []),
+    ...r.findings.filter((m) => m.field === 'mission'),
+  ].map((m) => vmItem({ sev: m.sev, msg: m.text })).join('');
   function detailHTML(r) {
     const hidden = r.hidden || [];
     return `<div class="detail">
-    <ul class="vm mvm"></ul>
+    <ul class="vm mvm">${mvmHTML(r)}</ul>
     <nav class="dtabs">${dtabsNav(r)}</nav>
     ${dtabOf(r) === 'shape' ? teamPanelHTML(r) : agreePanelHTML(r)}
     ${hidden.map((h) => `<section class="panel shadowed"><header class="ph"><span class="ln">${PLACE[h.place]}</span><code class="path">${esc((DIR[h.place] || '') + r.name)}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key="${esc(r.name)}.${h.place}.team">YAML</button></span></header></section>`).join('')}
@@ -899,7 +942,7 @@
     const cell = q('.c-mission .in-mission');
     if (cell) cell.classList.toggle('changed', cell.value !== r.team.saved.mission);
     const mvm = q('.mvm');
-    if (mvm) mvm.innerHTML = r.findings.filter((m) => m.field === 'mission').map((m) => vmItem({ sev: m.sev, msg: m.text })).join('');
+    if (mvm) mvm.innerHTML = mvmHTML(r);
   }
 
   // ---- YAML のタブ ----------------------------------------------------
@@ -980,15 +1023,17 @@
     $('#tabs').innerHTML = [['list', '一覧'], ['yaml', 'YAML']]
       .map(([t, label]) => `<button class="tab ${state.tab === t ? 'on' : ''}" data-act="tab" data-t="${t}" aria-pressed="${state.tab === t}">${label}</button>`).join('');
     view.innerHTML = state.tab === 'list' ? listHTML() : yamlTabHTML();
+    setStick();
     if (state.tab === 'list') {
       $$('.panel.team-p', view).forEach(placeCard);
+      fitYboxes();
       $$('.panel.team-p', view).forEach((p) => { const r = byKey(p.dataset.key); if (r) afterTPrev(r); });
       $$('.panel.agree-p', view).forEach(markPanel);
       $$('.tdef.open', view).forEach((row) => { const r = byName(row.dataset.name); if (r && dtabOf(r) === 'agree') checkAgree(r); });
     } else {
       mountYed($('.yed', view));
     }
-    setStick();
+    setBandCount();
     tellDirty();
   }
   function rerenderTeam(r, sel) {
@@ -1002,6 +1047,7 @@
       const gc = $('.gscroll', fresh);
       if (gc) gc.scrollLeft = scroll;
       placeCard(fresh);
+      fitYbox(fresh);
       afterTPrev(r);
       if (sel) { const el = fresh.querySelector(sel); if (el) el.focus({ preventScroll: true }); }
     }
@@ -1041,6 +1087,7 @@
     const ft = $('footer.pf', panel);
     if (ft) ft.outerHTML = footHTML(r);
     placeCard(panel);
+    fitYbox(panel);
     afterTPrev(r);
     refreshRow(r.dom);
   }
@@ -1065,6 +1112,7 @@
     if (ag) ag.outerHTML = agreePanelHTML(r);
     $$('.dtabs', row).forEach((n) => { n.innerHTML = dtabsNav(r); });
     if (state.open.has(r.dom)) $$('.panel.team-p', row).forEach(placeCard);
+    $$('.panel.team-p', row).forEach(fitYbox);
     afterTPrev(r);
     $$('.panel.agree-p', row).forEach(markPanel);
     row.classList.toggle('unsaved', dirtyDef(r));
@@ -1075,6 +1123,15 @@
     if (row) row.outerHTML = rowHTML(r);
   }
   const setStick = () => { const bar = $('.bar'); document.documentElement.style.setProperty('--stick', (bar ? bar.offsetHeight : 48) + 'px'); };
+  // setBandCount keeps the band's number the same as the list's own: the band
+  // counts the definitions, which are the rows that are saved — a row that is
+  // not there yet is not one (spec-nav 1.1, 監査 R7).
+  function setBandCount() {
+    if (!window.hergyNav) return;
+    let n = 0;
+    for (const r of recs.values()) if (!r.draftRow) n++;
+    window.hergyNav.setCount('teams', n);
+  }
 
   function tellDirty() {
     let dirty = false;
@@ -1126,6 +1183,16 @@
     if (r.draftRow) {
       r.writes = json.writes || r.writes;
       r.nameIssues = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
+      // The paths the row would be written to are the server's, and they move
+      // with the name a person is typing: both panels' heads follow the check
+      // (spec-teams B2, 監査 R5).
+      if (json.path) r.teamPath = json.path;
+      const ag = (json.doc || {}).agreement || {};
+      if (ag.path) {
+        r.agreePath = ag.path;
+        if (r.agree.saved) r.agree.saved.__path = ag.path;
+        if (r.agree.draft) r.agree.draft.__path = ag.path;
+      }
     }
     // Someone typing a worker's purpose or the mission keeps the field they are
     // typing in: that card's checks, the point's letters and the preview are drawn
@@ -1218,12 +1285,15 @@
     orderRows(nr, at);
     if (opens) state.open.add(nr.dom);
     state.dtab[nr.dom] = dtab;
-    state.ok['t' + dkey(nr)] = 1;
     render();
     // The definition the save wrote holds its own checks now: the figure's and
-    // the rules' are read again from the file it wrote (spec-boundary 5).
-    checkTeam(nr);
-    if (nr.agree.saved) checkAgree(nr);
+    // the rules' are read again from the file it wrote (spec-boundary 5). The
+    // 保存しました stands on the row's own foot after that reading, so the
+    // check's own draw does not take it away (1.4.6, 監査 R7).
+    await checkTeam(nr);
+    if (nr.agree.saved) await checkAgree(nr);
+    state.ok[(dtabOf(nr) === 'agree' ? 'a' : 't') + dkey(nr)] = 1;
+    rerenderSides(nr);
     syncURL();
   }
   // doDelete takes one definition's folder out of one place (spec-teams B6): its
@@ -1480,7 +1550,7 @@
       case 't-save': saveTeam(td, tp); break;
       case 't-revert': td.ops = []; delete state.gsel[tk]; state.confirm = {}; syncTeam(td); rerenderRow(td); break;
       case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
-      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); if (b.dataset.t === 'agree') checkAgree(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
+      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); if (b.dataset.t === 'agree') checkAgree(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(fitYbox); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
       case 'yfile': state.yfile = b.dataset.file; render(); break;
       case 'yaml-jump': YAML.jump(b.closest('.yed'), Number(b.dataset.line)); break;
       case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; YAML.revert(sec); refreshFileDot(sec.dataset.key); break; }
@@ -1600,9 +1670,17 @@
     rt = setTimeout(() => {
       setStick();
       if (narrow() !== wasNarrow) { wasNarrow = narrow(); $$('.panel.team-p').forEach((p) => rerenderTeam(byKey(p.dataset.key))); }
-      else $$('.panel.team-p').forEach(placeCard);
+      else { $$('.panel.team-p').forEach(placeCard); fitYboxes(); }
     }, 160);
   });
+  // Where the save's band stands is a matter of where the page is, so the box
+  // is capped again as the page moves (監査 R2). The work is left to one frame.
+  let ft = false;
+  window.addEventListener('scroll', () => {
+    if (ft || state.tab !== 'list') return;
+    ft = true;
+    requestAnimationFrame(() => { ft = false; fitYboxes(); });
+  }, { passive: true });
   window.addEventListener('popstate', () => { state.open = new Set(); readURL(); render(); jumpWantRule(); });
 
   function take() {

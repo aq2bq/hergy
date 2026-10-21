@@ -134,3 +134,37 @@ func TestWriteTakesBackWhatItCouldNotFinish(t *testing.T) {
 		t.Errorf("the failed write changed the profiles.yaml it could not read: %v\n%s", err, got)
 	}
 }
+
+// TestWriteAddsTheStarterProfileLineByLine: a layer that already holds a
+// profiles.yaml gets the starter profile with the one edit the profiles screen
+// makes, so every other line — the order of the profiles, a comment, the way a
+// person wrote a value — comes back as it was (spec-boundary 5, 監査 R3).
+func TestWriteAddsTheStarterProfileLineByLine(t *testing.T) {
+	in, proj := starterIn(t)
+	base := filepath.Join(proj, ".hergy")
+	before := "version: 1\n" +
+		"# a comment a person wrote\n" +
+		"profiles:\n" +
+		"  zeta:\n" +
+		"    kind: codex\n" +
+		"    args: ['-m', 'gpt-5']\n" +
+		"    env:\n" +
+		"      CODEX_HOME: '~/.codex-team'\n" +
+		"  alpha:\n" +
+		"    kind: claude\n"
+	path := filepath.Join(base, "profiles.yaml")
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Write(in); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := before + "  " + scaffold.ProfileName + ":\n    kind: " + scaffold.ProfileKind + "\n"
+	if string(after) != want {
+		t.Errorf("the write left the profiles.yaml as\n%s\nwant only the starter profile added:\n%s", after, want)
+	}
+}

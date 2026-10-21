@@ -177,6 +177,14 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   the shared part (the role screen and the team screen alike) marks a check
   about a document as a whole — a member's reading volume, say — on the first
   line, not on every heading and blank line beside it.
+- **`hergy new` adds the starter profile to a `profiles.yaml` that is already
+  there**: the layer keeps every other line — the order of the profiles, a
+  comment, the way a person wrote a value or an argument list — and only
+  `claude-default` is added, so the file reads as it did with two lines more.
+  It used to be written out whole, which sorted the profiles and rewrote their
+  values and dropped their comments. The team screen's save of a new definition
+  goes through the same code, so both now write the file one way
+  (spec-boundary 5).
 
 ### Breaking
 

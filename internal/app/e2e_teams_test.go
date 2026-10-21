@@ -90,6 +90,17 @@ func TestE2ETeams(t *testing.T) {
 	defer stop4()
 	t.Run("topology preview", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
 
+	// The audit's own walk reads the page a URL opens, the band the YAML box stops
+	// above, and a new row's name, so it stands in a project nothing has written
+	// over (監査 R1〜R8).
+	f5 := newFixture(t)
+	copyTeamsFixture(t, f5, cwd)
+	writeFile(t, filepath.Join(f5.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f5.runningHerdr(t, "", "")
+	base5, stop5 := startServe(t, f5)
+	defer stop5()
+	t.Run("audit 8", func(t *testing.T) { e2eTeamsAudit(t, ctx, base5, f5) })
+
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the team screen logged %d console errors: %v", len(lines), lines)
 	}
@@ -1005,6 +1016,12 @@ func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fi
 	if err != nil {
 		t.Fatal(err)
 	}
+	// R3: the starter profile is added to the project's profiles.yaml with one
+	// edit, so every other line a person wrote — the order of the profiles, a
+	// comment, the quoting of a value — comes back as it was (spec-boundary 5,
+	// 監査 R3).
+	profilePath := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	beforeProfile := readFile(t, profilePath)
 	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
 	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("ops"))
 	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
@@ -1020,8 +1037,15 @@ func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fi
 			t.Errorf("the saved ops/%s reads\n%s\nwant hergy new's own\n%s", file.Path, got, file.Data)
 		}
 	}
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); !strings.Contains(got, "claude-default") {
-		t.Errorf("the project's profiles.yaml holds no starter profile:\n%s", got)
+	if got, want := readFile(t, profilePath), beforeProfile+"  claude-default:\n    kind: claude\n"; got != want {
+		t.Errorf("the save rewrote the project's profiles.yaml:\n%s\nwant only the starter profile added:\n%s", got, want)
+	}
+	// R7: the band's number follows the save, and the row's own foot says 保存しました
+	// (spec-nav 1.1, 1.4.6, 監査 R7).
+	e2eTeamsWait(t, ctx, `document.querySelector('.screens .scr[data-screen=teams] .n').textContent==='7'`)
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("ops")+`.querySelector('footer.pf .ok')!==null`)
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("ops")+`.querySelector('footer.pf .ok').textContent.trim()`); got != "保存しました" {
+		t.Errorf("the saved row's foot reads %q, want 保存しました", got)
 	}
 
 	// N4: the same name saved into 共通 writes the shared place, with the role
@@ -1172,6 +1196,23 @@ func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fi
 	if want := []string{"core", "core-2", "docs", "migrate", "ops", "research"}; !slices.Equal(names, want) {
 		t.Errorf("取り消し left the project's teams as %v, want %v", names, want)
 	}
+
+	// R7: 削除 draws the band's number again: taking core-2's folder away leaves
+	// one definition fewer, and the band follows the list (spec-nav 1.1, 監査
+	// R7).
+	before = rows()
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("core-2")+`.classList.contains('open')+''`); got != "true" {
+		e2eTeamsClick(t, ctx, e2eTeamsRowJS("core-2")+`.querySelector('.sum')`)
+		e2eTeamsWait(t, ctx, e2eTeamsRowJS("core-2")+`.classList.contains('open')+''==='true'`)
+	}
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core-2")+`.querySelector('.dacts [data-act=del]')`)
+	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("core-2")+`.querySelector('[data-act=del-yes]')`)
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core-2")+`.querySelector('[data-act=del-yes]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector(`+strconv.Quote(`.tdef[data-name="core-2"]`)+`)`)
+	if got := rows(); got != before-1 {
+		t.Errorf("the delete left %d rows, want %d", got, before-1)
+	}
+	e2eTeamsWait(t, ctx, `document.querySelector('.screens .scr[data-screen=teams] .n').textContent===`+strconv.Quote(strconv.Itoa(before-1)))
 }
 
 // e2eTeamsTopology walks the トポロジー tab's team.yaml preview (spec-teams B7,
@@ -1324,4 +1365,139 @@ func e2eTeamsTopology(t *testing.T, ctx context.Context, base string, f *fixture
 		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .x')`)
 		e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.gcard')`)
 	}
+}
+
+// e2eTeamsAudit walks what the version-7 audit sent back that the other walks do
+// not read (監査 R1〜R8): the page a URL opens stays where it stands and lights no
+// line (R1), the YAML box stops above the save's band in both layouts and the
+// line a change moved is brought above that band (R2), a new row's name problems
+// stand under its name field (R4), both panels' heads follow the name being
+// typed (R5), a name a saved definition already holds reads the draft's own
+// agreement (R6), and a duplicate's name field holds the whole name chosen (R8).
+// R3 and R7 stand in e2eTeamsAddCopyDelete, where a save happens.
+func e2eTeamsAudit(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	// tline is true when one line stands inside its box and above the save's band.
+	// The band's own top edge is what the audit measured, so that is what the
+	// line is held to.
+	tline := func(p, find string) string {
+		return `(function(){var p=` + p + `,l=p.querySelector(` + strconv.Quote(find) + `),b=p.querySelector('.tprev .ybox'),f=p.querySelector('footer.pf');` +
+			`if(!l||!b||!f)return false;var lr=l.getBoundingClientRect(),br=b.getBoundingClientRect(),fr=f.getBoundingClientRect();` +
+			`return lr.top>=br.top-1&&lr.bottom<=br.bottom+1&&lr.bottom<=fr.top+1;})()+''==='true'`
+	}
+	boxAbove := func(p string) string {
+		return `(function(){var p=` + p + `,b=p.querySelector('.tprev'),f=p.querySelector('footer.pf');` +
+			`if(!b||!f)return false;return b.getBoundingClientRect().bottom<=f.getBoundingClientRect().top+1;})()+''==='true'`
+	}
+
+	// R1: a URL that opens a row brings the page nowhere and lights no line. The
+	// first answer for a row is not a move, and the box moves its own scroll and
+	// nothing else (追補 B7, 監査 R1).
+	e2eRun(t, ctx, chromedp.EmulateViewport(1440, 1000))
+	for _, name := range []string{"core", "research"} {
+		e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open="+name))
+		p := e2eTeamsPanelJS(name)
+		e2eTeamsWait(t, ctx, p+`!==null&&`+p+`.querySelectorAll('.tprev .ybox .yl').length>0`)
+		if got := e2eTeamsInt(t, ctx, `window.scrollY`); got != 0 {
+			t.Errorf("opening %s by URL sent the page %dpx down", name, got)
+		}
+		if got := e2eTeamsInt(t, ctx, p+`.querySelector('.tprev .ybox').scrollTop`); got != 0 {
+			t.Errorf("opening %s by URL sent its YAML box %dpx down", name, got)
+		}
+		if got := e2eTeamsInt(t, ctx, p+`.querySelectorAll('.tprev .yl.step').length`); got != 0 {
+			t.Errorf("opening %s by URL lit %d lines as the move", name, got)
+		}
+	}
+
+	// R2: the box stops above the save's band, and the line a turn added, and the
+	// line a turn taken away left, are brought above that band (追補 B7, 監査 R2).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"))
+	p := e2eTeamsPanelJS("core")
+	e2eTeamsWait(t, ctx, p+`!==null&&!!`+p+`.querySelector('.tprev .ybox .yl')`)
+	e2eTeamsWait(t, ctx, boxAbove(p))
+	e2eTeamsClick(t, ctx, p+`.querySelector('.gn.member[data-id=analyst]')`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`)
+	e2eSelect(t, ctx, p+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`, "reviewer")
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.tprev .yl.ins')`)
+	e2eTeamsWait(t, ctx, tline(p, ".tprev .yl.ins"))
+	e2eTeamsClick(t, ctx, p+`.querySelector('.tprev .yl[data-a=analyst][data-b=impl-a]')`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.gcard [data-act=turn-ask]')`)
+	e2eTeamsClick(t, ctx, p+`.querySelector('.gcard [data-act=turn-ask]')`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsClick(t, ctx, p+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.tprev .yl.del')`)
+	e2eTeamsWait(t, ctx, tline(p, ".tprev .yl.del"))
+
+	// R2 at one column: the row's YAML mode shows the box over the whole width,
+	// and the line the added turn is above the band there too (Y7, 監査 R2).
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"))
+	e2eRun(t, ctx, chromedp.EmulateViewport(1100, 900))
+	e2eTeamsWait(t, ctx, p+`!==null&&!!`+p+`.querySelector('.gn.member[data-id=analyst]')`)
+	e2eTeamsClick(t, ctx, p+`.querySelector('.gn.member[data-id=analyst]')`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`)
+	e2eSelect(t, ctx, p+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`, "reviewer")
+	e2eTeamsWait(t, ctx, p+`.querySelector('.tprev .yl.ins')!==null`)
+	e2eTeamsClick(t, ctx, p+`.querySelector('.pview [data-act=tmode][data-v=yaml]')`)
+	e2eTeamsWait(t, ctx, p+`.dataset.mode==='yaml'`)
+	e2eTeamsWait(t, ctx, `!!`+p+`.querySelector('.tprev .ybox .yl')`)
+	e2eTeamsWait(t, ctx, boxAbove(p))
+	e2eTeamsWait(t, ctx, tline(p, ".tprev .yl.ins"))
+
+	// R4〜R6, R8: the list's own new row.
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams"), chromedp.WaitReady("#view .tdef"))
+	e2eTeamsWait(t, ctx, `document.querySelectorAll('#view .tdef').length===6`)
+	draft := `document.querySelector('.tdef[data-name^="~new"]')`
+	mvm := `[...document.querySelectorAll('.tdef[data-name^="~new"] .mvm li')].map(function(l){return l.lastElementChild.textContent}).join('|')`
+	e2eTeamsClick(t, ctx, `document.querySelector('.toolbar [data-act=new]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.in-name')`)
+
+	// R4: the name's own problem stands under the name field, first in the same
+	// list as the mission's warning (追補 B2, 監査 R4).
+	e2eTeamsWait(t, ctx, `document.querySelectorAll('.tdef[data-name^="~new"] .mvm li').length===2`)
+	if got := e2eTeamsValue(t, ctx, mvm); !strings.HasPrefix(got, "チーム定義名を書いてください") {
+		t.Errorf("the name field's own list reads %q, want the name's problem first", got)
+	}
+	fresh := e2eTeamsValue(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.trim()`)
+
+	// R5: both panels' heads follow the name a person is typing (追補 B2, 監査 R5).
+	e2eSet(t, ctx, draft+`.querySelector('.in-name')`, "ops2")
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.panel.team-p .ph .path').textContent.indexOf('teams/ops2/team.yaml')>=0`)
+	e2eTeamsClick(t, ctx, draft+`.querySelector('.dtabs .dtab[data-t=agree]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.panel.agree-p .ph .path')`)
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.panel.agree-p .ph .path').textContent`); !strings.HasSuffix(got, "teams/ops2/agreement.yaml") {
+		t.Errorf("the rules panel's head reads %q, want the typed name's agreement.yaml", got)
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('.dtabs .dtab[data-t=shape]')`)
+
+	// R4, R6: a name a place already holds is the problem it says, and that
+	// definition's own rules do not come with the name (追補 B2, 監査 R4, R6).
+	e2eSet(t, ctx, draft+`.querySelector('.in-name')`, "core")
+	e2eTeamsWait(t, ctx, mvm+`.indexOf('すでにあります')>=0`)
+	if got := e2eTeamsValue(t, ctx, mvm); !strings.HasPrefix(got, "チーム定義") {
+		t.Errorf("a taken name's list reads %q, want the name's problem first", got)
+	}
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.trim()`); got != fresh {
+		t.Errorf("a row named core counts %q, want the %q a fresh draft counts: its own rules are not read", got, fresh)
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.tdef[data-name^="~new"] .vlist .vitem .msg')].map(function(m){return m.textContent}).join('|')`); strings.Contains(got, "CORE-") {
+		t.Errorf("a row named after core reads core's own rules: %q", got)
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=discard]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+
+	// R8: a duplicate's name field holds the whole name chosen, so the first
+	// letter a person types replaces it (追補 B3, 監査 R8).
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.sum')`)
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("core")+`.classList.contains('open')+''==='true'`)
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.dacts [data-act=dup]')`)
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.in-name')&&`+draft+`.querySelector('.in-name').value==='core-2'`)
+	if got := e2eTeamsValue(t, ctx, `(function(){var el=`+draft+`.querySelector('.in-name');return el.selectionStart+'|'+el.selectionEnd+'|'+el.value.length;})()`); got != "0|6|6" {
+		t.Errorf("the duplicate's name field is chosen as %q, want the whole core-2 (0|6|6)", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `(document.activeElement===`+draft+`.querySelector('.in-name'))+''`); got != "true" {
+		t.Errorf("the duplicate left the cursor outside its name field")
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=discard]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
 }
