@@ -20,21 +20,25 @@ func writeTree(t *testing.T, root, rel, text string) {
 }
 
 // The columns of a list are found by their headings, not by their places, so a
-// list may put its ID, its layer and what it checks in any order.
+// list may put its ID, its size and what it checks in any order.
 func TestReadChecksTableFindsItsColumnsByHeading(t *testing.T) {
 	text := "# a list\n\n" +
-		"| 確かめること | ID | 層 |\n" +
+		"| 確かめること | ID | 大きさ |\n" +
 		"|---|---|---|\n" +
-		"| opens the screen | X-1 | E2E |\n" +
-		"| answers the api | X-2 | 受け口 |\n" +
+		"| opens the screen | X-1 | 大 |\n" +
+		"| answers the api | X-2 | 中 |\n" +
+		"| a small rule | X-3 | 小 |\n" +
+		"| looks like this | X-4 | 監査 |\n" +
 		"\ntrailing words\n"
 	items, err := readChecksTable(text, "checks/x.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []checkItem{
-		{ID: "X-1", Layer: layerE2E, Where: "checks/x.md"},
-		{ID: "X-2", Layer: layerAPI, Where: "checks/x.md"},
+		{ID: "X-1", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-2", Size: sizeMedium, Where: "checks/x.md"},
+		{ID: "X-3", Size: sizeSmall, Where: "checks/x.md"},
+		{ID: "X-4", Size: sizeAudit, Where: "checks/x.md"},
 	}
 	if len(items) != len(want) {
 		t.Fatalf("read %d items, want %d: %+v", len(items), len(want), items)
@@ -46,12 +50,13 @@ func TestReadChecksTableFindsItsColumnsByHeading(t *testing.T) {
 	}
 }
 
-// A row whose layer is neither E2E nor 受け口, and a table whose heading names
-// no ID, both stop the reading: the lists are the gate's ground.
+// A row whose size is not one of the four, and a table whose heading names no
+// ID, both stop the reading: the lists are the gate's ground.
 func TestReadChecksTableRefusesAListItCannotRead(t *testing.T) {
 	for name, text := range map[string]string{
-		"an unknown layer": "| ID | 層 |\n|---|---|\n| X-1 | E2E |\n| X-2 | ふつうのテスト |\n",
-		"no ID column":     "| 名前 | 層 |\n|---|---|\n| X-1 | E2E |\n",
+		"an unknown size": "| ID | 大きさ |\n|---|---|\n| X-1 | 大 |\n| X-2 | ふつうのテスト |\n",
+		"no ID column":    "| 名前 | 大きさ |\n|---|---|\n| X-1 | 大 |\n",
+		"no size column":  "| ID | 名前 |\n|---|---|\n| X-1 | one |\n",
 	} {
 		if _, err := readChecksTable(text, "checks/x.md"); err == nil {
 			t.Errorf("%s: read without an error", name)
@@ -107,9 +112,9 @@ func TestSomethingElse(t *testing.T) {
 	}
 }
 
-// A 受け口 test may carry the ID in its function name (the - written as _) or in
-// a t.Run name; both are read.
-func TestReadAPITestNamesReadsFunctionsAndRuns(t *testing.T) {
+// A 小・中 test may carry the ID in its function name (the - written as _) or in
+// a t.Run name; both are read, and the e2e files are left out.
+func TestReadTestNamesReadsFunctionsAndRuns(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, "internal/web/web_test.go", `package web
 
@@ -121,7 +126,15 @@ func TestSomethingElse(t *testing.T) {
 	t.Run("X-2 the run name", func(t *testing.T) {})
 }
 `)
-	names, err := readAPITestNames(root)
+	writeTree(t, root, "internal/app/e2e_x_test.go", `package app
+
+import "testing"
+
+func TestE2EX(t *testing.T) {
+	t.Run("X-9 the browser walk", func(t *testing.T) {})
+}
+`)
+	names, err := readTestNames(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,54 +144,82 @@ func TestSomethingElse(t *testing.T) {
 			t.Errorf("the names lack %q:\n%s", want, joined)
 		}
 	}
+	if strings.Contains(joined, "X-9 the browser walk") {
+		t.Errorf("the e2e names were read as a 小・中 test:\n%s", joined)
+	}
 }
 
 // The two things the gate says: an item no test holds, and an e2e subtest no
-// item holds.
+// 大 item holds.
 func TestCheckFindingsNamesBothKindsOfGap(t *testing.T) {
 	items := []checkItem{
-		{ID: "X-1", Layer: layerE2E, Where: "checks/x.md"},
-		{ID: "X-2", Layer: layerE2E, Where: "checks/x.md"},
-		{ID: "X-3", Layer: layerAPI, Where: "checks/x.md"},
-		{ID: "X-4", Layer: layerAPI, Where: "checks/x.md"},
+		{ID: "X-1", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-2", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-3", Size: sizeMedium, Where: "checks/x.md"},
+		{ID: "X-4", Size: sizeMedium, Where: "checks/x.md"},
+		{ID: "X-5", Size: sizeSmall, Where: "checks/x.md"},
+		{ID: "X-6", Size: sizeAudit, Where: "checks/x.md"},
 	}
 	subtests := []e2eSubtest{
 		{Test: "TestE2EX", Name: "X-1 the first", Where: "e2e_x_test.go:10"},
 		{Test: "TestE2EX", Name: "a stray walk", Where: "e2e_x_test.go:20"},
 	}
-	apiNames := []string{"TestX_3AnswersTheApi"}
+	testNames := []string{"TestX_3AnswersTheApi"}
 
-	got := strings.Join(checkFindings(items, subtests, apiNames), "\n")
+	got := strings.Join(checkFindings(items, subtests, testNames), "\n")
 	for _, want := range []string{
 		"X-2 にテストがありません（checks/x.md）",
 		"X-4 にテストがありません（checks/x.md）",
+		"X-5 にテストがありません（checks/x.md）",
 		"TestE2EX/a stray walk に一覧の ID がありません（e2e_x_test.go:20）",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the findings lack %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "X-1 にテストがありません") || strings.Contains(got, "X-3 にテストがありません") {
+	if strings.Contains(got, "X-1 にテストがありません") || strings.Contains(got, "X-3 にテストがありません") || strings.Contains(got, "X-6 にテストがありません") {
 		t.Errorf("a covered item was called missing:\n%s", got)
 	}
-	if n := len(checkFindings(items, subtests, apiNames)); n != 3 {
-		t.Errorf("found %d findings, want 3:\n%s", n, got)
+	if n := len(checkFindings(items, subtests, testNames)); n != 4 {
+		t.Errorf("found %d findings, want 4:\n%s", n, got)
+	}
+}
+
+// A 大 item is not held by a 小・中 test, and the reverse: only the e2e walk
+// stands for a 大 item.
+func TestCheckFindingsKeepsTheSizesApart(t *testing.T) {
+	items := []checkItem{
+		{ID: "X-1", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-2", Size: sizeMedium, Where: "checks/x.md"},
+	}
+	subtests := []e2eSubtest{{Test: "TestE2EX", Name: "X-2 the medium walk", Where: "e2e_x_test.go:10"}}
+	testNames := []string{"X-1 the large name"}
+
+	got := strings.Join(checkFindings(items, subtests, testNames), "\n")
+	if !strings.Contains(got, "X-1 にテストがありません") {
+		t.Errorf("the 大 item was taken as covered by a 小・中 name:\n%s", got)
+	}
+	if !strings.Contains(got, "X-2 にテストがありません") {
+		t.Errorf("the 中 item was taken as covered by an e2e walk:\n%s", got)
+	}
+	if !strings.Contains(got, "TestE2EX/X-2 the medium walk に一覧の ID がありません") {
+		t.Errorf("the e2e walk of a 中 ID was not called unnamed:\n%s", got)
 	}
 }
 
 // An ID covers a name only where the ID ends there: a list's TEAMS-P1 is not
-// held by a test named TEAMS-P11, on either layer.
+// held by a test named TEAMS-P11, at any size.
 func TestCheckFindingsKeepsALongerIDFromCoveringAShorterOne(t *testing.T) {
 	items := []checkItem{
-		{ID: "X-1", Layer: layerE2E, Where: "checks/x.md"},
-		{ID: "X-11", Layer: layerE2E, Where: "checks/x.md"},
-		{ID: "X-2", Layer: layerAPI, Where: "checks/x.md"},
-		{ID: "X-22", Layer: layerAPI, Where: "checks/x.md"},
+		{ID: "X-1", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-11", Size: sizeLarge, Where: "checks/x.md"},
+		{ID: "X-2", Size: sizeMedium, Where: "checks/x.md"},
+		{ID: "X-22", Size: sizeMedium, Where: "checks/x.md"},
 	}
 	subtests := []e2eSubtest{{Test: "TestE2EX", Name: "X-11 the longer one", Where: "e2e_x_test.go:10"}}
-	apiNames := []string{"TestX_22TheLongerOne"}
+	testNames := []string{"TestX_22TheLongerOne"}
 
-	got := strings.Join(checkFindings(items, subtests, apiNames), "\n")
+	got := strings.Join(checkFindings(items, subtests, testNames), "\n")
 	for _, want := range []string{"X-1 にテストがありません", "X-2 にテストがありません"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the shorter ID was taken as covered:\n%s", got)
@@ -194,8 +235,8 @@ func TestCheckFindingsKeepsALongerIDFromCoveringAShorterOne(t *testing.T) {
 // An ID two lists both write stops the gate: one item, one test, one list.
 func TestCheckFindingsNamesAnIDTwoListsWrite(t *testing.T) {
 	items := []checkItem{
-		{ID: "X-1", Layer: layerE2E, Where: "checks/a.md"},
-		{ID: "X-1", Layer: layerE2E, Where: "checks/b.md"},
+		{ID: "X-1", Size: sizeLarge, Where: "checks/a.md"},
+		{ID: "X-1", Size: sizeLarge, Where: "checks/b.md"},
 	}
 	got := strings.Join(checkFindings(items, nil, nil), "\n")
 	if !strings.Contains(got, "checks/a.md") || !strings.Contains(got, "checks/b.md") {
@@ -216,7 +257,7 @@ func TestChecksSummaryCountsEachKind(t *testing.T) {
 	}
 }
 
-// The repo's own lists read, and every row says a layer the gate knows. This is
+// The repo's own lists read, and every row says a size the gate knows. This is
 // what the gate stands on: a list it cannot read stops every item in it.
 func TestTheRepoListsRead(t *testing.T) {
 	root, err := moduleRoot()
@@ -227,24 +268,26 @@ func TestTheRepoListsRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) < 200 {
+	if len(items) < 70 {
 		t.Errorf("read %d items from the repo's lists, want the five screens' own", len(items))
 	}
-	byLayer := map[string]int{}
+	bySize := map[string]int{}
 	for _, item := range items {
-		byLayer[item.Layer]++
+		bySize[item.Size]++
 	}
-	if byLayer[layerE2E] == 0 || byLayer[layerAPI] == 0 {
-		t.Errorf("the repo's lists hold no item of a layer: %v", byLayer)
+	for _, size := range []string{sizeSmall, sizeMedium, sizeLarge, sizeAudit} {
+		if bySize[size] == 0 {
+			t.Errorf("the repo's lists hold no %s item: %v", size, bySize)
+		}
 	}
 	if subtests, err := readE2ESubtests(root); err != nil {
 		t.Errorf("the repo's e2e tests read as: %v", err)
-	} else if len(subtests) < 40 {
+	} else if len(subtests) < 11 {
 		t.Errorf("read %d e2e subtests from the repo, want every walk the outer tests hold", len(subtests))
 	}
-	if names, err := readAPITestNames(root); err != nil {
-		t.Errorf("the repo's 受け口 tests read as: %v", err)
-	} else if len(names) < 40 {
-		t.Errorf("read %d 受け口 test names from the repo", len(names))
+	if names, err := readTestNames(root); err != nil {
+		t.Errorf("the repo's 小・中 tests read as: %v", err)
+	} else if len(names) < 100 {
+		t.Errorf("read %d 小・中 test names from the repo", len(names))
 	}
 }

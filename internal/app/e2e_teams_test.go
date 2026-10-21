@@ -53,34 +53,21 @@ func TestE2ETeams(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("TEAMS-S1 structure", func(t *testing.T) { e2eTeamsStructure(t, ctx, base) })
-	t.Run("TEAMS-S4 open and checks", func(t *testing.T) { e2eTeamsOpen(t, ctx, base) })
-	t.Run("TEAMS-P11 yaml", func(t *testing.T) { e2eTeamsYAML(t, ctx, base) })
-	t.Run("TEAMS-W1 widths and lights", func(t *testing.T) { e2eTeamsWidths(t, ctx, base) })
-	t.Run("graph problems", func(t *testing.T) { e2eTeamsGraphProblems(t, ctx, base) })
-	t.Run("worker purpose", func(t *testing.T) { e2eTeamsWorkerPurpose(t, ctx, base) })
-
-	// The writes stand in a project of their own, so the counts and the files the
-	// walks above read stay as the fixture wrote them.
+	// The writes stand in projects of their own, so the counts and the files the
+	// read walks open stay as the fixture wrote them.
 	f2 := newFixture(t)
 	copyTeamsFixture(t, f2, cwd)
 	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	f2.runningHerdr(t, "", "")
 	base2, stop2 := startServe(t, f2)
 	defer stop2()
-	t.Run("TEAMS-F1 mission and turns", func(t *testing.T) { e2eTeamsSaveShape(t, ctx, base2, f2) })
-	t.Run("TEAMS-F4 agreement and yaml", func(t *testing.T) { e2eTeamsSaveAgreement(t, ctx, base2, f2) })
 
-	// The version-7 walks stand in projects of their own: one adds, copies and
-	// takes away definitions, so the next one reads a fixture nothing has
-	// written over (spec-teams B1〜B8).
 	f3 := newFixture(t)
 	copyTeamsFixture(t, f3, cwd)
 	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	f3.runningHerdr(t, "", "")
 	base3, stop3 := startServe(t, f3)
 	defer stop3()
-	t.Run("TEAMS-N1 add, copy and delete", func(t *testing.T) { e2eTeamsAddCopyDelete(t, ctx, base3, f3) })
 
 	f4 := newFixture(t)
 	copyTeamsFixture(t, f4, cwd)
@@ -88,18 +75,26 @@ func TestE2ETeams(t *testing.T) {
 	f4.runningHerdr(t, "", "")
 	base4, stop4 := startServe(t, f4)
 	defer stop4()
-	t.Run("TEAMS-Y1 topology preview", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
 
-	// The audit's own walk reads the page a URL opens, the band the YAML box stops
-	// above, and a new row's name, so it stands in a project nothing has written
-	// over (監査 R1〜R8).
-	f5 := newFixture(t)
-	copyTeamsFixture(t, f5, cwd)
-	writeFile(t, filepath.Join(f5.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	f5.runningHerdr(t, "", "")
-	base5, stop5 := startServe(t, f5)
-	defer stop5()
-	t.Run("audit 8", func(t *testing.T) { e2eTeamsAudit(t, ctx, base5, f5) })
+	// The 大 items: the definition a person adds (TEAMS-N1), the definition a
+	// person edits (TEAMS-P5), the topology and the YAML switch (TEAMS-Y2), and a
+	// definition whose names do not resolve (TEAMS-V1). Every other item is held
+	// by a non-browser test at its own size, or read as a 監査 item.
+	t.Run("TEAMS-N1 add, copy and delete", func(t *testing.T) { e2eTeamsAddCopyDelete(t, ctx, base3, f3) })
+
+	// The edit walk's save writes the file, so it stands in a project of its own.
+	t.Run("TEAMS-P5 the definition a person edits", func(t *testing.T) {
+		e2eTeamsOpen(t, ctx, base)
+		e2eTeamsWorkerPurpose(t, ctx, base)
+		e2eTeamsGraphProblems(t, ctx, base)
+		e2eTeamsSaveShape(t, ctx, base2, f2)
+	})
+
+	// The topology walk adds and takes away turns and switches the column at
+	// 1100, so it stands in a project nothing else has driven.
+	t.Run("TEAMS-Y2 the topology and the YAML switch", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
+
+	t.Run("TEAMS-V1 a definition whose names do not resolve", func(t *testing.T) { e2eTeamsOpen(t, ctx, base) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the team screen logged %d console errors: %v", len(lines), lines)

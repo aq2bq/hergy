@@ -4,7 +4,6 @@ package app
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,74 +13,13 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
-
-	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// TestE2ENavItems walks checks/nav.md's items that the band of screens owns and
-// TestE2ENav does not name one by one: the three widths in both lights and the
-// explicit theme (W2〜W6, D1), the first tab and the words that are gone (S3,
-// S4), the band's links and the place each screen was left (N2, N3, N4, N5,
-// N10), and the changes one screen carries to the other (N7, N8, N9). It runs
-// over the same real-scale fixture as TestE2ENav — testdata/profiles-v2 with
-// testdata/roles-v2 and testdata/nav over it, no team running — and the serve
-// the way a person runs it.
-func TestE2ENavItems(t *testing.T) {
-	chrome := chromeBinary(t)
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := newFixture(t)
-	initLocales(t)
-	copyNavFixture(t, f, cwd)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	if err := i18n.Use("ja"); err != nil {
-		t.Fatal(err)
-	}
-	f.runningHerdr(t, "", "")
-
-	base, stop := startServe(t, f)
-	defer stop()
-
-	// The run's one browser, and this test's tab in it (r-a107).
-	browser := e2eChrome(t, chrome)
-	ctx, stopTab := e2eTab(t, browser, 8*time.Minute)
-	defer stopTab()
-	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
-	e2eThrottle(t, ctx)
-
-	// The three widths in both lights (W2〜W6), and the explicit theme (D1).
-	t.Run("NAV-W2 the band at 2000 in the dark", func(t *testing.T) { e2eNavBandAt(t, ctx, base, 2000, true) })
-	t.Run("NAV-W3 the band at 1440 in the light", func(t *testing.T) {
-		e2eNavBandAt(t, ctx, base, 1440, false)
-		e2eNavTabs(t, ctx, base)
-	})
-	t.Run("NAV-W4 the band at 1440 in the dark", func(t *testing.T) {
-		e2eNavBandAt(t, ctx, base, 1440, true)
-		e2eNavTabs(t, ctx, base)
-	})
-	t.Run("NAV-W5 the band at 500 in the light", func(t *testing.T) { e2eNavBandAt(t, ctx, base, 500, false) })
-	t.Run("NAV-W6 the band at 500 in the dark", func(t *testing.T) { e2eNavBandAt(t, ctx, base, 500, true) })
-	t.Run("NAV-D1 the explicit theme", func(t *testing.T) { e2eNavExplicitTheme(t, ctx, base) })
-
-	// The words: the first tab (S3), and the ones that are gone (S4).
-	t.Run("NAV-S3 the first tab", func(t *testing.T) { e2eNavFirstTab(t, ctx, base) })
-	t.Run("NAV-S4 the words that are gone", func(t *testing.T) { e2eNavNoOldWords(t, ctx, base) })
-
-	// The band's links, and the place each screen was left.
-	t.Run("NAV-N2 activity and teams", func(t *testing.T) { e2eNavN2(t, ctx, base) })
-	t.Run("NAV-N3 the screen a person is on", func(t *testing.T) { e2eNavN3(t, ctx, base) })
-	t.Run("NAV-N4 hergy", func(t *testing.T) { e2eNavN4(t, ctx, base) })
-	t.Run("NAV-N5 the place of each screen", func(t *testing.T) { e2eNavN5(t, ctx, base) })
-	t.Run("NAV-N10 the keyboard", func(t *testing.T) { e2eNavN10(t, ctx, base, browser) })
-
-	// The changes one screen carries to the other. Each runs over a project of
-	// its own, because each moves the files the others read.
-	t.Run("NAV-N7 the carried pick comes back", func(t *testing.T) { e2eNavN7(t, ctx, cwd) })
-	t.Run("NAV-N8 the file moved outside", func(t *testing.T) { e2eNavN8(t, ctx, cwd) })
-	t.Run("NAV-N9 a reload", func(t *testing.T) { e2eNavN9(t, ctx, cwd) })
-}
+// The band's own non-browser promises now stand as 中 tests in internal/web
+// (the band's names and numbers, the number that follows a save, and the root's
+// move), and its look stands as 監査 items a person reads. checks/nav.md keeps
+// one 大 walk — the changes one screen carries to the other — in TestE2ENav, and
+// the helpers below are what it and the dropped walks were built from.
 
 // navPick is the assign row N6〜N9 work on: the core team's impl-a, whose
 // profile the fixture has as codex-high.

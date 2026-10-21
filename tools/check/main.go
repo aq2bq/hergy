@@ -45,7 +45,7 @@ var gates = []gate{
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
 	{"arch", Hard, "the direction of imports (arch_test.go); os/exec outside internal/herdrcli is caught by lint (depguard)", (*runner).archGate},
 	{"test", Hard, "go test -race -count=1 ./... with a coverage profile", (*runner).testGate},
-	{"checks", Hard, "every checks/*.md item has its own test: an e2e subtest whose name starts with the ID, or a 受け口 test whose name holds the ID (checks.go)", (*runner).checksGate},
+	{"checks", Hard, "every checks/*.md item has a test of its size: a 小・中 test whose name holds the ID, an e2e subtest whose name starts with a 大 ID, and no test for 監査; an e2e subtest under no 大 item fails (checks.go)", (*runner).checksGate},
 	{"e2e", Hard, "go test -tags e2e -count=1 -run TestE2E ./internal/app (headless Chrome through chromedp; a missing Chrome fails in CI and skips one line on a laptop)", (*runner).e2eGate},
 	{"coverage", Ratchet, "go-test-coverage against .testcoverage.yml; the total threshold moves up only", (*runner).coverageGate},
 	{"deadcode", Hard, "deadcode -test ./... reports nothing", (*runner).deadcodeGate},

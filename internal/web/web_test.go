@@ -181,86 +181,86 @@ func hrefs(body string) []string {
 	}
 }
 
-// TestRootGoesToTheTeamDefinitionsWithNoTeamRunning: opening the server's own
-// address with nothing running lands on the team definitions, with a 302 — not a
-// 301, because / is the activity screen whenever a team of this project runs
-// (spec-nav.md 1.3, spec-activity 2.1).
-func TestRootGoesToTheTeamDefinitionsWithNoTeamRunning(t *testing.T) {
+// TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions: opening the server's own
+// address lands on /teams with nothing running and on /activity with a team of
+// this project running, each with a 302 — not a 301, because which of the two it
+// is changes as teams come and go (spec-nav.md 1.3, spec-activity 2.1, S6).
+func TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions(t *testing.T) {
+	// Nothing running: the team definitions.
 	f := newFixture(t)
-	server := f.server(t)
-	resp, body := f.get(t, server, "/")
+	resp, body := f.get(t, f.server(t), "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Location"); got != "/teams" {
-		t.Errorf("GET / goes to %q, want /teams", got)
+		t.Errorf("GET / with nothing running goes to %q, want /teams", got)
 	}
 	if strings.Contains(body, `class="screens"`) {
 		t.Errorf("the move carries a page:\n%s", body)
 	}
-}
 
-// TestACTIVITY_E5_RootGoesToTheActivityWhenATeamRuns: with a team of this project running,
-// / is the activity screen: what the human is being asked for is why they came
-// (spec-activity 2.1, S6).
-func TestACTIVITY_E5_RootGoesToTheActivityWhenATeamRuns(t *testing.T) {
-	f := newFixture(t)
+	// One team of this project running: the activity screen, because what the
+	// human is being asked for is why they came.
 	server, err := New(f.catalog(), fakeActivity{
 		list: ActivityList{Items: []ActivityItem{{Name: "demo"}}, Running: 1, Herdr: ActivityNote{OK: true}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, _ := f.get(t, server, "/")
+	resp, _ = f.get(t, server, "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Location"); got != "/activity" {
-		t.Errorf("GET / goes to %q, want /activity", got)
+		t.Errorf("GET / with a team running goes to %q, want /activity", got)
 	}
 }
 
-// TestNAV_S2_TheBandNamesTheFourScreensAndCountsThem: the band stands on every screen
-// with the four names, the numbers, one screen marked as where the person is and
-// the activity pressable (spec-nav.md 1.1, 1.2, spec-activity 2.1).
-func TestNAV_S2_TheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
-	f := newFixture(t)
+// TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem: the band stands on every
+// screen with the four names in one order and their numbers, the screen the
+// person is on stands as a marked span while the other three are links to their
+// own screen, and hergy goes back to the first screen (spec-nav.md 1.1, 1.2,
+// spec-activity 2.1).
+func TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
+	f := fixtureNav(t)
 	server := f.server(t)
 
-	_, profiles := f.get(t, server, "/profiles")
-	for _, want := range []string{
-		`aria-label="画面"`,
-		`<a class="mark" href="/">hergy</a>`,
-		`<a class="scr" href="/activity" data-screen="activity">活動</a>`,
-		`<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">1</span></a>`,
-		`<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">2</span></span>`,
-		`<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">2</span></a>`,
-		`<a class="tab on" href="/profiles" aria-current="page">一覧</a>`,
+	// The four names, in order, with the number the fixture holds. 活動 carries
+	// no number while no team of this project runs (spec-activity 2.7).
+	names := []struct{ screen, link string }{
+		{"activity", `<a class="scr" href="/activity" data-screen="activity">活動</a>`},
+		{"teams", `<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">6</span></a>`},
+		{"profiles", `<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">11</span></a>`},
+		{"roles", `<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">6</span></a>`},
+	}
+	for _, one := range []struct{ path, current string }{
+		{"/activity", "activity"},
+		{"/teams", "teams"},
+		{"/profiles", "profiles"},
+		{"/roles", "roles"},
 	} {
-		if !strings.Contains(profiles, want) {
-			t.Errorf("the profile screen's band does not hold %s", want)
+		resp, body := f.get(t, server, one.path)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s answers %d, want 200", one.path, resp.StatusCode)
 		}
-	}
-	if strings.Contains(profiles, `<span class="n">2</span></a>プロファイル`) {
-		t.Errorf("the screen's name and number stand twice (S3):\n%s", profiles)
-	}
-	if !strings.Contains(profiles, `>割り当て<span class="n">`) {
-		t.Errorf("the 割り当て tab carries no number:\n%s", profiles)
-	}
-
-	_, roles := f.get(t, server, "/roles")
-	for _, want := range []string{
-		`<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">2</span></a>`,
-		`<span class="scr on" aria-current="page" data-screen="roles">ロール<span class="n">2</span></span>`,
-	} {
-		if !strings.Contains(roles, want) {
-			t.Errorf("the role screen's band does not hold %s", want)
+		if !strings.Contains(body, `<a class="mark" href="/">hergy</a>`) {
+			t.Errorf("GET %s does not write hergy as a link to /", one.path)
 		}
-	}
-	// プロファイル stands once: the band has it, the tabs have 一覧 (S3, S4).
-	for _, gone := range []string{"層", "layer", "担当", "役割", "版", "hergy.css", "[["} {
-		if strings.Contains(profiles, gone) || strings.Contains(roles, gone) {
-			t.Errorf("a screen holds %q", gone)
+		// The four stand in this order; the screen the person is on is the
+		// span, and the other three are links.
+		at := 0
+		for _, name := range names {
+			want := name.link
+			if name.screen == one.current {
+				want = strings.Replace(name.link, `<a class="scr" href="/`+name.screen+`" data-screen="`, `<span class="scr on" aria-current="page" data-screen="`, 1)
+				want = strings.TrimSuffix(want, "</a>") + "</span>"
+			}
+			i := strings.Index(body[at:], want)
+			if i < 0 {
+				t.Errorf("GET %s does not hold %s after the names before it:\n%s", one.path, want, bandOf(t, body))
+				continue
+			}
+			at += i + len(want)
 		}
 	}
 }

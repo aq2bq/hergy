@@ -54,48 +54,39 @@ func TestE2ERoles(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("ROLES-S1 structure", func(t *testing.T) { e2eRolesStructure(t, ctx, base) })
-	t.Run("ROLES-P1 open and checks", func(t *testing.T) { e2eRolesOpen(t, ctx, base) })
-	t.Run("ROLES-P2 filter and search", func(t *testing.T) { e2eRolesFilter(t, ctx, base) })
-	t.Run("ROLES-P4 save one rule", func(t *testing.T) { e2eRolesSaveRule(t, ctx, base, f) })
-	t.Run("save new and copies", func(t *testing.T) { e2eRolesSaveNew(t, ctx, base, f) })
-	t.Run("ROLES-P6 assign", func(t *testing.T) { e2eRolesAssign(t, ctx, base, f) })
-	t.Run("ROLES-T1 yaml", func(t *testing.T) { e2eRolesYAML(t, ctx, base, f) })
-	t.Run("old urls", func(t *testing.T) { e2eRolesOldURLs(t, ctx, base) })
-	t.Run("ROLES-W1 widths and lights", func(t *testing.T) { e2eRolesWidths(t, ctx, base) })
-
-	// The rows a document does not back need a project of their own, because they
-	// change the rows and the counts the tests above read: a role a layer holds
-	// only as Markdown, and a role no layer holds a document for, which a member
-	// names (J2, R11, N2, N3).
-	f2 := newFixture(t)
-	copyRolesFixture(t, f2, cwd)
-	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	writeFile(t, filepath.Join(f2.proj, ".hergy", "roles", "mdonly.md"), "# 手書きのロール\n")
-	team := filepath.Join(f2.proj, ".hergy", "teams", "research", "team.yaml")
-	writeFile(t, team, strings.Replace(readFile(t, team), "role: writer", "role: nosuch", 1))
-	f2.runningHerdr(t, "", "")
-	base2, stop2 := startServe(t, f2)
-	defer stop2()
-	t.Run("rows without a document", func(t *testing.T) { e2eRolesNoDoc(t, ctx, base2, f2) })
-
-	// The additions of 版 7.1 (A1〜A5) write a document, move a section and move
-	// a rule, so they run over a project of their own: the counts and the files
-	// the tests above read stay as the fixture wrote them.
+	// The 大 items: the rule a person edits in place (ROLES-P5), and the person
+	// whose role is swapped in the assign tab (ROLES-P14). Every other item is
+	// held by a non-browser test at its own size, or read as a 監査 item.
+	//
+	// The edit walk writes a document, so it stands in a project of its own: the
+	// counts and the files the other walks read stay as the fixture wrote them.
 	f3 := newFixture(t)
 	copyRolesFixture(t, f3, cwd)
 	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	f3.runningHerdr(t, "", "")
 	base3, stop3 := startServe(t, f3)
 	defer stop3()
-	t.Run("ROLES-I1 the prompt switch", func(t *testing.T) { e2eRolesInPrompt(t, ctx, base3, f3) })
-	t.Run("ROLES-I3 the heading depth", func(t *testing.T) { e2eRolesHeadingDepth(t, ctx, base3, f3) })
-	t.Run("ROLES-I4 the section order", func(t *testing.T) { e2eRolesSectionOrder(t, ctx, base3, f3) })
-	t.Run("ROLES-I5 the rule drag", func(t *testing.T) { e2eRolesRuleDrag(t, ctx, base3, f3) })
+	t.Run("ROLES-P5 the rule a person edits", func(t *testing.T) { e2eRolesEditWalk(t, ctx, base3, f3) })
+	t.Run("ROLES-P14 the person whose role is swapped", func(t *testing.T) { e2eRolesAssign(t, ctx, base, f) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the role screen logged %d console errors: %v", len(lines), lines)
 	}
+}
+
+// e2eRolesEditWalk is ROLES-P5: builder's row is opened, one rule's body is
+// typed, its なぜ is turned off, a heading's depth changes and a section moves,
+// a rule is dragged, and the save says 保存しました — the walk checks/roles.md
+// keeps in the browser. Each step is the walk the screen's own item was drawn
+// from, run one after the other over the same project.
+func e2eRolesEditWalk(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	e2eRolesOpen(t, ctx, base)
+	e2eRolesInPrompt(t, ctx, base, f)
+	e2eRolesHeadingDepth(t, ctx, base, f)
+	e2eRolesSectionOrder(t, ctx, base, f)
+	e2eRolesRuleDrag(t, ctx, base, f)
+	e2eRolesSaveRule(t, ctx, base, f)
 }
 
 // copyRolesFixture puts the real-scale fixture under the test's project and

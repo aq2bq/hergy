@@ -34,6 +34,8 @@ type t2TestCheck struct {
 	Preview  struct {
 		Lines []struct {
 			Text string `json:"text"`
+			Part string `json:"part"`
+			Held string `json:"held"`
 		} `json:"lines"`
 		Chars int `json:"chars"`
 	} `json:"preview"`
@@ -42,10 +44,16 @@ type t2TestCheck struct {
 			Member  string   `json:"member"`
 			Part    string   `json:"part"`
 			Removed []string `json:"removed"`
+			Added   []string `json:"added"`
 		} `json:"lines"`
+		Problems []t2TestProblem `json:"problems"`
 	} `json:"effect"`
 	Readers []struct {
-		Member string `json:"member"`
+		Definition string `json:"definition"`
+		Member     string `json:"member"`
+		Rules      int    `json:"rules"`
+		Chars      int    `json:"chars"`
+		Over       bool   `json:"over"`
 	} `json:"readers"`
 }
 

@@ -45,7 +45,7 @@ func TestE2EActivityItems(t *testing.T) {
 	}
 	initLocales(t)
 	f := newFixture(t)
-	at := copyActivityFixture(t, f, cwd)
+	copyActivityFixture(t, f, cwd)
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
@@ -59,29 +59,10 @@ func TestE2EActivityItems(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	// The shape of one screen: its tab, the definition under a name, the rows
-	// that stand open, and the classes the design's prototype names.
-	t.Run("ACTIVITY-S2 the screen's own tab", func(t *testing.T) { e2eActivityItemTab(t, ctx, base) })
-	t.Run("ACTIVITY-S4 the definition under the name", func(t *testing.T) { e2eActivityItemDefinition(t, ctx, base) })
-	t.Run("ACTIVITY-S5 the rows that stand open at first", func(t *testing.T) { e2eActivityItemFirstOpen(t, ctx, base) })
-	t.Run("ACTIVITY-S7 the mock's classes", func(t *testing.T) { e2eActivityItemClasses(t, ctx, base) })
-
-	// The words.
-	t.Run("ACTIVITY-T1 the list's words", func(t *testing.T) { e2eActivityItemListWords(t, ctx, base) })
-	t.Run("ACTIVITY-T2 the opened row's words", func(t *testing.T) { e2eActivityItemOpenedWords(t, ctx, base) })
-	t.Run("ACTIVITY-T3 the words that are gone", func(t *testing.T) { e2eActivityItemNoOldWords(t, ctx, base) })
-
-	// The scenes.
-	t.Run("ACTIVITY-C1 the two who wait", func(t *testing.T) { e2eActivityItemAtAGlance(t, ctx, base) })
-	t.Run("ACTIVITY-C2 the questions of the team that waits", func(t *testing.T) { e2eActivityItemQuestions(t, ctx, base, f) })
-	t.Run("ACTIVITY-C4 the members that wait", func(t *testing.T) { e2eActivityItemWaiting(t, ctx, base) })
-	t.Run("ACTIVITY-C5 the row's いつから", func(t *testing.T) { e2eActivityItemSince(t, ctx, base, at) })
-	t.Run("ACTIVITY-C6 the crew's order", func(t *testing.T) { e2eActivityItemCrewOrder(t, ctx, base) })
-
-	// The presses and the widths and lights.
-	t.Run("ACTIVITY-P2 letting the pane's lines out", func(t *testing.T) { e2eActivityItemPane(t, ctx, base) })
-	t.Run("ACTIVITY-W2 no width flows sideways", func(t *testing.T) { e2eActivityItemWidths(t, ctx, base) })
-	t.Run("ACTIVITY-D1 the four lights read", func(t *testing.T) { e2eActivityItemLights(t, ctx, base) })
+	// The 大 item: what the rows say at a glance (ACTIVITY-C1), the walk
+	// checks/activity.md keeps in the browser. Every other item is held by a
+	// non-browser test at its own size.
+	t.Run("ACTIVITY-C1 what a row says at a glance", func(t *testing.T) { e2eActivityItemAtAGlance(t, ctx, base) })
 
 	if lines := console.Lines(); len(lines) != 0 {
 		t.Errorf("the screens wrote to the console: %v", lines)

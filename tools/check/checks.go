@@ -1,17 +1,21 @@
 package main
 
-// The checks gate is TESTING.md's「一覧とテスト」を守らせる: every item of
-// checks/<画面>.md has its own test, and every e2e subtest stands under an item.
+// The checks gate is TESTING.md's「一覧とテスト」を守らせる: every 小・中・大 item
+// of checks/<画面>.md has a test of its size, every e2e subtest stands under a 大
+// item, and a 監査 item asks for no test at all.
 //
-// The lists are the designers' — one row an item, with an ID and the layer the
-// item is tested at. The layer says where the test stands: an E2E item is a
-// t.Run directly under one of the outer TestE2E* functions in
-// internal/app/e2e*_test.go whose name starts with the ID, and a 受け口 item is
-// a function or a t.Run of internal/web/*_test.go whose name holds the ID (a
-// function name writes the ID's - as _). The two things the gate reports are
-// the items nobody tests yet and the e2e subtests that belong to no item: the
-// first is the 確かめのワーカー's list of what to write, the second is the
-// designer's list of what the lists still lack.
+// The lists are the designers': one row an item, with an ID and the size the item
+// is tested at. The size says where the test stands:
+//
+//   - 小・中 — a Test* function or a t.Run of a *_test.go that is not one of the
+//     e2e files, whose name holds the ID (a function name writes the ID's - as _).
+//   - 大 — a t.Run directly under one of the outer TestE2E* functions in
+//     internal/app/e2e*_test.go whose name starts with the ID.
+//   - 監査 — no test: the designer looks at it.
+//
+// The three things the gate reports are the items nobody tests yet, the e2e
+// subtests that belong to no 大 item (TESTING.md: an ID-less 大 test is dropped),
+// and an ID two lists both write.
 
 import (
 	"errors"
@@ -19,6 +23,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,23 +31,26 @@ import (
 	"strings"
 )
 
-// The layers a checks/<画面>.md row writes in its 層 column.
+// The sizes a checks/<画面>.md row writes in its 大きさ column.
 const (
-	layerE2E = "E2E"
-	layerAPI = "受け口"
-	// The lists, and the two places a test may stand: the e2e tests of
-	// internal/app (TESTING.md writes their names as e2e_*_test.go; the file
-	// e2e_test.go, where TestE2ENav stands, is one of them) and the 受け口 tests
-	// of internal/web.
+	sizeSmall  = "小"
+	sizeMedium = "中"
+	sizeLarge  = "大"
+	sizeAudit  = "監査"
+	// The lists, and the two places a test may stand: the tests of every package
+	// (TESTING.md writes them as 各パッケージの *_test.go), and the e2e tests of
+	// internal/app (e2e_*_test.go; the file e2e_test.go, where TestE2ENav stands,
+	// is one of them). The e2e files are left out of the first search: a 小・中
+	// item that only an e2e test holds is not held at its own size.
 	checksGlob = "checks/*.md"
 	e2eGlob    = "internal/app/e2e*_test.go"
-	apiGlob    = "internal/web/*_test.go"
+	testSuffix = "_test.go"
 )
 
 // checkItem is one row of a checks/<画面>.md table.
 type checkItem struct {
 	ID    string
-	Layer string
+	Size  string
 	Where string // checks/activity.md
 }
 
@@ -63,7 +71,7 @@ func (r *runner) checksGate() error {
 	if err != nil {
 		return err
 	}
-	names, err := readAPITestNames(r.root)
+	names, err := readTestNames(r.root)
 	if err != nil {
 		return err
 	}
@@ -79,7 +87,7 @@ func (r *runner) checksGate() error {
 
 // readChecks reads every checks/<画面>.md and returns its rows in the order the
 // files and their tables stand in. The columns are found by their headings, so
-// a list may put its ID, its layer and what it checks in any order.
+// a list may put its ID, its size and what it checks in any order.
 func readChecks(root string) ([]checkItem, error) {
 	paths, err := filepath.Glob(filepath.Join(root, checksGlob))
 	if err != nil {
@@ -106,9 +114,9 @@ func readChecks(root string) ([]checkItem, error) {
 }
 
 // readChecksTable reads one list's table: the heading row that names its ID and
-// 層 columns, and every row under it.
+// 大きさ columns, and every row under it.
 func readChecksTable(text, where string) ([]checkItem, error) {
-	idCol, layerCol := -1, -1
+	idCol, sizeCol := -1, -1
 	var out []checkItem
 	for line := range strings.SplitSeq(text, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -124,26 +132,26 @@ func readChecksTable(text, where string) ([]checkItem, error) {
 				switch cell {
 				case "ID":
 					idCol = i
-				case "層":
-					layerCol = i
+				case "大きさ":
+					sizeCol = i
 				}
 			}
-			if idCol < 0 || layerCol < 0 {
-				return nil, fmt.Errorf("%s: the table's heading names no ID or 層 column", where)
+			if idCol < 0 || sizeCol < 0 {
+				return nil, fmt.Errorf("%s: the table's heading names no ID or 大きさ column", where)
 			}
 			continue
 		}
-		if isTableRule(cells) || len(cells) <= idCol || len(cells) <= layerCol {
+		if isTableRule(cells) || len(cells) <= idCol || len(cells) <= sizeCol {
 			continue
 		}
-		id, layer := cells[idCol], cells[layerCol]
+		id, size := cells[idCol], cells[sizeCol]
 		if id == "" {
 			continue
 		}
-		if layer != layerE2E && layer != layerAPI {
-			return nil, fmt.Errorf("%s: %s stands at the layer %q, want %s or %s", where, id, layer, layerE2E, layerAPI)
+		if size != sizeSmall && size != sizeMedium && size != sizeLarge && size != sizeAudit {
+			return nil, fmt.Errorf("%s: %s stands at the size %q, want %s, %s, %s or %s", where, id, size, sizeSmall, sizeMedium, sizeLarge, sizeAudit)
 		}
-		out = append(out, checkItem{ID: id, Layer: layer, Where: where})
+		out = append(out, checkItem{ID: id, Size: size, Where: where})
 	}
 	return out, nil
 }
@@ -241,49 +249,76 @@ func isTRun(call *ast.CallExpr) bool {
 	return ok && t.Name == "t"
 }
 
-// readAPITestNames reads the names a 受け口 test may carry the ID in: every Test*
-// function of internal/web/*_test.go, and every t.Run name inside them.
-func readAPITestNames(root string) ([]string, error) {
-	paths, err := filepath.Glob(filepath.Join(root, apiGlob))
+// readTestNames reads every name a 小・中 test may carry the ID in: every top
+// level Test* function and every t.Run name of one *_test.go of the module, at
+// any depth of its tree (TESTING.md: 各パッケージの *_test.go). The e2e files are
+// left out — a 小・中 item stands at its own size, not in the browser's.
+func readTestNames(root string) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".bin", "testdata", "node_modules":
+				return fs.SkipDir
+			}
+			return nil
+		}
+		base := d.Name()
+		if !strings.HasSuffix(base, testSuffix) || strings.HasPrefix(base, "e2e") {
+			return nil
+		}
+		names, err := readOneTestFile(path)
+		if err != nil {
+			return err
+		}
+		out = append(out, names...)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(paths)
-	var out []string
-	for _, path := range paths {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return nil, err
-		}
-		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "Test") {
-				out = append(out, fn.Name.Name)
-			}
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok || !isTRun(call) {
-				return true
-			}
-			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				if name, err := strconv.Unquote(lit.Value); err == nil {
-					out = append(out, name)
-				}
-			}
-			return true
-		})
-	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no Test* function in %s", apiGlob)
+		return nil, fmt.Errorf("no Test* function in any %s", testSuffix)
 	}
+	return out, nil
+}
+
+// readOneTestFile reads one test file's names: its top level Test* functions and
+// every t.Run name it holds.
+func readOneTestFile(path string) ([]string, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "Test") {
+			out = append(out, fn.Name.Name)
+		}
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isTRun(call) {
+			return true
+		}
+		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			if name, err := strconv.Unquote(lit.Value); err == nil {
+				out = append(out, name)
+			}
+		}
+		return true
+	})
 	return out, nil
 }
 
 // checkFindings holds the lists and the tests to each other and returns what
 // does not meet: one line an item nobody tests, one line an e2e subtest that
-// belongs to no item, one line an ID two lists both write.
-func checkFindings(items []checkItem, subtests []e2eSubtest, apiNames []string) []string {
+// belongs to no 大 item, one line an ID two lists both write.
+func checkFindings(items []checkItem, subtests []e2eSubtest, testNames []string) []string {
 	var findings []string
 	seen := map[string]string{}
 	for _, item := range items {
@@ -294,7 +329,10 @@ func checkFindings(items []checkItem, subtests []e2eSubtest, apiNames []string) 
 		}
 		seen[norm] = item.Where
 
-		if item.Layer == layerE2E {
+		switch item.Size {
+		case sizeAudit:
+			continue
+		case sizeLarge:
 			found := false
 			for _, sub := range subtests {
 				if startsWithID(sub.Name, item.ID) {
@@ -305,23 +343,23 @@ func checkFindings(items []checkItem, subtests []e2eSubtest, apiNames []string) 
 			if !found {
 				findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
 			}
-			continue
-		}
-		found := false
-		for _, name := range apiNames {
-			if holdsID(name, norm) || holdsID(name, item.ID) {
-				found = true
-				break
+		default: // 小 and 中
+			found := false
+			for _, name := range testNames {
+				if holdsID(name, norm) || holdsID(name, item.ID) {
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
+			if !found {
+				findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
+			}
 		}
 	}
 	for _, sub := range subtests {
 		named := false
 		for _, item := range items {
-			if startsWithID(sub.Name, item.ID) {
+			if item.Size == sizeLarge && startsWithID(sub.Name, item.ID) {
 				named = true
 				break
 			}
@@ -341,7 +379,7 @@ func startsWithID(name, id string) bool {
 }
 
 // holdsID reports whether a name holds the ID, at a place where the ID ends:
-// the 受け口 side, where the ID may stand anywhere in the name.
+// the 小・中 side, where the ID may stand anywhere in the name.
 func holdsID(name, id string) bool {
 	for rest := name; ; {
 		i := strings.Index(rest, id)

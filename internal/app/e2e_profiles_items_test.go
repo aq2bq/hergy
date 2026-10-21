@@ -6,136 +6,22 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/chromedp/chromedp"
-
-	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// TestE2EProfilesItems walks checks/profiles.md's items that TestE2EProfiles
-// does not name one by one, over the same real-scale fixture (testdata/
-// profiles-v2: 11 profiles, 4 definitions, 15 members, 3 workers) and the serve
-// a person runs. Each subtest's name starts with the item's ID, so the gate
-// reads which item a walk holds (r-f9ef).
-//
-// The read-only walks run first, and the three that write profiles.yaml — S7
-// (a save so the footer says 保存しました), T1 and P7 — run last and take their
-// profile back out, so a walk behind them opens the list the fixture wrote.
-func TestE2EProfilesItems(t *testing.T) {
-	chrome := chromeBinary(t)
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	initLocales(t)
-	f := newFixture(t)
-	copyProfilesFixture(t, f, cwd)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	if err := i18n.Use("ja"); err != nil {
-		t.Fatal(err)
-	}
-	f.runningHerdr(t, "", "")
-	pItemsRestore(t, f)
-
-	base, stop := startServe(t, f)
-	defer stop()
-
-	browser := e2eChrome(t, chrome)
-	ctx, stopTab := e2eTab(t, browser, 8*time.Minute)
-	defer stopTab()
-
-	console := e2eListen(ctx, false)
-	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
-	e2eThrottle(t, ctx)
-
-	t.Run("PROFILES-S2 the list's columns and order", func(t *testing.T) { e2ePItemsList(t, ctx, base) })
-	t.Run("PROFILES-S3 the detail's order", func(t *testing.T) { e2ePItemsDetail(t, ctx, base) })
-	t.Run("PROFILES-S4 a panel's order", func(t *testing.T) { e2ePItemsPanel(t, ctx, base) })
-	t.Run("PROFILES-S5 the assign cards and rows", func(t *testing.T) { e2ePItemsAssign(t, ctx, base) })
-	t.Run("PROFILES-S6 the two YAML sections", func(t *testing.T) { e2ePItemsYAML(t, ctx, base) })
-
-	t.Run("PROFILES-T2 the assign tab's words", func(t *testing.T) { e2ePItemsAssignWords(t, ctx, base) })
-	t.Run("PROFILES-T4 the words that are gone", func(t *testing.T) { e2ePItemsNoOldWords(t, ctx, base) })
-	t.Run("PROFILES-T5 the env is not hidden", func(t *testing.T) { e2ePItemsEnvShown(t, ctx, base) })
-
-	t.Run("PROFILES-P4 renaming a profile", func(t *testing.T) { e2ePItemsRename(t, ctx, base) })
-	t.Run("PROFILES-P5 the kind buttons", func(t *testing.T) { e2ePItemsKind(t, ctx, base) })
-	t.Run("PROFILES-P6 the args' and env's x and +", func(t *testing.T) { e2ePItemsArgsEnv(t, ctx, base) })
-	t.Run("PROFILES-P9 copying to the other panel", func(t *testing.T) { e2ePItemsCopy(t, ctx, base) })
-	t.Run("PROFILES-P10 the delete's two questions", func(t *testing.T) { e2ePItemsDeleteConfirm(t, ctx, base) })
-	t.Run("PROFILES-P13 the kind bar thins the cards", func(t *testing.T) { e2ePItemsKindBar(t, ctx, base) })
-	t.Run("PROFILES-P14 the check jumps into its line", func(t *testing.T) { e2ePItemsJump(t, ctx, base) })
-
-	t.Run("PROFILES-W2 no width flows sideways", func(t *testing.T) { e2ePItemsWidths(t, ctx, base) })
-	t.Run("PROFILES-W3 the long JSON at 500", func(t *testing.T) { e2ePItemsLongEnv(t, ctx, base) })
-	t.Run("PROFILES-W4 the eight args at 500", func(t *testing.T) { e2ePItemsEightArgs(t, ctx, base) })
-
-	t.Run("PROFILES-D1 the four lights read", func(t *testing.T) { e2ePItemsLights(t, ctx, base) })
-	t.Run("PROFILES-D2 the colours are told apart", func(t *testing.T) { e2ePItemsColours(t, ctx, base) })
-
-	t.Run("PROFILES-V1 the shared codex warning", func(t *testing.T) { e2ePItemsWarn(t, ctx, base) })
-	t.Run("PROFILES-V2 the docs worker's missing profile", func(t *testing.T) { e2ePItemsMissing(t, ctx, base) })
-	t.Run("PROFILES-V3 a name the pattern refuses", func(t *testing.T) { e2ePItemsBadName(t, ctx, base) })
-	t.Run("PROFILES-V4 a broken line is marked", func(t *testing.T) { e2ePItemsBrokenLine(t, ctx, base) })
-
-	t.Run("PROFILES-S7 the mock's classes", func(t *testing.T) { e2ePItemsClasses(t, ctx, base) })
-	t.Run("PROFILES-T1 the list's words", func(t *testing.T) { e2ePItemsListWords(t, ctx, base) })
-	t.Run("PROFILES-P7 a save says so", func(t *testing.T) { e2ePItemsSave(t, ctx, base) })
-
-	if lines := console.Lines(); len(lines) > 0 {
-		t.Errorf("the profile screen logged %d console errors: %v", len(lines), lines)
-	}
-}
-
-// TestE2EProfilesYAMLHome is V7: the shared file stands under the home directory
-// (~/.config/hergy) rather than in a made-up XDG directory, and every path the
-// screen shows — the panel's head, the check's sentence, the YAML tab — is the
-// .hergy/… or ~/.config/hergy/… form, with the working directory's absolute path
-// nowhere. It runs its own serve because the settings directory is the whole
-// point.
-func TestE2EProfilesYAMLHome(t *testing.T) {
-	chrome := chromeBinary(t)
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	initLocales(t)
-	f := newFixture(t)
-	root := filepath.Dir(f.proj)
-	home := filepath.Join(root, "home")
-	// The shared layer is under the home directory: XDG names none, so hergy
-	// falls back to ~/.config/hergy (team.globalDir).
-	t.Setenv("XDG_CONFIG_HOME", "")
-	src := filepath.Join(cwd, "..", "..", "testdata", "profiles-v2")
-	copyDir(t, filepath.Join(src, "project", ".hergy"), filepath.Join(f.proj, ".hergy"))
-	copyDir(t, filepath.Join(src, "config", "hergy"), filepath.Join(home, ".config", "hergy"))
-	writeFile(t, filepath.Join(home, ".config", "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	if err := i18n.Use("ja"); err != nil {
-		t.Fatal(err)
-	}
-	f.runningHerdr(t, "", "")
-
-	base, stop := startServe(t, f)
-	defer stop()
-
-	browser := e2eChrome(t, chrome)
-	ctx, stopTab := e2eTab(t, browser, 3*time.Minute)
-	defer stopTab()
-	e2eListen(ctx, false)
-
-	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
-	e2eThrottle(t, ctx)
-
-	t.Run("PROFILES-V7 the shared file under the home", func(t *testing.T) { e2ePItemsHome(t, ctx, base, f, root) })
-}
+// The profile screen's own non-browser promises now stand as 中 tests in
+// internal/web (the list's reading, the saves' one-line diffs, the refusals'
+// sentences, the shared file's path), and its look stands as 監査 items a person
+// reads. checks/profiles.md keeps two 大 walks — the row that opens in place and
+// the usage that jumps to the assign tab — in TestE2EProfiles, and the helpers
+// below are what the dropped walks were built from.
 
 // pItemsRestore puts the project's profiles.yaml back after the walks that write
 // it, so a walk behind them opens what the fixture wrote.
