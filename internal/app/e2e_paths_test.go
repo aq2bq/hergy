@@ -108,7 +108,7 @@ func TestE2EScreenPaths(t *testing.T) {
 			t.Errorf("the core panel names its own file in a sentence as well as in its head: %s", got)
 		}
 
-		// The agreement's own check column, on the 約束 tab beside it.
+		// The agreement's own check column, on the ルール tab beside it.
 		e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core&agree=core"))
 		agree := `.tdef[data-name="core"] .panel.agree-p`
 		e2eWait(t, ctx, `document.querySelectorAll(`+strconv.Quote(agree+` .vm li`)+`).length>0`)

@@ -199,7 +199,14 @@ func t2Effective(listing catalog.Listing) (string, []string) {
 
 // t2DocOf is one place's team definition in the screen's shape.
 func (s *Server) t2DocOf(name, layer string, def *definition.Definition) apiTeamDoc {
-	out := apiTeamDoc{Agreement: s.t2AgreeOf(name, layer)}
+	return s.t2DocWithAgree(name, def, s.t2AgreeOf(name, layer))
+}
+
+// t2DocWithAgree is t2DocOf with the agreement given rather than read: a
+// definition that is not there yet has no agreement.yaml to read, so its rules
+// come from the text the row stands on (spec-teams B2).
+func (s *Server) t2DocWithAgree(name string, def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
+	out := apiTeamDoc{Agreement: agree}
 	if def == nil || def.Graph == nil {
 		out.Broken = true
 		return out
@@ -479,6 +486,12 @@ func (s *Server) t2Places(name string) (string, []string) {
 // text. The payload's own shape says which: a Doc is a document's draft, no Doc
 // is a whole text the YAML tab is typing.
 func (k apiTeam) Check(in apiIn) (any, *apiErr) {
+	if in.New || in.Base != nil {
+		if in.Part == "agreement" {
+			return k.checkDraftAgreement(in)
+		}
+		return k.checkDraft(in)
+	}
 	if len(in.Doc) == 0 {
 		return k.checkYAML(in)
 	}
@@ -491,16 +504,29 @@ func (k apiTeam) Check(in apiIn) (any, *apiErr) {
 // checkFigure answers what is wrong with the figure a panel holds: the saved
 // text with the panel's ops applied, checked as if it were saved (spec-teams
 // C2). When the payload carries the one op a card is trying, the answer carries
-// that op's effect too.
+// that op's effect too. The answer carries the topology tab's YAML preview as
+// well: the text a save would write and the lines one edit changed (spec-teams
+// B7).
 func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 	body, refusal := t2DecodeOps(in)
 	if refusal != nil {
 		return nil, refusal
 	}
+	s := k.s
 	layer := catalog.Layer(in.Place)
-	own := k.s.cat.Display(k.s.cat.TeamYAML(in.Name, layer))
-	team := check.Team(check.TeamInput{Catalog: k.s.cat, Name: in.Name, Layer: layer, Ops: body.ops})
+	path := s.cat.TeamYAML(in.Name, layer)
+	own := s.cat.Display(path)
+	team := check.Team(check.TeamInput{Catalog: s.cat, Name: in.Name, Layer: layer, Ops: body.ops})
 	out := apiCheck{Problems: t2FigureProblems(team.Problems, own)}
+	saved, _ := s.cat.Reader().Read(source.Doc{Path: path})
+	draft, err := t2ApplyOps(saved, own, body.ops)
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	out.Preview = apiTeamPreview{
+		Lines: definition.YAMLLines(draft),
+		Diff:  check.LineDiff(t2LineTexts(definition.YAMLLines(saved)), t2LineTexts(definition.YAMLLines(draft))),
+	}
 	if body.in.Op != nil {
 		op, err := body.in.Op.op()
 		if err != nil {
@@ -648,6 +674,9 @@ func (k apiTeam) fileOf(name string, in apiIn) (place, kind string, ok bool) {
 // Save is PUT /api/team/{name}: the figure's ops, the agreement's document, or
 // a file's whole text.
 func (k apiTeam) Save(name string, in apiIn) (any, *apiErr) {
+	if in.New || in.Base != nil || in.Part == "folder" {
+		return k.saveFolder(name, in)
+	}
 	if len(in.Doc) == 0 {
 		return k.saveYAML(name, in)
 	}
@@ -860,24 +889,39 @@ func (k apiTeam) savedAnswer(name, place string) apiSaved {
 	return out
 }
 
-// Delete is DELETE /api/team/{name}?place=&hash=: take one definition's
-// team.yaml out of its layer. The team screen offers no delete today; the kind
-// keeps the method so every kind answers the same five (spec-boundary 8).
-func (k apiTeam) Delete(name, place, hash string) (any, *apiErr) {
+// Delete is DELETE /api/team/{name}?place=&hash=&agreement_hash=: take one
+// definition's folder out of its layer — team.yaml and agreement.yaml — and the
+// directory itself when the two files were all it held (spec-teams B6). Each
+// file the screen read must still be the one it read, so a file that moved under
+// the screen is not removed.
+func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	layer := catalog.Layer(place)
-	path := s.cat.TeamYAML(name, layer)
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	pathHash := source.Hash("")
-	if err == nil {
-		pathHash = source.Hash(text)
+	layer := catalog.Layer(in.Place)
+	teamPath := s.cat.TeamYAML(name, layer)
+	agreePath := s.t2AgreeFile(name, layer)
+	for _, one := range []struct{ path, hash string }{
+		{teamPath, in.Hash},
+		{agreePath, in.AgreementHash},
+	} {
+		if one.hash == "" {
+			continue
+		}
+		text, err := s.cat.Reader().Read(source.Doc{Path: one.path})
+		pathHash := source.Hash("")
+		if err == nil {
+			pathHash = source.Hash(text)
+		}
+		if one.hash != pathHash {
+			return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(one.path)))
+		}
 	}
-	if hash != pathHash {
-		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(path)))
+	for _, path := range []string{teamPath, agreePath} {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, refuse(http.StatusInternalServerError, err.Error())
+		}
 	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) { //nolint:gosec // G703: path is the catalog's own TeamYAML, which joins the layer's own teams directory with the name
-		return nil, refuse(http.StatusInternalServerError, err.Error())
-	}
+	// The directory goes too when nothing else is left in it.
+	_ = os.Remove(filepath.Dir(teamPath))
 	return k.List()
 }
 

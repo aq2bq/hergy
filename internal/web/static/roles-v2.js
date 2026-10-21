@@ -575,7 +575,7 @@
       <header class="th"><span class="tl">チーム定義</span><code class="tid">${t.id}</code><span class="tn">${t.members.length}</span>
         <span class="tside">${errs ? `<span class="sev err">問題 ${errs}</span>` : ''}${dirty ? `<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="t-save" ${errs ? 'disabled' : ''}>保存</button>` : ok}</span>
         <code class="path">.hergy/teams/${t.id}/team.yaml</code>
-        <span class="agree">約束 <b>${t.agree.rules}</b> 規則 · <b>${num(t.agree.chars)}</b> 字</span>
+        <span class="agree">ルール <b>${t.agree.rules}</b> 規則 · <b>${num(t.agree.chars)}</b> 字</span>
       </header>
       ${t.members.map((m, i) => arowHTML(t, m, i)).join('')}
     </section>`;

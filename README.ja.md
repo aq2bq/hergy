@@ -4,7 +4,7 @@
 
 > [!NOTE]
 >
-> hergyは実験中のプロジェクトです。当面の間は利用方法が大きく変わる恐れがあります。互換性はまだ約束できません。
+> hergyは実験中のプロジェクトです。当面の間は利用方法が大きく変わる恐れがあります。互換性はまだ保証できません。
 
 hergyは[herdr](https://github.com/herdrdev/herdr) + [gy](https://github.com/aq2bq/gy)をベースにした、不確実性の高い活動をAIエージェントチームで乗り切るための小さなCLIです。
 
@@ -45,7 +45,7 @@ lead と worker の2人チームのひな形を書き出します。
 hergy new myteam        # git リポジトリの中ならプロジェクトの .hergy/、外なら ~/.config/hergy/ に書き出す
 ```
 
-チームの `team.yaml` と `agreement.yaml`（チームの約束）、`roles/lead.yaml` と `roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・検証方法（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
+チームの `team.yaml` と `agreement.yaml`（チームのルール）、`roles/lead.yaml` と `roles/builder.yaml` ができます。規則のファイルは YAML で、規則ごとに ID と本文、書かれていれば由来・理由・検証方法（報告の欄かテスト）を持ちます。エージェントに送られるのは、そのメンバーが読むものだけです。
 
 herdr のシェルペインで実行します。
 

@@ -145,8 +145,10 @@ window.hergyAPI = (() => {
     check: (kind, payload) => call('POST', `/api/${kind}/check`, payload),
     // save is PUT /api/{kind}/{name}: write one document.
     save: (kind, name, payload) => call('PUT', `/api/${kind}/${enc(name)}`, payload),
-    // del is DELETE /api/{kind}/{name}?place=&hash=: take one document away.
-    del: (kind, name, place, hash) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}`),
+    // del is DELETE /api/{kind}/{name}?place=&hash=&agreement_hash=: take one
+    // document away. The team kind takes a whole folder, so it carries the second
+    // file's hash too (spec-teams B6).
+    del: (kind, name, place, hash, agreementHash) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ''}`),
     // after waits ms and calls fn, forgetting an earlier wait on the same box.
     after: (box, ms, fn) => {
       clearTimeout(box._apiTimer);

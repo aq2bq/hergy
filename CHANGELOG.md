@@ -11,17 +11,34 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 - **The team-definition screen (`/teams`)**: the band's チーム定義 leads to the
   screen now (it was a struck-through name). A row opens in place: its mission is
-  edited where it stands, and the open row has the two tabs チームの姿 and
-  チームの約束. チームの姿 draws team.yaml as a figure — the human and the
+  edited where it stands, and the open row has the two tabs トポロジー and
+  ルール. トポロジー draws team.yaml as a figure — the human and the
   members as points, the turns as lines — and lets a turn be added or taken away
   by pressing a point or a line; a card beside it shows what the change would do
   to the prompt before it is made, and the checks are the ones `hergy validate`
-  prints. チームの約束 edits the team's own agreement.yaml with the same shared
+  prints. ルール edits the team's own agreement.yaml with the same shared
   part the role screen uses (the sections, the rules, the `in_prompt` switch, the
   reordering, the Markdown box), and a save writes the one line that changed. A
   YAML tab keeps every team.yaml and agreement.yaml of both layers. A name the
   project and the shared layer both hold shows the shared one as hidden, and the
   band carries the team-definition count.
+- **The team screen makes and unmakes definitions (版 7)**: `＋ チーム定義を追加`
+  stands above the list and lays down the same starter `hergy new` writes; the
+  place is picked first (`プロジェクト` or `共通`), and the name it is given is
+  checked while it is typed — the shape, a definition already standing there, none
+  written — with the files a save would write named beside the save (the
+  definition's own, the role documents and the starter profile the place lacks).
+  A row carries `複製` (the next free `<name>-2`, `-3` …), a copy into the other
+  place (`プロジェクトにコピー` / `共通にコピー`, offered while that place has none
+  of the name), and `削除`, which takes the definition's team.yaml and
+  agreement.yaml away, naming both before it does and leaving the folder when
+  anything else is in it. The topology tab is two columns: the figure with the
+  checks beside the team.yaml the row would write, line by line, with the lines
+  one edit changed marked and the line the picked point, turn, worker or mission
+  stands for picked out — so a change reads as YAML while it is made, and its
+  行数 and `+N −M` are the save's own. At 1100 or under, an `編集` / `YAML`
+  switch shows one column at a time, and pressing a line picks what it stands for
+  in the figure.
 - **A rule can stay out of the prompt**: `in_prompt: false` keeps the rule in its
   file and out of every member's prompt — neither the one `hergy up` sends nor
   the one `hergy reprompt` rebuilds — and out of the amount counted for that
@@ -51,6 +68,21 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Changed
 
+- **The screens and the commands say ルール and トポロジー (d-0e10, d-dded,
+  d-d38b)**: 約束 is ルール wherever a person reads it — the team screen's tabs
+  (`トポロジー` / `ルール`), its list column and the check column's heading
+  (`チームのルール`), an empty rule document's title (`<name> チームのルール`),
+  and the shared layer's own (`共通のルール`) — while one rule is still 規則, and
+  チームの姿 is トポロジー. The sentences move with it: `error.docs_gone`,
+  `error.prompt_missing_part`, `validate.old_team_agreement`,
+  `validate.old_common`, `effect.preview.agreements`, `hergy cheat` and
+  `hergy cheat --ai`, the `hergy` and `hergy-rules` skills, `README.ja.md` and
+  the starter rule section `hergy new` writes
+  (`internal/scaffold/files/ja/agreement.yaml`). The English words are
+  unchanged, and so is 規則 for one rule. A prompt built from a starter
+  agreement now reads `## チームのルール` where it read `## チームの約束`, so
+  `hergy up --dry` differs on that line (the way to move is the last step of
+  Moving from 0.8 below).
 - **`hergy stop` sends esc a second time when the member keeps working**: some
   agents need two escs — the first only asks them to interrupt and they carry on
   (opencode answers `esc interrupt`) — so `hergy stop` watches the member's state
@@ -138,13 +170,21 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   of the last turn a member hands out names the problem the press would add and
   keeps the line that would leave beside it, though the change itself is what
   stops the definition reading; and the checks of the team's own agreement stand
-  under `チームの約束` and open that rule in the 約束 tab, brought into the window
+  under `チームのルール` and open that rule in the ルール tab, brought into the window
   above the save's band with the cursor in the rule's body — the same from the
   address the press writes.
 - **A document-wide sentence marks the first line alone**: the Markdown box of
   the shared part (the role screen and the team screen alike) marks a check
   about a document as a whole — a member's reading volume, say — on the first
   line, not on every heading and blank line beside it.
+- **`hergy new` adds the starter profile to a `profiles.yaml` that is already
+  there**: the layer keeps every other line — the order of the profiles, a
+  comment, the way a person wrote a value or an argument list — and only
+  `claude-default` is added, so the file reads as it did with two lines more.
+  It used to be written out whole, which sorted the profiles and rewrote their
+  values and dropped their comments. The team screen's save of a new definition
+  goes through the same code, so both now write the file one way
+  (spec-boundary 5).
 
 ### Breaking
 
@@ -201,6 +241,24 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
    Nothing else changes: the heading, the `intro`, the text, the reason and the
    reports a member reads are the same.
+
+3. Expect a starter agreement's heading to read ルール, not 約束, and the team
+   screen's tabs to read トポロジー and ルール. The words only; a file already
+   written keeps its own heading, so a team made before this version reads as it
+   read, and a team made by `hergy new` (or added on the team screen) carries the
+   new words into the prompt. The line in `hergy up --dry`:
+
+   ```markdown
+   ## チームの約束
+   - **C1** gy-loop スキルに従い、会話が切れても gy から続けられるようにする。   # 0.8
+   ## チームのルール
+   - **C1** gy-loop スキルに従い、会話が切れても gy から続けられるようにする。   # now
+   ```
+
+   Nothing has to be done to an existing file: 約束 in a heading is a word in the
+   text, not a key hergy reads, and `hergy validate` is quiet about it. A file
+   you want to read the new words can have its heading changed on the rule
+   screen (or in the file) the same way any heading is.
 
 ## 0.8.0 - 2026-10-20
 

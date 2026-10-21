@@ -3,12 +3,15 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -474,5 +477,362 @@ func TestTeamsYamlLine(t *testing.T) {
 		if got := t2YamlLine(text, tc.field); got != tc.want {
 			t.Errorf("the line of %q reads %d, want %d", tc.field, got, tc.want)
 		}
+	}
+}
+
+// t2TestDraft is what a check of a definition that is not there yet answers
+// (spec-teams B2, B7), as the tests look at it.
+type t2TestDraft struct {
+	Name     string          `json:"name"`
+	Place    string          `json:"place"`
+	Starter  bool            `json:"starter"`
+	Path     string          `json:"path"`
+	Writes   []string        `json:"writes"`
+	Problems []t2TestProblem `json:"problems"`
+	Doc      struct {
+		Mission string `json:"mission"`
+		Members []struct {
+			Name string `json:"name"`
+		} `json:"members"`
+		Agreement struct {
+			Path string `json:"path"`
+			Has  bool   `json:"has"`
+		} `json:"agreement"`
+	} `json:"doc"`
+	Preview struct {
+		Lines []struct {
+			Text string `json:"text"`
+			At   string `json:"at"`
+		} `json:"lines"`
+		Diff struct {
+			Added         []int `json:"added"`
+			RemovedBefore []int `json:"removedBefore"`
+			RemovedAtEnd  bool  `json:"removedAtEnd"`
+		} `json:"diff"`
+	} `json:"preview"`
+}
+
+// teamsDraft reads one check answer of a definition that is not there yet.
+func teamsDraft(t *testing.T, body string) t2TestDraft {
+	t.Helper()
+	var out t2TestDraft
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("the answer does not read: %v\n%s", err, body)
+	}
+	return out
+}
+
+// TestTeamsDraftCheckAnswersTheNameAndTheWrites: a definition that is not there
+// yet is checked as if it were saved, and the answer carries its name problems,
+// where it would stand, what a save would write, and the topology tab's own
+// preview lines (spec-teams B2, B7, C8).
+func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	checkOne := func(name string) t2TestDraft {
+		t.Helper()
+		resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+			"place": "project", "name": name, "part": "team", "new": true,
+			"doc": map[string]any{"ops": []any{}},
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+		}
+		return teamsDraft(t, body)
+	}
+
+	// An empty name is the name's problem, and it is about the name; the
+	// figure's own sentences stand beside it all the same — a row that was just
+	// added shows the mission's warning while the name is being typed (B2, N1).
+	empty := checkOne("")
+	if len(empty.Problems) != 2 || empty.Problems[0].At != "name" || empty.Problems[1].At != "mission" {
+		t.Fatalf("an empty name answers %+v, want the name's problem and the mission's warning", empty.Problems)
+	}
+	if want := i18n.T("error.team_name_needed"); empty.Problems[0].Text != want {
+		t.Errorf("the empty name's problem reads %q, want %q", empty.Problems[0].Text, want)
+	}
+
+	// A name the place already holds is a name problem too, in the words the
+	// scaffold's own check uses (B2, Y2).
+	taken := checkOne("demo")
+	if len(taken.Problems) == 0 || taken.Problems[0].At != "name" {
+		t.Fatalf("a taken name answers %+v, want one problem about the name", taken.Problems)
+	}
+	if want := i18n.Tf("error.new_exists", "demo", filepath.Join(f.proj, ".hergy", "teams", "demo")); taken.Problems[0].Text != want {
+		t.Errorf("the taken name's problem reads %q, want %q", taken.Problems[0].Text, want)
+	}
+
+	// A name hergy new accepts is no problem, and the row says where it stands
+	// and what a save would write (B2, C8, Y3).
+	draft := checkOne("ops")
+	for _, p := range draft.Problems {
+		if p.At == "name" {
+			t.Errorf("the name %q still answers %q", draft.Name, p.Text)
+		}
+	}
+	if draft.Name != "ops" || draft.Place != "project" || !draft.Starter {
+		t.Errorf("the draft reads name %q place %q starter %v, want ops / project / true", draft.Name, draft.Place, draft.Starter)
+	}
+	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
+	for _, want := range []string{
+		filepath.Join(dir, "team.yaml"),
+		filepath.Join(dir, "agreement.yaml"),
+		filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+	} {
+		if !slices.Contains(draft.Writes, want) {
+			t.Errorf("the writes read %v, want %s among them", draft.Writes, want)
+		}
+	}
+	// The starter's own figure: two members, and the mission placeholder
+	// validate warns about (B2).
+	if len(draft.Doc.Members) != 2 {
+		t.Errorf("the starter's figure holds %d members, want 2", len(draft.Doc.Members))
+	}
+	if draft.Doc.Mission == "" {
+		t.Error("the starter's figure carries no mission")
+	}
+	if !draft.Doc.Agreement.Has {
+		t.Error("the starter's own agreement is not read")
+	}
+	// The preview is the text a save would write, line by line, and the lines
+	// say what they stand for (B7, Y4).
+	if len(draft.Preview.Lines) == 0 {
+		t.Fatal("the draft answers no preview lines")
+	}
+	var atMission, atNode bool
+	for _, line := range draft.Preview.Lines {
+		if line.At == "mission" {
+			atMission = true
+		}
+		if strings.HasPrefix(line.At, "node:") {
+			atNode = true
+		}
+	}
+	if !atMission || !atNode {
+		t.Errorf("the preview lines name no mission (%v) or member (%v): %+v", atMission, atNode, draft.Preview.Lines)
+	}
+	// No ops: nothing the row writes differs from the base it stands on.
+	if len(draft.Preview.Diff.Added) != 0 || len(draft.Preview.Diff.RemovedBefore) != 0 || draft.Preview.Diff.RemovedAtEnd {
+		t.Errorf("a draft with no ops answers a diff: %+v", draft.Preview.Diff)
+	}
+}
+
+// TestTeamsDraftSaveWritesTheStarterFolder: saving a definition that is not there
+// yet writes hergy new's own files, so the screen and the command cannot drift
+// (spec-teams B2, C8, N3).
+func TestTeamsDraftSaveWritesTheStarterFolder(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
+		"place": "project", "name": "ops", "part": "folder", "new": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	files, err := scaffold.Team(i18n.Language())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{}
+	for _, file := range files {
+		want[file.Path] = string(file.Data)
+	}
+	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
+	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+		got := readFile(t, filepath.Join(dir, name))
+		if got != want[name] {
+			t.Errorf("the saved %s reads\n%s\nwant hergy new's own\n%s", name, got, want[name])
+		}
+	}
+	// The layer's role documents the starter reads were already there, so the
+	// save left them as they are (K5).
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !strings.Contains(got, "LEAD-1") {
+		t.Errorf("the layer's own lead.yaml was written over:\n%s", got)
+	}
+	// The starter profile went into the layer's profiles.yaml.
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); !strings.Contains(got, scaffold.ProfileName) {
+		t.Errorf("profiles.yaml does not hold the starter profile:\n%s", got)
+	}
+	// The definition is in the list now, and the answer carries it (B4).
+	if !strings.Contains(body, `"ops"`) {
+		t.Errorf("the save's answer does not carry the new definition:\n%s", body)
+	}
+}
+
+// TestTeamsDraftSaveRefusesANameProblem: a name that is empty, not one hergy new
+// accepts, or already in the place stops the write before anything is written
+// (spec-teams B2, N2).
+func TestTeamsDraftSaveRefusesAnUnwritableName(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	for _, tc := range []struct{ name, want string }{
+		{"Bad_Name", i18n.Tf("error.new_name_pattern", "Bad_Name")},
+		{"demo", i18n.Tf("error.new_exists", "demo", filepath.Join(f.proj, ".hergy", "teams", "demo"))},
+	} {
+		resp, body := f.api(t, server, http.MethodPut, "/api/team/"+tc.name, map[string]any{
+			"place": "project", "name": tc.name, "part": "folder", "new": true,
+			"doc": map[string]any{"ops": []any{}},
+		})
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("PUT /api/team/%s answers %d, want 422: %s", tc.name, resp.StatusCode, body)
+		}
+		var refusal struct {
+			Text string `json:"text"`
+			At   string `json:"at"`
+		}
+		if err := json.Unmarshal([]byte(body), &refusal); err != nil {
+			t.Fatalf("the refusal does not read: %v\n%s", err, body)
+		}
+		if refusal.Text != tc.want || refusal.At != "name" {
+			t.Errorf("the refusal for %q reads %q at %q, want %q at name", tc.name, refusal.Text, refusal.At, tc.want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "teams", "Bad_Name")); !os.IsNotExist(err) {
+		t.Error("the refused name was written")
+	}
+}
+
+// TestTeamsDraftDuplicateWritesTheSameFiles: a duplicate stands on the named
+// definition's own files and writes only its own two, byte for byte (spec-teams
+// B3, C8, N4, N5).
+func TestTeamsDraftDuplicateWritesTheSameFiles(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	base := map[string]any{"place": "project", "name": "demo"}
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo-2", "part": "team", "base": base,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	draft := teamsDraft(t, body)
+	if draft.Starter {
+		t.Error("a duplicate is not a starter, so it writes no role documents")
+	}
+	if len(draft.Writes) != 2 {
+		t.Errorf("a duplicate writes %v, want its own two files", draft.Writes)
+	}
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/demo-2", map[string]any{
+		"place": "project", "name": "demo-2", "part": "folder", "base": base,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/demo-2 answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	one := filepath.Join(f.proj, ".hergy", "teams", "demo")
+	two := filepath.Join(f.proj, ".hergy", "teams", "demo-2")
+	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+		if got, want := readFile(t, filepath.Join(two, name)), readFile(t, filepath.Join(one, name)); got != want {
+			t.Errorf("the duplicate's %s reads\n%s\nwant the original's\n%s", name, got, want)
+		}
+	}
+}
+
+// TestTeamsCopyAndDeleteTakeOnePlace: a copy stands on the other place's
+// definition and goes into this place under the same name, and taking one place's
+// folder away leaves the other's (spec-teams B3, B6, N6, N7).
+func TestTeamsCopyAndDeleteTakeOnePlace(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "global", "name": "demo", "part": "folder",
+		"base": map[string]any{"place": "project", "name": "demo"},
+		"doc":  map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/demo answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	global := filepath.Join(f.global, "teams", "demo")
+	if got, want := readFile(t, filepath.Join(global, "team.yaml")), readFile(t, f.teamYAML()); got != want {
+		t.Errorf("the copy reads\n%s\nwant the original's\n%s", got, want)
+	}
+	// Both places hold it now, so the row shows one in effect and one hidden
+	// (spec-teams 1.4.5).
+	if !strings.Contains(body, `"global"`) || !strings.Contains(body, `"project"`) {
+		t.Errorf("the answer names neither place:\n%s", body)
+	}
+
+	// A hash that moved under the screen is refused, and nothing is removed
+	// (B6).
+	stale, staleBody := f.api(t, server, http.MethodDelete, "/api/team/demo?place=project&hash=nope", nil)
+	if stale.StatusCode != http.StatusConflict {
+		t.Fatalf("DELETE with a stale hash answers %d, want 409: %s", stale.StatusCode, staleBody)
+	}
+	if _, err := os.Stat(f.teamYAML()); err != nil {
+		t.Error("the refused delete removed the project's team.yaml")
+	}
+
+	// The delete takes the whole folder, and the directory with it (B6, N7).
+	agreePath := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	q := url.Values{}
+	q.Set("place", "project")
+	q.Set("hash", source.Hash(readFile(t, f.teamYAML())))
+	q.Set("agreement_hash", source.Hash(readFile(t, agreePath)))
+	resp, body = f.api(t, server, http.MethodDelete, "/api/team/demo?"+q.Encode(), nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("DELETE /api/team/demo answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "teams", "demo")); !os.IsNotExist(err) {
+		t.Error("the project's definition's directory is still there")
+	}
+	if _, err := os.Stat(filepath.Join(global, "team.yaml")); err != nil {
+		t.Error("the copy in the other place went away with it")
+	}
+}
+
+// TestTeamsDraftCheckReadsTheRowsOwnFiles: a definition that is not there yet is
+// checked as its own draft, so a name a saved definition already holds brings
+// that definition's rules with it no longer, and the paths the answer names are
+// the name a person typed (spec-teams B2, 監査 R6).
+func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
+	f := newFixture(t)
+	// The saved definition's own rule writes a turn the team does not hold: read
+	// against the draft's base it warns, and read against the draft's own
+	// agreement it is not there at all.
+	f.write(t, filepath.Join("teams", "demo", "agreement.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: lead → reviewer と受け渡す。\n")
+	server := f.server(t)
+	checkOne := func(name string) t2TestDraft {
+		t.Helper()
+		resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+			"place": "project", "name": name, "part": "team", "new": true,
+			"doc": map[string]any{"ops": []any{}},
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+		}
+		return teamsDraft(t, body)
+	}
+
+	starter := checkOne("ops")
+	for _, p := range starter.Problems {
+		if strings.HasPrefix(p.At, "rule:") {
+			t.Fatalf("a fresh draft answers a rule's own problem: %+v", p)
+		}
+	}
+	taken := checkOne("demo")
+	if taken.Problems[0].At != "name" {
+		t.Fatalf("a name the place holds answers %+v, want the name's problem first", taken.Problems)
+	}
+	// The saved definition's rule is not read: the row's problems are the name's
+	// and its own base's, the same as a fresh draft's.
+	for _, p := range taken.Problems[1:] {
+		if strings.HasPrefix(p.At, "rule:") {
+			t.Errorf("a row named after a saved definition is told about that definition's rule: %+v", p)
+		}
+	}
+	if len(taken.Problems)-1 != len(starter.Problems) {
+		t.Errorf("a taken name answers %d problems beside its name's, want the %d a fresh draft answers",
+			len(taken.Problems)-1, len(starter.Problems))
+	}
+	// The paths are the name a person typed, not the definition it collides with
+	// (監査 R5).
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); taken.Path != want {
+		t.Errorf("the row says it stands at %q, want %q", taken.Path, want)
+	}
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"); taken.Doc.Agreement.Path != want {
+		t.Errorf("the row's agreement says it stands at %q, want %q", taken.Doc.Agreement.Path, want)
 	}
 }

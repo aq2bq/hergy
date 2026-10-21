@@ -25,6 +25,7 @@
   "error.show_needs_team": "hergy show needs a team definition name",
   "error.new_needs_name": "hergy new needs a team definition name",
   "error.new_name_pattern": "team definition name must match [a-z][a-z0-9_-]{0,24}: %q",
+  "error.team_name_needed": "write a team definition name",
   "error.as_name_pattern": "--as team name must match [a-z][a-z0-9_-]{0,24}: %q",
   "error.new_exists": "a team definition named %q already exists: %s (nothing written)",
   "error.not_under_herdr": "run inside a Herdr-managed shell pane (HERDR_ENV=1 and HERDR_PANE_ID are required)",

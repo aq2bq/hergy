@@ -9,7 +9,7 @@ A hergy team's rules are files: one team's agreements in `teams/<team>/agreement
 
 This skill is for the person's side of that: writing a new team's rules, changing an existing team's rules, moving rules out of Markdown, and filling in the origins later. The shape of every key is in `hergy cheat --ai`; the format and the checks are what this skill walks through.
 
-The rules can also be changed on the screen: `hergy serve` shows the role documents at `/roles` and a team's own agreement on the team's row at `/teams` (its チームの約束 tab). Both open a rule in place, keep it in the file but out of the prompt, reorder sections and rules, and show the Markdown each member reads. The agreement every team shares (`agreement.yaml`) is not on the screen: it is written as a file. Send the person to the screen for a change they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, an origin to fill in, or the shared agreement).
+The rules can also be changed on the screen: `hergy serve` shows the role documents at `/roles` and a team's own agreement on the team's row at `/teams` (its ルール tab). Both open a rule in place, keep it in the file but out of the prompt, reorder sections and rules, and show the Markdown each member reads. The agreement every team shares (`agreement.yaml`) is not on the screen: it is written as a file. Send the person to the screen for a change they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, an origin to fill in, or the shared agreement).
 
 ## What you keep to
 

@@ -566,6 +566,11 @@ func roleDiff(saved, draft *rules.Document) RoleDiff {
 	return lineDiff(mdTexts(saved.Lines()), mdTexts(draft.Lines()))
 }
 
+// LineDiff is how draft differs from saved, by line: the same alignment the
+// Markdown preview uses, exported so the team screen's YAML preview marks the
+// lines one edit would change the same way (spec-teams B7).
+func LineDiff(saved, draft []string) RoleDiff { return lineDiff(saved, draft) }
+
 // mdTexts is the text of the Markdown lines, for a diff by line.
 func mdTexts(lines []rules.MDLine) []string {
 	out := make([]string, len(lines))
