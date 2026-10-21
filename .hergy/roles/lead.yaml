@@ -1,6 +1,6 @@
 version: 1
 title: 進行管理
-revision: 5
+revision: 6
 sections:
   - heading: 使命
     rules:
@@ -59,3 +59,11 @@ sections:
           - kind: incident
             date: "2026-10-17"
             refs: [d-aa9d]
+      - id: LEAD-10
+        text: 直しを頼むときは、起きた症状だけでなく、それが何の型（仕組みのどこの穴）かを 1 行添え、同じ型が二度と書けない形の直しを求める。
+        why: 症状で頼むと、症状の分しか直らない。
+        origin:
+          - kind: incident
+            date: "2026-10-21"
+            refs: [n-69cc, d-af28]
+            note: retro-e2e.md 1-3。E2E の揺れを症状ごとに 2 回直させ、3 回目に『そろえる』と型で頼んで止まった

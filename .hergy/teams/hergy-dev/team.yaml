@@ -12,6 +12,9 @@ workers:
   - from: lead
     purpose: 実装
     profile: coder
+  - from: lead
+    purpose: 確かめ
+    profile: coder
 turns:
   - human -> lead
   - lead -> designer
