@@ -398,22 +398,33 @@ func launchTeams() []team.Launch {
 
 // herdrTabs reads the tabs herdr reports, each with the live agents in it. It is
 // how a team command tells hergy's own tabs apart and finds the team definition
-// behind a running team name. agentsRead says whether the agent list could be
-// read at all: with no agent names, the launch record is the best guess left at
-// which tab is a team's.
+// behind a running team name; herdrRead is the one read behind it and behind the
+// activity screen.
 func herdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
+	tabs, _, agentsRead, err = herdrRead()
+	return tabs, agentsRead, err
+}
+
+// herdrRead is one read of herdr: the tabs, each with the live agents in it, and
+// the live agents themselves, with the state they are in. It is what hergy status
+// reads a running team from and what the activity screen reads, so both see the
+// same herdr (6 A1).
+//
+// A herdr that cannot list its agents still lists its tabs: the tabs an older
+// hergy labelled are found from their labels, and the ones this machine recorded
+// are guessed at from the record, rather than lost. agentsRead says whether the
+// agent list could be read at all — with no agent names, the launch record is the
+// best guess left at which tab is a team's.
+func herdrRead() (tabs []team.Tab, agents []protocol.Agent, agentsRead bool, err error) {
 	list, err := herdrTabList()
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	agents, err := herdrAgents()
+	agents, err = herdrAgents()
 	if err != nil {
-		// A herdr that cannot list its agents still lists its tabs: the tabs an
-		// older hergy labelled are found from their labels, and the ones this
-		// machine recorded are guessed at from the record, rather than lost.
-		return teamTabs(list, nil), false, nil
+		return teamTabs(list, nil), nil, false, nil
 	}
-	return teamTabs(list, agents), true, nil
+	return teamTabs(list, agents), agents, true, nil
 }
 
 // herdrAgents reads the live agents herdr reports.
@@ -1120,10 +1131,11 @@ func statusOfARunningTeam(opts *options.Options, reason error) error {
 // runStatusList is status with no team name: every running team, with its team
 // definition name, its counts, and the same judgement.
 func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error {
-	running, err := runningTeams()
+	tabs, agents, agentsRead, err := herdrRead()
 	if err != nil {
 		return err
 	}
+	running := readRunningTeams(env, herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead})
 	if len(running) == 0 {
 		if opts.JSON {
 			return printStatusJSONList(stdout, nil)
@@ -1131,27 +1143,26 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		fmt.Fprintln(stdout, i18n.T("status.none"))
 		return nil
 	}
-	cat := env.Catalog(source.Disk{})
 	var teams []statusJSONTeam
 	for i, entry := range running {
 		if !opts.JSON && i > 0 {
 			fmt.Fprintln(stdout)
 		}
-		r, err := buildRunning(cat, env.ProjectRoot, entry)
-		if err != nil {
+		r := entry.Built
+		if r == nil {
 			// A team booted from another project's definition is still listed,
 			// so one such team does not hide the rest. A definition that is here
 			// but does not read says why, with its file's path; only a
 			// definition that is not here says "another project".
 			if opts.JSON {
-				teams = append(teams, statusJSONTeam{Team: entry.Team, Definition: entry.Definition, Error: brokenTeamLine(env, err)})
+				teams = append(teams, statusJSONTeam{Team: entry.Name, Definition: entry.Definition, Error: entry.Broken})
 				continue
 			}
-			field(stdout, label("team"), startedFrom(entry.Team, entry.Definition))
-			if errors.Is(err, catalog.ErrNotFound) {
+			field(stdout, label("team"), startedFrom(entry.Name, entry.Definition))
+			if entry.Elsewhere {
 				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
 			} else {
-				indentField(stdout, 1, label("detail"), brokenTeamLine(env, err))
+				indentField(stdout, 1, label("detail"), entry.Broken)
 			}
 			continue
 		}

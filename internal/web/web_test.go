@@ -100,14 +100,31 @@ func (f *fixture) catalog() *catalog.Catalog {
 	return catalog.New(f.global, filepath.Join(f.proj, ".hergy"), f.proj, source.Disk{}, func(path string) string { return path }).InRepo(true)
 }
 
-// server builds the server over the fixture.
+// server builds the server over the fixture, with no activity reading: the
+// fixture's project has no team running, which is what the screen says
+// (spec-activity 2.7).
 func (f *fixture) server(t *testing.T) *Server {
 	t.Helper()
-	server, err := New(f.catalog())
+	server, err := New(f.catalog(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return server
+}
+
+// fakeActivity is a reading with an answer a test writes: the servers a fixture
+// builds read nothing (nothing is running), and these say what one running team
+// looks like without a herdr being started.
+type fakeActivity struct {
+	list ActivityList
+	docs map[string]ActivityDoc
+}
+
+func (f fakeActivity) List() ActivityList { return f.list }
+
+func (f fakeActivity) One(name string) (ActivityDoc, bool) {
+	doc, ok := f.docs[name]
+	return doc, ok
 }
 
 // get runs one GET against the server's own handler, with the Host check passing
@@ -164,27 +181,48 @@ func hrefs(body string) []string {
 	}
 }
 
-// TestRootGoesToTheProfileScreen: opening the server's own address lands on the
-// profile screen's list, with a 302 — not a 301, because / stays the way in once
-// the activity and team-definition screens are here (spec-nav.md 1.3).
-func TestRootGoesToTheProfileScreen(t *testing.T) {
+// TestRootGoesToTheTeamDefinitionsWithNoTeamRunning: opening the server's own
+// address with nothing running lands on the team definitions, with a 302 — not a
+// 301, because / is the activity screen whenever a team of this project runs
+// (spec-nav.md 1.3, spec-activity 2.1).
+func TestRootGoesToTheTeamDefinitionsWithNoTeamRunning(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, body := f.get(t, server, "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
 	}
-	if got := resp.Header.Get("Location"); got != "/profiles" {
-		t.Errorf("GET / goes to %q, want /profiles", got)
+	if got := resp.Header.Get("Location"); got != "/teams" {
+		t.Errorf("GET / goes to %q, want /teams", got)
 	}
 	if strings.Contains(body, `class="screens"`) {
 		t.Errorf("the move carries a page:\n%s", body)
 	}
 }
 
-// TestTheBandNamesTheFourScreensAndCountsThem: the band stands on both screens
-// with the four names, the three numbers, one screen marked as where the person
-// is and the one not built yet struck through (spec-nav.md 1.1, 1.2).
+// TestRootGoesToTheActivityWhenATeamRuns: with a team of this project running,
+// / is the activity screen: what the human is being asked for is why they came
+// (spec-activity 2.1, S6).
+func TestRootGoesToTheActivityWhenATeamRuns(t *testing.T) {
+	f := newFixture(t)
+	server, err := New(f.catalog(), fakeActivity{
+		list: ActivityList{Items: []ActivityItem{{Name: "demo"}}, Running: 1, Herdr: ActivityNote{OK: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, _ := f.get(t, server, "/")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/activity" {
+		t.Errorf("GET / goes to %q, want /activity", got)
+	}
+}
+
+// TestTheBandNamesTheFourScreensAndCountsThem: the band stands on every screen
+// with the four names, the numbers, one screen marked as where the person is and
+// the activity pressable (spec-nav.md 1.1, 1.2, spec-activity 2.1).
 func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
@@ -193,7 +231,7 @@ func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 	for _, want := range []string{
 		`aria-label="画面"`,
 		`<a class="mark" href="/">hergy</a>`,
-		`<span class="scr soon" aria-disabled="true">活動</span>`,
+		`<a class="scr" href="/activity" data-screen="activity">活動</a>`,
 		`<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">1</span></a>`,
 		`<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">2</span></span>`,
 		`<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">2</span></a>`,
@@ -223,6 +261,112 @@ func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 	for _, gone := range []string{"層", "layer", "担当", "役割", "版", "hergy.css", "[["} {
 		if strings.Contains(profiles, gone) || strings.Contains(roles, gone) {
 			t.Errorf("a screen holds %q", gone)
+		}
+	}
+}
+
+// TestTheActivityCountsStandOnEveryBand: the band's 活動 and 待ち are the
+// activity reading's own numbers, and the activity screen's band shows the same
+// ones, because it is one band on every screen (spec-activity 2.1).
+func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
+	f := newFixture(t)
+	server, err := New(f.catalog(), fakeActivity{
+		list: ActivityList{Items: []ActivityItem{{Name: "demo"}}, Running: 4, Waiting: 2, Herdr: ActivityNote{OK: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, profiles := f.get(t, server, "/profiles")
+	if want := `<a class="scr" href="/activity" data-screen="activity">活動<span class="n">4</span><span class="wait">待ち 2</span></a>`; !strings.Contains(profiles, want) {
+		t.Errorf("the profile screen's band does not hold %s:\n%s", want, profiles)
+	}
+	_, activity := f.get(t, server, "/activity")
+	for _, want := range []string{
+		`<span class="scr on" aria-current="page" data-screen="activity">活動<span class="n">4</span><span class="wait">待ち 2</span></span>`,
+		`<span class="tab">一覧</span>`,
+		`<main class="list" id="list">`,
+		`/static/activity-v2.css`,
+		`/static/activity-v2.js`,
+		`<script id="activity-words" type="application/json">`,
+	} {
+		if !strings.Contains(activity, want) {
+			t.Errorf("the activity screen does not hold %s:\n%s", want, activity)
+		}
+	}
+	// The opened rows are the page's own state, not a URL of their own (2.3).
+	if !strings.Contains(activity, "動いているチームはありません") {
+		t.Errorf("the activity screen does not carry the word for an empty list:\n%s", activity)
+	}
+}
+
+// TestTheBandWritesNoActivityNumberThatIsNotThere: a project with nothing
+// running, and a herdr that could not be read, both leave 活動 without a number
+// and without 待ち, rather than writing a zero that is not known
+// (spec-activity 2.7).
+func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
+	f := newFixture(t)
+	_, none := f.get(t, f.server(t), "/profiles")
+	if !strings.Contains(none, `<a class="scr" href="/activity" data-screen="activity">活動</a>`) {
+		t.Errorf("the band writes a number with nothing running:\n%s", none)
+	}
+	if strings.Contains(none, `class="wait"`) {
+		t.Errorf("the band writes 待ち with nothing waiting:\n%s", none)
+	}
+
+	server, err := New(f.catalog(), fakeActivity{
+		list: ActivityList{Items: []ActivityItem{}, Herdr: ActivityNote{OK: false, Text: "herdr を実行できません"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, broken := f.get(t, server, "/activity")
+	if !strings.Contains(broken, `<span class="scr on" aria-current="page" data-screen="activity">活動</span>`) {
+		t.Errorf("the band writes a number for a herdr it could not read:\n%s", broken)
+	}
+}
+
+// TestTheActivityIsReadOnly: the activity kind answers a read, and its three
+// writes are refused with 405 whatever they carry — the screen is one a person
+// reads, and a caller that asks whether the URL takes a write is told so rather
+// than told it has no token (spec-activity 3, spec-boundary 5).
+func TestTheActivityIsReadOnly(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	server.addr = "127.0.0.1:8787"
+
+	resp, body := f.get(t, server, "/api/activity")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/activity answers %d, want 200", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Errorf("GET /api/activity answers %q", got)
+	}
+	for _, want := range []string{`"items":[]`, `"running":0`, `"waiting":0`, `"herdr":{"ok":true,"text":""}`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("GET /api/activity does not hold %s:\n%s", want, body)
+		}
+	}
+
+	resp, _ = f.get(t, server, "/api/activity/demo")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("GET /api/activity/demo answers %d, want 404", resp.StatusCode)
+	}
+
+	for _, one := range []struct{ method, target string }{
+		{http.MethodPost, "/api/activity/check"},
+		{http.MethodPut, "/api/activity/demo"},
+		{http.MethodDelete, "/api/activity/demo"},
+	} {
+		req := httptest.NewRequest(one.method, one.target, strings.NewReader(`{}`))
+		req.Host = "127.0.0.1:8787"
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		server.handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s %s answers %d, want 405", one.method, one.target, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "この画面は読むだけです。") {
+			t.Errorf("%s %s does not say the screen is for reading: %s", one.method, one.target, rec.Body.String())
 		}
 	}
 }
@@ -260,7 +404,7 @@ func TestTheRemovedScreensAreNotFound(t *testing.T) {
 		"/definitions/demo/workers/lead/実装", "/definitions/demo/human",
 		"/definitions/demo/turns/lead/builder", "/definitions/demo/agreement",
 		"/definitions/demo/agreement/new", "/definitions/demo/agreement/TEAM-1",
-		"/activity", "/activity/demo", "/agreement", "/agreement/new", "/agreement/SHARED-1",
+		"/activity/demo", "/agreement", "/agreement/new", "/agreement/SHARED-1",
 		"/running", "/team", "/team?name=demo",
 		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
 	}
@@ -305,7 +449,7 @@ func TestTheOldFilesAreGone(t *testing.T) {
 			t.Errorf("GET %s answers %d, want 404", path, resp.StatusCode)
 		}
 	}
-	for _, path := range []string{"/static/profiles-v2.css", "/static/roles-v2.css", "/static/ruledoc.css", "/static/ruledoc.js", "/static/nav.css", "/static/nav.js"} {
+	for _, path := range []string{"/static/profiles-v2.css", "/static/roles-v2.css", "/static/ruledoc.css", "/static/ruledoc.js", "/static/nav.css", "/static/nav.js", "/static/teams-v2.css", "/static/teams-v2.js", "/static/activity-v2.css", "/static/activity-v2.js"} {
 		resp, _ := f.get(t, server, path)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET %s answers %d, want 200", path, resp.StatusCode)

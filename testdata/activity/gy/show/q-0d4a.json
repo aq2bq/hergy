@@ -1,0 +1,1 @@
+[{"id": "q-0d4a", "kind": "Question", "title": "impl-b の結合テストを夜の CI にまわしてよいか", "body": "", "data": {"Question": {"closure": "Decision", "decider": "master", "options": ["夜にまわす", "いまのまま"]}}}]

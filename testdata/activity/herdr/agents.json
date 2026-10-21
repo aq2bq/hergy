@@ -1,0 +1,204 @@
+{
+ "result": {
+  "agents": [
+   {
+    "name": "migrate-lead",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-migrate-lead",
+    "tab_id": "t1",
+    "state_change_seq": 40,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "migrate-impl",
+    "agent": "codex",
+    "agent_status": "working",
+    "pane_id": "p-migrate-impl",
+    "tab_id": "t1",
+    "state_change_seq": 52,
+    "terminal_title_stripped": "手順書を書いている"
+   },
+   {
+    "name": "migrate-tester",
+    "agent": "codex",
+    "agent_status": "blocked",
+    "pane_id": "p-migrate-tester",
+    "tab_id": "t1",
+    "state_change_seq": 55,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "migrate-draft",
+    "agent": "codex",
+    "agent_status": "working",
+    "pane_id": "p-migrate-draft",
+    "tab_id": "t6",
+    "state_change_seq": 50,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "migrate-match",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-migrate-match",
+    "tab_id": "t7",
+    "state_change_seq": 54,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-lead",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-core-lead",
+    "tab_id": "t2",
+    "state_change_seq": 90,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-impl-a",
+    "agent": "codex",
+    "agent_status": "idle",
+    "pane_id": "p-core-impl-a",
+    "tab_id": "t2",
+    "state_change_seq": 88,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-impl-b",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-core-impl-b",
+    "tab_id": "t2",
+    "state_change_seq": 86,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-reviewer",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-core-reviewer",
+    "tab_id": "t2",
+    "state_change_seq": 84,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-analyst",
+    "agent": "claude",
+    "agent_status": "done",
+    "pane_id": "p-core-analyst",
+    "tab_id": "t2",
+    "state_change_seq": 70,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-deps",
+    "agent": "codex",
+    "agent_status": "idle",
+    "pane_id": "p-core-deps",
+    "tab_id": "t8",
+    "state_change_seq": 80,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-hotfix-impl-a",
+    "agent": "codex",
+    "agent_status": "idle",
+    "pane_id": "p-core-hotfix-impl-a",
+    "tab_id": "t3",
+    "state_change_seq": 30,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-hotfix-lead",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-core-hotfix-lead",
+    "tab_id": "t3",
+    "state_change_seq": 28,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "core-hotfix-reviewer",
+    "agent": "claude",
+    "agent_status": "unknown",
+    "pane_id": "p-core-hotfix-reviewer",
+    "tab_id": "t3",
+    "state_change_seq": 27,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-lead",
+    "agent": "claude",
+    "agent_status": "working",
+    "pane_id": "p-research-lead",
+    "tab_id": "t4",
+    "state_change_seq": 60,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-scout",
+    "agent": "gemini",
+    "agent_status": "idle",
+    "pane_id": "p-research-scout",
+    "tab_id": "t4",
+    "state_change_seq": 61,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-logs",
+    "agent": "claude",
+    "agent_status": "working",
+    "pane_id": "p-research-logs",
+    "tab_id": "t9",
+    "state_change_seq": 62,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-rivals",
+    "agent": "claude",
+    "agent_status": "working",
+    "pane_id": "p-research-rivals",
+    "tab_id": "t10",
+    "state_change_seq": 63,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-papers",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-research-papers",
+    "tab_id": "t11",
+    "state_change_seq": 58,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-proto",
+    "agent": "claude",
+    "agent_status": "working",
+    "pane_id": "p-research-proto",
+    "tab_id": "t12",
+    "state_change_seq": 64,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "research-bench",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-research-bench",
+    "tab_id": "t13",
+    "state_change_seq": 59,
+    "terminal_title_stripped": ""
+   },
+   {
+    "name": "notes",
+    "agent": "claude",
+    "agent_status": "idle",
+    "pane_id": "p-notes",
+    "tab_id": "t5",
+    "state_change_seq": 5,
+    "terminal_title_stripped": ""
+   }
+  ]
+ }
+}

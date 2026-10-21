@@ -1,0 +1,9 @@
+#!/bin/sh
+# 活動の画面の作り物の gy。答えは ../gy/ のファイル（時刻は写したときに置き換えたもの）
+d="$(cd "$(dirname "$0")/.." && pwd)/gy"
+case "$*" in
+  "list --type question --status open --json") cat "$d/open.json" ;;
+  "list --since 0 --type question --json") cat "$d/writes.json" ;;
+  "show "*" --json") if [ -f "$d/show/$2.json" ]; then cat "$d/show/$2.json"; else echo '[]'; fi ;;
+  *) echo '[]' ;;
+esac

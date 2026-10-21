@@ -1,0 +1,58 @@
+{
+ "result": {
+  "tabs": [
+   {
+    "tab_id": "t1",
+    "label": "migrate"
+   },
+   {
+    "tab_id": "t2",
+    "label": "core"
+   },
+   {
+    "tab_id": "t3",
+    "label": "core-hotfix"
+   },
+   {
+    "tab_id": "t4",
+    "label": "research"
+   },
+   {
+    "tab_id": "t5",
+    "label": "notes"
+   },
+   {
+    "tab_id": "t6",
+    "label": "worker:migrate/draft"
+   },
+   {
+    "tab_id": "t7",
+    "label": "worker:migrate/match"
+   },
+   {
+    "tab_id": "t8",
+    "label": "worker:core/deps"
+   },
+   {
+    "tab_id": "t9",
+    "label": "worker:research/logs"
+   },
+   {
+    "tab_id": "t10",
+    "label": "worker:research/rivals"
+   },
+   {
+    "tab_id": "t11",
+    "label": "worker:research/papers"
+   },
+   {
+    "tab_id": "t12",
+    "label": "worker:research/proto"
+   },
+   {
+    "tab_id": "t13",
+    "label": "worker:research/bench"
+   }
+  ]
+ }
+}

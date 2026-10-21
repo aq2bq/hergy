@@ -65,6 +65,31 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   marked without the server's answer being mistaken for the text before it. A
   save writes the one line that changed and leaves every other line of the file
   as it was; a move writes the same lines in another order.
+- **The activity screen (`/activity`)**: the band's 活動 is a link now (it was a
+  struck-through name) and carries the two numbers a person watches — 活動 N is
+  how many teams of this project are running and 待ち N how many of them wait
+  for a human or a permission, neither counted while herdr cannot be read or no
+  team is running. A row is one running team as it is doing: 許可待ち /
+  人間の番 / 止まっている / 仕事中, who the row is about (the member the line
+  stands with, or the members working, with the workers below ワーカー), and how
+  long it has been that way with the moment it began — `以上` and より前 where
+  only a bound is known, and nothing at all where a team is working. A row opens
+  under itself: the newest question the row's own member asked, with its
+  options, then one line each for the older ones, `ほか N 件` letting the rest
+  out, and 画面の最後, the last lines of that member's pane, with `▸ 上に N 行`
+  letting the lines held back out and `▾ 上の行をしまう` putting them back.
+  Beside them stands how the team is doing: every member with 人間に渡した /
+  止まっている / 仕事中 and when each stopped, newest stop first, and the
+  workers under ワーカー. The screen reads itself again every ten seconds
+  without moving the cursor, the scroll, the open rows or the let-out panes; it
+  stands at 2000, 1440 and 500 px in both lights; and it is one a person reads
+  alone — its three writes answer 405 with the read-only sentence. Every
+  length, every moment and every 何分前 is the server's, so the screen's own
+  script writes no time at all. It shows this project's own teams: one booted
+  from another project is not listed. `GET /` carries a person to the activity
+  screen while this project has a team running, and to the team definitions
+  when none is. `hergy cheat`, `hergy cheat --ai` and the `hergy` skill move
+  with it.
 
 ### Changed
 

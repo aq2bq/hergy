@@ -1,0 +1,8 @@
+• 突き合わせの 3 件目で、ステージングの ledger テーブルを 2 つに分ける必要が出ました。
+• 分ける SQL は migrate/0042_split_ledger.sql に書きました。
+
+  Would you like to run the following command?
+  $ psql "$STAGING_URL" -f migrate/0042_split_ledger.sql
+› 1. Yes, proceed
+  2. Yes, and don't ask again for this command
+  3. No, and tell Codex what to do differently

@@ -7,6 +7,9 @@ package activity
 
 import (
 	"cmp"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -14,6 +17,10 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
+
+// tailLimit is how much of a pane's tail the screen keeps (6 A6): the last lines,
+// with the empty ones at the end dropped.
+const tailLimit = 40
 
 // State is how a team is doing (設計 5.2).
 type State int
@@ -115,6 +122,10 @@ type Node struct {
 	// Herdr is the live agent's name, empty when none.
 	Herdr string
 	Seq   int
+	// At is when this state began, as the caller first saw it (6 A2), for the
+	// states the screen shows a moment for: a node that is stopped or waiting
+	// for the human. It is zero for a working node and for one with no agent.
+	At time.Time
 }
 
 // Team is one team's activity (設計 5.2).
@@ -132,11 +143,16 @@ type Team struct {
 	// Lower says Stalled is a lower bound: the state was already there when the
 	// caller began watching.
 	Lower bool
+	// At is when that state began, as the caller first saw it (6 A2), for the
+	// row's "13:34 から"/"13:34 より前". It is zero when no agent is live.
+	At time.Time
 	// Nodes is the graph's nodes: the ones waiting for the human first, then the
 	// working ones, then the stopped ones, then the ones with no agent.
 	Nodes []Node
-	// Tail is the pane tail of the node the line is about, empty when none.
-	Tail string
+	// Tail is the pane tail of the node the line is about, as the lines the
+	// screen shows: the last 40 lines, with the empty ones at the end dropped
+	// (6 A6). It is empty when there is no tail.
+	Tail []string
 	// Hired is the live agents that are no node of the graph, by the herdr name
 	// herdr knows them by: the workers a member hired (3.2). The screen lists
 	// each under the workers: node of the member that hired it.
@@ -163,7 +179,8 @@ func Of(in Input) Team {
 		team.State = WaitingAnswer
 		team.Last = last.name
 		team.Stalled, team.Lower = length.d, length.lower
-		team.Tail = in.Tails[last.name]
+		team.At = last.at
+		team.Tail = tailLines(in.Tails[last.name])
 		team.Line = i18n.Tf("activity.line_stuck", last.name, length.words())
 	case len(working) > 0:
 		team.State = Working
@@ -180,7 +197,8 @@ func Of(in Input) Team {
 		length := since(in, last)
 		team.Last = last.name
 		team.Stalled, team.Lower = length.d, length.lower
-		team.Tail = in.Tails[last.name]
+		team.At = last.at
+		team.Tail = tailLines(in.Tails[last.name])
 		if last.human {
 			team.State = WaitingTurn
 			team.Line = i18n.Tf("activity.line_waiting_human", last.name, length.words())
@@ -207,13 +225,18 @@ func Of(in Input) Team {
 // Watcher remembers when each agent's current state was first seen: the part of
 // 5.2 that has to be remembered between two reads, so a screen only reads herdr
 // and hands the agents over (N5). It holds nothing across a program's life
-// except what it was told, and it uses no goroutine: the caller calls Observe
-// whenever it has read the agents (every 5 seconds on the team screen).
+// except what it was told — and the one file NewWatcherAt was given — and it
+// uses no goroutine: the caller calls Observe whenever it has read the agents
+// (every 5 seconds on the team screen).
 type Watcher struct {
 	seen map[string]watcherEntry
-	// began says Observe has been called before, so the agents of the first read
-	// are the ones that were already there.
+	// began says Observe has been called before, or the file this watcher was
+	// given held agents, so the agents of the first read are the ones that were
+	// already there.
 	began bool
+	// path is the file the memory is kept in, empty when the memory is this
+	// process's only (6 A2).
+	path string
 }
 
 // watcherEntry is one agent as the watcher last saw it.
@@ -222,19 +245,89 @@ type watcherEntry struct {
 	watch Watch
 }
 
+// watcherRecord is one agent as the file writes it: the seq and the watch, so a
+// serve that is started again can pick the state up (6 A2).
+type watcherRecord struct {
+	Seq   int    `json:"seq"`
+	At    string `json:"at"`
+	Lower bool   `json:"lower"`
+}
+
 // NewWatcher makes a watcher that has seen nothing yet.
 func NewWatcher() *Watcher {
-	return &Watcher{seen: map[string]watcherEntry{}}
+	return NewWatcherAt("")
+}
+
+// NewWatcherAt makes a watcher whose memory is kept in one file, so a serve that
+// is started again remembers when an agent stopped: an agent whose seq did not
+// move keeps the moment the earlier serve saw (6 A2). An empty path keeps the
+// memory in this process only.
+//
+// A file that cannot be read is forgotten — the watcher begins with what it
+// sees, the way a first read does — and a file that cannot be written leaves the
+// memory as it is: the screen keeps working, it only forgets across a restart.
+func NewWatcherAt(path string) *Watcher {
+	w := &Watcher{seen: map[string]watcherEntry{}, path: path}
+	w.load()
+	return w
+}
+
+// load reads the file the watcher keeps its memory in, if there is one.
+func (w *Watcher) load() {
+	if w.path == "" {
+		return
+	}
+	data, err := os.ReadFile(w.path)
+	if err != nil {
+		return
+	}
+	var file map[string]watcherRecord
+	if err := json.Unmarshal(data, &file); err != nil {
+		return
+	}
+	for name, record := range file {
+		at, err := time.Parse(time.RFC3339, record.At)
+		if err != nil {
+			continue
+		}
+		w.seen[name] = watcherEntry{seq: record.Seq, watch: Watch{At: at, Lower: record.Lower}}
+	}
+	// Agents from before say this is not the first watching: an agent that is
+	// not in the file appeared while nobody was watching it, so its state is
+	// taken from now on rather than called a lower bound.
+	w.began = len(w.seen) > 0
+}
+
+// save writes the memory, so the next serve starts with it. Failing is not an
+// error: the memory still holds for this process (6 A2).
+func (w *Watcher) save() {
+	if w.path == "" {
+		return
+	}
+	file := make(map[string]watcherRecord, len(w.seen))
+	for name, entry := range w.seen {
+		file[name] = watcherRecord{Seq: entry.seq, At: entry.watch.At.Format(time.RFC3339), Lower: entry.watch.Lower}
+	}
+	data, err := json.Marshal(file)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(w.path), 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(w.path, data, 0o644)
 }
 
 // Observe takes the agents as they were just read and returns, for each of them,
 // when its current state was first seen. An agent the first read saw was already
 // in its state when the watching began, so its length is a lower bound; an agent
 // that appeared later, or whose state_change_seq moved, is taken from now on. An
-// agent that is gone is forgotten.
+// agent that is gone is forgotten. When the memory changes it is written to the
+// watcher's file, so the next serve remembers it.
 func (w *Watcher) Observe(agents []Agent, now time.Time) map[string]Watch {
 	next := make(map[string]watcherEntry, len(agents))
 	out := make(map[string]Watch, len(agents))
+	changed := len(agents) != len(w.seen)
 	for _, agent := range agents {
 		seen, ok := w.seen[agent.Herdr]
 		switch {
@@ -245,9 +338,13 @@ func (w *Watcher) Observe(agents []Agent, now time.Time) map[string]Watch {
 			watch := Watch{At: now, Lower: !w.began}
 			next[agent.Herdr] = watcherEntry{seq: agent.Seq, watch: watch}
 			out[agent.Herdr] = watch
+			changed = true
 		}
 	}
 	w.seen, w.began = next, true
+	if changed {
+		w.save()
+	}
 	return out
 }
 
@@ -289,8 +386,9 @@ type live struct {
 	herdr string
 	seq   int
 	state NodeState
-	human bool // the node hands the turn to the human
-	hired bool // the agent is no node of the graph: a worker a member hired
+	human bool      // the node hands the turn to the human
+	hired bool      // the agent is no node of the graph: a worker a member hired
+	at    time.Time // when this state began, for the states the screen dates
 }
 
 // livesOf is the live agents, the graph's members first (in the graph's order,
@@ -311,37 +409,51 @@ func livesOf(in Input) []live {
 		l := live{name: member.Name, state: Absent, human: handsToHuman(in.Graph, member.Name)}
 		if agent, ok := byNode[member.Name]; ok {
 			l.herdr, l.seq, l.state = agent.Herdr, agent.Seq, stateOf(agent.Status)
+			l.at = atOf(l.state, in.Seen, agent.Herdr)
 		}
 		lives = append(lives, l)
 	}
 	for _, agent := range others {
+		state := stateOf(agent.Status)
 		lives = append(lives, live{
-			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq,
-			state: stateOf(agent.Status), hired: true,
+			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq, state: state,
+			hired: true, at: atOf(state, in.Seen, agent.Herdr),
 		})
 	}
 	return lives
 }
 
+// atOf is when a node's state began, for the states the screen shows a moment
+// for: a node that is stopped or waiting for the human. A working node and one
+// with no agent have no such moment (2.5), and a caller that handed no watch for
+// the agent knows none (6 A2).
+func atOf(state NodeState, seen map[string]Watch, herdr string) time.Time {
+	if state != Idle && state != Blocked {
+		return time.Time{}
+	}
+	return seen[herdr].At
+}
+
 // hiredOf is the live agents that are no node of the graph, by their herdr
 // names: the workers a member hired, which the team screen lists under the
-// member that hired them (3.2). The order is by name, so it holds still between
-// one read and the next.
+// member that hired them (3.2). The order is the nodes' own (6 A3): waiting for
+// the human first, then working, then stopped, and the last one to stop first.
 func hiredOf(lives []live) []Node {
 	var out []Node
 	for _, l := range lives {
 		if !l.hired {
 			continue
 		}
-		out = append(out, Node{Name: l.name, State: l.state, Herdr: l.herdr, Seq: l.seq})
+		out = append(out, Node{Name: l.name, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at})
 	}
-	slices.SortFunc(out, func(a, b Node) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortStableFunc(out, stopOrder)
 	return out
 }
 
 // nodesOf is the graph's members as nodes, with their states, in the order 5.2
 // lists them: waiting for the human first, then working, then stopped, then the
-// ones with no agent.
+// ones with no agent. Within one state the one that stopped last comes first (6
+// A3), so a person reads the freshest stop at the top.
 func nodesOf(in Input, lives []live) []Node {
 	state := map[string]live{}
 	for _, l := range lives {
@@ -352,13 +464,26 @@ func nodesOf(in Input, lives []live) []Node {
 		member := &in.Graph.Members[i]
 		l := state[member.Name]
 		nodes = append(nodes, Node{
-			Name: member.Name, Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq,
+			Name: member.Name, Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at,
 		})
 	}
-	slices.SortStableFunc(nodes, func(a, b Node) int {
-		return cmp.Compare(nodeRank(a.State), nodeRank(b.State))
-	})
+	slices.SortStableFunc(nodes, stopOrder)
 	return nodes
+}
+
+// stopOrder is the order of one state's nodes and workers (6 A3): waiting for
+// the human first, then working, then stopped, then the ones with no agent, and
+// within one state the one whose state_change_seq is greatest first — it stopped
+// last. The name settles two that share a seq, so the list holds still between
+// one read and the next.
+func stopOrder(a, b Node) int {
+	if d := cmp.Compare(nodeRank(a.State), nodeRank(b.State)); d != 0 {
+		return d
+	}
+	if d := cmp.Compare(b.Seq, a.Seq); d != 0 {
+		return d
+	}
+	return cmp.Compare(a.Name, b.Name)
 }
 
 // nodeRank is where a node stands in a team's node list (5.2: the nodes waiting
@@ -515,4 +640,24 @@ func markLower(text string, lower bool) string {
 		return text
 	}
 	return i18n.Tf("activity.or_more", text)
+}
+
+// tailLines is a pane's tail as the screen shows it (6 A6): the lines, with the
+// empty lines at the end dropped, and the last 40 of what is left. A tail with
+// nothing in it is no lines at all.
+func tailLines(tail string) []string {
+	if tail == "" {
+		return nil
+	}
+	lines := strings.Split(tail, "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	if len(lines) > tailLimit {
+		lines = lines[len(lines)-tailLimit:]
+	}
+	return lines
 }

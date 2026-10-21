@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
@@ -39,16 +40,35 @@ type CLI struct {
 // alone (I17). A gy that is there and cannot be read is an error, told apart
 // from the absent case.
 func OpenQuestions(dir string) ([]activity.Question, error) {
+	return OpenQuestionsBy(dir, nil)
+}
+
+// OpenQuestionsBy reads the open questions of one project that one of writers
+// asked, newest read first in gy's own order (6 A5): a screen names the herdr
+// names of one team's members and shows only what they asked, and the questions
+// of everyone else are never even asked about. An empty writers means every
+// writer.
+//
+// The writer is on the write that created the question, so the writes are read
+// first and only the questions that are left are read one by one — a project
+// with 55 open questions asked by 20 people reads 3 of them for one team rather
+// than 55.
+func OpenQuestionsBy(dir string, writers []string) ([]activity.Question, error) {
 	cli, ok := open(dir)
 	if !ok {
 		return nil, nil
 	}
-	return cli.questions()
+	return cli.questions(writers)
 }
 
 // open is the gy binary of one project, and whether this project uses gy at all:
 // the HERGY_GY override or gy on PATH, and a gy.toml at dir. ok is false when
 // either is missing, which is no gy here rather than an error.
+//
+// A HERGY_GY that is not a file is no gy either: a binary that is not there
+// cannot have been read, so it is the same as a machine with no gy, which is how
+// a screen reads quietly rather than reporting a failure that did not happen
+// (spec-activity 2.4, E2).
 func open(dir string) (CLI, bool) {
 	bin := os.Getenv("HERGY_GY")
 	if bin == "" {
@@ -57,6 +77,8 @@ func open(dir string) (CLI, bool) {
 			return CLI{}, false
 		}
 		bin = found
+	} else if !isFile(bin) {
+		return CLI{}, false
 	}
 	if !isFile(filepath.Join(dir, configName)) {
 		return CLI{}, false
@@ -80,9 +102,9 @@ type Write struct {
 type Ledger struct{ cli CLI }
 
 // OpenLedger is the ledger of one project, and whether this project has one: a
-// project with no gy.toml, or a machine with no gy on PATH, is no ledger here,
-// told apart from a gy that is there and cannot be read (whose reads return the
-// error).
+// project with no gy.toml, a machine with no gy on PATH, or a HERGY_GY that is
+// not a file, is no ledger here, told apart from a gy that is there and cannot be
+// read (whose reads return the error).
 func OpenLedger(dir string) (Ledger, bool) {
 	cli, ok := open(dir)
 	if !ok {
@@ -125,8 +147,9 @@ func (l Ledger) Decider(node string) (string, error) {
 // questions runs the two reads one question needs: the list of the open ones,
 // and each one's details. The writers come from the ledger's writes, which is
 // where gy records who asked; a project with no open question reads none of
-// them.
-func (c CLI) questions() ([]activity.Question, error) {
+// them, and one where writers is not empty reads the details of the questions
+// those writers asked and no others (6 A5).
+func (c CLI) questions(writers []string) ([]activity.Question, error) {
 	listed, err := c.list()
 	if err != nil {
 		return nil, err
@@ -134,9 +157,22 @@ func (c CLI) questions() ([]activity.Question, error) {
 	if len(listed) == 0 {
 		return nil, nil
 	}
-	writers, err := c.writers()
+	who, err := c.writers()
 	if err != nil {
 		return nil, err
+	}
+	if len(writers) > 0 {
+		wanted := make(map[string]bool, len(writers))
+		for _, writer := range writers {
+			wanted[writer] = true
+		}
+		kept := listed[:0]
+		for _, row := range listed {
+			if wanted[who[row.ID]] {
+				kept = append(kept, row)
+			}
+		}
+		listed = kept
 	}
 	out := make([]activity.Question, 0, len(listed))
 	for _, row := range listed {
@@ -150,7 +186,7 @@ func (c CLI) questions() ([]activity.Question, error) {
 			Options: detail.Options,
 			Decider: detail.Decider,
 			At:      parseTime(row.Created),
-			Writer:  writers[row.ID],
+			Writer:  who[row.ID],
 		})
 	}
 	return out, nil
@@ -166,7 +202,7 @@ type listRow struct {
 // list reads the open questions.
 func (c CLI) list() ([]listRow, error) {
 	var rows []listRow
-	out, err := c.capture("list", "--type", "question", "--status", "open", "--json")
+	out, err := c.captureList("list", "--type", "question", "--status", "open", "--json")
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +259,7 @@ type writeRow struct {
 // so it is read from there (設計 10.1).
 func (c CLI) writers() (map[string]string, error) {
 	var rows []writeRow
-	out, err := c.capture("list", "--since", "0", "--type", "question", "--json")
+	out, err := c.captureList("list", "--since", "0", "--type", "question", "--json")
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +292,54 @@ func (c CLI) capture(args ...string) (string, error) {
 	return out.String(), nil
 }
 
+// listMemory is how long a gy list's answer is remembered (6 A5).
+const listMemory = 10 * time.Second
+
+// listCache is the remembered answers of gy list, one per binary and project and
+// argv. The activity's own read runs the same two lists once per row it opens,
+// and the ledger does not change under a screen; the memory is small and old
+// entries are dropped as they are read, so it needs no goroutine.
+var listCache struct {
+	sync.Mutex
+	entries map[string]listAnswer
+}
+
+// listAnswer is one list's answer and when it was read.
+type listAnswer struct {
+	out string
+	at  time.Time
+}
+
+// captureList is capture for a gy list: the answer is remembered for ten seconds
+// (6 A5). A list that failed is not remembered, so a gy that was not there is
+// asked again rather than answered with a stale failure.
+func (c CLI) captureList(args ...string) (string, error) {
+	key := c.Bin + "\x00" + c.Dir + "\x00" + strings.Join(args, " ")
+	listCache.Lock()
+	if answer, ok := listCache.entries[key]; ok && time.Since(answer.at) < listMemory {
+		listCache.Unlock()
+		return answer.out, nil
+	}
+	listCache.Unlock()
+
+	out, err := c.capture(args...)
+	if err != nil {
+		return "", err
+	}
+	listCache.Lock()
+	if listCache.entries == nil {
+		listCache.entries = map[string]listAnswer{}
+	}
+	for stale, answer := range listCache.entries {
+		if time.Since(answer.at) >= listMemory {
+			delete(listCache.entries, stale)
+		}
+	}
+	listCache.entries[key] = listAnswer{out: out, at: time.Now()}
+	listCache.Unlock()
+	return out, nil
+}
+
 // gyError is one failed gy call: the subcommand and what gy said.
 type gyError struct {
 	args   []string
@@ -268,7 +352,7 @@ func (e gyError) Error() string {
 
 // isFile reports whether a path is a regular file.
 func isFile(path string) bool {
-	info, err := os.Stat(path)
+	info, err := os.Stat(path) //nolint:gosec // G703: path is HERGY_GY or the gy hergy found, not a path the request chose
 	return err == nil && !info.IsDir()
 }
 

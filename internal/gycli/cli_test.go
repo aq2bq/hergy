@@ -3,6 +3,7 @@ package gycli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,43 @@ func TestNoGyIsSilent(t *testing.T) {
 	if err != nil || questions != nil {
 		t.Fatalf("OpenQuestions without gy = %v, %v; want none and no error", questions, err)
 	}
+}
+
+// TestMissingGyIsSilent: a HERGY_GY that points at nothing is no gy either — a
+// binary that is not there cannot have been read, so a screen says nothing rather
+// than reporting a failure that did not happen (spec-activity 2.4, E2). The
+// project here has its gy.toml, so only the binary is missing.
+func TestMissingGyIsSilent(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	t.Setenv("HERGY_GY", filepath.Join(dir, "not-here"))
+	questions, err := OpenQuestions(dir)
+	if err != nil || questions != nil {
+		t.Fatalf("OpenQuestions with a gy that is not there = %v, %v; want none and no error", questions, err)
+	}
+}
+
+// fakeGyLog writes a fake gy that appends one line per call to log, with the
+// first two words of the subcommand, and then script. A test reads the lines to
+// see which reads a caller ran (6 A5).
+func fakeGyLog(t *testing.T, log, script string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "gy")
+	body := "#!/bin/sh\necho \"$1 $2\" >> '" + log + "'\n" + script
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HERGY_GY", path)
+}
+
+// callsOf is the lines one fake gy logged.
+func callsOf(t *testing.T, log string) []string {
+	t.Helper()
+	data, err := os.ReadFile(log)
+	if err != nil {
+		return nil
+	}
+	return strings.Split(strings.TrimSpace(string(data)), "\n")
 }
 
 // TestGyWithoutAConfigIsSilent: a machine with gy, in a project that keeps no
@@ -201,5 +239,76 @@ func TestAnUnreadableLedgerIsAnError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "boom") {
 		t.Errorf("the error does not carry what gy said: %v", err)
+	}
+}
+
+// TestOpenQuestionsByFiltersBeforeShowing (6 A5): a caller that names the
+// writers it wants — a screen names one team's member herdr names — asks gy
+// about those questions only, so 55 open questions asked by 20 people cost 3
+// reads for one team rather than 55.
+func TestOpenQuestionsByFiltersBeforeShowing(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	log := filepath.Join(dir, "calls")
+	fakeGyLog(t, log, `if [ "$1" = "show" ]; then
+  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":["A one"]}}}]'
+  exit 0
+fi
+if [ "$2" = "--since" ]; then
+  echo '[{"seq":1,"actor":"demo-lead","node":"q-1","what":"created"},{"seq":2,"actor":"other-lead","node":"q-2","what":"created"},{"seq":3,"actor":"demo-coder","node":"q-3","what":"created"}]'
+  exit 0
+fi
+echo '[{"id":"q-1","title":"mine","created":"2026-10-17T02:59:58Z"},{"id":"q-2","title":"theirs","created":"2026-10-17T02:00:00Z"},{"id":"q-3","title":"my worker'"'"'s","created":"2026-10-17T01:00:00Z"}]'
+`)
+
+	questions, err := OpenQuestionsBy(dir, []string{"demo-lead", "demo-coder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(questions) != 2 || questions[0].ID != "q-1" || questions[1].ID != "q-3" {
+		t.Fatalf("OpenQuestionsBy = %+v, want q-1 and q-3 only", questions)
+	}
+	for _, call := range callsOf(t, log) {
+		if strings.Contains(call, "q-2") {
+			t.Errorf("a question of another writer was read: %q", call)
+		}
+	}
+	if got := callsOf(t, log); !slices.Contains(got, "show q-1") || !slices.Contains(got, "show q-3") {
+		t.Errorf("the wanted questions were not read: %v", got)
+	}
+}
+
+// TestAListIsRememberedForTenSeconds (6 A5): the activity's own read runs the
+// same two lists once per row a screen opens, so the answer is remembered for
+// ten seconds and the ledger is not asked again. A question's own read is not
+// remembered.
+func TestAListIsRememberedForTenSeconds(t *testing.T) {
+	dir := t.TempDir()
+	gyToml(t, dir)
+	log := filepath.Join(dir, "calls")
+	fakeGyLog(t, log, `if [ "$1" = "show" ]; then
+  echo '[{"id":"'"$2"'","data":{"Question":{"decider":"po","options":[]}}}]'
+  exit 0
+fi
+if [ "$2" = "--since" ]; then
+  echo '[{"seq":1,"actor":"demo-lead","node":"q-1","what":"created"}]'
+  exit 0
+fi
+echo '[{"id":"q-1","title":"mine","created":"2026-10-17T02:59:58Z"}]'
+`)
+
+	for range 2 {
+		if _, err := OpenQuestions(dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lists := 0
+	for _, call := range callsOf(t, log) {
+		if strings.HasPrefix(call, "list ") {
+			lists++
+		}
+	}
+	if lists != 2 {
+		t.Errorf("two reads ran %d lists, want 2 (one of each, the second remembered)", lists)
 	}
 }

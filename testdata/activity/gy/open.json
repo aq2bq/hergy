@@ -1,0 +1,442 @@
+[
+ {
+  "id": "q-7c2e",
+  "kind": "Question",
+  "status": "open",
+  "title": "注文 API のページ送りを cursor に替えるか",
+  "scope": "common",
+  "created": "@T-165@"
+ },
+ {
+  "id": "q-9e10",
+  "kind": "Question",
+  "status": "open",
+  "title": "本番の注文テーブルに索引を足す時間帯を決めてほしい",
+  "scope": "common",
+  "created": "@T-250@"
+ },
+ {
+  "id": "q-1000",
+  "kind": "Question",
+  "status": "open",
+  "title": "返金の古い経路をいつ閉じるかを決めてほしい",
+  "scope": "common",
+  "created": "@T-600@"
+ },
+ {
+  "id": "q-1025",
+  "kind": "Question",
+  "status": "open",
+  "title": "事業者の試験環境の鍵を誰が持つかを決めてほしい",
+  "scope": "common",
+  "created": "@T-790@"
+ },
+ {
+  "id": "q-104a",
+  "kind": "Question",
+  "status": "open",
+  "title": "検索の評価に使う問いの数を決めてほしい",
+  "scope": "common",
+  "created": "@T-980@"
+ },
+ {
+  "id": "q-106f",
+  "kind": "Question",
+  "status": "open",
+  "title": "競合の調査をどこまで広げるかを決めてほしい",
+  "scope": "common",
+  "created": "@T-1170@"
+ },
+ {
+  "id": "q-1094",
+  "kind": "Question",
+  "status": "open",
+  "title": "論文の要約を誰が読むかを決めてほしい",
+  "scope": "common",
+  "created": "@T-1360@"
+ },
+ {
+  "id": "q-51b9",
+  "kind": "Question",
+  "status": "open",
+  "title": "注文の取り消しを、注文から 24 時間までに限るか",
+  "scope": "common",
+  "created": "@T-1500@"
+ },
+ {
+  "id": "q-10b9",
+  "kind": "Question",
+  "status": "open",
+  "title": "改善案の発表の形を決めてほしい",
+  "scope": "common",
+  "created": "@T-1550@"
+ },
+ {
+  "id": "q-10de",
+  "kind": "Question",
+  "status": "open",
+  "title": "試作の計測に本番のログを使ってよいかを決めてほしい",
+  "scope": "common",
+  "created": "@T-1740@"
+ },
+ {
+  "id": "q-1103",
+  "kind": "Question",
+  "status": "open",
+  "title": "聞き取りの相手を増やすかを決めてほしい",
+  "scope": "common",
+  "created": "@T-1930@"
+ },
+ {
+  "id": "q-1128",
+  "kind": "Question",
+  "status": "open",
+  "title": "レビューの観点表をチームの約束に入れるかを決めてほしい",
+  "scope": "common",
+  "created": "@T-2120@"
+ },
+ {
+  "id": "q-114d",
+  "kind": "Question",
+  "status": "open",
+  "title": "負荷の試験の目標の数を決めてほしい",
+  "scope": "common",
+  "created": "@T-2310@"
+ },
+ {
+  "id": "q-1172",
+  "kind": "Question",
+  "status": "open",
+  "title": "差し戻しの上限の回数を決めてほしい",
+  "scope": "common",
+  "created": "@T-2500@"
+ },
+ {
+  "id": "q-1197",
+  "kind": "Question",
+  "status": "open",
+  "title": "用語集の英語の綴りをそろえるかを決めてほしい",
+  "scope": "common",
+  "created": "@T-2690@"
+ },
+ {
+  "id": "q-11bc",
+  "kind": "Question",
+  "status": "open",
+  "title": "図の色をどこまで決めるかを決めてほしい",
+  "scope": "common",
+  "created": "@T-2880@"
+ },
+ {
+  "id": "q-0d4a",
+  "kind": "Question",
+  "status": "open",
+  "title": "impl-b の結合テストを夜の CI にまわしてよいか",
+  "scope": "common",
+  "created": "@T-2900@"
+ },
+ {
+  "id": "q-11e1",
+  "kind": "Question",
+  "status": "open",
+  "title": "翻訳の確認を誰がするかを決めてほしい",
+  "scope": "common",
+  "created": "@T-3070@"
+ },
+ {
+  "id": "q-1206",
+  "kind": "Question",
+  "status": "open",
+  "title": "古い手順書を消すかを決めてほしい",
+  "scope": "common",
+  "created": "@T-3260@"
+ },
+ {
+  "id": "q-122b",
+  "kind": "Question",
+  "status": "open",
+  "title": "章の並びを決めてほしい",
+  "scope": "common",
+  "created": "@T-3450@"
+ },
+ {
+  "id": "q-1250",
+  "kind": "Question",
+  "status": "open",
+  "title": "画面写真の幅を決めてほしい",
+  "scope": "common",
+  "created": "@T-3640@"
+ },
+ {
+  "id": "q-1275",
+  "kind": "Question",
+  "status": "open",
+  "title": "リンク切れの基準を決めてほしい",
+  "scope": "common",
+  "created": "@T-3830@"
+ },
+ {
+  "id": "q-129a",
+  "kind": "Question",
+  "status": "open",
+  "title": "校正の範囲を決めてほしい",
+  "scope": "common",
+  "created": "@T-4020@"
+ },
+ {
+  "id": "q-12bf",
+  "kind": "Question",
+  "status": "open",
+  "title": "外から来た差分の締め切りを決めてほしい",
+  "scope": "common",
+  "created": "@T-4210@"
+ },
+ {
+  "id": "q-12e4",
+  "kind": "Question",
+  "status": "open",
+  "title": "読む順番の決め方を決めてほしい",
+  "scope": "common",
+  "created": "@T-4400@"
+ },
+ {
+  "id": "q-1309",
+  "kind": "Question",
+  "status": "open",
+  "title": "返す文の長さを決めてほしい",
+  "scope": "common",
+  "created": "@T-4590@"
+ },
+ {
+  "id": "q-132e",
+  "kind": "Question",
+  "status": "open",
+  "title": "下書きの置き場所を決めてほしい",
+  "scope": "common",
+  "created": "@T-4780@"
+ },
+ {
+  "id": "q-1353",
+  "kind": "Question",
+  "status": "open",
+  "title": "読み合わせの回数を決めてほしい",
+  "scope": "common",
+  "created": "@T-4970@"
+ },
+ {
+  "id": "q-1378",
+  "kind": "Question",
+  "status": "open",
+  "title": "ログの保存期間を決めてほしい",
+  "scope": "common",
+  "created": "@T-5160@"
+ },
+ {
+  "id": "q-139d",
+  "kind": "Question",
+  "status": "open",
+  "title": "監視の通知先を決めてほしい",
+  "scope": "common",
+  "created": "@T-5350@"
+ },
+ {
+  "id": "q-13c2",
+  "kind": "Question",
+  "status": "open",
+  "title": "週次の報告の形を決めてほしい",
+  "scope": "common",
+  "created": "@T-5540@"
+ },
+ {
+  "id": "q-13e7",
+  "kind": "Question",
+  "status": "open",
+  "title": "ブランチの名前の決まりを決めてほしい",
+  "scope": "common",
+  "created": "@T-5730@"
+ },
+ {
+  "id": "q-140c",
+  "kind": "Question",
+  "status": "open",
+  "title": "依存の更新の頻度を決めてほしい",
+  "scope": "common",
+  "created": "@T-5920@"
+ },
+ {
+  "id": "q-1431",
+  "kind": "Question",
+  "status": "open",
+  "title": "試験データの作り方を決めてほしい",
+  "scope": "common",
+  "created": "@T-6110@"
+ },
+ {
+  "id": "q-1456",
+  "kind": "Question",
+  "status": "open",
+  "title": "障害の振り返りの形を決めてほしい",
+  "scope": "common",
+  "created": "@T-6300@"
+ },
+ {
+  "id": "q-147b",
+  "kind": "Question",
+  "status": "open",
+  "title": "画面の言葉の直し方を決めてほしい",
+  "scope": "common",
+  "created": "@T-6490@"
+ },
+ {
+  "id": "q-14a0",
+  "kind": "Question",
+  "status": "open",
+  "title": "権限の見直しの時期を決めてほしい",
+  "scope": "common",
+  "created": "@T-6680@"
+ },
+ {
+  "id": "q-14c5",
+  "kind": "Question",
+  "status": "open",
+  "title": "費用の上限を決めてほしい",
+  "scope": "common",
+  "created": "@T-6870@"
+ },
+ {
+  "id": "q-14ea",
+  "kind": "Question",
+  "status": "open",
+  "title": "夜間の作業の可否（1 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-7060@"
+ },
+ {
+  "id": "q-150f",
+  "kind": "Question",
+  "status": "open",
+  "title": "手順書の置き場所（2 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-7250@"
+ },
+ {
+  "id": "q-1534",
+  "kind": "Question",
+  "status": "open",
+  "title": "ログの保存期間（3 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-7440@"
+ },
+ {
+  "id": "q-1559",
+  "kind": "Question",
+  "status": "open",
+  "title": "監視の通知先（4 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-7630@"
+ },
+ {
+  "id": "q-157e",
+  "kind": "Question",
+  "status": "open",
+  "title": "週次の報告の形（5 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-7820@"
+ },
+ {
+  "id": "q-15a3",
+  "kind": "Question",
+  "status": "open",
+  "title": "ブランチの名前の決まり（6 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8010@"
+ },
+ {
+  "id": "q-15c8",
+  "kind": "Question",
+  "status": "open",
+  "title": "依存の更新の頻度（7 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8200@"
+ },
+ {
+  "id": "q-15ed",
+  "kind": "Question",
+  "status": "open",
+  "title": "試験データの作り方（8 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8390@"
+ },
+ {
+  "id": "q-1612",
+  "kind": "Question",
+  "status": "open",
+  "title": "障害の振り返りの形（9 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8580@"
+ },
+ {
+  "id": "q-1637",
+  "kind": "Question",
+  "status": "open",
+  "title": "画面の言葉の直し方（10 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8770@"
+ },
+ {
+  "id": "q-165c",
+  "kind": "Question",
+  "status": "open",
+  "title": "権限の見直しの時期（11 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-8960@"
+ },
+ {
+  "id": "q-1681",
+  "kind": "Question",
+  "status": "open",
+  "title": "費用の上限（12 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-9150@"
+ },
+ {
+  "id": "q-16a6",
+  "kind": "Question",
+  "status": "open",
+  "title": "夜間の作業の可否（13 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-9340@"
+ },
+ {
+  "id": "q-16cb",
+  "kind": "Question",
+  "status": "open",
+  "title": "手順書の置き場所（14 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-9530@"
+ },
+ {
+  "id": "q-16f0",
+  "kind": "Question",
+  "status": "open",
+  "title": "ログの保存期間（15 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-9720@"
+ },
+ {
+  "id": "q-1715",
+  "kind": "Question",
+  "status": "open",
+  "title": "監視の通知先（16 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-9910@"
+ },
+ {
+  "id": "q-173a",
+  "kind": "Question",
+  "status": "open",
+  "title": "週次の報告の形（17 回目）を決めてほしい",
+  "scope": "common",
+  "created": "@T-10100@"
+ }
+]

@@ -1,0 +1,240 @@
+/* activity-v2.css — 活動の画面の見た目（mock-activity.html 版 1 をそのまま写した
+   もの。r-8a67）。モックとの違いは 2 つだけ:
+   - 帯の規則（.bar、.crumb、.screens、.scr*）は nav.css にある（帯はどの画面にも
+     あるので、ここには写さない）。モックの字と余白は nav.css のほうが同じ値。
+   - 押せる見た目の規則（.rest の hover / focus）を足した。モックは動かないので
+     要らなかったが、実物の `▸ 上に N 行` と `ほか N 件` は押せる（spec-activity
+     2.4、X3）。トークンだけを使う。
+   色はモックの `:root` と 2 つの dark の書き方をそのまま写した。字はモックが
+   Google Fonts から読んでいる 2 つの家族で、この画面は自分の所から読む（CSP が
+   default-src 'self' なので外は読めない）。OFL の文は /static/fonts/ にある。 */
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-700-normal.woff2") format("woff2");
+}
+
+:root {
+  --bg: #eceff3;
+  --surface: #fbfcfd;
+  --sunk: #e2e6ed;
+  --ink: #141922;
+  --muted: #5b6474;
+  --faint: #8b93a2;
+  --line: #d2d8e2;
+  --accent: #2a4fc4;
+  --accent-ink: #ffffff;
+  --accent-soft: #dbe3fa;
+  --changed: #3a5fd0;
+  --warn: #9a6400;
+  --on-warn: #ffffff;
+  --warn-soft: #f6ead2;
+  --danger: #b0372d;
+  --hatch: #d9dee7;
+  --term: #e6e9ef;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1218; --surface: #171b23; --sunk: #1d222c; --ink: #e3e7ee; --muted: #9ba4b4; --faint: #6c7587;
+    --line: #2b323e; --accent: #8aa4ff; --accent-ink: #0f1218; --accent-soft: #232f52;
+    --changed: #93adff; --warn: #e6ad4e; --on-warn: #15110a; --warn-soft: #2e2615;
+    --danger: #f07a6e; --hatch: #222832; --term: #12161d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1218; --surface: #171b23; --sunk: #1d222c; --ink: #e3e7ee; --muted: #9ba4b4; --faint: #6c7587;
+  --line: #2b323e; --accent: #8aa4ff; --accent-ink: #0f1218; --accent-soft: #232f52;
+  --changed: #93adff; --warn: #e6ad4e; --on-warn: #15110a; --warn-soft: #2e2615;
+  --danger: #f07a6e; --hatch: #222832; --term: #12161d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+code { font-family: var(--f-mono); }
+a { color: inherit; text-decoration: none; }
+[hidden] { display: none !important; }
+
+.wrap {
+  max-width: 1680px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 72px;
+}
+
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 28px; border-bottom: 1px solid var(--line); margin-bottom: 0; padding-top: 6px; }
+.tabs { display: flex; gap: 26px; }
+.tab {
+  background: none; border: 0; padding: 0 0 10px; font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: .02em;
+  border-bottom: 3px solid var(--accent); margin-bottom: -1px; display: flex; align-items: baseline; gap: 8px;
+}
+
+/* 動いているチームの並び */
+.list { display: grid; }
+.act { border-bottom: 1px solid var(--line); }
+.ahead {
+  display: grid; align-items: center; column-gap: 18px;
+  grid-template-columns: 14px minmax(9rem, 13rem) 7.5rem minmax(0, 1fr) auto;
+  grid-template-areas: "chev name st who since";
+  padding: 10px 10px; min-height: 54px; cursor: pointer;
+}
+.ahead:hover { background: var(--surface); }
+.act.open > .ahead { background: var(--sunk); }
+.chev { grid-area: chev; width: 8px; height: 8px; border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); transform: rotate(-45deg); justify-self: start; }
+.act.open > .ahead .chev { transform: rotate(45deg); border-color: var(--ink); }
+.c-name { grid-area: name; display: grid; gap: 0; min-width: 0; }
+.c-name .nm { font-family: var(--f-mono); font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-name .def { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.c-name .def code { font-size: 11.5px; }
+.c-st { grid-area: st; }
+.st { display: inline-block; font-size: 12px; line-height: 1.5; padding: 1px 8px; border-radius: 3px; white-space: nowrap; font-weight: 500; }
+.st.answer, .st.turn { background: var(--warn); color: var(--on-warn); }
+.st.stalled { border: 1px solid var(--ink); color: var(--ink); padding: 0 7px; }
+.st.working { background: var(--accent-soft); color: var(--ink); }
+.c-who { grid-area: who; display: flex; align-items: baseline; gap: 8px; min-width: 0; font-family: var(--f-mono); font-size: 14px; }
+.c-who b { font-weight: 600; }
+.c-who .ar { color: var(--faint); }
+.c-who .hm { font-family: var(--f-body); font-weight: 700; }
+.c-who .lb { font-family: var(--f-body); font-size: 12px; color: var(--muted); }
+.c-since { grid-area: since; display: flex; align-items: baseline; justify-content: end; gap: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.c-since .len { font-weight: 700; font-size: 15px; }
+.c-since .at { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+
+/* 開いたチーム: 左に「何を決めてほしいか」、右に「どうして止まっているか」 */
+.abody {
+  background: var(--sunk); padding: 4px 10px 18px 42px;
+  display: grid; grid-template-columns: minmax(0, 62rem) minmax(17rem, 21rem); justify-content: start; gap: 14px; align-items: start;
+}
+.ask {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 14px 16px; display: grid; gap: 14px; min-width: 0; max-width: 62rem;
+}
+.who2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.who2 code { font-size: 14px; font-weight: 600; }
+.who2 .rl { font-size: 12px; color: var(--muted); }
+.q { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.qh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.qh .qid { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.qh .ago { font-size: 12px; color: var(--faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+.qt { font-size: 16px; font-weight: 700; line-height: 1.5; text-wrap: balance; margin: 0; max-width: 46em; }
+.opts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: o; max-width: 46em; }
+.opts li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 6px; align-items: baseline; font-size: 14px; counter-increment: o; }
+.opts li::before {
+  content: counter(o); font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 3px; text-align: center; line-height: 1.6; background: var(--bg);
+}
+.more { display: grid; gap: 2px; }
+.more .mrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: baseline; font-size: 13px; color: var(--muted); padding: 3px 0; }
+.more .mrow code { font-size: 12px; }
+.more .mrow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.more .mrow .ago { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.tail { display: grid; gap: 4px; min-width: 0; }
+.tail .th { display: flex; align-items: baseline; gap: 10px; font-size: 12px; color: var(--muted); }
+.tail .th code { font-size: 12px; color: var(--faint); }
+.tail .th .rest { margin-left: auto; font-family: var(--f-mono); color: var(--faint); }
+.term {
+  margin: 0; padding: 8px 12px; border-radius: 4px; background: var(--term); border: 1px solid var(--line);
+  font: 12.5px/1.65 var(--f-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); max-width: 46rem;
+}
+.term .cur { color: var(--warn); font-weight: 600; }
+.term .dim { color: var(--muted); }
+
+.crew {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 12px 14px; display: grid; gap: 10px; min-width: 0;
+}
+.nodes { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.nodes li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 13px; padding: 2px 0; }
+.nodes li .nm { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nodes li .wk { font-family: var(--f-body); }
+.nodes li .wk small { font-family: var(--f-mono); font-size: 11.5px; color: var(--faint); margin-left: 6px; }
+.nodes li .sw { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.nodes li .t { font-family: var(--f-mono); font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }
+.nodes li.last { background: var(--warn-soft); margin-inline: -6px; padding-inline: 6px; border-radius: 3px; }
+.nodes .sub { font-size: 12px; color: var(--muted); padding-top: 8px; grid-template-columns: 1fr; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint); }
+.dot.blocked, .dot.handed { background: var(--warn); }
+.dot.active { background: var(--accent); }
+.dot.idle { background: transparent; border: 1.5px solid var(--faint); }
+.dot.absent { background: transparent; border: 1.5px dashed var(--faint); }
+li.blocked .sw, li.handed .sw { color: var(--warn); font-weight: 500; }
+li.active .sw { color: var(--accent); }
+li.absent .nm, li.absent .sw { color: var(--faint); }
+
+/* 押せる見た目。モックには無い（モックは動かないので、押せる所も押せない）。
+   `▸ 上に N 行` と `ほか N 件` は、押すとその場で増える所だと分かるようにする。 */
+.tail .th .rest { cursor: pointer; }
+.tail .th .rest:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.more .rest { grid-column: 1 / -1; justify-self: start; font-family: var(--f-mono); font-size: 12px; color: var(--muted); padding: 3px 0; cursor: pointer; }
+.more .rest:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.rest:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+@media (max-width: 1180px) {
+  .abody { grid-template-columns: minmax(0, 1fr) minmax(15rem, 18rem); padding-left: 24px; }
+}
+@media (max-width: 900px) {
+  .abody { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .tab { font-size: 19px; }
+  .ahead {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas: "chev name st" ". who since";
+    row-gap: 4px; column-gap: 10px;
+  }
+  .c-name { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 8px; }
+  .c-since .at { display: none; }
+  .abody { padding: 2px 8px 14px; }
+  .ask { padding: 12px; }
+  .qt { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

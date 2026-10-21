@@ -32,7 +32,10 @@ const (
 
 // Server answers the screens over HTTP. Build one with New and hand it to Serve.
 type Server struct {
-	cat   *catalog.Catalog
+	cat *catalog.Catalog
+	// act is how the activity screen reads the running teams, or nil when the
+	// server was built without one (spec-activity 6 A1).
+	act   Activity
 	token string
 	tpl   *template.Template
 	// handler is the routes with the guards in front of them.
@@ -42,11 +45,14 @@ type Server struct {
 	addr string
 }
 
-// New builds the server for one run: the catalog every screen reads through. The
-// templates are parsed here, so a broken one stops hergy serve at once instead of
-// on the first request; the token is made fresh for this run, and a write
-// without it is refused.
-func New(cat *catalog.Catalog) (*Server, error) {
+// New builds the server for one run: the catalog every screen reads through, and
+// how the activity screen reads the running teams. The templates are parsed here,
+// so a broken one stops hergy serve at once instead of on the first request; the
+// token is made fresh for this run, and a write without it is refused.
+//
+// act may be nil, which is a server that finds no team running: the screen says
+// so rather than showing a made-up zero (spec-activity 2.7).
+func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 	if cat == nil {
 		return nil, errors.New("web: New needs a catalog")
 	}
@@ -62,9 +68,18 @@ func New(cat *catalog.Catalog) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cat: cat, token: token, tpl: tpl}
+	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
 	s.handler = s.guard(s.routes(static))
 	return s, nil
+}
+
+// activity is the reading behind the activity screen, never nil: a server built
+// without one reads as a herdr with nothing in it.
+func (s *Server) activity() Activity {
+	if s.act == nil {
+		return noActivity{}
+	}
+	return s.act
 }
 
 // Serve listens on 127.0.0.1:port and answers until ctx is done. ready, when
@@ -114,13 +129,23 @@ func (s *Server) URL() string {
 func (s *Server) routes(static fs.FS) http.Handler {
 	mux := http.NewServeMux()
 
-	// 開いて最初の画面 (spec-nav.md 1.3): / is the profile screen's list, with no
-	// filter and no row open, and never the place a person last stood. A 302, not
-	// a 301: once the activity and team-definition screens are here, / still
-	// points at the profile screen.
+	// 開いて最初の画面 (spec-nav.md 1.3): / is where a person should start. With
+	// a team running in this project it is the activity screen — what the human
+	// is being asked for is why they came (spec-activity 2.1, S6) — and with
+	// none it is the team definitions. A 302, not a 301: which of the two it is
+	// changes as teams come and go.
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/profiles", http.StatusFound)
+		if s.activity().List().Running > 0 {
+			http.Redirect(w, r, "/activity", http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, "/teams", http.StatusFound)
 	})
+
+	// 活動 (r-8a67): the running teams, one row each, drawn from GET
+	// /api/activity. The old /activity/<team> URLs are gone; the opened row is
+	// the page's own state (spec-activity 2.3).
+	mux.HandleFunc("GET /activity", s.a2Page)
 
 	// ロール (r-778c): the three tabs, their checks and their writes. The old
 	// page-per-role URLs move to the opened row (設計 6 節).
@@ -152,6 +177,15 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)
 	mux.HandleFunc("PUT /api/{kind}/{name}", s.apiSave)
 	mux.HandleFunc("DELETE /api/{kind}/{name}", s.apiDelete)
+
+	// 活動は読むだけ (spec-activity 3): its three writes are refused with 405
+	// here, in front of the write guard, because a caller that asks whether the
+	// URL takes a write should be told it does not rather than that it is
+	// missing a token. The kind's own three methods are the same answer for a
+	// caller that goes around these (api_activity.go).
+	mux.HandleFunc("POST /api/activity/check", s.apiActivityReadOnly)
+	mux.HandleFunc("PUT /api/activity/{team}", s.apiActivityReadOnly)
+	mux.HandleFunc("DELETE /api/activity/{team}", s.apiActivityReadOnly)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	mux.HandleFunc("/", s.notFound)
