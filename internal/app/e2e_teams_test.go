@@ -1011,7 +1011,10 @@ func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fi
 		t.Errorf("the list holds %d rows with the draft open, want 7", got)
 	}
 
-	// N3: the save writes hergy new's own files, one letter apart from none.
+	// N3: the save writes hergy new's own files, one letter apart from none. A
+	// row that is not there yet is saved from either tab, and the ルール tab's
+	// foot is the shape tab's own — 新規, the files its save would write, and a
+	// 保存 that the name alone lets be pressed (spec-teams B2, B6, 監査 R9).
 	files, err := scaffold.Team("ja")
 	if err != nil {
 		t.Fatal(err)
@@ -1022,7 +1025,16 @@ func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fi
 	// 監査 R3).
 	profilePath := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	beforeProfile := readFile(t, profilePath)
-	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsClick(t, ctx, draft+`.querySelector('.dtabs .dtab[data-t=agree]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.panel.agree-p footer.pf')`)
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.panel.agree-p footer.pf .dirty').textContent.trim()`); got != "新規" {
+		t.Errorf("the new row's rule foot reads %q, want 新規", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.tdef[data-name^="~new"] .panel.agree-p footer.pf .also code')].map(function(c){return c.textContent}).join(',')`); got != "team.yaml,agreement.yaml,profiles.yaml" {
+		t.Errorf("the new row's rule foot names %q, want the project's three files", got)
+	}
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.panel.agree-p [data-act=save]').disabled+''==='false'`)
+	e2eTeamsClick(t, ctx, draft+`.querySelector('.panel.agree-p [data-act=save]')`)
 	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("ops"))
 	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
 	if got := e2eTeamsInt(t, ctx, `document.querySelectorAll('#view .tdef').length`); got != 7 {

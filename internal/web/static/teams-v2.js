@@ -772,10 +772,14 @@
   // footHTML is the shape panel's foot: the save of the ops, the count 1.4.6
   // counts, and 元に戻す while there is something to put back. A definition that
   // is not there yet shows what its save would write, and no 元に戻す: there is
-  // nothing saved to go back to (spec-teams B2).
-  function footHTML(r) {
+  // nothing saved to go back to (spec-teams B2). The ルール tab draws that same
+  // row's foot — either tab's 保存 writes the whole folder — so the press the
+  // save carries and the key its 保存しました stands under are the caller's
+  // (spec-teams B6, 監査 R9).
+  function footHTML(r, o) {
     const n = changeCount(r), k = dkey(r);
-    const ok = state.ok['t' + k] ? (delete state.ok['t' + k], '<span class="ok">保存しました</span>') : '';
+    const okKey = (o && o.ok) || 't' + k, saveAct = (o && o.act) || 't-save';
+    const ok = state.ok[okKey] ? (delete state.ok[okKey], '<span class="ok">保存しました</span>') : '';
     // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
     // stops only when an error the file did not hold has appeared.
     const issues = teamIssues(r);
@@ -788,7 +792,7 @@
       // (spec-teams B2, N2).
       const named = r.seeded && !(r.nameIssues || []).length;
       return `<footer class="pf">
-      <button class="btn primary" data-act="t-save" ${grew || !named ? 'disabled' : ''}>保存</button><span class="dirty">新規</span>${ok}
+      <button class="btn primary" data-act="${saveAct}" ${grew || !named ? 'disabled' : ''}>保存</button><span class="dirty">新規</span>${ok}
       <span class="also">${(r.writes || []).map((p) => `<code>${esc(String(p).split('/').pop())}</code>`).join('・')}</span>
     </footer>`;
     }
@@ -802,14 +806,22 @@
   function agreePanelHTML(r) {
     const e = r.agree, both = (r.places || []).length > 1, shadowed = r.place === 'global' && (r.places || []).includes('project');
     const mode = state.pmode[dkey(r)] || 'edit';
-    const ok = state.ok['a' + dkey(r)] ? (delete state.ok['a' + dkey(r)], '<span class="ok">保存しました</span>') : '';
-    return `<section class="panel agree-p ${shadowed ? 'shadowed' : ''}" data-uid="${r.uid}" data-l="${r.place}" data-key="${dkey(r)}" data-mode="${mode}">
+    const open = `<section class="panel agree-p ${shadowed ? 'shadowed' : ''}" data-uid="${r.uid}" data-l="${r.place}" data-key="${dkey(r)}" data-mode="${mode}">
     <header class="ph"><code class="path">${esc(r.agreePath)}</code>
       <span class="phr">
         ${both ? `<span class="state ${shadowed ? 'off' : 'on'}">${shadowed ? '隠れている' : '効いている'}</span>` : ''}
         <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => `<button class="${mode === v ? 'on' : ''}" data-act="pmode" data-v="${v}" aria-pressed="${mode === v}">${label}</button>`).join('')}</span>
       </span></header>
-    <div class="pmain">${RD.body(rowOfPanel(r))}</div>
+    <div class="pmain">${RD.body(rowOfPanel(r))}</div>`;
+    // A definition that is not there yet draws the shape tab's own foot here,
+    // too: either tab's 保存 writes the whole folder, so the ルール tab carries
+    // the same words — 新規 and the files the save would write — and the name is
+    // what lets it be pressed (spec-teams B2, B6, 監査 R9).
+    if (r.draftRow) return `${open}
+    ${footHTML(r, { ok: 'a' + dkey(r), act: 'save' })}
+  </section>`;
+    const ok = state.ok['a' + dkey(r)] ? (delete state.ok['a' + dkey(r)], '<span class="ok">保存しました</span>') : '';
+    return `${open}
     <footer class="pf">
       <button class="btn primary" data-act="save">保存</button><span class="errline doc" hidden></span><span class="dirty"></span><span class="vcount"></span>${ok}
       <span class="acts"><button class="btn" data-act="revert" ${agreeDiff(r) > 0 ? '' : 'hidden'}>元に戻す</button></span>
@@ -819,6 +831,9 @@
     const e = r.agree;
     return {
       uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft,
+      // newRow says the definition is not there yet: the rule document's shared
+      // foot is not this row's own, so the part leaves it alone (監査 R9).
+      newRow: !!r.draftRow,
       issues: agreeIssues(r),
       savedIssues: e.savedIssues,
       markdown: r.check ? r.check.markdown : { lines: [], chars: 0 },

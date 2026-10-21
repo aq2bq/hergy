@@ -395,7 +395,10 @@
     }
     const n = diffCount(e);
     const foot = panel.querySelector('.pf');
-    if (foot) {
+    // The foot's own words are the calling screen's while a definition is not
+    // there yet: the team screen draws that row the shape tab's foot, which says
+    // 新規 and stops on the name rather than on this document's diff (監査 R9).
+    if (foot && !row.newRow) {
       const vc = foot.querySelector('.vcount');
       if (vc) vc.innerHTML = counts(all);
       const dd = foot.querySelector('.dirty');
