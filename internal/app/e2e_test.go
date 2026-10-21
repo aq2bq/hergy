@@ -74,7 +74,7 @@ func TestE2ENav(t *testing.T) {
 	f3.runningHerdr(t, "", "")
 	base3, stop3 := startServe(t, f3)
 	defer stop3()
-	t.Run("the number follows a save", func(t *testing.T) { e2eNavNumbers(t, ctx, base3) })
+	t.Run("NAV-N11 the number follows a save", func(t *testing.T) { e2eNavNumbers(t, ctx, base3) })
 
 	f2 := newFixture(t)
 	copyNavFixture(t, f2, cwd)
