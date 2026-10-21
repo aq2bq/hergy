@@ -29,7 +29,7 @@
   // 最後に読んだ答え。
   let items = [];
   let note = { ok: true, text: '' };
-  let docs = new Map();
+  const docs = new Map();
   // 読み直しが重ならないようにする（10 秒ごとと、見えるようになったとき）。
   let reading = false;
 
@@ -58,6 +58,9 @@
     q.set('open', Array.from(openNames).join(','));
     history.replaceState(null, '', location.pathname + '?' + q.toString());
     draw();
+    // 開いた行はその場で読む（2.3）。読み直しを待つと、仕事中のチームを開いた
+    // 人の前に、次の 10 秒まで空の欄が残る。
+    if (isOpen(name)) readDocs([name]).then(draw);
   }
 
   // ---- 一覧の行 (2.2) ------------------------------------------------------
@@ -107,6 +110,10 @@
     </div>`;
   }
 
+  // The pane is herdr's own lines (2.4). The newline right under <pre> is
+  // dropped by the HTML parser, so one is written there on purpose: a pane whose
+  // first line is empty then keeps that empty line, and every line herdr sent
+  // stands — as many as were sent, however the pane is extended (audit R3).
   function tail(d) {
     const lines = (d.tail && d.tail.lines) || [];
     if (!lines.length) return ''; // 読めないときはこの段が無い (2.4)
@@ -119,7 +126,8 @@
       : out ? `<span class="rest" role="button" tabindex="0" id="tail-${esc(d.name)}">▾ 上の行をしまう</span>` : '';
     return `<div class="tail">
       <div class="th">画面の最後${rest}</div>
-      <pre class="term">${shown.map((l) => esc(l)).join('\n')}</pre>
+      <pre class="term">
+${shown.map((l) => esc(l)).join('\n')}</pre>
     </div>`;
   }
 
@@ -186,18 +194,39 @@
     return res.json();
   }
 
-  async function readDocs() {
-    const next = new Map();
-    await Promise.all(items.filter((t) => isOpen(t.name)).map(async (t) => {
-      const answer = await readJSON('/api/activity/' + encodeURIComponent(t.name));
-      if (answer && answer.doc) {
-        next.set(t.name, answer.doc);
-        return;
+  // readDocs reads the given rows' opened parts and puts them in place; the
+// caller draws. A row that does not answer keeps what it had, so a moment of
+// trouble does not empty it, and a row that is no longer open is forgotten.
+async function readDocs(names) {
+    if (!names.length) return;
+    await Promise.all(names.map(async (name) => {
+      let answer = null;
+      try {
+        answer = await readJSON('/api/activity/' + encodeURIComponent(name));
+      } catch (e) {
+        // 読めなかった行は、前に読んだ中身をそのまま置いておく: 一瞬で空にしない。
       }
-      // 読めなかった行は、前に読んだ中身をそのまま置いておく: 一瞬で空にしない。
-      if (docs.has(t.name)) next.set(t.name, docs.get(t.name));
+      if (answer && answer.doc) docs.set(name, answer.doc);
     }));
-    docs = next;
+    for (const name of Array.from(docs.keys())) {
+      if (!isOpen(name)) docs.delete(name);
+    }
+  }
+
+  // openList is the rows that stand open, in the list's own order (2.3).
+  function openList() {
+    return items.filter((t) => isOpen(t.name)).map((t) => t.name);
+  }
+
+  // band hands the reading's two numbers to the band (2.1): the screen's own
+  // re-reading keeps 活動 N and 待ち N the same as the list. The numbers are
+  // left off while herdr cannot be read and while no team runs (2.7).
+  function band(answer) {
+    const nav = window.hergyNav;
+    if (!nav || !nav.setActivity) return;
+    const running = answer.running || 0;
+    const waiting = answer.waiting || 0;
+    nav.setActivity(running, waiting, !!(answer.herdr && answer.herdr.ok) && running > 0);
   }
 
   async function readAll() {
@@ -208,8 +237,9 @@
       if (!answer) return; // 読めないときは、前の画面のままにする
       items = answer.items || [];
       note = answer.herdr || { ok: true, text: '' };
-      await readDocs();
+      await readDocs(openList());
       draw();
+      band(answer);
     } catch (e) {
       // 読めないときは、前の画面のままにする。
     } finally {

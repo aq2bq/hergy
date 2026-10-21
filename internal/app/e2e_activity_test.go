@@ -182,6 +182,13 @@ const activityNames = `Array.from(document.querySelectorAll('#list .act')).map(f
 // activityStands is every row with whether it is open, in the order drawn (2.2・2.3).
 const activityStands = `Array.from(document.querySelectorAll('#list .act')).map(function(a){return a.dataset.team+'='+(a.classList.contains('open')?'open':'shut')}).join(',')`
 
+// activityBandScript is the band's two numbers as the reading leaves them: the
+// 活動 number and the 待ち word, or none where they are not written (2.1・2.7).
+const activityBandScript = `(function(){var s=document.querySelector('.screens .scr[data-screen="activity"]');` +
+	`if(!s) throw new Error('no activity band');` +
+	`var n=s.querySelector('.n'),w=s.querySelector('.wait');` +
+	`return [n?n.textContent:'none',w?w.textContent:'none'].join('|')})()`
+
 // activityOthers is every row but one, as the screen drew them: what a press on
 // that row must leave alone (P1〜P3).
 func activityOthersScript(team string) string {
@@ -520,15 +527,19 @@ func e2eActivityMigrate(t *testing.T, ctx context.Context, base string, at time.
 		t.Errorf("migrate's opened part stands under %q", got)
 	}
 	// 画面の最後: herdr's own lines, the psql question and all. The server sends
-	// the last six of herdr's eight, and the first of those six is empty — the
-	// HTML a <pre> holds drops the newline directly under its tag — so five
-	// lines of text stand, and the two held back are the two before them.
+	// the last six of herdr's eight, the first of those six being empty, and the
+	// screen keeps that empty line (the newline it writes under its own <pre> is
+	// the one the parser drops), so all six stand, and the two held back are the
+	// two before them (R3).
 	head, lines := activityTail(t, ctx, "migrate")
 	if head != "画面の最後▸ 上に 2 行" {
 		t.Errorf("migrate's pane stands under %q, want 画面の最後 and 上に 2 行", head)
 	}
-	if len(lines) != 5 {
-		t.Errorf("migrate's pane shows %d lines, want the five it shows first", len(lines))
+	if len(lines) != 6 {
+		t.Errorf("migrate's pane shows %d lines, want the six it shows first", len(lines))
+	}
+	if len(lines) > 0 && lines[0] != "" {
+		t.Errorf("migrate's pane starts %q, want the empty line the server sent first", lines[0])
 	}
 	pane := strings.Join(lines, "\n")
 	for _, want := range []string{"Would you like to run the following command?", `$ psql "$STAGING_URL" -f migrate/0042_split_ledger.sql`} {
@@ -565,6 +576,23 @@ func e2eActivityPresses(t *testing.T, ctx context.Context, base string) {
 		return `document.querySelector('#list .act[data-team=' + JSON.stringify(` + strconv.Quote(team) + `) + ']` + inside + `')`
 	}
 
+	// P1（R1）: opening a working team reads it here and then, not at the next
+	// re-reading (2.3). research runs and stands shut; its opened part is the
+	// right column alone (2.5). The screen is fresh — the press is a second or
+	// two after it was drawn — so a part that waited for the ten-second
+	// re-reading would still be empty inside the five seconds allowed here.
+	e2ePressWhenEnabled(t, ctx, row("research", " .ahead"))
+	activityAwait(t, ctx, `!!`+row("research", " .abody .crew .nodes li"), 5*time.Second)
+	if got := e2eRead[string](t, ctx, `String(!!`+row("research", " .abody .ask")+`)`); got != "false" {
+		t.Errorf("a working team's opened part carries the left column")
+	}
+	if names := activityCrew(t, ctx, "research"); len(names) < 2 {
+		t.Errorf("research's opened part reads %v, want its members", names)
+	}
+	// The row is put back shut, so the presses below start where the screen did.
+	e2ePressWhenEnabled(t, ctx, row("research", " .ahead"))
+	e2eWait(t, ctx, `!`+row("research", " .abody"))
+
 	// P1: pressing core-hotfix's head closes it, its part alone going away, and
 	// the address writes the names that are open.
 	others := e2eRead[string](t, ctx, activityOthersScript("core-hotfix"))
@@ -587,15 +615,14 @@ func e2eActivityPresses(t *testing.T, ctx context.Context, base string) {
 	}
 
 	// P2: 上に 2 行 lets the last two lines of migrate's pane out, and 上の行を
-	// しまう puts them back; the other rows do not move. The pane first reads
-	// five lines where the server sent six: the first of the six is empty, and
-	// the HTML a <pre> holds drops the newline directly under its tag.
+	// しまう puts them back; the other rows do not move. The pane reads all six
+	// lines the server sent, the first of them empty (R3).
 	tail := row("migrate", " .tail")
 	lines := func() string {
 		return e2eRead[string](t, ctx, `String(`+tail+`.querySelector('.term').textContent.split('\n').length)`)
 	}
-	if got := lines(); got != "5" {
-		t.Fatalf("migrate's pane shows %s lines before the press, want the five it shows first", got)
+	if got := lines(); got != "6" {
+		t.Fatalf("migrate's pane shows %s lines before the press, want the six the server sent", got)
 	}
 	others = e2eRead[string](t, ctx, activityOthersScript("migrate"))
 	e2ePressWhenEnabled(t, ctx, tail+`.querySelector('.th .rest')`)
@@ -611,7 +638,7 @@ func e2eActivityPresses(t *testing.T, ctx context.Context, base string) {
 		t.Errorf("extending one pane moved what the screen says elsewhere")
 	}
 	e2ePressWhenEnabled(t, ctx, tail+`.querySelector('.th .rest')`)
-	e2eWait(t, ctx, `(`+tail+`.querySelector('.term').textContent.split('\n').length === 5)`)
+	e2eWait(t, ctx, `(`+tail+`.querySelector('.term').textContent.split('\n').length === 6)`)
 	if got := e2eRead[string](t, ctx, tail+`.querySelector('.th').textContent`); got != "画面の最後▸ 上に 2 行" {
 		t.Errorf("the pane put back stands under %q, want 上に 2 行", got)
 	}
@@ -676,12 +703,21 @@ func e2eActivityMore(t *testing.T, ctx context.Context, base string, f *fixture)
 // list and no number in the band's 活動.
 func e2eActivityNoHerdr(t *testing.T, ctx context.Context, base string, f *fixture) {
 	t.Helper()
+	// E1（R2）: the screen stands first while herdr reads, with the band's two
+	// numbers. herdr is then pointed at a path that is not there, behind the
+	// standing page, so the screen's own re-reading is what takes the numbers off
+	// the band (2.1・2.7) — not a page made again.
+	activityOpen(t, ctx, base, "")
+	if got := e2eRead[string](t, ctx, activityBandScript); got != "4|待ち 2" {
+		t.Fatalf("the band stands %q while herdr reads, want 活動 4 and 待ち 2", got)
+	}
 	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-herdr"))
-	// The reading of herdr stands for five seconds (3 章), so the sentence is not
-	// in the page the first time it is asked for: the screen is loaded again
-	// until the server has seen that herdr cannot be read.
-	activitySettles(t, ctx, base,
-		`document.querySelectorAll('#list .gone').length === 1 && !document.querySelector('.screens .scr[data-screen="activity"] .n')`, 30*time.Second)
+	// The reading of herdr stands for five seconds (3 章) and the screen asks
+	// again every ten, so the line and the numbers land a re-reading later.
+	activityAwait(t, ctx, `document.querySelectorAll('#list .gone').length === 1`, 40*time.Second)
+	if got := e2eRead[string](t, ctx, activityBandScript); got != "none|none" {
+		t.Errorf("with a herdr that cannot be read the band stands %q, want 活動 alone", got)
+	}
 	if got := e2eRead[string](t, ctx, `document.querySelector('#list .gone').textContent`); got == "" {
 		t.Errorf("the line a herdr that could not be read leaves is empty")
 	}
@@ -853,7 +889,9 @@ func e2eActivityAPI(t *testing.T, cwd string) {
 // e2eActivityAgain is P4: the screen reads again every ten seconds (2.6), and
 // the re-reading moves only what the answer changed. core-lead is made to work,
 // so core's row turns 仕事中 and the order moves, while the cursor, the scroll,
-// the open rows and the let-out pane lines stay where the person left them.
+// the open rows and the let-out pane lines stay where the person left them. The
+// band's two numbers are the re-reading's own too (2.1): 待ち follows the members
+// waiting, down to nothing.
 func e2eActivityAgain(t *testing.T, ctx context.Context, base string, f *fixture) {
 	t.Helper()
 	e2eRun(t, ctx, chromedp.EmulateViewport(1440, 900))
@@ -890,6 +928,20 @@ func e2eActivityAgain(t *testing.T, ctx context.Context, base string, f *fixture
 	if got := e2eRead[string](t, ctx, `String(!!document.querySelector('#list .act[data-team="core"] .ask'))`); got != "false" {
 		t.Errorf("a team that started working still shows the left column")
 	}
+
+	// P4（R2）: the band's two numbers are the re-reading's own (2.1). core-lead
+	// works now, so the members waiting for a human or a permission fall from
+	// two to one, 活動 staying at four.
+	if got := e2eRead[string](t, ctx, activityBandScript); got != "4|待ち 1" {
+		t.Errorf("after the re-reading the band stands %q, want 活動 4 and 待ち 1", got)
+	}
+	// P4（R2）: with the last member waiting gone, 待ち falls off the band (2.1).
+	// The walk then puts the fixture back as the walks after it expect it.
+	activityAgentState(t, f, "migrate-tester", "working")
+	activityAwait(t, ctx, activityBandScript+` === '4|none'`, 40*time.Second)
+	activityAgentState(t, f, "migrate-tester", "blocked")
+	e2eRun(t, ctx, chromedp.Navigate(base+"/activity"))
+	activityAwait(t, ctx, `(function(){var l=document.querySelector('#list .act[data-team="migrate"] .c-since .len');return !!l && l.textContent.length > 0})()`, 30*time.Second)
 }
 
 // e2eActivityWidths is W1〜W2 and D1〜D2: the rows lie as 4 章 says at 2000, 1440
@@ -1064,6 +1116,14 @@ func activityQuestions(t *testing.T, f *fixture) []activityAsked {
 // fixture shows a member starting to work between two readings (P4).
 func activityWork(t *testing.T, f *fixture, name string) {
 	t.Helper()
+	activityAgentState(t, f, name, "working")
+}
+
+// activityAgentState writes herdr's agent list again with one agent in one
+// state, its change's seq moved up so the reading takes it as the newest. A walk
+// that changes the fixture between two readings puts it back the same way.
+func activityAgentState(t *testing.T, f *fixture, name, state string) {
+	t.Helper()
 	path := filepath.Join(f.cfg, "activity", "herdr", "agents.json")
 	var doc struct {
 		Result struct {
@@ -1077,7 +1137,7 @@ func activityWork(t *testing.T, f *fixture, name string) {
 			continue
 		}
 		seq, _ := agent["state_change_seq"].(float64)
-		agent["agent_status"] = "working"
+		agent["agent_status"] = state
 		agent["state_change_seq"] = int(seq) + 1
 		found = true
 	}
