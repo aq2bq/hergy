@@ -299,9 +299,9 @@ func TestProfileSaveRefusesAChangedFile(t *testing.T) {
 	}
 }
 
-// TestProfileCheckSaysValidatesSentences: the checks a field sends while it is
+// TestPROFILES_V5_ProfileCheckSaysValidatesSentences: the checks a field sends while it is
 // being typed are the sentences validate prints, not a screen's own.
-func TestProfileCheckSaysValidatesSentences(t *testing.T) {
+func TestPROFILES_V5_ProfileCheckSaysValidatesSentences(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	cases := []struct {

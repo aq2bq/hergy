@@ -48,7 +48,7 @@ func TestE2ENav(t *testing.T) {
 	defer stop()
 
 	// The URLs a person hands the address bar, over the real serve (O1〜O4).
-	t.Run("the address", func(t *testing.T) { e2eNavAddress(t, base) })
+	t.Run("NAV-O1 the address", func(t *testing.T) { e2eNavAddress(t, base) })
 
 	// The run's one browser, and this test's tab in it (r-a107).
 	browser := e2eChrome(t, chrome)
@@ -60,10 +60,10 @@ func TestE2ENav(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
-	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, browser, base) })
-	t.Run("the place a person stood", func(t *testing.T) { e2eNavPlace(t, ctx, base) })
-	t.Run("widths and lights", func(t *testing.T) { e2eNavWidths(t, ctx, base) })
+	t.Run("NAV-S1 band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
+	t.Run("NAV-O5 another tab", func(t *testing.T) { e2eNavAnotherTab(t, browser, base) })
+	t.Run("NAV-N1 the place a person stood", func(t *testing.T) { e2eNavPlace(t, ctx, base) })
+	t.Run("NAV-W1 widths and lights", func(t *testing.T) { e2eNavWidths(t, ctx, base) })
 
 	// The number a save moves, and the carried changes, both need a project whose
 	// files the test may change under the page, so they run over projects of
@@ -82,7 +82,7 @@ func TestE2ENav(t *testing.T) {
 	f2.runningHerdr(t, "", "")
 	base2, stop2 := startServe(t, f2)
 	defer stop2()
-	t.Run("the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
+	t.Run("NAV-N6 the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the band logged %d console errors: %v", len(lines), lines)

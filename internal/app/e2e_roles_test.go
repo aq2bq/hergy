@@ -54,15 +54,15 @@ func TestE2ERoles(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("structure", func(t *testing.T) { e2eRolesStructure(t, ctx, base) })
-	t.Run("open and checks", func(t *testing.T) { e2eRolesOpen(t, ctx, base) })
-	t.Run("filter and search", func(t *testing.T) { e2eRolesFilter(t, ctx, base) })
-	t.Run("save one rule", func(t *testing.T) { e2eRolesSaveRule(t, ctx, base, f) })
+	t.Run("ROLES-S1 structure", func(t *testing.T) { e2eRolesStructure(t, ctx, base) })
+	t.Run("ROLES-P1 open and checks", func(t *testing.T) { e2eRolesOpen(t, ctx, base) })
+	t.Run("ROLES-P2 filter and search", func(t *testing.T) { e2eRolesFilter(t, ctx, base) })
+	t.Run("ROLES-P4 save one rule", func(t *testing.T) { e2eRolesSaveRule(t, ctx, base, f) })
 	t.Run("save new and copies", func(t *testing.T) { e2eRolesSaveNew(t, ctx, base, f) })
-	t.Run("assign", func(t *testing.T) { e2eRolesAssign(t, ctx, base, f) })
-	t.Run("yaml", func(t *testing.T) { e2eRolesYAML(t, ctx, base, f) })
+	t.Run("ROLES-P6 assign", func(t *testing.T) { e2eRolesAssign(t, ctx, base, f) })
+	t.Run("ROLES-T1 yaml", func(t *testing.T) { e2eRolesYAML(t, ctx, base, f) })
 	t.Run("old urls", func(t *testing.T) { e2eRolesOldURLs(t, ctx, base) })
-	t.Run("widths and lights", func(t *testing.T) { e2eRolesWidths(t, ctx, base) })
+	t.Run("ROLES-W1 widths and lights", func(t *testing.T) { e2eRolesWidths(t, ctx, base) })
 
 	// The rows a document does not back need a project of their own, because they
 	// change the rows and the counts the tests above read: a role a layer holds
@@ -88,10 +88,10 @@ func TestE2ERoles(t *testing.T) {
 	f3.runningHerdr(t, "", "")
 	base3, stop3 := startServe(t, f3)
 	defer stop3()
-	t.Run("the prompt switch", func(t *testing.T) { e2eRolesInPrompt(t, ctx, base3, f3) })
-	t.Run("the heading depth", func(t *testing.T) { e2eRolesHeadingDepth(t, ctx, base3, f3) })
-	t.Run("the section order", func(t *testing.T) { e2eRolesSectionOrder(t, ctx, base3, f3) })
-	t.Run("the rule drag", func(t *testing.T) { e2eRolesRuleDrag(t, ctx, base3, f3) })
+	t.Run("ROLES-I1 the prompt switch", func(t *testing.T) { e2eRolesInPrompt(t, ctx, base3, f3) })
+	t.Run("ROLES-I3 the heading depth", func(t *testing.T) { e2eRolesHeadingDepth(t, ctx, base3, f3) })
+	t.Run("ROLES-I4 the section order", func(t *testing.T) { e2eRolesSectionOrder(t, ctx, base3, f3) })
+	t.Run("ROLES-I5 the rule drag", func(t *testing.T) { e2eRolesRuleDrag(t, ctx, base3, f3) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the role screen logged %d console errors: %v", len(lines), lines)

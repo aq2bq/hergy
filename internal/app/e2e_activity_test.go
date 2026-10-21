@@ -92,25 +92,25 @@ func TestE2EActivity(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("the band and the tab", func(t *testing.T) { e2eActivityBand(t, ctx, base) })
-	t.Run("the rows", func(t *testing.T) { e2eActivityRows(t, ctx, base, at) })
-	t.Run("the team that waits for the human", func(t *testing.T) {
+	t.Run("ACTIVITY-S1 the band and the tab", func(t *testing.T) { e2eActivityBand(t, ctx, base) })
+	t.Run("ACTIVITY-S3 the rows", func(t *testing.T) { e2eActivityRows(t, ctx, base, at) })
+	t.Run("ACTIVITY-S6 the team that waits for the human", func(t *testing.T) {
 		e2eActivityCore(t, ctx, base, at, f)
 	})
-	t.Run("the team that waits for a permission", func(t *testing.T) {
+	t.Run("ACTIVITY-C3 the team that waits for a permission", func(t *testing.T) {
 		e2eActivityMigrate(t, ctx, base, at)
 	})
-	t.Run("the presses", func(t *testing.T) { e2eActivityPresses(t, ctx, base) })
-	t.Run("more questions than the section shows", func(t *testing.T) {
+	t.Run("ACTIVITY-P1 the presses", func(t *testing.T) { e2eActivityPresses(t, ctx, base) })
+	t.Run("ACTIVITY-P3 more questions than the section shows", func(t *testing.T) {
 		e2eActivityMore(t, ctx, base, f)
 	})
-	t.Run("no herdr", func(t *testing.T) { e2eActivityNoHerdr(t, ctx, base, f) })
-	t.Run("no gy", func(t *testing.T) { e2eActivityNoGy(t, ctx, base, f) })
-	t.Run("a gy that fails", func(t *testing.T) { e2eActivityGyFails(t, ctx, base, f) })
-	t.Run("the api", func(t *testing.T) { e2eActivityAPI(t, cwd) })
-	t.Run("reading again", func(t *testing.T) { e2eActivityAgain(t, ctx, base, f) })
-	t.Run("the widths and the lights", func(t *testing.T) { e2eActivityWidths(t, ctx, base) })
-	t.Run("no team running", func(t *testing.T) { e2eActivityNoTeams(t, ctx, base, f) })
+	t.Run("ACTIVITY-E1 no herdr", func(t *testing.T) { e2eActivityNoHerdr(t, ctx, base, f) })
+	t.Run("ACTIVITY-E2 no gy", func(t *testing.T) { e2eActivityNoGy(t, ctx, base, f) })
+	t.Run("ACTIVITY-E3 a gy that fails", func(t *testing.T) { e2eActivityGyFails(t, ctx, base, f) })
+	t.Run("ACTIVITY-V1 the api", func(t *testing.T) { e2eActivityAPI(t, cwd) })
+	t.Run("ACTIVITY-P4 reading again", func(t *testing.T) { e2eActivityAgain(t, ctx, base, f) })
+	t.Run("ACTIVITY-W1 the widths and the lights", func(t *testing.T) { e2eActivityWidths(t, ctx, base) })
+	t.Run("ACTIVITY-E4 no team running", func(t *testing.T) { e2eActivityNoTeams(t, ctx, base, f) })
 
 	if lines := console.Lines(); len(lines) != 0 {
 		t.Errorf("the screens wrote to the console: %v", lines)

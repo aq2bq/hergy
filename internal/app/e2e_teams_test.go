@@ -53,10 +53,10 @@ func TestE2ETeams(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("structure", func(t *testing.T) { e2eTeamsStructure(t, ctx, base) })
-	t.Run("open and checks", func(t *testing.T) { e2eTeamsOpen(t, ctx, base) })
-	t.Run("yaml", func(t *testing.T) { e2eTeamsYAML(t, ctx, base) })
-	t.Run("widths and lights", func(t *testing.T) { e2eTeamsWidths(t, ctx, base) })
+	t.Run("TEAMS-S1 structure", func(t *testing.T) { e2eTeamsStructure(t, ctx, base) })
+	t.Run("TEAMS-S4 open and checks", func(t *testing.T) { e2eTeamsOpen(t, ctx, base) })
+	t.Run("TEAMS-P11 yaml", func(t *testing.T) { e2eTeamsYAML(t, ctx, base) })
+	t.Run("TEAMS-W1 widths and lights", func(t *testing.T) { e2eTeamsWidths(t, ctx, base) })
 	t.Run("graph problems", func(t *testing.T) { e2eTeamsGraphProblems(t, ctx, base) })
 	t.Run("worker purpose", func(t *testing.T) { e2eTeamsWorkerPurpose(t, ctx, base) })
 
@@ -68,8 +68,8 @@ func TestE2ETeams(t *testing.T) {
 	f2.runningHerdr(t, "", "")
 	base2, stop2 := startServe(t, f2)
 	defer stop2()
-	t.Run("mission and turns", func(t *testing.T) { e2eTeamsSaveShape(t, ctx, base2, f2) })
-	t.Run("agreement and yaml", func(t *testing.T) { e2eTeamsSaveAgreement(t, ctx, base2, f2) })
+	t.Run("TEAMS-F1 mission and turns", func(t *testing.T) { e2eTeamsSaveShape(t, ctx, base2, f2) })
+	t.Run("TEAMS-F4 agreement and yaml", func(t *testing.T) { e2eTeamsSaveAgreement(t, ctx, base2, f2) })
 
 	// The version-7 walks stand in projects of their own: one adds, copies and
 	// takes away definitions, so the next one reads a fixture nothing has
@@ -80,7 +80,7 @@ func TestE2ETeams(t *testing.T) {
 	f3.runningHerdr(t, "", "")
 	base3, stop3 := startServe(t, f3)
 	defer stop3()
-	t.Run("add, copy and delete", func(t *testing.T) { e2eTeamsAddCopyDelete(t, ctx, base3, f3) })
+	t.Run("TEAMS-N1 add, copy and delete", func(t *testing.T) { e2eTeamsAddCopyDelete(t, ctx, base3, f3) })
 
 	f4 := newFixture(t)
 	copyTeamsFixture(t, f4, cwd)
@@ -88,7 +88,7 @@ func TestE2ETeams(t *testing.T) {
 	f4.runningHerdr(t, "", "")
 	base4, stop4 := startServe(t, f4)
 	defer stop4()
-	t.Run("topology preview", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
+	t.Run("TEAMS-Y1 topology preview", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
 
 	// The audit's own walk reads the page a URL opens, the band the YAML box stops
 	// above, and a new row's name, so it stands in a project nothing has written

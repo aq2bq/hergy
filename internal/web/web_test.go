@@ -200,10 +200,10 @@ func TestRootGoesToTheTeamDefinitionsWithNoTeamRunning(t *testing.T) {
 	}
 }
 
-// TestRootGoesToTheActivityWhenATeamRuns: with a team of this project running,
+// TestACTIVITY_E5_RootGoesToTheActivityWhenATeamRuns: with a team of this project running,
 // / is the activity screen: what the human is being asked for is why they came
 // (spec-activity 2.1, S6).
-func TestRootGoesToTheActivityWhenATeamRuns(t *testing.T) {
+func TestACTIVITY_E5_RootGoesToTheActivityWhenATeamRuns(t *testing.T) {
 	f := newFixture(t)
 	server, err := New(f.catalog(), fakeActivity{
 		list: ActivityList{Items: []ActivityItem{{Name: "demo"}}, Running: 1, Herdr: ActivityNote{OK: true}},
@@ -220,10 +220,10 @@ func TestRootGoesToTheActivityWhenATeamRuns(t *testing.T) {
 	}
 }
 
-// TestTheBandNamesTheFourScreensAndCountsThem: the band stands on every screen
+// TestNAV_S2_TheBandNamesTheFourScreensAndCountsThem: the band stands on every screen
 // with the four names, the numbers, one screen marked as where the person is and
 // the activity pressable (spec-nav.md 1.1, 1.2, spec-activity 2.1).
-func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
+func TestNAV_S2_TheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 
@@ -325,11 +325,11 @@ func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 	}
 }
 
-// TestTheActivityIsReadOnly: the activity kind answers a read, and its three
+// TestACTIVITY_V3_TheActivityIsReadOnly: the activity kind answers a read, and its three
 // writes are refused with 405 whatever they carry — the screen is one a person
 // reads, and a caller that asks whether the URL takes a write is told so rather
 // than told it has no token (spec-activity 3, spec-boundary 5).
-func TestTheActivityIsReadOnly(t *testing.T) {
+func TestACTIVITY_V3_TheActivityIsReadOnly(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	server.addr = "127.0.0.1:8787"
@@ -391,11 +391,11 @@ func TestTheBandCountsTheRolesThatHaveADocument(t *testing.T) {
 	}
 }
 
-// TestTheRemovedScreensAreNotFound: every URL of the old WebUI is not found —
+// TestNAV_O2_TheRemovedScreensAreNotFound: every URL of the old WebUI is not found —
 // with the band and one sentence for a read, and the sentence alone for a write
 // — and none of them is moved, because a browser remembers a 301
 // (spec-nav.md 1.6, 2「消すもの」).
-func TestTheRemovedScreensAreNotFound(t *testing.T) {
+func TestNAV_O2_TheRemovedScreensAreNotFound(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 
@@ -436,9 +436,9 @@ func TestTheRemovedScreensAreNotFound(t *testing.T) {
 	}
 }
 
-// TestTheOldFilesAreGone: the files the old screens were drawn from are not
+// TestNAV_O3_TheOldFilesAreGone: the files the old screens were drawn from are not
 // served any more (spec-nav.md 3, O3).
-func TestTheOldFilesAreGone(t *testing.T) {
+func TestNAV_O3_TheOldFilesAreGone(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	for _, path := range []string{
@@ -457,10 +457,10 @@ func TestTheOldFilesAreGone(t *testing.T) {
 	}
 }
 
-// TestTheBandWritesNoColours: the band takes every colour from the page's own
+// TestNAV_D2_TheBandWritesNoColours: the band takes every colour from the page's own
 // tokens and writes none down, so which theme is on stays the page's business
 // (spec-nav.md 5.2 D2).
-func TestTheBandWritesNoColours(t *testing.T) {
+func TestNAV_D2_TheBandWritesNoColours(t *testing.T) {
 	raw, err := files.ReadFile("static/nav.css")
 	if err != nil {
 		t.Fatal(err)
@@ -498,9 +498,9 @@ func TestTheBandWritesNoColours(t *testing.T) {
 	}
 }
 
-// TestTheLayerParameterIsNotMoved: a URL that still carries ?layer= is answered
+// TestNAV_O4_TheLayerParameterIsNotMoved: a URL that still carries ?layer= is answered
 // like the same URL without it, and is not moved (spec-nav.md 2「消すもの」).
-func TestTheLayerParameterIsNotMoved(t *testing.T) {
+func TestNAV_O4_TheLayerParameterIsNotMoved(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, with := f.get(t, server, "/profiles?layer=project")
