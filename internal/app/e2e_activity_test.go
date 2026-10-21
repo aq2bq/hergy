@@ -22,6 +22,26 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+// The activity run is read at its own clock, not the machine's (r-f647). The
+// screens write the date before a moment that is not today's (activity.Clock),
+// and the fixture's times are counted back from now (@T-<分>@), so a run that
+// leans on the wall clock wants "22:50 より前" around midnight where the screen,
+// rightly, writes "10/20 22:50 より前": the clock the run happens to sit at is
+// not the screen's business.
+//
+// The moment is a half hour past midnight, and the zone the run reads its clocks
+// in is its own too, so the older of the fixture's times fall on the day before
+// and the run walks both いつから — the clock alone and the clock with its date —
+// wherever and whenever it is run. The seconds go on passing from that moment,
+// since the screens' own five-second memory of herdr and the length a row has
+// waited both read them.
+var (
+	// e2eActivityZone is the zone the run reads its clocks in.
+	e2eActivityZone = time.FixedZone("JST", 9*60*60)
+	// e2eActivityNow is the moment the run's clock stands at when it begins.
+	e2eActivityNow = time.Date(2026, 10, 21, 0, 30, 0, 0, e2eActivityZone)
+)
+
 // TestE2EActivity walks the activity screen over the real-scale fixture the mock
 // was drawn from (spec-activity 5 章). It holds the screen to 7 章: the band's
 // two numbers (S1), the screen's own tab (S2), the four rows and the order they
@@ -40,6 +60,16 @@ import (
 // that one press is walked on a gy that answers with three more of the same
 // member's questions.
 func TestE2EActivity(t *testing.T) {
+	// The run's clock and zone are its own (r-f647): the serve reads its moment
+	// from the first, and a moment is written in the zone of the second, so what
+	// the rows say does not depend on when or where the run happens. Both are put
+	// back when the test is done, after the serves it started have stopped.
+	began := time.Now()
+	wasClock, wasZone := serveClock, time.Local
+	serveClock = func() time.Time { return e2eActivityNow.Add(time.Since(began)) }
+	time.Local = e2eActivityZone
+	t.Cleanup(func() { serveClock, time.Local = wasClock, wasZone })
+
 	chrome := chromeBinary(t)
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -93,7 +123,9 @@ func TestE2EActivity(t *testing.T) {
 // teams screen's fixture holds), and state/ under the state directory. It
 // returns the moment the fixture's own places are counted from, so a test can
 // say what the lengths should read: @T-<minutes>@ is that many minutes before
-// it (it is what the design's fixture writes).
+// it (it is what the design's fixture writes). That moment is the run's own
+// clock, e2eActivityNow, and not the wall clock the run happens to sit at
+// (r-f647).
 //
 // The teams the fixture shows were booted from the definitions of the teams
 // screen's own fixture, so both of its layers are laid out: the project's
@@ -103,7 +135,7 @@ func TestE2EActivity(t *testing.T) {
 // one that does not.
 func copyActivityFixture(t *testing.T, f *fixture, cwd string) time.Time {
 	t.Helper()
-	at := time.Now()
+	at := e2eActivityNow
 	src := filepath.Join(cwd, "..", "..", "testdata")
 	copyDir(t, filepath.Join(src, "teams-v2", "project", ".hergy"), filepath.Join(f.proj, ".hergy"))
 	copyDir(t, filepath.Join(src, "teams-v2", "config", "hergy"), filepath.Join(f.cfg, "hergy"))
@@ -331,6 +363,15 @@ func activityLengths(d time.Duration, lower bool) []string {
 	return []string{activity.Length(d, lower), activity.Length(d+time.Minute, lower)}
 }
 
+// activityMoment is one moment as the screen writes it (C5, V1): the clock while
+// it is today's and the date before it when it is another day's — the server's
+// own rule, read at the run's own clock. The clock and the zone are the run's
+// (e2eActivityNow, e2eActivityZone), so which moments carry a date is the same
+// wherever and whenever the run happens (r-f647).
+func activityMoment(moment time.Time) string {
+	return activity.Clock(e2eActivityNow, moment)
+}
+
 // ---- the walks --------------------------------------------------------------------------
 
 // e2eActivityBand is S1〜S2 and T3: 活動 carries the two numbers and leads to the
@@ -410,14 +451,14 @@ func e2eActivityRows(t *testing.T, ctx context.Context, base string, at time.Tim
 	if !slices.Contains(activityLengths(160*time.Minute, false), core) {
 		t.Errorf("core has waited %q, want %v", core, activityLengths(160*time.Minute, false))
 	}
-	if want := at.Add(-160*time.Minute).Format("15:04") + " から"; coreAt != want {
+	if want := activity.SinceAt(at, at.Add(-160*time.Minute), false); coreAt != want {
 		t.Errorf("core has waited since %q, want %q", coreAt, want)
 	}
 	stuck, stuckAt := activitySpan(t, ctx, "core-hotfix")
 	if !slices.Contains(activityLengths(245*time.Minute, true), stuck) {
 		t.Errorf("core-hotfix is stuck %q, want %v", stuck, activityLengths(245*time.Minute, true))
 	}
-	if want := at.Add(-245*time.Minute).Format("15:04") + " より前"; stuckAt != want {
+	if want := activity.SinceAt(at, at.Add(-245*time.Minute), true); stuckAt != want {
 		t.Errorf("core-hotfix is stuck since %q, want %q", stuckAt, want)
 	}
 	if len, moment := activitySpan(t, ctx, "research"); len != "" || moment != "" {
@@ -498,13 +539,13 @@ func e2eActivityCore(t *testing.T, ctx context.Context, base string, at time.Tim
 	// C6・C4: the members, the newest stop first, with 人間に渡した on the member
 	// the line is about alone; then the workers under ワーカー.
 	want := []string{
-		"handed last|lead|人間に渡した|" + at.Add(-160*time.Minute).Format("15:04"),
-		"idle|impl-a|止まっている|" + at.Add(-167*time.Minute).Format("15:04"),
-		"idle|impl-b|止まっている|" + at.Add(-174*time.Minute).Format("15:04"),
-		"idle|reviewer|止まっている|" + at.Add(-192*time.Minute).Format("15:04"),
-		"idle|analyst|止まっている|" + at.Add(-276*time.Minute).Format("15:04"),
+		"handed last|lead|人間に渡した|" + activityMoment(at.Add(-160*time.Minute)),
+		"idle|impl-a|止まっている|" + activityMoment(at.Add(-167*time.Minute)),
+		"idle|impl-b|止まっている|" + activityMoment(at.Add(-174*time.Minute)),
+		"idle|reviewer|止まっている|" + activityMoment(at.Add(-192*time.Minute)),
+		"idle|analyst|止まっている|" + activityMoment(at.Add(-276*time.Minute)),
 		"sub|||",
-		"idle|deps|止まっている|" + at.Add(-210*time.Minute).Format("15:04"),
+		"idle|deps|止まっている|" + activityMoment(at.Add(-210*time.Minute)),
 	}
 	if got := activityCrew(t, ctx, "core"); !slices.Equal(got, want) {
 		t.Errorf("core's members read\n%v\nwant\n%v", got, want)
@@ -553,12 +594,12 @@ func e2eActivityMigrate(t *testing.T, ctx context.Context, base string, at time.
 	// C4: impl is the one working, the tester is who the line is about, and the
 	// workers stand under ワーカー.
 	want := []string{
-		"blocked last|tester|許可待ち|" + at.Add(-18*time.Minute).Format("15:04"),
+		"blocked last|tester|許可待ち|" + activityMoment(at.Add(-18*time.Minute)),
 		"active|impl|仕事中|",
-		"idle|lead|止まっている|" + at.Add(-50*time.Minute).Format("15:04"),
+		"idle|lead|止まっている|" + activityMoment(at.Add(-50*time.Minute)),
 		"sub|||",
 		"active|draft|仕事中|",
-		"idle|match|止まっている|" + at.Add(-22*time.Minute).Format("15:04"),
+		"idle|match|止まっている|" + activityMoment(at.Add(-22*time.Minute)),
 	}
 	if got := activityCrew(t, ctx, "migrate"); !slices.Equal(got, want) {
 		t.Errorf("migrate's members read\n%v\nwant\n%v", got, want)
@@ -660,7 +701,7 @@ func e2eActivityMore(t *testing.T, ctx context.Context, base string, f *fixture)
 	readJSONFile(t, filepath.Join(work, "gy", "writes.json"), &writes)
 	for i, old := range []int{4000, 4200, 4400} {
 		id := "q-500" + strconv.Itoa(i+1)
-		when := time.Now().Add(-time.Duration(old) * time.Minute).Format(time.RFC3339)
+		when := e2eActivityNow.Add(-time.Duration(old) * time.Minute).Format(time.RFC3339)
 		open = append(open, map[string]any{"id": id, "kind": "Question", "status": "open", "title": "作り物の問い " + strconv.Itoa(i+1), "scope": "common", "created": when})
 		writes = append(writes, map[string]any{"actor": "core-lead", "node": id, "what": "created", "why": "", "at": when})
 		writeFile(t, filepath.Join(work, "gy", "show", id+".json"),

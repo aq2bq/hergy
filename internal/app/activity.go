@@ -165,7 +165,8 @@ const herdrMemory = 5 * time.Second
 // server stops.
 type activityRead struct {
 	env team.Env
-	// now is the clock: a test places the moments with it.
+	// now is the clock: a test places the moments with it. A serve built without
+	// one reads the serve's own clock (serveClock).
 	now func() time.Time
 
 	mu      sync.Mutex
@@ -197,7 +198,7 @@ func activityStatePath() string {
 // clock is now, or the test's own clock.
 func (a *activityRead) clock() time.Time {
 	if a.now == nil {
-		return time.Now()
+		return serveClock()
 	}
 	return a.now()
 }

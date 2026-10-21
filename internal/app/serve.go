@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/browser"
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -67,3 +68,12 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 // Open, held as a variable so a test can watch what runServe asks for without a
 // browser opening on the machine the tests run on.
 var openBrowser = browser.Open
+
+// serveClock is the moment the screens are read at. It is now, held as a
+// variable so a run can place the moment its screens are read at rather than
+// leaning on the wall clock it happens to sit at: the fixture's times are
+// counted from this moment, and a moment that is not today's is written with its
+// date (spec-activity 6 A4). A run read around midnight would otherwise want
+// "22:50 より前" where the screen, rightly, writes "10/20 22:50 より前"
+// (r-f647).
+var serveClock = time.Now
