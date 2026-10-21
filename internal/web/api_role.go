@@ -398,8 +398,9 @@ func (k apiRole) savedAnswer(place, name string, doc *r2Doc) apiSaved {
 
 // Delete is DELETE /api/role/{name}?place=&hash=: take one role document out of
 // its layer. Its answer is the list as it now reads.
-func (k apiRole) Delete(name, place, hash string) (any, *apiErr) {
+func (k apiRole) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
+	place, hash := in.Place, in.Hash
 	path := s.cat.RolePath(place, name)
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	pathHash := source.Hash("")
@@ -409,7 +410,7 @@ func (k apiRole) Delete(name, place, hash string) (any, *apiErr) {
 	if hash != pathHash {
 		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(path)))
 	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) { //nolint:gosec // G703: path is the catalog's own RolePath, which joins the layer's own roles directory with the name
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}
 	return k.List()

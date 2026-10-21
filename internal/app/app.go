@@ -26,6 +26,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/newteam"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
@@ -578,17 +579,15 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := writeScaffold(dir, files); err != nil {
-		return err
-	}
-	// A role document is the layer's, not the team's (K5), so it goes into the
-	// layer's roles/ directory, and one that is already there is left alone.
-	roles, err := scaffold.Roles(i18n.Language())
-	if err != nil {
-		return err
-	}
-	roleDir := filepath.Join(cat.LayerDir(layer), "roles")
-	wroteRoles, keptRoles, err := writeScaffoldRoles(roleDir, roles)
+	// The folder, the layer's role documents a starter team reads, and the
+	// starter profile go in one write, which hergy new and the team screen both
+	// call (C8). A role document is the layer's, not the team's (K5), so it goes
+	// into the layer's roles/ directory and one that is already there is left
+	// alone.
+	written, err := newteam.Write(newteam.In{
+		Catalog: cat, Layer: layer, Name: name, Lang: i18n.Language(),
+		Files: files, Starter: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -596,119 +595,26 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	profilePath, err := ensureScaffoldProfile(env, layer)
-	if err != nil {
-		return err
-	}
 	field(stdout, label("definition"), name)
 	field(stdout, label("dir"), env.Display(dir))
-	for _, file := range files {
-		field(stdout, label("file"), env.Display(filepath.Join(dir, file.Path)))
+	for _, path := range written.Files {
+		field(stdout, label("file"), env.Display(path))
 	}
-	for _, path := range wroteRoles {
+	for _, path := range written.Roles {
 		field(stdout, label("role_file"), env.Display(path))
 	}
-	for _, path := range keptRoles {
+	for _, path := range written.Kept {
 		field(stdout, label("note"), i18n.Tf("new.role_kept", env.Display(path)))
 	}
-	if profilePath != "" {
+	if written.Profile != "" {
 		field(stdout, label("profile"), scaffold.ProfileName)
-		field(stdout, label("file"), env.Display(profilePath))
+		field(stdout, label("file"), env.Display(written.Profile))
 	}
 	if madeConfig {
 		field(stdout, label("config"), env.Display(configPath))
 	}
 	printNext(stdout, "up "+name+" --dry")
 	return nil
-}
-
-// ensureScaffoldProfile makes sure the layer a starter team is written to can
-// resolve the profile its members name (I7). The name is looked up the way a
-// team of that layer resolves it: when it is already there, in the layer's own
-// profiles.yaml or in a global one a local team reads, nothing is written and
-// the path is "". A layer that cannot resolve the name gets it added to its own
-// profiles.yaml, which is made when the layer has none yet. An existing file the
-// layer cannot read is an error rather than something to write over.
-func ensureScaffoldProfile(env team.Env, layer string) (string, error) {
-	profiles, _, err := env.Catalog(source.Disk{}).Profiles()
-	if err != nil {
-		return "", err
-	}
-	if _, ok := profiles[scaffold.ProfileName]; ok {
-		return "", nil
-	}
-	dir := env.GlobalDir
-	if layer == source.LayerLocal {
-		dir = env.LocalDir
-	}
-	path := filepath.Join(dir, "profiles.yaml")
-	all := map[string]profile.Profile{}
-	switch text, err := os.ReadFile(path); {
-	case err == nil:
-		if all, err = profile.ParseProfiles(string(text), path); err != nil {
-			return "", err
-		}
-	case errors.Is(err, os.ErrNotExist):
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", err
-		}
-	default:
-		return "", err
-	}
-	all[scaffold.ProfileName] = profile.Profile{
-		Name: scaffold.ProfileName,
-		Kind: scaffold.ProfileKind,
-		Path: path,
-	}
-	text, err := profile.EmitProfiles(all)
-	if err != nil {
-		return "", err
-	}
-	if err := source.WriteBeside(path, text); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// writeScaffold writes the starter files under dir, creating the directories
-// they need.
-func writeScaffold(dir string, files []scaffold.File) error {
-	for _, file := range files {
-		path := filepath.Join(dir, file.Path)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, file.Data, 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// writeScaffoldRoles writes the starter role documents into one layer's roles/
-// directory. A document that is already there is left as it is: it belongs to
-// the layer, not to this team, and a person's own file is never written over
-// (K5). The paths it wrote and the paths it left come back for the output line.
-func writeScaffoldRoles(dir string, files []scaffold.File) (wrote, kept []string, err error) {
-	for _, file := range files {
-		path := filepath.Join(dir, file.Path)
-		_, statErr := os.Stat(path)
-		switch {
-		case statErr == nil:
-			kept = append(kept, path)
-		case !errors.Is(statErr, os.ErrNotExist):
-			return nil, nil, statErr
-		default:
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return nil, nil, err
-			}
-			if err := os.WriteFile(path, file.Data, 0o644); err != nil {
-				return nil, nil, err
-			}
-			wrote = append(wrote, path)
-		}
-	}
-	return wrote, kept, nil
 }
 
 // runValidate reads every settings file the way up does, shows one line per

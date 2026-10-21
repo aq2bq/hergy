@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/chromedp/chromedp"
 )
 
@@ -68,6 +70,25 @@ func TestE2ETeams(t *testing.T) {
 	defer stop2()
 	t.Run("mission and turns", func(t *testing.T) { e2eTeamsSaveShape(t, ctx, base2, f2) })
 	t.Run("agreement and yaml", func(t *testing.T) { e2eTeamsSaveAgreement(t, ctx, base2, f2) })
+
+	// The version-7 walks stand in projects of their own: one adds, copies and
+	// takes away definitions, so the next one reads a fixture nothing has
+	// written over (spec-teams B1〜B8).
+	f3 := newFixture(t)
+	copyTeamsFixture(t, f3, cwd)
+	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f3.runningHerdr(t, "", "")
+	base3, stop3 := startServe(t, f3)
+	defer stop3()
+	t.Run("add, copy and delete", func(t *testing.T) { e2eTeamsAddCopyDelete(t, ctx, base3, f3) })
+
+	f4 := newFixture(t)
+	copyTeamsFixture(t, f4, cwd)
+	writeFile(t, filepath.Join(f4.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f4.runningHerdr(t, "", "")
+	base4, stop4 := startServe(t, f4)
+	defer stop4()
+	t.Run("topology preview", func(t *testing.T) { e2eTeamsTopology(t, ctx, base4, f4) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the team screen logged %d console errors: %v", len(lines), lines)
@@ -204,7 +225,7 @@ func e2eTeamsStructure(t *testing.T, ctx context.Context, base string) {
 	}
 
 	// S3: the six columns, the six rows, the order the catalog reads.
-	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.list .head > span')].map(function(e){return e.textContent.trim()}).join(',')`); got != ",名前,使命,置き場所,メンバー,ワーカー,約束" {
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.list .head > span')].map(function(e){return e.textContent.trim()}).join(',')`); got != ",名前,使命,置き場所,メンバー,ワーカー,ルール" {
 		t.Errorf("the head reads %q", got)
 	}
 	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('#view .tdef')].map(function(r){return r.dataset.name}).join(',')`); got != "core,docs,draft,migrate,research,review" {
@@ -237,12 +258,12 @@ func e2eTeamsStructure(t *testing.T, ctx context.Context, base string) {
 	}
 
 	// T1・T5: the words the screen uses on the list, and none of the words it must not.
-	for _, want := range []string{"名前", "使命", "置き場所", "メンバー", "ワーカー", "約束"} {
+	for _, want := range []string{"名前", "使命", "置き場所", "メンバー", "ワーカー", "ルール"} {
 		if got := e2eTeamsValue(t, ctx, `(document.querySelector('#view').textContent.indexOf(`+strconv.Quote(want)+`)>=0)+''`); got != "true" {
 			t.Errorf("the screen does not read %q", want)
 		}
 	}
-	for _, banned := range []string{"層", "layer", "担当", "役割", "版"} {
+	for _, banned := range []string{"層", "layer", "担当", "役割", "版", "約束"} {
 		if got := e2eTeamsValue(t, ctx, `(document.querySelector('#view').textContent.indexOf(`+strconv.Quote(banned)+`)>=0)+''`); got != "false" {
 			t.Errorf("the screen reads the word %q", banned)
 		}
@@ -285,7 +306,7 @@ func e2eTeamsStructure(t *testing.T, ctx context.Context, base string) {
 
 // e2eTeamsOpen is S4〜S6, P1〜P3・P9, V1: a row opens under itself with the shape
 // panel first, the figure's own check column carries validate's sentences, the
-// 約束 tab draws the shared part with no name or copy of its own, and a definition
+// ルール tab draws the shared part with no name or copy of its own, and a definition
 // that stands in both places says 効いている and 隠れている.
 func e2eTeamsOpen(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
@@ -305,7 +326,7 @@ func e2eTeamsOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.dtabs').nextElementSibling.className`); !strings.Contains(got, "team-p") {
 		t.Errorf("the shape panel does not stand under the tabs: %q", got)
 	}
-	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .dtabs .dtab`)+`)].map(function(b){return b.textContent.trim()}).join(',')`); got != "チームの姿,チームの約束53" {
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .dtabs .dtab`)+`)].map(function(b){return b.textContent.trim()}).join(',')`); got != "トポロジー,ルール53" {
 		t.Errorf("the tabs read %q", got)
 	}
 
@@ -364,7 +385,7 @@ func e2eTeamsOpen(t *testing.T, ctx context.Context, base string) {
 	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .x')`)
 	e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.gcard')`)
 
-	// P3: the 約束 tab draws the shared part, with the team's own rules and none
+	// P3: the ルール tab draws the shared part, with the team's own rules and none
 	// of the name, copy or delete a role's own panel carries (S6).
 	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.dtabs .dtab[data-t=agree]')`)
 	e2eTeamsWait(t, ctx, `!!`+e2eTeamsAgreeJS("core"))
@@ -381,9 +402,13 @@ func e2eTeamsOpen(t *testing.T, ctx context.Context, base string) {
 	if got := e2eTeamsInt(t, ctx, `getComputedStyle(`+agree+`.querySelector('.pmain')).gridTemplateColumns.split(' ').filter(Boolean).length`); got != 2 {
 		t.Errorf("2000: the agreement panel stands in %d columns, want the editor and the preview", got)
 	}
-	// T1・T4: the words of the 約束 part stand on the screen.
-	if got := e2eTeamsValue(t, ctx, `(document.querySelector('#view').textContent.indexOf('チームの約束')>=0)+''`); got != "true" {
-		t.Errorf("the 約束 tab does not read チームの約束")
+	// T1・T4: the words of the ルール part stand on the screen — the tab reads
+	// ルール with its own count, and the word the tab used to read is gone from
+	// the list screen (spec-teams B9; the list's own words are checked in the
+	// structure walk, and the team's own agreement carries its title from its
+	// file).
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .dtabs .dtab`)+`)].map(function(b){return b.dataset.t+'='+b.textContent.trim()}).join(',')`); got != "shape=トポロジー,agree=ルール53" {
+		t.Errorf("the open row's tabs read %q, want トポロジー and ルール53", got)
 	}
 	// R4: a sentence about the document as a whole — the members' reading volume
 	// — marks the first line of the preview alone, not every heading and blank
@@ -492,7 +517,7 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 	const mission = "E2E が書き換えた使命。"
 	e2eSet(t, ctx, `document.querySelector('.in-mission')`, mission)
 	e2eTeamsWait(t, ctx, `document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .dtabs .dtab[data-t=shape] .dot`)+`).length>0`)
-	e2eTeamsWait(t, ctx, e2eTeamsPanelJS("core")+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	e2eTeamsWait(t, ctx, e2eTeamsPanelJS("core")+`.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`)
 	e2eTeamsClick(t, ctx, e2eTeamsPanelJS("core")+`.querySelector('[data-act=t-save]')`)
 	e2eTeamsWait(t, ctx, `!!`+e2eTeamsPanelJS("core")+`.querySelector('.ok')`)
 	if got := e2eTeamsValue(t, ctx, e2eTeamsPanelJS("core")+`.querySelector('.ok').textContent`); got != "保存しました" {
@@ -533,7 +558,7 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard .gdl .tag').textContent`); got != "消した" {
 		t.Errorf("the removed turn's tag reads %q", got)
 	}
-	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`)
 	e2eTeamsClick(t, ctx, panel+`.querySelector('[data-act=t-save]')`)
 	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.ok')`)
 	after = readFile(t, path)
@@ -578,7 +603,7 @@ func e2eTeamsSaveShape(t *testing.T, ctx context.Context, base string, f *fixtur
 	docsPanel := e2eTeamsPanelJS("docs")
 	const docsMission2 = "E2E が姿から直した使命。"
 	e2eSet(t, ctx, `document.querySelector('.in-mission')`, docsMission2)
-	e2eTeamsWait(t, ctx, docsPanel+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	e2eTeamsWait(t, ctx, docsPanel+`.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`)
 	if got := e2eTeamsValue(t, ctx, docsPanel+`.querySelector('[data-act=t-save]').disabled+''`); got != "false" {
 		t.Errorf("the docs shape save is shut although the only problem is the file's own")
 	}
@@ -684,7 +709,7 @@ func e2eTeamsWorkerPurpose(t *testing.T, ctx context.Context, base string) {
 	}
 	// One worker, however many letters wrote its purpose (1.4.6), and the problem
 	// its empty purpose added is gone, so the save is open again.
-	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()==='1 か所'`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`)
 	e2eTeamsWait(t, ctx, panel+`.querySelector('[data-act=t-save]').disabled+''==='false'`)
 	if got := e2eTeamsValue(t, ctx, `(function(){var u=`+panel+`.querySelector('.gcard[data-sel=worker] .vm');return u?u.textContent:''})()`); strings.Contains(got, "purpose") {
 		t.Errorf("the worker's card still holds its purpose's problem: %q", got)
@@ -692,7 +717,7 @@ func e2eTeamsWorkerPurpose(t *testing.T, ctx context.Context, base string) {
 	// 元に戻す puts the definition back, and the count with it.
 	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('[data-act=t-revert]:not([hidden])')`)
 	e2eTeamsClick(t, ctx, panel+`.querySelector('[data-act=t-revert]')`)
-	e2eTeamsWait(t, ctx, panel+`.querySelector('.dirty').textContent.trim()===''`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('footer.pf .dirty').textContent.trim()===''`)
 }
 
 // e2eTeamsGraphProblems is R8・R9, with the two leftovers R11・R12: the card of a
@@ -701,7 +726,7 @@ func e2eTeamsWorkerPurpose(t *testing.T, ctx context.Context, base string) {
 // though the change is what stops the definition (1.4.4, R11) — the problem of
 // the draft then stands on that member's own point and names it in the check
 // column (1.4.1・1.7), and a warning about the team's own agreement stands under
-// チームの約束 and opens that rule in the 約束 tab, brought into the window with
+// チームのルール and opens that rule in the ルール tab, brought into the window with
 // the cursor in the rule's body, from the press and from the address alike
 // (1.4.5, 2, 監査 R12).
 func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
@@ -746,8 +771,8 @@ func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 	}
 
 	// R9: scout's turn to the human goes, so the team's own agreement's rule
-	// RES-6 warns. It stands under チームの約束 — the role documents' head is not
-	// its place — and its press opens that rule in the 約束 tab (1.4.5). The
+	// RES-6 warns. It stands under チームのルール — the role documents' head is not
+	// its place — and its press opens that rule in the ルール tab (1.4.5). The
 	// window is the one a person reads on (1440×1000), where the rule a press
 	// opens falls below the save's band (監査 R12).
 	e2eRun(t, ctx, chromedp.EmulateViewport(1440, 1000))
@@ -763,8 +788,8 @@ func e2eTeamsGraphProblems(t *testing.T, ctx context.Context, base string) {
 	e2eTeamsWait(t, ctx, `!!`+rp+`.querySelector('.gcard .gdl .tag')`)
 	item := `[...document.querySelectorAll(` + strconv.Quote(`.tdef[data-name="research"] .panel.team-p .vlist .vitem`) + `)].find(function(b){return b.textContent.indexOf('RES-6')>=0})`
 	e2eTeamsWait(t, ctx, `!!`+item)
-	if got := e2eTeamsValue(t, ctx, rp+`.querySelector('.vlist .vsub').textContent`); got != "チームの約束" {
-		t.Errorf("the check column's first heading reads %q, want チームの約束", got)
+	if got := e2eTeamsValue(t, ctx, rp+`.querySelector('.vlist .vsub').textContent`); got != "チームのルール" {
+		t.Errorf("the check column's first heading reads %q, want チームのルール", got)
 	}
 	if got := e2eTeamsValue(t, ctx, item+`.querySelector('.lno').textContent`); got != "agreement.yaml" {
 		t.Errorf("the team agreement's warning stands at %q, want agreement.yaml", got)
@@ -836,6 +861,36 @@ func e2eTeamsWidths(t *testing.T, ctx context.Context, base string) {
 		t.Errorf("500: the figure flows %dpx inside its box", got)
 	}
 
+	// W3: a definition that is not there yet, and the topology tab's YAML, flow
+	// no further than the page at the three widths and in both lights; at 500
+	// the definition's own acts stand on the tab's own row (spec-teams B1〜B8,
+	// W3).
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1000))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams"))
+	e2eTeamsWait(t, ctx, ready["/teams"])
+	e2eTeamsClick(t, ctx, `document.querySelector('.toolbar [data-act=new]')`)
+	e2eTeamsWait(t, ctx, `!!document.querySelector('.tdef[data-name^="~new"] .in-name')`)
+	for _, size := range []int64{2000, 1440, 500} {
+		for _, theme := range []string{"", "light", "dark"} {
+			e2eRun(t, ctx, chromedp.EmulateViewport(size, 1000))
+			if theme == "" {
+				e2eTheme(t, ctx, "")
+			} else {
+				e2eTheme(t, ctx, theme)
+			}
+			if over := e2eTeamsInt(t, ctx, `document.documentElement.scrollWidth - window.innerWidth`); over > 1 {
+				t.Errorf("a new row at %d/%s flows %dpx sideways", size, theme, over)
+			}
+			if got := e2eTeamsValue(t, ctx, `getComputedStyle(document.querySelector('.tdef[data-name^="~new"] .panel.team-p .tprev')).display`); (size <= 1100 && got != "none") || (size > 1100 && got == "none") {
+				t.Errorf("a new row's YAML preview at %d/%s reads display %q", size, theme, got)
+			}
+		}
+	}
+	// 500: 定義の操作 stands on the tab's own row, under the tabs.
+	if got := e2eTeamsValue(t, ctx, `(function(){var d=document.querySelector('.tdef[data-name^="~new"] .dacts'),row=d.closest('.tdef');if(!d||!row)return 'no';var dr=d.getBoundingClientRect(),rr=row.getBoundingClientRect();return (Math.round(dr.width/rr.width*100)>=80?'wide':'narrow')+'|'+getComputedStyle(d).marginLeft;})()`); got != "wide|0px" {
+		t.Errorf("500: the definition's acts read %q, want the tab's own row", got)
+	}
+
 	// R1: the figure is drawn at the width of its own viewBox — the sheet takes the
 	// width the SVG carries — and the card of a chosen line covers no point
 	// (1.4.2・1.4.4). Checked at the two widths a person works at, on a team with
@@ -872,5 +927,401 @@ func e2eTeamsWidths(t *testing.T, ctx context.Context, base string) {
 	e2eDark(t, ctx)
 	if got := e2eTeamsValue(t, ctx, `getComputedStyle(document.body).backgroundColor`); got != "rgb(15, 18, 24)" {
 		t.Errorf("the OS dark ground is %q", got)
+	}
+}
+
+// e2eTeamsAddCopyDelete walks the version-7 additions to the list: the toolbar's
+// ＋ チーム定義を追加 (B1), a new row's name problems and the files a save would
+// write (B2, N1〜N4), a duplicate (B3, N5), a copy into the other place (B4, N6),
+// taking one place's folder away (B6, N7), and 取り消し (B5, N8). Every save is
+// read back from the filesystem, so the walk is about what was written rather
+// than about what the screen says.
+func e2eTeamsAddCopyDelete(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams"), chromedp.WaitReady("#view .tdef"))
+	e2eTeamsWait(t, ctx, `document.querySelectorAll('#view .tdef').length===6`)
+
+	draft := `document.querySelector('.tdef[data-name^="~new"]')`
+	rows := func() int { return e2eTeamsInt(t, ctx, `document.querySelectorAll('#view .tdef').length`) }
+
+	// B1: the toolbar's button stands above the list.
+	if got := e2eTeamsValue(t, ctx, `document.querySelector('.toolbar [data-act=new]').textContent.trim()`); got != "＋ チーム定義を追加" {
+		t.Errorf("the toolbar's add reads %q, want ＋ チーム定義を追加", got)
+	}
+
+	// N1: pressing it puts a new row first, open, with the cursor in its name,
+	// プロジェクト picked, the starter's mission, a name problem, and the
+	// mission's warning beside it (B1, B2).
+	e2eTeamsClick(t, ctx, `document.querySelector('.toolbar [data-act=new]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.in-name')`)
+	if got := e2eTeamsValue(t, ctx, `document.querySelector('#view .tdef').dataset.name.indexOf('~new')===0?'first':'no'`); got != "first" {
+		t.Errorf("the new row does not stand first")
+	}
+	if got := e2eTeamsValue(t, ctx, `(document.activeElement===`+draft+`.querySelector('.in-name'))+''`); got != "true" {
+		t.Errorf("the new row left the cursor outside its name field")
+	}
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.c-place .seg button.on').textContent.trim()`); got != "プロジェクト" {
+		t.Errorf("the new row's place reads %q, want プロジェクト", got)
+	}
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.in-mission').value`); got != "このチームの使命を 1 行で" {
+		t.Errorf("the new row's mission reads %q, want the starter's placeholder", got)
+	}
+	// N1: the name's problem and the figure's own sentences both stand in the
+	// count — the name is the problem, and the rest warnings (B2).
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.indexOf('問題 1')>=0`)
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.indexOf('警告')>=0`)
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.trim()`); strings.Contains(got, "問題 2") {
+		t.Errorf("the new row counts %q, want the name alone as a problem", got)
+	}
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.in-name').classList.contains('bad')+''`); got != "true" {
+		t.Errorf("the empty name's field is not marked")
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.tdef[data-name^="~new"] .vlist .vitem')].map(function(v){return v.querySelector('.lno').textContent+':'+v.querySelector('.msg').textContent}).join('|')`); !strings.Contains(got, "名前:チーム定義名を書いてください") {
+		t.Errorf("the check column reads %q, want the name's own problem", got)
+	}
+	// N2: the name is a problem, so the save is shut; the foot says the row is
+	// new and names the files a save would write (B2).
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('[data-act=t-save]').disabled+''`); got != "true" {
+		t.Errorf("the save stands although the name is a problem")
+	}
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('footer.pf .dirty').textContent.trim()`); got != "新規" {
+		t.Errorf("the new row's foot reads %q, want 新規", got)
+	}
+	if got := e2eTeamsInt(t, ctx, draft+`.querySelectorAll('footer.pf .also code').length`); got != 3 {
+		t.Errorf("the new row names %d files a save would write, want the project's three", got)
+	}
+	// N2: a name hergy new takes clears the problem and opens the save.
+	e2eSet(t, ctx, draft+`.querySelector('.in-name')`, "ops")
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.in-name').classList.contains('bad')+''==='false'`)
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.c-name .vcount').textContent.indexOf('問題')<0`)
+	e2eTeamsWait(t, ctx, draft+`.querySelector('[data-act=t-save]').disabled+''==='false'`)
+	if got := e2eTeamsInt(t, ctx, `document.querySelectorAll('#view .tdef').length`); got != 7 {
+		t.Errorf("the list holds %d rows with the draft open, want 7", got)
+	}
+
+	// N3: the save writes hergy new's own files, one letter apart from none.
+	files, err := scaffold.Team("ja")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("ops"))
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+	if got := e2eTeamsInt(t, ctx, `document.querySelectorAll('#view .tdef').length`); got != 7 {
+		t.Errorf("the list holds %d rows after the save, want 7", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `document.querySelector('#view .tdef').dataset.name`); got != "ops" {
+		t.Errorf("the saved row stands first as %q, want ops", got)
+	}
+	for _, file := range files {
+		got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "ops", file.Path))
+		if got != string(file.Data) {
+			t.Errorf("the saved ops/%s reads\n%s\nwant hergy new's own\n%s", file.Path, got, file.Data)
+		}
+	}
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); !strings.Contains(got, "claude-default") {
+		t.Errorf("the project's profiles.yaml holds no starter profile:\n%s", got)
+	}
+
+	// N4: the same name saved into 共通 writes the shared place, with the role
+	// documents and the profile that place does not hold (B2, Y3).
+	e2eTeamsClick(t, ctx, `document.querySelector('.toolbar [data-act=new]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.in-name')`)
+	// The place comes first: the same name in プロジェクト is taken by N3's save
+	// (B2's name rules are one place's own).
+	e2eTeamsClick(t, ctx, draft+`.querySelector('.c-place .seg button[data-x=global]')`)
+	e2eTeamsWait(t, ctx, draft+`.querySelector('.c-place .seg button[data-x=global]').classList.contains('on')+''==='true'`)
+	e2eSet(t, ctx, draft+`.querySelector('.in-name')`, "ops")
+	e2eTeamsWait(t, ctx, draft+`.querySelector('[data-act=t-save]').disabled+''==='false'`)
+	// The files it would write are the shared place's: the definition's two and the
+	// two role documents it lacks. The starter profile is not among them: the
+	// catalog reads claude-default from the project's profiles.yaml, which N3's
+	// save just put it in, and a layer's profile is resolved for both places
+	// (B2, Y3).
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll('.tdef[data-name^="~new"] footer.pf .also code')].map(function(c){return c.textContent}).join(',')`); got != "team.yaml,agreement.yaml,lead.yaml,builder.yaml" {
+		t.Errorf("the new row in 共通 names %q, want the definition's two and the two role documents", got)
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+	global := filepath.Join(f.cfg, "hergy")
+	for _, file := range files {
+		got := readFile(t, filepath.Join(global, "teams", "ops", file.Path))
+		if got != string(file.Data) {
+			t.Errorf("the shared ops/%s reads\n%s\nwant hergy new's own\n%s", file.Path, got, file.Data)
+		}
+	}
+	roles, err := scaffold.Roles("ja")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range roles {
+		got := readFile(t, filepath.Join(global, "roles", file.Path))
+		if got != string(file.Data) {
+			t.Errorf("the shared roles/%s reads\n%s\nwant the scaffold's own\n%s", file.Path, got, file.Data)
+		}
+	}
+	if got := readFile(t, filepath.Join(global, "profiles.yaml")); strings.Contains(got, "claude-default") {
+		t.Errorf("the shared profiles.yaml was written although the project's own resolves the starter profile:\n%s", got)
+	}
+	// Both places hold ops now, so its row says プロジェクト is in effect and 共通
+	// stands beside it — one row, not two (B4).
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("ops")+`.querySelectorAll('.c-place .pill').length===2`)
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("ops")+`.querySelector('.c-place .pill.on').textContent.trim()`); got != "プロジェクト" {
+		t.Errorf("the row in both places holds %q in effect, want プロジェクト", got)
+	}
+
+	// N5: core's 複製 opens core-2 right under it, its save writes core's own two
+	// files one letter apart from none, and it keeps core's place in the list.
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.sum')`)
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("core")+`.classList.contains('open')+''==='true'`)
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("core")+`.querySelector('.dacts [data-act=dup]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.in-name')`)
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.in-name').value`); got != "core-2" {
+		t.Errorf("the duplicate's name reads %q, want core-2", got)
+	}
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("core")+`.nextElementSibling.dataset.name.indexOf('~new')===0?'below':'no'`); got != "below" {
+		t.Errorf("the duplicate does not stand right under core")
+	}
+	if got := e2eTeamsValue(t, ctx, `(document.activeElement===`+draft+`.querySelector('.in-name'))+''`); got != "true" {
+		t.Errorf("the duplicate left the cursor outside its name field")
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("core-2"))
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+		got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "core-2", name))
+		want := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", name))
+		if got != want {
+			t.Errorf("the duplicate's %s reads\n%s\nwant core's own\n%s", name, got, want)
+		}
+	}
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("core")+`.nextElementSibling.dataset.name`); got != "core-2" {
+		t.Errorf("the saved duplicate stands at %q, want core-2 right under core", got)
+	}
+
+	// N6: review (共通) copied プロジェクトに leaves one row, プロジェクト in effect
+	// and 共通 struck out, and the project's folder holds review's own two files.
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("review")+`.querySelector('.sum')`)
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("review")+`.classList.contains('open')+''==='true'`)
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("review")+`.querySelector('.dacts [data-act=copy]').textContent.trim()`); got != "プロジェクトにコピー" {
+		t.Errorf("review's copy reads %q, want プロジェクトにコピー", got)
+	}
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("review")+`.querySelector('.dacts [data-act=copy]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.c-place .pill.pending')`)
+	if got := e2eTeamsValue(t, ctx, draft+`.querySelector('.c-place .pill.pending').textContent.trim()`); got != "プロジェクト" {
+		t.Errorf("the copy's place reads %q, want プロジェクト", got)
+	}
+	if got := e2eTeamsInt(t, ctx, draft+`.querySelectorAll('.in-name').length`); got != 0 {
+		t.Errorf("the copy offers a name field, but its name is review's own")
+	}
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("review")+`.nextElementSibling.dataset.name.indexOf('~new')===0?'below':'no'`); got != "below" {
+		t.Errorf("the copy does not stand right under review")
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=t-save]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+		got := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "review", name))
+		want := readFile(t, filepath.Join(global, "teams", "review", name))
+		if got != want {
+			t.Errorf("the copy's %s reads\n%s\nwant review's own\n%s", name, got, want)
+		}
+	}
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("review")+`.querySelectorAll('.c-place .pill').length===2`)
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="review"] .c-place .pill`)+`)].map(function(p){return p.textContent.trim()+'='+p.className}).join(',')`); got != "プロジェクト=pill on,共通=pill shadow" {
+		t.Errorf("review's places read %q, want プロジェクト in effect and 共通 hidden", got)
+	}
+
+	// N7: 削除 takes the project's folder away, and the row stands on 共通 alone.
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("review")+`.querySelector('.dacts [data-act=del]')`)
+	e2eTeamsWait(t, ctx, `!!`+e2eTeamsRowJS("review")+`.querySelector('[data-act=del-yes]')`)
+	e2eTeamsClick(t, ctx, e2eTeamsRowJS("review")+`.querySelector('[data-act=del-yes]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector(`+strconv.Quote(`.tdef[data-name="review"] [data-act=del-yes]`)+`)`)
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "teams", "review", "team.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the project's review/team.yaml still stands")
+	}
+	if _, err := os.Stat(filepath.Join(global, "teams", "review", "team.yaml")); err != nil {
+		t.Errorf("taking the project's folder away took the shared one with it: %v", err)
+	}
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("review")+`.querySelectorAll('.c-place .pill').length===1`)
+	if got := e2eTeamsValue(t, ctx, e2eTeamsRowJS("review")+`.querySelector('.c-place .pill.on').textContent.trim()`); got != "共通" {
+		t.Errorf("the row stands on %q, want 共通", got)
+	}
+
+	// N8: 取り消し takes a row that is not there yet out and writes nothing.
+	before := rows()
+	e2eTeamsClick(t, ctx, `document.querySelector('.toolbar [data-act=new]')`)
+	e2eTeamsWait(t, ctx, `!!`+draft+`.querySelector('.in-name')`)
+	if got := rows(); got != before+1 {
+		t.Errorf("the list holds %d rows with the new row open, want %d", got, before+1)
+	}
+	e2eTeamsClick(t, ctx, draft+`.querySelector('[data-act=discard]')`)
+	e2eTeamsWait(t, ctx, `!document.querySelector('.tdef[data-name^="~new"]')`)
+	if got := rows(); got != before {
+		t.Errorf("取り消し left %d rows, want %d", got, before)
+	}
+	entries, err := os.ReadDir(filepath.Join(f.proj, ".hergy", "teams"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	if want := []string{"core", "core-2", "docs", "migrate", "ops", "research"}; !slices.Equal(names, want) {
+		t.Errorf("取り消し left the project's teams as %v, want %v", names, want)
+	}
+}
+
+// e2eTeamsTopology walks the トポロジー tab's team.yaml preview (spec-teams B7,
+// B8, C10): the lines a picked point owns (Y1), a press on a turn's line (Y4),
+// a turn added and one taken away with the head's own counts (Y2, Y3), the
+// mission typed while the preview moves under it (Y5), the preview against the
+// file a save would write (Y6), the narrow places' 編集 / YAML switch (Y7), and
+// the card that leaves every point uncovered (Y8).
+func e2eTeamsTopology(t *testing.T, ctx context.Context, base string, f *fixture) {
+	t.Helper()
+	panel := e2eTeamsPanelJS("core")
+	line := func(find string) string { return panel + `.querySelector(` + strconv.Quote(`.tprev .yl`+find) + `)` }
+
+	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
+	e2eRun(t, ctx, chromedp.Navigate(base+"/teams?open=core"), chromedp.WaitReady("#view .tdef"))
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.tprev .ybox .yl')`)
+	// The preview is the text a save would write, and the head counts its lines
+	// (B7).
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.tprev .yph .vt').textContent`); got != "42 行" {
+		t.Errorf("the preview's head reads %q, want 42 行", got)
+	}
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.tprev .yph .dirty')+''`); got != "null" {
+		t.Errorf("the preview of an unchanged definition shows a change count")
+	}
+
+	// Y1: picking analyst lines up its own member lines and every turn that comes
+	// in or leaves it (B7).
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=analyst]')`)
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=node]')`)
+	e2eTeamsWait(t, ctx, panel+`.querySelectorAll('.tprev .yl.cur').length>0`)
+	if got := e2eTeamsInt(t, ctx, panel+`.querySelectorAll('.tprev .yl.cur').length`); got != 7 {
+		t.Errorf("analyst lines up %d preview lines, want its 3 member lines and its 4 turns", got)
+	}
+
+	// Y4: pressing a turn's line picks that line of the figure, and its card
+	// names the two points (B7).
+	e2eTeamsClick(t, ctx, line(`[data-a=impl-b][data-b=reviewer]`))
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=edge]')`)
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard[data-sel=edge]').dataset.k`); got != "impl-b|reviewer" {
+		t.Errorf("pressing the impl-b → reviewer line picked %q", got)
+	}
+
+	// Y3: taking that turn away marks the gap and counts one line less (B7).
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-ask][data-a=impl-b][data-b=reviewer]')`)
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard [data-act=turn-del]')`)
+	e2eTeamsWait(t, ctx, panel+`.querySelector('.tprev .yph .dirty') && `+panel+`.querySelector('.tprev .yph .dirty').textContent.trim()==='+0 −1'`)
+	if got := e2eTeamsInt(t, ctx, panel+`.querySelectorAll('.tprev .yl.del,.tprev .yl.dele').length`); got != 1 {
+		t.Errorf("the removed turn marks %d lines, want the gap alone", got)
+	}
+	// 元に戻す puts the turn back, so the preview matches the file again.
+	e2eTeamsClick(t, ctx, panel+`.querySelector('footer.pf [data-act=t-revert]')`)
+	e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.tprev .yph .dirty')`)
+	e2eTeamsWait(t, ctx, e2eTeamsRowJS("core")+`.classList.contains('unsaved')+''==='false'`)
+
+	// Y6: the preview is the saved team.yaml line for line, comments and all.
+	text := readFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"))
+	want := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	got := strings.Split(e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .tprev .yl .yt`)+`)].map(function(t){return t.textContent}).join('\u0001')`), "\u0001")
+	if len(got) != len(want) {
+		t.Fatalf("the preview holds %d lines, want the file's %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] && !(got[i] == " " && strings.TrimSpace(want[i]) == "") {
+			t.Errorf("the preview's line %d reads %q, want %q", i+1, got[i], want[i])
+		}
+	}
+
+	// Y2: a turn added from analyst to reviewer stands at the end of the preview
+	// as an added line, the head counts it, and the box was sent to it (B7).
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=analyst]')`)
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`)
+	e2eSelect(t, ctx, panel+`.querySelector('.gcard select[data-act-change=turn-add-sel]')`, "reviewer")
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=edge]')`)
+	e2eTeamsWait(t, ctx, line(`.ins`)+` && `+line(`.ins`)+`.textContent.indexOf('analyst -> reviewer')>=0`)
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.tprev .yph .dirty').textContent.trim()`); got != "+1 −0" {
+		t.Errorf("the head reads %q after the turn was added, want +1 −0", got)
+	}
+	if got := e2eTeamsValue(t, ctx, `(function(){var b=`+panel+`.querySelector('.tprev .ybox'),l=`+line(`.ins`)+`;if(!b||!l)return false;var br=b.getBoundingClientRect(),lr=l.getBoundingClientRect();return lr.top>=br.top-1&&lr.bottom<=br.bottom+1;})()+''`); got != "true" {
+		t.Errorf("the box was not sent to the line the turn added")
+	}
+	// And picking that line picks the new turn of the figure (B7).
+	e2eTeamsClick(t, ctx, line(`[data-a=analyst][data-b=reviewer]`))
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=edge]')`)
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard[data-sel=edge]').dataset.k`); got != "analyst|reviewer" {
+		t.Errorf("pressing the added line picked %q", got)
+	}
+	if got := e2eTeamsInt(t, ctx, panel+`.querySelectorAll('.tprev .yl.cur').length`); got != 1 {
+		t.Errorf("the added turn's line takes %d preview lines, want the one line it wrote", got)
+	}
+
+	// Y5: the mission's line follows the typing, and the cursor stays in the
+	// field (B7, Y5).
+	const mission = "E2E がプレビューで打った使命"
+	field := `document.querySelector(` + strconv.Quote(`.tdef[data-name="core"] .in-mission`) + `)`
+	e2eRun(t, ctx, chromedp.Focus(`.tdef[data-name="core"] .in-mission`))
+	e2eTeamsWait(t, ctx, `(document.activeElement===`+field+`)+''==='true'`)
+	e2eSet(t, ctx, field, mission)
+	e2eTeamsWait(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .tprev .yl`)+`)].some(function(l){return l.textContent.indexOf(`+strconv.Quote(mission)+`)>=0})`)
+	if got := e2eTeamsValue(t, ctx, `(document.activeElement===`+field+`)+''`); got != "true" {
+		t.Errorf("typing the mission moved the cursor out of the field")
+	}
+	if got := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .tprev .yl.ins`)+`)].some(function(l){return l.textContent.indexOf(`+strconv.Quote(mission)+`)>=0})+''`); got != "true" {
+		t.Errorf("the mission's typed line does not stand in the preview as an added line")
+	}
+	e2eTeamsClick(t, ctx, panel+`.querySelector('footer.pf [data-act=t-revert]')`)
+	e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.tprev .yph .dirty')`)
+
+	// Y7: at 1100 or less the 編集 / YAML switch picks which column shows, the
+	// box goes to the last changed line, and pressing a line comes back to 編集
+	// with that point picked (B7).
+	e2eRun(t, ctx, chromedp.EmulateViewport(1100, 900))
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('[data-act=tmode][data-v=yaml]')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gn.member[data-id=impl-a]')`)
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard[data-sel=node]')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('[data-act=tmode][data-v=yaml]')`)
+	e2eTeamsWait(t, ctx, panel+`.closest('.panel').dataset.mode==='yaml'`)
+	if got := e2eTeamsValue(t, ctx, `getComputedStyle(`+panel+`.querySelector('.pedit')).display`); got != "none" {
+		t.Errorf("1100: the YAML switch left the figure showing")
+	}
+	e2eTeamsWait(t, ctx, panel+`.querySelector('.tprev .yl.cur')!==null`)
+	e2eTeamsClick(t, ctx, line(`[data-node=reviewer]`))
+	e2eTeamsWait(t, ctx, panel+`.closest('.panel').dataset.mode==='edit'`)
+	if got := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard[data-sel=node]').dataset.id`); got != "reviewer" {
+		t.Errorf("pressing the reviewer line in the YAML column picked %q", got)
+	}
+	e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .x')`)
+	e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.gcard')`)
+	e2eTeamsClick(t, ctx, panel+`.querySelector('footer.pf [data-act=t-revert]')`)
+	e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.tprev .yph .dirty')`)
+
+	// Y8: at 1440 every point's card leaves every point uncovered, or stands
+	// below the figure (B8).
+	e2eRun(t, ctx, chromedp.EmulateViewport(1440, 1000))
+	e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gwrap svg')`)
+	cover := `(function(){var p=` + panel + `,c=p.querySelector('.gcard');if(!c)return -1;var cr=c.getBoundingClientRect(),n=0;p.querySelectorAll('.gn .box').forEach(function(b){var r=b.getBoundingClientRect();if(Math.min(cr.right,r.right)-Math.max(cr.left,r.left)>0&&Math.min(cr.bottom,r.bottom)-Math.max(cr.top,r.top)>0)n++;});return n;})()`
+	points := e2eTeamsValue(t, ctx, `[...document.querySelectorAll(`+strconv.Quote(`.tdef[data-name="core"] .panel.team-p .gn`)+`)].map(function(g){return g.classList.contains('worker')?'w'+g.dataset.i:'n'+g.dataset.id}).join(' ')`)
+	for _, p := range strings.Fields(points) {
+		pick := panel + `.querySelector('.gn[data-id="` + p[1:] + `"]')`
+		if p[0] == 'w' {
+			pick = panel + `.querySelector('.gn.worker[data-i="` + p[1:] + `"]')`
+		}
+		e2eTeamsClick(t, ctx, pick)
+		e2eTeamsWait(t, ctx, `!!`+panel+`.querySelector('.gcard')`)
+		if got := e2eTeamsInt(t, ctx, cover); got != 0 {
+			if below := e2eTeamsValue(t, ctx, panel+`.querySelector('.gcard').classList.contains('below')+''`); below != "true" {
+				t.Errorf("1440: the card of %s covers %d points and does not stand below the figure", p, got)
+			}
+		}
+		e2eTeamsClick(t, ctx, panel+`.querySelector('.gcard .x')`)
+		e2eTeamsWait(t, ctx, `!`+panel+`.querySelector('.gcard')`)
 	}
 }

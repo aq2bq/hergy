@@ -268,8 +268,9 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 
 // Delete is DELETE /api/profile/{name}?place=&hash=: take one profile out of one
 // file. Its answer is the list as it now reads.
-func (k apiProfile) Delete(name, place, hash string) (any, *apiErr) {
+func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
+	place, hash := in.Place, in.Hash
 	path, display, ok := s.p2ProfilePath(place)
 	if !ok {
 		return nil, refuse(http.StatusBadRequest, "unknown file")

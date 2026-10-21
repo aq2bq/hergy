@@ -34,6 +34,13 @@ type apiIn struct {
 	RenameUsers bool            `json:"rename_users"`
 	Changes     json.RawMessage `json:"changes"`
 	Base        *apiBase        `json:"base"`
+	// New says the name is one that is not there yet: the starter team's own
+	// files are the text its draft stands on (spec-teams B2, C8).
+	New bool `json:"new"`
+	// AgreementHash is the second file's hash, for a kind whose one name is a
+	// folder of two documents: it rides a DELETE in the query beside Hash
+	// (spec-teams B6).
+	AgreementHash string `json:"agreement_hash"`
 }
 
 // apiBase is the file a duplicate or a copy stands on (spec-roles 1.2.9).
@@ -141,6 +148,10 @@ type apiCheck struct {
 	Preview  any          `json:"preview,omitempty"`
 	Effect   any          `json:"effect,omitempty"`
 	Readers  any          `json:"readers,omitempty"`
+	// Writes is what a save of this draft would write, for a kind whose one
+	// name is a folder rather than one file (spec-teams B2). A kind that writes
+	// one file leaves it out.
+	Writes []string `json:"writes,omitempty"`
 }
 
 // apiSaved is the answer of PUT /api/{kind}/{name}: the one document as GET
@@ -173,8 +184,9 @@ type apiKind interface {
 	// Save is PUT /api/{kind}/{name}: write one document and answer with it and
 	// the list as it now reads.
 	Save(name string, in apiIn) (any, *apiErr)
-	// Delete is DELETE /api/{kind}/{name}?place=&hash=: take one document away.
-	Delete(name, place, hash string) (any, *apiErr)
+	// Delete is DELETE /api/{kind}/{name}?place=&hash=&agreement_hash=: take
+	// one document away.
+	Delete(name string, in apiIn) (any, *apiErr)
 }
 
 // apiKindOf is the kind a path names, if a screen has one for it.
@@ -261,7 +273,11 @@ func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
 	if !s.apiGuard(w, r) {
 		return
 	}
-	value, refusal := kind.Delete(r.PathValue("name"), r.URL.Query().Get("place"), r.URL.Query().Get("hash"))
+	value, refusal := kind.Delete(r.PathValue("name"), apiIn{
+		Place:         r.URL.Query().Get("place"),
+		Hash:          r.URL.Query().Get("hash"),
+		AgreementHash: r.URL.Query().Get("agreement_hash"),
+	})
 	apiAnswer(w, value, refusal)
 }
 

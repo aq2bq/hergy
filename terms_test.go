@@ -152,13 +152,13 @@ var glossary = []term{
 	{
 		id:       "team-agreement",
 		english:  "team agreement",
-		japanese: "チームの約束",
+		japanese: "チームのルール",
 		meaning:  "the rules a team definition gives every member of that team, written in the definition's own folder",
 	},
 	{
 		id:       "shared-agreement",
 		english:  "shared agreement",
-		japanese: "共通の約束",
+		japanese: "共通のルール",
 		meaning:  "the rules every team definition of a layer gives its members, kept in one place for that layer",
 	},
 	{
@@ -315,6 +315,9 @@ var bannedWords = []ban{
 	{lang: "ja", word: "台帳"},
 	{lang: "ja", word: "つながり"},
 	{lang: "ja", word: "棚卸し"},
+	// 約束 was the old Japanese name for a team's or a layer's rules; the
+	// rules themselves are 規則, and the place they are gathered is ルール.
+	{lang: "ja", word: "約束", instead: "ルール"},
 	{lang: "ja", word: "版", instead: "バージョン"},
 	// role file was the old English name for a role document (段 7, spec/28 H3).
 	{lang: "en", word: "role file", instead: "role document"},
