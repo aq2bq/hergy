@@ -1,6 +1,6 @@
 version: 1
 title: hergy-dev チームの約束
-revision: 5
+revision: 6
 sections:
   - heading: 進め方
     rules:
@@ -105,6 +105,14 @@ sections:
             date: "2026-10-21"
             refs: [n-69cc, d-af28]
             note: 振り返り retro-e2e.md。監査の差し戻し 22 件のほぼ全部が『E2E の見落とし』だった
+      - id: T12
+        text: hergy-dev は自分の開発を hergy で起こしたチームで行い、hergy を使っていて当たったこと（文書や出力の言うとおりに動かない、手数が多い、読み違えた、使いたい道具が無い）は、当たった者がその場で台帳に need を立てる。題は「hergy を使っていて：<何が>」、本文に打ったコマンドと出力、hergy の版、自分の作業をどう回避したか。ワーカーは台帳に書かず、lead への報告の最後に 1 行で書き、lead が立てる。lead は要求を 1 つ done にするたびにそれらの need を見て、次に取りかかる順に入れる（放っておかない）。
+        why: hergy の使いにくさは、使っている者にしか見えない。見えたその場で台帳に残さないと、次の要求の順に乗らない。
+        origin:
+          - kind: instruction
+            date: "2026-10-21"
+            refs: [d-abd3]
+            note: PO「今やっている開発が終わったらドッグフーディングのためにもhergyの開発をhergyでやりましょう」「hergy-devチームのルールにhergyのチーム定義でフィードバックループが働くようにしておく必要があります」
   - heading: このプロジェクトの事情
     rules:
       - id: T11
