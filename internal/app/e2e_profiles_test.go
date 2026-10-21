@@ -60,7 +60,7 @@ func TestE2EProfiles(t *testing.T) {
 	t.Run("PROFILES-P11 usage jumps", func(t *testing.T) { e2eProfilesUsage(t, ctx, base) })
 	t.Run("PROFILES-T3 yaml", func(t *testing.T) { e2eProfilesYAML(t, ctx, base, f) })
 	t.Run("PROFILES-W1 widths and lights", func(t *testing.T) { e2eProfilesWidths(t, ctx, base) })
-	t.Run("delete a used profile", func(t *testing.T) { e2eProfilesDeleteUsed(t, ctx, base) })
+	t.Run("PROFILES-F1 delete a used profile", func(t *testing.T) { e2eProfilesDeleteUsed(t, ctx, base) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the profile screen logged %d console errors: %v", len(lines), lines)

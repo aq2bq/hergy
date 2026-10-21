@@ -191,7 +191,7 @@ func TestACTIVITY_V2_TheListNeverReadsTheLedger(t *testing.T) {
 func activityTestCode(script string) string {
 	code := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(script, "")
 	var out []string
-	for _, line := range strings.Split(code, "\n") {
+	for line := range strings.SplitSeq(code, "\n") {
 		if at := strings.Index(line, "//"); at >= 0 {
 			line = line[:at]
 		}
