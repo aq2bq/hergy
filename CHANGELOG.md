@@ -162,6 +162,9 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
 
 ### Fixed
 
+- **Built with Go 1.26.10**: the toolchain moves from go1.26.9 to go1.26.10,
+  which fixes GO-2026-6809 in `crypto/x509` (reachable from `hergy serve`).
+
 - **A screen's problem sentence writes a path the way a person reads it**: a file
   inside the project reads `.hergy/profiles.yaml`, a file of the layer every team
   shares reads under the home directory (`~/.config/hergy/…`), and the machine's
