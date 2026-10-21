@@ -205,74 +205,91 @@ func TestProfilesTabsAreRealPages(t *testing.T) {
 	}
 }
 
-// TestProfileSaveChangesOnlyWhatWasEdited: a save writes the kind and the args
-// that changed, and every other line — the comment, the order, the shared
-// profile's lines — stays as it was.
-func TestProfileSaveChangesOnlyWhatWasEdited(t *testing.T) {
-	f := newFixture(t)
-	hand := "version: 1\n# 手で書いたファイル\n\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n  planner:\n    kind: codex\n"
-	f.write(t, "profiles.yaml", hand)
+// TestPROFILES_P7_TheSaveChangesTheTwoLinesAlone: a save of sonnet-fast with one
+// argument and one env value changed grows the real fixture's profiles.yaml by
+// exactly those two lines and leaves every other line word for word
+// (spec-profiles 2.2).
+func TestPROFILES_P7_TheSaveChangesTheTwoLinesAlone(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
 	server := f.server(t)
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+	before := readFile(t, path)
 
-	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/profile/coder", map[string]any{
-		"place": "project", "original": "coder", "hash": source.Hash(hand),
-		"doc": map[string]any{"name": "coder", "kind": "gemini", "args": []string{"--x", "--y"}, "env": []map[string]string{{"key": "A", "value": "one"}}},
+	resp, body := f.api(t, server, http.MethodPut, "/api/profile/sonnet-fast", map[string]any{
+		"place": p2Project, "original": "sonnet-fast", "hash": source.Hash(before),
+		"doc": map[string]any{"name": "sonnet-fast", "kind": "claude",
+			"args": []string{"--model", "claude-sonnet-5-5", "--effort", "high"},
+			"env":  []map[string]string{{"key": "MAX_THINKING_TOKENS", "value": "16000"}}},
 	})
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the save answered %d: %v", resp.StatusCode, decoded)
+		t.Fatalf("the save answered %d: %s", resp.StatusCode, body)
 	}
-	items, _ := decoded["items"].([]any)
-	found := false
-	for _, one := range items {
-		item, _ := one.(map[string]any)
-		if item["name"] != "coder" {
-			continue
+	after := readFile(t, path)
+	changed := pv2ChangedLines(t, before, after)
+	if len(changed) != 2 {
+		t.Fatalf("the save changed the lines %v, want the args line and the env line alone", changed)
+	}
+	for _, n := range changed {
+		was, now := pv2LineAt(t, before, n), pv2LineAt(t, after, n)
+		switch {
+		case strings.Contains(was, "args:") && strings.Contains(now, "claude-sonnet-5-5") && strings.Contains(now, "--effort"):
+			// the args line, with the one argument added.
+		case strings.Contains(was, "MAX_THINKING_TOKENS") && strings.Contains(now, "16000"):
+			// the env line, with the value changed.
+		default:
+			t.Errorf("line %d changed from %q to %q, which is neither the args nor the env line", n, was, now)
 		}
-		if places, ok := item["places"].(map[string]any); ok {
-			if place, ok := places["project"].(map[string]any); ok && place["savedLine"] == true {
-				found = true
-			}
-		}
-	}
-	if !found {
-		t.Errorf("the answer does not carry the written place with its saved line: %v", decoded)
-	}
-	got := readFile(t, path)
-	for _, want := range []string{"# 手で書いたファイル", "  coder:\n", "    kind: gemini\n", "  planner:\n    kind: codex\n", "A: one"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("the file does not hold %q:\n%s", want, got)
-		}
-	}
-	if !strings.Contains(got, `args: [--x, --y]`) {
-		t.Errorf("the args were not written as a flow sequence:\n%s", got)
 	}
 }
 
-// TestProfileRenameWritesThePeopleToo: a rename with the box ticked writes the
-// new name into the members that used it, and leaves every other line of
-// team.yaml alone.
-func TestProfileRenameWritesThePeopleToo(t *testing.T) {
-	f := newFixture(t)
+// TestPROFILES_P4_TheRenameChangesTheNameAndThePeopleAlone: renaming the used
+// fable-review to fable-review-2, with the box ticked, changes the name's line
+// in the project's profiles.yaml and the one `profile:` line of the definition
+// that named it, and nothing else — the other three team.yaml files come back
+// byte for byte (spec-profiles 2.2).
+func TestPROFILES_P4_TheRenameChangesTheNameAndThePeopleAlone(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
 	server := f.server(t)
 	profilesPath := filepath.Join(f.proj, ".hergy", "profiles.yaml")
-	teamPath := f.teamYAML()
-	profilesBefore := readFile(t, profilesPath)
-	teamBefore := readFile(t, teamPath)
+	before := readFile(t, profilesPath)
+	teamsDir := filepath.Join(f.proj, ".hergy", "teams")
+	corePath := filepath.Join(teamsDir, "core", "team.yaml")
+	coreBefore := readFile(t, corePath)
+	untouched := map[string]string{}
+	for _, name := range []string{"docs", "migrate", "research"} {
+		path := filepath.Join(teamsDir, name, "team.yaml")
+		untouched[path] = readFile(t, path)
+	}
 
-	resp, body := f.api(t, server, http.MethodPut, "/api/profile/coder", map[string]any{
-		"place": "project", "original": "coder", "rename_users": true, "hash": source.Hash(profilesBefore),
-		"doc": map[string]any{"name": "coder-2", "kind": "claude", "args": []string{"--x"}, "env": []map[string]string{{"key": "A", "value": "one"}}},
+	resp, body := f.api(t, server, http.MethodPut, "/api/profile/fable-review", map[string]any{
+		"place": p2Project, "original": "fable-review", "rename_users": true, "hash": source.Hash(before),
+		"doc": map[string]any{"name": "fable-review-2", "kind": "claude",
+			"args": []string{"--model", "claude-fable-5-1", "--effort", "high"}, "env": []map[string]string{}},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the rename answered %d: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, profilesPath); got != strings.Replace(profilesBefore, "  coder:", "  coder-2:", 1) {
-		t.Errorf("the rename changed more than the key:\n%s", got)
+
+	changed := pv2ChangedLines(t, before, readFile(t, profilesPath))
+	if len(changed) != 1 || !strings.Contains(pv2LineAt(t, before, changed[0]), "fable-review:") {
+		t.Errorf("the name's file changed the lines %v, want the fable-review line alone", changed)
 	}
-	want := strings.ReplaceAll(teamBefore, "profile: coder", "profile: coder-2")
-	if got := readFile(t, teamPath); got != want {
-		t.Errorf("the people were not written:\n%s", got)
+
+	coreChanged := pv2ChangedLines(t, coreBefore, readFile(t, corePath))
+	if len(coreChanged) != 1 {
+		t.Fatalf("the definition that named it changed the lines %v, want its profile line alone", coreChanged)
+	}
+	was, now := pv2LineAt(t, coreBefore, coreChanged[0]), pv2LineAt(t, readFile(t, corePath), coreChanged[0])
+	if was != "    profile: fable-review" || now != "    profile: fable-review-2" {
+		t.Errorf("the definition's line changed from %q to %q, want the profile renamed", was, now)
+	}
+
+	for path, want := range untouched {
+		if got := readFile(t, path); got != want {
+			t.Errorf("the rename wrote the definition %s:\n%s", path, got)
+		}
 	}
 }
 
@@ -299,9 +316,9 @@ func TestProfileSaveRefusesAChangedFile(t *testing.T) {
 	}
 }
 
-// TestProfileCheckSaysValidatesSentences: the checks a field sends while it is
+// TestPROFILES_V5_ProfileCheckSaysValidatesSentences: the checks a field sends while it is
 // being typed are the sentences validate prints, not a screen's own.
-func TestProfileCheckSaysValidatesSentences(t *testing.T) {
+func TestPROFILES_V5_ProfileCheckSaysValidatesSentences(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	cases := []struct {
@@ -339,94 +356,153 @@ func TestProfileCheckSaysValidatesSentences(t *testing.T) {
 	}
 }
 
-// TestProfileInUseIsDeletedAfterConfirm: a profile a team names goes once the
-// person has seen the count (J1), and the assign tab then shows the people it
-// left naming nothing.
-func TestProfileInUseIsDeletedAfterConfirm(t *testing.T) {
-	f := newFixture(t)
-	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n  planner:\n    kind: codex\n")
+// TestPROFILES_F1_TheUsedProfileGoesAndTheAssignShowsTheLoss: deleting the used
+// fable-review from the project's profiles.yaml takes that profile's block alone,
+// and the 割り当て tab then puts the missing-profile sentence on core's reviewer
+// and counts core one problem (spec-profiles 2.2).
+func TestPROFILES_F1_TheUsedProfileGoesAndTheAssignShowsTheLoss(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
 	server := f.server(t)
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	before := readFile(t, path)
 
-	resp, body := f.api(t, server, http.MethodDelete, "/api/profile/coder?place=project&hash="+source.Hash(before), nil)
+	resp, body := f.api(t, server, http.MethodDelete, "/api/profile/fable-review?place="+p2Project+"&hash="+source.Hash(before), nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("deleting a used profile answered %d: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, path); got != "version: 1\nprofiles:\n  planner:\n    kind: codex\n" {
-		t.Errorf("the delete took more than the profile:\n%q", got)
-	}
-	assign := f.islandOf(t, server, "/profiles/assign")
-	if len(assign.Assign.Teams) != 1 {
-		t.Fatalf("the assign tab carries %d teams, want 1", len(assign.Assign.Teams))
-	}
-	team := assign.Assign.Teams[0]
-	if team.Err != 4 {
-		t.Errorf("the card counts %d people the delete left, want 4", team.Err)
-	}
-	missing := false
-	for _, row := range team.Rows {
-		if strings.Contains(row.Error, "members[0].profile: coder というプロファイルはありません") {
-			missing = true
+	removed := pv2RemovedBlock(t, before, readFile(t, path))
+	for _, want := range []string{"fable-review:", "kind: claude", "claude-fable-5-1"} {
+		if !strings.Contains(removed, want) {
+			t.Errorf("the delete took away %q, which is not the profile's own block:\n%s", removed, want)
 		}
 	}
-	if !missing {
-		t.Errorf("the assign tab does not show the people left without a profile: %+v", team.Rows)
+
+	assign := f.islandOf(t, server, "/profiles/assign")
+	core := -1
+	for i := range assign.Assign.Teams {
+		if assign.Assign.Teams[i].Name == "core" {
+			core = i
+		}
+	}
+	if core < 0 {
+		t.Fatalf("the assign tab carries no core card: %+v", assign.Assign.Teams)
+	}
+	if got := assign.Assign.Teams[core].Err; got != 1 {
+		t.Errorf("core counts %d problems, want the one the delete left", got)
+	}
+	want := "members[4].profile: fable-review というプロファイルはありません"
+	found := false
+	for _, row := range assign.Assign.Teams[core].Rows {
+		if row.ID == "m-4" && row.Error == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("core does not tell the reviewer %q: %+v", want, assign.Assign.Teams[core].Rows)
 	}
 }
 
-// TestYAMLSaveWritesTheTypedText: the YAML tab writes the text as typed, and
-// refuses a text with a problem.
-func TestYAMLSaveWritesTheTypedText(t *testing.T) {
-	f := newFixture(t)
+// TestPROFILES_V4_TheYAMLSaveWritesTheTypedTextAndRefusesABrokenOne: the YAML
+// tab's save writes the text exactly as typed, and a text with a problem is
+// refused with that problem and its line, writing nothing (spec-profiles 2.2,
+// spec-boundary 5).
+func TestPROFILES_V4_TheYAMLSaveWritesTheTypedTextAndRefusesABrokenOne(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
 	server := f.server(t)
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
 	before := readFile(t, path)
-	text := "version: 1\nprofiles:\n  coder:\n    kind: opencode\n  planner:\n    kind: codex\n"
-	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/profile/project", map[string]any{
-		"place": "project", "text": text, "hash": source.Hash(before),
+	text := before + "  added-typed:\n    kind: opencode\n"
+
+	resp, body := f.api(t, server, http.MethodPut, "/api/profile/project", map[string]any{
+		"place": p2Project, "text": text, "hash": source.Hash(before),
 	})
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the YAML save answered %d: %v", resp.StatusCode, decoded)
-	}
-	if decoded["hash"] != source.Hash(text) {
-		t.Errorf("the YAML save answers hash %v, want the written text's", decoded["hash"])
+		t.Fatalf("the YAML save answered %d: %s", resp.StatusCode, body)
 	}
 	if got := readFile(t, path); got != text {
 		t.Errorf("the YAML save wrote %q, want the typed text", got)
 	}
 
-	resp, decoded = f.apiJSON(t, server, http.MethodPut, "/api/profile/project", map[string]any{
-		"place": "project", "text": "version: 1\nprofiles:\n  bad:\n    kind: \"\"\n", "hash": source.Hash(text),
+	// A text with a problem: the check names the problem and the line it stands
+	// on, and a save of the same text is refused and writes nothing.
+	broken := "version: 1\nprofiles:\n  bad:\n    kind: \"\"\n"
+	check := pv2CheckBody(t, f, server, map[string]any{"place": p2Project, "text": broken})
+	told := false
+	for _, problem := range check.Problems {
+		if problem.Line == 4 && strings.Contains(problem.Text, "profiles.bad.kind") {
+			told = true
+		}
+	}
+	if !told {
+		t.Errorf("the check does not name the broken kind and its line 4: %+v", check.Problems)
+	}
+
+	resp, body = f.api(t, server, http.MethodPut, "/api/profile/project", map[string]any{
+		"place": p2Project, "text": broken, "hash": source.Hash(text),
 	})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("a broken text answered %d, want 422", resp.StatusCode)
+		t.Fatalf("a broken text answered %d, want 422: %s", resp.StatusCode, body)
 	}
-	if decoded["text"] == "" {
-		t.Errorf("the refusal has no sentence")
+	if got := readFile(t, path); got != text {
+		t.Errorf("a refused save wrote the file:\n%s", got)
 	}
 }
 
-// TestAssignSaveWritesOneProfileLine: one pick writes that member's profile and
-// leaves every other line of team.yaml as it was.
-func TestAssignSaveWritesOneProfileLine(t *testing.T) {
-	f := newFixture(t)
+// TestPROFILES_P12_TheAssignSaveChangesOneLineAndTheDocsProblem: the 割り当て
+// save that changes migrate's impl changes that `profile:` line alone in
+// migrate's team.yaml; docs, whose 翻訳 names the missing gemini-flash, is not
+// refused by that problem it already had, but is refused when a save would add a
+// problem, writing nothing (spec-profiles 2.2).
+func TestPROFILES_P12_TheAssignSaveChangesOneLineAndTheDocsProblem(t *testing.T) {
+	f, stop := fixtureProject(t)
+	defer stop()
 	server := f.server(t)
-	path := f.teamYAML()
-	before := readFile(t, path)
-	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/team/demo", map[string]any{
-		"place": "project", "part": "team", "hash": source.Hash(before),
-		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberProfile", "member": "builder", "profile": "planner"}}},
+	migratePath := filepath.Join(f.proj, ".hergy", "teams", "migrate", "team.yaml")
+	before := readFile(t, migratePath)
+
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/migrate", map[string]any{
+		"place": p2Project, "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberProfile", "member": "impl", "profile": "opus-plan"}}},
 	})
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the assign save answered %d: %v", resp.StatusCode, decoded)
+		t.Fatalf("the assign save answered %d: %s", resp.StatusCode, body)
 	}
-	if decoded["hash"] != source.Hash(readFile(t, path)) {
-		t.Errorf("the card's answer does not carry the written file's hash")
+	changed := pv2ChangedLines(t, before, readFile(t, migratePath))
+	if len(changed) != 1 {
+		t.Fatalf("the assign save changed the lines %v, want the impl's profile line alone", changed)
 	}
-	want := strings.Replace(before, "  - name: builder\n    role: builder\n    profile: coder", "  - name: builder\n    role: builder\n    profile: planner", 1)
-	if got := readFile(t, path); got != want {
-		t.Errorf("the assign save changed more than the one line:\n%s", got)
+	was, now := pv2LineAt(t, before, changed[0]), pv2LineAt(t, readFile(t, migratePath), changed[0])
+	if was != "    profile: codex-high" || now != "    profile: opus-plan" {
+		t.Errorf("the impl's line changed from %q to %q, want the profile changed", was, now)
+	}
+
+	// docs: the problem it already had does not stop a save that adds none.
+	docsPath := filepath.Join(f.proj, ".hergy", "teams", "docs", "team.yaml")
+	docsBefore := readFile(t, docsPath)
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/docs", map[string]any{
+		"place": p2Project, "part": "team", "hash": source.Hash(docsBefore),
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberProfile", "member": "writer", "profile": "codex-high"}}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("a docs save that adds no problem was answered %d, want the existing 翻訳 problem to pass: %s", resp.StatusCode, body)
+	}
+	docsAfter := readFile(t, docsPath)
+	if !strings.Contains(docsAfter, "    profile: codex-high\n") {
+		t.Errorf("the docs save did not write the writer's profile:\n%s", docsAfter)
+	}
+
+	// docs: a save that would add a problem is refused, writing nothing.
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/docs", map[string]any{
+		"place": p2Project, "part": "team", "hash": source.Hash(docsAfter),
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "memberProfile", "member": "checker", "profile": "nosuch-profile"}}},
+	})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("a docs save that adds a problem answered %d, want 422: %s", resp.StatusCode, body)
+	}
+	if got := readFile(t, docsPath); got != docsAfter {
+		t.Errorf("a refused save wrote the file:\n%s", got)
 	}
 }
 

@@ -5,7 +5,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,26 +19,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
-)
-
-// The activity run is read at its own clock, not the machine's (r-f647). The
-// screens write the date before a moment that is not today's (activity.Clock),
-// and the fixture's times are counted back from now (@T-<分>@), so a run that
-// leans on the wall clock wants "22:50 より前" around midnight where the screen,
-// rightly, writes "10/20 22:50 より前": the clock the run happens to sit at is
-// not the screen's business.
-//
-// The moment is a half hour past midnight, and the zone the run reads its clocks
-// in is its own too, so the older of the fixture's times fall on the day before
-// and the run walks both いつから — the clock alone and the clock with its date —
-// wherever and whenever it is run. The seconds go on passing from that moment,
-// since the screens' own five-second memory of herdr and the length a row has
-// waited both read them.
-var (
-	// e2eActivityZone is the zone the run reads its clocks in.
-	e2eActivityZone = time.FixedZone("JST", 9*60*60)
-	// e2eActivityNow is the moment the run's clock stands at when it begins.
-	e2eActivityNow = time.Date(2026, 10, 21, 0, 30, 0, 0, e2eActivityZone)
 )
 
 // TestE2EActivity walks the activity screen over the real-scale fixture the mock
@@ -78,7 +57,7 @@ func TestE2EActivity(t *testing.T) {
 	initLocales(t)
 
 	f := newFixture(t)
-	at := copyActivityFixture(t, f, cwd)
+	copyActivityFixture(t, f, cwd)
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
@@ -92,114 +71,14 @@ func TestE2EActivity(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("the band and the tab", func(t *testing.T) { e2eActivityBand(t, ctx, base) })
-	t.Run("the rows", func(t *testing.T) { e2eActivityRows(t, ctx, base, at) })
-	t.Run("the team that waits for the human", func(t *testing.T) {
-		e2eActivityCore(t, ctx, base, at, f)
-	})
-	t.Run("the team that waits for a permission", func(t *testing.T) {
-		e2eActivityMigrate(t, ctx, base, at)
-	})
-	t.Run("the presses", func(t *testing.T) { e2eActivityPresses(t, ctx, base) })
-	t.Run("more questions than the section shows", func(t *testing.T) {
-		e2eActivityMore(t, ctx, base, f)
-	})
-	t.Run("no herdr", func(t *testing.T) { e2eActivityNoHerdr(t, ctx, base, f) })
-	t.Run("no gy", func(t *testing.T) { e2eActivityNoGy(t, ctx, base, f) })
-	t.Run("a gy that fails", func(t *testing.T) { e2eActivityGyFails(t, ctx, base, f) })
-	t.Run("the api", func(t *testing.T) { e2eActivityAPI(t, cwd) })
-	t.Run("reading again", func(t *testing.T) { e2eActivityAgain(t, ctx, base, f) })
-	t.Run("the widths and the lights", func(t *testing.T) { e2eActivityWidths(t, ctx, base) })
-	t.Run("no team running", func(t *testing.T) { e2eActivityNoTeams(t, ctx, base, f) })
+	// The 大 item: reading again while the fixture changes under the page
+	// (ACTIVITY-P4). Every other item is held by a non-browser test at its own
+	// size.
+	t.Run("ACTIVITY-P4 reading again", func(t *testing.T) { e2eActivityAgain(t, ctx, base, f) })
 
 	if lines := console.Lines(); len(lines) != 0 {
 		t.Errorf("the screens wrote to the console: %v", lines)
 	}
-}
-
-// copyActivityFixture lays the activity screen's real-scale fixture under one
-// fixture: bin/, herdr/ and gy/ under the config directory hergy reads the fake
-// binaries from, project/ over the project (on top of the team definitions the
-// teams screen's fixture holds), and state/ under the state directory. It
-// returns the moment the fixture's own places are counted from, so a test can
-// say what the lengths should read: @T-<minutes>@ is that many minutes before
-// it (it is what the design's fixture writes). That moment is the run's own
-// clock, e2eActivityNow, and not the wall clock the run happens to sit at
-// (r-f647).
-//
-// The teams the fixture shows were booted from the definitions of the teams
-// screen's own fixture, so both of its layers are laid out: the project's
-// .hergy, which holds the definitions and their roles, and the machine's
-// hergy, which holds the profiles the leads read — without it the definitions
-// do not build, and the rows would show the sentence hergy status writes for
-// one that does not.
-func copyActivityFixture(t *testing.T, f *fixture, cwd string) time.Time {
-	t.Helper()
-	at := e2eActivityNow
-	src := filepath.Join(cwd, "..", "..", "testdata")
-	copyDir(t, filepath.Join(src, "teams-v2", "project", ".hergy"), filepath.Join(f.proj, ".hergy"))
-	copyDir(t, filepath.Join(src, "teams-v2", "config", "hergy"), filepath.Join(f.cfg, "hergy"))
-	work := filepath.Join(f.cfg, "activity")
-	for _, part := range []string{"bin", "herdr", "gy"} {
-		copyActivityPlaces(t, filepath.Join(src, "activity", part), filepath.Join(work, part), at, f.proj)
-	}
-	copyActivityPlaces(t, filepath.Join(src, "activity", "project"), f.proj, at, f.proj)
-	copyActivityPlaces(t, filepath.Join(src, "activity", "state"), f.state, at, f.proj)
-	// The screen reads this project's language the way every command does.
-	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	t.Setenv("HERGY_HERDR", filepath.Join(work, "bin", "herdr"))
-	t.Setenv("HERGY_GY", filepath.Join(work, "bin", "gy"))
-	return at
-}
-
-// activityPlace is one place the fixture leaves in its files: @T-<minutes>@, a
-// moment that many minutes before the fixture was laid out.
-var activityPlace = regexp.MustCompile(`@T-([0-9]+)@`)
-
-// copyActivityPlaces copies one directory tree, filling in the places the
-// fixture leaves (@T-<minutes>@ and @PROJECT@) and keeping every file's own
-// permission bits, because the fake herdr and gy are scripts that must stay
-// runnable. A name ending in .tmpl is written without it: the fixture marks the
-// files whose places are filled in, and hergy's own state files carry no such
-// suffix.
-func copyActivityPlaces(t *testing.T, from, to string, at time.Time, project string) {
-	t.Helper()
-	err := filepath.Walk(from, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(from, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(to, strings.TrimSuffix(rel, ".tmpl"))
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, activityPlaces(raw, at, project), info.Mode().Perm())
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-// activityPlaces fills in one file's places: @PROJECT@ is the project the teams
-// were launched from, and @T-<minutes>@ is that many minutes before now, as
-// RFC 3339 — the shape hergy's own state files write.
-func activityPlaces(raw []byte, at time.Time, project string) []byte {
-	text := strings.ReplaceAll(string(raw), "@PROJECT@", project)
-	text = activityPlace.ReplaceAllStringFunc(text, func(place string) string {
-		minutes, err := strconv.Atoi(strings.Trim(place, "@T-"))
-		if err != nil {
-			return place
-		}
-		return at.Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339)
-	})
-	return []byte(text)
 }
 
 // ---- reading the screen ----------------------------------------------------------------
@@ -1202,14 +1081,6 @@ func readJSONFile(t *testing.T, path string, into any) {
 	}
 }
 
-// readJSONText reads one answer of the serve into one value.
-func readJSONText(t *testing.T, what, text string, into any) {
-	t.Helper()
-	if err := json.Unmarshal([]byte(text), into); err != nil {
-		t.Fatalf("%s is not JSON: %v: %s", what, err, text)
-	}
-}
-
 // writeActivityJSON writes one value as the fixture's files are written.
 func writeActivityJSON(t *testing.T, path string, value any) {
 	t.Helper()
@@ -1220,101 +1091,6 @@ func writeActivityJSON(t *testing.T, path string, value any) {
 	writeFile(t, path, string(raw))
 }
 
-// The two answers the screen is built from, as the boundary's shape (3 章): the
-// parts a walk reads, and no more.
-type activityListItem struct {
-	Name    string `json:"name"`
-	Summary struct {
-		Definition string         `json:"definition"`
-		State      string         `json:"state"`
-		Last       string         `json:"last"`
-		Since      *activitySince `json:"since"`
-	} `json:"summary"`
-	Error string `json:"error"`
-}
-
-// activitySince is a length and the moment it began, in the server's words (A4).
-type activitySince struct {
-	Len string `json:"len"`
-	At  string `json:"at"`
-}
-
-// activityListAnswer is GET /api/activity's answer.
-type activityListAnswer struct {
-	Items   []activityListItem `json:"items"`
-	Running int                `json:"running"`
-	Waiting int                `json:"waiting"`
-	Herdr   struct {
-		OK   bool   `json:"ok"`
-		Text string `json:"text"`
-	} `json:"herdr"`
-}
-
-// activityQuestionAnswer is one open question as the opened part carries it.
-type activityQuestionAnswer struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Ago     string   `json:"ago"`
-	Options []string `json:"options"`
-}
-
-// activityDocAnswer is GET /api/activity/{team}'s answer.
-type activityDocAnswer struct {
-	Doc struct {
-		Name      string                   `json:"name"`
-		Herdr     string                   `json:"herdr"`
-		Role      string                   `json:"role"`
-		Questions []activityQuestionAnswer `json:"questions"`
-		Tail      struct {
-			Lines []string `json:"lines"`
-			Shown int      `json:"shown"`
-		} `json:"tail"`
-		Gy struct {
-			OK bool `json:"ok"`
-		} `json:"gy"`
-	} `json:"doc"`
-}
-
-// activityItemNames is the list's teams in the order it answers them.
-func activityItemNames(items []activityListItem) string {
-	names := make([]string, 0, len(items))
-	for _, item := range items {
-		names = append(names, item.Name)
-	}
-	return strings.Join(names, ",")
-}
-
-// activityQuestionIDs is the opened part's questions in the order it answers them.
-func activityQuestionIDs(questions []activityQuestionAnswer) string {
-	ids := make([]string, 0, len(questions))
-	for _, question := range questions {
-		ids = append(ids, question.ID)
-	}
-	return strings.Join(ids, ",")
-}
-
-// activityWrite asks the serve for one write on the activity kind, which is a
-// screen someone reads (3 章).
-func activityWrite(t *testing.T, base, method, path string) (*http.Response, string) {
-	t.Helper()
-	req, err := http.NewRequest(method, base+path, strings.NewReader(`{}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("%s %s: %v", method, path, err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return resp, string(body)
-}
-
 // e2eActivityLight asks the page to read prefers-color-scheme as light, so each
 // of the four ways the screen can be lit is read on its own (D1).
 func e2eActivityLight(t *testing.T, ctx context.Context) {
@@ -1322,19 +1098,6 @@ func e2eActivityLight(t *testing.T, ctx context.Context) {
 	e2eCall(t, ctx, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{
 		Features: []*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: "light"}},
 	})
-}
-
-// activityCode is one script with its comments taken out: what the screen's own
-// code says, rather than what its notes say about it (V1).
-func activityCode(script string) string {
-	code := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(script, "")
-	lines := strings.Split(code, "\n")
-	for i, line := range lines {
-		if at := strings.Index(line, "//"); at >= 0 {
-			lines[i] = line[:at]
-		}
-	}
-	return strings.Join(lines, "\n")
 }
 
 // activityHardColours is the colours one sheet names of its own (D2): the sheet

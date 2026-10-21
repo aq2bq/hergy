@@ -90,6 +90,15 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   screen while this project has a team running, and to the team definitions
   when none is. `hergy cheat`, `hergy cheat --ai` and the `hergy` skill move
   with it.
+- **The lists of checks and the gate that holds them**: `go run ./tools/check`
+  gained a `checks` gate. Every screen carries its list, `checks/<画面>.md`, one
+  row to a check, with the ID the check is known by and the layer it is tested
+  at; the gate holds each item to a test of its own — an E2E item to a `t.Run`
+  standing directly under `TestE2E*` in `internal/app/e2e_*_test.go` whose name
+  starts with the ID, a 受け口 item to a test of `internal/web/*_test.go` whose
+  name holds the ID (a function name writes its `-` as `_`) — and fails while an
+  item has no test yet, naming every one of them, or while an e2e subtest
+  belongs to no item of the lists.
 
 ### Changed
 

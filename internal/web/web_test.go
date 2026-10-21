@@ -181,86 +181,86 @@ func hrefs(body string) []string {
 	}
 }
 
-// TestRootGoesToTheTeamDefinitionsWithNoTeamRunning: opening the server's own
-// address with nothing running lands on the team definitions, with a 302 — not a
-// 301, because / is the activity screen whenever a team of this project runs
-// (spec-nav.md 1.3, spec-activity 2.1).
-func TestRootGoesToTheTeamDefinitionsWithNoTeamRunning(t *testing.T) {
+// TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions: opening the server's own
+// address lands on /teams with nothing running and on /activity with a team of
+// this project running, each with a 302 — not a 301, because which of the two it
+// is changes as teams come and go (spec-nav.md 1.3, spec-activity 2.1, S6).
+func TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions(t *testing.T) {
+	// Nothing running: the team definitions.
 	f := newFixture(t)
-	server := f.server(t)
-	resp, body := f.get(t, server, "/")
+	resp, body := f.get(t, f.server(t), "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Location"); got != "/teams" {
-		t.Errorf("GET / goes to %q, want /teams", got)
+		t.Errorf("GET / with nothing running goes to %q, want /teams", got)
 	}
 	if strings.Contains(body, `class="screens"`) {
 		t.Errorf("the move carries a page:\n%s", body)
 	}
-}
 
-// TestRootGoesToTheActivityWhenATeamRuns: with a team of this project running,
-// / is the activity screen: what the human is being asked for is why they came
-// (spec-activity 2.1, S6).
-func TestRootGoesToTheActivityWhenATeamRuns(t *testing.T) {
-	f := newFixture(t)
+	// One team of this project running: the activity screen, because what the
+	// human is being asked for is why they came.
 	server, err := New(f.catalog(), fakeActivity{
 		list: ActivityList{Items: []ActivityItem{{Name: "demo"}}, Running: 1, Herdr: ActivityNote{OK: true}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, _ := f.get(t, server, "/")
+	resp, _ = f.get(t, server, "/")
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("GET / answers %d, want 302", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Location"); got != "/activity" {
-		t.Errorf("GET / goes to %q, want /activity", got)
+		t.Errorf("GET / with a team running goes to %q, want /activity", got)
 	}
 }
 
-// TestTheBandNamesTheFourScreensAndCountsThem: the band stands on every screen
-// with the four names, the numbers, one screen marked as where the person is and
-// the activity pressable (spec-nav.md 1.1, 1.2, spec-activity 2.1).
-func TestTheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
-	f := newFixture(t)
+// TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem: the band stands on every
+// screen with the four names in one order and their numbers, the screen the
+// person is on stands as a marked span while the other three are links to their
+// own screen, and hergy goes back to the first screen (spec-nav.md 1.1, 1.2,
+// spec-activity 2.1).
+func TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
+	f := fixtureNav(t)
 	server := f.server(t)
 
-	_, profiles := f.get(t, server, "/profiles")
-	for _, want := range []string{
-		`aria-label="画面"`,
-		`<a class="mark" href="/">hergy</a>`,
-		`<a class="scr" href="/activity" data-screen="activity">活動</a>`,
-		`<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">1</span></a>`,
-		`<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">2</span></span>`,
-		`<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">2</span></a>`,
-		`<a class="tab on" href="/profiles" aria-current="page">一覧</a>`,
+	// The four names, in order, with the number the fixture holds. 活動 carries
+	// no number while no team of this project runs (spec-activity 2.7).
+	names := []struct{ screen, link string }{
+		{"activity", `<a class="scr" href="/activity" data-screen="activity">活動</a>`},
+		{"teams", `<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">6</span></a>`},
+		{"profiles", `<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">11</span></a>`},
+		{"roles", `<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">6</span></a>`},
+	}
+	for _, one := range []struct{ path, current string }{
+		{"/activity", "activity"},
+		{"/teams", "teams"},
+		{"/profiles", "profiles"},
+		{"/roles", "roles"},
 	} {
-		if !strings.Contains(profiles, want) {
-			t.Errorf("the profile screen's band does not hold %s", want)
+		resp, body := f.get(t, server, one.path)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s answers %d, want 200", one.path, resp.StatusCode)
 		}
-	}
-	if strings.Contains(profiles, `<span class="n">2</span></a>プロファイル`) {
-		t.Errorf("the screen's name and number stand twice (S3):\n%s", profiles)
-	}
-	if !strings.Contains(profiles, `>割り当て<span class="n">`) {
-		t.Errorf("the 割り当て tab carries no number:\n%s", profiles)
-	}
-
-	_, roles := f.get(t, server, "/roles")
-	for _, want := range []string{
-		`<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">2</span></a>`,
-		`<span class="scr on" aria-current="page" data-screen="roles">ロール<span class="n">2</span></span>`,
-	} {
-		if !strings.Contains(roles, want) {
-			t.Errorf("the role screen's band does not hold %s", want)
+		if !strings.Contains(body, `<a class="mark" href="/">hergy</a>`) {
+			t.Errorf("GET %s does not write hergy as a link to /", one.path)
 		}
-	}
-	// プロファイル stands once: the band has it, the tabs have 一覧 (S3, S4).
-	for _, gone := range []string{"層", "layer", "担当", "役割", "版", "hergy.css", "[["} {
-		if strings.Contains(profiles, gone) || strings.Contains(roles, gone) {
-			t.Errorf("a screen holds %q", gone)
+		// The four stand in this order; the screen the person is on is the
+		// span, and the other three are links.
+		at := 0
+		for _, name := range names {
+			want := name.link
+			if name.screen == one.current {
+				want = strings.Replace(name.link, `<a class="scr" href="/`+name.screen+`" data-screen="`, `<span class="scr on" aria-current="page" data-screen="`, 1)
+				want = strings.TrimSuffix(want, "</a>") + "</span>"
+			}
+			i := strings.Index(body[at:], want)
+			if i < 0 {
+				t.Errorf("GET %s does not hold %s after the names before it:\n%s", one.path, want, bandOf(t, body))
+				continue
+			}
+			at += i + len(want)
 		}
 	}
 }
@@ -325,11 +325,11 @@ func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 	}
 }
 
-// TestTheActivityIsReadOnly: the activity kind answers a read, and its three
+// TestACTIVITY_V3_TheActivityIsReadOnly: the activity kind answers a read, and its three
 // writes are refused with 405 whatever they carry — the screen is one a person
 // reads, and a caller that asks whether the URL takes a write is told so rather
 // than told it has no token (spec-activity 3, spec-boundary 5).
-func TestTheActivityIsReadOnly(t *testing.T) {
+func TestACTIVITY_V3_TheActivityIsReadOnly(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	server.addr = "127.0.0.1:8787"
@@ -391,11 +391,11 @@ func TestTheBandCountsTheRolesThatHaveADocument(t *testing.T) {
 	}
 }
 
-// TestTheRemovedScreensAreNotFound: every URL of the old WebUI is not found —
+// TestNAV_O2_TheRemovedScreensAreNotFound: every URL of the old WebUI is not found —
 // with the band and one sentence for a read, and the sentence alone for a write
 // — and none of them is moved, because a browser remembers a 301
 // (spec-nav.md 1.6, 2「消すもの」).
-func TestTheRemovedScreensAreNotFound(t *testing.T) {
+func TestNAV_O2_TheRemovedScreensAreNotFound(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 
@@ -436,9 +436,9 @@ func TestTheRemovedScreensAreNotFound(t *testing.T) {
 	}
 }
 
-// TestTheOldFilesAreGone: the files the old screens were drawn from are not
+// TestNAV_O3_TheOldFilesAreGone: the files the old screens were drawn from are not
 // served any more (spec-nav.md 3, O3).
-func TestTheOldFilesAreGone(t *testing.T) {
+func TestNAV_O3_TheOldFilesAreGone(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	for _, path := range []string{
@@ -457,10 +457,10 @@ func TestTheOldFilesAreGone(t *testing.T) {
 	}
 }
 
-// TestTheBandWritesNoColours: the band takes every colour from the page's own
+// TestNAV_D2_TheBandWritesNoColours: the band takes every colour from the page's own
 // tokens and writes none down, so which theme is on stays the page's business
 // (spec-nav.md 5.2 D2).
-func TestTheBandWritesNoColours(t *testing.T) {
+func TestNAV_D2_TheBandWritesNoColours(t *testing.T) {
 	raw, err := files.ReadFile("static/nav.css")
 	if err != nil {
 		t.Fatal(err)
@@ -498,9 +498,9 @@ func TestTheBandWritesNoColours(t *testing.T) {
 	}
 }
 
-// TestTheLayerParameterIsNotMoved: a URL that still carries ?layer= is answered
+// TestNAV_O4_TheLayerParameterIsNotMoved: a URL that still carries ?layer= is answered
 // like the same URL without it, and is not moved (spec-nav.md 2「消すもの」).
-func TestTheLayerParameterIsNotMoved(t *testing.T) {
+func TestNAV_O4_TheLayerParameterIsNotMoved(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, with := f.get(t, server, "/profiles?layer=project")

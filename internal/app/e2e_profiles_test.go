@@ -51,16 +51,8 @@ func TestE2EProfiles(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("structure", func(t *testing.T) { e2eProfilesStructure(t, ctx, base) })
-	t.Run("rows open in place", func(t *testing.T) { e2eProfilesOpen(t, ctx, base) })
-	t.Run("filter and search", func(t *testing.T) { e2eProfilesFilter(t, ctx, base) })
-	t.Run("edit and save", func(t *testing.T) { e2eProfilesSave(t, ctx, base, f) })
-	t.Run("duplicate copy delete", func(t *testing.T) { e2eProfilesCopy(t, ctx, base, f) })
-	t.Run("assign", func(t *testing.T) { e2eProfilesAssign(t, ctx, base, f) })
-	t.Run("usage jumps", func(t *testing.T) { e2eProfilesUsage(t, ctx, base) })
-	t.Run("yaml", func(t *testing.T) { e2eProfilesYAML(t, ctx, base, f) })
-	t.Run("widths and lights", func(t *testing.T) { e2eProfilesWidths(t, ctx, base) })
-	t.Run("delete a used profile", func(t *testing.T) { e2eProfilesDeleteUsed(t, ctx, base) })
+	t.Run("PROFILES-P1 rows open in place", func(t *testing.T) { e2eProfilesOpen(t, ctx, base) })
+	t.Run("PROFILES-P11 usage jumps", func(t *testing.T) { e2eProfilesUsage(t, ctx, base) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the profile screen logged %d console errors: %v", len(lines), lines)
@@ -74,31 +66,6 @@ func copyProfilesFixture(t *testing.T, f *fixture, cwd string) {
 	src := filepath.Join(cwd, "..", "..", "testdata", "profiles-v2")
 	copyDir(t, filepath.Join(src, "project", ".hergy"), filepath.Join(f.proj, ".hergy"))
 	copyDir(t, filepath.Join(src, "config", "hergy"), filepath.Join(f.cfg, "hergy"))
-}
-
-// copyDir copies a directory tree.
-func copyDir(t *testing.T, from, to string) {
-	t.Helper()
-	if err := filepath.Walk(from, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(from, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(to, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, raw, 0o644)
-	}); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // e2eProfilesValue reads one expression as the text the page draws. The reading

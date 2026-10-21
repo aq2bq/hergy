@@ -4,7 +4,6 @@ package app
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,8 +17,6 @@ import (
 	"github.com/chromedp/chromedp/kb"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // TestE2ENav walks the navigation band over the real-scale fixture
@@ -35,20 +32,21 @@ func TestE2ENav(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := newFixture(t)
 	initLocales(t)
-	copyNavFixture(t, f, cwd)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
-	f.runningHerdr(t, "", "")
 
-	base, stop := startServe(t, f)
-	defer stop()
-
-	// The URLs a person hands the address bar, over the real serve (O1〜O4).
-	t.Run("the address", func(t *testing.T) { e2eNavAddress(t, base) })
+	// The 大 item stands over a project whose files the test may change under
+	// the page: the changes one screen carries to the other and back (NAV-N6,
+	// spec-nav.md 5.1). Every other item of checks/nav.md is held by a
+	// non-browser test at its own size, or read as a 監査 item.
+	f2 := newFixture(t)
+	copyNavFixture(t, f2, cwd)
+	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+	f2.runningHerdr(t, "", "")
+	base2, stop2 := startServe(t, f2)
+	defer stop2()
 
 	// The run's one browser, and this test's tab in it (r-a107).
 	browser := e2eChrome(t, chrome)
@@ -60,29 +58,7 @@ func TestE2ENav(t *testing.T) {
 	e2eRun(t, ctx, chromedp.EmulateViewport(2000, 1100))
 	e2eThrottle(t, ctx)
 
-	t.Run("band", func(t *testing.T) { e2eNavBand(t, ctx, base) })
-	t.Run("another tab", func(t *testing.T) { e2eNavAnotherTab(t, browser, base) })
-	t.Run("the place a person stood", func(t *testing.T) { e2eNavPlace(t, ctx, base) })
-	t.Run("widths and lights", func(t *testing.T) { e2eNavWidths(t, ctx, base) })
-
-	// The number a save moves, and the carried changes, both need a project whose
-	// files the test may change under the page, so they run over projects of
-	// their own (spec-nav.md 5.1).
-	f3 := newFixture(t)
-	copyNavFixture(t, f3, cwd)
-	writeFile(t, filepath.Join(f3.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	f3.runningHerdr(t, "", "")
-	base3, stop3 := startServe(t, f3)
-	defer stop3()
-	t.Run("the number follows a save", func(t *testing.T) { e2eNavNumbers(t, ctx, base3) })
-
-	f2 := newFixture(t)
-	copyNavFixture(t, f2, cwd)
-	writeFile(t, filepath.Join(f2.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
-	f2.runningHerdr(t, "", "")
-	base2, stop2 := startServe(t, f2)
-	defer stop2()
-	t.Run("the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
+	t.Run("NAV-N6 the changes one screen carries", func(t *testing.T) { e2eNavCarry(t, ctx, base2, f2) })
 
 	if lines := console.Lines(); len(lines) > 0 {
 		t.Errorf("the band logged %d console errors: %v", len(lines), lines)
@@ -107,23 +83,6 @@ func copyNavFixture(t *testing.T, f *fixture, cwd string) {
 			copyDir(t, from, half.to)
 		}
 	}
-}
-
-// navGet asks the real serve for one URL without following a move, so the
-// answer itself — its status and its page — is what the test reads.
-func navGet(t *testing.T, base, path string) (*http.Response, string) {
-	t.Helper()
-	client := &http.Client{
-		Timeout:       10 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	resp, err := client.Get(base + path)
-	if err != nil {
-		t.Fatalf("GET %s: %v", path, err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	return resp, string(body)
 }
 
 // e2eNavAddress is O1〜O4: the root moves to the team definitions while no team
@@ -664,63 +623,6 @@ func chromeBinary(t *testing.T) string {
 	}
 	t.Skip("no Chrome found; the e2e run is skipped on this machine (design W3)")
 	return ""
-}
-
-// serveEnv is the environment the screens read, built the way Run builds it.
-func serveEnv(t *testing.T) team.Env {
-	t.Helper()
-	env, err := team.NewEnv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return env
-}
-
-// startServe runs hergy serve with --no-open on a working XDG and a made-up
-// herdr, and returns the URL it prints and a stop function.
-func startServe(t *testing.T, f *fixture) (string, func()) {
-	t.Helper()
-	env := serveEnv(t)
-	opts := options.Options{Port: 0, NoOpen: true}
-	ctx, cancel := context.WithCancel(context.Background())
-	urls := make(chan string, 1)
-	done := make(chan error, 1)
-	go func() {
-		done <- runServe(ctx, env, &opts, urlWriter{urls}, io.Discard)
-	}()
-	select {
-	case url := <-urls:
-		return url, func() {
-			cancel()
-			select {
-			case <-done:
-			case <-time.After(10 * time.Second):
-				t.Errorf("serve did not stop")
-			}
-		}
-	case err := <-done:
-		cancel()
-		t.Fatalf("serve stopped before it answered: %v", err)
-	case <-time.After(20 * time.Second):
-		cancel()
-		t.Fatal("serve printed no URL")
-	}
-	return "", func() {}
-}
-
-// urlWriter picks the URL out of what runServe prints.
-type urlWriter struct{ urls chan string }
-
-func (w urlWriter) Write(p []byte) (int, error) {
-	for _, line := range strings.Split(string(p), "\n") {
-		if i := strings.Index(line, "http://"); i >= 0 {
-			select {
-			case w.urls <- strings.TrimSpace(line[i:]):
-			default:
-			}
-		}
-	}
-	return len(p), nil
 }
 
 // e2eRun runs the actions, failing the test on the first error. Each action
