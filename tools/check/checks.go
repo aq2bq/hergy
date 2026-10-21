@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -329,31 +330,8 @@ func checkFindings(items []checkItem, subtests []e2eSubtest, testNames []string)
 		}
 		seen[norm] = item.Where
 
-		switch item.Size {
-		case sizeAudit:
-			continue
-		case sizeLarge:
-			found := false
-			for _, sub := range subtests {
-				if startsWithID(sub.Name, item.ID) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
-			}
-		default: // 小 and 中
-			found := false
-			for _, name := range testNames {
-				if holdsID(name, norm) || holdsID(name, item.ID) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
-			}
+		if !itemHasTest(item, norm, subtests, testNames) {
+			findings = append(findings, fmt.Sprintf("%s にテストがありません（%s）", item.ID, item.Where))
 		}
 	}
 	for _, sub := range subtests {
@@ -369,6 +347,20 @@ func checkFindings(items []checkItem, subtests []e2eSubtest, testNames []string)
 		}
 	}
 	return findings
+}
+
+// itemHasTest is whether one item has a test of its size: an audit item asks
+// for none, a large one for an e2e subtest that starts with its ID, a small or
+// medium one for a test whose name holds the ID.
+func itemHasTest(item checkItem, norm string, subtests []e2eSubtest, testNames []string) bool {
+	switch item.Size {
+	case sizeAudit:
+		return true
+	case sizeLarge:
+		return slices.ContainsFunc(subtests, func(sub e2eSubtest) bool { return startsWithID(sub.Name, item.ID) })
+	default: // 小 and 中
+		return slices.ContainsFunc(testNames, func(name string) bool { return holdsID(name, norm) || holdsID(name, item.ID) })
+	}
 }
 
 // startsWithID reports whether a name starts with the ID the way a list writes

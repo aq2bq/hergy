@@ -171,7 +171,7 @@ func serveEnv(t *testing.T) team.Env {
 
 // startServe runs hergy serve with --no-open on a working XDG and a made-up
 // herdr, and returns the URL it prints and a stop function.
-func startServe(t *testing.T, f *fixture) (string, func()) {
+func startServe(t *testing.T, _ *fixture) (string, func()) {
 	t.Helper()
 	env := serveEnv(t)
 	opts := options.Options{Port: 0, NoOpen: true}
@@ -205,7 +205,7 @@ func startServe(t *testing.T, f *fixture) (string, func()) {
 type urlWriter struct{ urls chan string }
 
 func (w urlWriter) Write(p []byte) (int, error) {
-	for _, line := range strings.Split(string(p), "\n") {
+	for line := range strings.SplitSeq(string(p), "\n") {
 		if i := strings.Index(line, "http://"); i >= 0 {
 			select {
 			case w.urls <- strings.TrimSpace(line[i:]):
@@ -337,7 +337,7 @@ func activityWrite(t *testing.T, base, method, path string) (*http.Response, str
 	if err != nil {
 		t.Fatalf("%s %s: %v", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -351,8 +351,8 @@ func activityCode(script string) string {
 	code := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(script, "")
 	lines := strings.Split(code, "\n")
 	for i, line := range lines {
-		if at := strings.Index(line, "//"); at >= 0 {
-			lines[i] = line[:at]
+		if before, _, ok := strings.Cut(line, "//"); ok {
+			lines[i] = before
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -608,7 +608,7 @@ func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
 
 	// 一覧は gy を呼ばない: GET /api/activity reads herdr, the launch record and
 	// the definitions, and never gy.
-	resp, page := navGet(t, base, "/api/activity")
+	resp, _ := navGet(t, base, "/api/activity")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /api/activity answers %d", resp.StatusCode)
 	}
@@ -619,7 +619,7 @@ func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
 	if err := os.WriteFile(log, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	resp, page = navGet(t, base, "/api/activity/core")
+	resp, page := navGet(t, base, "/api/activity/core")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /api/activity/core answers %d", resp.StatusCode)
 	}
@@ -644,7 +644,7 @@ func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
 
 	// gy show is read once per question this member asked, and for no other.
 	var shown []string
-	for _, line := range strings.Split(strings.TrimSpace(calls(t, log)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(calls(t, log)), "\n") {
 		if strings.HasPrefix(line, "show ") {
 			shown = append(shown, strings.Fields(line)[1])
 		}

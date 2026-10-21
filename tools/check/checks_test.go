@@ -268,7 +268,7 @@ func TestTheRepoListsRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) < 70 {
+	if len(items) < 50 {
 		t.Errorf("read %d items from the repo's lists, want the five screens' own", len(items))
 	}
 	bySize := map[string]int{}

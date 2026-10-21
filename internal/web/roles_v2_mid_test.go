@@ -97,11 +97,8 @@ func ruRuleAt(t *testing.T, doc *rules.Document, id string) (int, int) {
 func ruChangedLines(before, after string) map[int]string {
 	b, a := strings.Split(before, "\n"), strings.Split(after, "\n")
 	out := map[int]string{}
-	n := len(b)
-	if len(a) > n {
-		n = len(a)
-	}
-	for i := 0; i < n; i++ {
+	n := max(len(a), len(b))
+	for i := range n {
 		l, r := "", ""
 		if i < len(b) {
 			l = b[i]
@@ -445,7 +442,7 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 		{
 			name: "a section's heading",
 			role: "builder",
-			edit: func(t *testing.T, draft *r2Doc) {
+			edit: func(_ *testing.T, draft *r2Doc) {
 				draft.Sections[0].Heading = "作り方の見直し"
 			},
 			want: "  - heading: 作り方の見直し",
@@ -453,7 +450,7 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 		{
 			name: "a section's depth",
 			role: "builder",
-			edit: func(t *testing.T, draft *r2Doc) {
+			edit: func(_ *testing.T, draft *r2Doc) {
 				draft.Sections[0].Level = 3
 			},
 			want: "    level: 3",
@@ -522,16 +519,16 @@ func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
 
 	// 作り方's rules take the order a person leaves them in: BUILD-3, BUILD-1,
 	// BUILD-2, BUILD-4 (BUILD-2 one down, BUILD-1 below BUILD-3).
-	make := draft.Sections[0]
+	sec := draft.Sections[0]
 	byID := map[string]r2Rule{}
-	for _, rule := range make.Rules {
+	for _, rule := range sec.Rules {
 		byID[rule.ID] = rule
 	}
-	make.Rules = nil
+	sec.Rules = nil
 	for _, id := range []string{"BUILD-3", "BUILD-1", "BUILD-2", "BUILD-4"} {
-		make.Rules = append(make.Rules, byID[id])
+		sec.Rules = append(sec.Rules, byID[id])
 	}
-	draft.Sections[0] = make
+	draft.Sections[0] = sec
 	// 確かめ方 moves above 作り方.
 	draft.Sections[0], draft.Sections[1] = draft.Sections[1], draft.Sections[0]
 
