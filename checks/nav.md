@@ -25,6 +25,7 @@
 | NAV-N8 | E2E | NAV-N6 のあと、プロファイルの画面を開かずに team.yaml を外で書き換え、帯でプロファイルへ → 下書きは戻らない。帯の丸は消える |
 | NAV-N9 | E2E | NAV-N6 のあと、プロファイルの画面を再読み込みする → 下書きは戻らない（持ち越すのは帯で移ったときだけ） |
 | NAV-N10 | E2E | 帯の居ない画面の項目へ Tab で移り Enter → NAV-N1 と同じ。フォーカスの枠が見える |
+| NAV-N11 | E2E | ロールの画面でロールを 1 つ足して保存する（プロファイルの画面でも同じ） → 帯の `ロール 6` が画面の数と同時に `7` になり（プロファイルは `11` → `12`）、帯の青い丸が消える |
 | NAV-O1 | E2E | `hergy serve --no-open` で起こし、出た URL を開く → このプロジェクトのチームが動いていれば `/activity`、動いていなければ `/teams` に着く。`GET /` は `302` |
 | NAV-O2 | 受け口 | 消した URL（`/definitions`、`/definitions/{name}` とその下、`/agreement`、`/agreement/new`、`/agreement/{rule}`、`/running`、`/team`、`/rules`、`/diff`、`/bump`、`/figure`、`/panel/`、`/activity/{team}`）を GET で開く → 帯のある 404 の画面に `その画面はありません。`。どれも転送されない |
 | NAV-O3 | 受け口 | `/static/hergy.css`、`/static/htmx-2.0.4.min.js` を GET で開く → 404 |

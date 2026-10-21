@@ -28,6 +28,7 @@
 | TEAMS-P10 | E2E | ルールの部品を操作する → ロールの画面の ROLES-P5〜P15 と同じ所だけが替わる |
 | TEAMS-P11 | E2E | YAML のタブの検査の 1 件を押す → 同じ編集欄のその行が選ばれる |
 | TEAMS-P12 | E2E | 幅 1440 と 2000 で、core と docs の全部の点と線を押す → 札が選んだ点とほかの点を隠さない（隠すしかないときは図のすぐ下） |
+| TEAMS-P13 | E2E | トポロジーの検査の列の `チームのルール` の 1 件を押す（`/teams?open=<名前>&agree=<名前>&rule=<名前>.<ID>` を開いても同じ） → ルールのタブに替わり、その規則が開いて足の帯の上に見え、本文の欄にカーソル |
 | TEAMS-M1 | E2E | 点の札の `ターンを渡す相手` を、`hergy up <定義> --dry --lang ja` のそのメンバーの「## ターンを渡す相手」と比べる → 1 字違わない。`ワーカーの追加` の組も同じ |
 | TEAMS-M2 | E2E | core の impl-b → reviewer の `消す` を押す → `core-impl-b · ターンを渡す相手` の `- core-reviewer（ロール reviewer）` が打ち消しで出て、`規則 CORE-12 が impl-b → reviewer と書いていますが、turns: にそのエッジがありません` が増える検査の文に出る |
 | TEAMS-M3 | E2E | core の analyst から出るターンを全部消そうとする → 最後の 1 本の `消す` で、消える行と `メンバー analyst から出るターンがありません…` の両方が出る |
@@ -47,8 +48,9 @@
 | TEAMS-V1 | E2E | 図の点、検査の列、ルールの規則、YAML のタブの検査の列を見る → 作り物の文が出る: core と migrate の `<…>/builder.yaml: 規則 BUILD-4 の derived が指す規則 REQ-5 が、このメンバーが読む文書にありません`、docs の `workers[0].profile: gemini-flash というプロファイルはありません`、draft の `規則 DRAFT-3 が reader → human と書いていますが、turns: にそのエッジがありません`、review・draft・共通の docs の REV-4 と WRITE-7 の警告、共通の docs の `同じ名前のチーム定義がプロジェクトにもあるので、こちらは使われません（docs）`、読む量の警告 |
 | TEAMS-V2 | 受け口 | 画面の検査の答えと `hergy validate --lang ja` の出力を比べる → 文が同じ |
 | TEAMS-V3 | 受け口 | 画面の検査の答えを読む → `hergy validate` に無い、画面だけの検査が無い |
+| TEAMS-V4 | E2E | 共通の置き場所をホームの下（`~/.config/hergy`）に置いた作り物で、トポロジーとルールの検査の文、パネルの頭、YAML のタブを見る → 作業用ディレクトリの絶対パスがどこにも出ず、ファイルは `.hergy/…` か `~/.config/hergy/…` の形 |
 | TEAMS-N1 | E2E | `＋ チーム定義を追加` を押す → 一番上に新しい行が開き、名前の欄にカーソル。置き場所が `プロジェクト`。使命が `このチームの使命を 1 行で`。札は `新規 問題 1 警告 3`（名前が空の問題、使命の警告、作り物の builder.yaml の警告 2） |
-| TEAMS-N2 | E2E | 名前を空・`Bad!`・`core` にする → それぞれ `チーム定義名を書いてください`、`チーム定義名は [a-z][a-z0-9_-]{0,24} の形にしてください: "Bad!"`、`チーム定義 "core" はすでにあります…` が名前の欄の下とトポロジーの検査の列に出て、保存が押せない。`core` のときも既にある core のルールの警告は混じらない |
+| TEAMS-N2 | E2E | 名前を空・`Bad!`・`core` にする → それぞれ `チーム定義名を書いてください`、`チーム定義名は [a-z][a-z0-9_-]{0,24} の形にしてください: "Bad!"`、`チーム定義 "core" はすでにあります…` が名前の欄の下とトポロジーの検査の列に出て、保存が押せない。`core` のときも既にある core のルールの警告は混じらない。名前を打つたびに、トポロジーとルールの頭のパスが `<置き場所>/teams/<名前>/…` に替わる |
 | TEAMS-N3 | E2E | 名前を `ops` にして保存し、git diff を見る → `.hergy/teams/ops/team.yaml` と `agreement.yaml` が `hergy new ops` と 1 字違わない。profiles.yaml の差分は claude-default の 2 行だけで、足の並び（`team.yaml・agreement.yaml・profiles.yaml`）にも出ていた。保存のあと `保存しました` と帯の `チーム定義 7`。ルールのタブの `保存` からでも同じ |
 | TEAMS-N4 | E2E | 置き場所を `共通` にして保存する → `$XDG_CONFIG_HOME/hergy/teams/<名前>/` に書かれ、共通に無いロールの文書（lead.yaml・builder.yaml）も書かれる |
 | TEAMS-N5 | E2E | core の `複製` を押して保存する → `core-2` の行が core のすぐ下に出て、名前の欄が選ばれた形でカーソルが入り、頭のパスが `core-2` になる。保存すると 2 つのファイルが core と 1 字違わない |
