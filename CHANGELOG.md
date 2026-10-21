@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 - 2026-10-21
 
 A section's rules are laid out one way now: a bullet list with the id first.
 The `style:` key is gone from a rule file, so what a member's prompt carries no
@@ -236,7 +236,7 @@ longer depends on a key. A rule can now also stay out of the prompt by itself:
   screen no longer offers a style to pick, and the first save through it removes
   the line. `hergy new` writes no `style:` in the files it lays down.
 
-### Moving from 0.8
+### Moving from 0.8.0
 
 1. Delete the `style:` line of every section of a role document and an
    agreement. hergy keeps reading the file and warns until the line is gone:
