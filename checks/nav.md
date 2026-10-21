@@ -31,4 +31,3 @@
 | NAV-O3 | 受け口 | `/static/hergy.css`、`/static/htmx-2.0.4.min.js` を GET で開く → 404 |
 | NAV-O4 | 受け口 | `/profiles?layer=project` を開く → `?layer=` を付けないのと同じ画面（転送しない） |
 | NAV-O5 | E2E | 別のブラウザのタブで画面を開く → 帯の `href` が `/activity`、`/teams`、`/profiles`、`/roles`（覚えた所が無い） |
-| NAV-O6 | 受け口 | 消したテンプレートと static の名前（`layout.html` `hergy.css` `htmx` `ui.js` `copy.js` `/definitions` `/agreement`）を `grep -rn` で探す（git が追わない作業用のフォルダと、CHANGELOG の過去の版の節は除く） → 0 件。`go run ./tools/check` が exit 0 |
