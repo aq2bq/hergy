@@ -64,34 +64,20 @@ func TestReadChecksTableRefusesAListItCannotRead(t *testing.T) {
 	}
 }
 
-// The subtests the gate holds to the lists are the t.Run calls standing directly
-// under an outer TestE2E* function: one inside another t.Run stands under that
-// one, and one in a helper stands under the helper.
-func TestReadE2ESubtestsTakesTheRunsOfTheOuterTests(t *testing.T) {
+// The walks the gate holds to the lists are the Playwright test('...') calls of
+// e2e/tests: their titles are read, a test.describe holds no walk, and a title
+// in a comment is not a walk.
+func TestReadE2ESubtestsTakesThePlaywrightTests(t *testing.T) {
 	root := t.TempDir()
-	writeTree(t, root, "internal/app/e2e_x_test.go", `package app
+	writeTree(t, root, "e2e/tests/x.spec.ts", `import { test, expect } from '@playwright/test';
 
-import "testing"
+test.describe('a group', () => {
+  test('X-1 the first', async () => {});
+  test("X-2 the second", async () => {});
+  // test('X-9 in a comment', async () => {});
+});
 
-func TestE2EThing(t *testing.T) {
-	t.Run("X-1 the first", func(t *testing.T) {})
-	t.Run("X-2 the second", func(t *testing.T) {
-		t.Run("a run inside a run", func(t *testing.T) {})
-	})
-	t.Run("a name the ID does not start", func(t *testing.T) {})
-}
-
-func TestE2EOther(t *testing.T) {
-	t.Run("Y-1 the other", func(t *testing.T) {})
-}
-
-func helper(t *testing.T) {
-	t.Run("a run in a helper", func(t *testing.T) {})
-}
-
-func TestSomethingElse(t *testing.T) {
-	t.Run("no e2e test holds this", func(t *testing.T) {})
-}
+test('a name the ID does not start', async () => {});
 `)
 	got, err := readE2ESubtests(root)
 	if err != nil {
@@ -102,10 +88,9 @@ func TestSomethingElse(t *testing.T) {
 		names = append(names, sub.Test+"/"+sub.Name)
 	}
 	want := []string{
-		"TestE2EThing/X-1 the first",
-		"TestE2EThing/X-2 the second",
-		"TestE2EThing/a name the ID does not start",
-		"TestE2EOther/Y-1 the other",
+		"x.spec.ts/X-1 the first",
+		"x.spec.ts/X-2 the second",
+		"x.spec.ts/a name the ID does not start",
 	}
 	if strings.Join(names, "\n") != strings.Join(want, "\n") {
 		t.Errorf("read\n%s\nwant\n%s", strings.Join(names, "\n"), strings.Join(want, "\n"))
@@ -113,7 +98,7 @@ func TestSomethingElse(t *testing.T) {
 }
 
 // A 小・中 test may carry the ID in its function name (the - written as _) or in
-// a t.Run name; both are read, and the e2e files are left out.
+// a t.Run name; both are read.
 func TestReadTestNamesReadsFunctionsAndRuns(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, "internal/web/web_test.go", `package web
@@ -126,14 +111,6 @@ func TestSomethingElse(t *testing.T) {
 	t.Run("X-2 the run name", func(t *testing.T) {})
 }
 `)
-	writeTree(t, root, "internal/app/e2e_x_test.go", `package app
-
-import "testing"
-
-func TestE2EX(t *testing.T) {
-	t.Run("X-9 the browser walk", func(t *testing.T) {})
-}
-`)
 	names, err := readTestNames(root)
 	if err != nil {
 		t.Fatal(err)
@@ -143,9 +120,6 @@ func TestE2EX(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("the names lack %q:\n%s", want, joined)
 		}
-	}
-	if strings.Contains(joined, "X-9 the browser walk") {
-		t.Errorf("the e2e names were read as a 小・中 test:\n%s", joined)
 	}
 }
 

@@ -1,20 +1,19 @@
 package main
 
 // The checks gate is TESTING.md's「一覧とテスト」を守らせる: every 小・中・大 item
-// of checks/<画面>.md has a test of its size, every e2e subtest stands under a 大
+// of checks/<画面>.md has a test of its size, every browser walk stands under a 大
 // item, and a 監査 item asks for no test at all.
 //
 // The lists are the designers': one row an item, with an ID and the size the item
 // is tested at. The size says where the test stands:
 //
-//   - 小・中 — a Test* function or a t.Run of a *_test.go that is not one of the
-//     e2e files, whose name holds the ID (a function name writes the ID's - as _).
-//   - 大 — a t.Run directly under one of the outer TestE2E* functions in
-//     internal/app/e2e*_test.go whose name starts with the ID.
+//   - 小・中 — a Test* function or a t.Run of a *_test.go, whose name holds the
+//     ID (a function name writes the ID's - as _).
+//   - 大 — a Playwright test('...') in e2e/tests whose name starts with the ID.
 //   - 監査 — no test: the designer looks at it.
 //
-// The three things the gate reports are the items nobody tests yet, the e2e
-// subtests that belong to no 大 item (TESTING.md: an ID-less 大 test is dropped),
+// The three things the gate reports are the items nobody tests yet, the browser
+// walks that belong to no 大 item (TESTING.md: an ID-less 大 test is dropped),
 // and an ID two lists both write.
 
 import (
@@ -26,6 +25,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -39,14 +39,19 @@ const (
 	sizeLarge  = "大"
 	sizeAudit  = "監査"
 	// The lists, and the two places a test may stand: the tests of every package
-	// (TESTING.md writes them as 各パッケージの *_test.go), and the e2e tests of
-	// internal/app (e2e_*_test.go; the file e2e_test.go, where TestE2ENav stands,
-	// is one of them). The e2e files are left out of the first search: a 小・中
-	// item that only an e2e test holds is not held at its own size.
+	// (TESTING.md writes them as 各パッケージの *_test.go), and the browser walks
+	// of e2e/tests (Playwright's test('...'), whose name starts with the 大 ID).
+	// The e2e files are left out of the first search: a 小・中 item that only a
+	// browser walk holds is not held at its own size.
 	checksGlob = "checks/*.md"
-	e2eGlob    = "internal/app/e2e*_test.go"
+	e2eGlob    = "e2e/tests/*.spec.ts"
 	testSuffix = "_test.go"
 )
+
+// e2eTestName is one Playwright test's title: the first string of a test(...)
+// call (test.describe and test.skip hold no walk, so they are not read). Go's
+// regexp has no back references, so the two quote kinds are two groups.
+var e2eTestName = regexp.MustCompile(`\btest\(\s*(?:'([^']*)'|"([^"]*)")`)
 
 // checkItem is one row of a checks/<画面>.md table.
 type checkItem struct {
@@ -177,9 +182,9 @@ func isTableRule(cells []string) bool {
 	return true
 }
 
-// readE2ESubtests reads every t.Run that stands directly under an outer TestE2E*
-// function of the e2e tests of internal/app. A t.Run inside another t.Run stands
-// under that one, not under the outer test, so it is not read here.
+// readE2ESubtests reads every Playwright walk of e2e/tests: one test('...')
+// call, its title the name the list's 大 ID starts. The file it stands in and
+// the line it stands on are kept, so a walk that holds no ID can be named.
 func readE2ESubtests(root string) ([]e2eSubtest, error) {
 	paths, err := filepath.Glob(filepath.Join(root, e2eGlob))
 	if err != nil {
@@ -188,55 +193,33 @@ func readE2ESubtests(root string) ([]e2eSubtest, error) {
 	sort.Strings(paths)
 	var out []e2eSubtest
 	for _, path := range paths {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
+		raw, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		where := filepath.Base(path)
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "TestE2E") {
-				continue
+		where := filepath.ToSlash(filepath.Join("e2e", "tests", filepath.Base(path)))
+		for i, line := range strings.Split(string(raw), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "*") {
+				continue // a walk written in a comment is not a walk
 			}
-			for _, run := range directRuns(fn.Body) {
+			for _, found := range e2eTestName.FindAllStringSubmatch(line, -1) {
+				name := found[1]
+				if name == "" {
+					name = found[2]
+				}
 				out = append(out, e2eSubtest{
-					Test:  fn.Name.Name,
-					Name:  run.name,
-					Where: fmt.Sprintf("%s:%d", where, fset.Position(run.pos).Line),
+					Test:  filepath.Base(path),
+					Name:  name,
+					Where: fmt.Sprintf("%s:%d", where, i+1),
 				})
 			}
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no t.Run under a TestE2E* function in %s", e2eGlob)
+		return nil, fmt.Errorf("no test('...') in %s", e2eGlob)
 	}
 	return out, nil
-}
-
-// namedPos is one t.Run's name and where it stands.
-type namedPos struct {
-	name string
-	pos  token.Pos
-}
-
-// directRuns reads the t.Run calls one function body registers, without
-// descending into a t.Run's own function: those stand under it.
-func directRuns(body *ast.BlockStmt) []namedPos {
-	var out []namedPos
-	ast.Inspect(body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || !isTRun(call) {
-			return true
-		}
-		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			if name, err := strconv.Unquote(lit.Value); err == nil {
-				out = append(out, namedPos{name: name, pos: lit.Pos()})
-			}
-		}
-		return false
-	})
-	return out
 }
 
 // isTRun reports whether one call is t.Run(name, f) — a call of a Run method on

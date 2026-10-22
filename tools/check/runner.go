@@ -119,6 +119,19 @@ func (r *runner) exec(name string, args ...string) error {
 	return r.command(name, args...).Run()
 }
 
+// execIn runs a command in one directory with one environment, its output
+// passed through. The e2e gate uses it: its tools are fetched into .bin/ and
+// called from e2e/ with PATH and the browser path pointed at them.
+func (r *runner) execIn(dir string, env []string, name string, args ...string) error {
+	fmt.Fprintf(r.stdout, "$ %s %s\n", filepath.Base(name), strings.Join(args, " "))
+	cmd := exec.Command(name, args...) //nolint:gosec // G204: name is a fetched tool from the pinned versions, args are fixed by the gate
+	cmd.Dir = dir
+	cmd.Env = env
+	cmd.Stdout = r.stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // output runs a command at the module root and returns its stdout.
 func (r *runner) output(name string, args ...string) (string, error) {
 	fmt.Fprintf(r.stdout, "$ %s %s\n", filepath.Base(name), strings.Join(args, " "))

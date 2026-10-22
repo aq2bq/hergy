@@ -19,6 +19,21 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The e2e gate fetches Node, pnpm and Playwright's Chromium into .bin/
+      # when they are missing (tools/check/e2e.go); the cache turns that fetch
+      # into a restore. The key holds the three pinned versions, so a new pin
+      # fetches again (d-d922, d-b941).
+      - name: Cache the e2e toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            .bin/node-v24.21.0-linux-x64
+            .bin/pnpm
+            .bin/pnpm-store
+            .bin/ms-playwright
+            e2e/node_modules
+          key: e2e-${{ runner.os }}-node24.21.0-pnpm11.7.0-pw1.64.1-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+
       # The one command every gate runs through, locally and here. The gates
       # and the tool versions are in tools/check; go run ./tools/check -h lists
       # them. CI holds no list of its own.
