@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: true,
   // The baseline measured in the move (d-d922): two workers. E2E_WORKERS lets
   // the measurement try another number without a commit.
-  workers: Number(process.env.E2E_WORKERS || 4),
+  workers: Number(process.env.E2E_WORKERS || 2),
   retries: 0,
   timeout: 5 * 60_000,
   expect: { timeout: 8_000 },
