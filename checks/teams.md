@@ -2,7 +2,7 @@
 大きさ・守るもの・監査の決めは TESTING.md に従う。
 大きさ: 小 2・中 10・大 4・監査 3（全体 19。もとは 63、d-3e43 の前は 21。中の 10 件は下の「まだテストの無い項目」）。
 まとめた: TEAMS-M2 ← M1 M3 ／ TEAMS-M4 ← M5 ／ TEAMS-F1 ← F2 F3 ／ TEAMS-F4 ← F5 F6 ／ TEAMS-N3 ← N4 ／ TEAMS-N5 ← N6 ／ TEAMS-N7 ← N8 ／ TEAMS-V2 ← V3 ／ TEAMS-P5 ← P1 P2 P3 P4 P6 P7 P8 P9 P10 P13 Y1 Y4 Y5 ／ TEAMS-Y2 ← Y3 Y7 ／ TEAMS-S2 ← S1 S4 S5 S6 S7 S8 ／ TEAMS-T1 ← T2 T3 T4 T5 ／ TEAMS-W1 ← W2 W3 D1 D2 P12 Y8。消したものは無い
-消した（d-3e43、2026-10-22。もっと小さいテストと重なる）: TEAMS-F4（ROLES-F1・F2・F5 と同じ書き手）・TEAMS-Y6（変えていない定義は TEAMS-Y2 の比べ、Op のあとは TestTeamsFigureCheckAndEffect と TestTeamsFigureSaveWritesTheOneLine）。大の 4 本の文を、残す比べだけに書き直した
+消した（d-3e43、2026-10-22。もっと小さいテストと重なる）: TEAMS-F4（ROLES-F1・F2・F5 と同じ書き手）・TEAMS-Y6（変えていない定義は TEAMS-Y2 の比べ、Op のあとは TestTeamsFigureCheckAndEffect と TestTEAMS_F1_FigureSaveWritesTheOneLine）。大の 4 本の文を、残す比べだけに書き直した
 
 | ID | 大きさ | 守るもの | 確かめること（人がすること → 見えるべきこと） |
 |---|---|---|---|
@@ -19,7 +19,7 @@
 
 ## まだテストの無い項目（2026-10-21、n- の need。テストを書いたら上の表に戻す）
 
-2026-10-22（d-3e43）: 次の 7 件は、ID の付いていない中のテストが internal/web/teams_v2_test.go に既にある。新しく書かずに、そのテストの名前に ID を入れて上の表に戻す: TEAMS-S3 ← TestTeamsListCarriesTheTable ／ TEAMS-F1 ← TestTeamsFigureSaveWritesTheOneLine ／ TEAMS-F7 ← TestTeamsFigureSaveRefusesANewProblem ／ TEAMS-N2 ← TestTeamsDraftSaveRefusesANameProblem ／ TEAMS-N3 ← TestTeamsDraftSaveWritesTheStarterFolder ／ TEAMS-N5・TEAMS-N7 ← TestTeamsDraftDuplicateWritesTheSameFiles・TestTeamsCopyAndDeleteTakeOnePlace ／ TEAMS-P11 ← TestTeamsYamlSaveRefusesANewError。TEAMS-V2 と TEAMS-V4 はまだ合うテストが無い（TEAMS-V4 は lead の合意で残した。いまは TEAMS-V1 の歩きの比べ 1 つ（図の枠のパス）だけが近い所を見ている）
+2026-10-22（d-3e43）: 次の 7 件は、合う中のテストが internal/web/teams_v2_test.go に既にあり、そのテストの名前に ID を入れた（r-7ded）。上の表にはまだ戻していない: TEAMS-S3 ← TestTEAMS_S3_ListCarriesTheTable ／ TEAMS-F1 ← TestTEAMS_F1_FigureSaveWritesTheOneLine ／ TEAMS-F7 ← TestTEAMS_F7_FigureSaveRefusesANewProblem ／ TEAMS-N2 ← TestTEAMS_N2_DraftSaveRefusesANameProblem ／ TEAMS-N3 ← TestTEAMS_N3_DraftSaveWritesTheStarterFolder ／ TEAMS-N5・TEAMS-N7 ← TestTEAMS_N5_DraftDuplicateWritesTheSameFiles・TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace ／ TEAMS-P11 ← TestTEAMS_P11_YamlSaveRefusesANewError。TEAMS-V2 と TEAMS-V4 はまだ合うテストが無い（TEAMS-V4 は lead の合意で残した。いまは TEAMS-V1 の歩きの比べ 1 つ（図の枠のパス）だけが近い所を見ている）
 
 - TEAMS-S3 ／ 中 ／ 場面 T3・T4 ／ `GET /api/team` → 名前の順に 6 行。docs はプロジェクトが効き、共通は隠れている。共通の review と draft も行になる
 - TEAMS-F1 ／ 中 ／ 場面 T5・T8・書き込み ／ ターンを 1 本消す、使命だけを変える、ワーカーを足す、をそれぞれ保存に送る → team.yaml の差分が、その `- a -> b` の 1 行、`mission:` の 1 行、workers: の最後の 3 行だけ
