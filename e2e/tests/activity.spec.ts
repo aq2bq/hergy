@@ -1,8 +1,7 @@
 // ACTIVITY-C1 and ACTIVITY-P4 — checks/activity.md's 大 items, walked in a
-// browser. They are internal/app e2eActivityItemAtAGlance and e2eActivityAgain,
-// test for test and assertion for assertion, over the same real-scale fixture
-// (testdata/teams-v2 with testdata/activity over it: a made-up herdr and gy, 4
-// running teams and 55 open questions) and the serve a person runs.
+// browser. Only what the browser alone can see is compared here (d-3e43): a
+// row's いま and 誰 before it is opened, and the re-reading leaving the person's
+// cursor, scroll, address, let-out pane and the band where they were.
 //
 // The run's clock and zone are its own (r-f647): the serve reads its moment from
 // HERGY_E2E_NOW (d-f978), and the fixture's times are counted back from the same
@@ -18,9 +17,6 @@ test.use({ reads: 'activity' });
 // drawn is the list having been drawn: rows, or the one line a list with nothing
 // to show carries.
 const drawn = `document.querySelectorAll('#list .act').length > 0 || !!document.querySelector('#list .gone')`;
-
-// names is the teams the screen lists, in the order it lists them (2.2).
-const names = `Array.from(document.querySelectorAll('#list .act')).map(function(a){return a.dataset.team}).join(',')`;
 
 // band is the band's two numbers as the reading leaves them: the 活動 number and
 // the 待ち word, or none where they are not written (2.1・2.7).
@@ -104,10 +100,9 @@ test('ACTIVITY-C1 what a row says at a glance', async ({ page, app }) => {
 test('ACTIVITY-P4 reading again', async ({ page, app }) => {
   // P4: the screen reads again every ten seconds (2.6), and the re-reading
   // moves only what the answer changed. core-lead is made to work, so core's
-  // row turns 仕事中 and the order moves, while the cursor, the scroll, the open
-  // rows and the let-out pane lines stay where the person left them. The band's
-  // two numbers are the re-reading's own too (2.1): 待ち follows the members
-  // waiting, down to nothing.
+  // row turns 仕事中, while the cursor, the scroll, the open rows and the
+  // let-out pane lines stay where the person left them. The band's two numbers
+  // are the re-reading's own too (2.1): 待ち follows the members waiting.
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page, app.base, '?open=core,migrate,core-hotfix,research');
   // The person lets migrate's held lines out and stands the cursor on them.
@@ -118,11 +113,6 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
   // stands is the three things the re-reading must leave alone: the cursor's
   // element, the scroll and the address.
   const stands = `(document.activeElement.id||'')+'|'+String(window.scrollY)+'|'+location.search`;
-  await readTo<string>(
-    page,
-    stands,
-    'the person stands at the cursor, the scroll and the address the walk left',
-  ).toMatch(/^tail-migrate\|120\|\?open=core,migrate,core-hotfix,research/);
   const before = await read<string>(page, stands);
 
   agentState(app.cfg, 'core-lead', 'working');
@@ -135,16 +125,6 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
 
   await readTo<string>(
     page,
-    names,
-    'after core started working the rows are, want the working teams last',
-  ).toBe('migrate,core-hotfix,core,research');
-  await readTo<string[]>(
-    page,
-    `${row('core')}.split('|')`,
-    "core's row reads, want 仕事中 and the member working with no いつから",
-  ).toEqual(['仕事中', 'lead', '']);
-  await readTo<string>(
-    page,
     stands,
     `the re-reading moved the person, was ${before}`,
   ).toBe(before);
@@ -154,30 +134,11 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
       `return String(a.querySelector('.term').textContent.split('\\n').length)+'|'+a.querySelector('.th').textContent})()`,
     'the let-out pane reads after the re-reading',
   ).toBe('8|画面の最後▾ 上の行をしまう');
-  // A working team's opened part is the right column alone (2.5).
-  await readTo<string>(
-    page,
-    `String(!!document.querySelector('#list .act[data-team="core"] .ask'))`,
-    'a team that started working still shows the left column',
-  ).toBe('false');
-
-  // P4（R2）: the band's two numbers are the re-reading's own (2.1). core-lead
-  // works now, so the members waiting for a human or a permission fall from
-  // two to one, 活動 staying at four.
+  // P4（R2）: core-lead works now, so the members waiting for a human or a
+  // permission fall from two to one, 活動 staying at four.
   await readTo<string>(
     page,
     band,
     'after the re-reading the band stands, want 活動 4 and 待ち 1',
   ).toBe('4|待ち 1');
-  // P4（R2）: with the last member waiting gone, 待ち falls off the band (2.1).
-  // The walk then puts the fixture back as the walks after it expect it.
-  agentState(app.cfg, 'migrate-tester', 'working');
-  await awaitFor(page, `${band} === '4|none'`, 40_000);
-  agentState(app.cfg, 'migrate-tester', 'blocked');
-  await page.goto(`${app.base}/activity`);
-  await awaitFor(
-    page,
-    `(function(){var l=document.querySelector('#list .act[data-team="migrate"] .c-since .len');return !!l && l.textContent.length > 0})()`,
-    30_000,
-  );
 });

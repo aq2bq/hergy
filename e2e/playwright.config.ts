@@ -13,8 +13,10 @@ export default defineConfig({
   globalSetup: './scripts/build.mjs',
   // CI measured two workers and four over the 11 walks (r-1c41): 33.5s of the
   // e2e gate with four, 34.0s with two, both with the cache warm. The difference
-  // is small because ACTIVITY-P4 waits about 31s on its own re-reading, which is
-  // the floor either way; four is the count that measured faster.
+  // was small because ACTIVITY-P4 waited about 31s on its own re-reading, which
+  // was the floor either way; four was the count that measured faster. After
+  // d-3e43 cut the walks to what a browser alone can see, the same 11 walks run
+  // in 12.5s with four (warm), about 11.6s of it ACTIVITY-P4's re-reading.
   workers: Number(process.env.E2E_WORKERS || 4),
   fullyParallel: true,
   retries: 0,

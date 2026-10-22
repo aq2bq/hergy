@@ -1,7 +1,8 @@
 // PROFILES-P1 and PROFILES-P11 — checks/profiles.md's 大 items, walked in a
-// browser. They are internal/app e2eProfilesOpen and e2eProfilesUsage, test for
-// test and assertion for assertion, over the same real-scale fixture
-// (testdata/profiles-v2: 11 profiles, 4 definitions, 15 members, 3 workers).
+// browser. Only what the browser alone can see is compared here (d-3e43): the
+// row a person presses opens inside the view (d-d475), the box that rewrites the
+// people using a renamed profile is ticked from the start, and a person's chip
+// puts the cursor on the person's row of the assign tab.
 import { test } from './fixtures';
 import { press, q, readTo, set, there, wait } from './helpers';
 
@@ -11,83 +12,27 @@ test.use({ reads: 'profiles' });
 const row = (name: string) => `#rows .row[data-name="${name}"]`;
 
 test('PROFILES-P1 rows open in place', async ({ page, app }) => {
-  // P1・S3・S4: the row opens under itself, the detail holds the people then the
-  // two panels, and every panel is a head, name, kind, args, env and foot.
+  // P1: the row opens under itself, and the detail it opens stands in the view
+  // (d-d475: a press changed something off screen).
   await page.goto(`${app.base}/profiles`);
   await wait(page, there('#rows .row'));
   await press(page, `${q(`${row('sonnet-fast')} .sum`)}`);
   await wait(page, `!${q(`${row('sonnet-fast')} .detail`)}.hidden`);
-  await readTo<string>(
-    page,
-    `window.location.search`,
-    'opening a row did not write the URL',
-  ).toContain('open=sonnet-fast');
-  await readTo<number>(
-    page,
-    `document.querySelectorAll('${row('sonnet-fast')} .detail .panel').length`,
-    'sonnet-fast shows panels, want the project and the shared one',
-  ).toBe(2);
-  await readTo<string>(
-    page,
-    `[...document.querySelectorAll('${row('sonnet-fast')} .detail .panel .ln')].map(e=>e.textContent).join(',')`,
-    'the panels read',
-  ).toBe('プロジェクト,共通');
-  await readTo<string>(
-    page,
-    `[...document.querySelectorAll('${row('sonnet-fast')} .panel .state')].map(e=>e.textContent).join(',')`,
-    'the states read',
-  ).toBe('効いている,隠れている');
-  await readTo<number>(
-    page,
-    `document.querySelectorAll('${row('sonnet-fast')} .panel .field').length`,
-    'the two panels hold fields, want 4 each',
-  ).toBe(8);
-  for (const name of ['project', 'global']) {
-    await readTo<string>(
-      page,
-      `document.querySelector('${row('sonnet-fast')} .panel[data-file=${name}] .path').textContent`,
-      `the ${name} panel's head reads, want the file's path`,
-    ).toContain('profiles.yaml');
-  }
-  await readTo<boolean>(
-    page,
-    `getComputedStyle(${q('.uchip')}).color === getComputedStyle(document.body).color`,
-    "the name on a person's chip is, want the body's ink",
-  ).toBe(true);
-  await readTo<number>(
-    page,
-    `document.querySelectorAll('.uchip .g').length`,
-    "a member's role on a chip is not the faint mono word",
-  ).toBeGreaterThan(0);
   const visible = `(function(){var d=${q(`${row('sonnet-fast')} .detail`)};if(!d){return;}var r=d.getBoundingClientRect();return r.top < window.innerHeight && r.bottom > 0;})()`;
   await readTo<boolean>(page, visible, 'the opened detail is not in the view').toBe(true);
 
-  // P1 again: the same row closes.
-  await press(page, `${q(`${row('sonnet-fast')} .sum`)}`);
-  await wait(page, `${q(`${row('sonnet-fast')} .detail`)}.hidden`);
-  await readTo<string>(
-    page,
-    `window.location.search`,
-    'closing the row left it in the URL',
-  ).not.toContain('open=');
-
-  // R1: a name both files hold still counts the readers of the panel's own file.
+  // R1・P1: a name both files hold still counts the readers of the panel's own
+  // file, and the box that rewrites them is ticked at first — the write the
+  // screen starts with, which no 中 test can see.
   await page.goto(`${app.base}/profiles?open=sonnet-fast`);
   await wait(page, there(row('sonnet-fast')));
   await set(page, q(`${row('sonnet-fast')} .panel[data-file=project] [data-f=name]`), 'sonnet-5.5');
   await wait(page, `!${q(`${row('sonnet-fast')} .panel[data-file=project] .rename`)}.hidden`);
-  await readTo<string>(
-    page,
-    `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename span`)}.textContent`,
-    'the rename hint reads',
-  ).toContain('使っている 3 人の指定も sonnet-5.5 に書き換える');
   await readTo<boolean>(
     page,
     `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename input`)}.checked`,
     'the rename box is not ticked at first',
   ).toBe(true);
-  await page.goto(`${app.base}/profiles`);
-  await wait(page, there('#rows .row'));
 });
 
 test('PROFILES-P11 usage jumps', async ({ page, app }) => {
@@ -97,11 +42,6 @@ test('PROFILES-P11 usage jumps', async ({ page, app }) => {
   await wait(page, there('.uchip'));
   await press(page, q(`${row('opus-plan')} .uchip`));
   await wait(page, there('.team[data-g=core] .arow[data-k="m-0"].flash'));
-  await readTo<string>(
-    page,
-    `document.activeElement.tagName`,
-    "the person's row does not have the focus",
-  ).toBe('SELECT');
   await readTo<string>(
     page,
     `document.activeElement.closest('.arow').dataset.k`,
