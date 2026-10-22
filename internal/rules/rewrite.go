@@ -555,7 +555,18 @@ type placement struct {
 // are laid out in the draft's order, each after the saved line that comes before
 // it.
 func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
-	ops, err := p.planSectionKeys(node, p.draft.Doc.Sections[ds])
+	want := p.draft.Doc.Sections[ds]
+	if len(node.Content) == 0 {
+		// The file wrote the section as - {}: there is no key to write under,
+		// so a draft that gives it any value is written whole, the way Emit
+		// writes a section (a draft that gives it none writes the same - {}).
+		lines, err := sectionLines(want, sectionsDash(p.sections), p.path)
+		if err != nil {
+			return nil, err
+		}
+		return []op{{kind: opReplace, line: node.Line, to: yamledit.NodeEndLine(node), lines: lines}}, nil
+	}
+	ops, err := p.planSectionKeys(node, want)
 	if err != nil {
 		return nil, err
 	}
@@ -714,10 +725,17 @@ func (p *plan) removeUnclaimed(ops []op, ds, ss int, node *yaml.Node, items []*y
 	return ops
 }
 
-// createRules writes a rules: key and every rule of a section that had none.
+// createRules writes a rules: key and every rule of a section that had none. A
+// section the draft leaves with no rule gains no key at all: Emit leaves rules:
+// out of a section with no rules, so a key written here would stand alone and
+// read back as a different document (the save of a section whose last rule a
+// person took out).
 func (p *plan) createRules(ops []op, node *yaml.Node, globals []int) ([]op, error) {
 	if node.Style&yaml.FlowStyle != 0 || len(node.Content) == 0 {
 		return nil, i18n.Errorf("error.edit_shape", p.path, "sections")
+	}
+	if len(globals) == 0 {
+		return ops, nil
 	}
 	indent := yamledit.MappingIndent(node)
 	lines := []string{yamledit.Spaces(indent) + "rules:"}

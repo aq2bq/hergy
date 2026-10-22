@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A section with no rules saves from the rules screen**: taking a section's
+  last rule out leaves a heading with no `rules:` key, and saving that
+  agreement or role document from the screen was refused as unreadable even
+  when nothing was changed. A section the draft leaves with no rule is written
+  without the key, the way hergy writes it.
+
 ## 0.8.1 - 2026-10-21
 
 A section's rules are laid out one way now: a bullet list with the id first.
