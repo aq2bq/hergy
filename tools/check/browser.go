@@ -126,7 +126,7 @@ func writeZipEntry(entry *zip.File, to string) error {
 }
 
 // e2eGate drives the WebUI's screens in a real headless browser: the walks of
-// checks/*.md's 大 items, written in Playwright and run by bun (d-3c9b). The
+// e2e/tests, written in Playwright and run by bun (d-3c9b). The
 // dependency comes from e2e/bun.lock and the browser is Playwright's own pinned
 // chromium; both live under e2e/.bin and e2e/node_modules, so nothing is
 // installed into the person's home directory.

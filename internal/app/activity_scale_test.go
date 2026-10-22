@@ -20,7 +20,7 @@ import (
 )
 
 // The activity screen's real-scale fixture (spec-activity 5 章), read without a
-// browser so that each checks/activity.md item stands at its own size: the tests
+// browser so that each check of the activity screen stands at its own size: the tests
 // here hold the reading behind GET /api/activity, GET /api/activity/{team} and
 // the judgement of one team, over testdata/teams-v2 overlaid with
 // testdata/activity — a mock herdr and gy, 4 running teams and 55 open questions.

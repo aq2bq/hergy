@@ -1,4 +1,4 @@
-// TEAMS-N1, TEAMS-P5, TEAMS-Y2 and TEAMS-V1 — checks/teams.md's 大 items, walked
+// TEAMS-N1, TEAMS-P5, TEAMS-Y2 and TEAMS-V1 — walked
 // in a browser. Only what the browser alone can see is compared here (d-3e43):
 // the path the shape panel's head writes (TEAMS-V4), 元に戻す standing where
 // nothing changed (R5), a definition whose names do not resolve being drawn (R10),

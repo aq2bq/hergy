@@ -15,7 +15,7 @@ import (
 // (spec-nav.md 5.1). testdata/roles-v2 already carries the profile screen's
 // profiles.yaml, so it stands in for testdata/profiles-v2 — the same way the
 // browser test's copyNavFixture lays the two down, so the numbers a screen reads
-// here are the ones all of checks/nav.md writes.
+// here are the ones the e2e walks see.
 func fixtureNav(t *testing.T) *fixture {
 	t.Helper()
 	root := t.TempDir()

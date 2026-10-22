@@ -15,7 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 )
 
-// This file holds the small items of checks/teams.md that are about the model
+// This file holds the small checks of the team screen that are about the model
 // rather than a browser: the effect one change has on a member's own prompt
 // (TEAMS-M2) and the rule Markdown a screen previews against the prompt a member
 // is handed (TEAMS-M4). The fixture is the team screen's real-scale one
@@ -71,7 +71,7 @@ func teamsV2Copy(t *testing.T, from, to string) {
 // ("ターンを渡す相手"), written the way that prompt writes it, with the problem
 // the change would add — the rule CORE-12 still writing the turn. Taking away
 // the last turn a member hands out shows both the line that goes and the
-// sentence that stops the definition (checks/teams.md TEAMS-M2).
+// sentence that stops the definition (TEAMS-M2).
 func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	cat := teamsV2Catalog(t)
 	in := TeamInput{Catalog: cat, Name: "core", Layer: source.LayerLocal}
@@ -154,7 +154,7 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 // previews for core's own agreement is the very part the member's initial prompt
 // carries, one character not differing, and CORE-8 — the one rule kept out of
 // the prompt — is a struck line with no line number, inside neither the numbered
-// preview nor the prompt (checks/teams.md TEAMS-M4).
+// preview nor the prompt (TEAMS-M4).
 func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 	cat := teamsV2Catalog(t)
 	def, err := cat.Definition("core", source.LayerLocal)

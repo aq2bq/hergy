@@ -1,4 +1,4 @@
-// ROLES-P5 and ROLES-P14 — checks/roles.md's 大 items, walked in a browser. Only
+// ROLES-P5 and ROLES-P14 — walked in a browser. Only
 // what the browser alone can see is compared here (d-3e43): the document-wide
 // warning the screen's own script puts on the preview's first line (R4), the
 // text a person types being the one line a save writes, and the role a person

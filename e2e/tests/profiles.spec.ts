@@ -1,4 +1,4 @@
-// PROFILES-P1 and PROFILES-P11 — checks/profiles.md's 大 items, walked in a
+// PROFILES-P1 and PROFILES-P11 — walked in a
 // browser. Only what the browser alone can see is compared here (d-3e43): the
 // row a person presses opens inside the view (d-d475), the box that rewrites the
 // people using a renamed profile is ticked from the start, and a person's chip

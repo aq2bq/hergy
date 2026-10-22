@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// The browser walks of checks/*.md's 大 items (r-1c41, d-3c9b). Each test lays
+// The browser walks of the WebUI's screens (r-1c41, d-3c9b). Each test lays
 // its own project out and starts its own serve on a port the operating system
 // picks (tests/fixtures.ts), so tests may run side by side; the count is the one
 // setting that says how many do.

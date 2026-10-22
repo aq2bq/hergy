@@ -77,7 +77,7 @@ func (l rbRoleList) row(name string) (int, bool) {
 // save from the 割り当て tab that changes the docs team's checker role writes
 // only that role: line of team.yaml, and a save that names a role no layer holds
 // a document for is refused with error.no_role_doc and writes nothing
-// (checks/roles.md ROLES-P16).
+// (ROLES-P16).
 func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(t *testing.T) {
 	f := rbFixtureRoles(t)
 	server := f.server(t)
@@ -144,7 +144,7 @@ func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(
 // TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem: a save of the
 // YAML tab's whole text writes exactly what the person typed, even when the file
 // already has a problem, and only refuses a text that adds a problem
-// (checks/roles.md ROLES-P18).
+// (ROLES-P18).
 func TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem(t *testing.T) {
 	f := rbFixtureRoles(t)
 	server := f.server(t)
@@ -190,7 +190,7 @@ func TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem(t *testing.
 // warnings — with only the definition's own head in front of a turn or size
 // warning, so the screen adds no check of its own; and BUILD-3, BUILD-4,
 // core-analyst's amount and BUILD-5 each stand on their rule and line
-// (checks/roles.md ROLES-V4).
+// (ROLES-V4).
 func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 	f := rbFixtureRoles(t)
 	server := f.server(t)
@@ -412,7 +412,7 @@ func rbNoAbsolutePath(t *testing.T, what, body string, abs ...string) {
 // TestROLES_V6_ThePathsReadAsTheProjectAndTheHome: with the shared settings
 // under ~/.config/hergy, the list, one document and a check's answer write every
 // file as .hergy/… or ~/.config/hergy/…, and the working directory's absolute
-// path is nowhere (checks/roles.md ROLES-V6).
+// path is nowhere (ROLES-V6).
 func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 	server, f := rbHomeServer(t)
 
@@ -497,7 +497,7 @@ func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 // whose document is still Markdown, and a role a team member names and no layer
 // holds a document for, are both rows of the list: the first carries the
 // sentence that says it is Markdown and no document a screen can edit, and the
-// second is offered as 新規 with one empty rule (checks/roles.md ROLES-E1).
+// second is offered as 新規 with one empty rule (ROLES-E1).
 func TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole(t *testing.T) {
 	f := rbFixtureRoles(t)
 	// A role document still left as Markdown, and a definition that names a
