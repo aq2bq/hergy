@@ -11,9 +11,11 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   globalSetup: './scripts/build.mjs',
-  // The article's finding was two workers over four; the count this repository
-  // measured is in the record of r-1c41.
-  workers: Number(process.env.E2E_WORKERS || 2),
+  // CI measured two workers and four over the 11 walks (r-1c41): 33.5s of the
+  // e2e gate with four, 34.0s with two, both with the cache warm. The difference
+  // is small because ACTIVITY-P4 waits about 31s on its own re-reading, which is
+  // the floor either way; four is the count that measured faster.
+  workers: Number(process.env.E2E_WORKERS || 4),
   fullyParallel: true,
   retries: 0,
   timeout: 5 * 60_000,
