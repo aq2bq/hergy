@@ -9,7 +9,7 @@
 // those — reading a missing element throws in the page, and pressing a shut
 // button is no press at all (HTML) — so every act here waits for the page to
 // offer it, then acts once.
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { clockStart } from '../scripts/fixture.mjs';
 
 // DEADLINE is how long one act waits for the page to offer it (e2eDeadline).
@@ -74,6 +74,27 @@ export async function read<T>(page: Page, script: string): Promise<T> {
     await page.waitForTimeout(STEP);
   }
   throw new Error(`the page never gave ${script} (${why || 'the page gave nothing'})`);
+}
+
+// readTo is the read a comparison goes through: the expression is read again
+// until it is what the walk expects of it, and the walk's own words are the
+// expectation's message, as an expect's second argument was.
+//
+// A walk that reads once and compares what it got asks the page a question it
+// may not be ready to answer: the app adds some marks after the press answers —
+// a role document's problem is drawn a beat later, so the members in problem
+// read "" the first time (TEAMS-V1, main 4f0ec6d, r-291a) — and the walk then
+// fails on the run where the machine is a little slower. So no walk compares
+// what `read` gave once: it compares a reading that is read again until it
+// matches (the gate in tools/check refuses the other shape).
+//
+// Two waits stand in it, each bounded by DEADLINE: read's own wait for the page
+// to give the expression at all (an element that is not drawn throws in the
+// page), and the poll's wait for that value to be the one the walk expects. The
+// value that came last is what Playwright prints under the walk's words, so a
+// failure still says what the page read.
+export function readTo<T>(page: Page, script: string, said: string) {
+  return expect.poll(() => read<T>(page, script), { timeout: DEADLINE, message: said });
 }
 
 // wait waits until one expression is true.
