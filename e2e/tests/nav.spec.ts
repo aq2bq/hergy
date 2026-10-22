@@ -5,10 +5,10 @@
 // other screen and back, is dropped when the file moved outside, is not put back
 // by a reload, and a draft the band did not carry is spent for good (N6〜N9,
 // R2, R3).
-import { test, expect } from './fixtures';
+import { test } from './fixtures';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { choose, press, q, read, set, there, wait, waitPath } from './helpers';
+import { choose, press, q, readTo, set, there, wait, waitPath } from './helpers';
 
 // pick is the assign row N6〜N9 work on: the core team's impl-a, whose profile
 // the fixture has as codex-high.
@@ -24,20 +24,23 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await wait(page, there('.team[data-g="core"]'));
   await choose(page, q(`${pick} select`), 'opus-deep');
   await wait(page, `${q(pick)}.classList.contains('changed')`);
-  expect(
-    await read<string>(page, `String(!!${q('.scr[data-screen="profiles"] .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('.scr[data-screen="profiles"] .dot')})`,
     'N6: the band marks the profile screen, want a dot',
   ).toBe('true');
 
   await press(page, q('a.scr[data-screen="roles"]'));
   await waitPath(page, '/roles');
   await wait(page, there('#rows'));
-  expect(
-    await read<string>(page, `String(!!${q('a.scr[data-screen="profiles"] .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('a.scr[data-screen="profiles"] .dot')})`,
     'N6: the changed pick left no dot on the profile screen',
   ).toBe('true');
-  expect(
-    await read<number>(page, `document.querySelectorAll('.teams .arow.changed').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.teams .arow.changed').length`,
     'N6: the role screen shows changed picks, want none',
   ).toBe(0);
 
@@ -45,24 +48,28 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await press(page, q('a.scr[data-screen="profiles"]'));
   await waitPath(page, '/profiles/assign');
   await wait(page, `${q(pick)}.classList.contains('changed')`);
-  expect(
-    await read<string>(page, `${q(`${pick} s.was`)}.textContent || ''`),
+  await readTo<string>(
+    page,
+    `${q(`${pick} s.was`)}.textContent || ''`,
     'N7: the carried pick does not show what it was',
   ).toBe('codex-high');
-  expect(
-    await read<string>(page, `${q('.team[data-g="core"] .tside .dirty')}.textContent || ''`),
+  await readTo<string>(
+    page,
+    `${q('.team[data-g="core"] .tside .dirty')}.textContent || ''`,
     'N7: the team head does not read 1 人',
   ).toBe('1 人');
-  expect(
-    await read<string>(page, `String(!!${q('.scr.on .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('.scr.on .dot')})`,
     'N7: the screen the person is on shows no change mark',
   ).toBe('true');
 
   // N9: a reload puts nothing back — the band carried it, and it is spent.
   await page.reload();
   await wait(page, there('.team[data-g="core"]'));
-  expect(
-    await read<number>(page, `document.querySelectorAll('.arow.changed').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.arow.changed').length`,
     'N9: a reload put changed picks back, want none',
   ).toBe(0);
 
@@ -77,30 +84,35 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await wait(page, there('#rows'));
   await page.goto(`${app.base}/profiles/assign`);
   await wait(page, there('.team[data-g="core"]'));
-  expect(
-    await read<number>(page, `document.querySelectorAll('.arow.changed').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.arow.changed').length`,
     'R2: opening the profile screen by URL put changed picks back, want none',
   ).toBe(0);
-  expect(
-    await read<string>(page, `String(!!${q('.screens .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('.screens .dot')})`,
     'R2: the band marks a screen after a typed URL dropped the draft',
   ).toBe('false');
   await press(page, q('a.scr[data-screen="roles"]'));
   await waitPath(page, '/roles');
   await wait(page, there('#rows'));
-  expect(
-    await read<string>(page, `String(!!${q('a.scr[data-screen="profiles"] .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('a.scr[data-screen="profiles"] .dot')})`,
     'R2: the profile screen still shows a dot after its draft was dropped',
   ).toBe('false');
   await press(page, q('a.scr[data-screen="profiles"]'));
   await waitPath(page, '/profiles/assign');
   await wait(page, there('.team[data-g="core"]'));
-  expect(
-    await read<string>(page, `${q(`${pick} select`)}.value`),
+  await readTo<string>(
+    page,
+    `${q(`${pick} select`)}.value`,
     'R2: the pick was not put back after the dropped draft',
   ).toBe('codex-high');
-  expect(
-    await read<number>(page, `document.querySelectorAll('.arow.changed').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.arow.changed').length`,
     'R2: a draft the band did not carry came back, want none',
   ).toBe(0);
 
@@ -115,12 +127,14 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await press(page, q('a.scr[data-screen="profiles"]'));
   await waitPath(page, '/profiles/assign');
   await wait(page, there('.team[data-g="core"]'));
-  expect(
-    await read<number>(page, `document.querySelectorAll('.arow.changed').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.arow.changed').length`,
     'N8: a draft made before the file moved outside was put back, want none',
   ).toBe(0);
-  expect(
-    await read<string>(page, `String(!!${q('.screens .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('.screens .dot')})`,
     'N8: the band still marks a screen after the draft was dropped',
   ).toBe('false');
 
@@ -134,8 +148,9 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await wait(page, `!!${q('.scr.on[data-screen="roles"] .dot')}`);
   await set(page, q(title), '設計実装');
   await wait(page, `!${q('.scr.on[data-screen="roles"] .dot')}`);
-  expect(
-    await read<string>(page, `String(!!${q('.screens .dot')})`),
+  await readTo<string>(
+    page,
+    `String(!!${q('.screens .dot')})`,
     'R3: the band still marks a screen after the field was put back',
   ).toBe('false');
 });

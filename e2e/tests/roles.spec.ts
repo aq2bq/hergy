@@ -7,7 +7,18 @@
 import { test, expect } from './fixtures';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { changedLines, choose, focus, press, q, read, set, there, wait } from './helpers';
+import {
+  changedLines,
+  choose,
+  focus,
+  press,
+  q,
+  read,
+  readTo,
+  set,
+  there,
+  wait,
+} from './helpers';
 
 test.use({ reads: 'roles' });
 
@@ -66,32 +77,38 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await wait(page, there('#rows .role'));
   await press(page, `${row('builder')}.querySelector('.sum')`);
   await wait(page, `${row('builder')}.classList.contains('open')`);
-  expect(
-    await read<string>(page, `window.location.search`),
+  await readTo<string>(
+    page,
+    `window.location.search`,
     'opening the builder row left in the URL',
   ).toContain('open=builder');
-  expect(
-    await read<number>(page, `${row('builder')}.querySelectorAll('.panel').length`),
+  await readTo<number>(
+    page,
+    `${row('builder')}.querySelectorAll('.panel').length`,
     'builder shows panels, want the project\'s alone',
   ).toBe(1);
-  expect(
-    await read<number>(page, `${row('builder')}.querySelectorAll('.usage .uchip').length`),
+  await readTo<number>(
+    page,
+    `${row('builder')}.querySelectorAll('.usage .uchip').length`,
     'builder is read by chips, want 3',
   ).toBe(3);
-  expect(
-    await read<string>(page, `${row('builder')}.querySelector('.uchip .g').textContent`),
+  await readTo<string>(
+    page,
+    `${row('builder')}.querySelector('.uchip .g').textContent`,
     "the first reader's chip reads, want core",
   ).toBe('core');
-  expect(
-    await read<number>(page, `${row('builder')}.querySelectorAll('.dhvm li').length`),
+  await readTo<number>(
+    page,
+    `${row('builder')}.querySelectorAll('.dhvm li').length`,
     'builder shows document-level checks, want none',
   ).toBe(0);
 
   // P5: the per-rule badge is the rule's own checks.
-  const badge = (id: string) =>
-    read<string>(
+  const badge = (id: string, said: string) =>
+    readTo<string>(
       page,
       `(function(){var x=${rule(id)};var s=x.querySelector('.rid .sev');return s?s.textContent.trim():''})()`,
+      said,
     );
   for (const [id, want] of [
     ['BUILD-1', ''],
@@ -99,135 +116,148 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     ['BUILD-4', '問題 1'],
     ['BUILD-5', '警告 1'],
   ]) {
-    expect(await badge(id), `the ${id} badge reads, want ${want}`).toBe(want);
+    await badge(id, `the ${id} badge reads, want ${want}`).toBe(want);
   }
-  const count = await read<string>(page, `${row('builder')}.querySelector('.pf .vcount').textContent`);
-  expect(count, "the panel's count reads, want 問題 1 and 警告 2").toContain('問題 1');
-  expect(count, "the panel's count reads, want 問題 1 and 警告 2").toContain('警告 2');
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .yprev .yl.err').length`),
+  const countScript = `${row('builder')}.querySelector('.pf .vcount').textContent`;
+  await readTo<string>(
+    page,
+    countScript,
+    "the panel's count reads, want 問題 1 and 警告 2",
+  ).toContain('問題 1');
+  await readTo<string>(
+    page,
+    countScript,
+    "the panel's count reads, want 問題 1 and 警告 2",
+  ).toContain('警告 2');
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .yprev .yl.err').length`,
     'the Markdown preview marks lines as a problem, want 1',
   ).toBe(1);
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`,
     'the Markdown preview marks lines as a warning, want 2',
   ).toBe(2);
   // The layout of a section is one way now (d-f4f6).
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]').length`,
     "builder shows level pickers, want the 2 sections'",
   ).toBe(2);
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .panel .sec [data-f=style]').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .sec [data-f=style]').length`,
     'the section header offers style pickers, want none',
   ).toBe(0);
   // I6: nowhere the level says —, and no control of the panel is a select any more.
-  expect(
-    await read<string>(
-      page,
-      `[...document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]')].map(function(b){return b.textContent.trim()}).join(',')`,
-    ),
+  await readTo<string>(
+    page,
+    `[...document.querySelectorAll('#rows .role.open .panel .sec [data-f=level]')].map(function(b){return b.textContent.trim()}).join(',')`,
     "the sections' depth reads, want ##,##",
   ).toBe('##,##');
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .panel select').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel select').length`,
     'the panel still shows selects',
   ).toBe(0);
-  expect(
-    await read<number>(
-      page,
-      `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].filter(function(e){return e.textContent.indexOf('- **BUILD-')===0}).length`,
-    ),
+  await readTo<number>(
+    page,
+    `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].filter(function(e){return e.textContent.indexOf('- **BUILD-')===0}).length`,
     "the Markdown preview shows items with the id at their head, want the 7 rules'",
   ).toBe(7);
   // R1: the meter paints, and a kept line is pulled back to its bullet's head.
-  expect(
-    await read<number>(page, `document.querySelector('#rows .role.open .c-amount .meter i').getBoundingClientRect().width`),
+  await readTo<number>(
+    page,
+    `document.querySelector('#rows .role.open .c-amount .meter i').getBoundingClientRect().width`,
     "the reader's meter is wide, want a painted fill",
   ).toBeGreaterThan(0);
-  expect(
-    await read<number>(
-      page,
-      `Math.min.apply(null,[...document.querySelectorAll('#rows .role.open .yprev .yt')].map(function(e){return parseFloat(getComputedStyle(e).textIndent)}))`,
-    ),
+  await readTo<number>(
+    page,
+    `Math.min.apply(null,[...document.querySelectorAll('#rows .role.open .yprev .yt')].map(function(e){return parseFloat(getComputedStyle(e).textIndent)}))`,
     'the smallest text-indent in the Markdown preview is, want a kept line pulled back',
   ).toBeLessThan(0);
   // N1: the origin cell that says — stands one line high, exactly as high as a
-  // cell that names an origin.
+  // cell that names an origin. The two heights are read as one "empty|named", so
+  // the reading is the pair the walk compares and not one cell at a time.
   const cell = (find: string) =>
     `(function(){var c=[...document.querySelectorAll(${JSON.stringify(`#rows .role.open .panel .rule ${find}`)})];return c.length?Math.round(Math.max.apply(null,c.map(function(e){return e.getBoundingClientRect().height}))):-1})()`;
-  const emptyCell = await read<number>(page, cell('.org.empty'));
-  const namedCell = await read<number>(page, cell('.org:not(.empty)'));
-  expect(
-    emptyCell > 0 && namedCell > 0,
-    `the builder shows no origin cells to measure: empty=${emptyCell} named=${namedCell}`,
-  ).toBe(true);
-  expect(
-    emptyCell,
-    `the cell that says — stands ${emptyCell}px high against ${namedCell}px for a named origin, want one line each`,
-  ).toBe(namedCell);
+  const heights = `(${cell('.org.empty')})+'|'+(${cell('.org:not(.empty)')})`;
+  await readTo<string>(
+    page,
+    heights,
+    `the cell that says — stands as high as one that names an origin, want one line each`,
+  ).toMatch(/^([1-9]\d*)\|\1$/);
 
   // P3: the rule opens under its own summary, and its place joins the URL.
   await press(page, `${rule('BUILD-5')}.querySelector('.rsum')`);
   await wait(page, there('#rows .role.open .panel .rule.open .redit'));
-  expect(
-    await read<string>(page, `window.location.search`),
+  await readTo<string>(
+    page,
+    `window.location.search`,
     'opening BUILD-5 left in the URL',
   ).toContain('rule=builder.project.BUILD-5');
-  expect(
-    await read<string>(page, q('#rows .role.open .rule.open .redit [data-f=id]') + '.value'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .rule.open .redit [data-f=id]') + '.value',
     'the opened rule reads, want BUILD-5',
   ).toBe('BUILD-5');
-  expect(
-    await read<string>(page, q('#rows .role.open .rule.open .redit [data-f=text]') + '.value'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .rule.open .redit [data-f=text]') + '.value',
     "the opened rule's text reads",
   ).toContain('大きな設計の判断');
-  expect(
-    await read<string>(page, `${row('builder')}.querySelector('.pedit [data-f=send_why] button.on').textContent`),
+  await readTo<string>(
+    page,
+    `${row('builder')}.querySelector('.pedit [data-f=send_why] button.on').textContent`,
     'the why switch reads, want the default プロンプトに含める',
   ).toBe('プロンプトに含める');
-  expect(
-    await read<number>(
-      page,
-      `document.querySelectorAll('#rows .role.open .rule.open .redit [data-act=rule-revert]:not([hidden])').length`,
-    ),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .rule.open .redit [data-act=rule-revert]:not([hidden])').length`,
     'a rule nothing changed shows 元に戻す',
   ).toBe(0);
-  expect(
-    await read<string>(page, `${row('builder')}.querySelector('.pf [data-act=save]').disabled+''`),
+  await readTo<string>(
+    page,
+    `${row('builder')}.querySelector('.pf [data-act=save]').disabled+''`,
     'a rule nothing changed can be saved',
   ).toBe('true');
 
   // P1 again: the same row closes.
   await press(page, `${row('builder')}.querySelector('.sum')`);
   await wait(page, `!${row('builder')}.classList.contains('open')`);
-  expect(
-    await read<string>(page, `window.location.search`),
+  await readTo<string>(
+    page,
+    `window.location.search`,
     'closing the row left in the URL',
   ).not.toContain('open=');
 
   // A document-level check stands above the sections.
   await page.goto(`${app.base}/roles?open=analyst`);
   await wait(page, there('#rows .role.open .panel'));
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .panel .dhvm li').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .dhvm li').length`,
     'analyst shows document-level checks, want 1',
   ).toBe(1);
-  expect(
-    await read<string>(page, q('#rows .role.open .panel .dhvm li span:last-child') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .panel .dhvm li span:last-child') + '.textContent',
     'the analyst check reads',
   ).toContain('core-analyst に渡る規則が 21 件です');
   // R4: the same document-wide sentence marks the first line of the preview alone.
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`,
     "analyst's preview marks lines as a warning, want the first line alone",
   ).toBe(1);
 
   // A deep link opens the row and the rule it names.
   await page.goto(`${app.base}/roles?open=builder&rule=builder.project.BUILD-5`);
   await wait(page, there('#rows .role.open .rule.open .redit'));
-  expect(
-    await read<string>(page, q('#rows .role.open .rule.open .redit [data-f=id]') + '.value'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .rule.open .redit [data-f=id]') + '.value',
     'the deep-linked rule reads, want BUILD-5',
   ).toBe('BUILD-5');
 
@@ -241,8 +271,9 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     page,
     `document.activeElement && document.activeElement.getAttribute('data-f')==='text'`,
   );
-  expect(
-    await read<string>(page, q('#rows .role.open .rule.open .redit [data-f=id]') + '.value'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .rule.open .redit [data-f=id]') + '.value',
     'the Markdown line opened, want BUILD-3',
   ).toBe('BUILD-3');
 
@@ -252,23 +283,27 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await page.goto(`${app.base}/roles?open=lead&rule=lead.project.LEAD-9`);
   await wait(page, there('#rows .role.open .rule.open .redit [data-act=in-prompt]'));
   // A1: the rule's own switch stands under the field's name 規則.
-  expect(
-    await read<string>(page, `${panel}.querySelector('.redit .field.scope .fl').textContent.trim()`),
+  await readTo<string>(
+    page,
+    `${panel}.querySelector('.redit .field.scope .fl').textContent.trim()`,
     "the rule's own switch stands under, want 規則",
   ).toBe('規則');
   const [lines0, chars0] = vt(
     await read<string>(page, `${panel}.querySelector('.yprev .yinfo .vt').textContent`),
   );
-  expect(
-    await read<string>(page, `${panel}.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`),
+  await readTo<string>(
+    page,
+    `${panel}.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`,
     'the last section before the switch reads, want 3 規則',
   ).toBe('3 規則');
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .c-count .outn').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .c-count .outn').length`,
     'the list marks an 含めない rule before any was made',
   ).toBe(0);
-  expect(
-    await read<string>(page, `document.querySelector('#rows .role.open .c-amount .amt .v').firstChild.textContent`),
+  await readTo<string>(
+    page,
+    `document.querySelector('#rows .role.open .c-amount .amt .v').firstChild.textContent`,
     "the lead reader's amount before the switch reads, want 18",
   ).toBe('18');
 
@@ -292,23 +327,33 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     `document.querySelector('#rows .role.open .c-amount .amt .v').firstChild.textContent==='17'`,
   );
   await wait(page, there('#rows .role.open .yprev .yl.ghost .yt s'));
-  expect(
-    await read<string>(page, `${q('#rows .role.open .yprev .yl.ghost .lno')}.textContent`),
+  await readTo<string>(
+    page,
+    `${q('#rows .role.open .yprev .yl.ghost .lno')}.textContent`,
     "the excluded rule's line carries the number, want none",
   ).toBe('');
-  const [lines1, chars1] = vt(
-    await read<string>(page, `${panel}.querySelector('.yprev .yinfo .vt').textContent`),
-  );
-  expect(
-    lines1 < lines0 && chars1 < chars0,
-    `the preview reads ${lines1} 行 · ${chars1} 文字 after the switch, want below ${lines0} 行 · ${chars0} 文字`,
-  ).toBe(true);
-  expect(
-    await read<string>(page, `${panel}.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`),
+  // The preview's two counts are read as the two numbers vt writes, each read
+  // again until it is below where the walk left it.
+  const vtNumber = (at: number) =>
+    `Number(${panel}.querySelector('.yprev .yinfo .vt').textContent.trim().split(/\\s+/)[${at}])`;
+  await readTo<number>(
+    page,
+    vtNumber(0),
+    `the preview reads ${lines0} 行 or more after the switch, want below`,
+  ).toBeLessThan(lines0);
+  await readTo<number>(
+    page,
+    vtNumber(3),
+    `the preview reads ${chars0} 文字 or more after the switch, want below`,
+  ).toBeLessThan(chars0);
+  await readTo<string>(
+    page,
+    `${panel}.querySelector('.sec[data-si="2"] .sech .n').textContent.trim()`,
     'the last section after the switch reads, want 3 規則含めない 1',
   ).toBe('3 規則含めない 1');
-  expect(
-    await read<string>(page, `document.querySelector('#rows .role.open .pf .dirty').textContent`),
+  await readTo<string>(
+    page,
+    `document.querySelector('#rows .role.open .pf .dirty').textContent`,
     'the switch reads in the footer, want 1 か所',
   ).toBe('1 か所');
 
@@ -333,20 +378,23 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await page.goto(`${app.base}/roles?open=builder&rule=builder.project.BUILD-1`);
   await wait(page, there('#rows .role.open .rule.open .redit .whyrow [data-act=send-why]'));
   const whyField = `(function(){var f=[...document.querySelectorAll('#rows .role.open .rule.open .redit > .field')].find(function(d){var l=d.querySelector('label');return l&&l.textContent.trim()==='なぜ'});return f?f.querySelector('.whyrow [data-f=send_why]')?'yes':'no':'none'})()`;
-  expect(await read<string>(page, whyField), "the why's switch is not under なぜ").toBe('yes');
+  await readTo<string>(page, whyField, "the why's switch is not under なぜ").toBe('yes');
   await press(page, `${panel}.querySelector('.rule.open .whyrow [data-act=send-why][data-v=false]')`);
   await wait(page, there('#rows .role.open .rule.open .redit textarea.held-why'));
   await wait(page, there('#rows .role.open .yprev .yl .held s'));
-  expect(
-    await read<string>(page, `${panel}.querySelector('.rule.open .rsum .mk.why').className`),
+  await readTo<string>(
+    page,
+    `${panel}.querySelector('.rule.open .rsum .mk.why').className`,
     "the rule's なぜ mark reads after its own 含めない, want held",
   ).toContain('held');
-  expect(
-    await read<number>(page, `document.querySelectorAll('#rows .role.open .panel .rule.out').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .rule.out').length`,
     "the why's 含めない dimmed whole rules, want none",
   ).toBe(0);
-  expect(
-    await read<string>(page, `${panel}.querySelector('.rule.open .redit [data-f=why]').value`),
+  await readTo<string>(
+    page,
+    `${panel}.querySelector('.rule.open .redit [data-f=why]').value`,
     "the why's 含めない emptied the why, want the text kept and writable",
   ).not.toBe('');
 
@@ -356,17 +404,16 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await page.goto(`${app.base}/roles?open=builder`);
   await wait(page, there('#rows .role.open .panel .sec [data-act=sec-pick]'));
   const make = sec('作り方');
-  expect(
-    await read<string>(page, `${make}.querySelector('.sech [data-f=level]').textContent.trim()`),
+  await readTo<string>(
+    page,
+    `${make}.querySelector('.sech [data-f=level]').textContent.trim()`,
     "作り方's depth reads, want ##",
   ).toBe('##');
   await press(page, `${make}.querySelector('.sech [data-act=sec-pick][data-w=lvl]')`);
   await wait(page, `${make}.querySelectorAll('.pickrow .lvl').length===3`);
-  expect(
-    await read<string>(
-      page,
-      `[...${make}.querySelectorAll('.pickrow .lvl')].map(function(b){return b.textContent.trim().split(' ')[0]}).join(',')`,
-    ),
+  await readTo<string>(
+    page,
+    `[...${make}.querySelectorAll('.pickrow .lvl')].map(function(b){return b.textContent.trim().split(' ')[0]}).join(',')`,
     "the depth's three marks read, want ##,###,####",
   ).toBe('##,###,####');
   await press(page, `${make}.querySelector('.pickrow [data-act=sec-level][data-v="3"]')`);
@@ -375,12 +422,14 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     page,
     `[...document.querySelectorAll('#rows .role.open .yprev .yl .yt')].some(function(e){return e.textContent.trim()==='### 作り方'})`,
   );
-  expect(
-    await read<string>(page, q('#rows .role.open .pf .dirty') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .pf .dirty') + '.textContent',
     'the depth change reads in the footer, want 1 か所',
   ).toBe('1 か所');
-  expect(
-    await read<string>(page, `${make}.querySelector('.sech [data-f=level]').className`),
+  await readTo<string>(
+    page,
+    `${make}.querySelector('.sech [data-f=level]').className`,
     'the depth mark reads after the change, want changed',
   ).toContain('changed');
   await press(page, `document.querySelector('#rows .role.open .pf [data-act=save]')`);
@@ -400,18 +449,14 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await page.goto(`${app.base}/roles?open=builder`);
   await wait(page, there('#rows .role.open .panel .sec [data-act=sec-up]'));
   // The first section's ↑ and the last's ↓ are shut.
-  expect(
-    await read<string>(
-      page,
-      `document.querySelectorAll('#rows .role.open .panel .sec')[0].querySelector('[data-act=sec-up]').disabled+''`,
-    ),
+  await readTo<string>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .sec')[0].querySelector('[data-act=sec-up]').disabled+''`,
     "the first section's ↑ is not shut",
   ).toBe('true');
-  expect(
-    await read<string>(
-      page,
-      `document.querySelectorAll('#rows .role.open .panel .sec')[1].querySelector('[data-act=sec-down]').disabled+''`,
-    ),
+  await readTo<string>(
+    page,
+    `document.querySelectorAll('#rows .role.open .panel .sec')[1].querySelector('[data-act=sec-down]').disabled+''`,
     "the last section's ↓ is not shut",
   ).toBe('true');
   await press(
@@ -422,8 +467,9 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     page,
     `document.querySelectorAll('#rows .role.open .panel .sec [data-f=heading]')[0].value==='確かめ方'`,
   );
-  expect(
-    await read<string>(page, q('#rows .role.open .pf .dirty') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .pf .dirty') + '.textContent',
     'moving the sections reads in the footer, want 1 か所',
   ).toBe('1 か所');
   await wait(
@@ -452,8 +498,9 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await page.goto(`${app.base}/roles?open=builder`);
   await wait(page, there('#rows .role.open .panel .sec .rule .grip'));
   const makeOrder = `[...${sec('作り方')}.querySelectorAll('.rule .rid b')].map(function(b){return b.textContent.trim()}).join(',')`;
-  expect(
-    await read<string>(page, makeOrder),
+  await readTo<string>(
+    page,
+    makeOrder,
     "作り方's rules stand before the drag, want BUILD-1..BUILD-4",
   ).toBe('BUILD-1,BUILD-2,BUILD-3,BUILD-4');
   // The drag is the events a person's mouse fires: the ⋮ makes the row
@@ -471,14 +518,16 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
 		a.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:new DataTransfer()}));
 		return 'dragged';
 	})()`;
-  expect(await read<string>(page, drag), 'the drag did not start').toBe('dragged');
+  await readTo<string>(page, drag, 'the drag did not start').toBe('dragged');
   await wait(page, there('#rows .role.open .panel .sec .rule.flash'));
-  expect(
-    await read<string>(page, makeOrder),
+  await readTo<string>(
+    page,
+    makeOrder,
     'the dropped rule landed as, want it below BUILD-3',
   ).toBe('BUILD-2,BUILD-3,BUILD-1,BUILD-4');
-  expect(
-    await read<string>(page, q('#rows .role.open .pf .dirty') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .pf .dirty') + '.textContent',
     'the drag reads in the footer, want 1 か所',
   ).toBe('1 か所');
   await press(page, `document.querySelector('#rows .role.open .pf [data-act=save]')`);
@@ -506,8 +555,9 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
   await set(page, q('#rows .role.open .rule.open .redit [data-f=text]'), want);
   await press(page, `${row('builder')}.querySelector('.pf [data-act=save]')`);
   await wait(page, there('#rows .role.open .ok'));
-  expect(
-    await read<string>(page, q('#rows .role.open .ok') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('#rows .role.open .ok') + '.textContent',
     'the saved line reads, want 保存しました',
   ).toBe('保存しました');
   after = readFileSync(builder, 'utf8');
@@ -520,8 +570,9 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
     expect(text, `line ${line} became, want the rule's new text`).toBe(`        text: ${want}`);
   }
   expect(after, "the save lost BUILD-4's derived origin").toContain('refs: [REQ-5]');
-  expect(
-    await read<string>(page, `${rule('BUILD-5')}.querySelector('.rtx').textContent`),
+  await readTo<string>(
+    page,
+    `${rule('BUILD-5')}.querySelector('.rtx').textContent`,
     "the saved rule's summary reads",
   ).toContain(want);
 });
@@ -534,24 +585,28 @@ test('ROLES-P14 the person whose role is swapped', async ({ page, app }) => {
 
   await page.goto(`${app.base}/roles/assign`);
   await wait(page, there('.team[data-t=research]'));
-  expect(
-    await read<number>(page, `document.querySelectorAll('.team[data-t=research] [data-act=t-save]').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.team[data-t=research] [data-act=t-save]').length`,
     'a card nothing changed shows a save button',
   ).toBe(0);
   await choose(page, q('.team[data-t=research] .arow[data-m=scout-2] select'), 'writer');
   await wait(page, there('.team[data-t=research] [data-act=t-save]'));
-  expect(
-    await read<string>(page, q('.team[data-t=research] .tside .dirty') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('.team[data-t=research] .tside .dirty') + '.textContent',
     'the changed card says, want 1 人',
   ).toBe('1 人');
-  expect(
-    await read<string>(page, q('.team[data-t=research] .arow[data-m=scout-2] s.was') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('.team[data-t=research] .arow[data-m=scout-2] s.was') + '.textContent',
     'the old role reads, want scout',
   ).toBe('scout');
   await press(page, q('.team[data-t=research] [data-act=t-save]'));
   await wait(page, there('.team[data-t=research] .ok'));
-  expect(
-    await read<string>(page, q('.team[data-t=research] .ok') + '.textContent'),
+  await readTo<string>(
+    page,
+    q('.team[data-t=research] .ok') + '.textContent',
     "the card's saved line reads",
   ).toBe('保存しました');
 
@@ -563,8 +618,9 @@ test('ROLES-P14 the person whose role is swapped', async ({ page, app }) => {
   for (const [line, text] of changed) {
     expect(text, `line ${line} became, want scout-2's new role`).toBe('    role: writer');
   }
-  expect(
-    await read<string>(page, q('.team[data-t=research] .arow[data-m=scout-2] select') + '.value'),
+  await readTo<string>(
+    page,
+    q('.team[data-t=research] .arow[data-m=scout-2] select') + '.value',
     'the card reads after the save, want writer',
   ).toBe('writer');
 });

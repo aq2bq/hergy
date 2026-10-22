@@ -2,8 +2,8 @@
 // browser. They are internal/app e2eProfilesOpen and e2eProfilesUsage, test for
 // test and assertion for assertion, over the same real-scale fixture
 // (testdata/profiles-v2: 11 profiles, 4 definitions, 15 members, 3 workers).
-import { test, expect } from './fixtures';
-import { press, q, read, set, there, wait } from './helpers';
+import { test } from './fixtures';
+import { press, q, readTo, set, there, wait } from './helpers';
 
 test.use({ reads: 'profiles' });
 
@@ -17,57 +17,57 @@ test('PROFILES-P1 rows open in place', async ({ page, app }) => {
   await wait(page, there('#rows .row'));
   await press(page, `${q(`${row('sonnet-fast')} .sum`)}`);
   await wait(page, `!${q(`${row('sonnet-fast')} .detail`)}.hidden`);
-  expect(
-    await read<string>(page, `window.location.search`),
+  await readTo<string>(
+    page,
+    `window.location.search`,
     'opening a row did not write the URL',
   ).toContain('open=sonnet-fast');
-  expect(
-    await read<number>(page, `document.querySelectorAll('${row('sonnet-fast')} .detail .panel').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('${row('sonnet-fast')} .detail .panel').length`,
     'sonnet-fast shows panels, want the project and the shared one',
   ).toBe(2);
-  expect(
-    await read<string>(
-      page,
-      `[...document.querySelectorAll('${row('sonnet-fast')} .detail .panel .ln')].map(e=>e.textContent).join(',')`,
-    ),
+  await readTo<string>(
+    page,
+    `[...document.querySelectorAll('${row('sonnet-fast')} .detail .panel .ln')].map(e=>e.textContent).join(',')`,
     'the panels read',
   ).toBe('プロジェクト,共通');
-  expect(
-    await read<string>(
-      page,
-      `[...document.querySelectorAll('${row('sonnet-fast')} .panel .state')].map(e=>e.textContent).join(',')`,
-    ),
+  await readTo<string>(
+    page,
+    `[...document.querySelectorAll('${row('sonnet-fast')} .panel .state')].map(e=>e.textContent).join(',')`,
     'the states read',
   ).toBe('効いている,隠れている');
-  expect(
-    await read<number>(page, `document.querySelectorAll('${row('sonnet-fast')} .panel .field').length`),
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('${row('sonnet-fast')} .panel .field').length`,
     'the two panels hold fields, want 4 each',
   ).toBe(8);
   for (const name of ['project', 'global']) {
-    expect(
-      await read<string>(
-        page,
-        `document.querySelector('${row('sonnet-fast')} .panel[data-file=${name}] .path').textContent`,
-      ),
+    await readTo<string>(
+      page,
+      `document.querySelector('${row('sonnet-fast')} .panel[data-file=${name}] .path').textContent`,
       `the ${name} panel's head reads, want the file's path`,
     ).toContain('profiles.yaml');
   }
-  expect(
-    await read<string>(page, `getComputedStyle(${q('.uchip')}).color`),
+  await readTo<boolean>(
+    page,
+    `getComputedStyle(${q('.uchip')}).color === getComputedStyle(document.body).color`,
     "the name on a person's chip is, want the body's ink",
-  ).toBe(await read<string>(page, `getComputedStyle(document.body).color`));
-  expect(
-    await read<number>(page, `document.querySelectorAll('.uchip .g').length`),
+  ).toBe(true);
+  await readTo<number>(
+    page,
+    `document.querySelectorAll('.uchip .g').length`,
     "a member's role on a chip is not the faint mono word",
   ).toBeGreaterThan(0);
   const visible = `(function(){var d=${q(`${row('sonnet-fast')} .detail`)};if(!d){return;}var r=d.getBoundingClientRect();return r.top < window.innerHeight && r.bottom > 0;})()`;
-  expect(await read<boolean>(page, visible), 'the opened detail is not in the view').toBe(true);
+  await readTo<boolean>(page, visible, 'the opened detail is not in the view').toBe(true);
 
   // P1 again: the same row closes.
   await press(page, `${q(`${row('sonnet-fast')} .sum`)}`);
   await wait(page, `${q(`${row('sonnet-fast')} .detail`)}.hidden`);
-  expect(
-    await read<string>(page, `window.location.search`),
+  await readTo<string>(
+    page,
+    `window.location.search`,
     'closing the row left it in the URL',
   ).not.toContain('open=');
 
@@ -76,12 +76,14 @@ test('PROFILES-P1 rows open in place', async ({ page, app }) => {
   await wait(page, there(row('sonnet-fast')));
   await set(page, q(`${row('sonnet-fast')} .panel[data-file=project] [data-f=name]`), 'sonnet-5.5');
   await wait(page, `!${q(`${row('sonnet-fast')} .panel[data-file=project] .rename`)}.hidden`);
-  expect(
-    await read<string>(page, `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename span`)}.textContent`),
+  await readTo<string>(
+    page,
+    `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename span`)}.textContent`,
     'the rename hint reads',
   ).toContain('使っている 3 人の指定も sonnet-5.5 に書き換える');
-  expect(
-    await read<boolean>(page, `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename input`)}.checked`),
+  await readTo<boolean>(
+    page,
+    `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename input`)}.checked`,
     'the rename box is not ticked at first',
   ).toBe(true);
   await page.goto(`${app.base}/profiles`);
@@ -95,12 +97,14 @@ test('PROFILES-P11 usage jumps', async ({ page, app }) => {
   await wait(page, there('.uchip'));
   await press(page, q(`${row('opus-plan')} .uchip`));
   await wait(page, there('.team[data-g=core] .arow[data-k="m-0"].flash'));
-  expect(
-    await read<string>(page, `document.activeElement.tagName`),
+  await readTo<string>(
+    page,
+    `document.activeElement.tagName`,
     "the person's row does not have the focus",
   ).toBe('SELECT');
-  expect(
-    await read<string>(page, `document.activeElement.closest('.arow').dataset.k`),
+  await readTo<string>(
+    page,
+    `document.activeElement.closest('.arow').dataset.k`,
     'the focus is on, want m-0',
   ).toBe('m-0');
 });

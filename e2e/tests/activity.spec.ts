@@ -7,11 +7,11 @@
 // The run's clock and zone are its own (r-f647): the serve reads its moment from
 // HERGY_E2E_NOW (d-f978), and the fixture's times are counted back from the same
 // moment, so what the rows say does not depend on when or where the run happens.
-import { test, expect } from './fixtures';
+import { test } from './fixtures';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { press, q, read, wait } from './helpers';
+import { press, q, read, readTo, wait } from './helpers';
 
 test.use({ reads: 'activity' });
 
@@ -93,10 +93,10 @@ test('ACTIVITY-C1 what a row says at a glance', async ({ page, app }) => {
     },
     { team: 'migrate', state: '許可待ち', who: 'tester', reading: 'migrate の tester が許可待ち' },
   ]) {
-    const parts = (await read<string>(page, row(one.team))).split('|');
-    expect(
-      [parts[0], parts[1]],
-      `${one.team} reads ${parts[0]}|${parts[1]}, want ${one.state}|${one.who} (${one.reading})`,
+    await readTo<string[]>(
+      page,
+      `${row(one.team)}.split('|').slice(0, 2)`,
+      `${one.team} reads, want ${one.state}|${one.who} (${one.reading})`,
     ).toEqual([one.state, one.who]);
   }
 });
@@ -115,14 +115,15 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
   await press(page, `${tail}.querySelector('.th .rest')`);
   await wait(page, `${tail}.querySelector('.term').textContent.split('\\n').length === 8`);
   await page.evaluate(`document.getElementById('tail-migrate').focus();window.scrollTo(0,120)`);
-  const before = await read<string>(
+  // stands is the three things the re-reading must leave alone: the cursor's
+  // element, the scroll and the address.
+  const stands = `(document.activeElement.id||'')+'|'+String(window.scrollY)+'|'+location.search`;
+  await readTo<string>(
     page,
-    `(document.activeElement.id||'')+'|'+String(window.scrollY)+'|'+location.search`,
-  );
-  expect(
-    before.startsWith('tail-migrate|120|?open=core,migrate,core-hotfix,research'),
-    `the person stands at ${before} before the re-reading`,
-  ).toBe(true);
+    stands,
+    'the person stands at the cursor, the scroll and the address the walk left',
+  ).toMatch(/^tail-migrate\|120\|\?open=core,migrate,core-hotfix,research/);
+  const before = await read<string>(page, stands);
 
   agentState(app.cfg, 'core-lead', 'working');
   await awaitFor(
@@ -132,45 +133,40 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
     40_000,
   );
 
-  expect(
-    await read<string>(page, names),
+  await readTo<string>(
+    page,
+    names,
     'after core started working the rows are, want the working teams last',
   ).toBe('migrate,core-hotfix,core,research');
-  const parts = (await read<string>(page, row('core'))).split('|');
-  expect(parts, "core's row reads, want 仕事中 and the member working with no いつから").toEqual([
-    '仕事中',
-    'lead',
-    '',
-  ]);
-  expect(
-    await read<string>(
-      page,
-      `(document.activeElement.id||'')+'|'+String(window.scrollY)+'|'+location.search`,
-    ),
+  await readTo<string[]>(
+    page,
+    `${row('core')}.split('|')`,
+    "core's row reads, want 仕事中 and the member working with no いつから",
+  ).toEqual(['仕事中', 'lead', '']);
+  await readTo<string>(
+    page,
+    stands,
     `the re-reading moved the person, was ${before}`,
   ).toBe(before);
-  expect(
-    await read<string>(
-      page,
-      `(function(){var a=document.querySelector('#list .act[data-team="migrate"] .tail');` +
-        `return String(a.querySelector('.term').textContent.split('\\n').length)+'|'+a.querySelector('.th').textContent})()`,
-    ),
+  await readTo<string>(
+    page,
+    `(function(){var a=document.querySelector('#list .act[data-team="migrate"] .tail');` +
+      `return String(a.querySelector('.term').textContent.split('\\n').length)+'|'+a.querySelector('.th').textContent})()`,
     'the let-out pane reads after the re-reading',
   ).toBe('8|画面の最後▾ 上の行をしまう');
   // A working team's opened part is the right column alone (2.5).
-  expect(
-    await read<string>(
-      page,
-      `String(!!document.querySelector('#list .act[data-team="core"] .ask'))`,
-    ),
+  await readTo<string>(
+    page,
+    `String(!!document.querySelector('#list .act[data-team="core"] .ask'))`,
     'a team that started working still shows the left column',
   ).toBe('false');
 
   // P4（R2）: the band's two numbers are the re-reading's own (2.1). core-lead
   // works now, so the members waiting for a human or a permission fall from
   // two to one, 活動 staying at four.
-  expect(
-    await read<string>(page, band),
+  await readTo<string>(
+    page,
+    band,
     'after the re-reading the band stands, want 活動 4 and 待ち 1',
   ).toBe('4|待ち 1');
   // P4（R2）: with the last member waiting gone, 待ち falls off the band (2.1).
