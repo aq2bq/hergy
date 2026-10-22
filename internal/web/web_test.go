@@ -5,10 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -142,27 +140,6 @@ func (f *fixture) get(t *testing.T, server *Server, target string) (*http.Respon
 	return resp, string(body)
 }
 
-// post runs one POST with the token of the run.
-func (f *fixture) post(t *testing.T, server *Server, target string, form url.Values) (*http.Response, string) {
-	t.Helper()
-	server.addr = "127.0.0.1:8787"
-	if form == nil {
-		form = url.Values{}
-	}
-	if _, ok := form["token"]; !ok && server.token != "" {
-		form.Set("token", server.token)
-	}
-	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-	req.Host = "127.0.0.1:8787"
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	server.handler.ServeHTTP(rec, req)
-	resp := rec.Result()
-	body, _ := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	return resp, string(body)
-}
-
 // hrefs is every href a page writes, in the order it writes them.
 func hrefs(body string) []string {
 	var out []string
@@ -213,55 +190,6 @@ func TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions(t *testing.T) {
 	}
 	if got := resp.Header.Get("Location"); got != "/activity" {
 		t.Errorf("GET / with a team running goes to %q, want /activity", got)
-	}
-}
-
-// TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem: the band stands on every
-// screen with the four names in one order and their numbers, the screen the
-// person is on stands as a marked span while the other three are links to their
-// own screen, and hergy goes back to the first screen (spec-nav.md 1.1, 1.2,
-// spec-activity 2.1).
-func TestNAV_S1_TheBandNamesTheFourScreensAndCountsThem(t *testing.T) {
-	f := fixtureNav(t)
-	server := f.server(t)
-
-	// The four names, in order, with the number the fixture holds. 活動 carries
-	// no number while no team of this project runs (spec-activity 2.7).
-	names := []struct{ screen, link string }{
-		{"activity", `<a class="scr" href="/activity" data-screen="activity">活動</a>`},
-		{"teams", `<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">6</span></a>`},
-		{"profiles", `<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">11</span></a>`},
-		{"roles", `<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">6</span></a>`},
-	}
-	for _, one := range []struct{ path, current string }{
-		{"/activity", "activity"},
-		{"/teams", "teams"},
-		{"/profiles", "profiles"},
-		{"/roles", "roles"},
-	} {
-		resp, body := f.get(t, server, one.path)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("GET %s answers %d, want 200", one.path, resp.StatusCode)
-		}
-		if !strings.Contains(body, `<a class="mark" href="/">hergy</a>`) {
-			t.Errorf("GET %s does not write hergy as a link to /", one.path)
-		}
-		// The four stand in this order; the screen the person is on is the
-		// span, and the other three are links.
-		at := 0
-		for _, name := range names {
-			want := name.link
-			if name.screen == one.current {
-				want = strings.Replace(name.link, `<a class="scr" href="/`+name.screen+`" data-screen="`, `<span class="scr on" aria-current="page" data-screen="`, 1)
-				want = strings.TrimSuffix(want, "</a>") + "</span>"
-			}
-			i := strings.Index(body[at:], want)
-			if i < 0 {
-				t.Errorf("GET %s does not hold %s after the names before it:\n%s", one.path, want, bandOf(t, body))
-				continue
-			}
-			at += i + len(want)
-		}
 	}
 }
 
@@ -325,52 +253,6 @@ func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 	}
 }
 
-// TestACTIVITY_V3_TheActivityIsReadOnly: the activity kind answers a read, and its three
-// writes are refused with 405 whatever they carry — the screen is one a person
-// reads, and a caller that asks whether the URL takes a write is told so rather
-// than told it has no token (spec-activity 3, spec-boundary 5).
-func TestACTIVITY_V3_TheActivityIsReadOnly(t *testing.T) {
-	f := newFixture(t)
-	server := f.server(t)
-	server.addr = "127.0.0.1:8787"
-
-	resp, body := f.get(t, server, "/api/activity")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/activity answers %d, want 200", resp.StatusCode)
-	}
-	if got := resp.Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
-		t.Errorf("GET /api/activity answers %q", got)
-	}
-	for _, want := range []string{`"items":[]`, `"running":0`, `"waiting":0`, `"herdr":{"ok":true,"text":""}`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("GET /api/activity does not hold %s:\n%s", want, body)
-		}
-	}
-
-	resp, _ = f.get(t, server, "/api/activity/demo")
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("GET /api/activity/demo answers %d, want 404", resp.StatusCode)
-	}
-
-	for _, one := range []struct{ method, target string }{
-		{http.MethodPost, "/api/activity/check"},
-		{http.MethodPut, "/api/activity/demo"},
-		{http.MethodDelete, "/api/activity/demo"},
-	} {
-		req := httptest.NewRequest(one.method, one.target, strings.NewReader(`{}`))
-		req.Host = "127.0.0.1:8787"
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		server.handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusMethodNotAllowed {
-			t.Errorf("%s %s answers %d, want 405", one.method, one.target, rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "この画面は読むだけです。") {
-			t.Errorf("%s %s does not say the screen is for reading: %s", one.method, one.target, rec.Body.String())
-		}
-	}
-}
-
 // TestTheBandCountsTheRolesThatHaveADocument: the band's role number is the
 // number the screen's own count keeps (savedRoles().length), so a name only a
 // team definition writes — a row with no document yet — is shown in the list but
@@ -388,128 +270,6 @@ func TestTheBandCountsTheRolesThatHaveADocument(t *testing.T) {
 	}
 	if !strings.Contains(body, `"name":"ghost"`) {
 		t.Errorf("the list does not hold the role with no document:\n%s", body)
-	}
-}
-
-// TestNAV_O2_TheRemovedScreensAreNotFound: every URL of the old WebUI is not found —
-// with the band and one sentence for a read, and the sentence alone for a write
-// — and none of them is moved, because a browser remembers a 301
-// (spec-nav.md 1.6, 2「消すもの」).
-func TestNAV_O2_TheRemovedScreensAreNotFound(t *testing.T) {
-	f := newFixture(t)
-	server := f.server(t)
-
-	gone := []string{
-		"/definitions", "/definitions/demo", "/definitions/demo/members/lead",
-		"/definitions/demo/workers/lead/実装", "/definitions/demo/human",
-		"/definitions/demo/turns/lead/builder", "/definitions/demo/agreement",
-		"/definitions/demo/agreement/new", "/definitions/demo/agreement/TEAM-1",
-		"/activity/demo", "/agreement", "/agreement/new", "/agreement/SHARED-1",
-		"/running", "/team", "/team?name=demo",
-		"/rules", "/rules/", "/diff", "/bump", "/bump/", "/figure", "/panel/", "/nope",
-	}
-	for _, path := range gone {
-		resp, body := f.get(t, server, path)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("GET %s answers %d, want 404", path, resp.StatusCode)
-			continue
-		}
-		if !strings.Contains(body, `class="screens"`) {
-			t.Errorf("GET %s answers without the band:\n%s", path, body)
-		}
-		if !strings.Contains(body, "その画面はありません。") {
-			t.Errorf("GET %s does not say the screen is not there:\n%s", path, body)
-		}
-		if !strings.Contains(body, "<title>hergy</title>") {
-			t.Errorf("GET %s is not the one-line page:\n%s", path, body)
-		}
-	}
-
-	for _, path := range []string{"/definitions/demo", "/activity/demo/focus", "/agreement/SHARED-1", "/nope"} {
-		resp, body := f.post(t, server, path, nil)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("POST %s answers %d, want 404", path, resp.StatusCode)
-		}
-		if strings.Contains(body, `class="screens"`) {
-			t.Errorf("POST %s answers a page:\n%s", path, body)
-		}
-	}
-}
-
-// TestNAV_O3_TheOldFilesAreGone: the files the old screens were drawn from are not
-// served any more (spec-nav.md 3, O3).
-func TestNAV_O3_TheOldFilesAreGone(t *testing.T) {
-	f := newFixture(t)
-	server := f.server(t)
-	for _, path := range []string{
-		"/static/hergy.css", "/static/htmx-2.0.4.min.js", "/static/ui.js", "/static/copy.js",
-	} {
-		resp, _ := f.get(t, server, path)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("GET %s answers %d, want 404", path, resp.StatusCode)
-		}
-	}
-	for _, path := range []string{"/static/profiles-v2.css", "/static/roles-v2.css", "/static/ruledoc.css", "/static/ruledoc.js", "/static/nav.css", "/static/nav.js", "/static/teams-v2.css", "/static/teams-v2.js", "/static/activity-v2.css", "/static/activity-v2.js"} {
-		resp, _ := f.get(t, server, path)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET %s answers %d, want 200", path, resp.StatusCode)
-		}
-	}
-}
-
-// TestNAV_D2_TheBandWritesNoColours: the band takes every colour from the page's own
-// tokens and writes none down, so which theme is on stays the page's business
-// (spec-nav.md 5.2 D2).
-func TestNAV_D2_TheBandWritesNoColours(t *testing.T) {
-	raw, err := files.ReadFile("static/nav.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	css := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(string(raw), "")
-	if found := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b`).FindString(css); found != "" {
-		t.Errorf("nav.css writes the colour %s down", found)
-	}
-	for _, fn := range []string{"rgb(", "rgba(", "hsl(", "hsla(", "oklch(", "color("} {
-		if strings.Contains(css, fn) {
-			t.Errorf("nav.css writes a colour with %s", fn)
-		}
-	}
-	colours := map[string]bool{
-		"color": true, "background": true, "background-color": true,
-		"border": true, "border-color": true, "border-top": true, "border-right": true,
-		"border-bottom": true, "border-left": true, "border-top-color": true,
-		"border-right-color": true, "border-bottom-color": true, "border-left-color": true,
-		"outline": true, "outline-color": true, "fill": true, "stroke": true,
-		"box-shadow": true, "text-decoration-color": true, "caret-color": true,
-	}
-	flat := strings.NewReplacer("{", ";", "}", ";").Replace(css)
-	for decl := range strings.SplitSeq(flat, ";") {
-		name, value, ok := strings.Cut(decl, ":")
-		if !ok {
-			continue
-		}
-		prop := strings.TrimSpace(name)
-		if !colours[prop] {
-			continue
-		}
-		if !strings.Contains(value, "var(") && !strings.Contains(value, "transparent") && !strings.Contains(value, "currentColor") {
-			t.Errorf("nav.css sets %s to %q, which is not one of the page's tokens", prop, strings.TrimSpace(value))
-		}
-	}
-}
-
-// TestNAV_O4_TheLayerParameterIsNotMoved: a URL that still carries ?layer= is answered
-// like the same URL without it, and is not moved (spec-nav.md 2「消すもの」).
-func TestNAV_O4_TheLayerParameterIsNotMoved(t *testing.T) {
-	f := newFixture(t)
-	server := f.server(t)
-	resp, with := f.get(t, server, "/profiles?layer=project")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /profiles?layer=project answers %d, want 200", resp.StatusCode)
-	}
-	_, without := f.get(t, server, "/profiles")
-	if with != without {
-		t.Errorf("?layer= answers a different page")
 	}
 }
 

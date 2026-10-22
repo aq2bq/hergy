@@ -161,12 +161,6 @@ export async function choose(page: Page, find: string, value: string): Promise<v
   await attempt(page, find, script, 'picked');
 }
 
-// focus puts the cursor in one field, once the field is there.
-export async function focus(page: Page, selector: string): Promise<void> {
-  await ready(page);
-  await page.locator(selector).focus({ timeout: DEADLINE });
-}
-
 // run runs one script in the page for its effect.
 export async function run(page: Page, script: string): Promise<void> {
   await ready(page);

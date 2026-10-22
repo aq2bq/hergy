@@ -159,10 +159,10 @@ func teamsCheck(t *testing.T, body string) t2TestCheck {
 	return out
 }
 
-// TestTeamsListCarriesTheTable: the list page carries one item per definition,
+// TestTEAMS_S3_ListCarriesTheTable: the list page carries one item per definition,
 // with the places' readings and the columns the list shows, all of it from
 // check.Team and the catalog (spec-teams 1.1, 1.2).
-func TestTeamsListCarriesTheTable(t *testing.T) {
+func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, body := f.get(t, server, "/teams")
@@ -270,10 +270,10 @@ func TestTeamsFigureCheckAndEffect(t *testing.T) {
 	}
 }
 
-// TestTeamsFigureSaveWritesTheOneLine: a save writes the ops with byte-exact
+// TestTEAMS_F1_FigureSaveWritesTheOneLine: a save writes the ops with byte-exact
 // edits, so every line a person did not touch, a comment among them, comes back
 // as it was (spec-teams 1.3, X1).
-func TestTeamsFigureSaveWritesTheOneLine(t *testing.T) {
+func TestTEAMS_F1_FigureSaveWritesTheOneLine(t *testing.T) {
 	f := newFixture(t)
 	f.write(t, "teams/demo/team.yaml", "version: 1\n# a comment a person wrote\nmission: demo の使命\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
 	server := f.server(t)
@@ -316,9 +316,9 @@ func changedLines(before, after string) []int {
 	return out
 }
 
-// TestTeamsFigureSaveRefusesANewProblem: a save is refused only when a problem
+// TestTEAMS_F7_FigureSaveRefusesANewProblem: a save is refused only when a problem
 // the saved file did not hold has appeared (spec-teams 1.3, X3).
-func TestTeamsFigureSaveRefusesANewProblem(t *testing.T) {
+func TestTEAMS_F7_FigureSaveRefusesANewProblem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	before := readFile(t, f.teamYAML())
@@ -416,9 +416,9 @@ func TestTeamsYamlCheckFindsTheLine(t *testing.T) {
 	}
 }
 
-// TestTeamsYamlSaveRefusesANewError: the YAML tab's save is refused only when a
+// TestTEAMS_P11_YamlSaveRefusesANewError: the YAML tab's save is refused only when a
 // problem the saved file did not hold has appeared (spec-teams X3).
-func TestTeamsYamlSaveRefusesANewError(t *testing.T) {
+func TestTEAMS_P11_YamlSaveRefusesANewError(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	before := readFile(t, f.teamYAML())
@@ -625,10 +625,10 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	}
 }
 
-// TestTeamsDraftSaveWritesTheStarterFolder: saving a definition that is not there
+// TestTEAMS_N3_DraftSaveWritesTheStarterFolder: saving a definition that is not there
 // yet writes hergy new's own files, so the screen and the command cannot drift
 // (spec-teams B2, C8, N3).
-func TestTeamsDraftSaveWritesTheStarterFolder(t *testing.T) {
+func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
@@ -668,10 +668,10 @@ func TestTeamsDraftSaveWritesTheStarterFolder(t *testing.T) {
 	}
 }
 
-// TestTeamsDraftSaveRefusesANameProblem: a name that is empty, not one hergy new
+// TestTEAMS_N2_DraftSaveRefusesANameProblem: a name that is empty, not one hergy new
 // accepts, or already in the place stops the write before anything is written
 // (spec-teams B2, N2).
-func TestTeamsDraftSaveRefusesAnUnwritableName(t *testing.T) {
+func TestTEAMS_N2_DraftSaveRefusesANameProblem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	for _, tc := range []struct{ name, want string }{
@@ -701,10 +701,10 @@ func TestTeamsDraftSaveRefusesAnUnwritableName(t *testing.T) {
 	}
 }
 
-// TestTeamsDraftDuplicateWritesTheSameFiles: a duplicate stands on the named
+// TestTEAMS_N5_DraftDuplicateWritesTheSameFiles: a duplicate stands on the named
 // definition's own files and writes only its own two, byte for byte (spec-teams
 // B3, C8, N4, N5).
-func TestTeamsDraftDuplicateWritesTheSameFiles(t *testing.T) {
+func TestTEAMS_N5_DraftDuplicateWritesTheSameFiles(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	base := map[string]any{"place": "project", "name": "demo"}
@@ -738,10 +738,10 @@ func TestTeamsDraftDuplicateWritesTheSameFiles(t *testing.T) {
 	}
 }
 
-// TestTeamsCopyAndDeleteTakeOnePlace: a copy stands on the other place's
+// TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace: a copy stands on the other place's
 // definition and goes into this place under the same name, and taking one place's
 // folder away leaves the other's (spec-teams B3, B6, N6, N7).
-func TestTeamsCopyAndDeleteTakeOnePlace(t *testing.T) {
+func TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
