@@ -1,20 +1,20 @@
 package main
 
 // The checks gate is TESTING.md's「一覧とテスト」を守らせる: every 小・中・大 item
-// of checks/<画面>.md has a test of its size, every e2e subtest stands under a 大
+// of checks/<画面>.md has a test of its size, every browser walk stands under a 大
 // item, and a 監査 item asks for no test at all.
 //
 // The lists are the designers': one row an item, with an ID and the size the item
 // is tested at. The size says where the test stands:
 //
-//   - 小・中 — a Test* function or a t.Run of a *_test.go that is not one of the
-//     e2e files, whose name holds the ID (a function name writes the ID's - as _).
-//   - 大 — a t.Run directly under one of the outer TestE2E* functions in
-//     internal/app/e2e*_test.go whose name starts with the ID.
+//   - 小・中 — a Test* function or a t.Run of a *_test.go, whose name holds the ID
+//     (a function name writes the ID's - as _).
+//   - 大 — a test of e2e/tests/*.spec.ts, whose name starts with the ID: the
+//     browser walks, written in Playwright and run by bun (d-3c9b).
 //   - 監査 — no test: the designer looks at it.
 //
-// The three things the gate reports are the items nobody tests yet, the e2e
-// subtests that belong to no 大 item (TESTING.md: an ID-less 大 test is dropped),
+// The three things the gate reports are the items nobody tests yet, the browser
+// walks that belong to no 大 item (TESTING.md: an ID-less 大 test is dropped),
 // and an ID two lists both write.
 
 import (
@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -38,14 +39,13 @@ const (
 	sizeMedium = "中"
 	sizeLarge  = "大"
 	sizeAudit  = "監査"
-	// The lists, and the two places a test may stand: the tests of every package
-	// (TESTING.md writes them as 各パッケージの *_test.go), and the e2e tests of
-	// internal/app (e2e_*_test.go; the file e2e_test.go, where TestE2ENav stands,
-	// is one of them). The e2e files are left out of the first search: a 小・中
-	// item that only an e2e test holds is not held at its own size.
-	checksGlob = "checks/*.md"
-	e2eGlob    = "internal/app/e2e*_test.go"
-	testSuffix = "_test.go"
+	// The lists, and the two places a test may stand: the 小・中 tests of every
+	// package (TESTING.md writes them as 各パッケージの *_test.go), and the browser
+	// walks of e2e/tests (Playwright's spec files, run by bun).
+	checksGlob    = "checks/*.md"
+	browserGlob   = "e2e/tests/*.spec.ts"
+	testSuffix    = "_test.go"
+	browserSuffix = ".spec.ts"
 )
 
 // checkItem is one row of a checks/<画面>.md table.
@@ -55,11 +55,10 @@ type checkItem struct {
 	Where string // checks/activity.md
 }
 
-// e2eSubtest is one t.Run standing directly under an outer TestE2E* function.
+// e2eSubtest is one browser walk: the name it is given, and where it stands.
 type e2eSubtest struct {
-	Test  string // TestE2EActivity
-	Name  string // the name the t.Run is given
-	Where string // internal/app/e2e_activity_test.go:95
+	Name  string // NAV-N6 the changes one screen carries
+	Where string // e2e/tests/nav.spec.ts:20
 }
 
 // checksGate holds the lists and the tests to each other.
@@ -68,7 +67,7 @@ func (r *runner) checksGate() error {
 	if err != nil {
 		return err
 	}
-	subtests, err := readE2ESubtests(r.root)
+	subtests, err := readBrowserTests(r.root)
 	if err != nil {
 		return err
 	}
@@ -177,66 +176,76 @@ func isTableRule(cells []string) bool {
 	return true
 }
 
-// readE2ESubtests reads every t.Run that stands directly under an outer TestE2E*
-// function of the e2e tests of internal/app. A t.Run inside another t.Run stands
-// under that one, not under the outer test, so it is not read here.
-func readE2ESubtests(root string) ([]e2eSubtest, error) {
-	paths, err := filepath.Glob(filepath.Join(root, e2eGlob))
+// playwrightCall is a browser test's own call: test('name'), or the same with one
+// modifier (test.only, test.skip, test.fixme, test.slow). A describe is a group
+// of tests, not a test, so it is not read here.
+var playwrightCall = regexp.MustCompile(`^\s*test(?:\.(?:only|skip|fixme|slow))?\(\s*`)
+
+// readBrowserTests reads the name of every test of e2e/tests/*.spec.ts, in the
+// order the files and their tests stand in.
+func readBrowserTests(root string) ([]e2eSubtest, error) {
+	paths, err := filepath.Glob(filepath.Join(root, browserGlob))
 	if err != nil {
 		return nil, err
 	}
 	sort.Strings(paths)
 	var out []e2eSubtest
 	for _, path := range paths {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
+		raw, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		where := filepath.Base(path)
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "TestE2E") {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, err
+		}
+		where := filepath.ToSlash(rel)
+		for i, line := range strings.Split(string(raw), "\n") {
+			at := playwrightCall.FindStringIndex(line)
+			if at == nil {
 				continue
 			}
-			for _, run := range directRuns(fn.Body) {
-				out = append(out, e2eSubtest{
-					Test:  fn.Name.Name,
-					Name:  run.name,
-					Where: fmt.Sprintf("%s:%d", where, fset.Position(run.pos).Line),
-				})
+			name, ok := leadingString(line[at[1]:])
+			if !ok {
+				return nil, fmt.Errorf("%s:%d: test( has no name to read", where, i+1)
 			}
+			out = append(out, e2eSubtest{Name: name, Where: fmt.Sprintf("%s:%d", where, i+1)})
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no t.Run under a TestE2E* function in %s", e2eGlob)
+		return nil, fmt.Errorf("no test in %s", browserGlob)
 	}
 	return out, nil
 }
 
-// namedPos is one t.Run's name and where it stands.
-type namedPos struct {
-	name string
-	pos  token.Pos
-}
-
-// directRuns reads the t.Run calls one function body registers, without
-// descending into a t.Run's own function: those stand under it.
-func directRuns(body *ast.BlockStmt) []namedPos {
-	var out []namedPos
-	ast.Inspect(body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || !isTRun(call) {
-			return true
-		}
-		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			if name, err := strconv.Unquote(lit.Value); err == nil {
-				out = append(out, namedPos{name: name, pos: lit.Pos()})
+// leadingString reads the string literal a test's name is written as: single,
+// double or back quotes. A backslash keeps the character after it as it stands,
+// so a name with a quote in it reads back the same way.
+func leadingString(s string) (string, bool) {
+	text := strings.TrimLeft(s, " \t")
+	if text == "" {
+		return "", false
+	}
+	quote := text[0]
+	if quote != '\'' && quote != '"' && quote != '`' {
+		return "", false
+	}
+	var out strings.Builder
+	for i := 1; i < len(text); i++ {
+		switch text[i] {
+		case '\\':
+			if i+1 < len(text) {
+				out.WriteByte(text[i])
+				i++
+				out.WriteByte(text[i])
 			}
+		case quote:
+			return out.String(), true
+		default:
+			out.WriteByte(text[i])
 		}
-		return false
-	})
-	return out
+	}
+	return "", false
 }
 
 // isTRun reports whether one call is t.Run(name, f) — a call of a Run method on
@@ -343,7 +352,7 @@ func checkFindings(items []checkItem, subtests []e2eSubtest, testNames []string)
 			}
 		}
 		if !named {
-			findings = append(findings, fmt.Sprintf("%s/%s に一覧の ID がありません（%s）", sub.Test, sub.Name, sub.Where))
+			findings = append(findings, fmt.Sprintf("%s に一覧の ID がありません（%s）", sub.Name, sub.Where))
 		}
 	}
 	return findings

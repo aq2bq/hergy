@@ -64,51 +64,58 @@ func TestReadChecksTableRefusesAListItCannotRead(t *testing.T) {
 	}
 }
 
-// The subtests the gate holds to the lists are the t.Run calls standing directly
-// under an outer TestE2E* function: one inside another t.Run stands under that
-// one, and one in a helper stands under the helper.
-func TestReadE2ESubtestsTakesTheRunsOfTheOuterTests(t *testing.T) {
+// The browser walks the gate holds to the lists are the tests of e2e/tests'
+// spec files: a test('name') and its one-modifier forms, whether it stands at the
+// file's own level or in a describe (both run). A describe is a group and a use is
+// a setting, so neither is a test, and a name in a comment or a string is prose.
+func TestReadBrowserTestsTakesTheTestsOfTheSpecs(t *testing.T) {
 	root := t.TempDir()
-	writeTree(t, root, "internal/app/e2e_x_test.go", `package app
+	writeTree(t, root, "e2e/tests/x.spec.ts", `import { test, expect } from './fixtures';
 
-import "testing"
+test.use({ reads: 'x' });
 
-func TestE2EThing(t *testing.T) {
-	t.Run("X-1 the first", func(t *testing.T) {})
-	t.Run("X-2 the second", func(t *testing.T) {
-		t.Run("a run inside a run", func(t *testing.T) {})
-	})
-	t.Run("a name the ID does not start", func(t *testing.T) {})
-}
+test.describe('a group', () => {
+	test('nested in a group', async () => {});
+});
 
-func TestE2EOther(t *testing.T) {
-	t.Run("Y-1 the other", func(t *testing.T) {})
-}
-
-func helper(t *testing.T) {
-	t.Run("a run in a helper", func(t *testing.T) {})
-}
-
-func TestSomethingElse(t *testing.T) {
-	t.Run("no e2e test holds this", func(t *testing.T) {})
-}
+test('X-1 the first', async () => {});
+test.only('X-2 the second', async () => {});
+// test('X-9 in a comment', async () => {});
+const notATest = "test('X-8 in a string')";
+test("X-3 with double quotes", async () => {});
 `)
-	got, err := readE2ESubtests(root)
+	writeTree(t, root, "e2e/tests/y.spec.ts", "test(`Y-1 with back quotes`, async () => {});\n")
+	got, err := readBrowserTests(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var names []string
 	for _, sub := range got {
-		names = append(names, sub.Test+"/"+sub.Name)
+		names = append(names, sub.Name)
 	}
 	want := []string{
-		"TestE2EThing/X-1 the first",
-		"TestE2EThing/X-2 the second",
-		"TestE2EThing/a name the ID does not start",
-		"TestE2EOther/Y-1 the other",
+		"nested in a group",
+		"X-1 the first",
+		"X-2 the second",
+		"X-3 with double quotes",
+		"Y-1 with back quotes",
 	}
 	if strings.Join(names, "\n") != strings.Join(want, "\n") {
 		t.Errorf("read\n%s\nwant\n%s", strings.Join(names, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// A test( whose name the gate cannot read, and a run with no spec file, both stop
+// the reading: the names are what the lists are held to.
+func TestReadBrowserTestsRefusesWhatItCannotRead(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "e2e/tests/x.spec.ts", "test(name, async () => {});\n")
+	if _, err := readBrowserTests(root); err == nil {
+		t.Error("a test( with no name read without an error")
+	}
+	empty := t.TempDir()
+	if _, err := readBrowserTests(empty); err == nil {
+		t.Error("no spec file read without an error")
 	}
 }
 
@@ -161,8 +168,8 @@ func TestCheckFindingsNamesBothKindsOfGap(t *testing.T) {
 		{ID: "X-6", Size: sizeAudit, Where: "checks/x.md"},
 	}
 	subtests := []e2eSubtest{
-		{Test: "TestE2EX", Name: "X-1 the first", Where: "e2e_x_test.go:10"},
-		{Test: "TestE2EX", Name: "a stray walk", Where: "e2e_x_test.go:20"},
+		{Name: "X-1 the first", Where: "e2e/tests/x.spec.ts:10"},
+		{Name: "a stray walk", Where: "e2e/tests/x.spec.ts:20"},
 	}
 	testNames := []string{"TestX_3AnswersTheApi"}
 
@@ -171,7 +178,7 @@ func TestCheckFindingsNamesBothKindsOfGap(t *testing.T) {
 		"X-2 にテストがありません（checks/x.md）",
 		"X-4 にテストがありません（checks/x.md）",
 		"X-5 にテストがありません（checks/x.md）",
-		"TestE2EX/a stray walk に一覧の ID がありません（e2e_x_test.go:20）",
+		"a stray walk に一覧の ID がありません（e2e/tests/x.spec.ts:20）",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the findings lack %q:\n%s", want, got)
@@ -192,7 +199,7 @@ func TestCheckFindingsKeepsTheSizesApart(t *testing.T) {
 		{ID: "X-1", Size: sizeLarge, Where: "checks/x.md"},
 		{ID: "X-2", Size: sizeMedium, Where: "checks/x.md"},
 	}
-	subtests := []e2eSubtest{{Test: "TestE2EX", Name: "X-2 the medium walk", Where: "e2e_x_test.go:10"}}
+	subtests := []e2eSubtest{{Name: "X-2 the medium walk", Where: "e2e/tests/x.spec.ts:10"}}
 	testNames := []string{"X-1 the large name"}
 
 	got := strings.Join(checkFindings(items, subtests, testNames), "\n")
@@ -202,7 +209,7 @@ func TestCheckFindingsKeepsTheSizesApart(t *testing.T) {
 	if !strings.Contains(got, "X-2 にテストがありません") {
 		t.Errorf("the 中 item was taken as covered by an e2e walk:\n%s", got)
 	}
-	if !strings.Contains(got, "TestE2EX/X-2 the medium walk に一覧の ID がありません") {
+	if !strings.Contains(got, "X-2 the medium walk に一覧の ID がありません") {
 		t.Errorf("the e2e walk of a 中 ID was not called unnamed:\n%s", got)
 	}
 }
@@ -216,7 +223,7 @@ func TestCheckFindingsKeepsALongerIDFromCoveringAShorterOne(t *testing.T) {
 		{ID: "X-2", Size: sizeMedium, Where: "checks/x.md"},
 		{ID: "X-22", Size: sizeMedium, Where: "checks/x.md"},
 	}
-	subtests := []e2eSubtest{{Test: "TestE2EX", Name: "X-11 the longer one", Where: "e2e_x_test.go:10"}}
+	subtests := []e2eSubtest{{Name: "X-11 the longer one", Where: "e2e/tests/x.spec.ts:10"}}
 	testNames := []string{"TestX_22TheLongerOne"}
 
 	got := strings.Join(checkFindings(items, subtests, testNames), "\n")
@@ -249,7 +256,7 @@ func TestChecksSummaryCountsEachKind(t *testing.T) {
 	findings := []string{
 		"X-2 にテストがありません（checks/x.md）",
 		"X-4 にテストがありません（checks/x.md）",
-		"TestE2EX/a stray walk に一覧の ID がありません（e2e_x_test.go:20）",
+		"a stray walk に一覧の ID がありません（e2e/tests/x.spec.ts:20）",
 	}
 	got := checksSummary(findings)
 	if !strings.Contains(got, "テストの無い項目 2 件") || !strings.Contains(got, "一覧の ID の無い e2e のテスト 1 件") {
@@ -280,10 +287,10 @@ func TestTheRepoListsRead(t *testing.T) {
 			t.Errorf("the repo's lists hold no %s item: %v", size, bySize)
 		}
 	}
-	if subtests, err := readE2ESubtests(root); err != nil {
-		t.Errorf("the repo's e2e tests read as: %v", err)
+	if subtests, err := readBrowserTests(root); err != nil {
+		t.Errorf("the repo's browser walks read as: %v", err)
 	} else if len(subtests) < 11 {
-		t.Errorf("read %d e2e subtests from the repo, want every walk the outer tests hold", len(subtests))
+		t.Errorf("read %d browser walks from the repo, want every 大 item's", len(subtests))
 	}
 	if names, err := readTestNames(root); err != nil {
 		t.Errorf("the repo's 小・中 tests read as: %v", err)

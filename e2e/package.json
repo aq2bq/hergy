@@ -1,0 +1,11 @@
+{
+  "name": "hergy-e2e",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  },
+  "scripts": {
+    "test": "playwright test"
+  }
+}
