@@ -1,4 +1,4 @@
-// ACTIVITY-C1 and ACTIVITY-P4 — checks/activity.md's 大 items, walked in a
+// ACTIVITY-C1 and ACTIVITY-P4 — walked in a
 // browser. Only what the browser alone can see is compared here (d-3e43): a
 // row's いま and 誰 before it is opened, and the re-reading leaving the person's
 // cursor, scroll, address, let-out pane and the band where they were.

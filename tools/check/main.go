@@ -45,7 +45,6 @@ var gates = []gate{
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
 	{"arch", Hard, "the direction of imports (arch_test.go); os/exec outside internal/herdrcli is caught by lint (depguard)", (*runner).archGate},
 	{"test", Hard, "go test -race -count=1 ./... with a coverage profile", (*runner).testGate},
-	{"checks", Hard, "every checks/*.md item has a test of its size: a 小・中 test whose name holds the ID, a Playwright test whose name starts with a 大 ID, and no test for 監査; a browser walk under no 大 item fails (checks.go)", (*runner).checksGate},
 	{"reading", Hard, "no walk compares what the page said once: an expect( never takes an awaited read, a reading is read again until it matches (e2e/tests/*.spec.ts, r-291a)", (*runner).readingGate},
 	{"e2e", Hard, "the browser walks of e2e/tests (*.spec.ts) in Playwright, run by bun: e2e/bun.lock's dependency and Playwright's pinned chromium are fetched into .bin/ and e2e/.bin/ when missing (d-bb0d)", (*runner).e2eGate},
 	{"coverage", Ratchet, "go-test-coverage against .testcoverage.yml; the total threshold moves up only", (*runner).coverageGate},

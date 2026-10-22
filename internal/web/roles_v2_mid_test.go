@@ -17,7 +17,7 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 )
 
-// This file holds the 小・中 items of checks/roles.md that are held without a
+// This file holds the 小・中 checks of the role screen that are held without a
 // browser: the preview a member's prompt carries (ROLES-M1) and the writes the
 // role screen sends (ROLES-F1, F2, F4, F5, F6, F7). The fixture is the
 // real-scale one (testdata/roles-v2), the same one the mock and the e2e walks

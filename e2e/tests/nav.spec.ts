@@ -1,4 +1,4 @@
-// NAV-N6 the changes one screen carries — checks/nav.md's 大 item, walked in a
+// NAV-N6 the changes one screen carries — walked in a
 // browser. Only what the browser alone can see is compared here (d-3e43): the
 // pick a person makes and does not save is carried to the other screen and back
 // (N7), a draft the band did not carry is spent for good (R2), a draft made

@@ -2,9 +2,23 @@ package main
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// writeTree writes one file of a made-up tree for the reading tests.
+func writeTree(t *testing.T, root, rel, text string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // The gate's two shapes: an expect( that awaits a read itself, and an expect(
 // that takes a name one await of read filled. Both are one reading compared

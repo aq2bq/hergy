@@ -35,6 +35,9 @@ import (
 	"strings"
 )
 
+// browserGlob is where the browser walks stand: Playwright's spec files, run by bun.
+const browserGlob = "e2e/tests/*.spec.ts"
+
 // readingGate reads every walk's spec file and refuses the comparisons that take
 // one reading.
 func (r *runner) readingGate() error {
