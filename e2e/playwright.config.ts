@@ -13,7 +13,7 @@ export default defineConfig({
   globalSetup: './scripts/build.mjs',
   // The article's finding was two workers over four; the count this repository
   // measured is in the record of r-1c41.
-  workers: Number(process.env.E2E_WORKERS || 4),
+  workers: Number(process.env.E2E_WORKERS || 2),
   fullyParallel: true,
   retries: 0,
   timeout: 5 * 60_000,
