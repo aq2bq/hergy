@@ -1298,7 +1298,7 @@ func TestNotFoundTeamEndsWithNext(t *testing.T) {
 	}
 	wantLines(t, stderr,
 		"error: there is no team definition nosuch (looked in: .hergy/teams/nosuch/team.yaml, "+
-			filepath.Join(f.cfg, "hergy", "teams", "nosuch", "team.yaml")+"; candidates: demo)",
+			filepath.Join(f.cfg, "hergy", "teams", "nosuch", "team.yaml")+"; candidates: demo); pick one of the candidates",
 		"next: up demo",
 	)
 }

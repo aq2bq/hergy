@@ -1,7 +1,6 @@
 package rules
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -111,7 +110,17 @@ func sameValuesAs(doc *Document, out []byte, path string) error {
 	if err != nil {
 		return err
 	}
-	return yamledit.SameValues(want, out, path)
+	return yamledit.SameValues(want, out, path, ruleSaveBug())
+}
+
+// ruleSaveBug is what a save of a rule document says when hergy's own write does
+// not read back: the screen that stopped, and the YAML tab of the team
+// definition, which edits the same file by hand (d-040e E3).
+func ruleSaveBug() yamledit.Bug {
+	return yamledit.Bug{
+		Operation:  i18n.T("bug.operation_rule_save"),
+		Workaround: i18n.T("bug.workaround_team_yaml"),
+	}
 }
 
 // ruleLines is one rule written the way Emit writes it, as the lines of a block
@@ -128,17 +137,17 @@ func ruleLines(rule Rule, dashCol int, path string) ([]string, error) {
 	}
 	sections := yamledit.MappingValue(root, "sections")
 	if sections == nil || len(sections.Content) == 0 {
-		return nil, i18n.Errorf("error.edit_yaml", fmt.Errorf("規則 1 件の文が読み取れません"))
+		return nil, ruleSaveBug().Errorf()
 	}
 	rules := yamledit.MappingValue(sections.Content[0], "rules")
 	if rules == nil || len(rules.Content) == 0 {
-		return nil, i18n.Errorf("error.edit_yaml", fmt.Errorf("規則 1 件の文が読み取れません"))
+		return nil, ruleSaveBug().Errorf()
 	}
 	node := rules.Content[0]
 	from, to := yamledit.NodeRange(node)
 	all := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 	if from < 1 || to > len(all) {
-		return nil, i18n.Errorf("error.edit_yaml", fmt.Errorf("規則 1 件の文が読み取れません"))
+		return nil, ruleSaveBug().Errorf()
 	}
 	shift := dashCol - (node.Column - 3)
 	lines := make([]string, 0, to-from+1)

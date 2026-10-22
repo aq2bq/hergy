@@ -141,10 +141,20 @@ func EditYAML(text []byte, path string, op Op) ([]byte, error) {
 	}
 
 	out := src.Bytes()
-	if err := yamledit.SameValues(&want, out, path); err != nil {
+	if err := yamledit.SameValues(&want, out, path, teamSaveBug()); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// teamSaveBug is what a save of team.yaml says when hergy's own write does not
+// read back: the screen that stopped, and the YAML tab that edits the same file
+// by hand (d-040e E3).
+func teamSaveBug() yamledit.Bug {
+	return yamledit.Bug{
+		Operation:  i18n.T("bug.operation_team_save"),
+		Workaround: i18n.T("bug.workaround_team_yaml"),
+	}
 }
 
 // applyTree is the edit a reader means, on the tree: the value the written

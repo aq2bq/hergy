@@ -1013,18 +1013,18 @@ func sectionLines(section Section, dashCol int, path string) ([]string, error) {
 	}
 	sections := yamledit.MappingValue(root, "sections")
 	if sections == nil || len(sections.Content) == 0 {
-		return nil, i18n.Errorf("error.edit_yaml", path, "節 1 つの文が読み取れません")
+		return nil, ruleSaveBug().Errorf()
 	}
-	return shiftedNodeLines(text, sections.Content[0], dashCol, path)
+	return shiftedNodeLines(text, sections.Content[0], dashCol)
 }
 
 // shiftedNodeLines is the lines one node of a written document stands on, moved
 // to the column its "- " stands at.
-func shiftedNodeLines(text string, node *yaml.Node, dashCol int, path string) ([]string, error) {
+func shiftedNodeLines(text string, node *yaml.Node, dashCol int) ([]string, error) {
 	from, to := yamledit.NodeRange(node)
 	all := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 	if from < 1 || to > len(all) {
-		return nil, i18n.Errorf("error.edit_yaml", path, "書いた行が読み取れません")
+		return nil, ruleSaveBug().Errorf()
 	}
 	shift := dashCol - (node.Column - 3)
 	lines := make([]string, 0, to-from+1)

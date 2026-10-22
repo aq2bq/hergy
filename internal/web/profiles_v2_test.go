@@ -391,7 +391,7 @@ func TestPROFILES_F1_TheUsedProfileGoesAndTheAssignShowsTheLoss(t *testing.T) {
 	if got := assign.Assign.Teams[core].Err; got != 1 {
 		t.Errorf("core counts %d problems, want the one the delete left", got)
 	}
-	want := "members[4].profile: fable-review というプロファイルはありません"
+	want := "members[4].profile: fable-review というプロファイルはありません。profiles.yaml の profiles: にある名前を profile: に書いてください"
 	found := false
 	for _, row := range assign.Assign.Teams[core].Rows {
 		if row.ID == "m-4" && row.Error == want {

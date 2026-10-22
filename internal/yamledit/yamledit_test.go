@@ -104,14 +104,23 @@ func TestNodeRangeIsTheNodesOwnLines(t *testing.T) {
 	}
 }
 
+// testBug is the sentence a write of this test reports with: what stopped, and
+// the way around it, the way a screen hands them in (d-040e E3).
+var testBug = Bug{Operation: "the save", Workaround: "edit the file itself"}
+
 // TestSameValuesCatchesAWrongWrite: a write whose lines do not read as the
-// intended tree is refused rather than written.
+// intended tree is refused rather than written, and the sentence names hergy's
+// bug and the way around it, not the person's file.
 func TestSameValuesCatchesAWrongWrite(t *testing.T) {
 	want := nodes(t, "a: 1\n")
-	if err := SameValues(want, []byte("a: 2\n"), "x.yaml"); err == nil {
-		t.Error("a write that reads as another value was accepted")
+	err := SameValues(want, []byte("a: 2\n"), "x.yaml", testBug)
+	if err == nil {
+		t.Fatal("a write that reads as another value was accepted")
 	}
-	if err := SameValues(want, []byte("a: 1\n"), "x.yaml"); err != nil {
+	if got, want := err.Error(), testBug.Errorf().Error(); got != want {
+		t.Errorf("the refusal reads %q; want the internal-bug sentence %q", got, want)
+	}
+	if err := SameValues(want, []byte("a: 1\n"), "x.yaml", testBug); err != nil {
 		t.Errorf("a write that reads as the intended tree was refused: %v", err)
 	}
 }
@@ -122,14 +131,14 @@ func TestSameValuesCatchesAWrongWrite(t *testing.T) {
 // another value.
 func TestSameValuesReadsADateAsTheTextItWasWrittenWith(t *testing.T) {
 	quoted := nodes(t, "date: \"2026-09-14\"\n")
-	if err := SameValues(quoted, []byte("date: 2026-09-14\n"), "x.yaml"); err != nil {
+	if err := SameValues(quoted, []byte("date: 2026-09-14\n"), "x.yaml", testBug); err != nil {
 		t.Errorf("an unquoted date was refused: %v", err)
 	}
 	plain := nodes(t, "date: 2026-09-14\n")
-	if err := SameValues(plain, []byte("date: \"2026-09-14\"\n"), "x.yaml"); err != nil {
+	if err := SameValues(plain, []byte("date: \"2026-09-14\"\n"), "x.yaml", testBug); err != nil {
 		t.Errorf("a quoted date was refused against a plain one: %v", err)
 	}
-	if err := SameValues(quoted, []byte("date: 2026-09-15\n"), "x.yaml"); err == nil {
+	if err := SameValues(quoted, []byte("date: 2026-09-15\n"), "x.yaml", testBug); err == nil {
 		t.Error("another date was accepted")
 	}
 }

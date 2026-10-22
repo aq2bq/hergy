@@ -16,7 +16,6 @@ package yamledit
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -53,14 +52,33 @@ func RemoveNode(src *Source, n *yaml.Node) {
 	src.Remove(src.ItemStartLine(n), NodeEndLine(n))
 }
 
+// Bug is what a write says when the lines it wrote do not read back as the
+// change the caller meant: hergy's own fault, not the person's, so the sentence
+// says so and hands in the way around it (d-040e E3). Only the caller knows
+// which screen the person is on, so the caller writes both texts.
+type Bug struct {
+	// Operation is what stopped, as the person sees it (チーム定義の保存).
+	Operation string
+	// Workaround is the way around it, with the command or the place in the
+	// file to use instead.
+	Workaround string
+}
+
+// Errorf is the sentence a stopped write says: the operation, that no file
+// changed, the way around it, and where to report hergy's bug.
+func (b Bug) Errorf() error {
+	return i18n.Errorf("error.internal_bug", b.Operation, b.Workaround)
+}
+
 // SameValues is whether the written text reads as the intended tree. Only the
 // values are compared (the order of a mapping's keys is not the file's promise),
 // so a value put on the wrong line, dropped, or written unquoted where it needs
 // quotes is caught. A date is compared as the text it was written with, so a
 // document a person wrote by hand (`date: 2026-09-14`) is not refused for the
 // quotes hergy writes (`date: "2026-09-14"`): a hand-written document stays
-// editable on the screens.
-func SameValues(want *yaml.Node, out []byte, path string) error {
+// editable on the screens. A write that does not read back is hergy's bug and
+// stops with bug's sentence (E3).
+func SameValues(want *yaml.Node, out []byte, path string, bug Bug) error {
 	encoded, err := encode(want, path)
 	if err != nil {
 		return err
@@ -74,7 +92,7 @@ func SameValues(want *yaml.Node, out []byte, path string) error {
 		return err
 	}
 	if !reflect.DeepEqual(wanted, got) {
-		return i18n.Errorf("error.edit_yaml", path, fmt.Errorf("書き換えた行が、意図した変更と読み取れません"))
+		return bug.Errorf()
 	}
 	return nil
 }

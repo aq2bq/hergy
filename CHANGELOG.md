@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- **Error messages say what to do next**: every error a command or a screen
+  prints now names the next step — the command to run, the screen to open or
+  the place in the file to fix. A sentence that stops because of a bug in hergy
+  says so, says that no file changed, and names the way around it.
+
 - **A section with no rules saves from the rules screen**: taking a section's
   last rule out leaves a heading with no `rules:` key, and saving that
   agreement or role document from the screen was refused as unreadable even
