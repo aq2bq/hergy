@@ -41,6 +41,37 @@ type Draft struct {
 	Doc         *Document
 	From        []Place
 	SectionFrom []int
+	// SaveFrom is the screen the person saves this document from: a team's
+	// agreement saves from the team definition's YAML tab, a role document from
+	// the roles screen's YAML tab. Only the caller knows which one it is, and
+	// the way around a write hergy cannot place names that screen (d-040e E3).
+	// The zero value is the team definition.
+	SaveFrom SaveScreen
+}
+
+// SaveScreen is the screen a document saves from.
+type SaveScreen int
+
+const (
+	// SaveFromTeamDefinition is a team's agreement, saved from the team
+	// definition's screen.
+	SaveFromTeamDefinition SaveScreen = iota
+	// SaveFromRoles is a role document, saved from the roles screen.
+	SaveFromRoles
+)
+
+// saveBug is what a save from that screen says when hergy's own write does not
+// read back: the operation that stopped, and the YAML tab of the screen the
+// person is on (d-040e E3).
+func saveBug(from SaveScreen) yamledit.Bug {
+	workaround := i18n.T("bug.workaround_team_yaml")
+	if from == SaveFromRoles {
+		workaround = i18n.T("bug.workaround_role_yaml")
+	}
+	return yamledit.Bug{
+		Operation:  i18n.T("bug.operation_rule_save"),
+		Workaround: workaround,
+	}
 }
 
 // Rewrite writes the saved document (text, as saved holds it) the way the draft
@@ -48,8 +79,9 @@ type Draft struct {
 // rewritten where it stands, one added, one taken out, or one moved. A rule that
 // only moved keeps its lines, shifted to where its new section writes them. The
 // written text is read back and compared with the draft (sameValuesAs); a value
-// that did not land where the draft means it is refused with error.edit_shape,
-// and so is a shape a line write cannot place (a flow sequence, an anchor). A
+// that did not land where the draft means it stops as hergy's own bug
+// (error.internal_bug), and a shape a line write cannot place (a flow sequence,
+// an anchor) is refused with error.edit_shape. A
 // draft whose values are the ones the file already holds is not written at all:
 // the saved text comes back byte for byte.
 func Rewrite(text []byte, saved *Document, draft Draft) ([]byte, error) {
@@ -78,7 +110,7 @@ func Rewrite(text []byte, saved *Document, draft Draft) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := sameValuesAs(draft.Doc, out, path); err != nil {
+	if err := sameValuesAs(draft.Doc, out, draft.SaveFrom); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -255,6 +287,9 @@ type plan struct {
 	sections *yaml.Node
 	draft    Draft
 	path     string
+	// saveFrom is the screen the draft saves from, for the sentence a write
+	// hergy cannot place says (E3).
+	saveFrom SaveScreen
 	// sectionOf is the draft section each draft rule is in, rule by rule, in
 	// the order the draft writes them.
 	sectionOf []int
@@ -278,7 +313,7 @@ func planRewrite(src *yamledit.Source, root *yaml.Node, saved *Document, draft D
 		return nil, i18n.Errorf("error.edit_shape", path, "sections")
 	}
 
-	p := &plan{src: src, root: root, saved: savedSections, sections: sectionsNode, draft: draft, path: path, claimed: map[[2]int]int{}}
+	p := &plan{src: src, root: root, saved: savedSections, sections: sectionsNode, draft: draft, path: path, saveFrom: draft.SaveFrom, claimed: map[[2]int]int{}}
 	for ds, sec := range want.Sections {
 		for range sec.Rules {
 			p.sectionOf = append(p.sectionOf, ds)
@@ -304,7 +339,7 @@ func planRewrite(src *yamledit.Source, root *yaml.Node, saved *Document, draft D
 		if !ok {
 			// A section the saved document did not hold: written whole, at the
 			// end of the sections, the way Emit writes one.
-			lines, err := sectionLines(want.Sections[ds], sectionsDash(sectionsNode), path)
+			lines, err := sectionLines(want.Sections[ds], sectionsDash(sectionsNode), path, draft.SaveFrom)
 			if err != nil {
 				return nil, err
 			}
@@ -560,7 +595,7 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 		// The file wrote the section as - {}: there is no key to write under,
 		// so a draft that gives it any value is written whole, the way Emit
 		// writes a section (a draft that gives it none writes the same - {}).
-		lines, err := sectionLines(want, sectionsDash(p.sections), p.path)
+		lines, err := sectionLines(want, sectionsDash(p.sections), p.path, p.saveFrom)
 		if err != nil {
 			return nil, err
 		}
@@ -613,7 +648,7 @@ func (p *plan) planSection(ds, ss int, node *yaml.Node) ([]op, error) {
 		rule := p.ruleAt(gi)
 		if place.Section == ss && kept[place.Rule] {
 			if !sameRule(p.saved[ss].Rules[place.Rule], rule) {
-				lines, err := ruleLines(rule, dashCol, p.path)
+				lines, err := ruleLines(rule, dashCol, p.path, p.saveFrom)
 				if err != nil {
 					return nil, err
 				}
@@ -690,13 +725,13 @@ func (p *plan) keptRules(ds, ss int) map[int]bool {
 // another section is taken out by that section's own plan.
 func (p *plan) moveLines(place Place, rule Rule, ss int, node *yaml.Node, items []*yaml.Node, dashCol int) ([]string, []op, error) {
 	if place.Section < 0 {
-		lines, err := ruleLines(rule, dashCol, p.path)
+		lines, err := ruleLines(rule, dashCol, p.path, p.saveFrom)
 		return lines, nil, err
 	}
 	source := p.sections.Content[place.Section]
 	sourceRules := yamledit.MappingValue(source, "rules")
 	if sourceRules == nil || place.Rule >= len(sourceRules.Content) {
-		lines, err := ruleLines(rule, dashCol, p.path)
+		lines, err := ruleLines(rule, dashCol, p.path, p.saveFrom)
 		return lines, nil, err
 	}
 	lines, err := p.rulePlacementLines(sourceRules.Content[place.Rule], rule, dashCol)
@@ -740,7 +775,7 @@ func (p *plan) createRules(ops []op, node *yaml.Node, globals []int) ([]op, erro
 	indent := yamledit.MappingIndent(node)
 	lines := []string{yamledit.Spaces(indent) + "rules:"}
 	for _, gi := range globals {
-		rule, err := ruleLines(p.ruleAt(gi), indent+2, p.path)
+		rule, err := ruleLines(p.ruleAt(gi), indent+2, p.path, p.saveFrom)
 		if err != nil {
 			return nil, err
 		}
@@ -779,7 +814,7 @@ func (p *plan) ruleAt(gi int) Rule {
 // values did not change; Emit's lines when they did.
 func (p *plan) rulePlacementLines(item *yaml.Node, rule Rule, dashCol int) ([]string, error) {
 	if !sameRule(p.ruleAtSaved(item), rule) {
-		return ruleLines(rule, dashCol, p.path)
+		return ruleLines(rule, dashCol, p.path, p.saveFrom)
 	}
 	from := p.src.ItemStartLine(item)
 	to := yamledit.NodeEndLine(item)
@@ -1002,7 +1037,7 @@ func firstKey(node *yaml.Node) *yaml.Node {
 
 // sectionLines is one section written the way Emit writes it, as the lines of a
 // block sequence item whose "- " stands at dashCol.
-func sectionLines(section Section, dashCol int, path string) ([]string, error) {
+func sectionLines(section Section, dashCol int, path string, screen SaveScreen) ([]string, error) {
 	text, err := Emit(&Document{Sections: []Section{section}})
 	if err != nil {
 		return nil, err
@@ -1013,18 +1048,18 @@ func sectionLines(section Section, dashCol int, path string) ([]string, error) {
 	}
 	sections := yamledit.MappingValue(root, "sections")
 	if sections == nil || len(sections.Content) == 0 {
-		return nil, ruleSaveBug().Errorf()
+		return nil, saveBug(screen).Errorf()
 	}
-	return shiftedNodeLines(text, sections.Content[0], dashCol)
+	return shiftedNodeLines(text, sections.Content[0], dashCol, screen)
 }
 
 // shiftedNodeLines is the lines one node of a written document stands on, moved
 // to the column its "- " stands at.
-func shiftedNodeLines(text string, node *yaml.Node, dashCol int) ([]string, error) {
+func shiftedNodeLines(text string, node *yaml.Node, dashCol int, screen SaveScreen) ([]string, error) {
 	from, to := yamledit.NodeRange(node)
 	all := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 	if from < 1 || to > len(all) {
-		return nil, ruleSaveBug().Errorf()
+		return nil, saveBug(screen).Errorf()
 	}
 	shift := dashCol - (node.Column - 3)
 	lines := make([]string, 0, to-from+1)

@@ -200,6 +200,7 @@ func t2AgreementText(display, base string, draft *r2Doc) (string, error) {
 	}
 	written, err := rules.Rewrite([]byte(base), saved, rules.Draft{
 		Doc: draft.document(), From: draft.froms(), SectionFrom: draft.sectionFroms(),
+		SaveFrom: rules.SaveFromTeamDefinition,
 	})
 	if err != nil {
 		return "", err

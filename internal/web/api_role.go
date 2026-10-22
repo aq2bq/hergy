@@ -317,7 +317,9 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 		if saved == nil {
 			saved = &rules.Document{Path: basePath}
 		}
-		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{Doc: draftDoc, From: doc.froms(), SectionFrom: doc.sectionFroms()})
+		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{
+			Doc: draftDoc, From: doc.froms(), SectionFrom: doc.sectionFroms(), SaveFrom: rules.SaveFromRoles,
+		})
 	}
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())

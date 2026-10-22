@@ -542,3 +542,41 @@ func TestRewriteCarriesAMovedSectionAndWritesIt(t *testing.T) {
 		t.Errorf("a line the draft did not touch changed:\n%s", got)
 	}
 }
+
+// TestAFailedSaveNamesTheScreenTheDocumentSavesFrom: a write hergy cannot place
+// is refused with error.internal_bug, and its way around names the YAML tab of
+// the screen the person is on. A team's agreement saves from the team
+// definition's screen; a role document saves from the roles screen (r-dfaa,
+// d-040e E3).
+func TestAFailedSaveNamesTheScreenTheDocumentSavesFrom(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		from SaveScreen
+		path string
+		want string
+	}{
+		{"team agreement", SaveFromTeamDefinition, ".hergy/teams/demo/agreement.yaml", "bug.workaround_team_yaml"},
+		{"role document", SaveFromRoles, ".hergy/roles/lead.yaml", "bug.workaround_role_yaml"},
+	} {
+		doc, err := Parse(builderRole, tc.path)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		// The written text reads as another document, which is what the read-back
+		// catches; the sentence is the one the screen handed in.
+		err = sameValuesAs(doc, []byte("version: 1\nsections: []\n"), tc.from)
+		if err == nil {
+			t.Fatalf("%s: a write that reads as another document was accepted", tc.name)
+		}
+		if want := i18n.T(tc.want); !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: the refusal does not say %q:\n%s", tc.name, want, err)
+		}
+		other := "bug.workaround_team_yaml"
+		if tc.want == other {
+			other = "bug.workaround_role_yaml"
+		}
+		if strings.Contains(err.Error(), i18n.T(other)) {
+			t.Errorf("%s: the refusal names the other screen:\n%s", tc.name, err)
+		}
+	}
+}

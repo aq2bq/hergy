@@ -763,6 +763,7 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 		}
 		written, rewriteErr := rules.Rewrite([]byte(text), saved, rules.Draft{
 			Doc: draft.document(), From: draft.froms(), SectionFrom: draft.sectionFroms(),
+			SaveFrom: rules.SaveFromTeamDefinition,
 		})
 		edited, err = string(written), rewriteErr
 	}

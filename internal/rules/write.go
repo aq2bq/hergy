@@ -101,7 +101,8 @@ func readRoot(text []byte, path string) (*yaml.Node, error) {
 // means, so lines placed on the wrong place are caught here rather than written.
 // Only the values are compared: the order the file keeps its keys in is the
 // file's own.
-func sameValuesAs(doc *Document, out []byte, path string) error {
+func sameValuesAs(doc *Document, out []byte, screen SaveScreen) error {
+	path := doc.Path
 	text, err := Emit(doc)
 	if err != nil {
 		return err
@@ -110,23 +111,13 @@ func sameValuesAs(doc *Document, out []byte, path string) error {
 	if err != nil {
 		return err
 	}
-	return yamledit.SameValues(want, out, path, ruleSaveBug())
-}
-
-// ruleSaveBug is what a save of a rule document says when hergy's own write does
-// not read back: the screen that stopped, and the YAML tab of the team
-// definition, which edits the same file by hand (d-040e E3).
-func ruleSaveBug() yamledit.Bug {
-	return yamledit.Bug{
-		Operation:  i18n.T("bug.operation_rule_save"),
-		Workaround: i18n.T("bug.workaround_team_yaml"),
-	}
+	return yamledit.SameValues(want, out, path, saveBug(screen))
 }
 
 // ruleLines is one rule written the way Emit writes it, as the lines of a block
 // sequence item whose "- " stands at dashCol: the item's first line, and the
 // lines under it, moved to where the file writes that section's rules.
-func ruleLines(rule Rule, dashCol int, path string) ([]string, error) {
+func ruleLines(rule Rule, dashCol int, path string, screen SaveScreen) ([]string, error) {
 	text, err := Emit(&Document{Sections: []Section{{Rules: []Rule{rule}}}})
 	if err != nil {
 		return nil, err
@@ -137,17 +128,17 @@ func ruleLines(rule Rule, dashCol int, path string) ([]string, error) {
 	}
 	sections := yamledit.MappingValue(root, "sections")
 	if sections == nil || len(sections.Content) == 0 {
-		return nil, ruleSaveBug().Errorf()
+		return nil, saveBug(screen).Errorf()
 	}
 	rules := yamledit.MappingValue(sections.Content[0], "rules")
 	if rules == nil || len(rules.Content) == 0 {
-		return nil, ruleSaveBug().Errorf()
+		return nil, saveBug(screen).Errorf()
 	}
 	node := rules.Content[0]
 	from, to := yamledit.NodeRange(node)
 	all := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 	if from < 1 || to > len(all) {
-		return nil, ruleSaveBug().Errorf()
+		return nil, saveBug(screen).Errorf()
 	}
 	shift := dashCol - (node.Column - 3)
 	lines := make([]string, 0, to-from+1)

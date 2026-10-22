@@ -2432,7 +2432,7 @@ func TestTeamCommandWithoutArgumentStopsWhenNone(t *testing.T) {
 	if code == 0 {
 		t.Fatal("reprompt with no running team succeeded")
 	}
-	for _, want := range []string{"no teams are running", "hergy status"} {
+	for _, want := range []string{"no teams are running", "hergy up <definition>"} {
 		if !strings.Contains(stderr, want) {
 			t.Fatalf("reprompt with no running team does not say %q:\n%s", want, stderr)
 		}
