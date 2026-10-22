@@ -65,8 +65,7 @@ func (c CLI) capture(args ...string) (stdout, stderr string, status int, err err
 	cmd.Stderr = &errBuf
 	runErr := cmd.Run()
 	if runErr != nil {
-		var exit *exec.ExitError
-		if errors.As(runErr, &exit) {
+		if exit, ok := errors.AsType[*exec.ExitError](runErr); ok {
 			return out.String(), errBuf.String(), exit.ExitCode(), nil
 		}
 		return out.String(), errBuf.String(), -1, i18n.Errorf("error.cannot_execute", c.Bin, runErr)

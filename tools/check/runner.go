@@ -77,7 +77,9 @@ func moduleRoot() (string, error) {
 }
 
 // tool returns the path of an installed tool, installing it first when the
-// binary or its version stamp is missing or holds another version.
+// binary or its version stamp is missing or holds another version. The stamp
+// also holds the Go that built the tool: a tool that reads Go source (lint,
+// deadcode, govulncheck) cannot read the standard library of a newer Go.
 func (r *runner) tool(name string) (string, error) {
 	t, ok := tools[name]
 	if !ok {
@@ -88,7 +90,8 @@ func (r *runner) tool(name string) (string, error) {
 		path += ".exe"
 	}
 	stamp := filepath.Join(r.bin, t.name+".version")
-	if have, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(have)) == t.version {
+	want := t.version + " " + runtime.Version()
+	if have, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(have)) == want {
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}
@@ -99,7 +102,7 @@ func (r *runner) tool(name string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("go install %s@%s: %w", t.pkg, t.version, err)
 	}
-	if err := os.WriteFile(stamp, []byte(t.version+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(stamp, []byte(want+"\n"), 0o644); err != nil {
 		return "", err
 	}
 	return path, nil

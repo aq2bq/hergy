@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -80,8 +81,8 @@ func Write(in In) (Written, error) {
 		}
 	}
 	fail := func(err error) (Written, error) {
-		for i := len(made) - 1; i >= 0; i-- {
-			_ = os.Remove(made[i])
+		for _, m := range slices.Backward(made) {
+			_ = os.Remove(m)
 		}
 		if written.Profile != "" {
 			if hadProfile {

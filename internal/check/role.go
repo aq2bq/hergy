@@ -3,6 +3,7 @@ package check
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -650,10 +651,10 @@ func lcsLengths(saved, draft []string) [][]int {
 	for i := range common {
 		common[i] = make([]int, len(draft)+1)
 	}
-	for i := len(saved) - 1; i >= 0; i-- {
+	for i, s := range slices.Backward(saved) {
 		for j := len(draft) - 1; j >= 0; j-- {
 			switch {
-			case saved[i] == draft[j]:
+			case s == draft[j]:
 				common[i][j] = common[i+1][j+1] + 1
 			case common[i+1][j] >= common[i][j+1]:
 				common[i][j] = common[i+1][j]

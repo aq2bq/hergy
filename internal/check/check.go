@@ -227,8 +227,7 @@ func modelDocFindings(path string, doc *rules.Document) []Finding {
 // cannot hold is one finding per problem (I12a, I12b): each is a thing to fix,
 // and validate has always printed one detail line each (d-edd4).
 func breakFindings(in Input, err error) []Finding {
-	var gerr *definition.GraphError
-	if errors.As(err, &gerr) {
+	if gerr, ok := errors.AsType[*definition.GraphError](err); ok {
 		out := make([]Finding, 0, len(gerr.Problems))
 		for _, problem := range gerr.Problems {
 			out = append(out, Finding{
@@ -251,8 +250,7 @@ func breakFindings(in Input, err error) []Finding {
 // breakPath is the file a break is about: the one the reading stopped on, or the
 // layer's team.yaml.
 func breakPath(in Input, err error) string {
-	var readErr *catalog.ReadError
-	if errors.As(err, &readErr) {
+	if readErr, ok := errors.AsType[*catalog.ReadError](err); ok {
 		return readErr.Path
 	}
 	return in.Catalog.TeamYAML(in.Name, in.Layer)

@@ -270,8 +270,7 @@ func (e *Error) Error() string { return e.err.Error() }
 
 // ErrorCode is the Herdr error code behind err, or empty.
 func ErrorCode(err error) string {
-	var herdrErr *Error
-	if errors.As(err, &herdrErr) {
+	if herdrErr, ok := errors.AsType[*Error](err); ok {
 		return herdrErr.Code
 	}
 	return ""

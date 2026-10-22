@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
 
       # The browser walks' tools are fetched by the gate itself (bun, into .bin/;
       # Playwright's chromium, into e2e/.bin/browsers). The caches keep that from

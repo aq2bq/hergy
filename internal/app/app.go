@@ -125,8 +125,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if err := dispatch(ctx, env, opts, stdout, stderr); err != nil {
-		var reported reportedError
-		if errors.As(err, &reported) {
+		if reported, ok := errors.AsType[reportedError](err); ok {
 			return reported.code
 		}
 		fail(stderr, err)
@@ -1368,8 +1367,7 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		// esc twice did not end the turn. The next step is the same one a stop
 		// that worked names: the member has to be started again.
-		var notStopped launcher.StopNotStopped
-		if errors.As(err, &notStopped) {
+		if _, ok := errors.AsType[launcher.StopNotStopped](err); ok {
 			printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
 		}
 		return err
@@ -1449,8 +1447,7 @@ func tellSender(r *resolved, opts *options.Options) (string, error) {
 // the file as a person writes it and the reason, the way hergy validate writes a
 // broken file.
 func brokenTeamLine(env team.Env, err error) string {
-	var readErr *catalog.ReadError
-	if errors.As(err, &readErr) {
+	if readErr, ok := errors.AsType[*catalog.ReadError](err); ok {
 		return breakLine(env, readErr.Path, err)
 	}
 	return strings.Join(strings.Fields(err.Error()), " ")

@@ -228,7 +228,7 @@ func TestALaunchThatCannotBeRecordedStillRuns(t *testing.T) {
 	if !strings.Contains(stdout, "booted:") {
 		t.Fatalf("up did not boot the team:\n%s", stdout)
 	}
-	prefix := strings.Split(i18n.T("launch.not_recorded"), "%v")[0]
+	prefix, _, _ := strings.Cut(i18n.T("launch.not_recorded"), "%v")
 	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
 	if len(lines) != 1 || !strings.HasPrefix(lines[0], prefix) {
 		t.Fatalf("stderr is %q, want one line starting %q", stderr, prefix)
