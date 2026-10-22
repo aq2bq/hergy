@@ -35,8 +35,7 @@ func field(key string, err error) error {
 // Field is the team.yaml field an error is about, or "" when the error is about
 // the file as a whole (an unreadable file, a broken read).
 func Field(err error) string {
-	var fe *FieldError
-	if errors.As(err, &fe) {
+	if fe, ok := errors.AsType[*FieldError](err); ok {
 		return fe.Field
 	}
 	return ""

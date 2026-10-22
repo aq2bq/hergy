@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -284,9 +285,9 @@ func (l Log) Latest(teamYAML string) (Record, bool, error) {
 	if err != nil {
 		return Record{}, false, err
 	}
-	for i := len(records) - 1; i >= 0; i-- {
-		if records[i].TeamYAML == teamYAML {
-			return records[i], true, nil
+	for _, record := range slices.Backward(records) {
+		if record.TeamYAML == teamYAML {
+			return record, true, nil
 		}
 	}
 	return Record{}, false, nil

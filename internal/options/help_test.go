@@ -73,7 +73,7 @@ func TestCommandHelpListsExactlyTheFlags(t *testing.T) {
 					lang, s.Name, strings.Join(listed, " --"), strings.Join(want, " --"), long)
 			}
 
-			if first := strings.SplitN(long, "\n", 2)[0]; first != "hergy "+s.Name+" - "+s.Summary[lang] {
+			if first, _, _ := strings.Cut(long, "\n"); first != "hergy "+s.Name+" - "+s.Summary[lang] {
 				t.Errorf("[%s] hergy %s --help opens with %q, want its name and summary", lang, s.Name, first)
 			}
 			if !strings.Contains(long, i18n.T("help.usage_label")+" "+usageLine(s, lang)+"\n") {
