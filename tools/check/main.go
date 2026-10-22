@@ -45,8 +45,8 @@ var gates = []gate{
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
 	{"arch", Hard, "the direction of imports (arch_test.go); os/exec outside internal/herdrcli is caught by lint (depguard)", (*runner).archGate},
 	{"test", Hard, "go test -race -count=1 ./... with a coverage profile", (*runner).testGate},
-	{"checks", Hard, "every checks/*.md item has a test of its size: a 小・中 test whose name holds the ID, an e2e subtest whose name starts with a 大 ID, and no test for 監査; an e2e subtest under no 大 item fails (checks.go)", (*runner).checksGate},
-	{"e2e", Hard, "go test -tags e2e -count=1 -run TestE2E ./internal/app (headless Chrome through chromedp; a missing Chrome fails in CI and skips one line on a laptop)", (*runner).e2eGate},
+	{"checks", Hard, "every checks/*.md item has a test of its size: a 小・中 test whose name holds the ID, a Playwright test whose name starts with a 大 ID, and no test for 監査; a browser walk under no 大 item fails (checks.go)", (*runner).checksGate},
+	{"e2e", Hard, "the browser walks of e2e/tests (*.spec.ts) in Playwright, run by bun: e2e/bun.lock's dependency and Playwright's pinned chromium are fetched into .bin/ and e2e/.bin/ when missing (d-bb0d)", (*runner).e2eGate},
 	{"coverage", Ratchet, "go-test-coverage against .testcoverage.yml; the total threshold moves up only", (*runner).coverageGate},
 	{"deadcode", Hard, "deadcode -test ./... reports nothing", (*runner).deadcodeGate},
 	{"vuln", Hard, "govulncheck ./... finds no vulnerability", (*runner).vulnGate},
@@ -182,13 +182,6 @@ func (r *runner) archGate() error {
 
 func (r *runner) testGate() error {
 	return r.exec("go", "test", "-race", "-count=1", "-coverprofile="+r.coverProfile(), "./...")
-}
-
-// e2eGate drives the screens in a real headless Chrome. It is a gate of its own
-// because the browser is needed: the ordinary test gate builds with no tags, so
-// the e2e files are left out of it (設計 8 節, d-a8b1 の W3).
-func (r *runner) e2eGate() error {
-	return r.exec("go", "test", "-tags", "e2e", "-count=1", "-run", "TestE2E", "./internal/app")
 }
 
 func (r *runner) coverageGate() error {
