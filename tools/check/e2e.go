@@ -68,9 +68,11 @@ func (r *runner) buildE2EBinary() error {
 }
 
 // e2eEnv is the environment the e2e commands run in: the machine's, with the
-// fetched Node first on PATH.
+// fetched Node first on PATH and the npm/pnpm caches under .bin/, so nothing is
+// written to the person's global cache.
 func (r *runner) e2eEnv(nodeBin string, extra ...string) []string {
 	env := append([]string(nil), os.Environ()...)
+	env = append(env, "XDG_CACHE_HOME="+filepath.Join(r.bin, "cache"), "npm_config_cache="+filepath.Join(r.bin, "npm-cache"))
 	if nodeBin != "" {
 		env = append(env, "PATH="+nodeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
@@ -95,10 +97,11 @@ func (r *runner) ensureNode() (string, error) {
 	}
 	dir := filepath.Join(r.bin, name)
 	stamp := filepath.Join(r.bin, "node.version")
-	if have, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(have)) == e2eNodeVersion {
-		if _, err := os.Stat(filepath.Join(dir, "bin", "node")); err == nil {
-			return filepath.Join(dir, "bin"), nil
-		}
+	// The directory's name holds the pinned version, so a Node that is there is
+	// the one the gate wants: a restored CI cache carries it without the stamp.
+	if _, err := os.Stat(filepath.Join(dir, "bin", "node")); err == nil {
+		_ = os.WriteFile(stamp, []byte(e2eNodeVersion+"\n"), 0o644)
+		return filepath.Join(dir, "bin"), nil
 	}
 	url := fmt.Sprintf("https://nodejs.org/dist/v%s/%s.tar.gz", e2eNodeVersion, name)
 	fmt.Fprintf(r.stdout, "-- fetching %s into %s\n", url, r.bin)
@@ -192,10 +195,11 @@ func (r *runner) ensurePnpm(nodeBin string) (string, error) {
 	prefix := filepath.Join(r.bin, "pnpm")
 	pnpm := filepath.Join(prefix, "node_modules", ".bin", "pnpm")
 	stamp := filepath.Join(r.bin, "pnpm.version")
-	if have, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(have)) == e2ePnpmVersion {
-		if _, err := os.Stat(pnpm); err == nil {
-			return pnpm, nil
-		}
+	// A restored cache carries the pnpm without the stamp; the stamp is written
+	// back so the next save holds it.
+	if _, err := os.Stat(pnpm); err == nil {
+		_ = os.WriteFile(stamp, []byte(e2ePnpmVersion+"\n"), 0o644)
+		return pnpm, nil
 	}
 	fmt.Fprintf(r.stdout, "-- installing pnpm@%s into %s\n", e2ePnpmVersion, prefix)
 	env := r.e2eEnv(nodeBin)
@@ -221,10 +225,11 @@ func (r *runner) installE2EDeps(pnpm, nodeBin string) error {
 func (r *runner) ensureBrowsers(pnpm, nodeBin string) error {
 	browsers := filepath.Join(r.bin, "ms-playwright")
 	stamp := filepath.Join(r.bin, "playwright.version")
-	if have, err := os.ReadFile(stamp); err == nil && strings.TrimSpace(string(have)) == e2ePlaywrightVersion {
-		if entries, err := os.ReadDir(browsers); err == nil && len(entries) > 0 {
-			return nil
-		}
+	// A restored cache carries the browsers without the stamp; the stamp is
+	// written back so the next save holds it.
+	if entries, err := os.ReadDir(browsers); err == nil && len(entries) > 0 {
+		_ = os.WriteFile(stamp, []byte(e2ePlaywrightVersion+"\n"), 0o644)
+		return nil
 	}
 	if err := r.execIn(filepath.Join(r.root, "e2e"), r.e2eEnv(nodeBin, "PLAYWRIGHT_BROWSERS_PATH="+browsers),
 		pnpm, "exec", "playwright", "install", "chromium"); err != nil {
