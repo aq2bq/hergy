@@ -994,7 +994,7 @@ func t2RefuseNewTeamError(cat *catalog.Catalog, name, layer string, ops []defini
 		}
 	}
 	for _, finding := range check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: layer, Ops: ops}).Problems {
-		if finding.Stops && !known[finding.Text] {
+		if finding.Stops && !known[finding.Text] && !t2TurnGateFinding(finding) {
 			return refuse(http.StatusUnprocessableEntity, finding.Text)
 		}
 	}
@@ -1011,11 +1011,20 @@ func t2RefuseNewTeamText(cat *catalog.Catalog, path, name, layer, before, after 
 		}
 	}
 	for _, finding := range check.Team(check.TeamInput{Catalog: cat.With(path, after), Name: name, Layer: layer}).Problems {
-		if finding.Stops && !known[finding.Text] {
+		if finding.Stops && !known[finding.Text] && !t2TurnGateFinding(finding) {
 			return refuse(http.StatusUnprocessableEntity, withoutOwnHead(finding.Text, cat.Display(path)))
 		}
 	}
 	return nil
+}
+
+// t2TurnGateFinding is the one kind of new stop a save lets through (d-9abb):
+// a node with no turn (I12a) or a definition no turn reaches the human from
+// (I12b). They are kept as team-definition problems, so the row, the panel,
+// validate and up say them; a save that is a step in a longer edit can keep its
+// work. Every other new stop still refuses.
+func t2TurnGateFinding(finding check.Finding) bool {
+	return finding.Kind == check.KindGraph && strings.HasPrefix(finding.Field, "node:")
 }
 
 // t2RefuseNewRuleError is the refusal for the first rule file error a typed

@@ -92,7 +92,7 @@ func TestTeamEffectShowsTheLineAStoppingChangeTakesAway(t *testing.T) {
 	if want := []string{i18n.T("turns.human_item")}; !slices.Equal(line.Removed, want) {
 		t.Errorf("removed = %q, want %q", line.Removed, want)
 	}
-	want := i18n.Tf("error.graph_member_no_turn", "spec", "spec")
+	want := i18n.Tf("error.graph_member_no_turn", "spec", "spec", "spec", "lead")
 	if len(got.Problems) != 1 || !got.Problems[0].Stops || !strings.Contains(got.Problems[0].Text, want) {
 		t.Errorf("problems = %+v, want the one that stops: %s", got.Problems, want)
 	}

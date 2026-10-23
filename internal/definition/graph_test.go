@@ -121,8 +121,8 @@ func TestGraphCheck(t *testing.T) {
 		if len(problems) != 1 || problems[0].Key != "error.graph_member_no_turn" {
 			t.Fatalf("Check = %+v, want the member with no turn", problems)
 		}
-		if got := problems[0].Args; len(got) != 2 || got[0] != "impl" || got[1] != "impl" {
-			t.Errorf("the problem names %v, want impl", got)
+		if got := problems[0].Args; len(got) != 4 || got[0] != "impl" || got[1] != "impl" || got[2] != "impl" || got[3] != "lead" {
+			t.Errorf("the problem names %v, want impl with lead as its example", got)
 		}
 	})
 	t.Run("a human who hands the turn to nobody", func(t *testing.T) {
@@ -131,8 +131,8 @@ func TestGraphCheck(t *testing.T) {
 		if len(problems) != 1 || problems[0].Key != "error.graph_human_no_turn" {
 			t.Fatalf("Check = %+v, want the human with no turn", problems)
 		}
-		if got := problems[0].Args; len(got) != 0 {
-			t.Errorf("the human's sentence names %v, want nothing", got)
+		if got := problems[0].Args; len(got) != 1 || got[0] != "lead" {
+			t.Errorf("the human's sentence names %v, want lead as its example", got)
 		}
 	})
 	// I12b: at least one turn reaches the human. A worker's turn back to its
@@ -146,6 +146,9 @@ func TestGraphCheck(t *testing.T) {
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_no_turn_reaches_human" {
 			t.Fatalf("Check = %+v, want the turn that never reaches the human", problems)
+		}
+		if got := problems[0].Args; len(got) != 1 || got[0] != "lead" {
+			t.Errorf("the problem names %v, want lead as its example", got)
 		}
 	})
 }

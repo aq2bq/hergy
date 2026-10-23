@@ -1063,3 +1063,100 @@ func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
 		t.Errorf("the row's agreement says it stands at %q, want %q", taken.Doc.Agreement.Path, want)
 	}
 }
+
+// TestTEAMS_SaveKeepsATurnProblemForTheDefinition: a save may add a member with
+// no turn (d-9abb). The save writes the member, and the definition then carries
+// I12a as its own problem: the row counts it and the check says how to fix it.
+func TestTEAMS_SaveKeepsATurnProblemForTheDefinition(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	before := readFile(t, f.teamYAML())
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": []map[string]any{
+			{"kind": "addMember", "member": "ops", "role": "builder", "profile": "coder"},
+		}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("a member with no turn is refused: %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(readFile(t, f.teamYAML()), "name: ops") {
+		t.Fatalf("the save did not write the member:\n%s", readFile(t, f.teamYAML()))
+	}
+
+	_, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team",
+		"doc": map[string]any{"ops": []map[string]any{}},
+	})
+	check := teamsCheck(t, body)
+	want := i18n.Tf("error.graph_member_no_turn", "ops", "ops", "ops", "lead")
+	found := false
+	for _, problem := range check.Problems {
+		if problem.Sev == "err" && strings.Contains(problem.Text, want) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the definition does not carry %q: %+v", want, check.Problems)
+	}
+	_, page := f.get(t, server, "/teams")
+	island := teamsIsland(t, page)
+	if len(island.Team.Items) != 1 || island.Team.Items[0].Problems.Err != 1 {
+		t.Errorf("the row's problem count reads %+v, want one", island.Team.Items)
+	}
+}
+
+// TestTEAMS_SaveKeepsAHumanTurnProblemForTheDefinition: removing the member that
+// handed the turn to the human is a save too; I12b stays a definition problem.
+func TestTEAMS_SaveKeepsAHumanTurnProblemForTheDefinition(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	before := readFile(t, f.teamYAML())
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": []map[string]any{
+			{"kind": "removeMember", "member": "builder"},
+		}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("removing the member that reaches the human is refused: %d: %s", resp.StatusCode, body)
+	}
+	if strings.Contains(readFile(t, f.teamYAML()), "name: builder") {
+		t.Fatalf("the save did not remove the member:\n%s", readFile(t, f.teamYAML()))
+	}
+
+	_, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team",
+		"doc": map[string]any{"ops": []map[string]any{}},
+	})
+	check := teamsCheck(t, body)
+	want := i18n.Tf("error.graph_no_turn_reaches_human", "lead")
+	found := false
+	for _, problem := range check.Problems {
+		if problem.Sev == "err" && strings.Contains(problem.Text, want) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the definition does not carry %q: %+v", want, check.Problems)
+	}
+}
+
+// TestTEAMS_YamlSaveStillRefusesANewGraphError: the save gate lets I12a and I12b
+// through, and nothing else: a turn to a node that is not there is still
+// refused (d-9abb).
+func TestTEAMS_YamlSaveStillRefusesANewGraphError(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	before := readFile(t, f.teamYAML())
+	after := strings.Replace(before, "turns:\n", "turns:\n  - lead -> ghost\n", 1)
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
+		"place": "project", "part": "team", "hash": source.Hash(before), "text": after,
+	})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("a turn to a node that is not there is accepted: %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "ghost") {
+		t.Errorf("the refusal does not name the missing node: %s", body)
+	}
+}

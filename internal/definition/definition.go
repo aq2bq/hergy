@@ -114,10 +114,6 @@ type nodeKind struct {
 	// without one: a worker's edge back to the member that hired it is made by
 	// workers:, not written.
 	noTurnKey string
-	// noTurnArgs is how many times that message names the node: the human's
-	// sentence needs no name, a member's names the member and the turns: line
-	// to add.
-	noTurnArgs int
 }
 
 // nodeKinds is every kind hergy has now. A settings file writes the human as
@@ -125,7 +121,7 @@ type nodeKind struct {
 // and stopped (d-11f8 keeps the shape open for the kinds to come).
 var nodeKinds = map[NodeKind]nodeKind{
 	KindHuman:  {byName: true, fixedName: "human", noTurnKey: "error.graph_human_no_turn"},
-	KindMember: {byName: true, noTurnKey: "error.graph_member_no_turn", noTurnArgs: 2},
+	KindMember: {byName: true, noTurnKey: "error.graph_member_no_turn"},
 	KindWorker: {},
 }
 

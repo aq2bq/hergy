@@ -180,9 +180,25 @@ func (g *Graph) Check() []Problem {
 	}
 	problems = append(problems, g.noTurnProblems()...)
 	if !g.ReachesHuman() {
-		problems = append(problems, Problem{Field: "node:human", Key: "error.graph_no_turn_reaches_human"})
+		problems = append(problems, Problem{
+			Field: "node:human", Key: "error.graph_no_turn_reaches_human",
+			Args: []any{g.exampleTarget(g.Human.ID())},
+		})
 	}
 	return problems
+}
+
+// exampleTarget is the name a fix's example writes: the first member, or the
+// first member other than the one the sentence is about; when the team has no
+// other member, the human. A person reading the sentence can copy the example
+// and then write the party they mean.
+func (g *Graph) exampleTarget(about NodeID) string {
+	for _, member := range g.Members {
+		if member.ID() != about {
+			return member.Name
+		}
+	}
+	return g.Human.ID().String()
 }
 
 // noTurnProblems is I12a: every node hands the turn on. What a node without an
@@ -195,9 +211,14 @@ func (g *Graph) noTurnProblems() []Problem {
 		if kind.noTurnKey == "" || len(g.Out(id)) > 0 {
 			continue
 		}
-		args := make([]any, kind.noTurnArgs)
-		for i := range args {
-			args[i] = id.String()
+		var args []any
+		switch id.Kind {
+		case KindHuman:
+			args = []any{g.exampleTarget(id)}
+		case KindMember:
+			args = []any{id.String(), id.String(), id.String(), g.exampleTarget(id)}
+		case KindWorker:
+			// A worker always has its edge back to the member that hired it.
 		}
 		problems = append(problems, Problem{Field: "node:" + id.String(), Key: kind.noTurnKey, Args: args})
 	}

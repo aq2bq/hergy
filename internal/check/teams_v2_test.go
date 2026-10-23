@@ -138,7 +138,7 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	if len(gone.Added) != 0 {
 		t.Errorf("added = %q, want nothing", gone.Added)
 	}
-	stop := i18n.Tf("error.graph_member_no_turn", "analyst", "analyst")
+	stop := i18n.Tf("error.graph_member_no_turn", "analyst", "analyst", "analyst", "lead")
 	stopped := false
 	for _, problem := range last.Problems {
 		if strings.Contains(problem.Text, stop) {
