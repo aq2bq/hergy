@@ -35,7 +35,7 @@ window.hergyAPI = (() => {
   // and draws that. No screen digs into the fields of an answer itself.
 
   const PLACES = ['project', 'global'];
-  const PLACE_LABEL = { project: 'プロジェクト', global: '共通' };
+  const PLACE_LABEL = { project: 'プロジェクト', global: 'グローバル' };
   const countOf = (c) => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
   const jsonOf = (v) => JSON.stringify(v || []);
 
@@ -46,7 +46,7 @@ window.hergyAPI = (() => {
     return {
       rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
       files: ((list && list.files) || []).map((f) => ({
-        file: f.place, label: f.label, path: f.path, text: f.text, hash: f.hash,
+        file: f.place, label: PLACE_LABEL[f.place] || f.label, path: f.path, text: f.text, hash: f.hash,
         problems: f.problems || [],
       })),
       hashes: (list && list.hashes) || {},

@@ -6,51 +6,8 @@
      要らなかったが、実物の `▸ 上に N 行` と `ほか N 件` は押せる（spec-activity
      2.4、X3）。トークンだけを使う。
    色はモックの `:root` と 2 つの dark の書き方をそのまま写した。字はモックが
-   Google Fonts から読んでいる 2 つの家族で、この画面は自分の所から読む（CSP が
-   default-src 'self' なので外は読めない）。OFL の文は /static/fonts/ にある。 */
+   Google Fonts から読んでいる 2 つの家族で、どこから読むかは nav.css にある。 */
 
-@font-face {
-  font-family: "IBM Plex Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/static/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "IBM Plex Mono";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/static/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "IBM Plex Mono";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/static/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Zen Kaku Gothic New";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/static/fonts/zen-kaku-gothic-new-japanese-400-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Zen Kaku Gothic New";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/static/fonts/zen-kaku-gothic-new-japanese-500-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Zen Kaku Gothic New";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/static/fonts/zen-kaku-gothic-new-japanese-700-normal.woff2") format("woff2");
-}
 
 :root {
   --bg: #eceff3;

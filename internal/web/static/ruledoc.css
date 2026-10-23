@@ -136,6 +136,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .field > label, .field > .fl { font-size: 12px; color: var(--muted); padding-top: 6px; }
 .field > div { min-width: 0; }
 .in-id { width: 10rem; font-weight: 600; }
+.ridv { display: inline-block; padding-top: 5px; font-family: var(--f-mono); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .ta { width: 100%; resize: vertical; field-sizing: content; min-height: 2.4em; font-family: var(--f-body) !important; font-size: 13.5px !important; line-height: 1.65; }
 .tchk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
 .tchk:empty { display: none; }

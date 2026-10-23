@@ -27,7 +27,7 @@
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const classOf = (kind) => (BASE_KINDS.includes(kind) ? 'k-' + kind : '');
-  const labelOf = (file) => (file === 'global' ? '共通' : 'プロジェクト');
+  const labelOf = (file) => (file === 'global' ? 'グローバル' : 'プロジェクト');
   const pathOf = (file) => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject);
   const otherOf = (file) => (file === 'global' ? 'project' : 'global');
 

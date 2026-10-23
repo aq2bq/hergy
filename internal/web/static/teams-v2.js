@@ -20,7 +20,7 @@
   const RD = window.hergyRuleDoc;
   const YAML = window.hergyYaml;
   const PLACES = ['project', 'global'];
-  const PLACE = DATA.places || { project: 'プロジェクト', global: '共通' };
+  const PLACE = { project: 'プロジェクト', global: 'グローバル' };
   const DIR = DATA.dirs || { project: '', global: '' };
   const PROFILES = DATA.profiles || [];
   // The island is the same list answer GET /api/team gives (spec-boundary 5):
@@ -544,7 +544,7 @@
       </div>
       ${m ? `<div class="tl"><span class="gsub">${esc(herdr(r, id))} · ワーカーの追加</span>
         ${ws.map(({ w, i }) => `<div class="row"><span>${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span><button class="x" data-act="worker" data-i="${i}" aria-label="${esc(w.purpose)}">›</button></div>`).join('')}
-        <button class="add sm" data-act="worker-add" data-from="${esc(id)}" style="justify-self:start">＋ ワーカー</button></div>` : ''}
+        <button class="add sm wadd" data-act="worker-add" data-from="${esc(id)}">＋ ワーカー</button></div>` : ''}
     </div>`;
   }
 
@@ -830,7 +830,7 @@
   function rowOfPanel(r) {
     const e = r.agree;
     return {
-      uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft,
+      uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft, name: r.name,
       // newRow says the definition is not there yet: the rule document's shared
       // foot is not this row's own, so the part leaves it alone (監査 R9).
       newRow: !!r.draftRow,
@@ -967,7 +967,7 @@
   // part. The part shows 保存しました and the refusal (r-0f8c).
   const FILES = (LIST.files || []).map((f) => ({
     file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name, kind: f.kind,
-    label: f.label || PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
+    label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
     text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
   }));
   const fileByKey = new Map(FILES.map((f) => [f.file, f]));
@@ -1031,7 +1031,13 @@
       },
     });
   }
-  const yamlTabHTML = () => `<div class="ylay">${filesHTML()}${yedHTML()}</div>`;
+  // With no team definition at all, the YAML tab has no file to show. It says
+  // what is missing and the one thing that makes the files (n-f2ef).
+  const yamlEmptyHTML = () => `<section class="yed yempty">
+    <p>チーム定義はまだありません。</p>
+    <p>一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.yaml が並びます。</p>
+    <span><button class="btn" data-act="tab" data-t="list">一覧へ</button></span></section>`;
+  const yamlTabHTML = () => (FILES.length ? `<div class="ylay">${filesHTML()}${yedHTML()}</div>` : yamlEmptyHTML());
 
   // ---- 描く ------------------------------------------------------------
   function render() {

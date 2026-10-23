@@ -32,7 +32,7 @@
   // fill is the server's sentence with the screen's numbers in it: the words
   // stay the server's (the same ones hergy validate prints).
   const fill = (s, ...a) => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() : ''));
-  const LNAME = { project: 'プロジェクト', global: '共通' };
+  const LNAME = { project: 'プロジェクト', global: 'グローバル' };
   const LIMIT = { rules: 20, chars: 6000 };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

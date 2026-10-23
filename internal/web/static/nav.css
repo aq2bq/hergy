@@ -1,5 +1,51 @@
 /* 画面を選ぶ帯は上に 1 本。押すと帯の下がまるごと替わる (spec-nav.md 1.1, 1.7)。
    トークンは各ページの CSS の :root から来る。ここに色は書かない。 */
+/* The two families every screen draws with. They are read here, once, because
+   nav.css is the one file every screen carries: the page's policy allows this
+   server's own files only, so nothing comes from elsewhere. The OFL texts are in
+   /static/fonts/. */
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/static/fonts/zen-kaku-gothic-new-japanese-700-normal.woff2") format("woff2");
+}
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   background: var(--bg);

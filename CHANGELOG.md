@@ -37,7 +37,28 @@
 4. Run `hergy up <team> --dry` and check that the rules you moved stand in the
    members' prompts (by their ids). A rule left in no file is in no prompt.
 
+### Changed
+
+- **The screens' tabs read Activity · Team definitions · Roles · Profiles**:
+  profiles, the screen opened least, come last.
+- **The place outside the project is called global**: `~/.config/hergy` is
+  "グローバル" (no longer "共通") on the screens' labels and the "グローバルにコピー"
+  button, in `hergy cheat`, README.ja and the hergy skill.
+- **hergy gives a new rule its id**: "+ 規則" on a role or a team's agreement
+  numbers the rule after the document's last id (LEAD-9 is followed by
+  LEAD-10); in a document with no rule yet the prefix comes from the document's
+  name. The id box is gone, and the cursor lands in the rule's text.
+
 ### Fixed
+
+- **"+ ワーカー" on a member's card keeps its size**: the button spread across
+  the card and the browser logged a Content-Security-Policy error when the card
+  opened.
+- **The team definitions screen uses the same fonts as the others**: it was the
+  one screen drawn in the system's fallback fonts.
+- **The team definitions' YAML tab says what to do when there is none**: with no
+  team definition it said only "pick a file"; it now says how to add one and
+  links back to the list.
 
 - **`hire --dry` plans for a team that is not running**: the plan and the
   worker's prompt are built from the team definition, and the command reads no

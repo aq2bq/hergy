@@ -401,6 +401,10 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 }
 .add:hover { border-color: var(--accent); color: var(--accent); }
 .add.sm { font-size: 12px; padding: 1px 8px; }
+/* The ＋ ワーカー button of a node's card starts at the left of the turn list it
+   stands under. CSP stops a style attribute (default-src 'self'), so the place
+   is a class (n-19e4). */
+.wadd { justify-self: start; }
 .secadd { justify-self: start; margin-top: 8px; }
 .rules { border-top: 1px solid var(--line); }
 .rule { border-bottom: 1px solid var(--line); }
@@ -486,6 +490,9 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .file .fs { grid-row: span 2; display: flex; gap: 4px; align-items: center; font-family: var(--f-mono); font-size: 12px; color: var(--faint); }
 .file.hid code { text-decoration: line-through; color: var(--faint); }
 .yed { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; }
+/* A YAML tab with nothing to show says so and offers the list (n-f2ef). */
+.yempty { justify-items: start; max-width: 44rem; }
+.yempty p { margin: 0; }
 .yed .pf { position: static; margin: 0; padding: 10px 0 0; border-radius: 0; background: none; }
 .ybody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem); gap: 12px; align-items: start; }
 .code { display: flex; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); overflow: hidden; min-width: 0; }

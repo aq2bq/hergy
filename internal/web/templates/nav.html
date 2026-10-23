@@ -4,8 +4,8 @@
   <nav class="screens" aria-label="画面" data-key="{{.Key}}">
     {{if eq .Current "activity"}}<span class="scr on" aria-current="page" data-screen="activity">活動{{if .Counts}}<span class="n">{{.Activity}}</span>{{end}}{{if .Waiting}}<span class="wait">待ち {{.Waiting}}</span>{{end}}</span>{{else}}<a class="scr" href="/activity" data-screen="activity">活動{{if .Counts}}<span class="n">{{.Activity}}</span>{{end}}{{if .Waiting}}<span class="wait">待ち {{.Waiting}}</span>{{end}}</a>{{end}}
     {{if eq .Current "teams"}}<span class="scr on" aria-current="page" data-screen="teams">チーム定義<span class="n">{{.Teams}}</span></span>{{else}}<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">{{.Teams}}</span></a>{{end}}
-    {{if eq .Current "profiles"}}<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></span>{{else}}<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></a>{{end}}
     {{if eq .Current "roles"}}<span class="scr on" aria-current="page" data-screen="roles">ロール<span class="n">{{.Roles}}</span></span>{{else}}<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">{{.Roles}}</span></a>{{end}}
+    {{if eq .Current "profiles"}}<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></span>{{else}}<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></a>{{end}}
   </nav>
 </div>
 {{end}}

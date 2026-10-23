@@ -86,6 +86,33 @@
   }
 
   const rulesOf = (d) => d.sections.flatMap((s) => s.rules);
+  // nextID is the ID a rule the person just added carries (n-ec32). Its prefix
+  // is the one the document's own IDs use most — LEAD for a lead.yaml — or, in a
+  // document that has no such ID yet, the document's name in capital letters
+  // with everything but A-Z and 0-9 taken out (ui-impl -> UIIMPL; a name that is
+  // missing or starts with a digit gives R). The number is the one after the
+  // largest of that prefix, counting both the rules on the screen and the ones
+  // already saved, so the number of a rule just deleted is not used again.
+  const ID_RE = /^([A-Z][A-Z0-9]*)-(\d+)$/;
+  function nextID(row) {
+    const onScreen = rulesOf(row.draft), saved = row.saved ? rulesOf(row.saved) : [];
+    const count = (list) => {
+      const n = new Map();
+      list.forEach((x) => { const m = ID_RE.exec(String(x.id || '').trim()); if (m) n.set(m[1], (n.get(m[1]) || 0) + 1); });
+      return n;
+    };
+    let uses = count(onScreen);
+    if (!uses.size) uses = count(saved);
+    let prefix = '';
+    uses.forEach((n, p) => { if (!prefix || n > uses.get(prefix)) prefix = p; });
+    if (!prefix) {
+      prefix = String(row.name || (row.draft && row.draft.name) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!prefix || /^[0-9]/.test(prefix)) prefix = 'R';
+    }
+    let top = 0;
+    onScreen.concat(saved).forEach((x) => { const m = ID_RE.exec(String(x.id || '').trim()); if (m && m[1] === prefix) top = Math.max(top, +m[2]); });
+    return `${prefix}-${top + 1}`;
+  }
   const findRule = (d, k) => { for (const [si, s] of d.sections.entries()) { const ri = s.rules.findIndex((x) => x._k === Number(k)); if (ri >= 0) return { si, ri, x: s.rules[ri] }; } return null; };
   const savedRule = (e, k) => (e.saved ? (findRule(e.saved, k) || { x: null }).x : null);
   const ruleChanged = (e, x) => JSON.stringify(savedRule(e, x._k) || null) !== JSON.stringify(x);
@@ -208,7 +235,7 @@
     const key = `${row.uid}${row.l}-${x._k}`, ck = 'r' + key;
     return `<div class="redit">
       <div class="field scope"><span class="fl">規則</span><div>${promptSeg('in_prompt', 'in-prompt', inP(x))}</div></div>
-      <div class="field"><label for="id${key}">ID</label><div><input id="id${key}" class="in-id" data-f="id" value="${esc(x.id)}" spellcheck="false" autocomplete="off"><ul class="vm" data-for="id"></ul></div></div>
+      <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">${esc(x.id) || '<span class="none">—</span>'}</span><ul class="vm" data-for="id"></ul></div></div>
       <div class="field"><label for="tx${key}">本文</label><div><textarea id="tx${key}" class="ta" data-f="text" rows="2">${esc(x.text)}</textarea><div class="tchk"></div><ul class="vm" data-for="text"></ul></div></div>
       <div class="field"><label for="wy${key}">なぜ</label><div><textarea id="wy${key}" class="ta ${x.why && !x.send_why ? 'held-why' : ''}" data-f="why" rows="1">${esc(x.why)}</textarea>
         <div class="whyrow">${promptSeg('send_why', 'send-why', x.send_why)}</div></div></div>
@@ -553,9 +580,9 @@
       }
       case 'intro-add': S.introOpen = secKey(row, c.si); re(c, `.sec[data-si="${c.si}"] [data-f=intro]`); break;
       case 'rule-add': {
-        const x = { _k: ++kseq, id: '', text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] };
+        const x = { _k: ++kseq, id: nextID(row), text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] };
         c.d.sections[c.si].rules.push(x); S.ropen.add(rkey(row, x));
-        re(c, `.rule[data-k="${x._k}"] [data-f=id]`); edited(c); break;
+        re(c, `.rule[data-k="${x._k}"] [data-f=text]`); edited(c); break;
       }
       case 'rule-up': case 'rule-down': moveRule(c.d, c.si, c.ri, act === 'rule-up' ? -1 : 1); re(c, `.rule[data-k="${c.x._k}"] [data-act=${act}]`); edited(c); break;
       case 'rule-revert': { const sx = clone(savedRule(row.e, c.x._k)); if (sx) { sx._k = c.x._k; c.d.sections[c.si].rules[c.ri] = sx; } re(c, `.rule[data-k="${c.x._k}"] .rsum`); edited(c); break; }
