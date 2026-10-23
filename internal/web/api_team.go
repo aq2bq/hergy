@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -913,17 +914,22 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", display))
 	}
 	draft := body.in.Doc
-	var edited string
-	var err error
-	if readErr != nil {
-		edited, err = rules.Emit(draft.document())
-	} else {
-		saved, _ := rules.ReadAll(text, display)
+	draftDoc := draft.document()
+	var saved *rules.Document
+	if readErr == nil {
+		saved, _ = rules.ReadAll(text, display)
 		if saved == nil {
 			saved = &rules.Document{Path: path}
 		}
+	}
+	rules.FillOffDates(saved, draftDoc, time.Now().Format("2006-01-02"))
+	var edited string
+	var err error
+	if readErr != nil {
+		edited, err = rules.Emit(draftDoc)
+	} else {
 		written, rewriteErr := rules.Rewrite([]byte(text), saved, rules.Draft{
-			Doc: draft.document(), From: draft.froms(), SectionFrom: draft.sectionFroms(),
+			Doc: draftDoc, From: draft.froms(), SectionFrom: draft.sectionFroms(),
 			SaveFrom: rules.SaveFromTeamDefinition,
 		})
 		edited, err = string(written), rewriteErr

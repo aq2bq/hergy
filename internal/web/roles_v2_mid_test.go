@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -16,6 +17,8 @@ import (
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
+
+var regexpOffSince = regexp.MustCompile(`(?m)^        off_since: .*\n`)
 
 // This file holds the 小・中 checks of the role screen that are held without a
 // browser: the preview a member's prompt carries (ROLES-M1) and the writes the
@@ -301,31 +304,6 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 		})
 	}
 
-	// A reason kept out of the prompt rides on the rule's last line, struck, and
-	// is in no text the member reads.
-	t.Run("the reasons kept out", func(t *testing.T) {
-		for _, one := range []struct{ role, id string }{{"builder", "BUILD-6"}, {"reviewer", "REV-5"}} {
-			_, parsed := ruRoleDoc(t, cat, one.role)
-			si, ri := ruRuleAt(t, parsed, one.id)
-			why := strings.TrimSpace(parsed.Sections[si].Rules[ri].Why)
-			if why == "" {
-				t.Fatalf("%s has no reason to keep out", one.id)
-			}
-			held := ""
-			for _, line := range parsed.PreviewLines() {
-				if line.Part == rules.PartRule && line.Section == si && line.Rule == ri {
-					held = line.Held
-				}
-			}
-			if held != why {
-				t.Errorf("%s's kept-out reason reads %q, want %q", one.id, held, why)
-			}
-			if strings.Contains(parsed.Markdown(), why) {
-				t.Errorf("%s's kept-out reason stands in the text a member reads", one.id)
-			}
-		}
-	})
-
 	// A rule kept out of the prompt (in_prompt: false) is one struck line with no
 	// number: the numbered count and the character count fall, and the prompt
 	// carries no LEAD-9. No per-member amount is part of the answer (d-b87a).
@@ -461,7 +439,22 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 			after := readFile(t, path)
 			changed := ruChangedLines(before, after)
 			switch {
-			case strings.HasPrefix(test.want, "        in_prompt") || strings.HasPrefix(test.want, "    level"):
+			case test.want == "        in_prompt: false":
+				// Turning a rule off writes in_prompt and the day hergy switched
+				// it off (d-9f30); everything else comes back byte for byte.
+				if !strings.Contains(after, "        in_prompt: false\n") || !strings.Contains(after, "        off_since: ") {
+					t.Errorf("the save did not add in_prompt and off_since:\n%s", after)
+				}
+				without := strings.Replace(after, "        in_prompt: false\n", "", 1)
+				without = regexpOffSince.ReplaceAllString(without, "")
+				if without != before {
+					t.Errorf("the save changed more than the switch:\n%s", after)
+				}
+				if n := strings.Count(after, "\n") - strings.Count(before, "\n"); n != 2 {
+					t.Errorf("the save added %d lines, want in_prompt and off_since", n)
+				}
+				_ = changed
+			case strings.HasPrefix(test.want, "    level"):
 				// An added line: everything else comes back byte for byte.
 				if strings.Replace(after, test.want+"\n", "", 1) != before {
 					t.Errorf("the save did not add the one %q line and nothing else:\n%s", test.want, after)
@@ -623,9 +616,9 @@ func TestROLES_F5_AStaleHashIsRefused(t *testing.T) {
 	}
 }
 
-// TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne: with builder's persisted
-// problem (BUILD-4's derived origin) standing, a save that fixes another rule is
-// written; a save that overlaps a rule's id is refused. The screen refuses by
+// TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne: with builder's note on
+// BUILD-4 standing, a save that fixes another rule is written; a save that
+// overlaps a rule's id is refused. The screen refuses by
 // the check it reads (ruledoc.js disables 保存 while a new error stands; the
 // server's own write has no rule-id check), so the refusal is the check's new
 // error — the fix save carries no new error and is written.
@@ -661,8 +654,8 @@ func TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne(t *testing.T) {
 		t.Fatalf("the fix save answered %d, want it written", resp.StatusCode)
 	}
 	after := readFile(t, path)
-	if !strings.Contains(after, "refs: [REQ-5]") {
-		t.Errorf("the fix save lost BUILD-4's persisted problem:\n%s", after)
+	if !strings.Contains(after, "note: '由来: derived  REQ-5'") {
+		t.Errorf("the fix save lost BUILD-4's note:\n%s", after)
 	}
 	if changed := ruChangedLines(before, after); len(changed) != 1 {
 		t.Errorf("the fix save changed %d lines, want BUILD-5's text alone: %v", len(changed), changed)

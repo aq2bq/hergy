@@ -865,13 +865,7 @@ func (p *plan) removeRuleOps(node *yaml.Node, items []*yaml.Node, sr int) []op {
 
 // sameRule is whether two rules hold the same values.
 func sameRule(a, b Rule) bool {
-	if a.ID != b.ID || a.Text != b.Text || a.Why != b.Why || a.Note != b.Note || a.Report != b.Report {
-		return false
-	}
-	if (a.SendWhy == nil) != (b.SendWhy == nil) {
-		return false
-	}
-	if a.SendWhy != nil && *a.SendWhy != *b.SendWhy {
+	if a.ID != b.ID || a.Text != b.Text || a.OffSince != b.OffSince || a.Note != b.Note {
 		return false
 	}
 	if (a.InPrompt == nil) != (b.InPrompt == nil) {
@@ -879,30 +873,6 @@ func sameRule(a, b Rule) bool {
 	}
 	if a.InPrompt != nil && *a.InPrompt != *b.InPrompt {
 		return false
-	}
-	if !sameStrings(a.Tests, b.Tests) {
-		return false
-	}
-	if len(a.Origin) != len(b.Origin) {
-		return false
-	}
-	for i := range a.Origin {
-		if a.Origin[i].Kind != b.Origin[i].Kind || a.Origin[i].Date != b.Origin[i].Date || a.Origin[i].Note != b.Origin[i].Note || !sameStrings(a.Origin[i].Refs, b.Origin[i].Refs) {
-			return false
-		}
-	}
-	return true
-}
-
-// sameStrings is whether two string slices hold the same values in order.
-func sameStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
 	}
 	return true
 }

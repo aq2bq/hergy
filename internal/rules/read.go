@@ -93,7 +93,7 @@ func ReadAll(text, path string) (*Document, []Problem) {
 	doc := &Document{Path: path}
 	var problems []Problem
 
-	top, more := collectMapping(root, path, "the file", -1, -1, docKeys...)
+	top, more := collectMapping(root, path, "the file", -1, -1, append(append([]string{}, docKeys...), "reports")...)
 	problems = append(problems, more...)
 
 	switch version, ok, err := top.integer("version"); {
@@ -125,10 +125,8 @@ func ReadAll(text, path string) (*Document, []Problem) {
 		doc.Sections, more = collectSections(sections, path)
 		problems = append(problems, more...)
 	}
-
 	if reports, ok := top.atNode("reports"); ok {
-		doc.Reports, more = collectReports(reports, path)
-		problems = append(problems, more...)
+		problems = append(problems, oldReportsProblems(reports, path)...)
 	}
 
 	return doc, problems
@@ -264,7 +262,7 @@ func collectRules(value *yaml.Node, path, label string, section int) ([]Rule, []
 
 // collectRule reads one rule, filing every problem its keys have.
 func collectRule(value *yaml.Node, path, label string, section, rule int) (Rule, []Problem) {
-	n, problems := collectMapping(value, path, label, section, rule, ruleKeys...)
+	n, problems := collectMapping(value, path, label, section, rule, append(append([]string{}, ruleKeys...), oldRuleKeys...)...)
 	var r Rule
 
 	_, hasID := n.atNode("id")
@@ -286,6 +284,12 @@ func collectRule(value *yaml.Node, path, label string, section, rule int) (Rule,
 		return r, problems
 	}
 	r.ID = id
+	for _, old := range oldRuleKeys {
+		if oldKey, ok := n.atNode(old); ok {
+			problems = append(problems, newProblem(path, section, rule, old, oldKey.Line,
+				i18n.Errorf("error.rules_old_item", path, r.ID, old, oldAdvice(old))))
+		}
+	}
 	if !RuleIDPattern.MatchString(r.ID) {
 		problems = append(problems, newProblem(path, section, rule, "id", valueLine(n, "id"),
 			i18n.Errorf("error.rules_id_pattern", path, n.at("id"), r.ID)))
@@ -303,228 +307,62 @@ func collectRule(value *yaml.Node, path, label string, section, rule int) (Rule,
 
 // fillRuleAll reads what a rule may carry besides id and text, filing every
 // problem, in the order the reader checks them.
-func fillRuleAll(r Rule, n node, path, label string, section, rule int, problems []Problem) (Rule, []Problem) {
+func fillRuleAll(r Rule, n node, path, _ string, section, rule int, problems []Problem) (Rule, []Problem) {
 	var err error
-	if r.Why, err = n.str("why"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, "why", valueLine(n, "why"), err))
-	}
 	if r.Note, err = n.str("note"); err != nil {
 		problems = append(problems, newProblem(path, section, rule, "note", valueLine(n, "note"), err))
-	}
-	if send, ok, err := n.boolean("send_why"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, "send_why", valueLine(n, "send_why"), err))
-	} else if ok {
-		r.SendWhy = &send
 	}
 	if in, ok, err := n.boolean("in_prompt"); err != nil {
 		problems = append(problems, newProblem(path, section, rule, "in_prompt", valueLine(n, "in_prompt"), err))
 	} else if ok {
 		r.InPrompt = &in
 	}
-	if r.Report, err = n.str("report"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, "report", valueLine(n, "report"), err))
-	}
-	if tests, ok := n.atNode("tests"); ok {
-		var more []Problem
-		r.Tests, more = collectList(tests, path, n.at("tests"), section, rule, "tests")
-		problems = append(problems, more...)
-	}
-	if origin, ok := n.atNode("origin"); ok {
-		var more []Problem
-		r.Origin, more = collectOrigins(origin, path, label, section, rule)
-		problems = append(problems, more...)
+	if off, err := n.str("off_since"); err != nil {
+		problems = append(problems, newProblem(path, section, rule, "off_since", valueLine(n, "off_since"), err))
+	} else if off != "" {
+		switch {
+		case !isDate(off):
+			problems = append(problems, newProblem(path, section, rule, "off_since", valueLine(n, "off_since"),
+				i18n.Errorf("error.rules_off_since_date", path, off)))
+		case r.Included():
+			// in_prompt says the rule is on; an off_since left behind is read as
+			// absent and hergy drops it when it next writes the rule (d-9f30).
+			r.OffSince = ""
+		default:
+			r.OffSince = off
+		}
 	}
 	return r, problems
 }
 
-// collectList is a list of strings, or one string standing for a one-item list,
-// filing a problem for every item that is not a string.
-func collectList(value *yaml.Node, path, label string, section, rule int, field string) ([]string, []Problem) {
-	switch value.Kind {
-	case yaml.ScalarNode:
-		text, err := scalarString(value, path, label)
-		if err != nil {
-			return nil, []Problem{newProblem(path, section, rule, field, value.Line, err)}
-		}
-		if strings.TrimSpace(text) == "" {
-			return nil, nil
-		}
-		return []string{text}, nil
-	case yaml.SequenceNode:
-		out := make([]string, 0, len(value.Content))
-		var problems []Problem
-		for i, item := range value.Content {
-			text, err := scalarString(item, path, fmt.Sprintf("%s[%d]", label, i))
-			if err != nil {
-				problems = append(problems, newProblem(path, section, rule, field, item.Line, err))
-				continue
-			}
-			out = append(out, text)
-		}
-		return out, problems
+// oldAdvice says where an old rule key's content goes (r-81be).
+func oldAdvice(key string) string {
+	switch key {
+	case "why", "send_why":
+		return i18n.T("rules.old_why_advice")
+	case "origin":
+		return i18n.T("rules.old_origin_advice")
 	default:
-		return nil, []Problem{newProblem(path, section, rule, field, value.Line, i18n.Errorf("error.rules_not_sequence", path, label))}
+		return i18n.T("rules.old_check_advice")
 	}
 }
 
-// collectOrigins reads a rule's origins, filing every problem of every one.
-func collectOrigins(value *yaml.Node, path, label string, section, rule int) ([]Origin, []Problem) {
-	if value.Tag == "!!null" {
-		return nil, nil
-	}
-	if value.Kind != yaml.SequenceNode {
-		return nil, []Problem{newProblem(path, section, rule, "", value.Line,
-			i18n.Errorf("error.rules_not_sequence", path, label+".origin"))}
-	}
-	out := make([]Origin, 0, len(value.Content))
-	var problems []Problem
-	for i, item := range value.Content {
-		origin, more := collectOrigin(item, path, fmt.Sprintf("%s.origin[%d]", label, i), section, rule, i)
-		out = append(out, origin)
-		problems = append(problems, more...)
-	}
-	return out, problems
-}
-
-// collectOrigin reads one origin, filing every problem its keys have.
-func collectOrigin(value *yaml.Node, path, label string, section, rule, index int) (Origin, []Problem) {
-	field := fmt.Sprintf("origin.%d", index)
-	n, problems := collectMapping(value, path, label, section, rule, originKeys...)
-	var o Origin
-
-	if kind, err := n.str("kind"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, field, valueLine(n, "kind"), err))
-	} else {
-		o.Kind = kind
-		if !slices.Contains(kinds, o.Kind) {
-			problems = append(problems, newProblem(path, section, rule, field, valueLine(n, "kind"),
-				i18n.Errorf("error.rules_origin_kind", path, label, o.Kind)))
-		}
-	}
-	if date, err := n.str("date"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, field+".date", valueLine(n, "date"), err))
-	} else {
-		o.Date = date
-		if o.Date != "" && !isDate(o.Date) {
-			problems = append(problems, newProblem(path, section, rule, field+".date", valueLine(n, "date"),
-				i18n.Errorf("error.rules_origin_date", path, n.at("date"), o.Date)))
-		}
-	}
-	if refs, ok := n.atNode("refs"); ok {
-		var more []Problem
-		o.Refs, more = collectRefs(refs, path, n.at("refs"), section, rule, index)
-		problems = append(problems, more...)
-	}
-	if note, err := n.str("note"); err != nil {
-		problems = append(problems, newProblem(path, section, rule, "note", valueLine(n, "note"), err))
-	} else {
-		o.Note = note
-	}
-	if o.Kind == KindDerived && len(o.Refs) == 0 {
-		problems = append(problems, newProblem(path, section, rule, field, value.Line,
-			i18n.Errorf("error.rules_derived_refs", path, label)))
-	}
-	return o, problems
-}
-
-// collectRefs is a derived rule's refs: one name per item, filed with the two
-// problems a name can have (not a string, not a name). The field names the
-// origin and, for an item, the ref, so a screen marks that ref's chip.
-func collectRefs(value *yaml.Node, path, label string, section, rule, index int) ([]string, []Problem) {
-	field := fmt.Sprintf("origin.%d.refs", index)
-	switch value.Kind {
-	case yaml.ScalarNode:
-		text, err := scalarString(value, path, label)
-		if err != nil {
-			return nil, []Problem{newProblem(path, section, rule, field, value.Line, err)}
-		}
-		if strings.TrimSpace(text) == "" {
-			return nil, nil
-		}
-		return []string{text}, nil
-	case yaml.SequenceNode:
-		out := make([]string, 0, len(value.Content))
-		var problems []Problem
-		for j, item := range value.Content {
-			text, err := scalarString(item, path, fmt.Sprintf("%s[%d]", label, j))
-			if err != nil {
-				problems = append(problems, newProblem(path, section, rule,
-					fmt.Sprintf("%s.%d", field, j), item.Line, err))
-				continue
-			}
-			out = append(out, text)
-		}
-		return out, problems
-	default:
-		return nil, []Problem{newProblem(path, section, rule, field, value.Line, i18n.Errorf("error.rules_not_sequence", path, label))}
-	}
-}
-
-// collectReports reads the reports block, filing every problem of every report.
-func collectReports(value *yaml.Node, path string) ([]Report, []Problem) {
-	if value.Tag == "!!null" {
-		return nil, nil
-	}
+func oldReportsProblems(value *yaml.Node, path string) []Problem {
 	if value.Kind != yaml.MappingNode {
-		return nil, []Problem{newProblem(path, -1, -1, "", value.Line, i18n.Errorf("error.rules_not_mapping", path, "reports"))}
+		return []Problem{newProblem(path, -1, -1, "reports", value.Line,
+			i18n.Errorf("error.rules_reports_gone", path, "reports"))}
 	}
-	out := make([]Report, 0, len(value.Content)/2)
-	var problems []Problem
-	seen := make(map[string]bool, len(value.Content)/2)
+	if len(value.Content) == 0 {
+		return []Problem{newProblem(path, -1, -1, "reports", value.Line,
+			i18n.Errorf("error.rules_reports_gone", path, "reports"))}
+	}
+	var out []Problem
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		name := value.Content[i].Value
-		if seen[name] {
-			problems = append(problems, newProblem(path, -1, -1, "", value.Content[i].Line,
-				i18n.Errorf("error.rules_duplicate_key", path, "reports", name)))
-			continue
-		}
-		seen[name] = true
-		label := "reports." + name
-		n, more := collectMapping(value.Content[i+1], path, label, -1, -1, reportKeys...)
-		problems = append(problems, more...)
-		report := Report{Name: name}
-		if where, err := n.str("where"); err != nil {
-			problems = append(problems, newProblem(path, -1, -1, "reports."+name+".where", valueLine(n, "where"), err))
-		} else {
-			report.Where = where
-		}
-		if fields, ok := n.atNode("fields"); ok {
-			var fieldProblems []Problem
-			report.Fields, fieldProblems = collectFields(fields, path, label+".fields")
-			problems = append(problems, fieldProblems...)
-		}
-		out = append(out, report)
+		out = append(out, newProblem(path, -1, -1, "reports."+name, value.Content[i].Line,
+			i18n.Errorf("error.rules_reports_gone", path, "reports."+name)))
 	}
-	return out, problems
-}
-
-// collectFields reads one report's fields, filing every problem of every one.
-func collectFields(value *yaml.Node, path, label string) ([]ReportField, []Problem) {
-	if value.Tag == "!!null" {
-		return nil, nil
-	}
-	if value.Kind != yaml.MappingNode {
-		return nil, []Problem{newProblem(path, -1, -1, "", value.Line, i18n.Errorf("error.rules_not_mapping", path, label))}
-	}
-	out := make([]ReportField, 0, len(value.Content)/2)
-	var problems []Problem
-	seen := make(map[string]bool, len(value.Content)/2)
-	for i := 0; i+1 < len(value.Content); i += 2 {
-		name := value.Content[i].Value
-		if seen[name] {
-			problems = append(problems, newProblem(path, -1, -1, "", value.Content[i].Line,
-				i18n.Errorf("error.rules_duplicate_key", path, label, name)))
-			continue
-		}
-		seen[name] = true
-		description, err := scalarString(value.Content[i+1], path, label+"."+name)
-		if err != nil {
-			problems = append(problems, newProblem(path, -1, -1, "", value.Content[i+1].Line, err))
-			continue
-		}
-		out = append(out, ReportField{Name: name, Description: description})
-	}
-	return out, problems
+	return out
 }
 
 // valueLine is the line of one key's value, or 0 when the key is not there.

@@ -49,39 +49,80 @@
     if (w) return { w: Math.max(108, textW(w.purpose || '（目的）') + 26), h: 40 };
     return { w: Math.max(96, textW(id, true) + 30), h: 46 };
   }
-  // autoPos is where the figure lays a row out the first time: the human at the
-  // top, the members round it, and each member's workers beside it. Below 760px
-  // the ring is taller, so the points do not crowd (the old figure's own shape).
+  // autoPos is where the figure lays a row out the first time: the human, the
+  // members round it, and each member's workers in the nearest room that no
+  // other point holds. A point never stands on another (監査 1-4).
+  const GAP = 10;
+  function hits(t, p, id, c) {
+    const b = boxOf(id, t);
+    return Object.keys(p).some((oid) => {
+      if (oid === id || !p[oid]) return false;
+      const q = p[oid], ob = boxOf(oid, t);
+      return Math.abs(c[0] - q[0]) < (b.w + ob.w) / 2 + GAP && Math.abs(c[1] - q[1]) < (b.h + ob.h) / 2 + GAP;
+    });
+  }
+  // freeNear keeps the wanted place when it is free, and otherwise walks round
+  // it in rings until it finds room. It is the one rule for the automatic
+  // places, an added worker, and a place a double press asked for.
+  function freeNear(t, p, id, want, startR) {
+    if (!hits(t, p, id, want)) return want;
+    for (let r = startR || 54; r <= 560; r += 26) {
+      for (let k = 0; k < 20; k++) {
+        const a = (-100 + k * 18) * Math.PI / 180;
+        const c = [want[0] + r * Math.cos(a), want[1] + r * Math.sin(a)];
+        if (!hits(t, p, id, c)) return c;
+      }
+    }
+    return [want[0], want[1] + 160];
+  }
+  function workerWant(t, p, from, wbox) {
+    const host0 = p[from] || [0, 0], hbox = boxOf(from, t);
+    const side = host0[0] >= 0 ? 1 : -1;
+    return [host0[0] + side * (hbox.w / 2 + wbox.w / 2 + 30), host0[1]];
+  }
   function autoPos(t) {
     const ids = ['human', ...t.members.map((m) => m.name)];
     const n = Math.max(ids.length, 2), thin = window.innerWidth <= 760;
     const R = n <= 3 ? 140 : 112 + n * 14;
     const rx = thin ? (n <= 3 ? 95 : 105) : R, ry = thin ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
-    const out = {}, th = {};
+    const out = {};
     ids.forEach((id, i) => {
       const a = (-90 + i * 360 / n) * Math.PI / 180;
-      th[id] = a;
       out[id] = [rx * Math.cos(a), ry * Math.sin(a)];
     });
-    t.members.forEach((m) => {
-      const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === m.name), k = ws.length;
-      ws.forEach(({ w }, j) => {
-        const k2 = Math.max(k, 1), spread = Math.min(0.42, 1.6 / k2), a = th[m.name] + (j - (k2 - 1) / 2) * spread;
-        const r2 = 98 + (k2 > 3 ? (j % 2) * 34 : 0), host0 = out[m.name];
-        out['w' + t.workers.indexOf(w)] = [host0[0] + r2 * Math.cos(a) * 1.15, host0[1] + r2 * Math.sin(a)];
-      });
+    t.workers.forEach((w, i) => {
+      const id = 'w' + i, b = boxOf(id, t);
+      out[id] = freeNear(t, out, id, workerWant(t, out, w.from, b), 58);
     });
     return out;
   }
   function ensurePos(r) {
     const t = host.draft(r), p = posOf(r), ids = ['human', ...t.members.map((m) => m.name), ...t.workers.map((w, i) => 'w' + i)];
     Object.keys(p).forEach((k) => { if (!ids.includes(k)) delete p[k]; });
+    if (!Object.keys(p).length) Object.assign(p, autoPos(t));
     const missing = ids.filter((id) => !p[id]);
-    if (!missing.length) return p;
-    if (!Object.keys(p).length) return Object.assign(p, autoPos(t));
-    const known = Object.values(p);
-    let bx = Math.min(...known.map((q) => q[0])), by = Math.max(...known.map((q) => q[1])) + 100;
-    missing.forEach((id) => { p[id] = [bx, by]; bx += 150; });
+    if (missing.length) {
+      const known = Object.values(p);
+      let bx = known.length ? Math.min(...known.map((q) => q[0])) : 0, by = known.length ? Math.max(...known.map((q) => q[1])) + 100 : 0;
+      missing.forEach((id) => {
+        const wi = /^w(\d+)$/.exec(id);
+        if (wi) {
+          const w = t.workers[Number(wi[1])], b = boxOf(id, t);
+          p[id] = freeNear(t, p, id, workerWant(t, p, w.from, b), 58);
+        } else {
+          const b = boxOf(id, t);
+          p[id] = freeNear(t, p, id, [bx, by], 54);
+          bx += b.w + 30;
+        }
+      });
+    }
+    // A point that a change of purpose made wider, or one put down on another
+    // by a double press, is moved to the nearest room: workers only, so a
+    // member a person picked stays where it stands.
+    t.workers.forEach((w, i) => {
+      const id = 'w' + i;
+      if (hits(t, p, id, p[id])) p[id] = freeNear(t, p, id, p[id], 40);
+    });
     return p;
   }
   const edgePt = (a, box, b) => {
@@ -118,7 +159,7 @@
       const dd = `M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
       const [mx, my] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
       const ex = selE === k ? `<g class="cv-ex" data-cv-act="edge-del" data-k="${esc(k)}" transform="translate(${mx.toFixed(1)},${my.toFixed(1)})" role="button" tabindex="0" aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r="11"></circle><text x="0" y="4.5" text-anchor="middle">×</text></g>` : '';
-      return `<path class="cv-hit" d="${dd}" data-act="edge" data-k="${esc(k)}" tabindex="0" role="button" aria-label="${esc(nodeName(a))} と ${esc(nodeName(b))} のターン"></path><path class="cv-e${isNew ? ' new' : ''}${selE === k ? ' sel' : ''}${S.flash === k ? ' cv-flash' : ''}" d="${dd}" ${fwd ? `marker-end="url(#cv-ar-${mi}-${mk})"` : ''} ${back ? `marker-start="url(#cv-ar-${mi}-${mk})"` : ''}></path>${ex}`;
+      return `<path class="cv-hit" d="${dd}" data-cv-e="${esc(k)}" tabindex="0" role="button" aria-label="${esc(nodeName(a))} と ${esc(nodeName(b))} のターン"></path><path class="cv-e${isNew ? ' new' : ''}${selE === k ? ' sel' : ''}${S.flash === k ? ' cv-flash' : ''}" d="${dd}" ${fwd ? `marker-end="url(#cv-ar-${mi}-${mk})"` : ''} ${back ? `marker-start="url(#cv-ar-${mi}-${mk})"` : ''}></path>${ex}`;
     }).join('');
     const wedges = t.workers.map((w, i) => {
       if (!p['w' + i] || !p[w.from]) return '';
@@ -135,7 +176,7 @@
       }
       const m = memberOf(t, id), sm = s.members.find((z) => z.name === id);
       const cls = !savedNames.has(id) ? ' new' : sm && (sm.role !== m.role || sm.profile !== m.profile) ? ' chg' : '';
-      return `<g class="cv-n${cls}${mine ? ' sel' : ''}${is.some((m) => m.sev === 'err') ? ' err' : ''}" data-cv-n="${esc(id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(id)}"><rect x="${-b.w / 2}" y="${-b.h / 2}" width="${b.w}" height="${b.h}" rx="6"></rect><text class="nm" x="0" y="-3" text-anchor="middle">${esc(id)}</text><text class="rl" x="0" y="14" text-anchor="middle">${esc(m.role)}</text>${is.length ? bdg(is[0], b) : ''}</g>`;
+      return `<g class="cv-n member${cls}${mine ? ' sel' : ''}${is.some((m) => m.sev === 'err') ? ' err' : ''}" data-cv-n="${esc(id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(id)}"><rect x="${-b.w / 2}" y="${-b.h / 2}" width="${b.w}" height="${b.h}" rx="6"></rect><text class="nm" x="0" y="-3" text-anchor="middle">${esc(id)}</text><text class="rl" x="0" y="14" text-anchor="middle">${esc(m.role)}</text>${is.length ? bdg(is[0], b) : ''}</g>`;
     };
     const wexists = new Set(s.workers.map((w) => w.from + '\u0000' + w.purpose));
     const wnode = (w, i) => {
@@ -203,7 +244,7 @@
         <div class="cv-note">メンバー ${t.members.length} · ワーカー ${t.workers.length} · ターン ${t.turns.length}</div>
         ${humanIn ? '' : '<div class="cv-warn">人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください</div>'}
         <div class="cv-sec"><span class="cv-sl">保存していない変更 ${d.length}</span>${d.length ? `<div class="cv-diff">${d.map(([k, x]) => `<span class="cv-${k}">${k === 'a' ? '+ ' : k === 'd' ? '− ' : '~ '}${esc(x)}</span>`).join('')}</div>` : '<span class="cv-empty">なし</span>'}</div>
-        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span> で戻す。</span></div>`;
+        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span> で 1 つ取り消す。</span></div>`;
     }
     if (sel.type === 'edge') {
       const [a, b] = sel.k.split('|');
@@ -221,6 +262,7 @@
         <div class="cv-f"><label for="cv-wp-${esc(team)}">目的</label><input id="cv-wp-${esc(team)}" data-cv-f="w-purpose" value="${esc(w.purpose)}" placeholder="例: 調べ物" autocomplete="off" spellcheck="false"></div>
         <div class="cv-f"><label for="cv-wf-${esc(team)}">追加するメンバー</label><span class="sel"><select id="cv-wf-${esc(team)}" data-cv-f="w-from">${t.members.map((m) => `<option ${m.name === w.from ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></span></div>
         <div class="cv-f"><label for="cv-wpf-${esc(team)}">プロファイル</label><span class="sel"><select id="cv-wpf-${esc(team)}" data-cv-f="w-profile">${profs.map((p) => `<option ${p === w.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span><span class="cv-sub">ワーカーは規則を受けない。安いプロファイルで</span></div>
+        ${workerPromptHTML(r, w, sel.i)}
         <button class="btn danger sm cv-danger" type="button" data-cv-act="del">ワーカーを外す</button>`;
     }
     const id = sel.id;
@@ -244,7 +286,139 @@
       <div class="cv-sec"><span class="cv-sl">ターンを受け取る相手</span>${turnRows(t, s, id, 'in')}</div>
       <div class="cv-sec"><span class="cv-sl">ワーカー</span>${ws.length ? ws.map(({ w, i }) => `<div class="cv-li${s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? '' : ' new'}"><span>${esc(w.purpose || '（目的）')} · ${esc(w.profile)}</span><span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i="${i}">選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" data-i="${i}" title="外す" aria-label="外す">×</button></span></div>`).join('') : '<span class="cv-empty">なし</span>'}
         <button class="btn sm cv-danger" type="button" data-cv-act="w-add">＋ ワーカー</button></div>
-      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del">メンバーを外す</button><span class="cv-note">ターン ${nt} 本とワーカー ${ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で戻せる。</span></div>`;
+      ${memberPromptHTML(r, m)}
+      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del">メンバーを外す</button><span class="cv-note">ターン ${nt} 本とワーカー ${ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>`;
+  }
+
+
+  // ---- the prompt a member (or a worker) is handed --------------------
+  // The lines are hergy's own, cut into the segments r-4cf9 names and where each
+  // came from (spec-boundary 5). The screen lays them out and says where a
+  // folded document is read; it builds no line (n-56f7, d-b87a).
+  function lineAtMaker(full) {
+    const starts = [0];
+    for (let i = 0; i < full.length; i++) if (full[i] === '\n') starts.push(i + 1);
+    return (off) => {
+      let lo = 0, hi = starts.length - 1;
+      while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= off) lo = mid; else hi = mid - 1; }
+      return lo;
+    };
+  }
+  function promptBlocks(segments) {
+    const full = segments.map((x) => x.text).join('');
+    const lines = full.split('\n');
+    const at = lineAtMaker(full);
+    const out = [];
+    let off = 0;
+    segments.forEach((seg) => {
+      const len = seg.text.length;
+      if (len) {
+        let a = at(off), b = at(off + len - 1) + 1;
+        // The blank lines a segment starts with belong to the block before it:
+        // a folded document starts at its first line, not at the gap above it.
+        const lead = (seg.text.match(/^\n+/) || [''])[0].length;
+        if (lead && out.length && a === out[out.length - 1].b && at(off + lead - 1) + 1 > a) {
+          out[out.length - 1].b = at(off + lead - 1) + 1;
+          a = out[out.length - 1].b;
+        }
+        if (out.length && a < out[out.length - 1].b) a = out[out.length - 1].b;
+        if (a < b) out.push({ seg, a, b });
+      }
+      off += len;
+    });
+    // The blank lines between two segments belong to the block before them:
+    // every line of the prompt is held by one block, so a fold's range covers
+    // them and nothing is left between two blocks.
+    for (let i = 1; i < out.length; i++) if (out[i].a > out[i - 1].b) out[i - 1].b = out[i].a;
+    if (out.length) out[out.length - 1].b = Math.max(out[out.length - 1].b, lines.length);
+    return { lines, blocks: out };
+  }
+  const pline = (t) => {
+    const m = String(t).match(/^(#{1,6} )(.*)$/);
+    return m ? `<span class="cv-mm">${esc(m[1])}</span><span class="cv-ph">${esc(m[2])}</span>` : esc(t);
+  };
+  const plines = (lines, a, b, fn) => lines.slice(a, b).map((t, k) => `<div class="yl" data-ln="${a + k}"><span class="lno">${a + k + 1}</span><span class="yt">${fn ? fn(t) : pline(t)}</span></div>`).join('');
+  const prange = (a, b) => (b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`);
+  const pcount = (lines, a, b) => lines.slice(a, b).filter((x) => x !== '').length;
+  function templateChip(r, seg) {
+    const o = seg.origin || {};
+    if (o.kind === 'team') return `<span class="cv-ptpl own">ひな形: チームの prompt:</span><button class="cv-go" type="button" data-cv-act="to-yaml">YAML で直す</button>`;
+    if (o.kind === 'member') return `<span class="cv-ptpl own">ひな形: メンバー ${esc(o.name || '')} の prompt:</span><button class="cv-go" type="button" data-cv-act="to-yaml">YAML で直す</button>`;
+    return '<span class="cv-ptpl">ひな形: hergy の既定</span>';
+  }
+  const PLABEL = { roster: '名簿', turns: 'ターンを渡す相手', workers: 'ワーカーの追加' };
+  // d-20ac: a definition with a problem is not given a prompt, by hergy up or by
+  // this column. The words are the screen's own; the problem itself is the
+  // server's, under the canvas.
+  const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の validate の欄の問題を直すと、ここに出ます。';
+  function memberPromptHTML(r, m) {
+    const hit = (host.prompts(r) || []).find((x) => x.name === m.name);
+    let body;
+    if (host.promptBlocked && host.promptBlocked(r)) body = `<span class="cv-note">${PROMPT_BLOCKED}</span>`;
+    else if (!hit) body = '<span class="cv-note">プロンプトを読んでいます。</span>';
+    else {
+      const { lines, blocks } = promptBlocks(hit.segments || []);
+      let head = false, labelled = '';
+      body = blocks.map(({ seg, a, b }) => {
+        const o = seg.origin || {};
+        if (seg.kind === 'role_doc') {
+          return `<div class="cv-fold" data-a="${a}" data-b="${b}" data-doc="role" data-role="${esc(o.name || '')}" data-place="${esc(o.place || '')}"><span class="cv-range">${prange(a, b)}</span><b>ロールの文書</b><code>${esc(o.path || '')}</code><span>${pcount(lines, a, b)} 行</span><a href="/roles?open=${encodeURIComponent(o.name || '')}">ロールの画面で見る</a></div>`;
+        }
+        if (seg.kind === 'team_rules') {
+          return `<div class="cv-fold" data-a="${a}" data-b="${b}" data-doc="team"><span class="cv-range">${prange(a, b)}</span><b>チームのルール</b><span>${pcount(lines, a, b)} 行</span><button class="cv-go" type="button" data-cv-act="to-agree">ルールのタブで見る</button></div>`;
+        }
+        if (seg.kind === 'herdr') {
+          return `<div class="cv-fold cv-fixed" data-a="${a}" data-b="${b}"><span class="cv-range">${prange(a, b)}</span><details><summary>連絡のしかた<span> · hergy の決まった文 · どのチームでも同じ</span></summary>${plines(lines, a, b)}</details></div>`;
+        }
+        let label = '';
+        // The heading of a section ("## 名簿") stands in the template just
+        // before the section's own segment: the label goes above the heading,
+        // and the segment that follows does not say it a second time.
+        const heading = (lines.slice(a, b).find((x) => /^##\s/.test(x)) || '').replace(/^##\s*/, '');
+        if (seg.kind === 'template' && PLABEL[seg.kind]) label = '';
+        if (seg.kind === 'template' || seg.kind === 'actor') {
+          if (!head) { head = true; label = `<div class="cv-pbl"><b>冒頭</b>${templateChip(r, seg)}</div>`; }
+          const named = Object.values(PLABEL).find((x) => x === heading);
+          if (named) { label += `<div class="cv-pbl"><b>${named}</b></div>`; labelled = named; }
+        } else if (PLABEL[seg.kind]) {
+          label = labelled === PLABEL[seg.kind] ? '' : `<div class="cv-pbl"><b>${PLABEL[seg.kind]}</b></div>`;
+          labelled = PLABEL[seg.kind];
+        }
+        return label + plines(lines, a, b);
+      }).join('');
+    }
+    return `<details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（このチーム定義から渡る行）</summary><div class="cv-pr">${body}</div></details>`;
+  }
+  function workerPromptHTML(r, w, i) {
+    if (host.promptBlocked && host.promptBlocked(r)) return `<details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">${PROMPT_BLOCKED}</span></details>`;
+    if (!w.purpose) return `<details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">目的を書くと、hire のときに渡る文が出ます。</span></details>`;
+    const pv = host.workerPrompt(r, i);
+    let body;
+    if (!pv) body = '<span class="cv-note">プロンプトを読んでいます。</span>';
+    else if (pv.err) body = `<span class="cv-note">${esc(pv.err)}</span>`;
+    else {
+      const { lines, blocks } = promptBlocks(pv.segments || []);
+      const full = `${host.name(r)}-${pv.name}`;
+      const slotText = (t) => {
+        const withName = esc(t).split(esc(full)).join(`${esc(host.name(r))}-<span class="cv-slot" data-v="${esc(pv.name)}">&lt;ワーカー名&gt;</span>`);
+        return withName.split(esc(pv.task)).join(`<span class="cv-slot" data-v="${esc(pv.task)}">&lt;依頼&gt;</span>`);
+      };
+      const taskAt = blocks.findIndex(({ seg }) => seg.kind === 'task');
+      const agreeAt = blocks.findIndex(({ seg, a, b }) => seg.kind === 'template' && lines.slice(a, b).some((x) => x.startsWith('## 依頼')));
+      let herdrSeen = false;
+      body = blocks.map(({ seg, a, b }, n) => {
+        if (seg.kind === 'herdr') {
+          herdrSeen = true;
+          return `<div class="cv-fold cv-fixed" data-a="${a}" data-b="${b}"><span class="cv-range">${prange(a, b)}</span><details><summary>連絡のしかた<span> · hergy の決まった文 · どのワーカーでも同じ</span></summary>${plines(lines, a, b, slotText)}</details></div>`;
+        }
+        let label = '';
+        if (n === 0) label = '<div class="cv-pbl"><b>冒頭</b><span class="cv-ptpl">ひな形: hergy の既定</span></div>';
+        else if (n === agreeAt) label = '<div class="cv-pbl"><b>依頼</b><span>hire の --task</span></div>';
+        else if (herdrSeen) label = '<div class="cv-pbl"><b>報告</b><span>追加したメンバーへ</span></div>';
+        return label + plines(lines, a, b, slotText);
+      }).join('');
+    }
+    return `<details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><div class="cv-pr">${body}</div></details>`;
   }
 
   // ---- パネル ----------------------------------------------------------
@@ -257,11 +431,11 @@
     if (sel && sel.type === 'edge' && !sel.k.split('|').every((x) => x === 'human' || memberOf(t, x))) got(S.sel, r).v = null;
     const cur = selOf(r), side = sideOf(r);
     const picked = cur && cur.type === 'node' && cur.id !== 'human' ? cur.id : '';
-    const hint = picked ? `${esc(picked)} を選んでいる。縁の丸から引くとターン、<span class="cv-kbd">Delete</span> で外す` : '点や線を押すと右に属性が出る。余白をダブルクリックすると、そこに足せる';
+    const hint = picked ? `${esc(picked)} を選んでいる。縁の丸から引くとターン、<span class="cv-kbd">Delete</span> で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
     return `<div class="cv-main"><div class="cv-left">
       <div class="cv-tools"><button class="btn sm" type="button" data-cv-act="m-add">＋ メンバー</button><button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button><span class="cv-hint">${hint}</span></div>
       <div class="cv-canvas">${canvasHTML(r)}</div>
-      ${host.validate(r)}
+      <div class="vlist">${host.validate(r)}</div>
     </div><aside class="cv-side" aria-label="選んだものの属性"><div class="cv-sh"><button type="button" class="${side === 'attr' ? 'on' : ''}" data-cv-side="attr">属性</button><button type="button" class="${side === 'yaml' ? 'on' : ''}" data-cv-side="yaml">YAML</button></div>
       <div class="cv-sb">${side === 'attr' ? sideAttr(r) : host.yaml(r)}</div></aside></div>`;
   }
@@ -302,18 +476,18 @@
     while (t.members.some((m) => m.name === `${base}-${n}`)) n++;
     const name = `${base}-${n}`;
     if (at) posOf(r)[name] = at;
+    got(S.sel, r).v = { type: 'node', id: name }; got(S.side, r).v = 'attr';
     host.act(r, [{ kind: 'addMember', member: name, role, profile }], {
       message: `メンバー ${name} を足した。名前・ロール・プロファイルを右で決める`,
-      undo: `メンバー ${name} を戻した`, focus: '[data-cv-f="m-name"]',
+      undo: `メンバー ${name} を足したのを取り消した`, focus: '[data-cv-f="m-name"]',
     });
-    got(S.sel, r).v = { type: 'node', id: name }; got(S.side, r).v = 'attr';
   }
   function addWorker(r, from, at) {
     const t = host.draft(r), idx = t.workers.length, profile = firstProfile(true);
     const ops = [{ kind: 'addWorker', from, purpose: '', profile }];
     if (at) posOf(r)['w' + idx] = at;
-    host.act(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを戻した', focus: '[data-cv-f="w-purpose"]' });
     got(S.sel, r).v = { type: 'worker', i: idx }; got(S.side, r).v = 'attr';
+    host.act(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを足したのを取り消した', focus: '[data-cv-f="w-purpose"]' });
   }
   function del(r) {
     const t = host.draft(r), sel = selOf(r);
@@ -321,18 +495,18 @@
     if (sel.type === 'node' && sel.id !== 'human') {
       const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
       got(S.sel, r).v = null;
-      host.act(r, [{ kind: 'removeMember', member: id }], { message: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を戻した` });
+      host.act(r, [{ kind: 'removeMember', member: id }], { message: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
     } else if (sel.type === 'edge') {
       const [a, b] = sel.k.split('|'), ops = [];
       if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
       if (hasTurn(t, b, a)) ops.push({ kind: 'removeTurn', from: b, to: a });
       got(S.sel, r).v = null;
-      if (ops.length) host.act(r, ops, { message: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを戻した` });
+      if (ops.length) host.act(r, ops, { message: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
     } else if (sel.type === 'worker') {
       const w = t.workers[sel.i];
       if (!w) return;
       got(S.sel, r).v = null;
-      host.act(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを戻した' });
+      host.act(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
     }
   }
   const focusAfter = (r, sel) => setTimeout(() => {
@@ -354,8 +528,8 @@
       S.drag = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [...ensurePos(r)[id]], moved: false };
       svg.setPointerCapture(e.pointerId); return;
     }
-    const ed = e.target.closest('[data-act="edge"]');
-    if (ed) { got(S.sel, r).v = { type: 'edge', k: ed.dataset.k }; got(S.side, r).v = 'attr'; host.redraw(r); return; }
+    const ed = e.target.closest('[data-cv-e]');
+    if (ed) { got(S.sel, r).v = { type: 'edge', k: ed.dataset.cvE }; got(S.side, r).v = 'attr'; host.redraw(r); return; }
     const now = Date.now(), pt = svgPt(svg, e);
     if (S.last && now - S.last.t < 400 && Math.hypot(pt.x - S.last.x, pt.y - S.last.y) < 8 && S.last.r === r) {
       S.last = null; openMenu(r, [pt.x, pt.y], e); return;
@@ -386,7 +560,14 @@
     const to = g && g.dataset.cvN !== d.from ? g.dataset.cvN : null;
     if (to) g.classList.add('drop');
     label.removeAttribute('hidden');
-    label.setAttribute('x', p.x + 12); label.setAttribute('y', p.y - 10);
+    // The words stand to the right of the point's own box and below it, so they
+    // never cover the name the person is aiming at (監査 1-6).
+    if (to) {
+      const c = ensurePos(r)[to], b = boxOf(to, t);
+      label.setAttribute('x', c[0] + b.w / 2 + 12); label.setAttribute('y', c[1] + b.h / 2 + 18);
+    } else {
+      label.setAttribute('x', p.x + 24); label.setAttribute('y', p.y + 34);
+    }
     label.textContent = to ? (hasTurn(t, d.from, to) ? `${nodeName(d.from)} → ${nodeName(to)} はもうある` : `${nodeName(d.from)} → ${nodeName(to)} に渡す`) : `${nodeName(d.from)} から、渡す相手の点まで引く`;
   }
   function onPointerUp(e) {
@@ -404,13 +585,24 @@
     const t = host.draft(r);
     if (hasTurn(t, d.from, to)) { got(S.sel, r).v = { type: 'edge', k: pair(d.from, to) }; got(S.side, r).v = 'attr'; host.redraw(r); host.say(r, `${nodeName(d.from)} → ${nodeName(to)} はもうある`); return; }
     const k = pair(d.from, to);
-    host.act(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足した`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを戻した` });
+    host.act(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足した`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足したのを取り消した` });
     got(S.sel, r).v = { type: 'edge', k }; got(S.side, r).v = 'attr';
     S.flash = k;
     host.redraw(r);
     setTimeout(() => { const cur = S.flash; if (cur === k) { S.flash = null; const panelEl = $(`.panel.team-p[data-key="${CSS.escape(key(r))}"]`); const el = panelEl && $('.cv-e.cv-flash', panelEl); if (el) el.classList.remove('cv-flash'); } }, 1400);
   }
   function onClick(e) {
+    // A press made without a pointer (the keyboard's Enter, or a click a walk
+    // sends) picks the point or line too: the pointer path is not the only one.
+    const hit = e.target.closest('[data-cv-n], [data-cv-w], [data-cv-e]');
+    if (hit) {
+      const r = rowOf(hit); if (!r) return;
+      const sel = hit.dataset.cvN ? { type: 'node', id: hit.dataset.cvN }
+        : hit.dataset.cvW != null ? { type: 'worker', i: Number(hit.dataset.cvW) }
+          : { type: 'edge', k: hit.dataset.cvE };
+      if (JSON.stringify(selOf(r)) === JSON.stringify(sel)) return;
+      got(S.sel, r).v = sel; got(S.side, r).v = 'attr'; host.redraw(r); return;
+    }
     const b = e.target.closest('[data-cv-act], [data-cv-side]');
     if (!b) return;
     const r = rowOf(b); if (!r) return;
@@ -429,26 +621,28 @@
       else addWorker(r, b.dataset.from, at);
       return;
     }
+    if (a === 'to-yaml') { got(S.side, r).v = 'yaml'; host.redraw(r); return; }
+    if (a === 'to-agree') { host.toAgree(r); return; }
     if (a === 'del') { del(r); return; }
     if (a === 'edge-del') {
       const [p, q] = (b.dataset.k || '').split('|'), ops = [];
       if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
       if (hasTurn(t, q, p)) ops.push({ kind: 'removeTurn', from: q, to: p });
       got(S.sel, r).v = null;
-      if (ops.length) host.act(r, ops, { message: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを戻した` });
+      if (ops.length) host.act(r, ops, { message: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
       return;
     }
     if (a === 'turn-del') {
-      host.act(r, [{ kind: 'removeTurn', from: b.dataset.a, to: b.dataset.b }], { message: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを外した`, undo: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを戻した` });
+      host.act(r, [{ kind: 'removeTurn', from: b.dataset.a, to: b.dataset.b }], { message: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを外した`, undo: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを足したのを取り消した` });
       return;
     }
     if (a === 'turn-add') {
-      host.act(r, [{ kind: 'addTurn', from: b.dataset.a, to: b.dataset.b }], { message: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを足した`, undo: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを戻した` });
+      host.act(r, [{ kind: 'addTurn', from: b.dataset.a, to: b.dataset.b }], { message: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを足した`, undo: `${nodeName(b.dataset.a)} → ${nodeName(b.dataset.b)} のターンを足したのを取り消した` });
       return;
     }
     if (a === 'w-del') {
       const w = t.workers[+b.dataset.i]; if (!w) return;
-      host.act(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを戻した' });
+      host.act(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
       return;
     }
     if (a === 'pick-w') { got(S.sel, r).v = { type: 'worker', i: +b.dataset.i }; got(S.side, r).v = 'attr'; host.redraw(r); }
@@ -458,7 +652,7 @@
     const r = rowOf(e.target); if (!r) return;
     const t = host.draft(r), sel = selOf(r), v = e.target.value;
     if (f === 'turn-add') {
-      if (v) { host.act(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足した`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを戻した` }); e.target.value = ''; }
+      if (v) { host.act(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足した`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足したのを取り消した` }); e.target.value = ''; }
       return;
     }
     if (e.type === 'change' && e.target.tagName !== 'SELECT') return;
@@ -467,6 +661,18 @@
     if (f === 'm-name') {
       const m = sel && sel.type === 'node' ? memberOf(t, sel.id) : null;
       if (!m) return;
+      // The messages stand beside the field as it is typed, so a name the
+      // server would refuse is said before the field is left (監査 R9).
+      const msgs = [];
+      if (!NAME.test(v)) msgs.push('英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください');
+      if (t.members.some((x) => x !== m && x.name === v)) msgs.push('このチームにもういます');
+      if (`${host.name(r)}-${v}`.length > 32) msgs.push(`herdr 名 ${host.name(r)}-${v} が 32 文字を超えます`);
+      const field = e.target.closest('.cv-f');
+      if (field) {
+        $$('.cv-msg', field).forEach((x) => x.remove());
+        const sub = $('.cv-sub', field);
+        msgs.forEach((msg) => { const span = document.createElement('span'); span.className = 'cv-msg'; span.textContent = msg; field.insertBefore(span, sub || null); });
+      }
       const ok = NAME.test(v) && v !== m.name;
       if (ok) {
         const p = posOf(r); if (p[m.name]) { p[v] = p[m.name]; delete p[m.name]; }
@@ -477,29 +683,46 @@
     }
     if (f === 'm-role' || f === 'm-profile') {
       if (!sel || sel.type !== 'node') return;
-      host.act(r, [{ kind: f === 'm-role' ? 'memberRole' : 'memberProfile', member: sel.id, [f === 'm-role' ? 'role' : 'profile']: v }], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えた`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を戻した` });
+      host.act(r, [{ kind: f === 'm-role' ? 'memberRole' : 'memberProfile', member: sel.id, [f === 'm-role' ? 'role' : 'profile']: v }], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えた`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えたのを取り消した` });
       return;
     }
     if (f === 'w-purpose' || f === 'w-from' || f === 'w-profile') {
       const w = sel && sel.type === 'worker' ? t.workers[sel.i] : null; if (!w) return;
       if (f === 'w-purpose') { host.typing(r, { kind: 'workerPurpose', from: w.from, old: w.purpose, new: v }, 'w-purpose'); return; }
-      if (f === 'w-from') { host.act(r, [{ kind: 'moveWorker', from: w.from, purpose: w.purpose, to: v }], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移した`, undo: `ワーカー ${w.purpose || '（目的）'} を戻した` }); return; }
-      host.act(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えた`, undo: 'ワーカーのプロファイルを戻した' });
+      if (f === 'w-from') { host.act(r, [{ kind: 'moveWorker', from: w.from, purpose: w.purpose, to: v }], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移した`, undo: `ワーカー ${w.purpose || '（目的）'} を移したのを取り消した` }); return; }
+      host.act(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えた`, undo: 'ワーカーのプロファイルを変えたのを取り消した' });
     }
   }
   function onKey(e) {
     const inField = e.target.closest && e.target.closest('input, select, textarea');
-    const panelEl = e.target.closest && e.target.closest('.panel.team-p');
+    // The keys stand on the row a person is working in, not only on what has the
+    // focus: a point is picked by the pointer, and the Delete that follows is
+    // still meant for it (the mock of 2026-10-23).
+    const inside = e.target.closest && e.target.closest('.panel.team-p');
+    const panels = $$('.panel.team-p').filter((el) => rowOf(el));
+    const panelEl = (inside && rowOf(inside)) ? inside : panels.find((el) => selOf(rowOf(el)));
     const r = panelEl ? rowOf(panelEl) : null;
+    // ⌘Z stands for the newest operation even after the pick was let go (the
+    // blank space, Esc, or the line's ×): the row that has something to take
+    // back is the one it acts on. The field's own ⌘Z is left to the field.
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !inField) {
+      const target = r || (host.undoRow && host.undoRow());
+      if (target) { e.preventDefault(); host.undo(target); }
+      return;
+    }
+    // Esc inside a field leaves the field and keeps what was typed; the next
+    // Esc lets the pick go (監査 1-7).
+    if (inField) { if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); } return; }
+    // The blank space's menu and the toolbar's ask stand even when no point is
+    // picked; Esc closes them before anything else (監査 2-8).
+    if (e.key === 'Escape' && S.menu) { e.preventDefault(); menuClose(); return; }
     if (!r) return;
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !inField) { e.preventDefault(); host.undo(r); return; }
-    if (inField) return;
     const sel = selOf(r);
     if (e.key === 'Delete' || e.key === 'Backspace') { if (sel) { e.preventDefault(); del(r); } return; }
     if (e.key === 'Escape') { menuClose(); if (sel) { e.preventDefault(); got(S.sel, r).v = null; host.redraw(r); } return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.cv-n, .cv-hit, .cv-ex')) {
       e.preventDefault();
-      if (e.target.matches('.cv-hit')) { got(S.sel, r).v = { type: 'edge', k: e.target.dataset.k }; got(S.side, r).v = 'attr'; host.redraw(r); }
+      if (e.target.matches('.cv-hit')) { got(S.sel, r).v = { type: 'edge', k: e.target.dataset.cvE }; got(S.side, r).v = 'attr'; host.redraw(r); }
       else if (e.target.matches('.cv-ex')) e.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       else { const id = e.target.dataset.cvN || ('w' + e.target.dataset.cvW); got(S.sel, r).v = e.target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(e.target.dataset.cvW) }; got(S.side, r).v = 'attr'; host.redraw(r); }
     }
@@ -511,7 +734,9 @@
     root.addEventListener('click', onClick);
     root.addEventListener('input', onInput);
     root.addEventListener('change', onInput);
-    root.addEventListener('keydown', onKey);
+    // The key is meant for the picked point even after the pointer took the
+    // focus away from it (Delete after a press), so it stands on the page.
+    document.addEventListener('keydown', onKey);
     root.addEventListener('focusout', (e) => {
       const f = e.target.dataset && e.target.dataset.cvF;
       if (f === 'm-name' || f === 'w-purpose' || f === 'mission') {
@@ -520,12 +745,12 @@
     });
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
-    document.addEventListener('click', (e) => { if (S.menu && !e.target.closest('.cv-menu') && !e.target.closest('[data-cv-act="m-add"], [data-cv-act="w-add"]')) menuClose(); });
   }
 
   window.hergyCanvas = {
     mount, panel, canvas: (r) => canvasHTML(r), side: (r) => sideAttr(r),
     select: (r, sel, side) => { got(S.sel, r).v = sel; if (side) got(S.side, r).v = side; },
+    sel: (r) => selOf(r),
     reset: (k) => { delete S.sel[k]; delete S.side[k]; delete S.pos[k]; },
     drawn: (r) => { ensurePos(r); },
   };

@@ -764,7 +764,7 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	// scene is left byte for byte as the commit wrote it, so its build stays
 	// clean and its version reads the commit, not a dirty tree.
 	for _, dir := range []string{projectDir, homeDir, "herdr"} {
-		if err := fillTimes(filepath.Join(work, dir), time.Now()); err != nil {
+		if err := fillPlaces(filepath.Join(work, dir), work, time.Now()); err != nil {
 			return "", "", err
 		}
 	}
@@ -894,10 +894,22 @@ func copyTree(from, to string) error {
 // wants to read.
 var minutePlace = regexp.MustCompile(`@T-([0-9]+)@`)
 
-// fillTimes fills every place in the work directory, so the sample data is laid
-// down as it is and only the moments are the run's own.
-func fillTimes(work string, now time.Time) error {
-	return filepath.WalkDir(work, func(path string, d fs.DirEntry, err error) error {
+// fillPlaces fills every place in one laid tree: @T-<分>@ is that many minutes
+// before the run, @PROJECT@ is the scene's project, @HOME@ its home directory,
+// and @EXECUTABLE@ the hergy the serve runs. The launch record in the state
+// directory uses them, so the same sample answers for the work directory it was
+// copied to.
+func fillPlaces(root, work string, now time.Time) error {
+	resolvedPath := func(path string) string {
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			return resolved
+		}
+		return path
+	}
+	project := resolvedPath(filepath.Join(work, projectDir))
+	home := resolvedPath(filepath.Join(work, homeDir))
+	executable := resolvedPath(filepath.Join(work, "bin", "hergy"))
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
@@ -905,17 +917,23 @@ func fillTimes(work string, now time.Time) error {
 		if err != nil {
 			return err
 		}
-		if !bytes.Contains(raw, []byte("@T-")) {
+		if !bytes.Contains(raw, []byte("@T-")) && !bytes.Contains(raw, []byte("@PROJECT@")) &&
+			!bytes.Contains(raw, []byte("@HOME@")) && !bytes.Contains(raw, []byte("@EXECUTABLE@")) {
 			return nil
 		}
-		filled := minutePlace.ReplaceAllFunc(raw, func(place []byte) []byte {
-			minutes, err := strconv.Atoi(string(place[3 : len(place)-1]))
+		filled := strings.NewReplacer(
+			"@PROJECT@", project,
+			"@HOME@", home,
+			"@EXECUTABLE@", executable,
+		).Replace(string(raw))
+		filled = minutePlace.ReplaceAllStringFunc(filled, func(place string) string {
+			minutes, err := strconv.Atoi(strings.Trim(place, "@T-"))
 			if err != nil {
 				return place
 			}
-			return []byte(now.Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339))
+			return now.Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339)
 		})
-		return os.WriteFile(path, filled, 0o644) //nolint:gosec // G122: path is a file of the work directory this tool just laid down
+		return os.WriteFile(path, []byte(filled), 0o644) //nolint:gosec // G122: path is a file of the work directory this tool just laid down
 	})
 }
 

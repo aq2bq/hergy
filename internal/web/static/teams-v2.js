@@ -4,9 +4,10 @@
 // 行ごとに複製・コピー・削除ができる。YAML のタブは両方の置き場所の team.yaml と
 // agreement.yaml を文字で見せる。
 //
-// 見た目と図の置き方はモック（mock-teams.html 版 7）が正。図の配置 layout() と
-// 札の置き場所 placeCard() はそこから逐語で写した。検査の文はすべてサーバ
-// （check.Team / check.Agreement）が作るので、この画面は文を作らない。
+// トポロジーのタブは、ノード編集のカンバス（topocanvas.js）が描く。点や線を
+// 選ぶと右の属性の欄に出て、そこから直す。編集は本物の ops で、保存前に
+// /api/team/check に当てて検証と YAML のプレビューを受ける。検査の文はすべて
+// サーバ（check.Team / check.Agreement）が作るので、この画面は文を作らない。
 (() => {
   'use strict';
 
@@ -24,6 +25,11 @@
   const PLACE = { project: 'プロジェクト', global: 'グローバル' };
   const DIR = DATA.dirs || { project: '', global: '' };
   const PROFILES = DATA.profiles || [];
+  const CANVAS = window.hergyCanvas;
+  // ROLES is the role documents the member's 属性 offers: the same list the
+  // role screen shows, with the title each document carries. It is read once
+  // from GET /api/role; the team answer itself carries no role documents.
+  let ROLES = [];
   // The island is the same list answer GET /api/team gives (spec-boundary 5):
   // the items, and the files the YAML tab can open.
   const LIST = DATA.team || { items: [], files: [] };
@@ -51,6 +57,7 @@
   const same = (a, b) => a && b && a.from === b.from && a.purpose === b.purpose && a.profile === b.profile;
   const hasTurn = (t, a, b) => (t.turns || []).some(([p, q]) => p === a && q === b);
   const memberOf = (t, n) => (t.members || []).find((m) => m.name === n);
+  const narrow = () => window.innerWidth <= 760;
 
   // ---- サーバとのやり取り ---------------------------------------------
   // Every check and every write goes through the boundary (spec-boundary 5):
@@ -257,8 +264,8 @@
   // (spec-teams B2).
   function dropDraft(r) {
     recs.delete(dkey(r));
-    state.open.delete(r.dom); delete state.dtab[r.dom]; delete state.gsel[dkey(r)];
-    delete state.pmode['t' + dkey(r)]; delete state.confirm['del' + dkey(r)];
+    state.open.delete(r.dom); delete state.dtab[r.dom]; CANVAS.reset(dkey(r));
+    delete state.confirm['del' + dkey(r)];
     render();
   }
 
@@ -325,6 +332,7 @@
       const op = ops[i];
       if (op.kind === 'workerPurpose' && op.from === from && op.new === purpose) purpose = op.old;
       else if (op.kind === 'workerProfile' && op.from === from && op.purpose === purpose) profile = op.profile;
+      else if (op.kind === 'moveWorker' && op.to === from && op.purpose === purpose) from = op.from;
       else if (op.kind === 'addWorker' && op.from === from && op.purpose === purpose) return null;
     }
     return { from, purpose, profile };
@@ -349,252 +357,18 @@
       claimed.add(key(o.from, o.purpose));
       const sw = wasW.get(key(o.from, o.purpose));
       if (!sw) { n++; return; }
-      if (w.purpose !== o.purpose || w.profile !== o.profile) n++;
+      if (w.from !== o.from || w.purpose !== o.purpose || w.profile !== sw.profile) n++;
     });
     wasW.forEach((sw, k) => { if (!claimed.has(k)) n++; });
-    (t.members || []).forEach((m) => {
-      const sm = (s.members || []).find((x) => x.name === m.name);
-      if (sm && (sm.role !== m.role || sm.profile !== m.profile)) n++;
+    const wasM = new Map((s.members || []).map((m) => [m.name, m]));
+    const nowM = new Map((t.members || []).map((m) => [m.name, m]));
+    nowM.forEach((m, name) => {
+      const sm = wasM.get(name);
+      if (!sm) n++;
+      else if (sm.role !== m.role || sm.profile !== m.profile) n++;
     });
+    wasM.forEach((m, name) => { if (!nowM.has(name)) n++; });
     return n;
-  }
-
-  // ---- 姿：図の配置（モック 1.4.2 から逐語） ---------------------------
-  // The figure's own width is the viewBox's width. It is set here, after the SVG
-  // is drawn, because a style attribute on an SVG is what CSP stops (監査 R1):
-  // the sheet's `width: min(100%, var(--gw))` then holds, so the figure is drawn
-  // at its own size and the card has the empty room beside it to stand in.
-  function fitFigure(panel) {
-    const wrap = $('.gwrap', panel);
-    if (!wrap) return;
-    const svg = $('svg', wrap);
-    if (!svg) return;
-    const w = Number((svg.dataset.vb || '').split(' ')[2]);
-    if (w) svg.style.setProperty('--gw', w + 'px');
-  }
-  const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.5 : 7.4), 0);
-  const narrow = () => window.innerWidth <= 760;
-  function layout(t) {
-    const nodes = [{ id: 'human', kind: 'human', w: 72, h: 36 }, ...t.members.map((m) => ({ id: m.name, kind: 'member', role: m.role, w: Math.max(textW(m.name, true), textW(m.role)) + 30, h: 48 }))];
-    const n = nodes.length, R = n <= 3 ? 140 : 112 + n * 14, thin = narrow();
-    const rx = thin ? (n <= 3 ? 95 : 105) : R, ry = thin ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
-    nodes.forEach((nd, i) => { const th = (-90 + i * 360 / n) * Math.PI / 180; nd.th = th; nd.x = rx * Math.cos(th); nd.y = ry * Math.sin(th); });
-    const wn = [];
-    t.members.forEach((m) => {
-      const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === m.name);
-      const host = nodes.find((x) => x.id === m.name), k = ws.length;
-      ws.forEach(({ w, i }, j) => {
-        const label = w.purpose || '（目的）', ww = Math.max(textW(label), textW(w.profile, true) * 0.92) + 24;
-        let x, y;
-        if (thin) {
-          const dir = host.y <= 0 ? -1 : 1;
-          x = host.x + Math.sign(host.x || 1) * (18 + Math.abs(host.y) * 0.08); y = host.y + dir * (host.h / 2 + 34 + j * 46);
-        } else {
-          const k2 = Math.max(k, 1), spread = Math.min(0.42, 1.6 / k2), th = host.th + (j - (k2 - 1) / 2) * spread, r2 = 98 + (k2 > 3 ? (j % 2) * 34 : 0);
-          x = host.x + r2 * Math.cos(th) * 1.15; y = host.y + r2 * Math.sin(th);
-        }
-        wn.push({ id: 'w' + i, kind: 'worker', wi: i, from: m.name, w: ww, h: 38, x, y, label, prof: w.profile });
-      });
-    });
-    const all = [...nodes, ...wn];
-    const xs = all.flatMap((z) => [z.x - z.w / 2, z.x + z.w / 2]), ys = all.flatMap((z) => [z.y - z.h / 2, z.y + z.h / 2]);
-    const pad = 28;
-    const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad, minY = Math.min(...ys) - pad - 10, maxY = Math.max(...ys) + pad;
-    return { nodes, wn, all, byId: Object.fromEntries(all.map((z) => [z.id, z])), vb: [minX, minY, maxX - minX, maxY - minY] };
-  }
-  function edgePt(a, b) {
-    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
-    const t = Math.min((a.w / 2 + 3) / Math.abs(ux || 1e-9), (a.h / 2 + 3) / Math.abs(uy || 1e-9));
-    return { x: a.x + ux * t, y: a.y + uy * t };
-  }
-  function bdg(m, z) {
-    const label = m.sev === 'err' ? '問題' : '警告', w = 34;
-    return `<g class="bdg ${m.sev}" transform="translate(${(z.w / 2 - w / 2 - 2).toFixed(1)},${(-z.h / 2 - 6).toFixed(1)})"><rect x="${-w / 2}" y="-9" width="${w}" height="17" rx="3"></rect><text x="0" y="4" text-anchor="middle">${label}</text></g>`;
-  }
-
-  function graphSVG(r) {
-    const t = r.team.draft, s = r.team.saved, L = layout(t), sel = state.gsel[dkey(r)] || null, issues = teamIssues(r);
-    const byId = L.byId;
-    const pk = new Map();
-    const touch = (a, b, which) => { const k = pairKey(a, b); if (!pk.has(k)) { const [x, y] = k.split('|'); pk.set(k, { a: x, b: y, d: {}, s: {} }); } pk.get(k)[which][a + '>' + b] = true; };
-    t.turns.forEach(([a, b]) => touch(a, b, 'd'));
-    s.turns.forEach(([a, b]) => { if (byId[a] && byId[b]) touch(a, b, 's'); });
-    const selKey = sel && sel.type === 'edge' ? sel.k : null;
-    const focusNode = sel && sel.type === 'node' ? sel.id : null;
-    const edges = [...pk.values()].map((p) => {
-      const A = byId[p.a], Bn = byId[p.b];
-      if (!A || !Bn) return '';
-      const ab = p.a + '>' + p.b, ba = p.b + '>' + p.a;
-      const now = [p.d[ab], p.d[ba]], was = [p.s[ab], p.s[ba]];
-      const gone = !now[0] && !now[1];
-      const added = !gone && ((now[0] && !was[0]) || (now[1] && !was[1]));
-      const k = p.a + '|' + p.b, isSel = selKey === k;
-      const dim = focusNode && p.a !== focusNode && p.b !== focusNode;
-      const p1 = edgePt(A, Bn), p2 = edgePt(Bn, A);
-      const mk = isSel ? 'a' : added || gone ? 'c' : 'n';
-      const start = (gone ? was[1] : now[1]) ? `marker-start="url(#ar-${mk})"` : '', end = (gone ? was[0] : now[0]) ? `marker-end="url(#ar-${mk})"` : '';
-      const dd = `M${p1.x.toFixed(1)},${p1.y.toFixed(1)} L${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
-      return `<g><path class="hit" d="${dd}" data-act="edge" data-k="${k}" tabindex="0" role="button" aria-label="${nodeName(p.a)} と ${nodeName(p.b)} のターン"></path><path class="ge ${isSel ? 'sel' : ''} ${added ? 'add' : ''} ${gone ? 'gone' : ''} ${dim ? 'dim' : ''}" d="${dd}" ${start} ${end}></path></g>`;
-    }).join('');
-    const wedges = L.wn.map((w) => {
-      const host = byId[w.from], p1 = edgePt(host, w), p2 = edgePt(w, host);
-      const dim = focusNode && w.from !== focusNode;
-      return `<path class="ge wk ${dim ? 'dim' : ''}" d="M${p1.x.toFixed(1)},${p1.y.toFixed(1)} L${p2.x.toFixed(1)},${p2.y.toFixed(1)}"></path>`;
-    }).join('');
-    const nodes = L.nodes.map((z) => {
-      const is = issues.filter((m) => m.node === z.id), err = is.some((m) => m.sev === 'err');
-      const dim = focusNode && focusNode !== z.id && !hasTurn(t, focusNode, z.id) && !hasTurn(t, z.id, focusNode);
-      const label = z.kind === 'human' ? '<text class="nm" x="0" y="5" text-anchor="middle">人間</text>'
-        : `<text class="nm" x="0" y="-3" text-anchor="middle">${esc(z.id)}</text><text class="rl" x="0" y="14" text-anchor="middle">${esc(z.role)}</text>`;
-      return `<g class="gn ${z.kind} ${focusNode === z.id ? 'sel' : ''} ${err ? 'err' : ''} ${dim ? 'dim' : ''}" transform="translate(${z.x.toFixed(1)},${z.y.toFixed(1)})" data-act="node" data-id="${esc(z.id)}" tabindex="0" role="button" aria-label="${esc(nodeName(z.id))}">
-      <rect class="box" x="${-z.w / 2}" y="${-z.h / 2}" width="${z.w}" height="${z.h}" rx="${z.kind === 'human' ? 18 : 6}"></rect>${label}${is.length ? bdg(is[0], z) : ''}</g>`;
-    }).join('');
-    const wnodes = L.wn.map((z) => {
-      const is = issues.filter((m) => m.worker === z.wi), err = is.some((m) => m.sev === 'err');
-      const isSel = sel && sel.type === 'worker' && sel.i === z.wi, dim = focusNode && z.from !== focusNode;
-      const fresh = !s.workers.some((w) => same(w, t.workers[z.wi]));
-      return `<g class="gn worker ${isSel ? 'sel' : ''} ${err ? 'err' : ''} ${dim ? 'dim' : ''} ${fresh ? 'newer' : ''}" transform="translate(${z.x.toFixed(1)},${z.y.toFixed(1)})" data-act="worker" data-i="${z.wi}" tabindex="0" role="button" aria-label="${esc(z.from)} の ${esc(z.label)}">
-      <rect class="box" x="${-z.w / 2}" y="${-z.h / 2}" width="${z.w}" height="${z.h}" rx="5"></rect>
-      <text class="nm" x="0" y="-2" text-anchor="middle">${esc(z.label)}</text><text class="rl" x="0" y="13" text-anchor="middle">${esc(z.prof)}</text>${is.length ? bdg(is[0], z) : ''}</g>`;
-    }).join('');
-    const plus = focusNode ? L.nodes.filter((z) => z.id !== focusNode && !hasTurn(t, focusNode, z.id)).map((z) => {
-      const p = edgePt(z, byId[focusNode]);
-      return `<g class="plus" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})" data-act="turn-add" data-a="${esc(focusNode)}" data-b="${esc(z.id)}" tabindex="0" role="button" aria-label="${esc(nodeName(focusNode))} から ${esc(nodeName(z.id))} へ渡す"><circle r="11"></circle><text x="0" y="5" text-anchor="middle">+</text></g>`;
-    }).join('') : '';
-    const [x, y, w, h] = L.vb;
-    const mi = dkey(r).replace('.', '-');
-    const marker = (id, cls) => `<marker id="ar-${mi}-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class="mk-${cls}" d="M0,0 L10,5 L0,10 z"></path></marker>`;
-    const svg = `<svg viewBox="${x.toFixed(0)} ${y.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}" data-vb="${[x, y, w, h].map((v) => v.toFixed(0)).join(' ')}" role="group" aria-label="${esc(teamLabel(r))} のトポロジー">
-    <defs>${marker('n', 'n')}${marker('a', 'a')}${marker('c', 'c')}${marker('w', 'w')}</defs>
-    ${wedges}${edges}${nodes}${wnodes}${plus}</svg>`;
-    return svg.replace(/url\(#ar-(\w)\)/g, (m, c) => `url(#ar-${mi}-${c})`);
-  }
-
-  // ---- 押した点・線の札 ------------------------------------------------
-  // The card shows what one more op would move and what it would add; the
-  // sentences come from the server (check.TeamEffect, C4), so neither this file
-  // nor the card writes one (spec-teams X1).
-  let effectSeq = 0;
-  async function askEffect(r, op, pk, after) {
-    const id = ++effectSeq;
-    const res = await API.check('team', teamIn(r, { doc: { ops: r.ops, op } }));
-    if (id !== effectSeq || !res.ok) return;
-    const effect = API.answer(res).effect || {};
-    state.effect[pk] = { lines: effect.lines || [], problems: figFindings(r, effect.problems || []) };
-    if (after) after();
-  }
-  // The effect's lines are the prompt's own (spec-teams 1.4.4, X3): the screen
-  // groups them under the member and part they stand for and writes no sentence
-  // of its own. What the change takes away is struck through, once; what comes
-  // in is marked. The sentences the change would add are the server's problems.
-  const effectOf = (pk, member, part) => {
-    const e = state.effect[pk];
-    if (!e) return null;
-    const hit = (e.lines || []).filter((l) => l.member === member && (!part || l.part === part));
-    return {
-      removed: hit.flatMap((l) => l.removed || []),
-      added: hit.flatMap((l) => l.added || []),
-      problems: e.problems || [],
-    };
-  };
-  const effLinesHTML = (ef) => (!ef ? ''
-    : (ef.removed || []).map((x) => `<s>${esc(x)}</s>`).join('') + (ef.added || []).map((x) => `<ins>${esc(x)}</ins>`).join(''));
-  const effProblemsHTML = (ef) => (ef && ef.problems.length
-    ? `<ul class="vm">${ef.problems.map((m) => vmItem({ sev: m.sev, msg: m.text })).join('')}</ul>` : '');
-  // vmList is the check's own sentences of a card: the finding's text, not the
-  // finding (its field and where it stands are the panel's, not the sentence's).
-  const vmList = (ms) => (ms.length ? `<ul class="vm">${ms.map((m) => vmItem({ sev: m.sev, msg: m.text })).join('')}</ul>` : '');
-
-  function dirHTML(r, a, b) {
-    const d = r, t = r.team.draft, s = r.team.saved, here = hasTurn(t, a, b), was = hasTurn(s, a, b);
-    const pl = a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span>${was ? `<span class="ln2">- ${esc(turnLabel(d, t, b))}</span>` : `<ins>- ${esc(turnLabel(d, t, b))}</ins>`}</div>`;
-    if (!here) return `<div class="gdir"><div class="gdl"><code>${esc(nodeName(a))} → ${esc(nodeName(b))}</code><span class="tag">消した</span><span class="acts"><button class="btn sm" data-act="turn-add" data-a="${esc(a)}" data-b="${esc(b)}">戻す</button></span></div></div>`;
-    const pk = `t:${dkey(d)}:${a}>${b}`, asking = state.confirm[pk];
-    return `<div class="gdir">
-    <div class="gdl"><code>${esc(nodeName(a))} → ${esc(nodeName(b))}</code>${!was ? '<span class="tag">足した</span>' : ''}
-      <span class="acts">${asking ? `<button class="btn danger solid sm" data-act="turn-del" data-a="${esc(a)}" data-b="${esc(b)}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-a="${esc(a)}" data-b="${esc(b)}" data-pk="${esc(pk)}">消す</button>`}</span></div>
-    ${asking ? (a === 'human' ? '' : `<div class="gpl"><span class="pk">${esc(herdr(d, a))} · ターンを渡す相手</span>${effLinesHTML(effectOf(pk, herdr(d, a), 'turns'))}</div>`) + effProblemsHTML(effectOf(pk, herdr(d, a), 'turns')) : pl}
-  </div>`;
-  }
-
-  function cardHTML(r) {
-    const sel = state.gsel[dkey(r)];
-    if (!sel) return '';
-    const t = r.team.draft, s = r.team.saved;
-    if (sel.type === 'edge') {
-      const [a, b] = sel.k.split('|');
-      const dirs = [[a, b], [b, a]].filter(([p, q]) => hasTurn(t, p, q) || hasTurn(s, p, q));
-      return `<div class="gcard" data-sel="edge" data-k="${esc(sel.k)}">
-      <div class="gch"><code>${esc(nodeName(a))}</code><span class="ar">${dirs.length > 1 ? '⇄' : '→'}</span><code>${esc(nodeName(b))}</code><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
-      ${dirs.map(([p, q]) => dirHTML(r, p, q)).join('')}</div>`;
-    }
-    if (sel.type === 'worker') {
-      const w = t.workers[sel.i];
-      if (!w) return '';
-      const is = teamIssues(r).filter((m) => m.worker === sel.i), pk = `w:${dkey(r)}:${sel.i}`, asking = state.confirm[pk];
-      const profs = (PROFILES.includes(w.profile) ? [] : [w.profile]).concat(PROFILES);
-      return `<div class="gcard" data-sel="worker" data-i="${sel.i}">
-      <div class="gch"><code>${esc(w.from)}</code><span class="ar">→</span><span class="rl">ワーカー</span><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
-      <div class="wrow"><input class="in-purpose" data-i="${sel.i}" value="${esc(w.purpose)}" placeholder="目的" autocomplete="off" aria-label="目的">
-        <span class="sel"><select class="pickp" data-act-change="worker-prof" data-i="${sel.i}" aria-label="プロファイル">${profs.map((p) => `<option ${p === w.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span></div>
-      ${vmList(is)}
-      <div class="gdir"><div class="gpl"><span class="pk">${esc(herdr(r, w.from))} · ワーカーの追加</span>${asking ? effLinesHTML(effectOf(pk, herdr(r, w.from), 'workers')) : `<span class="ln2">${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span>`}</div>
-        ${asking ? effProblemsHTML(effectOf(pk, herdr(r, w.from), 'workers')) : ''}
-        <div class="gdl"><span class="acts">${asking ? `<button class="btn danger solid sm" data-act="worker-del" data-i="${sel.i}">消す</button><button class="btn sm" data-act="turn-ask-no" data-pk="${esc(pk)}">やめる</button>` : `<button class="btn danger sm" data-act="turn-ask" data-pk="${esc(pk)}">消す</button>`}</span></div></div>
-    </div>`;
-    }
-    const id = sel.id, m = memberOf(t, id), outs = t.turns.filter(([p]) => p === id).map(([, q]) => q);
-    const gone = s.turns.filter(([p, q]) => p === id && !hasTurn(t, p, q)).map(([, q]) => q);
-    const cand = ['human', ...t.members.map((x) => x.name)].filter((x) => x !== id && !outs.includes(x));
-    const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
-    const is = teamIssues(r).filter((x) => x.node === id);
-    return `<div class="gcard" data-sel="node" data-id="${esc(id)}">
-      <div class="gch"><code>${esc(nodeName(id))}</code><button class="x" data-act="gclose" aria-label="閉じる">×</button></div>
-      ${m ? `<div class="links"><span class="uchip">ロール ${esc(m.role)}</span><span class="uchip">プロファイル ${esc(m.profile)}</span></div>` : ''}
-      ${vmList(is)}
-      <div class="tl"><span class="gsub">${id === 'human' ? '人間が渡す相手' : `${esc(herdr(r, id))} · ターンを渡す相手`}</span>
-        ${outs.map((q) => `<div class="row ${hasTurn(s, id, q) ? '' : 'new'}"><span>- ${esc(id === 'human' ? nodeName(q) : turnLabel(r, t, q))}</span><button class="x" data-act="pick-edge" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="${esc(nodeName(q))} へのターン">›</button></div>`).join('')}
-        ${gone.map((q) => `<div class="row"><span><s>- ${esc(nodeName(q))}</s></span><span class="tag">消した</span><button class="x" data-act="turn-add" data-a="${esc(id)}" data-b="${esc(q)}" aria-label="戻す">↺</button></div>`).join('')}
-        ${cand.length ? `<span class="sel"><select class="pickp" data-act-change="turn-add-sel" data-a="${esc(id)}" aria-label="渡す相手を足す"><option value="">＋ 渡す相手</option>${cand.map((c) => `<option value="${esc(c)}">${esc(nodeName(c))}</option>`).join('')}</select></span>` : ''}
-      </div>
-      ${m ? `<div class="tl"><span class="gsub">${esc(herdr(r, id))} · ワーカーの追加</span>
-        ${ws.map(({ w, i }) => `<div class="row"><span>${esc(w.purpose || '（目的）')} → ${esc(w.profile)}</span><button class="x" data-act="worker" data-i="${i}" aria-label="${esc(w.purpose)}">›</button></div>`).join('')}
-        <button class="add sm wadd" data-act="worker-add" data-from="${esc(id)}">＋ ワーカー</button></div>` : ''}
-    </div>`;
-  }
-
-  // 札を、押した点・線の横に置く。点を隠さない場所を、右・左・下・上・図の外の右から選ぶ。
-  // 版 7: 右に YAML が並ぶと図の横が狭くなるので、どれも点を隠すなら図のすぐ下に置く（B8）
-  function placeCard(panel) {
-    fitFigure(panel);
-    const card = $('.gcard', panel), wrap = $('.gwrap', panel), svg = wrap ? $('svg', wrap) : null;
-    if (!card || !svg) return;
-    card.classList.remove('below');
-    if (getComputedStyle(card).position !== 'absolute') return;
-    const [vx, vy, vw, vh] = svg.dataset.vb.split(' ').map(Number), sc = svg.clientWidth / vw;
-    const d = byKey(panel.dataset.key), L = layout(d.team.draft);
-    const sel = state.gsel[dkey(d)];
-    if (!sel) return;
-    let ax, ay, aw = 6, ah = 6;
-    if (sel.type === 'edge') { const [a, b] = sel.k.split('|'); if (!L.byId[a] || !L.byId[b]) return; ax = (L.byId[a].x + L.byId[b].x) / 2; ay = (L.byId[a].y + L.byId[b].y) / 2; }
-    else { const z = sel.type === 'node' ? L.byId[sel.id] : L.byId['w' + sel.i]; if (!z) return; ax = z.x; ay = z.y; aw = z.w / 2; ah = z.h / 2; }
-    const svg0 = svg.getBoundingClientRect(), wrap0 = wrap.getBoundingClientRect();
-    const ox = svg0.left - wrap0.left, oy = svg0.top - wrap0.top;
-    const toPx = (x, y) => [ox + (x - vx) * sc, oy + (y - vy) * sc];
-    const [px, py] = toPx(ax, ay), W = wrap.clientWidth, H = Math.max(wrap.clientHeight, 200), cw = card.offsetWidth, ch = card.offsetHeight, g = 16;
-    const boxes = L.all.map((z) => { const [x, y] = toPx(z.x, z.y); return [x - z.w / 2 * sc, y - z.h / 2 * sc, x + z.w / 2 * sc, y + z.h / 2 * sc]; });
-    const clampX = (x) => Math.max(8, Math.min(x, W - cw - 8)), clampY = (y) => Math.max(8, Math.min(y, Math.max(8, H - ch - 8)));
-    const cands = [
-      [px + aw * sc + g, py - 30], [px - aw * sc - g - cw, py - 30],
-      [px - cw / 2, py + ah * sc + g], [px - cw / 2, py - ah * sc - g - ch],
-      [ox + svg.clientWidth + 12, py - 30], [ox - cw - 12, py - 30],
-    ].map(([x, y]) => [clampX(x), clampY(y)]);
-    const cover = ([x, y]) => boxes.reduce((s2, [l, t, rr, bb]) => s2 + Math.max(0, Math.min(rr, x + cw) - Math.max(l, x)) * Math.max(0, Math.min(bb, y + ch) - Math.max(t, y)), 0)
-      + (px > x - 4 && px < x + cw + 4 && py > y - 4 && py < y + ch + 4 ? 1e6 : 0);
-    const best = cands.map((c) => [c, cover(c) + Math.hypot(c[0] + cw / 2 - px, c[1] + ch / 2 - py) * 2]).sort((a, b) => a[1] - b[1])[0][0];
-    // 版 7: どの置き場所も点を隠すなら、札は図のすぐ下に置く（B8）
-    if (cover(best) > 0) { card.classList.add('below'); return; }
-    card.style.left = best[0] + 'px'; card.style.top = best[1] + 'px';
   }
 
   // ownAgreement is whether a rule finding is about the team's own agreement:
@@ -629,30 +403,23 @@
       + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="${roleHref(m)}">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
   }
 
-  // teamPanelHTML is the トポロジー tab: the figure, the check column, and, beside
-  // them, the team.yaml the row would write, line by line (spec-teams B7). The
-  // 編集 / YAML seg picks which of the two the narrow places show.
+  // teamPanelHTML is the トポロジー tab: the canvas and its attribute column
+  // (topocanvas.js), the check column under the canvas, and the save's band
+  // (spec-teams B7). The column's 属性 / YAML tabs pick what stands on the right.
   function teamPanelHTML(r) {
-    const k = dkey(r), mode = state.pmode['t' + k] || 'edit';
+    const k = dkey(r);
     const head = `<header class="ph"><code class="path">${esc(r.teamPath)}</code>
-      <span class="phr">${(r.places || []).length > 1 ? `<span class="state ${r.place === 'global' ? 'off' : 'on'}">${r.place === 'global' ? '隠れている' : '効いている'}</span>` : ''}
-        <span class="seg pview">${[['edit', '編集'], ['yaml', 'YAML']].map(([v, label]) => `<button class="${mode === v ? 'on' : ''}" data-act="tmode" data-v="${v}" aria-pressed="${mode === v}">${label}</button>`).join('')}</span></span></header>`;
+      <span class="phr">${(r.places || []).length > 1 ? `<span class="state ${r.place === 'global' ? 'off' : 'on'}">${r.place === 'global' ? '隠れている' : '効いている'}</span>` : ''}</span></header>`;
     // A team.yaml that does not read draws no figure and offers no shape save:
     // the check column alone says what stopped it, and the YAML tab is where the
     // text is put right (spec-teams 1.9).
-    if (r.broken) return `<section class="panel team-p" data-key="${k}" data-mode="${mode}">
+    if (r.broken) return `<section class="panel team-p" data-key="${k}">
     ${head}
     <div class="gbody"><div class="vlist">${vlistHTML(r)}</div></div>
   </section>`;
-    return `<section class="panel team-p" data-key="${k}" data-mode="${mode}">
+    return `<section class="panel team-p" data-key="${k}">
     ${head}
-    <div class="pmain">
-      <div class="pedit"><div class="gbody">
-        <div class="gwrap"><div class="gscroll">${graphSVG(r)}</div>${cardHTML(r)}</div>
-        <div class="vlist">${vlistHTML(r)}</div>
-      </div></div>
-      ${tprevHTML(r)}
-    </div>
+    ${CANVAS.panel(r)}
     ${footHTML(r)}
   </section>`;
   }
@@ -724,7 +491,7 @@
     if (prev && prev.length && prev.join('\n') !== lines.join('\n')) { state.tstep[key] = [...stepOf(prev, lines)]; state.tglow[key] = Date.now(); }
     state.tlast[key] = lines;
     const step = new Set(state.tstep[key] || []);
-    const marks = lineMarks(r), cur = state.gsel[key], n = at.length;
+    const marks = lineMarks(r), cur = CANVAS.sel(r), n = at.length;
     const body = at.map((z, i) => {
       const p = atParts(z.at);
       const go = !!p.node || p.worker != null || !!p.a || p.f === 'mission';
@@ -775,7 +542,7 @@
     let want = -1;
     [...step, ...(df.added || []), ...(df.removedBefore || []), ...(df.removedAtEnd ? [at.length - 1] : [])]
       .forEach((i) => { if (i > want && i < at.length) want = i; });
-    if (want < 0) { const cur = state.gsel[key]; if (cur) { for (let i = 0; i < at.length; i++) if (isCurLine(at[i], cur)) { want = i; break; } } }
+    if (want < 0) { const cur = CANVAS.sel(r); if (cur) { for (let i = 0; i < at.length; i++) if (isCurLine(at[i], cur)) { want = i; break; } } }
     if (want >= 0 && box.children[want]) {
       const br = box.getBoundingClientRect(), lr = box.children[want].getBoundingClientRect();
       if (lr.top < br.top) box.scrollTop -= br.top - lr.top;
@@ -802,12 +569,18 @@
   function footHTML(r, o) {
     const n = changeCount(r), k = dkey(r);
     const okKey = (o && o.ok) || 't' + k, saveAct = (o && o.act) || 't-save';
-    const ok = state.ok[okKey] ? (delete state.ok[okKey], '<span class="ok">保存しました</span>') : '';
+    // 保存しました stays until the next change writes over it, so a check that
+    // answers just after the save does not take the notice away.
+    const ok = state.ok[okKey] ? '<span class="ok">保存しました</span>' : '';
     // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
     // stops only when an error the file did not hold has appeared.
     const issues = teamIssues(r);
     const before = new Set((r.baseFindings || []).filter((m) => m.sev === 'err').map((m) => m.text));
-    const grew = issues.some((m) => m.sev === 'err' && !before.has(m.text));
+    // A member with no turn and a definition no turn reaches the human from
+    // still save (r-df77, d-9abb): they stay as the definition's problem and
+    // stop up, but a save is where work in progress is kept. Those findings
+    // stand on a node (field 'node'); every other new error stops the save.
+    const grew = issues.some((m) => m.sev === 'err' && m.field !== 'node' && !before.has(m.text));
     if (r.draftRow) {
       // A row that is not there yet is saved only when its name is one the
       // server will take: the name's problems are the answer's own, and while
@@ -971,6 +744,7 @@
     const q = (s) => row.querySelector(s);
     const vc = q('.c-name .vcount'); if (vc) vc.innerHTML = rowCounts(r);
     const ni = q('.in-name'); if (ni) ni.classList.toggle('bad', (r.nameIssues || []).length > 0);
+    const mi = q('.in-mission'); if (mi && document.activeElement !== mi) mi.value = t.mission;
     const ms = q('.c-members'); if (ms && !r.broken) ms.textContent = t.members.length;
     const tu = q('.c-turns'); if (tu && !r.broken) tu.textContent = t.workers.length;
     const ag = q('.c-agree'); if (ag) { const rs = rulesOf(r.agree.draft); ag.innerHTML = `${rs.length}${outNote(outCount(rs))}`; }
@@ -1076,7 +850,6 @@
     applySizes(view);
     setStick();
     if (state.tab === 'list') {
-      $$('.panel.team-p', view).forEach(placeCard);
       fitYboxes();
       $$('.panel.team-p', view).forEach((p) => { const r = byKey(p.dataset.key); if (r) afterTPrev(r); });
       $$('.panel.agree-p', view).forEach(markPanel);
@@ -1090,54 +863,34 @@
   function rerenderTeam(r, sel) {
     const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
     if (!panel) { refreshRow(r.dom); return; }
-    const box = $('.gscroll', panel);
-    const scroll = box ? box.scrollLeft : 0;
     panel.outerHTML = teamPanelHTML(r);
     const fresh = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
     if (fresh) {
-      const gc = $('.gscroll', fresh);
-      if (gc) gc.scrollLeft = scroll;
-      placeCard(fresh);
       fitYbox(fresh);
       afterTPrev(r);
       if (sel) { const el = fresh.querySelector(sel); if (el) el.focus({ preventScroll: true }); }
     }
     refreshRow(r.dom);
   }
-  // softTeam draws again what a worker's purpose moves while a person types it
-  // (spec-teams 1.4.4, 監査 R7): the point's letters, that card's own checks and
-  // the foot's count. The field the person is typing in is not touched, so the
-  // cursor stays where it was.
+  // softTeam draws again what a person's typing moves without taking the field
+  // they type in away (spec-teams 1.4.4, 監査 R7): the canvas, the validate
+  // column, the YAML preview and the foot. The attribute column is left as it
+  // is, so the cursor stays in its field.
   function softTeam(r) {
     const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
     if (!panel) { refreshRow(r.dom); return; }
-    const sc = $('.gscroll', panel);
-    if (sc) {
-      const left = sc.scrollLeft;
-      sc.outerHTML = `<div class="gscroll">${graphSVG(r)}</div>`;
-      const ns = $('.gscroll', panel);
-      if (ns) ns.scrollLeft = left;
-    }
-    const card = $('.gcard[data-sel=worker]', panel);
-    if (card) {
-      const i = +card.dataset.i, is = teamIssues(r).filter((m) => m.worker === i), w = r.team.draft.workers[i];
-      const ul = $('.vm', card);
-      if (is.length) {
-        const html = vmList(is);
-        if (ul) ul.outerHTML = html;
-        else { const gdir = $('.gdir', card); if (gdir) gdir.insertAdjacentHTML('beforebegin', html); }
-      } else if (ul) ul.remove();
-      const ln = $('.gpl .ln2', card);
-      if (w && ln) ln.textContent = `${w.purpose || '（目的）'} → ${w.profile}`;
-    }
+    const cv = $('.cv-canvas', panel);
+    if (cv) cv.innerHTML = CANVAS.canvas(r);
     const vl = $('.vlist', panel);
-    if (vl) vl.outerHTML = `<div class="vlist">${vlistHTML(r)}</div>`;
-    // The preview follows the text a person is typing (spec-teams B7, Y5).
+    if (vl) vl.innerHTML = vlistHTML(r);
     const pv = $('.tprev', panel);
     if (pv) pv.outerHTML = tprevHTML(r);
     const ft = $('footer.pf', panel);
     if (ft) ft.outerHTML = footHTML(r);
-    placeCard(panel);
+    // The mission stands in two places (the row and the canvas's 属性); the
+    // field the person is not typing in follows the one they are.
+    const cm = $('.cv-side [data-cv-f="mission"]', panel);
+    if (cm && document.activeElement !== cm) cm.value = r.team.draft.mission;
     fitYbox(panel);
     afterTPrev(r);
     refreshRow(r.dom);
@@ -1162,7 +915,6 @@
     const ag = $(`.panel.agree-p`, row);
     if (ag) ag.outerHTML = agreePanelHTML(r);
     $$('.dtabs', row).forEach((n) => { n.innerHTML = dtabsNav(r); });
-    if (state.open.has(r.dom)) $$('.panel.team-p', row).forEach(placeCard);
     $$('.panel.team-p', row).forEach(fitYbox);
     afterTPrev(r);
     $$('.panel.agree-p', row).forEach(markPanel);
@@ -1228,6 +980,14 @@
     if (based) r.baseFindings = findings;
     if (id !== r.req) return;
     r.findings = findings;
+    // Each member's prompt, cut into the pieces it was built from (r-4cf9),
+    // follows the ops the check was sent with: the 属性 column shows it without
+    // building a line of its own.
+    // The check answers members only when hergy itself can build the prompts: a
+    // definition with a problem is not given any, and the column says why
+    // (d-20ac). The old lines are not kept.
+    r.prompts = Array.isArray(json.members) ? json.members : [];
+    r.promptsReady = !!(json.members && json.members.length);
     // Both a saved definition and one that is not there yet get the topology
     // tab's own preview from the check (spec-teams B7).
     r.preview = json.preview || r.preview;
@@ -1250,7 +1010,7 @@
     // again, the panel is not (spec-teams 1.4.4, B7, 監査 R7).
     const act = document.activeElement;
     const row = $(`.tdef[data-name="${CSS.escape(r.dom)}"]`);
-    const typed = act && act.matches && (act.matches('.in-purpose') || act.matches('.in-mission')) && act.closest('.tdef') === row;
+    const typed = act && act.matches && (act.matches('.in-mission') || !!act.closest('.cv-side')) && act.closest('.tdef') === row;
     if (typed) softTeam(r);
     else rerenderSides(r);
   }
@@ -1281,7 +1041,8 @@
     r.baseFindings = r.findings;
     setProblems(json.items);
     state.ok['t' + dkey(r)] = 1;
-    delete state.gsel[dkey(r)];
+    CANVAS.reset(dkey(r));
+    cundo.delete(dkey(r));
     rerenderRow(r);
     tellDirty();
   }
@@ -1327,7 +1088,7 @@
     // Every reading of this name is taken again from the answer: a copy's save
     // joins the two places into one row (spec-teams B4).
     [...recs.values()].filter((x) => x.dom === dom || x.name === name).forEach((x) => {
-      recs.delete(x.key); delete state.confirm['del' + x.key]; delete state.gsel[x.key];
+      recs.delete(x.key); delete state.confirm['del' + x.key]; CANVAS.reset(x.key);
     });
     setProblems(json.items);
     const item = (json.items || []).find((it) => it.name === name);
@@ -1360,7 +1121,7 @@
     // the definition where a person was looking at it (spec-teams B6, N7).
     const at = firstIndexOf((x) => x.name === name);
     [...recs.values()].filter((x) => x.name === name).forEach((x) => {
-      recs.delete(x.key); delete state.confirm['del' + x.key]; delete state.gsel[x.key];
+      recs.delete(x.key); delete state.confirm['del' + x.key]; CANVAS.reset(x.key);
     });
     setProblems(json.items);
     const item = (json.items || []).find((it) => it.name === name);
@@ -1461,9 +1222,147 @@
     });
   }
 
+  // ---- the canvas's own operations (topocanvas.js) ---------------------
+  // A change the canvas asks for is one operation, however many ops it takes:
+  // the line × removes both directions, and a member removed takes its turns
+  // and workers with it. The undo the person gets is the operation before it
+  // (d-9abb, the mock of 2026-10-23). A field's typing is one operation from the
+  // first key to the moment the field is left.
+  const cundo = new Map();
+  let actSeq = 0;
+  let ctyping = { key: null, field: null };
+  let toastRow = null, toastTimer = null;
+  const cloneOps = (ops) => JSON.parse(JSON.stringify(ops || []));
+  function canvasUndoPoint(r, label) {
+    const k = dkey(r), st = cundo.get(k) || [];
+    st.push({ ops: cloneOps(r.ops), label });
+    while (st.length > 80) st.shift();
+    cundo.set(k, st);
+  }
+  function canvasToast(r, msg, withUndo) {
+    let el = $('.cv-toast');
+    if (!el) { el = document.createElement('div'); el.className = 'cv-toast'; document.body.appendChild(el); }
+    toastRow = r;
+    el.innerHTML = `<span>${esc(msg)}</span>${withUndo ? '<button type="button" data-act="cv-undo">取り消す</button>' : ''}`;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; toastRow = null; }, 4000);
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-act="cv-undo"]');
+    if (b && toastRow) canvasUndo(toastRow);
+  });
+  function canvasAct(r, ops, o) {
+    o = o || {};
+    r.lastAct = ++actSeq;
+    r.promptsReady = undefined;
+    delete state.ok['t' + dkey(r)]; delete state.ok['a' + dkey(r)];
+    canvasUndoPoint(r, o.undo || '');
+    (ops || []).forEach((op) => pushOp(r, op));
+    ctyping = { key: null, field: null };
+    r.team.draft = applyOps(r.team.saved, r.ops);
+    rerenderSides(r);
+    checkTeam(r);
+    if (o.message) canvasToast(r, o.message, true);
+    if (o.focus) setTimeout(() => {
+      const p = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+      const el = p && $(o.focus, p);
+      if (el) { el.focus(); el.select && el.select(); }
+    }, 0);
+  }
+  function canvasTyping(r, op, field) {
+    const k = dkey(r);
+    r.lastAct = ++actSeq;
+    r.promptsReady = undefined;
+    delete state.ok['t' + k]; delete state.ok['a' + k];
+    if (ctyping.key !== k || ctyping.field !== field) {
+      const label = { mission: '使命を戻した', 'm-name': '名前を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
+      canvasUndoPoint(r, label);
+      ctyping = { key: k, field };
+    }
+    pushOp(r, op);
+    r.team.draft = applyOps(r.team.saved, r.ops);
+    softTeam(r);
+    debounce('ct' + k, () => checkTeam(r));
+  }
+  function canvasEndTyping(r) {
+    if (!r) return;
+    if (ctyping.key === dkey(r)) { ctyping = { key: null, field: null }; checkTeam(r); }
+  }
+  function canvasUndo(r) {
+    const k = dkey(r), st = cundo.get(k);
+    r.promptsReady = undefined;
+    delete state.ok['t' + k]; delete state.ok['a' + k];
+    if (!st || !st.length) return;
+    const point = st.pop();
+    r.ops = cloneOps(point.ops);
+    r.team.draft = applyOps(r.team.saved, r.ops);
+    ctyping = { key: null, field: null };
+    rerenderSides(r);
+    checkTeam(r);
+    canvasToast(r, point.label || '元に戻した', false);
+  }
+  // The worker's prompt is the one hire --dry builds (r-4cf9). Its name and task
+  // are chosen at hire, so the screen asks with values that cannot be mistaken
+  // for the purpose or another line, and shows <ワーカー名> / <依頼> in their
+  // place. The values are the walk's own too, so it can put them back.
+  const WRK_NAME = 'zz-worker-name-0', WRK_TASK = 'zzTaskPlaceholder0';
+  function workerPrompt(r, i) {
+    const w = r.team.draft.workers[i];
+    if (!w || !w.purpose || !w.from) return null;
+    const k = w.from + '\u0000' + w.purpose;
+    r.wprompts = r.wprompts || {};
+    if (r.wprompts[k]) return r.wprompts[k];
+    r.wpromptReq = r.wpromptReq || {};
+    if (r.wpromptReq[k]) return null;
+    r.wpromptReq[k] = true;
+    API.check('team', { place: r.place, name: r.name, part: 'worker', doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+      delete r.wpromptReq[k];
+      const ans = res.ok ? API.answer(res) : null;
+      r.wprompts[k] = res.ok
+        ? { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK }
+        : { segments: [], name: WRK_NAME, task: WRK_TASK, err: API.problemText(res, 'プロンプトを読めませんでした') };
+      const panel = $(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+      if (panel) rerenderTeam(r);
+    }).catch(() => { delete r.wpromptReq[k]; });
+    return null;
+  }
+  const CH = {
+    key: dkey,
+    row: (rowEl) => byKey(rowEl.dataset.key),
+    draft: (r) => r.team.draft,
+    saved: (r) => r.team.saved,
+    findings: (r) => teamIssues(r),
+    name: (r) => r.name,
+    path: (r) => r.teamPath,
+    roles: () => ROLES,
+    profiles: () => PROFILES,
+    prompts: (r) => r.prompts || [],
+    promptBlocked: (r) => r.promptsReady === false,
+    workerPrompt,
+    toAgree: (r) => {
+      const row = $(`.tdef[data-name="${CSS.escape(r.dom)}"]`);
+      const tab = row && $('.dtab[data-t=agree]', row);
+      if (tab) tab.click();
+    },
+    validate: (r) => vlistHTML(r),
+    yaml: (r) => tprevHTML(r),
+    redraw: (r, sel) => rerenderTeam(r, sel),
+    act: canvasAct,
+    typing: canvasTyping,
+    endTyping: canvasEndTyping,
+    undo: canvasUndo,
+    // The row the newest operation stands on: ⌘Z acts on it even when nothing
+    // is picked (監査 1-1).
+    undoRow: () => [...recs.values()].filter((x) => state.open.has(x.dom) && (cundo.get(dkey(x)) || []).length)
+      .sort((a, b) => (b.lastAct || 0) - (a.lastAct || 0))[0] || null,
+    say: (r, msg) => canvasToast(r, msg, false),
+  };
+  CANVAS.mount(view, CH);
+
   const state = {
     tab: view.dataset.tab === 'yaml' ? 'yaml' : 'list',
-    open: new Set(), dtab: {}, gsel: {}, confirm: {}, effect: {},
+    open: new Set(), dtab: {}, confirm: {},
     ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
     // The topology tab's preview bookkeeping: the lines drawn last, the lines one
     // edit just moved, and when they lit up (spec-teams B7).
@@ -1489,6 +1388,7 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act, row = b.closest('.tdef'), n = row && row.dataset.name;
+    if (act === 'cv-undo') { if (toastRow) canvasUndo(toastRow); return; }
     const tp = b.closest('.panel.team-p'), td = tp && byKey(tp.dataset.key), tk = td && dkey(td);
     const c = ctx(b);
     const re = (sel) => rerenderAgree(c.panel, sel);
@@ -1512,7 +1412,7 @@
         r.key = dkey(r);
         recs.set(r.key, r);
         orderRows(r, at);
-        delete state.gsel[r.key];
+        CANVAS.reset(r.key);
         // The base is read again: the other place's role documents and profile
         // are not the ones the row stood on (spec-teams B2).
         r.seeded = false;
@@ -1528,59 +1428,27 @@
       case 'del': { const r = byName(n); if (r) { state.confirm['del' + dkey(r)] = 1; rerenderSides(r); } break; }
       case 'del-no': { const r = byName(n); if (r) { delete state.confirm['del' + dkey(r)]; rerenderSides(r); } break; }
       case 'del-yes': { const r = byName(n); if (r) await doDelete(r, row); break; }
-      case 'tmode': if (td) { state.pmode['t' + tk] = b.dataset.v; rerenderTeam(td, `[data-act=tmode][data-v="${b.dataset.v}"]`); } break;
       // A press on a line of the preview picks what the line stands for, the way
-      // a press on the figure's own point does (spec-teams B7). A mission line
-      // puts the cursor in the mission field. Where the places are one column, the
-      // tab comes back to 編集 first, because what it picks is drawn there.
+      // a press on the canvas's own point does (spec-teams B7). A mission line
+      // puts the cursor in the mission field of the attribute column.
       case 'tyline': if (td) {
-        // One column (≤1100) shows the figure again when a line is pressed, the
-        // way the rule document's Markdown does, so the picked point's card
-        // stands beside the line a person pressed (spec-teams B7, Y7).
-        state.pmode['t' + tk] = 'edit';
         if (b.dataset.f === 'mission') {
+          CANVAS.select(td, null, 'attr');
           rerenderTeam(td);
-          const el = $(`.tdef[data-name="${CSS.escape(td.dom)}"] .in-mission`);
+          const el = $(`.panel.team-p[data-key="${CSS.escape(tk)}"] [data-cv-f="mission"]`);
           if (el) { el.focus({ preventScroll: true }); el.select && el.select(); }
           break;
         }
-        if (b.dataset.node) state.gsel[tk] = { type: 'node', id: b.dataset.node };
-        else if (b.dataset.worker != null) state.gsel[tk] = { type: 'worker', i: +b.dataset.worker };
-        else if (b.dataset.a) state.gsel[tk] = { type: 'edge', k: pairKey(b.dataset.a, b.dataset.b) };
-        else delete state.gsel[tk];
+        if (b.dataset.node) CANVAS.select(td, { type: 'node', id: b.dataset.node }, 'attr');
+        else if (b.dataset.worker != null) CANVAS.select(td, { type: 'worker', i: +b.dataset.worker }, 'attr');
+        else if (b.dataset.a) CANVAS.select(td, { type: 'edge', k: pairKey(b.dataset.a, b.dataset.b) }, 'attr');
+        else CANVAS.select(td, null, 'attr');
         rerenderTeam(td);
       } break;
-      case 'node': { const id = b.dataset.id, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'node' && cur.id === id ? null : { type: 'node', id }; rerenderTeam(td, `.gn[data-id="${CSS.escape(id)}"]`); break; }
-      case 'edge': { const k = b.dataset.k, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'edge' && cur.k === k ? null : { type: 'edge', k }; rerenderTeam(td, `.hit[data-k="${CSS.escape(k)}"]`); break; }
-      case 'pick-edge': state.gsel[tk] = { type: 'edge', k: pairKey(b.dataset.a, b.dataset.b) }; rerenderTeam(td); break;
-      case 'worker': { const i = +b.dataset.i, cur = state.gsel[tk]; state.gsel[tk] = cur && cur.type === 'worker' && cur.i === i && b.closest('svg') ? null : { type: 'worker', i }; rerenderTeam(td); break; }
-      case 'gclose': delete state.gsel[tk]; rerenderTeam(td); break;
-      case 'turn-add': { const a = b.dataset.a, bb = b.dataset.b; pushOp(td, { kind: 'addTurn', from: a, to: bb }); state.gsel[tk] = { type: 'edge', k: pairKey(a, bb) }; syncTeam(td); break; }
-      case 'turn-ask': {
-        const pk = b.dataset.pk; state.confirm[pk] = 1; rerenderTeam(td, '.gcard .btn.danger.solid');
-        const card = b.closest('.gcard');
-        let op = null;
-        if (b.dataset.a) op = { kind: 'removeTurn', from: b.dataset.a, to: b.dataset.b };
-        else if (card && card.dataset.sel === 'worker') { const w = td.team.draft.workers[+card.dataset.i]; if (w) op = { kind: 'removeWorker', from: w.from, purpose: w.purpose }; }
-        if (op) askEffect(td, op, pk, () => rerenderTeam(td));
-        break;
-      }
-      case 'turn-ask-no': delete state.confirm[b.dataset.pk]; rerenderTeam(td); break;
-      case 'turn-del': { const a = b.dataset.a, bb = b.dataset.b; delete state.confirm[`t:${tk}:${a}>${bb}`]; pushOp(td, { kind: 'removeTurn', from: a, to: bb }); syncTeam(td); break; }
-      case 'worker-add': {
-        pushOp(td, { kind: 'addWorker', from: b.dataset.from, purpose: '', profile: PROFILES[0] || '' });
-        state.gsel[tk] = { type: 'worker', i: td.team.draft.workers.length };
-        syncTeam(td);
-        // The card opens with the cursor in the purpose (spec-teams 1.4.4).
-        const pi = $(`.panel.team-p[data-key="${CSS.escape(tk)}"] .gcard[data-sel=worker] .in-purpose`);
-        if (pi) pi.focus({ preventScroll: true });
-        break;
-      }
-      case 'worker-del': { const pk = `w:${tk}:${b.dataset.i}`; delete state.confirm[pk]; const w = td.team.draft.workers[+b.dataset.i]; if (w) pushOp(td, { kind: 'removeWorker', from: w.from, purpose: w.purpose }); delete state.gsel[tk]; syncTeam(td); break; }
       case 'vpick':
         if (b.dataset.nameField) { const el = $(`.tdef[data-name="${CSS.escape(n)}"] .in-name`); if (el) { el.focus({ preventScroll: true }); el.select && el.select(); } break; }
-        if (b.dataset.node) state.gsel[tk] = { type: 'node', id: b.dataset.node };
-        else if (b.dataset.worker != null) state.gsel[tk] = { type: 'worker', i: +b.dataset.worker };
+        if (b.dataset.node) CANVAS.select(td, { type: 'node', id: b.dataset.node }, 'attr');
+        else if (b.dataset.worker != null) CANVAS.select(td, { type: 'worker', i: +b.dataset.worker }, 'attr');
         rerenderTeam(td);
         break;
       case 'vrule': {
@@ -1599,9 +1467,9 @@
         break;
       }
       case 't-save': saveTeam(td, tp); break;
-      case 't-revert': td.ops = []; delete state.gsel[tk]; state.confirm = {}; syncTeam(td); rerenderRow(td); break;
+      case 't-revert': td.ops = []; CANVAS.reset(tk); cundo.delete(tk); state.confirm = {}; syncTeam(td); rerenderRow(td); break;
       case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
-      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); if (b.dataset.t === 'agree') checkAgree(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(placeCard); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(fitYbox); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
+      case 'dtab': state.dtab[n] = b.dataset.t; { const det = $('.detail', row); if (det) det.outerHTML = detailHTML(byName(n)); if (b.dataset.t === 'agree') checkAgree(byName(n)); } $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.team-p`).forEach(fitYbox); $$(`.tdef[data-name="${CSS.escape(n)}"] .panel.agree-p`).forEach(markPanel); refreshRow(n); break;
       case 'yfile': state.yfile = b.dataset.file; render(); break;
       case 'yaml-jump': YAML.jump(b.closest('.yed'), Number(b.dataset.line)); break;
       case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; YAML.revert(sec); refreshFileDot(sec.dataset.key); break; }
@@ -1614,18 +1482,6 @@
     // The list's tab, the open rows, the open rule and the chosen file ride in
     // the address (spec-teams 2 章): a reload comes back to the same place.
     if (act === 'tab' || act === 'toggle' || act === 'to-yaml' || act === 'yfile' || act === 'dtab') syncURL();
-  });
-
-  view.addEventListener('change', (e) => {
-    const t = e.target;
-    if (t.dataset.actChange === 'turn-add-sel' && t.value) {
-      const p = t.closest('.panel'), r = byKey(p.dataset.key), a = t.dataset.a, bb = t.value;
-      pushOp(r, { kind: 'addTurn', from: a, to: bb });
-      state.gsel[dkey(r)] = { type: 'edge', k: pairKey(a, bb) };
-      syncTeam(r);
-      return;
-    }
-    if (t.dataset.actChange === 'worker-prof') { const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i, w = r.team.draft.workers[i]; if (w) pushOp(r, { kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: t.value }); syncTeam(r); return; }
   });
 
   view.addEventListener('input', (e) => {
@@ -1654,18 +1510,6 @@
       debounce('n' + r.dom, () => checkTeam(r));
       return;
     }
-    if (t.matches('.in-purpose')) {
-      // The field keeps its place and its cursor while the person types: only
-      // what the sentence moves is drawn again (spec-teams 1.4.4, 監査 R7).
-      const p = t.closest('.panel'), r = byKey(p.dataset.key), i = +t.dataset.i;
-      const cur = r.team.draft.workers[i];
-      if (!cur) return;
-      pushOp(r, { kind: 'workerPurpose', from: cur.from, old: cur.purpose, new: t.value });
-      r.team.draft = applyOps(r.team.saved, r.ops);
-      softTeam(r);
-      checkTeam(r);
-      return;
-    }
     // The agreement panel's own inputs are the shared part's: ruledoc updates the
     // draft and calls host.edited (r-02f6). This screen only owns the mission and
     // the worker's purpose, which are not in the agreement document.
@@ -1684,10 +1528,11 @@
     if (e.target.matches?.('.ybox')) { const p = e.target.closest('.panel'); if (p) RD.state.yscroll[p.dataset.uid + p.dataset.l] = e.target.scrollTop; }
   }, true);
   view.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum, .vitem, [role=button]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape' && e.target.closest('.gwrap')) { const p = e.target.closest('.panel'); delete state.gsel[p.dataset.key]; rerenderTeam(byKey(p.dataset.key)); }
+    // A point or a line of the canvas answers its own keys (topocanvas.js);
+    // this screen answers the row, the list and the validate column.
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cv-canvas') && e.target.matches('.sum, .vitem, [role=button]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) { e.preventDefault(); YAML.insertTab(e.target); }
-    if (e.key === 'Enter' && e.target.matches('.in-mission, .in-purpose, .in-name')) e.preventDefault();
+    if (e.key === 'Enter' && e.target.matches('.in-mission, .in-name')) e.preventDefault();
   });
 
   // ---- 共有の部品の受け口 ----------------------------------------------
@@ -1721,7 +1566,7 @@
     rt = setTimeout(() => {
       setStick();
       if (narrow() !== wasNarrow) { wasNarrow = narrow(); $$('.panel.team-p').forEach((p) => rerenderTeam(byKey(p.dataset.key))); }
-      else { $$('.panel.team-p').forEach(placeCard); fitYboxes(); }
+      else { fitYboxes(); }
     }, 160);
   });
   // Where the save's band stands is a matter of where the page is, so the box
@@ -1746,6 +1591,19 @@
 
   render();
   setStick();
+  // The member's 属性 offers the roles the role screen holds; the team answer
+  // carries no role documents, so they are read once from GET /api/role. A panel
+  // already drawn gets them when the answer comes (the first frame is quick).
+  API.list('role').then((res) => {
+    if (!res.ok) return;
+    const list = API.answer(res) || {};
+    ROLES = (list.items || []).map((it) => {
+      const places = it.places || {}, eff = it.effective || (places.project ? 'project' : 'global');
+      const doc = (places[eff] || {}).doc || {};
+      return { name: it.name || '', title: doc.title || '' };
+    }).filter((x) => x.name);
+    if ($('.panel.team-p')) render();
+  }).catch(() => {});
   // Every definition is checked once at open, so the figure's problems and the
   // node badges are the server's own reading of the saved file, and the
   // agreement's saved problems are the baseline its save is held to

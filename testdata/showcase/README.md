@@ -8,7 +8,9 @@ tools/showcase が起こすショーケースの見本データ。場面ごと�
 - standard: チーム定義 4+3、ロール 4+3。core はメンバー 5 人・ワーカー 6 種・手番 16 本で、
   どのチームも動いていない。
 - running: standard に重ねる層。herdr/ と state/ だけを持ち、偽の herdr が core を
-  動かしている扱いにする。
+  動かしている扱いにする。state/ の起動記録は core の 5 人分で、impl-a は
+  builder.yaml の規則 1 つ、lead はターン 1 本、reviewer は reviewer.yaml の文書が
+  古い（伝えていない人 3 人）。analyst と impl-b は今のプロンプトで起動した扱い。
 - empty: チーム定義もロールも無い、初めて使う人の状態。
 - broken: 壊れた team.yaml と、無いロール（auditor）を指すメンバーを含む。
 

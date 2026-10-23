@@ -68,13 +68,13 @@ async function open(page: Parameters<typeof read>[0], base: string): Promise<voi
   await wait(page, there2(docs, '.vlist .vitem .msg'));
   await readTo<number>(
     page,
-    `${docs}.querySelectorAll('.gwrap svg, footer.pf [data-act=t-save]').length`,
+    `${docs}.querySelectorAll('.cv-canvas svg, footer.pf [data-act=t-save]').length`,
     'the definition whose profile does not resolve draws figures and saves, want the figure and the save',
   ).toBe(2);
   // 1.4.1・R10: the problem stands on the worker 翻訳's own point, with 問題.
   await readTo<string>(
     page,
-    `[...document.querySelectorAll('.tdef[data-name="docs"] .panel.team-p .gn.worker.err')].map(function(g){return g.dataset.i}).join(',')`,
+    `[...document.querySelectorAll('.tdef[data-name="docs"] .panel.team-p .cv-n.worker.err')].map(function(g){return g.dataset.cvW}).join(',')`,
     'the workers in problem read, want the 翻訳 worker alone',
   ).toBe('0');
 }
@@ -89,22 +89,22 @@ test('TEAMS-V1 a definition whose names do not resolve', async ({ page, app }) =
 // add one worker rather than one a letter (X3, 1.4.6).
 async function workerPurpose(page: Parameters<typeof read>[0], base: string): Promise<void> {
   await page.goto(`${base}/teams?open=core`);
-  await wait(page, there('.tdef[data-name="core"] .panel.team-p .gwrap svg'));
+  await wait(page, there('.tdef[data-name="core"] .panel.team-p .cv-canvas svg'));
   const panel = shape('core');
-  const field = `${panel}.querySelector('.gcard[data-sel=worker] .in-purpose')`;
+  const field = `${panel}.querySelector('.cv-side [data-cv-f=w-purpose]')`;
 
-  await press(page, `${panel}.querySelector('.gn.member[data-id=lead]')`);
-  await wait(page, there2(panel, '.gcard[data-sel=node]'));
-  await press(page, `${panel}.querySelector('.gcard [data-act=worker-add]')`);
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=lead]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=m-name]'));
+  await press(page, `${panel}.querySelector('[data-cv-act=w-add]')`);
   await wait(page, `!!${field}`);
   // A worker with no purpose is a problem the saved file did not hold, so the
   // save is shut until the purpose is there (X3).
   await wait(page, `${panel}.querySelector('[data-act=t-save]').disabled`);
-  const vm = `[...document.querySelectorAll('.tdef[data-name="core"] .panel.team-p .gcard .vm li')].map(function(li){return li.textContent}).join('|')`;
+  const vm = `[...document.querySelectorAll('.tdef[data-name="core"] .panel.team-p .cv-left .vlist .vitem')].map(function(li){return li.textContent}).join('|')`;
   await readTo<string>(
     page,
     vm,
-    "the new worker's card reads, want no word the check did not give it",
+    "the new worker's validate reads, want no word the check did not give it",
   ).not.toContain('undefined');
   // One letter at a time, the way a person types: the field is not drawn again,
   // so the cursor stays and the word collects.
@@ -133,18 +133,14 @@ async function workerPurpose(page: Parameters<typeof read>[0], base: string): Pr
 async function graphProblems(page: Parameters<typeof read>[0], base: string): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${base}/teams?open=research`);
-  await wait(page, there('.tdef[data-name="research"] .panel.team-p .gwrap svg'));
+  await wait(page, there('.tdef[data-name="research"] .panel.team-p .cv-canvas svg'));
   const rp = shape('research');
   // scout's turn to the human goes, so the team's own agreement's rule RES-6
   // warns.
-  await press(page, `${rp}.querySelector('.gn.member[data-id=scout]')`);
-  await wait(page, there2(rp, '.gcard[data-sel=node]'));
-  await press(page, `${rp}.querySelector('.gcard .row button[data-act=pick-edge][data-b=human]')`);
-  await wait(page, there2(rp, '.gcard[data-sel=edge]'));
-  await press(page, `${rp}.querySelector('.gcard [data-act=turn-ask][data-a=scout][data-b=human]')`);
-  await wait(page, there2(rp, '.gcard [data-act=turn-del]'));
-  await press(page, `${rp}.querySelector('.gcard [data-act=turn-del]')`);
-  await wait(page, there2(rp, '.gcard .gdl .tag'));
+  await press(page, `${rp}.querySelector('.cv-n.member[data-cv-n=scout]')`);
+  await wait(page, there2(rp, '.cv-side [data-cv-f=m-name]'));
+  await press(page, `${rp}.querySelector('.cv-side [data-cv-act=turn-del][data-a=scout][data-b=human]')`);
+  await wait(page, `!!document.querySelector('.cv-toast')`);
   const item = `[...document.querySelectorAll('.tdef[data-name="research"] .panel.team-p .vlist .vitem')].find(function(b){return b.textContent.indexOf('RES-6')>=0})`;
   await wait(page, `!!${item}`);
   await press(page, item);
@@ -196,20 +192,16 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
   // F1・P6・P7: one turn goes, and R6: the line the change would take away
   // stands once, in the server's own words.
   const panel = shape('core');
-  await press(page, `${panel}.querySelector('.gn.member[data-id=impl-b]')`);
-  await wait(page, there2(panel, '.gcard[data-sel=node]'));
-  await press(page, `${panel}.querySelector('.gcard .row button[data-act=pick-edge][data-b=reviewer]')`);
-  await wait(page, there2(panel, '.gcard[data-sel=edge]'));
-  await press(page, `${panel}.querySelector('.gcard [data-act=turn-ask][data-a=impl-b][data-b=reviewer]')`);
-  await wait(page, there2(panel, '.gcard [data-act=turn-del]'));
-  await wait(page, there2(panel, '.gcard .gpl s'));
-  await readTo<number>(
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=impl-b]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=m-name]'));
+  await press(page, `${panel}.querySelector('.cv-side [data-cv-act=turn-del][data-a=impl-b][data-b=reviewer]')`);
+  await wait(page, `!!document.querySelector('.cv-toast')`);
+  // 外したことは知らせで言い、そこから戻せる (the mock's toast).
+  await readTo<string>(
     page,
-    `(function(){var s=${panel}.querySelector('.gcard .gpl s');return s?[...s.parentElement.children].filter(function(n){return n.tagName==='S'&&n.textContent.indexOf('core-reviewer')>=0}).length:0})()`,
-    'the card strikes the line that would leave times, want once',
-  ).toBe(1);
-  await press(page, `${panel}.querySelector('.gcard [data-act=turn-del]')`);
-  await wait(page, there2(panel, '.gcard .gdl .tag'));
+    `document.querySelector('.cv-toast').textContent`,
+    'the removal notice reads',
+  ).toContain('impl-b → reviewer のターンを外した');
   await wait(page, `${panel}.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`);
   await press(page, `${panel}.querySelector('[data-act=t-save]')`);
   await wait(page, there2(panel, '.ok'));
@@ -339,6 +331,7 @@ test('TEAMS-Y2 the preview and the line a turn adds', async ({ page, app }) => {
 
   await page.goto(`${app.base}/teams?open=core`);
   await wait(page, there('#view .tdef'));
+  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=yaml]')`);
   await wait(page, there2(panel, '.tprev .ybox .yl'));
 
   // Y6: the preview is the saved team.yaml line for line, comments and all. The
@@ -365,14 +358,160 @@ test('TEAMS-Y2 the preview and the line a turn adds', async ({ page, app }) => {
 
   // Y2: a turn added from analyst to reviewer stands at the end of the preview
   // as an added line, and the box was sent to it (B7, R2).
-  await press(page, `${panel}.querySelector('.gn.member[data-id=analyst]')`);
-  await wait(page, there2(panel, '.gcard select[data-act-change=turn-add-sel]'));
-  await choose(page, `${panel}.querySelector('.gcard select[data-act-change=turn-add-sel]')`, 'reviewer');
-  await wait(page, there2(panel, '.gcard[data-sel=edge]'));
+  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=attr]')`);
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=analyst]')`);
+  await wait(page, there2(panel, '.cv-side select[data-cv-f=turn-add]'));
+  await choose(page, `${panel}.querySelector('.cv-side select[data-cv-f=turn-add]')`, 'reviewer');
+  await wait(page, there2(panel, '.cv-side .cv-t'));
+  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=yaml]')`);
   await wait(page, `!!${line('.ins')} && ${line('.ins')}.textContent.indexOf('analyst -> reviewer')>=0`);
   await readTo<string>(
     page,
     `(function(){var b=${panel}.querySelector('.tprev .ybox'),l=${line('.ins')};if(!b||!l)return false;var br=b.getBoundingClientRect(),lr=l.getBoundingClientRect();return lr.top>=br.top-1&&lr.bottom<=br.bottom+1;})()+''`,
     'the box was not sent to the line the turn added',
   ).toBe('true');
+});
+
+test('TEAMS-C1 the canvas adds a member, removes it, and adds a worker', async ({ page, app }) => {
+  // ac-333c: a member added from the canvas is saved and then removed, the
+  // toolbar's ＋ワーカー works with no point picked (it asks whose worker), and
+  // the blank space's double press asks the same. The turn is drawn from a
+  // point's edge handle (the canvas's own gesture).
+  const panel = shape('core');
+  const css = '.tdef[data-name="core"] .panel.team-p';
+  const file = path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml');
+  await page.goto(`${app.base}/teams?open=core`);
+  await wait(page, there2(panel, '.cv-canvas svg'));
+
+  // (1) ＋メンバー puts a point in the figure, picks it, and puts the cursor in
+  // its name; the save keeps it even before a turn is drawn (r-df77).
+  await press(page, `${panel}.querySelector('[data-cv-act=m-add]')`);
+  await wait(page, `(document.activeElement&&document.activeElement.dataset.cvF)==='m-name'`);
+  const name = await read<string>(page, `${panel}.querySelector('[data-cv-f=m-name]').value`);
+  expect(/^[a-z][a-z0-9_-]*$/.test(name), `the new member's name reads ${name}`).toBe(true);
+  await wait(page, `${panel}.querySelector('[data-act=t-save]').disabled===false`);
+  await press(page, `${panel}.querySelector('[data-act=t-save]')`);
+  await wait(page, there2(panel, '.ok'));
+  expect(
+    (readFileSync(file, 'utf8').match(/^  - name: /gm) || []).length,
+    'the save did not write the added member',
+  ).toBe(6);
+
+  // (2) the point goes with Delete and the save takes it away. ⌘Z puts it back.
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await page.keyboard.press('Delete');
+  await wait(page, `!!document.querySelector('.cv-toast')`);
+  await press(page, `document.querySelector('.cv-toast [data-act=cv-undo]')`);
+  await wait(page, `!!${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await page.keyboard.press('Delete');
+  await wait(page, `${panel}.querySelector('[data-act=t-save]').disabled===false`);
+  await press(page, `${panel}.querySelector('[data-act=t-save]')`);
+  await wait(page, there2(panel, '.ok'));
+  expect(
+    (readFileSync(file, 'utf8').match(/^  - name: /gm) || []).length,
+    'the save did not take the removed member away',
+  ).toBe(5);
+
+  // (3) ＋ワーカー asks whose worker when no point is picked, and the blank
+  // space's double press asks the same.
+  await page.keyboard.press('Escape');
+  await press(page, `${panel}.querySelector('[data-cv-act=w-add]')`);
+  await wait(page, there2(panel, '.cv-menu'));
+  await readTo<string>(page, `${panel}.querySelector('.cv-menu').textContent`, 'the menu reads').toContain('どのメンバーの');
+  // Esc closes the menu with nothing picked (監査 2-8).
+  await page.keyboard.press('Escape');
+  await wait(page, `!${panel}.querySelector('.cv-menu')`);
+  await press(page, `${panel}.querySelector('[data-cv-act=w-add]')`);
+  await wait(page, there2(panel, '.cv-menu'));
+  await press(page, `${panel}.querySelector('.cv-menu [data-cv-act=menu-w]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=w-purpose]'));
+
+  const box = await page.locator(`${css} .cv-canvas`).boundingBox();
+  expect(box, 'the canvas has no box').not.toBeNull();
+  const x = box!.x + 10, y = box!.y + 10;
+  await page.mouse.dblclick(x, y);
+  await wait(page, there2(panel, '.cv-menu'));
+  await readTo<string>(page, `${panel}.querySelector('.cv-menu').textContent`, 'the blank menu reads').toContain('メンバーを足す');
+
+  // The turn: from analyst's edge handle to reviewer (missing in the fixture).
+  await page.keyboard.press('Escape');
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=analyst]')`);
+  await wait(page, there2(panel, '.cv-h'));
+  const target = await page.locator(`${css} .cv-n.member[data-cv-n=reviewer]`).boundingBox();
+  let best: { x: number; y: number; d: number } | null = null;
+  for (const h of await page.locator(`${css} .cv-h`).all()) {
+    const hb = await h.boundingBox();
+    if (!hb || !target) continue;
+    const d = Math.hypot(hb.x + hb.width / 2 - (target.x + target.width / 2), hb.y + hb.height / 2 - (target.y + target.height / 2));
+    if (!best || d < best.d) best = { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2, d };
+  }
+  expect(best, 'the picked point has no handle').not.toBeNull();
+  await page.mouse.move(best!.x, best!.y);
+  await page.mouse.down();
+  await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await wait(page, there2(panel, '.cv-side .cv-t'));
+  await readTo<string>(page, `${panel}.querySelector('.cv-side .cv-t').textContent`, 'the picked line reads').toContain('analyst');
+});
+
+test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two points over each other', async ({ page, app }) => {
+  // 監査 1: (1) ⌘Z takes back the newest operation even with nothing picked,
+  // (2) a line is picked with Tab and Enter and goes with Delete, and (4) no
+  // point stands on another.
+  const panel = shape('core');
+  const css = '.tdef[data-name="core"] .panel.team-p';
+  await page.goto(`${app.base}/teams?open=core`);
+  await wait(page, there2(panel, '.cv-canvas svg'));
+  const nodes = `document.querySelectorAll('.tdef[data-name="core"] .cv-n').length`;
+
+  // (1) add, let the pick go on the blank space, and ⌘Z.
+  const before = await read<number>(page, nodes);
+  await press(page, `${panel}.querySelector('[data-cv-act=m-add]')`);
+  await wait(page, `${nodes}===${before + 1}`);
+  // The notice's own word is 取り消す; the save band's is 元に戻す (3).
+  await readTo<string>(page, `document.querySelector('.cv-toast [data-act=cv-undo]').textContent`, 'the notice button reads').toBe('取り消す');
+  await readTo<string>(page, `${panel}.querySelector('[data-act=t-revert]').textContent`, 'the save band button reads').toBe('元に戻す');
+  await page.locator(`${css} .cv-canvas`).click({ position: { x: 8, y: 8 } });
+  await page.keyboard.press('Meta+z');
+  await wait(page, `${nodes}===${before}`);
+  await readTo<string>(page, `document.querySelector('.cv-toast').textContent`, 'the undo notice reads').toContain('を取り消した');
+
+  // (2) a line picked with the keyboard: Enter opens its 属性, Delete takes both
+  // directions away.
+  // The line is focused directly and Enter picks it: the Tab order depends on
+  // how far the panel's redraw has got, and a walk that sends Tab before the
+  // redraw settles lands on another control (lead's report: one run in three).
+  const hit = page.locator(`${css} .cv-hit`).first();
+  await hit.waitFor();
+  await hit.focus();
+  await page.keyboard.press('Enter');
+  await wait(page, `!!${panel}.querySelector('.cv-side .cv-t')`);
+  await readTo<string>(page, `${panel}.querySelector('.cv-side .cv-t').textContent`, 'the picked line reads').toContain('⇄');
+  await page.keyboard.press('Delete');
+  await wait(page, `!!document.querySelector('.cv-toast')`);
+  await readTo<string>(page, `document.querySelector('.cv-toast').textContent`, 'the removed line reads').toContain('のターンを外した');
+
+  // (4) no two points stand over each other, including a worker just added.
+  const overlap = `(function(){var b=[...document.querySelectorAll('.tdef[data-name="core"] .cv-n')].map(function(e){return e.getBoundingClientRect()});for(var i=0;i<b.length;i++)for(var j=i+1;j<b.length;j++){var a=b[i],c=b[j];if(a.left<c.right-1&&c.left<a.right-1&&a.top<c.bottom-1&&c.top<a.bottom-1)return 'point '+i+' and '+j+' cover each other';}return '';})()`;
+  await readTo<string>(page, overlap, 'two points cover each other').toBe('');
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=lead]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=m-name]'));
+  await press(page, `${panel}.querySelector('[data-cv-act=w-add]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=w-purpose]'));
+  await readTo<string>(page, overlap, 'the worker just added covers a point').toBe('');
+});
+
+test('TEAMS-R1 the rules tab is the same switch and the same three fields', async ({ page, app }) => {
+  // d-85dc: the team's ルール tab mounts the same part as the role screen; the
+  // row carries the switch, and the opened rule holds ID, 本文 and メモ alone.
+  await page.goto(`${app.base}/teams?open=core`);
+  await wait(page, there('.tdef[data-name="core"] .panel.team-p'));
+  await press(page, q('.tdef[data-name="core"] .dtab[data-t=agree]'));
+  await wait(page, there('.tdef[data-name="core"] .panel.agree-p .rule'));
+  await readTo<number>(page, `document.querySelectorAll('.tdef[data-name="core"] .panel.agree-p .rule .onsw').length`, 'the rules tab has a switch').toBeGreaterThan(0);
+  await press(page, q('.tdef[data-name="core"] .panel.agree-p .rule .rsum'));
+  await wait(page, there('.tdef[data-name="core"] .panel.agree-p .rule.open .redit'));
+  const labels = await page.$$eval('.tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > label, .tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > .fl', (els) => els.map((e) => (e.textContent || '').trim()));
+  expect(labels, 'the team rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
 });

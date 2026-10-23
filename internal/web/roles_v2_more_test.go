@@ -284,7 +284,7 @@ func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 		section, rule int
 		line          int
 	}{
-		{"builder", "BUILD-5", "warn", 1, 0, 30},
+		{"builder", "BUILD-5", "warn", 1, 0, 21},
 	} {
 		var one row
 		for _, candidate := range rows {

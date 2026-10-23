@@ -172,6 +172,12 @@ type activityRead struct {
 	mu      sync.Mutex
 	herdr   herdrNow
 	watcher *activity.Watcher
+
+	// deliveryMu holds the last delivery answer for five seconds, the same
+	// memory the band count reads on every page. Deliver clears it.
+	deliveryMu   sync.Mutex
+	deliveryPlan deliveryPlan
+	deliveryAt   time.Time
 }
 
 // newActivityRead is the reading behind one hergy serve. The watcher's memory is
@@ -513,12 +519,18 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		}
 	}
 
+	stale := map[string]bool{}
+	for _, team := range a.Delivery().Teams {
+		for _, member := range team.Members {
+			stale[member.Name] = true
+		}
+	}
 	doc := web.ActivityDoc{
 		Name:       one.Name,
 		Definition: one.Definition,
 		State:      t.State.Slug(),
 		Last:       t.Last,
-		Nodes:      docNodes(t, now),
+		Nodes:      docNodes(t, now, stale),
 		Hired:      docHired(t, one.Name, now),
 		Questions:  []web.ActivityQuestion{},
 		Tail:       web.ActivityTail{Lines: []string{}, Shown: tailShown},
@@ -573,11 +585,12 @@ func roleOf(graph *definition.Graph, name string) string {
 }
 
 // docNodes is a team's members as the opened part shows them (2.5).
-func docNodes(t activity.Team, now time.Time) []web.ActivityNode {
+func docNodes(t activity.Team, now time.Time, stale map[string]bool) []web.ActivityNode {
 	out := make([]web.ActivityNode, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
 		out = append(out, web.ActivityNode{
 			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: activity.Clock(now, node.At),
+			Stale: stale[node.Herdr],
 		})
 	}
 	return out

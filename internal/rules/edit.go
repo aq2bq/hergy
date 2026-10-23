@@ -48,34 +48,6 @@ func (d *Document) DeleteRule(section, rule int) error {
 	return nil
 }
 
-// AddReport adds a report shape to the document. A name the document already
-// holds is refused: the reader refuses a repeated name, and a name written
-// twice would not read back.
-func (d *Document) AddReport(report Report) error {
-	for _, existing := range d.Reports {
-		if existing.Name == report.Name {
-			return i18n.Errorf("error.rules_report_name_taken", d.Path, report.Name)
-		}
-	}
-	d.Reports = append(d.Reports, report)
-	return nil
-}
-
-// AddReportField adds a field to one report. The document refuses a repeated
-// name in one report for the same reason as AddReport.
-func (d *Document) AddReportField(report int, field ReportField) error {
-	if report < 0 || report >= len(d.Reports) {
-		return i18n.Errorf("error.rules_report_out_of_range", d.Path, report)
-	}
-	for _, existing := range d.Reports[report].Fields {
-		if existing.Name == field.Name {
-			return i18n.Errorf("error.rules_field_name_taken", d.Path, d.Reports[report].Name, field.Name)
-		}
-	}
-	d.Reports[report].Fields = append(d.Reports[report].Fields, field)
-	return nil
-}
-
 // SuggestRuleID returns an id no rule of the document holds: base when it is
 // free, otherwise base with -2, -3 and so on added until one is free. The
 // screen offers it for a rule it is adding, and the person may change it.

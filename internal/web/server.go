@@ -35,9 +35,12 @@ type Server struct {
 	cat *catalog.Catalog
 	// act is how the activity screen reads the running teams, or nil when the
 	// server was built without one (spec-activity 6 A1).
-	act   Activity
-	token string
-	tpl   *template.Template
+	act Activity
+	// deliver is the band's count and the changed-definition sheet, or nil when
+	// the activity reading cannot say what is stale.
+	deliver Deliverer
+	token   string
+	tpl     *template.Template
 	// handler is the routes with the guards in front of them.
 	handler http.Handler
 	// addr is this server's own address ("127.0.0.1:8787"), set when the socket
@@ -69,6 +72,9 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
+	if deliverer, ok := act.(Deliverer); ok {
+		s.deliver = deliverer
+	}
 	s.handler = s.guard(s.routes(static))
 	return s, nil
 }
@@ -172,6 +178,13 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	// 受け口 (spec-boundary 5, r-2cc2): every kind of thing the screens read and
 	// write answers under /api/, in one shape, through one set of handlers. The
 	// old per-screen URLs (/profiles/check ほか, /roles/check ほか) are gone.
+	// The band and the sheet a person opens after a change (r-a8fa). They are
+	// own paths, not a kind: the count is read on every page and the send is one
+	// write over several running teams.
+	mux.HandleFunc("GET /api/delivery", s.apiDeliveryList)
+	mux.HandleFunc("GET /api/delivery/count", s.apiDeliveryCount)
+	mux.HandleFunc("POST /api/delivery", s.apiDeliver)
+
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)
 	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)

@@ -30,27 +30,18 @@ import (
 // segments after it (C1, P-TURN-1, SPEC-AUD-5).
 var RuleIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 
-// Kinds say where a rule came from.
-const (
-	KindIncident    = "incident"
-	KindInstruction = "instruction"
-	KindDerived     = "derived"
-)
-
 var (
-	kinds      = []string{KindIncident, KindInstruction, KindDerived}
 	dateLayout = "2006-01-02"
-	docKeys    = []string{"version", "title", "revision", "sections", "reports"}
+	docKeys    = []string{"version", "title", "revision", "sections"}
 	// sectionKeys is what a section may hold. style is read and left alone: a
 	// file that still writes one keeps reading, and says so once as a warning
 	// (d-f4f6). Nothing lays a section out but the one list below.
 	sectionKeys = []string{"heading", "level", "intro", "style", "rules"}
-	// ruleKeys is what a rule may hold, in the order hergy writes it. The two
-	// switches that say what reaches a member stand together: send_why narrows
-	// the reason, and in_prompt (d-f187) keeps the whole rule out of the prompt.
-	ruleKeys   = []string{"id", "text", "why", "send_why", "in_prompt", "note", "origin", "report", "tests"}
-	originKeys = []string{"kind", "date", "refs", "note"}
-	reportKeys = []string{"where", "fields"}
+	ruleKeys    = []string{"id", "text", "in_prompt", "off_since", "note"}
+	// oldRuleKeys are the keys the rule model before r-81be wrote. A file that
+	// still writes one is stopped by name, with the rule's id and where its
+	// content goes; none of them is read as part of a rule now.
+	oldRuleKeys = []string{"why", "send_why", "origin", "report", "tests"}
 )
 
 // Document is one rule file.
@@ -59,7 +50,6 @@ type Document struct {
 	Title    string
 	Revision *int // written for a person; never sent
 	Sections []Section
-	Reports  []Report
 	Path     string // where it was read from, for errors and provenance
 }
 
@@ -72,46 +62,29 @@ type Section struct {
 	Rules   []Rule
 }
 
-// Rule is one rule of a document.
+// Rule is one rule of a document: its id and body, whether it goes into a
+// member's prompt (in_prompt, nil meaning yes), the day it was switched off,
+// and a human memo that is never sent (d-85dc).
 type Rule struct {
-	ID      string
-	Text    string
-	Why     string
-	SendWhy *bool // nil means true
+	ID   string
+	Text string
 	// InPrompt is whether the rule goes into a member's prompt: nil means true,
 	// a file that writes in_prompt: false keeps the rule in the document and
 	// out of the prompt (d-f187).
 	InPrompt *bool
-	Note     string
-	Origin   []Origin
-	Report   string // "report.field"
-	Tests    []string
+	// OffSince is the day the rule was switched off, YYYY-MM-DD. It is only
+	// meaningful while InPrompt is false; a file that says in_prompt: true and
+	// still carries one is read as if it had none, and hergy drops it when it
+	// next writes the rule (d-9f30).
+	OffSince string
+	// Note is the human memo: why the rule was written and what was seen. It is
+	// never sent to a member.
+	Note string
 }
 
 // Included reports whether a rule goes into a member's prompt. A file that
 // leaves in_prompt unsaid hands the rule over.
 func (r Rule) Included() bool { return r.InPrompt == nil || *r.InPrompt }
-
-// Origin is where one rule came from.
-type Origin struct {
-	Kind string // incident, instruction or derived
-	Date string // "" or YYYY-MM-DD
-	Refs []string
-	Note string
-}
-
-// Report is one output contract: a name, where it is written, and its fields.
-type Report struct {
-	Name   string
-	Where  string
-	Fields []ReportField
-}
-
-// ReportField is one field of a report.
-type ReportField struct {
-	Name        string
-	Description string
-}
 
 // Rules is every rule of the document, in the written order.
 func (d *Document) Rules() []Rule {
@@ -124,10 +97,9 @@ func (d *Document) Rules() []Rule {
 
 // IncludedRules is every rule of the document that goes into a member's prompt,
 // in the written order. A rule the file keeps out of the prompt (in_prompt:
-// false) is a rule of the document still: it keeps its id, its origin and its
-// checks, the checks that span documents read it (CheckAll), and another rule
-// may be derived from it; it is only kept out of what a member is handed, and
-// out of the amount counted for that member (d-f187).
+// false) is a rule of the document still: it keeps its id, its memo and its
+// off day, and another rule's text may refer to it; it is only kept out of what
+// a member is handed.
 func (d *Document) IncludedRules() []Rule {
 	var out []Rule
 	for _, section := range d.Sections {
@@ -288,4 +260,31 @@ func scalarString(value *yaml.Node, path, label string) (string, error) {
 		return "", i18n.Errorf("error.rules_not_string", path, label)
 	}
 	return value.Value, nil
+}
+
+// FillOffDates writes the day a rule was switched off when a screen's save
+// turned it off, and takes the day away when the save turned it on (d-9f30).
+// A rule that was already off keeps the day it has, even when it has none: a
+// file a person wrote without a day is not rewritten just because it was saved.
+func FillOffDates(saved, draft *Document, today string) {
+	was := map[string]Rule{}
+	if saved != nil {
+		for _, rule := range saved.Rules() {
+			was[rule.ID] = rule
+		}
+	}
+	for si := range draft.Sections {
+		for ri := range draft.Sections[si].Rules {
+			rule := &draft.Sections[si].Rules[ri]
+			before, ok := was[rule.ID]
+			switch {
+			case rule.Included():
+				rule.OffSince = ""
+			case !ok || before.Included():
+				if rule.OffSince == "" {
+					rule.OffSince = today
+				}
+			}
+		}
+	}
 }

@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id and its text, and, when the file gives them, its reason, its origin and the report or test that shows it was kept. Only what a member reads is sent to the agent.
+You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id, its body, whether it is on, the day it was switched off and a note for people. Only the body of a rule that is on is sent to the agent; a note is never sent.
 
 Run it in a herdr shell pane.
 
@@ -71,7 +71,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy hire <name> --purpose X --task "…" [--from <member>]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). `--purpose` must be a purpose the hiring member's `workers:` names, and the profile comes from that entry; anything else is refused, naming the purposes the member may hire for. `--from` may be left out when exactly one member hires for that purpose |
 | `hergy ls` | List the available team definitions and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
-| `hergy validate` | Check every settings file and show each broken one. A team definition is checked once and a role document once (not once per team that uses it); it then prints what the rules carry, and the size of each team definition's rules and templates and of each role document, warning when one is over the provisional budget (3,000 characters each); a warning does not change the exit code |
+| `hergy validate` | Check every settings file and show each broken one. A team definition is checked once and a role document once (not once per team that uses it); it then prints the count of rules and the size of each team definition's rules and templates and of each role document, warning when one is over the provisional budget (3,000 characters each); a warning does not change the exit code |
 | `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows the profiles and the roles: each profile's name, kind, arguments and environment with the members and workers that run it, and the role documents behind the members' rules. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |

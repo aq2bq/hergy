@@ -2,7 +2,7 @@
 // member reads (spec-teams 7). The role screen mounts it today and the team
 // screen mounts the same part tomorrow: everything inside a panel that edits a
 // document — the title and revision, the sections, the rules, the
-// 含める / 含めない switch of a rule and of its reason, the heading depth, the
+// オン / オフ switch of a rule, the memo, the heading depth, the
 // reordering (↑ ↓ and the ⋮ drag), and the Markdown box — lives here. What a
 // screen keeps for itself is the panel's head and foot (where the document
 // stands, 複製, 削除) and where the checks and writes go.
@@ -27,8 +27,6 @@
   'use strict';
 
   const PLACES = ['project', 'global'];
-  const KIND = { incident: 'インシデント', instruction: '指示', derived: '導出' };
-  const LIMIT = { rules: 20, chars: 6000 };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -51,10 +49,8 @@
       sections: (d.sections || []).map((s, si) => ({
         _s: si, heading: s.heading || '', level: s.level || 0, intro: s.intro || '',
         rules: (s.rules || []).map((x) => ({
-          _k: ++kseq, id: x.id || '', text: x.text || '', why: x.why || '',
-          send_why: x.send_why !== false, in_prompt: x.in_prompt !== false,
-          note: x.note || '', report: x.report || '', tests: (x.tests || []).slice(),
-          origin: (x.origin || []).map((o) => ({ kind: o.kind || 'incident', date: o.date || '', refs: (o.refs || []).slice(), note: o.note || '' })),
+          _k: ++kseq, id: x.id || '', text: x.text || '', note: x.note || '',
+          in_prompt: x.in_prompt !== false, off_since: x.off_since || '',
         })),
       })),
     };
@@ -76,9 +72,8 @@
         rules: (s.rules || []).map((x) => {
           const f = at.get(x._k);
           return {
-            from: f ? { section: f[0], rule: f[1] } : null, id: x.id, text: x.text, why: x.why,
-            send_why: x.send_why, in_prompt: x.in_prompt,
-            note: x.note, report: x.report, tests: x.tests, origin: x.origin,
+            from: f ? { section: f[0], rule: f[1] } : null, id: x.id, text: x.text,
+            note: x.note, in_prompt: x.in_prompt, off_since: x.off_since || '',
           };
         }),
       })),
@@ -120,11 +115,18 @@
   const rkey = (row, x) => `${row.uid}${row.l}:${x._k}`;
   const inP = (x) => x.in_prompt !== false;
   const outCount = (rules) => rules.filter((x) => !inP(x)).length;
-  const outNote = (n) => (n ? `<span class="outn">含めない ${n}</span>` : '');
+  const outNote = (n) => (n ? `<span class="outn">オフ ${n}</span>` : '');
+  // A rule switched off in this draft has no day yet: the server writes the
+  // day on the save, so the column says what the save will do. A rule the file
+  // already held off with no day is the file's own いつからか不明 (d-85dc).
+  const sinceText = (row, x) => {
+    if (x.off_since) return `${String(x.off_since).slice(5).replace('-', '/')} から`;
+    const sr = savedRule(row.e, x._k);
+    return sr && !inP(sr) ? 'いつからか不明' : '保存すると今日から';
+  };
   // The depth of a heading is shown the way it stands in the prompt: level 0
   // and 2 are ##, 3 is ###, 4 is ####. There is no level — any more (A2, I6).
   const lvlMark = (lv) => '#'.repeat(lv && lv > 2 ? lv : 2);
-  const promptSeg = (f, act, v) => `<div class="seg" data-f="${f}">${[[true, 'プロンプトに含める'], [false, '含めない']].map(([b, label]) => `<button class="${v === b ? 'on' : ''}" data-act="${act}" data-v="${b}" aria-pressed="${v === b}">${label}</button>`).join('')}</div>`;
 
   // ---- state the part owns --------------------------------------------
   const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {} };
@@ -213,14 +215,10 @@
   }
 
   function rsumInner(row, x, mine) {
-    const o = x.origin[0];
-    const org = o
-      ? `<span class="org"><i class="sw o-${o.kind}"></i><span class="lbl">${KIND[o.kind] || esc(o.kind)}</span>${o.kind === 'derived' ? `<span class="dt">${esc(o.refs.join(' '))}</span>` : `<span class="dt">${esc(String(o.date).slice(5))}</span>`}${x.origin.length > 1 ? `<span class="more">+${x.origin.length - 1}</span>` : ''}</span>`
-      : `<span class="org empty">—</span>`;
     return `<span class="grip" aria-hidden="true">⋮</span>
       <span class="rid"><b>${deco(x.id) || '<span class="none">—</span>'}</b>${badge(mine)}</span>
       <span class="rtx">${deco(snippet(x.text))}</span>
-      <span class="marks">${org}<span>${x.why ? `<span class="mk why ${x.send_why ? '' : 'held'}">なぜ</span>` : ''}</span><span>${x.tests.length || x.report ? '<span class="mk tst">確かめ</span>' : ''}</span><span>${inP(x) ? '' : '<span class="mk out">含めない</span>'}</span></span>`;
+      <span class="marks">${x.note ? '<span class="mk memo">メモ</span>' : ''}${inP(x) ? '' : `<span class="since">${sinceText(row, x)}</span>`}<button class="onsw" type="button" role="switch" aria-checked="${inP(x)}" data-act="rule-toggle" aria-label="${esc(x.id)} をプロンプトに${inP(x) ? '入れている' : '入れていない'}">${inP(x) ? 'オン' : 'オフ'}</button></span>`;
   }
 
   function ruleHTML(row, x) {
@@ -234,23 +232,10 @@
   function ruleEditHTML(row, x) {
     const key = `${row.uid}${row.l}-${x._k}`, ck = 'r' + key;
     return `<div class="redit">
-      <div class="field scope"><span class="fl">規則</span><div>${promptSeg('in_prompt', 'in-prompt', inP(x))}</div></div>
+      ${inP(x) ? '' : `<div class="offinfo">この規則はオフ（プロンプトに入れていない）。${sinceText(row, x)}。</div>`}
       <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">${esc(x.id) || '<span class="none">—</span>'}</span><ul class="vm" data-for="id"></ul></div></div>
       <div class="field"><label for="tx${key}">本文</label><div><textarea id="tx${key}" class="ta" data-f="text" rows="2">${esc(x.text)}</textarea><ul class="vm" data-for="text"></ul></div></div>
-      <div class="field"><label for="wy${key}">なぜ</label><div><textarea id="wy${key}" class="ta ${x.why && !x.send_why ? 'held-why' : ''}" data-f="why" rows="1">${esc(x.why)}</textarea>
-        <div class="whyrow">${promptSeg('send_why', 'send-why', x.send_why)}</div></div></div>
-      <div class="field"><span class="fl">由来</span><div><div class="origins">${x.origin.map((o, oi) => `<div class="orow" data-oi="${oi}">
-          <div class="seg" data-f="o-kind">${Object.entries(KIND).map(([k, label]) => `<button class="${o.kind === k ? 'on' : ''}" data-act="o-kind" data-v="${k}" aria-pressed="${o.kind === k}"><i class="sw o-${k}"></i>${label}</button>`).join('')}</div>
-          <input id="od${key}-${oi}" data-f="o-date" value="${esc(o.date)}" placeholder="YYYY-MM-DD" spellcheck="false" autocomplete="off" aria-label="日付">
-          <div class="chips">${o.refs.map((ref, j) => `<span class="chip"><input id="rf${key}-${oi}-${j}" data-f="ref" data-j="${j}" value="${esc(ref)}" size="${Math.max(String(ref).length, 5)}" spellcheck="false" autocomplete="off" aria-label="参照"><button class="x" data-act="ref-del" data-j="${j}" aria-label="${esc(ref)} を消す">×</button></span>`).join('')}<button class="add sm" data-act="ref-add" aria-label="参照を足す">＋</button></div>
-          <input id="on${key}-${oi}" data-f="o-note" value="${esc(o.note)}" placeholder="メモ" autocomplete="off">
-          <button class="x" data-act="o-del" aria-label="由来を消す">×</button>
-        </div>`).join('')}<button class="add sm" data-act="o-add" aria-label="由来を足す">＋</button></div><ul class="vm" data-for="origin"></ul></div></div>
-      <div class="field"><span class="fl">確かめ</span><div class="ckrow">
-        <span class="chips">${x.tests.map((tst, j) => `<span class="chip"><input id="ts${key}-${j}" data-f="test" data-j="${j}" value="${esc(tst)}" size="${Math.max(String(tst).length, 6)}" spellcheck="false" autocomplete="off" aria-label="テスト"><button class="x" data-act="test-del" data-j="${j}" aria-label="${esc(tst)} を消す">×</button></span>`).join('')}<button class="add sm" data-act="test-add" aria-label="テストを足す">＋ テスト</button></span>
-        <span class="lb">報告</span><input id="rp${key}" class="in-report" data-f="report" value="${esc(x.report)}" placeholder="report.field" spellcheck="false" autocomplete="off">
-      </div></div>
-      <div class="field"><label for="nt${key}">メモ</label><div><input id="nt${key}" class="in-note" data-f="note" value="${esc(x.note)}" autocomplete="off"></div></div>
+      <div class="field"><label for="nt${key}">メモ</label><div><textarea id="nt${key}" class="ta" data-f="note" rows="2">${esc(x.note)}</textarea><div class="notehint">なぜ書いたか・何を見て書いたかを残す。AI には渡さない。消すか迷ったときに読む。</div><ul class="vm" data-for="note"></ul></div></div>
       <footer class="rf">
         <button class="btn sm" data-act="rule-up" aria-label="上へ">↑</button><button class="btn sm" data-act="rule-down" aria-label="下へ">↓</button>
         <span class="acts">
@@ -263,16 +248,15 @@
   }
 
   // ---- the Markdown preview -------------------------------------------
-  function mdHL(t, held) {
-    const heldHTML = held ? `<span class="held" aria-hidden="true"><span class="mk why held">なぜ</span><s>${esc(held)}</s></span>` : '';
+  function mdHL(t) {
     const body = (x) => esc(x).replace(MODEL_RE, (w) => `<span class="mw">${w}</span>`);
     let m = t.match(/^(#+) (.*)$/);
-    if (m) return { h: 0, html: `<span class="mm">${m[1]} </span><span class="mh h${m[1].length}">${esc(m[2])}</span>${heldHTML}` };
+    if (m) return { h: 0, html: `<span class="mm">${m[1]} </span><span class="mh h${m[1].length}">${esc(m[2])}</span>` };
     m = t.match(/^- \*\*(.*?)\*\* (.*)$/);
-    if (m) return { h: 2, html: `<span class="mm">- **</span><b>${esc(m[1])}</b><span class="mm">**</span> ${body(m[2])}${heldHTML}` };
+    if (m) return { h: 2, html: `<span class="mm">- **</span><b>${esc(m[1])}</b><span class="mm">**</span> ${body(m[2])}` };
     m = t.match(/^(- |\d+\. |   )(.*)$/);
-    if (m) return { h: m[1].length, html: `<span class="mm">${m[1]}</span>${body(m[2])}${heldHTML}` };
-    return { h: 0, html: body(t) + heldHTML };
+    if (m) return { h: m[1].length, html: `<span class="mm">${m[1]}</span>${body(m[2])}` };
+    return { h: 0, html: body(t) };
   }
 
   function refreshPrev(panel, issues) {
@@ -284,13 +268,13 @@
     const md = row.markdown, lines = md.lines || [], df = row.diff || { added: [], removedBefore: [] };
     let ri = -1;
     const fc0 = S.pfocus[row.uid + row.l];
-    const fc = fc0 && { k: fc0.k, f: ['id', 'text', 'why'].includes(fc0.f) ? 'text' : fc0.k ? '' : fc0.f };
+    const fc = fc0 && { k: fc0.k, f: ['id', 'text', 'note'].includes(fc0.f) ? 'text' : fc0.k ? '' : fc0.f };
     const added = new Set(df.added || []), removedBefore = new Set(df.removedBefore || []);
     const box = aside.querySelector('.ybox');
     box.innerHTML = lines.map((z) => {
       const k = z.section >= 0 ? ruleKeyAt(e.draft, z.section, z.rule) : 0;
       if (z.part === 'excluded') {
-        return `<div class="yl ghost go ${fc && fc.k && k === fc.k ? 'cur' : ''}" data-act="yline" data-k="${k}" data-part="rule"><span class="lno"></span><span class="yt" data-h="0"><span class="mk out">含めない</span><s>${esc(z.text || '')}</s></span></div>`;
+        return `<div class="yl ghost go ${fc && fc.k && k === fc.k ? 'cur' : ''}" data-act="yline" data-k="${k}" data-part="rule"><span class="lno"></span><span class="yt" data-h="0"><span class="mk out">オフ</span><s>${esc(z.text || '')}</s></span></div>`;
       }
       ri++;
       // A problem about the document as a whole (no rule of its own) is marked
@@ -299,7 +283,7 @@
       // rule of its own, so it is not one of a rule's lines.
       const ms = all.filter((m) => (k ? m.k === k : m.k === 0 && ri === 0));
       const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
-      const { h, html } = mdHL(z.text || '', z.held || '');
+      const { h, html } = mdHL(z.text || '');
       const go = k || z.section >= 0 || z.part === 'title';
       const here = fc && fc.k && k === fc.k;
       const around = here && fc.f === 'text';
@@ -337,11 +321,7 @@
 
   function focusField(t) {
     const f = (t.closest('[data-f]') || {}).dataset ? t.closest('[data-f]').dataset.f : '';
-    const oi = t.closest('.orow') ? t.closest('.orow').dataset.oi : null;
-    if (oi != null) return `origin.${oi}` + ({ 'o-date': '.date', 'o-note': '.note', ref: '.refs' }[f] || '');
-    if (['id', 'text', 'why', 'note', 'report', 'title', 'revision'].includes(f)) return f;
-    if (f === 'send_why') return 'why';
-    if (f === 'test' || t.closest('.ckrow')) return 'tests';
+    if (['id', 'text', 'note', 'title', 'revision'].includes(f)) return f;
     if (['heading', 'level'].includes(f)) { const se = t.closest('.sec'); return se ? `sec.${se.dataset.si}` : ''; }
     if (f === 'intro') { const se = t.closest('.sec'); return se ? `sec.${se.dataset.si}.intro` : ''; }
     return '';
@@ -442,30 +422,15 @@
   function markEdit(ed, row, x, issues) {
     const sr = savedRule(row.e, x._k);
     const marked = (el, ch) => el && el.classList.toggle('changed', !!ch);
-    ['id', 'text', 'why', 'note', 'report'].forEach((f) => { const el = ed.querySelector(`[data-f=${f}]`); marked(el, !sr || sr[f] !== x[f]); });
-    marked(ed.querySelector('[data-f=send_why]'), sr && sr.send_why !== x.send_why);
-    marked(ed.querySelector('[data-f=in_prompt]'), sr && inP(sr) !== inP(x));
-    marked(ed.querySelector('[data-f=why]'), sr && sr.why !== x.why);
-    ed.querySelectorAll('.orow').forEach((r) => {
-      const oi = +r.dataset.oi, so = sr && sr.origin[oi], o = x.origin[oi];
-      if (!o) return;
-      marked(r.querySelector('[data-f=o-kind]'), !so || so.kind !== o.kind);
-      marked(r.querySelector('[data-f=o-date]'), !so || so.date !== o.date);
-      marked(r.querySelector('[data-f=o-note]'), !so || so.note !== o.note);
-      r.querySelectorAll('[data-f=ref]').forEach((el) => marked(el.closest('.chip'), !so || so.refs[+el.dataset.j] !== o.refs[+el.dataset.j]));
-    });
-    ed.querySelectorAll('[data-f=test]').forEach((el) => marked(el.closest('.chip'), !sr || sr.tests[+el.dataset.j] !== x.tests[+el.dataset.j]));
+    ['id', 'text', 'note'].forEach((f) => { const el = ed.querySelector(`[data-f=${f}]`); marked(el, !sr || sr[f] !== x[f]); });
     ed.querySelectorAll('.bad').forEach((el) => el.classList.remove('bad'));
     ed.querySelectorAll('.vm[data-for]').forEach((u) => { u.innerHTML = issues.filter((m) => (m.f.split('.')[0] || '') === u.dataset.for).map(vmItem).join(''); });
     issues.forEach((m) => {
-      const parts = m.f.split('.'), f = parts[0], oi = parts[1];
+      const f = m.f.split('.')[0];
       let el = null;
       if (f === 'id') el = ed.querySelector('[data-f=id]');
       else if (f === 'text' && m.sev === 'err') el = ed.querySelector('[data-f=text]');
-      else if (f === 'origin') {
-        el = parts[2] === 'refs' ? (ed.querySelector(`.orow[data-oi="${oi}"] [data-f=ref][data-j="${parts[3]}"]`) || {}).closest?.('.chip')
-          : ed.querySelector(`.orow[data-oi="${oi}"] [data-f=o-date]`);
-      }
+      else if (f === 'note') el = ed.querySelector('[data-f=note]');
       if (el) el.classList.add('bad');
     });
     const rev = ed.querySelector('[data-act=rule-revert]');
@@ -572,7 +537,7 @@
       }
       case 'intro-add': S.introOpen = secKey(row, c.si); re(c, `.sec[data-si="${c.si}"] [data-f=intro]`); break;
       case 'rule-add': {
-        const x = { _k: ++kseq, id: nextID(row), text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] };
+        const x = { _k: ++kseq, id: nextID(row), text: '', note: '', in_prompt: true, off_since: '' };
         c.d.sections[c.si].rules.push(x); S.ropen.add(rkey(row, x));
         re(c, `.rule[data-k="${x._k}"] [data-f=text]`); edited(c); break;
       }
@@ -581,15 +546,12 @@
       case 'rule-del': S.confirm[ck] = 1; re(c, `.rule[data-k="${c.x._k}"] [data-act=rule-del-yes]`); break;
       case 'rule-del-no': delete S.confirm[ck]; re(c); break;
       case 'rule-del-yes': delete S.confirm[ck]; c.d.sections[c.si].rules.splice(c.ri, 1); re(c); edited(c); break;
-      case 'in-prompt': c.x.in_prompt = b.dataset.v === 'true'; S.pfocus[pkey] = { k: c.x._k, f: 'text' }; re(c, `.rule[data-k="${c.x._k}"] [data-act=in-prompt].on`); edited(c); break;
-      case 'send-why': c.x.send_why = b.dataset.v === 'true'; re(c, `.rule[data-k="${c.x._k}"] [data-act=send-why].on`); edited(c); break;
-      case 'o-kind': c.x.origin[c.oi].kind = b.dataset.v; re(c, `.rule[data-k="${c.x._k}"] .orow[data-oi="${c.oi}"] [data-act=o-kind].on`); edited(c); break;
-      case 'o-add': c.x.origin.push({ kind: 'incident', date: '', refs: [], note: '' }); re(c, `.rule[data-k="${c.x._k}"] .orow[data-oi="${c.x.origin.length - 1}"] [data-f=o-date]`); edited(c); break;
-      case 'o-del': c.x.origin.splice(c.oi, 1); re(c); edited(c); break;
-      case 'ref-add': c.x.origin[c.oi].refs.push(''); re(c, `.rule[data-k="${c.x._k}"] .orow[data-oi="${c.oi}"] [data-f=ref][data-j="${c.x.origin[c.oi].refs.length - 1}"]`); break;
-      case 'ref-del': c.x.origin[c.oi].refs.splice(+b.dataset.j, 1); re(c); edited(c); break;
-      case 'test-add': c.x.tests.push(''); re(c, `.rule[data-k="${c.x._k}"] [data-f=test][data-j="${c.x.tests.length - 1}"]`); break;
-      case 'test-del': c.x.tests.splice(+b.dataset.j, 1); re(c); edited(c); break;
+      case 'rule-toggle': {
+        c.x.in_prompt = !inP(c.x);
+        if (inP(c.x)) c.x.off_since = '';
+        re(c, `.rule[data-k="${c.x._k}"] .onsw`);
+        edited(c); break;
+      }
       case 'yline': {
         const k = +b.dataset.k, si = b.dataset.si, part = b.dataset.part;
         if (k) S.ropen.add(`${row.uid}${row.l}:${k}`);
@@ -610,18 +572,14 @@
   function handleInput(t) {
     const c = ctx(t);
     if (!c.panel || !c.d || !t.dataset.f) return false;
-    const v = t.value, j = +t.dataset.j;
+    const v = t.value;
     switch (t.dataset.f) {
       case 'name': c.d.name = v; { const p = c.panel.querySelector('.path'); if (p) p.textContent = host.path ? host.path(c.row.l, c.d) : p.textContent; } break;
       case 'title': c.d.title = v; break;
       case 'revision': c.d.revision = v === '' ? null : +v; break;
       case 'heading': c.d.sections[c.si].heading = v; break;
       case 'intro': c.d.sections[c.si].intro = v; break;
-      case 'id': case 'text': case 'why': case 'note': case 'report': c.x[t.dataset.f] = v; break;
-      case 'o-date': c.x.origin[c.oi].date = v; break;
-      case 'o-note': c.x.origin[c.oi].note = v; break;
-      case 'ref': c.x.origin[c.oi].refs[j] = v; t.size = Math.max(v.length, 5); break;
-      case 'test': c.x.tests[j] = v; t.size = Math.max(v.length, 6); break;
+      case 'id': case 'text': case 'note': c.x[t.dataset.f] = v; break;
       default: return false;
     }
     edited(c);

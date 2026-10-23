@@ -71,7 +71,7 @@ func (l Lines) At(section, rule int, field string) int {
 	}
 }
 
-// fillRule records one rule's own fields and its origins'.
+// fillRule records one rule's own fields.
 func (l Lines) fillRule(section, rule int, item *yaml.Node) {
 	rm := mappingOf(item)
 	put := func(field string, line int) {
@@ -80,27 +80,7 @@ func (l Lines) fillRule(section, rule int, item *yaml.Node) {
 	for _, key := range ruleKeys {
 		put(key, at(rm, key))
 	}
-	origins := rm["origin"]
-	if origins == nil || origins.Kind != yaml.SequenceNode {
-		return
-	}
-	for oi, origin := range origins.Content {
-		om := mappingOf(origin)
-		line := origin.Line
-		if kind, ok := om["kind"]; ok {
-			line = kind.Line
-		}
-		put(fmt.Sprintf("origin.%d", oi), line)
-		put(fmt.Sprintf("origin.%d.date", oi), at(om, "date"))
-		if refs, ok := om["refs"]; ok {
-			put(fmt.Sprintf("origin.%d.refs", oi), refs.Line)
-			if refs.Kind == yaml.SequenceNode {
-				for j := range refs.Content {
-					put(fmt.Sprintf("origin.%d.refs.%d", oi, j), refs.Line)
-				}
-			}
-		}
-	}
+
 }
 
 // put records a line, leaving out the places that are not in the file.

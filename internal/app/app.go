@@ -846,7 +846,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
-	printTally(stdout, env, tally)
+	printTally(stdout, tally)
 	printSize(stdout, teams, roles)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
@@ -1042,25 +1042,13 @@ func countRules(tally *rules.Tally, seen map[string]bool, doc source.Doc) {
 	tally.Add(parsed)
 }
 
-// printTally is the count of what the rules carry, after the per-file lines. It
-// prints nothing when no rule file was read (no team definition, or every one
-// broken). The words are the locales'; the numbers, the ids and the paths are
-// not translated.
-func printTally(w io.Writer, env team.Env, tally *rules.Tally) {
+// printTally is the rule count, after the per-file lines. It prints nothing
+// when no rule file was read (no team definition, or every one broken).
+func printTally(w io.Writer, tally *rules.Tally) {
 	if tally.Files == 0 {
 		return
 	}
-	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
-	line(i18n.Tf("validate.rules_total", tally.Total, tally.Files))
-	line(i18n.Tf("validate.rules_origin", tally.WithOrigin,
-		tally.Incident, tally.Instruction, tally.Derived, tally.Total-tally.WithOrigin))
-	line(i18n.Tf("validate.rules_reason", tally.WithWhy, tally.Total-tally.WithWhy))
-	line(i18n.Tf("validate.rules_check", tally.WithCheck,
-		tally.Report, tally.Tests, tally.Total-tally.WithCheck))
-	for _, missing := range tally.Missing {
-		line(i18n.Tf("validate.rules_missing_origin",
-			env.Display(missing.Path), strings.Join(missing.IDs, i18n.T("list.separator"))))
-	}
+	fmt.Fprintf(w, "%s\n", i18n.Tf("validate.rules_total", tally.Total, tally.Files))
 }
 
 // teamSize is one team definition's own size (d-00a9): the prompt part of its

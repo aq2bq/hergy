@@ -58,28 +58,19 @@ type r2Section struct {
 }
 
 type r2Rule struct {
-	From     *r2From    `json:"from,omitempty"`
-	ID       string     `json:"id"`
-	Text     string     `json:"text"`
-	Why      string     `json:"why"`
-	SendWhy  bool       `json:"send_why"`
-	InPrompt bool       `json:"in_prompt"`
-	Note     string     `json:"note"`
-	Report   string     `json:"report"`
-	Tests    []string   `json:"tests"`
-	Origin   []r2Origin `json:"origin"`
+	From     *r2From `json:"from,omitempty"`
+	ID       string  `json:"id"`
+	Text     string  `json:"text"`
+	InPrompt bool    `json:"in_prompt"`
+	// OffSince is the day the rule was switched off, or empty when the file
+	// does not say. It is only meaningful while InPrompt is false (d-9f30).
+	OffSince string `json:"off_since,omitempty"`
+	Note     string `json:"note"`
 }
 
 type r2From struct {
 	Section int `json:"section"`
 	Rule    int `json:"rule"`
-}
-
-type r2Origin struct {
-	Kind string   `json:"kind"`
-	Date string   `json:"date"`
-	Refs []string `json:"refs"`
-	Note string   `json:"note"`
 }
 
 type r2Member struct {
@@ -179,11 +170,7 @@ func r2DocOf(doc *rules.Document, hash, text string) *r2Doc {
 		sec := r2Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
 		for i := range section.Rules {
 			rule := &section.Rules[i]
-			send := rule.SendWhy == nil || *rule.SendWhy
-			row := r2Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, InPrompt: rule.Included(), Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
-			for _, origin := range rule.Origin {
-				row.Origin = append(row.Origin, r2Origin{Kind: origin.Kind, Date: origin.Date, Refs: origin.Refs, Note: origin.Note})
-			}
+			row := r2Rule{ID: rule.ID, Text: rule.Text, InPrompt: rule.Included(), OffSince: rule.OffSince, Note: rule.Note}
 			sec.Rules = append(sec.Rules, row)
 		}
 		out.Sections = append(out.Sections, sec)
@@ -199,7 +186,7 @@ func r2NewRole(name string) *r2Doc {
 		Name: name, Revision: &revision,
 		Sections: []r2Section{{
 			Heading: "使命",
-			Rules:   []r2Rule{{SendWhy: true, InPrompt: true}},
+			Rules:   []r2Rule{{InPrompt: true}},
 		}},
 	}
 }
@@ -221,26 +208,14 @@ func (d r2Doc) document() *rules.Document {
 		sec := rules.Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
 		for i := range section.Rules {
 			rule := &section.Rules[i]
-			// send_why true is the format's default and the file leaves it
-			// unsaid, so a draft that carries the default travels as no value
-			// at all: a rule a person did not touch comes back byte for byte.
-			var send *bool
-			if !rule.SendWhy {
-				no := false
-				send = &no
-			}
-			// in_prompt true is the default the same way, so a rule that is in
-			// the prompt comes back with the key unsaid. The screen offers no
-			// switch for the key yet (d-f187; the switch is a later request).
+			// in_prompt true is the default, so a rule that is in the prompt
+			// comes back with the key unsaid.
 			var inPrompt *bool
 			if !rule.InPrompt {
 				no := false
 				inPrompt = &no
 			}
-			parsed := rules.Rule{ID: rule.ID, Text: rule.Text, Why: rule.Why, SendWhy: send, InPrompt: inPrompt, Note: rule.Note, Report: rule.Report, Tests: rule.Tests}
-			for _, origin := range rule.Origin {
-				parsed.Origin = append(parsed.Origin, rules.Origin{Kind: origin.Kind, Date: origin.Date, Refs: origin.Refs, Note: origin.Note})
-			}
+			parsed := rules.Rule{ID: rule.ID, Text: rule.Text, InPrompt: inPrompt, OffSince: rule.OffSince, Note: rule.Note}
 			sec.Rules = append(sec.Rules, parsed)
 		}
 		out.Sections = append(out.Sections, sec)

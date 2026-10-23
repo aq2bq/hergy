@@ -292,9 +292,8 @@ func TestMemberReadsNoAgreement(t *testing.T) {
 }
 
 // TestParseRendersWhatIsSent: a rule file is rendered to Markdown, and only what
-// a member reads reaches the prompt: the title, the headings, the intro, the
-// text, the reason and the report shapes. The revision, the note, the origin,
-// the report pointer and the tests stay in the file.
+// a member reads reaches the prompt: the title, the headings, the intro and the
+// rule's body. The revision and the note stay in the file.
 func TestParseRendersWhatIsSent(t *testing.T) {
 	l := newLayer(t, "")
 	write(t, filepath.Join(l.team, "agreement.yaml"), `version: 1
@@ -306,19 +305,8 @@ sections:
     style: ids
     rules:
       - id: R1
-        text: 本文である。
-        why: 理由である。
+        text: 本文である。 理由である。
         note: 保守する人のメモ
-        report: 監査.scope
-        tests: [T-1]
-        origin:
-          - kind: incident
-            note: 覚え書き
-reports:
-  監査:
-    where: 担当する Issue
-    fields:
-      scope: 変更の範囲
 `)
 
 	got, err := parseTeam(t, l, teamText())
@@ -328,137 +316,30 @@ reports:
 	prompt := got.starts[0].Prompt
 	for _, want := range []string{
 		"# TEAM PROTOCOL", "## 基本", "前置きである。", "- **R1** 本文である。 理由である。",
-		"## " + i18n.T("rules.reports_heading"), "**監査** (担当する Issue)", "- `scope`: 変更の範囲",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt is missing %q:\n%s", want, prompt)
 		}
 	}
-	for _, unwanted := range []string{"revision", "保守する人のメモ", "覚え書き", "T-1", "監査.scope"} {
+	for _, unwanted := range []string{"revision", "保守する人のメモ"} {
 		if strings.Contains(prompt, unwanted) {
 			t.Errorf("prompt still contains %q:\n%s", unwanted, prompt)
 		}
 	}
 }
 
-// TestMemberStopsOnARoleThatIsStillMarkdown: a role left as roles/<role>.md
-// stops with the way to move over (段 4): the place is now one, so the sentence
-// names it.
-func TestMemberStopsOnARoleThatIsStillMarkdown(t *testing.T) {
+// TestMemberStopsOnABreakAcrossTheDocumentsOneMemberReads: a rule id is unique
+// among the documents that go into one member's prompt: the member's role
+// document and the team's own.
+func TestMemberStopsOnABreakAcrossTheDocumentsOneMemberReads(t *testing.T) {
 	l := newLayer(t, "")
-	write(t, filepath.Join(l.root, "roles", "r.md"), "- R1: old\n")
-	if err := os.Remove(filepath.Join(l.root, "roles", "r.yaml")); err != nil {
-		t.Fatal(err)
-	}
-	_, err := parseTeam(t, l, teamText())
-	if err == nil {
-		t.Fatal("a role still left as Markdown did not stop the prompt")
-	}
-	if !strings.Contains(err.Error(), "r.md") {
-		t.Errorf("error %q does not name the Markdown file", err)
+	write(t, filepath.Join(l.root, "roles", "r.yaml"), oneRule("R1", "one"))
+	write(t, filepath.Join(l.team, "agreement.yaml"), oneRule("R1", "two"))
+	if _, err := parseTeam(t, l, teamText()); err == nil || !strings.Contains(err.Error(), "R1") {
+		t.Fatalf("a repeated rule id did not stop the member: %v", err)
 	}
 }
 
-// TestMemberStopsOnAMissingRole: a member whose role has no document at all is
-// stopped, and the sentence names the member, the role and every place it looks
-// (段 4, spec/32 D2).
-func TestMemberStopsOnAMissingRole(t *testing.T) {
-	l := newLayer(t, "")
-	_, err := parseTeam(t, l,
-		"version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: absent\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
-	if err == nil {
-		t.Fatal("a missing role document did not stop the prompt")
-	}
-	for _, want := range []string{"lead", "absent", "roles/absent.yaml"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not name %q", err, want)
-		}
-	}
-}
-
-// TestMemberTemplateMustKeepTheTwoDoors: a template that drops the role
-// document or the agreements stops (d-0ccd, I4), whichever file wrote it, and
-// the sentence names the team.yaml it read (spec/32 D2).
-func TestMemberTemplateMustKeepTheTwoDoors(t *testing.T) {
-	cases := []struct{ name, prompt, want string }{
-		{"a prompt with no role document", `"%{docs}"`, "role_doc"},
-		{"a prompt with no agreements", `"%{role_doc}"`, "docs"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			l := newLayer(t, "")
-			_, err := parseTeam(t, l,
-				"version: 1\nmission: a mission for the test\nteam: t\nprompt: "+tc.prompt+"\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\nturns:\n  - human -> a\n  - a -> human\n")
-			if err == nil {
-				t.Fatal("a template with a door missing did not stop the prompt")
-			}
-			for _, want := range []string{tc.want, filepath.Join(l.team, "team.yaml")} {
-				if !strings.Contains(err.Error(), want) {
-					t.Errorf("error %q does not name %q", err, want)
-				}
-			}
-		})
-	}
-}
-
-// TestMemberStopsOnBreaksAcrossTheDocumentsOneMemberReads: a rule id and a report
-// name are unique among the documents that go into one member's prompt, and a
-// report and a derived rule point at something those documents hold. The two
-// documents are the member's role document and the team's own.
-func TestMemberStopsOnBreaksAcrossTheDocumentsOneMemberReads(t *testing.T) {
-	audit := "reports:\n  監査:\n    where: 記録\n    fields:\n      scope: 範囲\n"
-	cases := []struct {
-		name string
-		role string
-		team string
-		want string
-	}{
-		{
-			name: "a rule id that stands twice",
-			role: oneRule("R1", "one"),
-			team: oneRule("R1", "two"),
-			want: "R1",
-		},
-		{
-			name: "a report name that stands twice",
-			role: "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n" + audit,
-			team: "version: 1\nsections:\n  - rules:\n      - id: B1\n        text: y\n" + audit,
-			want: "監査",
-		},
-		{
-			name: "a report that is not there",
-			team: "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n        report: 監査.absent\n" + audit,
-			want: "監査.absent",
-		},
-		{
-			name: "a derived rule that is not there",
-			team: "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n        origin:\n          - kind: derived\n            refs: [B9]\n",
-			want: "B9",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			l := newLayer(t, "")
-			if tc.role != "" {
-				write(t, filepath.Join(l.root, "roles", "r.yaml"), tc.role)
-			}
-			if tc.team != "" {
-				write(t, filepath.Join(l.team, "agreement.yaml"), tc.team)
-			}
-			_, err := parseTeam(t, l, teamText())
-			if err == nil {
-				t.Fatal("a break across the documents did not stop the prompt")
-			}
-			if !strings.Contains(err.Error(), tc.want) {
-				t.Errorf("error %q does not name %q", err, tc.want)
-			}
-		})
-	}
-}
-
-// TestTeamYAMLDocsAndRolesAreGone: docs: and roles: are gone from team.yaml
-// (段 4); a file that still writes one is stopped with the sentence that says
-// where the documents went, rather than with an unknown-key complaint.
 func TestTeamYAMLDocsAndRolesAreGone(t *testing.T) {
 	cases := []struct{ name, key, want string }{
 		{"docs", "docs: [old.yaml]\n", "agreement.yaml"},

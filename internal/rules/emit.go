@@ -37,9 +37,6 @@ func Emit(d *Document) (string, error) {
 	if d.Revision != nil {
 		values["revision"] = emitInt(*d.Revision)
 	}
-	if len(d.Reports) > 0 {
-		values["reports"] = emitReports(d.Reports)
-	}
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -89,80 +86,18 @@ func emitRules(rules []Rule) *yaml.Node {
 			"id":   emitText(rule.ID),
 			"text": emitText(rule.Text),
 		}
-		if rule.Why != "" {
-			values["why"] = emitText(rule.Why)
-		}
-		// The default is true, and a default is not written.
-		if rule.SendWhy != nil && !*rule.SendWhy {
-			values["send_why"] = emitFalse()
-		}
 		if !rule.Included() {
 			values["in_prompt"] = emitFalse()
+			if rule.OffSince != "" {
+				values["off_since"] = emitText(rule.OffSince)
+			}
 		}
 		if rule.Note != "" {
 			values["note"] = emitText(rule.Note)
 		}
-		if len(rule.Origin) > 0 {
-			values["origin"] = emitOrigins(rule.Origin)
-		}
-		if rule.Report != "" {
-			values["report"] = emitText(rule.Report)
-		}
-		if len(rule.Tests) > 0 {
-			values["tests"] = emitList(rule.Tests)
-		}
 		items = append(items, emitMapping(ruleKeys, values))
 	}
 	return emitSequence(items)
-}
-
-func emitOrigins(origins []Origin) *yaml.Node {
-	items := make([]*yaml.Node, 0, len(origins))
-	for _, origin := range origins {
-		values := map[string]*yaml.Node{"kind": emitText(origin.Kind)}
-		if origin.Date != "" {
-			values["date"] = emitText(origin.Date)
-		}
-		if len(origin.Refs) > 0 {
-			values["refs"] = emitList(origin.Refs)
-		}
-		if origin.Note != "" {
-			values["note"] = emitText(origin.Note)
-		}
-		items = append(items, emitMapping(originKeys, values))
-	}
-	return emitSequence(items)
-}
-
-// emitReports is the reports of a document as one mapping, each report under
-// its name, in the written order.
-func emitReports(reports []Report) *yaml.Node {
-	names := make([]string, 0, len(reports))
-	values := map[string]*yaml.Node{}
-	for _, report := range reports {
-		names = append(names, report.Name)
-		body := map[string]*yaml.Node{}
-		if report.Where != "" {
-			body["where"] = emitText(report.Where)
-		}
-		if len(report.Fields) > 0 {
-			body["fields"] = emitFields(report.Fields)
-		}
-		values[report.Name] = emitMapping(reportKeys, body)
-	}
-	return emitMapping(names, values)
-}
-
-// emitFields is the fields of one report as one mapping, each field under its
-// name, in the written order.
-func emitFields(fields []ReportField) *yaml.Node {
-	names := make([]string, 0, len(fields))
-	values := map[string]*yaml.Node{}
-	for _, field := range fields {
-		names = append(names, field.Name)
-		values[field.Name] = emitText(field.Description)
-	}
-	return emitMapping(names, values)
 }
 
 // emitMapping is a mapping whose keys are written in the order given. A key
@@ -196,14 +131,6 @@ func emitText(text string) *yaml.Node {
 		style = yaml.LiteralStyle
 	}
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text, Style: style}
-}
-
-func emitList(values []string) *yaml.Node {
-	items := make([]*yaml.Node, 0, len(values))
-	for _, value := range values {
-		items = append(items, emitText(value))
-	}
-	return emitSequence(items)
 }
 
 func emitInt(value int) *yaml.Node {

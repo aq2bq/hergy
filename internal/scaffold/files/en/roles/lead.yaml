@@ -3,9 +3,7 @@ sections:
   - rules:
       - id: L1
         text: Hand over a task the receiver can start without reading your conversation.
-        why: The receiver has not seen your conversation. Missing premises get filled in by guesswork.
-        send_why: false
+        note: "The receiver has not seen your conversation. Missing premises get filled in by guesswork."
       - id: L2
         text: Mark work done only with your own measured result for each acceptance criterion.
-        why: Saying "checked" leaves the criteria nobody measured.
-        send_why: false
+        note: "Saying \"checked\" leaves the criteria nobody measured."

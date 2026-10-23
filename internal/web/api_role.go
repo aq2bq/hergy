@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -312,13 +313,17 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	draftDoc := doc.document()
 	var edited []byte
 	var err error
-	if baseErr != nil {
-		edited, err = emitNewRole(draftDoc)
-	} else {
-		saved, _ := rules.ReadAll(base, s.cat.Display(basePath))
+	var saved *rules.Document
+	if baseErr == nil {
+		saved, _ = rules.ReadAll(base, s.cat.Display(basePath))
 		if saved == nil {
 			saved = &rules.Document{Path: basePath}
 		}
+	}
+	rules.FillOffDates(saved, draftDoc, time.Now().Format("2006-01-02"))
+	if baseErr != nil {
+		edited, err = emitNewRole(draftDoc)
+	} else {
 		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{
 			Doc: draftDoc, From: doc.froms(), SectionFrom: doc.sectionFroms(), SaveFrom: rules.SaveFromRoles,
 		})

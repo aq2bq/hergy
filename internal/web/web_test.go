@@ -74,7 +74,7 @@ func (f *fixture) write(t *testing.T, rel, text string) {
 func (f *fixture) writeTeam(t *testing.T, name, mission string) {
 	t.Helper()
 	f.write(t, filepath.Join("teams", name, "team.yaml"), "version: 1\nmission: "+mission+"\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
-	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n        origin:\n          - kind: incident\n            date: \"2026-01-01\"\n")
+	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n        note: このチームの約束を書いた理由。\n")
 }
 
 // teamYAML is the team.yaml of the fixture's demo definition.

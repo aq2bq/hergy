@@ -142,6 +142,9 @@ type ActivityNode struct {
 	// At is when the state began, as HH:MM, and empty for a working member and
 	// for one with no agent (2.5).
 	At string `json:"at"`
+	// Stale says hergy last handed this member a different prompt than its
+	// current definition builds (r-a8fa). Workers are never stale.
+	Stale bool `json:"stale,omitempty"`
 }
 
 // ActivityQuestion is one open question the row's main member asked.

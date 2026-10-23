@@ -6,19 +6,12 @@ sections:
     rules:
       - id: DRAFT-1
         text: 下書きは、読み手と、読み終えた読み手にしてほしいことを 1 行で書いてから始める。
-        origin:
-          - kind: instruction
-            date: "2026-09-25"
-            refs: [d-40a2]
+        note: '由来: instruction 2026-09-25 d-40a2'
       - id: DRAFT-2
         text: 1 つの下書きは 1 つの話にする。話が 2 つになったら、下書きを分ける。
       - id: DRAFT-3
-        text: 読み合わせで決めきれない語があれば、reader → 人間 で尋ねる。下書きの中で語を決めない。
-        why: 読み合わせの中で語を決め、あとで用語集と食い違った。
-        origin:
-          - kind: incident
-            date: "2026-09-29"
-            refs: [d-40b7]
+        text: 読み合わせで決めきれない語があれば、reader → 人間 で尋ねる。下書きの中で語を決めない。 読み合わせの中で語を決め、あとで用語集と食い違った。
+        note: '由来: incident 2026-09-29 d-40b7'
   - heading: 読み合わせ
     rules:
       - id: DRAFT-4

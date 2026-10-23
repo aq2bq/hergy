@@ -176,7 +176,7 @@ window.hergyAPI = (() => {
     checkAnswer: (a) => {
       const json = (a && a.json) || {}, effect = json.effect || {};
       return {
-        problems: json.problems || [], preview: json.preview || null,
+        problems: json.problems || [], preview: json.preview || null, prompt: json.prompt || null,
         diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
         size: json.size || 0, limit: json.limit || 0,
       };

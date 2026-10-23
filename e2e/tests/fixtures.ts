@@ -28,6 +28,7 @@ export type App = {
   state: string;
   home: string;
   work: string; // the activity fixture's bin/, herdr/ and gy/
+  env: Record<string, string>; // the settings the fixture's own hergy runs with
 };
 
 // startServe starts `hergy serve --no-open --port 0` over one fixture, and
@@ -117,6 +118,7 @@ export const test = base.extend<{ reads: Screen; app: App }>({
       state: fixture.state,
       home: fixture.home,
       work: fixture.work,
+      env: fixture.env,
     };
     await use(app);
     try {

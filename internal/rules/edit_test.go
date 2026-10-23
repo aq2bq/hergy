@@ -53,14 +53,14 @@ func TestAddRulePutsItAtTheEndOfOneSection(t *testing.T) {
 
 func TestSetRuleReplacesOnlyThatRule(t *testing.T) {
 	doc := twoSections(t)
-	next := Rule{ID: "A2-NEW", Text: "changed", Why: "because"}
+	next := Rule{ID: "A2-NEW", Text: "changed", Note: "because"}
 	if err := doc.SetRule(0, 1, next); err != nil {
 		t.Fatalf("SetRule: %v", err)
 	}
 	if got := ids(doc); got != "A1,A2-NEW,B1" {
 		t.Errorf("rules = %s, want A1,A2-NEW,B1", got)
 	}
-	if got := doc.Sections[0].Rules[1]; got.ID != "A2-NEW" || got.Why != "because" {
+	if got := doc.Sections[0].Rules[1]; got.ID != "A2-NEW" || got.Note != "because" {
 		t.Errorf("the replaced rule = %+v", got)
 	}
 }
@@ -96,7 +96,6 @@ func TestEditsRefuseAPlaceThatIsNotThere(t *testing.T) {
 		{"a rule past the end", func(doc *Document) error { return doc.SetRule(0, 2, Rule{ID: "X", Text: "x"}) }},
 		{"a rule before the start", func(doc *Document) error { return doc.DeleteRule(0, -1) }},
 		{"a rule in a section that is not there", func(doc *Document) error { return doc.SetRule(9, 0, Rule{ID: "X", Text: "x"}) }},
-		{"a report that is not there", func(doc *Document) error { return doc.AddReportField(0, ReportField{Name: "f"}) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -104,38 +103,6 @@ func TestEditsRefuseAPlaceThatIsNotThere(t *testing.T) {
 				t.Fatal("an edit at a place that is not there was not refused")
 			}
 		})
-	}
-}
-
-func TestAddReportAddsAndRefusesARepeatedName(t *testing.T) {
-	doc := parseAt(t, "rules.yaml", "version: 1\nsections:\n  - rules:\n      - id: R1\n        text: x\nreports:\n  A:\n    where: W\n")
-	if err := doc.AddReport(Report{Name: "B", Where: "here", Fields: []ReportField{{Name: "f", Description: "d"}}}); err != nil {
-		t.Fatalf("AddReport: %v", err)
-	}
-	if len(doc.Reports) != 2 || doc.Reports[1].Name != "B" || doc.Reports[1].Fields[0].Name != "f" {
-		t.Fatalf("reports = %+v", doc.Reports)
-	}
-	if err := doc.AddReport(Report{Name: "A"}); err == nil {
-		t.Fatal("a report with a name that is already there was not refused")
-	}
-	if _, err := Parse(mustEmit(t, doc), "rules.yaml"); err != nil {
-		t.Errorf("the edited document does not read back: %v", err)
-	}
-}
-
-func TestAddReportFieldAddsAndRefusesARepeatedName(t *testing.T) {
-	doc := parseAt(t, "rules.yaml", "version: 1\nsections:\n  - rules: []\nreports:\n  A:\n    where: W\n    fields:\n      f: d\n")
-	if err := doc.AddReportField(0, ReportField{Name: "g", Description: "e"}); err != nil {
-		t.Fatalf("AddReportField: %v", err)
-	}
-	if got := doc.Reports[0].Fields; len(got) != 2 || got[1].Name != "g" || got[1].Description != "e" {
-		t.Fatalf("fields = %+v", got)
-	}
-	if err := doc.AddReportField(0, ReportField{Name: "f"}); err == nil {
-		t.Fatal("a field with a name that is already there was not refused")
-	}
-	if _, err := Parse(mustEmit(t, doc), "rules.yaml"); err != nil {
-		t.Errorf("the edited document does not read back: %v", err)
 	}
 }
 
@@ -158,7 +125,7 @@ func TestSuggestRuleIDStepsPastTheTakenOnes(t *testing.T) {
 // TestSectionMarkdownIsOneSection: the screen shows the section a rule stands
 // in while the person edits, so the section alone is what comes back.
 func TestSectionMarkdownIsOneSection(t *testing.T) {
-	doc := parseAt(t, "rules.yaml", "version: 1\ntitle: T\nsections:\n  - heading: H\n    intro: I\n    style: bullets\n    rules:\n      - id: R1\n        text: one\n  - heading: K\n    rules:\n      - id: R2\n        text: two\nreports:\n  A:\n    where: W\n    fields:\n      f: d\n")
+	doc := parseAt(t, "rules.yaml", "version: 1\ntitle: T\nsections:\n  - heading: H\n    intro: I\n    style: bullets\n    rules:\n      - id: R1\n        text: one\n  - heading: K\n    rules:\n      - id: R2\n        text: two\n")
 	got, err := doc.SectionMarkdown(0)
 	if err != nil {
 		t.Fatalf("SectionMarkdown: %v", err)

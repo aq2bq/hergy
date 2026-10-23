@@ -243,7 +243,13 @@ var glossary = []term{
 		id:       "rule",
 		english:  "rule",
 		japanese: "規則",
-		meaning:  "one rule of a team's agreement or role document: its id, its text, and, when the file gives them, its origin, its reason and its check",
+		meaning:  "one rule of a team's agreement or role document: its id, its text, whether it is on, the day it was switched off, and a note for people",
+	},
+	{
+		id:       "rule-note",
+		english:  "note",
+		japanese: "メモ",
+		meaning:  "a record a person leaves with a rule: why it was written and what was seen; hergy never sends it to a member",
 	},
 	{
 		id:       "origin",
@@ -304,6 +310,18 @@ var glossary = []term{
 		english:  "launch record",
 		japanese: "起動記録",
 		meaning:  "what a running team was started from: the definition and the hash of its content at that time",
+	},
+	{
+		id:       "undo",
+		english:  "undo",
+		japanese: "取り消す",
+		meaning:  "take back the one operation just made (the notice's 取り消す and ⌘Z); a change already saved is not brought back by it",
+	},
+	{
+		id:       "revert",
+		english:  "revert",
+		japanese: "元に戻す",
+		meaning:  "throw away every change not saved in this panel and write the file's own text again (the save band's 元に戻す)",
 	},
 }
 

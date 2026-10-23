@@ -281,7 +281,6 @@ func betweenFindings(in Input, def *definition.Definition) (breaks, warnings []F
 	if agreement == nil {
 		return nil, nil
 	}
-	agreementPath := in.Catalog.Display(def.Agreement.Path)
 	var outBreaks, outWarnings []Finding
 	seen := map[string]bool{}
 	for i := range def.Graph.Members {
@@ -296,7 +295,7 @@ func betweenFindings(in Input, def *definition.Definition) (breaks, warnings []F
 		}
 		rolePath := in.Catalog.Display(roleDoc.Path)
 		for _, p := range rules.CheckAll([]*rules.Document{role, agreement}) {
-			if !betweenDocProblem(p, role, agreement, rolePath, agreementPath) {
+			if !betweenDocProblem(p, role, agreement) {
 				continue
 			}
 			field := problemField(p, p.Path)
@@ -334,22 +333,17 @@ func betweenFindings(in Input, def *definition.Definition) (breaks, warnings []F
 // one document belongs to that document's own check (check.Role for a role,
 // agreementFinding for a team's agreement). A report or a derived reference that
 // is not there is the combination's: either document may hold what it names.
-func betweenDocProblem(p rules.Problem, role, agreement *rules.Document, rolePath, agreementPath string) bool {
-	switch {
-	case p.Field == "id":
+func betweenDocProblem(p rules.Problem, role, agreement *rules.Document) bool {
+	switch p.Field {
+	case "id":
 		if p.RuleID() == "" {
 			return false
 		}
-		inRole := hasRuleID(role, p.RuleID())
-		inAgreement := hasRuleID(agreement, p.RuleID())
-		return inRole && inAgreement
-	case strings.HasPrefix(p.Field, "reports."):
-		name := strings.TrimPrefix(p.Field, "reports.")
-		return hasReport(role, name) && hasReport(agreement, name)
+		return hasRuleID(role, p.RuleID()) && hasRuleID(agreement, p.RuleID())
 	default:
-		// A report a rule names, or a derived reference: the documents together
-		// are what can hold it, and they do not.
-		return p.Path == rolePath || p.Path == agreementPath
+		// The new rule model has no report or derived references; an id that
+		// stands in one document alone is that document's own problem.
+		return false
 	}
 }
 
@@ -360,7 +354,7 @@ func betweenDocProblem(p rules.Problem, role, agreement *rules.Document, rolePat
 func localRuleProblems(doc *rules.Document) []rules.Problem {
 	var out []rules.Problem
 	for _, p := range rules.CheckAll([]*rules.Document{doc}) {
-		if p.Field == "id" || strings.HasPrefix(p.Field, "reports.") {
+		if p.Field == "id" {
 			out = append(out, p)
 		}
 	}
@@ -399,16 +393,6 @@ func hasRuleID(doc *rules.Document, id string) bool {
 	}
 	for _, rule := range doc.Rules() {
 		if rule.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
-// hasReport reports whether a document defines a report name.
-func hasReport(doc *rules.Document, name string) bool {
-	for _, report := range doc.Reports {
-		if report.Name == name {
 			return true
 		}
 	}

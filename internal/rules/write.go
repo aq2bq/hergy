@@ -29,56 +29,6 @@ type Edit struct {
 	Removed bool
 }
 
-// Write returns text with that one rule written the way doc holds it: doc is
-// Parse(text) with SetRule, AddRule or DeleteRule applied, and edit says which
-// rule the change was. The written lines are read back and compared with doc, so
-// a splice that lands on the wrong lines is refused rather than written.
-//
-// A document whose sections or rules are written as a flow sequence (all on one
-// line) is refused with error.edit_shape: there is no line of that rule's own to
-// write. An added rule is written after the section's last item — or under the
-// section itself when the section has no rules: key yet — and the key's line is
-// turned into a block sequence when the file wrote the rules in flow.
-//
-// The sentence of a refusal names the document as doc.Path writes it, so the
-// caller hands in the path it shows (spec/42 R2).
-func Write(text []byte, doc *Document, edit Edit) ([]byte, error) {
-	saved, err := Parse(string(text), doc.Path)
-	if err != nil {
-		return nil, err
-	}
-	if edit.Section < 0 || edit.Section >= len(saved.Sections) {
-		return nil, i18n.Errorf("error.edit_shape", doc.Path, "sections")
-	}
-	if !edit.Added {
-		savedRules := saved.Sections[edit.Section].Rules
-		if edit.Rule < 0 || edit.Rule >= len(savedRules) {
-			return nil, i18n.Errorf("error.edit_shape", doc.Path, "rules")
-		}
-	}
-	return Rewrite(text, saved, Draft{Doc: doc, From: writeFrom(doc, edit)})
-}
-
-// writeFrom is the place each rule of a one-rule write came from: a rule the
-// write did not touch is where it stands, one added is new, and the rules after
-// a rule taken out stand one place earlier than the saved document held them.
-func writeFrom(doc *Document, edit Edit) []Place {
-	var from []Place
-	for si, sec := range doc.Sections {
-		for ri := range sec.Rules {
-			switch {
-			case edit.Added && si == edit.Section && ri == len(sec.Rules)-1:
-				from = append(from, Place{Section: -1, Rule: -1})
-			case edit.Removed && si == edit.Section && ri >= edit.Rule:
-				from = append(from, Place{Section: si, Rule: ri + 1})
-			default:
-				from = append(from, Place{Section: si, Rule: ri})
-			}
-		}
-	}
-	return from
-}
-
 // readRoot is the file's own tree, refusing the shapes a line write cannot
 // place: a file that is not one mapping, or one that holds a `<<:` merge, an
 // anchor or a `*` alias (the same refusal team.yaml gets).

@@ -209,7 +209,7 @@
     const qs = new URLSearchParams(location.search);
     if (state.tab === 'roles') {
       const f = qs.get('filter');
-      state.filter = (f === 'noorigin' || f === 'nowhy' || f === 'issues') ? f : null;
+      state.filter = (f === 'off' || f === 'issues') ? f : null;
       state.q = qs.get('q') || '';
       const opened = (qs.get('open') || '').split(',').filter(Boolean);
       opened.forEach((name) => {
@@ -306,21 +306,21 @@
   }
 
   // ロール
-  const FILTERS = [[null, 'すべて'], ['noorigin', '由来なし'], ['nowhy', 'なぜなし'], ['issues', '問題・警告']];
+  const FILTERS = [[null, 'すべて'], ['off', 'オフがある'], ['issues', '問題・警告']];
   const allEntries = () => roles.flatMap((r) => PLACES.filter((l) => r[l]).map((l) => ({ r, l, e: r[l] })));
   function ruleShown(x, issues) {
-    if (state.filter === 'noorigin' && x.origin.length) return false;
-    if (state.filter === 'nowhy' && x.why) return false;
+    if (state.filter === 'off' && inP(x)) return false;
     if (state.filter === 'issues' && !issues.some((m) => m.k === x._k)) return false;
-    if (state.q) { const q = state.q.toLowerCase(); if (![x.id, x.text, x.why, x.note].some((s) => String(s).toLowerCase().includes(q))) return false; }
+    if (state.q) { const q = state.q.toLowerCase(); if (![x.id, x.text, x.note].some((s) => String(s).toLowerCase().includes(q))) return false; }
     return true;
   }
   const filtering = () => !!(state.filter || state.q);
 
   function filterCount(f) {
+    if (f === 'off') return roles.filter((r) => PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => !inP(x)))).length;
     return allEntries().reduce((c, { r, l, e }) => {
       const is = issuesOf(r, l);
-      return c + rulesOf(e.draft).filter((x) => f === null || (f === 'noorigin' ? !x.origin.length : f === 'nowhy' ? !x.why : is.some((m) => m.k === x._k))).length;
+      return c + rulesOf(e.draft).filter((x) => f === null || is.some((m) => m.k === x._k)).length;
     }, 0);
   }
 
@@ -331,7 +331,7 @@
       <input id="q" class="search" type="search" placeholder="規則を探す" value="${esc(state.q)}" autocomplete="off">
     </div>
     <div class="list">
-      <div class="head"><span></span><span>名前</span><span>置き場所</span><span>規則</span><span>由来・なぜ・確かめ</span><span>大きさ</span><span>使っているチーム</span></div>
+      <div class="head"><span></span><span>名前</span><span>置き場所</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
       <div id="rows"></div>
     </div>`;
   }
@@ -379,19 +379,15 @@
       : r[l] ? `<span class="pill pending">${LNAME[l]}</span>` : '')).join('');
     const issues = rowIssues(r);
     const rs = rulesOf(d);
-    const tip = `由来 ${rs.filter((x) => x.origin.length).length}/${rs.length}・なぜ ${rs.filter((x) => x.why).length}/${rs.length}・確かめ ${rs.filter((x) => x.tests.length || x.report).length}/${rs.length}`;
-    const mx = rs.map((x) => `<i class="p ${x.origin[0] ? 'o-' + x.origin[0].kind : ''}"></i><i class="p ${x.why ? 'why' : ''}"></i><i class="p ${x.tests.length || x.report ? 'tst' : ''}"></i>`).join('');
+    const on = rs.filter(inP).length, off = rs.length - on;
     const size = checks[r.uid + eff(r)];
     const teamIds = [...new Set(readers.map((x) => x.t.id))];
     const teamsTxt = teamIds.join(' · ');
-    // The 規則 column carries the number of rules the prompt leaves out under
-    // the count, when any does (A1, I1).
-    const omitted = saved ? RD.outNote(rs.filter((x) => !inP(x)).length) : '';
     return `<span class="chev"></span>
       <span class="c-name"><span class="nm">${esc(d.name) || '<span class="none">—</span>'}</span><span class="ttl">${esc(d.title)}</span>${r.isNew ? '<span class="tag">新規</span>' : ''}${saved ? RD.badge(issues) : readers.length ? `<span class="sev err">問題 ${readers.length}</span>` : ''}</span>
       <span class="c-place">${pills}</span>
-      <span class="c-count">${saved ? rs.length + omitted : '<span class="none">—</span>'}</span>
-      <span class="c-backing" title="${tip}"><span class="mx" aria-label="${tip}">${mx}</span></span>
+      <span class="c-count">${saved ? rs.length : '<span class="none">—</span>'}</span>
+      <span class="c-backing">${saved ? `<span class="onoff">オン <b>${on}</b>${off ? ` · <span class="offn">オフ ${off}</span>` : ''}</span>` : '<span class="none">—</span>'}</span>
       <span class="c-amount">${size && size.limit ? sizeHTML(size.size, size.limit) : '<span class="none">—</span>'}</span>
       <span class="c-readers">${teamIds.length ? `<b>${teamIds.length}</b><span>${esc(teamsTxt)}</span>` : '<span class="none">0</span>'}</span>`;
   }
@@ -684,7 +680,7 @@
         break;
       case 'filter': state.filter = b.dataset.f || null; render(); syncURL(false); break;
       case 'new': {
-        const d = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: RD.nextKey(), id: '', text: '', why: '', send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [] }] }] };
+        const d = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: RD.nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
         const nr = { uid: ++uid, isNew: true, project: { saved: null, draft: d, hash: '', text: '' }, global: null };
         roles.unshift(nr); state.open.add(nr.uid); RD.state.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`); state.filter = null; state.q = '';
         render(); askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
@@ -788,7 +784,11 @@
     clearRefusal(sec);
     const old = e.saved;
     const newName = e.draft.name;
-    e.saved = clone(e.draft);
+    // The written document comes back with the answer: hergy wrote the day a
+    // rule was switched off (off_since), so the screen takes the document the
+    // server made rather than the one it sent (d-85dc).
+    if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
+    else e.saved = clone(e.draft);
     e.hash = json.hash || e.hash;
     // The written text comes back with the answer, so the YAML tab shows the file
     // this save just made (a moved line, a rule the write re-emitted).

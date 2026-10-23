@@ -42,6 +42,8 @@ type apiIn struct {
 	// folder of two documents: it rides a DELETE in the query beside Hash
 	// (spec-teams B6).
 	AgreementHash string `json:"agreement_hash"`
+	// Members is the herdr names a POST /api/delivery hands the prompt to.
+	Members []string `json:"members"`
 }
 
 // apiBase is the file a duplicate or a copy stands on (spec-roles 1.2.9).

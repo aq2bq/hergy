@@ -795,81 +795,12 @@ func TestValidateShape(t *testing.T) {
 		"checked: 5",
 		"problems: 0",
 		"rules 6 in 3 files",
-		"  with an origin 0 (incident 0 / instruction 0 / derived 0)  with no origin 6",
-		"  with a reason 6  with no reason 0",
-		"  with a check 0 (report 0 / test 0)  with no check 6",
-		"no origin: .hergy/roles/lead.yaml: L1, L2",
-		"no origin: .hergy/teams/demo/agreement.yaml: C1, C2",
-		"no origin: .hergy/roles/builder.yaml: B1, B2",
 		i18n.T("validate.size_heading"),
 		"  team .hergy/teams/demo: 198 characters (the provisional budget is 3000)",
 		"  role .hergy/roles/builder.yaml: 236 characters (the provisional budget is 3000)",
 		"  role .hergy/roles/lead.yaml: 174 characters (the provisional budget is 3000)",
 		"This budget is provisional, for cutting team and role definitions; it does not stop hergy up.",
 	)
-}
-
-// TestValidateCountsWhatTheRulesCarry: the tally after the per-file lines counts
-// the origin, the reason and the check of every rule a member reads. A file two
-// team definitions share is counted once; a reason that is not sent is still a
-// reason; a note is not; and a rule with no origin is listed by id.
-func TestValidateCountsWhatTheRulesCarry(t *testing.T) {
-	f := newFixture(t)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: en\n")
-	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  dev:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "lead.yaml"), `version: 1
-sections:
-  - rules:
-      - id: A1
-        text: one
-        why: because
-        report: audit.scope
-        origin:
-          - kind: incident
-      - id: A2
-        text: two
-        note: a note is not a reason
-        tests: [T-1]
-      - id: L1
-        text: three
-        why: a reason that is not sent
-        send_why: false
-      - id: L2
-        text: four
-        origin:
-          - kind: derived
-            refs: [A1]
-reports:
-  audit:
-    where: the ledger
-    fields:
-      scope: the changed files
-`)
-	for _, name := range []string{"demo", "other"} {
-		if name == "demo" {
-			writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "demo", "agreement.yaml"),
-				"version: 1\nsections:\n  - rules:\n      - id: P1\n        text: five\n        tests: [T-2]\n")
-		}
-		writeFile(t, filepath.Join(f.cfg, "hergy", "teams", name, "team.yaml"),
-			"version: 1\nmission: a mission for the test\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: lead\n    role: lead\n    profile: dev\nturns:\n  - human -> lead\n  - lead -> human\n")
-	}
-
-	got, _, code := run("validate")
-	if code != 0 {
-		t.Fatalf("a tally with missing origins is a break?\n%s", got)
-	}
-	for _, want := range []string{
-		"rules 5 in 2 files",
-		"  with an origin 2 (incident 1 / instruction 0 / derived 1)  with no origin 3",
-		"  with a reason 2  with no reason 3",
-		"  with a check 3 (report 1 / test 2)  with no check 2",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "roles", "lead.yaml") + ": A2, L1",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "teams", "demo", "agreement.yaml") + ": P1",
-	} {
-		if !strings.Contains(got, want+"\n") {
-			t.Errorf("validate is missing %q:\n%s", want, got)
-		}
-	}
 }
 
 // TestSharedAgreementIsNotReadAndStops: the agreement every team used to share
@@ -1058,13 +989,35 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 // prompt (in_prompt: false) is in neither the prompt up hands a member nor the
 // one reprompt sends; the rules that are in the prompt stand unchanged
 // (d-f187).
+// TestOldRuleFieldsStopValidateAndUp: a file that still writes an old rule field
+// is named by its file and rule id by validate and by up --dry, with where the
+// content goes; neither silently drops it (r-81be, ac-9f8d).
+func TestOldRuleFieldsStopValidateAndUp(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
+		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: 本文。\n        why: 前の形の理由。\n")
+	for _, argv := range [][]string{{"validate"}, {"up", "demo", "--dry"}} {
+		stdout, stderr, code := run(argv...)
+		if code == 0 {
+			t.Fatalf("%v accepted an old rule field", argv)
+		}
+		out := stdout + "\n" + stderr
+		for _, want := range []string{"lead.yaml", "L1", "old shape"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%v does not name %q:\n%s", argv, want, out)
+			}
+		}
+	}
+}
+
 func TestUpDryLeavesOutARuleThatIsNotInThePrompt(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:demo@demo"}`, "")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
 		"version: 1\nsections:\n  - heading: 進め方\n    rules:\n"+
-			"      - id: L1\n        text: 渡す本文。\n"+
+			"      - id: L1\n        text: 渡す本文。\n        note: 人向けのメモ。\n"+
 			"      - id: L2\n        text: 渡さない本文。\n        in_prompt: false\n")
 	for _, argv := range [][]string{
 		{"up", "demo", "--dry"},
@@ -1073,6 +1026,9 @@ func TestUpDryLeavesOutARuleThatIsNotInThePrompt(t *testing.T) {
 		got := mustRun(t, argv...)
 		if strings.Contains(got, "渡さない本文。") || strings.Contains(got, "L2") {
 			t.Errorf("%v hands out a rule the file keeps out of the prompt:\n%s", argv, got)
+		}
+		if strings.Contains(got, "人向けのメモ") {
+			t.Errorf("%v sends a rule's note to a member:\n%s", argv, got)
 		}
 		if !strings.Contains(got, "- **L1** 渡す本文。") {
 			t.Errorf("%v lost the rule that is in the prompt:\n%s", argv, got)

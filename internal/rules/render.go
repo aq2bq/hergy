@@ -2,8 +2,6 @@ package rules
 
 import (
 	"strings"
-
-	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // defaultLevel is how deep a heading is when the section does not say.
@@ -20,8 +18,6 @@ const (
 	PartIntro = "intro"
 	// PartRule is a line of a rule's body.
 	PartRule = "rule"
-	// PartReports is a line of the reports block at the end.
-	PartReports = "reports"
 	// PartBlank is a blank line between two blocks.
 	PartBlank = "blank"
 	// PartExcluded is a rule the file keeps out of the prompt (in_prompt:
@@ -33,16 +29,12 @@ const (
 
 // MDLine is one physical line of the document as a member reads it: the line's
 // text, the part it stands for, and where it is (Section is the section index or
-// -1, Rule the rule index within that section or -1). Held is the reason of a
-// rule whose send_why is false: it is shown beside the rule's last line, struck
-// through, and is not part of Text, so a line count and a character count are
-// the ones a member is handed (spec/38 M2).
+// -1, Rule the rule index within that section or -1).
 type MDLine struct {
 	Text    string `json:"text"`
 	Part    string `json:"part"`
 	Section int    `json:"section"`
 	Rule    int    `json:"rule"`
-	Held    string `json:"held"`
 }
 
 // Lines is the document as the lines of the Markdown a member reads: one entry
@@ -104,9 +96,6 @@ func (d *Document) mdBlocks() [][]MDLine {
 	for i, section := range d.Sections {
 		out = append(out, section.mdBlocks(i)...)
 	}
-	if len(d.Reports) > 0 {
-		out = append(out, d.reportBlocks()...)
-	}
 	return out
 }
 
@@ -119,9 +108,6 @@ func (d *Document) mdPreviewBlocks() [][]MDLine {
 	}
 	for i, section := range d.Sections {
 		out = append(out, section.mdPreviewBlocks(i)...)
-	}
-	if len(d.Reports) > 0 {
-		out = append(out, d.reportBlocks()...)
 	}
 	return out
 }
@@ -232,41 +218,18 @@ func (s Section) ruleBlocks(index int) [][]MDLine {
 // item is one rule as a list item, with a multi-line body kept inside it. A rule
 // carries its id into the prompt as the item's head.
 func item(rule Rule) string {
-	body := strings.ReplaceAll(rule.Sent(), "\n", "\n   ")
+	body := strings.ReplaceAll(strings.TrimSpace(rule.Text), "\n", "\n   ")
 	if rule.ID == "" {
 		return "- " + body
 	}
 	return "- **" + rule.ID + "** " + body
 }
 
-// Sent is the rule as a member reads it: its text, and its reason after one
-// space, unless send_why says not to.
-func (r Rule) Sent() string {
-	text := strings.TrimSpace(r.Text)
-	if r.Why == "" || (r.SendWhy != nil && !*r.SendWhy) {
-		return text
-	}
-	return text + " " + strings.TrimSpace(r.Why)
-}
-
-// heldReason is the reason a rule carries beside its last line rather than in
-// its text: the trimmed why of a rule whose send_why is false. Empty otherwise.
-func (r Rule) heldReason() string {
-	if r.SendWhy == nil || *r.SendWhy || strings.TrimSpace(r.Why) == "" {
-		return ""
-	}
-	return strings.TrimSpace(r.Why)
-}
-
 // ruleLines is one rule's lines: the text split at its line breaks, each line
 // marked as the rule's, with the reason a send_why: false rule holds beside its
 // last line.
-func mdRuleLines(text string, section, rule int, r Rule) []MDLine {
-	lines := textLines(text, PartRule, section, rule)
-	if held := r.heldReason(); held != "" && len(lines) > 0 {
-		lines[len(lines)-1].Held = held
-	}
-	return lines
+func mdRuleLines(text string, section, rule int, _ Rule) []MDLine {
+	return textLines(text, PartRule, section, rule)
 }
 
 // textLines is one text as lines of one part and place.
@@ -286,24 +249,4 @@ func blockText(block []MDLine) string {
 		lines[i] = line.Text
 	}
 	return strings.Join(lines, "\n")
-}
-
-// reportBlocks is the report shapes, at the end of the document: the heading,
-// then one block per report.
-func (d *Document) reportBlocks() [][]MDLine {
-	out := make([][]MDLine, 0, len(d.Reports)+1)
-	out = append(out, []MDLine{{Text: "## " + i18n.T("rules.reports_heading"), Part: PartReports, Section: -1, Rule: -1}})
-	for _, report := range d.Reports {
-		out = append(out, textLines(report.block(), PartReports, -1, -1))
-	}
-	return out
-}
-
-// block is one report shape: its name, where it is written, and its fields.
-func (r Report) block() string {
-	fields := make([]string, 0, len(r.Fields))
-	for _, field := range r.Fields {
-		fields = append(fields, i18n.Tf("rules.report_field", field.Name, field.Description))
-	}
-	return i18n.Tf("rules.report_block", r.Name, r.Where, strings.Join(fields, "\n"))
 }

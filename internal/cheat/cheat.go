@@ -118,7 +118,7 @@ var behavior = map[options.Kind]string{
 	options.New: `      Write a starter team definition: into the project's .hergy/ when hergy runs inside a git repository, into ~/.config/hergy/ otherwise. The global config.yaml is written too when it is missing.
 `,
 	options.Validate: `      Check the global config.yaml, every profiles.yaml, and every team definition. Exit 1 if any is broken.
-      It then counts what the rules carry, over the rule files the members of every team definition read (a file two definitions share counts once): how many rules there are, how many say where they came from (incident, instruction or derived) and how many do not, how many carry a reason and how many do not, and how many have a report field or a test and how many do not. It then lists the id of every rule with no origin, by file.
+      It then counts the rule files the members of every team definition read (a file two definitions share counts once) and the rules in them.
       It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
 	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST, PUT or DELETE that must carry the token of this run in the X-Hergy-Token header and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings the way the commands do, and it changes nothing but the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs), a role document, and a team definition's team.yaml and agreement.yaml.
@@ -168,7 +168,7 @@ Reading the output:
   status --json prints its rows as JSON, the one command that does not need --dry: a team object with members, each {name, state, unchanged_minutes, live, worker}, where unchanged_minutes is the number of minutes a working member's screen has stood (absent when it changed or hergy had not seen it). With no team name it is {"teams": [...]}, one such object each.
   A JSON member always has name, role, kind, args, env, cwd (an absolute path) and prompt: env is the pane's environment, the profile's own variables plus GY_ACTOR. profile, workers, turns and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.
-  validate prints the files it checked, then counts what the rules carry (the origin, the reason and the check of every rule a member reads, with the ids of the rules that have no origin).
+  validate prints the files it checked, then the count of rules and files.
   It then prints the size of what each member is handed (rules and characters) and of each team definition's rule files, and warns when one is over the provisional limit. Neither the count nor a warning changes the exit code: only a broken file makes it 1.
   To read the text form, add --lang en, or use --dry --json.
 
@@ -258,21 +258,10 @@ Rule files (what the role documents and the team agreements are):
     rules:          list; each rule is an entry:
       id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
       text: <text>  required, string; what the member reads, in Markdown. A rule may still write a turn between two of the team as "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. hergy reads turns from the team definition's turns: now, and validate warns when a rule text claims a turn turns: does not hold. The figure draws turns: and nothing else.
-      why: <text>   string, optional; one space and the reason follow the text, unless send_why is false.
-      send_why: false   boolean, optional; keeps the reason in the file and out of the prompt.
-      in_prompt: false  boolean, optional; keeps the rule in the file and out of the prompt. Its id, its origin and its checks are still counted and checked.
-      note: <text>  string, optional; for whoever maintains the file; never sent, and not a reason.
-      origin:       list, optional; where the rule came from:
-        kind: incident|instruction|derived   required; derived needs refs, the rule ids it came from.
-        date: YYYY-MM-DD   string, optional; quoted or not.
-        refs: [<ref>...]   optional; for incident and instruction an outside reference (an issue, a ledger id, a URL).
-        note: <text>  string, optional.
-      report: <name>.<field>   string, optional; the report field that shows the rule was kept; never sent. The report may be written in another document the same member reads.
-      tests: [<id>...]   list, optional; the tests that check the rule; never sent.
-  reports:          mapping, optional; the shape of a report, rendered at the end:
-    <name>:
-      where: <text>    string, optional; where the report is written.
-      fields:          mapping of field name to what it holds.
+      in_prompt: false  boolean, optional; keeps the rule in the file and out of the prompt. On the screen, switching a rule off writes the day in off_since, and switching it on removes it.
+      off_since: YYYY-MM-DD   string, optional; the day the rule was switched off. It is read only while in_prompt is false: on a rule that is on it is ignored, and hergy drops it the next time it writes the rule.
+      note: <text>  string, optional; a memo for people: why the rule was written and what was seen. Never sent.
+  A file that still writes why, send_why, origin, report, tests or a reports: block stops, and hergy validate names the file and the rule. Move a reason a member needs into the body, move a record for people into the note, and take report, tests and reports out (they are not moved to the note).
 
 hire (a member starting a worker):
   The hiring member's workers: must pair --purpose with a profile; the worker takes that profile's kind, args and env, and inherits the hiring member's cwd.

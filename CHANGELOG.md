@@ -4,6 +4,16 @@
 
 ### Breaking
 
+- **A rule holds only its body, its on/off switch, the day it was switched off
+  and a note**: `why`, `send_why`, `origin`, `report` and `tests` are gone from a
+  rule, and the document-level `reports:` block is gone. A rule is now
+  `id`, `text`, `in_prompt`, `off_since` (`YYYY-MM-DD`, only while the rule is
+  off) and `note` (the memo for people, never sent). A file that still writes an
+  old field stops rather than dropping it: `hergy validate`, `hergy up` (with
+  and without `--dry`), `hergy refresh`, `hergy reprompt`, `hergy hire` and the
+  screens name the file and the rule, with what to do with the content. The web
+  API's rule object drops `why`, `send_why`, `origin`, `report` and `tests`, and
+  carries `off_since` and `note`; a document has no `reports`.
 - **The agreement every team shares is gone**: hergy no longer reads
   `agreement.yaml` at the top of a place — `.hergy/agreement.yaml`, or
   `~/.config/hergy/agreement.yaml` for the settings outside the project. Its
@@ -37,8 +47,38 @@
 4. Run `hergy up <team> --dry` and check that the rules you moved stand in the
    members' prompts (by their ids). A rule left in no file is in no prompt.
 
+### Moving a rule file to the new shape
+
+`hergy validate` names each old field it finds, the file, the rule id, and where
+the content goes. For each one:
+
+1. A `why` a member read (no `send_why: false`) moves to the end of `text`: the
+   body is what a member reads, so the prompt keeps the sentence. A `why` with
+   `send_why: false` was not sent; move it to `note`.
+2. An `origin` moves to `note`. It was a record for people, not a sentence a
+   member read.
+3. `report`, `tests` and a document's `reports:` are deleted, not moved to the
+   note: the per-rule check fields are gone.
+4. Keep `in_prompt` as it is. A rule that is off may also carry `off_since:
+   YYYY-MM-DD`; the screen writes the day when a person switches the rule off
+   and removes it when they switch it back on. A hand-written `in_prompt: false`
+   without a day is read as off on an unknown day and is not filled in on its
+   own. An `off_since` left on a rule that is on is ignored and is dropped the
+   next time hergy writes that rule.
+5. Remove `why`, `send_why`, `origin`, `report`, `tests` and `reports:` and run
+   `hergy validate` again. It must stop naming them.
+
 ### Changed
 
+- **A bootstrap prompt now says that sending a message hands the turn**: the
+  contact guide (`herdr.guide_member` and `herdr.guide_worker`) says that
+  sending to a teammate hands them the turn and that writing in one's own pane
+  and stopping hands the turn to the human; that the sender stops and waits and
+  promises no work after handing over; that a member holding the turn does not
+  stop until the work it was given is done; and that the receiver holds the
+  turn and hands on the next work or closes it. The three lines are in Japanese
+  and English and reach every member's prompt and every hired worker's prompt
+  (r-e54b, ac-a516).
 - **`hergy validate` and the screens check one definition at a time**: a role
   document is checked once, by itself, and a team definition once, with the
   documents its members read together. A role document's own warnings (a model
