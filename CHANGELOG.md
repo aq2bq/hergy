@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **`hire --dry` plans for a team that is not running**: the plan and the
+  worker's prompt are built from the team definition, and the command reads no
+  herdr, as the cheatsheet said. `--team` names the team (a team name, or a team
+  definition name the launch record does not know); without it the one team in
+  this project's launch record is used, and with no record the command asks for
+  `--team` instead of guessing. A real `hire` still stops on a team that is not
+  running.
+
 - **Error messages say what to do next**: every error a command or a screen
   prints now names the next step — the command to run, the screen to open or
   the place in the file to fix. A sentence that stops because of a bug in hergy

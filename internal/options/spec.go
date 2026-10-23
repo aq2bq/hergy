@@ -54,6 +54,9 @@ var (
 	descTeam    = text(
 		"The team to act on, by team name\n(left out: the one running team)",
 		"対象のチーム名\n（動いているチームが1つだけなら省ける）")
+	descHireTeam = text(
+		"The team, by team name or team definition name\n(left out: with --dry, the one team in this project's\nlaunch record; else the one running team)",
+		"対象のチーム（チーム名かチーム定義名）\n（省くと、--dry ではこのプロジェクトの起動の記録にある1つのチーム。\nそうでなければ、動いているチームが1つだけなら省ける）")
 )
 
 // specs is every command, in the order the cheatsheet lists them.
@@ -275,11 +278,11 @@ var specs = []Spec{
 			use(flagFrom, text(
 				"The member that hires the worker (short member name or herdr name)\nLeft out: required unless exactly one member hires for this purpose",
 				"ワーカーを追加するメンバー（短いメンバー名か herdr 名）\nこの目的のワーカーを持つメンバーが1人だけなら省ける")),
-			use(flagTeam, descTeam),
+			use(flagTeam, descHireTeam),
 			use(flagTimeout, descTimeout),
 			use(flagDry, text(
-				"Print the plan and start nothing\nIt never reads herdr",
-				"起動せず、計画だけを表示する\nherdr は読まない")),
+				"Print the plan and start nothing\nThe team is the one --team names (a team name, or a team\ndefinition name the launch record does not know), else the one\nteam in this project's launch record. herdr is not read, so a team\nthat is not running can be planned for",
+				"起動せず、計画だけを表示する\nチームは --team が名指すもの（チーム名か、起動の記録に無い\nチーム定義名）。無ければ、このプロジェクトの起動の記録にある1つの\nチーム。herdr は読まないので、動いていないチームも計画できる")),
 			use(flagJSON, descJSON),
 			use(flagDir, descDir),
 		},

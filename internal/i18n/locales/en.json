@@ -22,6 +22,8 @@
   "error.member_and_all": "%s cannot take both <member> and --all; pass one of them",
   "error.needs_member": "%s needs <member> or --all",
   "error.hire_needs_flags": "hire needs %s",
+  "error.dry_team_needed": "cannot name a team: --dry does not read herdr, so name one with --team (a team name or a team definition name, for example --team core)",
+  "error.dry_team_candidates": "name a team with --team (teams in this project's launch record: %s)",
   "error.show_needs_team": "hergy show needs a team definition name",
   "error.new_needs_name": "hergy new needs a team definition name",
   "error.new_name_pattern": "team definition name must match [a-z][a-z0-9_-]{0,24}: %q",

@@ -1830,6 +1830,14 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 func workersFixture(t *testing.T) {
 	t.Helper()
 	f := newFixture(t)
+	workersProject(t, f)
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+}
+
+// workersProject lays the team definition and the profiles the hire tests use,
+// in a project of its own, and says nothing about a team running.
+func workersProject(t *testing.T, f *fixture) {
+	t.Helper()
 	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n"+
@@ -1840,7 +1848,100 @@ func workersFixture(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+}
+
+// TestHireDryPlansWithoutHerdr: hire --dry is planned from the team definition
+// and reads no herdr, so a team that is not running still gets the worker's
+// prompt (r-fe31, ac-73a9). The team is the one --team names; a name the launch
+// record does not know is a team definition name.
+func TestHireDryPlansWithoutHerdr(t *testing.T) {
+	f := newFixture(t)
+	workersProject(t, f)
+
+	got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry", "--json")
+	var plan struct {
+		Team    string `json:"team"`
+		Members []struct {
+			Name   string `json:"name"`
+			Prompt string `json:"prompt"`
+		} `json:"members"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, got)
+	}
+	if plan.Team != "dev" {
+		t.Errorf("the plan is for team %q, want dev", plan.Team)
+	}
+	if len(plan.Members) != 1 || plan.Members[0].Name != "dev-researcher" {
+		t.Fatalf("the plan's members are %v, want the one dev-researcher", plan.Members)
+	}
+	if !strings.Contains(plan.Members[0].Prompt, "## Task\nread") {
+		t.Errorf("the worker's prompt is not the plan's own:\n%s", plan.Members[0].Prompt)
+	}
+
+	// The readable form is the same plan, and it also needs no herdr.
+	if got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry"); !strings.Contains(got, "member: dev-researcher") {
+		t.Errorf("hire --dry without --json does not show the worker:\n%s", got)
+	}
+}
+
+// TestHireDryNeedsTeamWithoutALaunchRecord: --dry does not read herdr, so with no
+// --team and no launch record to say which team it is, the command stops and asks
+// for the name rather than guessing.
+func TestHireDryNeedsTeamWithoutALaunchRecord(t *testing.T) {
+	f := newFixture(t)
+	workersProject(t, f)
+
+	_, stderr, code := run("hire", "researcher", "--purpose", "調査", "--task", "read", "--dry")
+	if code == 0 {
+		t.Fatal("hire --dry without --team succeeded with no launch record")
+	}
+	if !strings.Contains(stderr, "--team") {
+		t.Errorf("hire --dry without --team does not ask for the name:\n%s", stderr)
+	}
+}
+
+// TestHireDryTakesTheTeamFromTheLaunchRecord: without --team, the one team this
+// project's launch record holds is the team the plan is made for, read from the
+// record rather than from herdr (which is gone by then).
+func TestHireDryTakesTheTeamFromTheLaunchRecord(t *testing.T) {
+	f := newFixture(t)
+	workersProject(t, f)
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "dev")
+
+	// herdr is not there any more: only the launch record can say which team.
+	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-herdr"))
+	got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--dry", "--json")
+	var plan struct {
+		Team string `json:"team"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("--json output is not JSON: %v\n%s", err, got)
+	}
+	if plan.Team != "dev" {
+		t.Errorf("the plan is for team %q, want the team the launch record holds, dev", plan.Team)
+	}
+}
+
+// TestHireWithoutDryStopsForAStoppedTeam: a real hire still stops on a team that
+// is not running (it is herdr that says so), and only --dry plans without herdr.
+func TestHireWithoutDryStopsForAStoppedTeam(t *testing.T) {
+	f := newFixture(t)
+	workersProject(t, f)
+	f.runningHerdr(t, "", "")
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	_, stderr, code := run("hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev")
+	if code == 0 {
+		t.Fatal("a real hire succeeded with the team not running")
+	}
+	if !strings.Contains(stderr, i18n.Tf("error.team_not_running", "dev")) {
+		t.Errorf("a real hire does not say the team is not running:\n%s", stderr)
+	}
 }
 
 // TestHireUsesTheProfilePairedWithThePurpose: hire takes the profile the

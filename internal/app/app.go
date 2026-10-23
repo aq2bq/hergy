@@ -354,6 +354,65 @@ func resolveTeam(cat *catalog.Catalog, base string, opts *options.Options) (*res
 	return buildRunning(cat, base, chosen)
 }
 
+// resolveTeamDry finds the team a hire --dry plans for without reading herdr, so
+// a plan can be made for a team that is not running (r-fe31). --team names a
+// team; when this project's launch record knows that name, the record says which
+// definition it stood on, and a name the record does not know is taken as a team
+// definition name. With no name, the one team the record holds is taken, and
+// nothing else is: herdr is not read to choose.
+func resolveTeamDry(cat *catalog.Catalog, base string, opts *options.Options) (*resolved, error) {
+	recorded := recordedDefinitions(base)
+	name := opts.Team
+	if name == "" {
+		if len(recorded) != 1 {
+			return nil, dryTeamError(recorded)
+		}
+		name = slices.Sorted(maps.Keys(recorded))[0]
+	}
+	definition := name
+	if one, ok := recorded[name]; ok {
+		definition = one
+	}
+	return buildRunning(cat, base, team.Running{Team: name, Definition: definition})
+}
+
+// recordedDefinitions is the newest launch of each team name this project has
+// had, from this machine's launch record: the team name and the team definition
+// it stood on. It reads the record, not herdr, which is what a --dry plan has to
+// stand on; a record from another project is not this plan's.
+func recordedDefinitions(base string) map[string]string {
+	out := map[string]string{}
+	log, err := launchlog.Open()
+	if err != nil {
+		return out
+	}
+	records, err := log.Read()
+	if err != nil {
+		return out
+	}
+	for _, record := range records {
+		if record.Team == "" || record.Definition == "" {
+			continue
+		}
+		if record.Project != "" && !samePath(record.Project, base) {
+			continue
+		}
+		out[record.Team] = record.Definition
+	}
+	return out
+}
+
+// dryTeamError is the sentence a --dry with no team name stops on: it names the
+// teams this project's launch record holds, so a person can pick one without
+// herdr.
+func dryTeamError(recorded map[string]string) error {
+	if len(recorded) == 0 {
+		return i18n.Errorf("error.dry_team_needed")
+	}
+	names := slices.Sorted(maps.Keys(recorded))
+	return i18n.Errorf("error.dry_team_candidates", strings.Join(names, i18n.T("list.separator")))
+}
+
 // buildRunning resolves one running team's definition and builds the members
 // under the team's run name.
 func buildRunning(cat *catalog.Catalog, base string, running team.Running) (*resolved, error) {
@@ -1535,7 +1594,14 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	cat := env.Catalog(source.Disk{})
+	resolve := resolveTeam
+	if opts.Dry {
+		// A plan is made from the team definition alone: a team that is not
+		// running can be planned for, and herdr is not read (r-fe31).
+		resolve = resolveTeamDry
+	}
+	r, err := resolve(cat, env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}

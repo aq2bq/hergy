@@ -109,6 +109,7 @@ var behavior = map[options.Kind]string{
 	options.Tell: `      Send a member a message headed by who it is from: --from names a member (short member name or herdr name), else the member whose pane you type in, else the human. It does not read the member's state, so the message reaches an agent in any state. --dry prints the message and reads nothing.
 `,
 	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for.
+      --dry plans from the team definition and reads no herdr, so a team that is not running can be planned for: --team names the team (a team name, or a team definition name the launch record does not know), and with no --team the one team in this project's launch record is used.
 `,
 	options.Ls: `      List the visible team definitions and the running team names each one booted.
 `,
@@ -133,7 +134,7 @@ var behavior = map[options.Kind]string{
 var flagMeaning = map[string]string{
 	"ai":      "Print the agent cheatsheet (this text) instead of the short one. Always English.",
 	"as":      "Run the team definition under this team name. The team name is the first half of the herdr name; without it, the team definition name.",
-	"dry":     "Print what would happen and change nothing. up, reprompt, hire, nudge, stop and tell never read herdr; down and refresh read the live agents and tabs (refresh also refuses your own pane). --dry-run is an alias.",
+	"dry":     "Print what would happen and change nothing. up and hire never read herdr (a hire --dry can plan for a team that is not running); down, refresh, reprompt, nudge, stop and tell read the live agents and tabs, so they need the team to be running (refresh also refuses your own pane). --dry-run is an alias.",
 	"json":    "With --dry, print the plan as JSON; status --json prints its rows as JSON (state and unchanged_minutes) and is the one command that does not need --dry. --json without --dry is an error on every other command.",
 	"all":     "Act on every member instead of one <member>; both together is an error.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
@@ -152,7 +153,7 @@ var flagMeaning = map[string]string{
 const tail = `Running against herdr:
   up, down, refresh, reprompt and hire, without --dry, must run inside a herdr-managed pane: HERDR_ENV=1 and HERDR_PANE_ID set.
   focus, nudge, stop and tell read and drive herdr from anywhere; the pane you type in says who a message is from, and a member running in it cannot stop itself.
-  A team command (down, status, refresh, reprompt, hire, focus, nudge, stop, tell) reads herdr's tabs to find the running team (a tab is a team's when the agents in it are named after the tab's label), and this machine's launch record only says which team definition a found tab came from. A team name with no hergy tab is an error, whatever the record holds. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status). down closes the panes named after the team even when its definition cannot be read.
+  A team command (down, status, refresh, reprompt, hire, focus, nudge, stop, tell) reads herdr's tabs to find the running team (a tab is a team's when the agents in it are named after the tab's label), and this machine's launch record only says which team definition a found tab came from. hire --dry is the exception: it plans from the definition and finds the team in this project's launch record. A team name with no hergy tab is an error, whatever the record holds. With no team name, the one running team is used; none or several is an error that names the running teams (see hergy status). down closes the panes named after the team even when its definition cannot be read.
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down skips a member that is not live, closes the team's hired workers too, and closes hergy's own pane last.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.

@@ -22,6 +22,8 @@
   "error.member_and_all": "%s では <メンバー> と --all を同時に指定できません。<メンバー> か --all のどちらか一方を指定してください",
   "error.needs_member": "%s には <メンバー> か --all を指定してください",
   "error.hire_needs_flags": "hire には %s を指定してください",
+  "error.dry_team_needed": "チームを決められませんでした。--dry は herdr を読まないので、--team でチーム名かチーム定義名を書いてください（例: --team core）",
+  "error.dry_team_candidates": "チーム名を --team で書いてください（このプロジェクトの起動の記録にあるチーム: %s）",
   "error.show_needs_team": "hergy show にはチーム定義名を指定してください",
   "error.new_needs_name": "hergy new にはチーム定義名を指定してください",
   "error.new_name_pattern": "チーム定義名は [a-z][a-z0-9_-]{0,24} の形にしてください: %q",
