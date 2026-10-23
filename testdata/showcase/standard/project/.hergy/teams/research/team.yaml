@@ -1,0 +1,48 @@
+version: 1
+mission: "検索の改善案を調べる"
+prompt: |
+  あなたは %{team} チームの %{name} です。調べ始める前に、問いを 1 文で書き、答えが出たら何が決まるかも書いてください。
+
+  %{actor}
+
+  %{role_doc}
+  %{docs}
+  ## 名簿
+  %{roster}
+
+  ## 連絡
+  %{herdr}
+  %{turns}%{workers}
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: scout
+    role: scout
+    profile: gemini-pro
+workers:
+  - from: lead
+    purpose: ログの調査
+    profile: haiku-chore
+  - from: lead
+    purpose: 競合の調査
+    profile: gemini-pro
+  - from: lead
+    purpose: 論文の要約
+    profile: opus-deep
+  - from: scout
+    purpose: 試作
+    profile: codex-high
+  - from: scout
+    purpose: 計測
+    profile: codex-mini
+  - from: scout
+    purpose: 聞き取りの整理
+    profile: sonnet-fast
+turns:
+  - human -> lead
+  - lead -> human
+  - lead -> scout
+  - scout -> lead
+  - scout -> human
+  - human -> scout

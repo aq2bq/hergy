@@ -1,0 +1,8 @@
+version: 1
+mission: "移行の手順書を書く
+members:
+  - name: writer
+   role: writer
+    profile: sonnet-fast
+turns:
+  - human -> writer

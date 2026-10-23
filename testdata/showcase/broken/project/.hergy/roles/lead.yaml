@@ -1,0 +1,55 @@
+version: 1
+title: 進行管理
+revision: 3
+sections:
+  - heading: 使命
+    rules:
+      - id: LEAD-1
+        text: 人間と話すのは lead だけにする（lead ⇄ 人間）。人間に伝えるのは、人間が決めることと、人間の番が回ってきたことの 2 つだけにする。
+        why: 進行の中身をそのまま人間に伝えて、人間が何を決めればよいのか分からなくなった。
+        origin:
+          - kind: incident
+            date: "2026-09-12"
+            refs: [d-31a0]
+      - id: LEAD-2
+        text: 要求を受けたら「誰が・何を・どうする」の 1 文に書き直して台帳に記録し、その記録の ID を添えて仕事を割り振る。
+        origin:
+          - kind: instruction
+            date: "2026-09-14"
+            refs: [d-4c11]
+      - id: LEAD-3
+        text: 人間への問いは 1 回に 1 つにし、選択肢とおすすめを 1 つ添える。答えの形（はい・いいえ、どれか 1 つ）を問いの中に書く。
+  - heading: 払い出し
+    rules:
+      - id: LEAD-4
+        text: 実装は 1 つの要求に 1 人で払い出す。同じファイルを触る要求は、前の要求が取り込まれてから払い出す。
+        why: 2 人が同じファイルを並行して直し、取り込みで片方の変更が消えた。
+        origin:
+          - kind: incident
+            date: "2026-09-20"
+            refs: [d-58e2]
+      - id: LEAD-5
+        text: 払い出すときは、読むもの、終わりの条件、触らないファイルを書く。終わりの条件は、誰が見ても判定できる形（コマンドの終了コード、画面の状態）にする。
+      - id: LEAD-6
+        text: レビューの結果は lead が受け取り、差し戻しは要求の言葉に直してから実装する人に渡す。指摘をそのまま転送しない。
+        origin:
+          - kind: derived
+            refs: [LEAD-4]
+  - heading: 見せる前の確認
+    rules:
+      - id: LEAD-7
+        text: 人間に見せる前に、lead が自分で動かして確かめる。実装した人の「できた」だけでは見せない。
+        why: 確かめないまま見せて、人間が最初の操作で壊れた画面に出くわした。
+        origin:
+          - kind: incident
+            date: "2026-10-02"
+            refs: [d-7f90]
+        tests: [scripts/check-before-show.sh]
+      - id: LEAD-8
+        text: 取り込みは CI が通ってから lead がする。メンバーとワーカーは main に触らず、作業はそれぞれのワークツリーで終える。
+        origin:
+          - kind: instruction
+            date: "2026-09-14"
+            refs: [d-4c11]
+      - id: LEAD-9
+        text: 1 日の終わりに、開いている要求と止まっている要求を、止まっている理由と一緒に台帳へ 3 行以内で残す。

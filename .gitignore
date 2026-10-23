@@ -5,3 +5,8 @@ TESTING.md
 .local
 .bin/
 .hergy/
+
+# testdata holds project roots of its own: their .hergy/ is part of the sample,
+# not this project's settings (ignored above).
+!testdata/**/.hergy/
+!testdata/**/.hergy/**
