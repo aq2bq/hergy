@@ -49,6 +49,18 @@ const (
 	// projectDir is the work directory's project: a name of its own, so the
 	// band that writes the project's name reads like a person's project.
 	projectDir = "shop"
+	// homeDir is the work directory's home. The settings outside the project
+	// live where a person's do — under it, in .config and .local/state — so a
+	// path there reads as ~/.config/hergy/... on the screens, the way it does on
+	// a person's machine (2026-10-23).
+	homeDir    = "home"
+	configHome = ".config"
+	stateHome  = ".local/state"
+	// layoutVersion is the shape of the work directory, as the marker writes it.
+	// It moved when the settings went inside the home directory (2026-10-23):
+	// a directory laid by an older tool has its settings elsewhere, so a
+	// command does not read it as one of this tool's.
+	layoutVersion = "2"
 	// rebuildLine is what run and snap say when the built binary changed: a
 	// serve that is already up keeps running the hergy it started with.
 	rebuildLine = "bin/hergy を作り直しました。動いている serve は、起こし直すまで前の hergy のままです"
@@ -533,6 +545,9 @@ func layOrReuse(root string, sc scene, opts options, stdout, stderr io.Writer) (
 		return "", "", err
 	}
 	have, err := isLaid(work)
+	if errors.Is(err, errOldLayout) {
+		return "", "", fmt.Errorf("%s は前の形の作業用ディレクトリです（設定の置き場所が変わりました）。--work で別のディレクトリを指定するか、serve を起こし直してから使ってください", work)
+	}
 	if err != nil {
 		return "", "", err
 	}
@@ -561,6 +576,11 @@ func layOrReuse(root string, sc scene, opts options, stdout, stderr io.Writer) (
 
 // isLaid says the work directory is this tool's own, laid out before: a serve, a
 // command or a copy may stand on it.
+// errOldLayout says a work directory was laid out by a version of this tool
+// whose settings stood outside the home directory: a command cannot read it, and
+// says so rather than reading an empty set of files.
+var errOldLayout = errors.New("old work directory layout")
+
 func isLaid(work string) (bool, error) {
 	info, err := os.Stat(work)
 	switch {
@@ -571,8 +591,12 @@ func isLaid(work string) (bool, error) {
 	case !info.IsDir():
 		return false, fmt.Errorf("%s はディレクトリではありません", work)
 	}
-	if _, err := os.Stat(filepath.Join(work, marker)); err != nil {
+	raw, err := os.ReadFile(filepath.Join(work, marker))
+	if err != nil {
 		return false, nil
+	}
+	if !strings.Contains(string(raw), "layout: "+layoutVersion) {
+		return false, errOldLayout
 	}
 	return true, nil
 }
@@ -584,20 +608,20 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	if err := resetWork(work); err != nil {
 		return "", "", err
 	}
-	for _, dir := range []string{projectDir, "cfg", "state", "home", "bin", "herdr"} {
+	for _, dir := range []string{projectDir, homeDir, "bin", "herdr"} {
 		if err := os.MkdirAll(filepath.Join(work, dir), 0o755); err != nil {
 			return "", "", err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(work, marker), []byte("hergy showcase\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(work, marker), []byte("hergy showcase\nlayout: "+layoutVersion+"\n"), 0o644); err != nil {
 		return "", "", err
 	}
 	for _, layer := range sc.layers {
 		from := filepath.Join(root, dataDir, layer)
 		for _, part := range []struct{ from, to string }{
 			{"project", projectDir},
-			{"config", "cfg"},
-			{"state", "state"},
+			{"config", filepath.Join(homeDir, configHome)},
+			{"state", filepath.Join(homeDir, stateHome)},
 			{"herdr", "herdr"},
 		} {
 			src := filepath.Join(from, part.from)
@@ -775,9 +799,9 @@ func serveEnv(work string) []string {
 		}
 	}
 	return append(env,
-		"XDG_CONFIG_HOME="+filepath.Join(work, "cfg"),
-		"XDG_STATE_HOME="+filepath.Join(work, "state"),
-		"HOME="+filepath.Join(work, "home"),
+		"XDG_CONFIG_HOME="+filepath.Join(work, homeDir, configHome),
+		"XDG_STATE_HOME="+filepath.Join(work, homeDir, stateHome),
+		"HOME="+filepath.Join(work, homeDir),
 		"HERDR_ENV=",
 		"HERDR_PANE_ID=",
 		"HERGY_HERDR="+filepath.Join(work, "bin", "fake-herdr"),

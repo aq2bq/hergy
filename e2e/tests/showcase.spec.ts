@@ -342,6 +342,29 @@ test.describe('two serves', () => {
   });
 });
 
+// The settings outside the project stand in a home of the scene's own, where a
+// person's stand (2026-10-23): the role screen's 共通 panel reads
+// ~/.config/hergy/roles/scout.yaml, not a path under the work directory. A
+// person's machine never shows the absolute path, so the screens must not.
+test.describe('outside settings', () => {
+  test.use({ scene: 'running' });
+
+  test('SHOWCASE-X1 the outside settings read from home', async ({ page, app }) => {
+    await open(page, `${app.base}/roles?open=scout`, '.role.open .panel');
+    const paths = `[...document.querySelectorAll('.role.open .panel .ph .path')].map(function(e){return e.textContent.trim()}).join('|')`;
+    await readTo<string>(
+      page,
+      paths,
+      'the role screen does not read the outside settings as ~/.config/hergy',
+    ).toContain('~/.config/hergy/roles/scout.yaml');
+    await readTo<boolean>(
+      page,
+      `(${paths}).indexOf(${JSON.stringify(app.work)}) >= 0`,
+      'the role screen reads a path under the work directory',
+    ).toBe(false);
+  });
+});
+
 // The command roads stand on the code as it is now, not on the binary an
 // earlier run left: a work directory without --bin has its bin/hergy rebuilt on
 // every run, through a rename, and the serve that was already up stays on the
