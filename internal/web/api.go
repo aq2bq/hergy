@@ -137,6 +137,11 @@ type apiProblem struct {
 	Section    int    `json:"section"`
 	Rule       int    `json:"rule"`
 	Definition string `json:"definition,omitempty"`
+	// Role is the role whose document a combination finding names, and RuleID
+	// the rule in it, so the screen can open /roles?open=<role>&rule=<id>
+	// (d-8bbf). Both are empty when the finding names no role's rule.
+	Role   string `json:"role,omitempty"`
+	RuleID string `json:"rule_id,omitempty"`
 }
 
 // apiCheck is the answer of POST /api/{kind}/check (spec-boundary 5): what is
@@ -148,6 +153,14 @@ type apiCheck struct {
 	Preview  any          `json:"preview,omitempty"`
 	Effect   any          `json:"effect,omitempty"`
 	Readers  any          `json:"readers,omitempty"`
+	// Limit is the provisional size budget the check holds this unit to, for a
+	// screen that shows a document's size against it (d-8bbf). A kind whose
+	// screen shows no budget leaves it out.
+	Limit int `json:"limit,omitempty"`
+	// Size is the unit's own size in characters, counted the way d-00a9 says:
+	// the part of a guide that goes into the prompt. It is 0 when the kind has
+	// no size to show.
+	Size int `json:"size,omitempty"`
 	// Writes is what a save of this draft would write, for a kind whose one
 	// name is a folder rather than one file (spec-teams B2). A kind that writes
 	// one file leaves it out.

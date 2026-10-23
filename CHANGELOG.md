@@ -14,9 +14,9 @@
   rules: `hergy up` (with and without `--dry`), `hergy refresh`, `hergy reprompt`
   and `hergy hire` stop with exit 1, name the file and say where the rules go,
   and `hergy validate` names it as a broken file (also exit 1). The team
-  definitions screen and the role screen no longer count or show it: the amount
-  one member reads is the team's own agreement plus the role document, and the
-  sizes and the totals `hergy validate` prints leave it out.
+  definitions screen and the role screen no longer count or show it: the size
+  each definition is held to, and the totals `hergy validate` prints, leave it
+  out.
 
 ### Moving from 0.8.1
 
@@ -39,6 +39,28 @@
 
 ### Changed
 
+- **`hergy validate` and the screens check one definition at a time**: a role
+  document is checked once, by itself, and a team definition once, with the
+  documents its members read together. A role document's own warnings (a model
+  name in a rule, its size) no longer appear under every team that uses it; a
+  turn or an id that only a team's documents make wrong stays on the team
+  definition, naming the role document and the rule. The role screen shows only
+  that role document's own problems; a team definition's screen shows the
+  combination beside the role document it came from, with a link to that
+  document. `hergy validate` prints the same units.
+- **The size warning is each definition's own**: 3,000 characters for a team
+  definition (the part of its rules that goes into the prompt and the words of
+  its templates) and 3,000 for a role document (the part that goes into the
+  prompt), both provisional. The per-member rule and character totals and the
+  team's source and file-count limits are gone. The team definitions list and
+  the role list have a 大きさ column, and `hergy validate` ends with a 大きさ
+  list of the effective definitions (a definition whose check stops still shows
+  its size; a hidden definition is left out).
+- **The role screen shows who uses a role, not how much each is handed**: the
+  読んでいる人 column is now 使っているチーム (the teams and members by name
+  only), the turn marks under a rule are gone (a turn a team does not hold is
+  the team definition's problem), and the assignment tab's team header names
+  only the team and its place.
 - **The screens' tabs read Activity · Team definitions · Roles · Profiles**:
   profiles, the screen opened least, come last.
 - **The place outside the project is called global**: `~/.config/hergy` is
@@ -51,6 +73,19 @@
 
 ### Fixed
 
+- **`hergy validate` does not warn about a definition or a role document that is
+  not used**: the project's own hides the global one, so validate says only that
+  it is not used (and shows what stops it when it is broken); warnings a person
+  cannot fix there no longer bury the ones they can.
+- **The team definition row's badge counted a rule twice**: the row, the
+  validate column and the YAML head now count the same one check.
+- **The YAML tab's file list hid the warning count when a file had an error**:
+  it now shows both the problems and the warnings, as the opened YAML head does.
+- **The assignment tab wrote a global team's path as the project's**: it now
+  names the place the team stands in.
+- **`hergy validate` names the role document at a combination warning**: a
+  warning from a role document's rule now reads "writer.yaml の規則 WRITE-7
+  が…", so a person knows which document to fix.
 - **"+ ワーカー" on a member's card keeps its size**: the button spread across
   the card and the browser logged a Content-Security-Policy error when the card
   opened.

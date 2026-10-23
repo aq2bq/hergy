@@ -72,9 +72,7 @@ func (s *Server) t2Island() t2Island {
 		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceGlobal))) + "/teams/",
 	}
 	out.Texts = map[string]string{
-		"separator":    t("list.separator"),
-		"member_rules": t("size.member_rules"),
-		"member_chars": t("size.member_chars"),
+		"separator": t("list.separator"),
 	}
 	out.Profiles = s.t2SortedNames()
 	return out

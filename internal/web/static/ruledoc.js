@@ -10,7 +10,7 @@
 // A screen mounts once, on the element its panels stand in:
 //
 //   hergyRuleDoc.mount(root, {
-//     row(panel) -> { uid, l, saved, draft, issues, markdown, diff, turns },
+//     row(panel) -> { uid, l, saved, draft, issues, markdown, diff },
 //     rerender(panel, focusSel) -> the fresh element,
 //     edited(panel),        // a value changed: mark the panel and ask for a check
 //     readerCount(name),    // how many definitions read a role name
@@ -236,7 +236,7 @@
     return `<div class="redit">
       <div class="field scope"><span class="fl">規則</span><div>${promptSeg('in_prompt', 'in-prompt', inP(x))}</div></div>
       <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">${esc(x.id) || '<span class="none">—</span>'}</span><ul class="vm" data-for="id"></ul></div></div>
-      <div class="field"><label for="tx${key}">本文</label><div><textarea id="tx${key}" class="ta" data-f="text" rows="2">${esc(x.text)}</textarea><div class="tchk"></div><ul class="vm" data-for="text"></ul></div></div>
+      <div class="field"><label for="tx${key}">本文</label><div><textarea id="tx${key}" class="ta" data-f="text" rows="2">${esc(x.text)}</textarea><ul class="vm" data-for="text"></ul></div></div>
       <div class="field"><label for="wy${key}">なぜ</label><div><textarea id="wy${key}" class="ta ${x.why && !x.send_why ? 'held-why' : ''}" data-f="why" rows="1">${esc(x.why)}</textarea>
         <div class="whyrow">${promptSeg('send_why', 'send-why', x.send_why)}</div></div></div>
       <div class="field"><span class="fl">由来</span><div><div class="origins">${x.origin.map((o, oi) => `<div class="orow" data-oi="${oi}">
@@ -468,14 +468,6 @@
       }
       if (el) el.classList.add('bad');
     });
-    const tchk = ed.querySelector('.tchk');
-    if (tchk) {
-      const here = findRule(row.draft, x._k);
-      const mine = here ? row.turns.filter((z) => z.section === here.si && z.rule === here.ri) : [];
-      const arrows = [...new Set(mine.map((z) => z.arrow))];
-      tchk.innerHTML = arrows.map((a) => `<span class="arrow">${esc(a)}</span>` + mine.filter((z) => z.arrow === a)
-        .map((z) => `<span class="tk ${z.ok ? 'okk' : 'warn'}">${esc(z.definition)}${z.ok ? ' ✓' : ''}</span>`).join('')).join('<span class="gap"></span>');
-    }
     const rev = ed.querySelector('[data-act=rule-revert]');
     if (rev) rev.hidden = !sr || !ruleChanged(row.e, x);
   }

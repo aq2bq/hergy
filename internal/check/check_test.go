@@ -472,7 +472,9 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 					"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 						"      - id: SPEC-1\n        text: 何かをする。\n")
 			},
-			want: func(*fixture) []string { return []string{"members[1]"} },
+			want: func(f *fixture) []string {
+				return []string{"rule:" + f.agreementPath() + "#SPEC-1"}
+			},
 		},
 		{
 			name: "turns[i], the i-th line",
@@ -593,8 +595,11 @@ func TestADraftRuleIdIsCheckedAgainstTheAgreement(t *testing.T) {
 	if len(stops) != 1 {
 		t.Fatalf("stops = %+v, want the one member whose draft holds the id twice", stops)
 	}
-	if stops[0].Field != "members[0]" || stops[0].Kind != KindPrompt {
-		t.Errorf("stop = %+v, want the member whose documents hold the id twice", stops[0])
+	if stops[0].Kind != KindBetween || stops[0].Role != "lead" || stops[0].RuleID != "DUP-1" {
+		t.Errorf("stop = %+v, want the combination finding that names the role's rule", stops[0])
+	}
+	if want := "rule:" + f.agreementPath() + "#DUP-1"; stops[0].Field != want {
+		t.Errorf("field = %q, want %q", stops[0].Field, want)
 	}
 	if !strings.Contains(stops[0].Text, "DUP-1") {
 		t.Errorf("the stop does not name the id that stands twice: %s", stops[0].Text)
@@ -689,41 +694,51 @@ func TestTurnWarningNamesItsRule(t *testing.T) {
 	}
 }
 
-// TestDefinitionWarnsAboutALeftoverStyle: a rule file that still writes a
-// section's style: reads, and hergy warns once for it, naming the file and the
-// heading, so a person reading hergy validate is told which line to delete
-// (d-f4f6). The warning stops nothing and moves no exit code.
-func TestDefinitionWarnsAboutALeftoverStyle(t *testing.T) {
+// TestTheStyleWarningStaysInItsOwnUnit: a rule file that still writes a
+// section's style: reads, and the warning names the file and the heading, so a
+// person is told which line to delete (d-f4f6). The warning belongs to the unit
+// that holds the file: the team's own agreement is in the team definition's
+// check, a role document's is in the role document's check (d-a575). The warning
+// stops nothing and moves no exit code.
+func TestTheStyleWarningStaysInItsOwnUnit(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.write(f.leadRolePath(), "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n"+
-		"      - id: LEAD-1\n        text: 何かをする。\n")
+	lead := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
+		"      - id: LEAD-1\n        text: 何かをする。\n"
+	f.write(f.leadRolePath(), lead)
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	agreement := f.agreementPath()
 	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: bullets\n    rules:\n"+
 		"      - id: AGREE-1\n        text: 何かをする。\n")
 
-	var joined []string
+	var teamText []string
 	for _, finding := range f.findings() {
 		if finding.Stops {
 			t.Fatalf("a style: line stopped the definition: %+v", finding)
 		}
-		if finding.Kind != KindStyle {
-			continue
-		}
-		joined = append(joined, finding.Text)
-	}
-	text := strings.Join(joined, "\n")
-	for _, want := range []string{
-		i18n.Tf("rules.style_gone", f.leadRolePath(), "仕事"),
-		i18n.Tf("rules.style_gone", agreement, "約束"),
-	} {
-		if !strings.Contains(text, want) {
-			t.Errorf("no warning %q:\n%s", want, text)
+		if strings.Contains(finding.Text, "style:") {
+			teamText = append(teamText, finding.Text)
 		}
 	}
-	if len(joined) != 2 {
-		t.Errorf("warnings = %d, want one per file:\n%s", len(joined), text)
+	if len(teamText) != 1 {
+		t.Fatalf("the team check's style warnings = %v, want the agreement's one", teamText)
+	}
+	if want := i18n.Tf("rules.style_gone", agreement, "約束"); teamText[0] != want {
+		t.Errorf("team style warning = %q, want %q", teamText[0], want)
+	}
+
+	role := reportFor(f, RoleInput{Name: "lead", Text: lead})
+	var roleText []string
+	for _, problem := range role.Problems {
+		if strings.Contains(problem.Text, "style:") {
+			roleText = append(roleText, problem.Text)
+		}
+	}
+	if len(roleText) != 1 {
+		t.Fatalf("the role check's style warnings = %v, want the document's own one", roleText)
+	}
+	if !strings.Contains(roleText[0], "仕事") || !strings.Contains(roleText[0], "style:") {
+		t.Errorf("role style warning = %q, want the heading's style: warning", roleText[0])
 	}
 }
 

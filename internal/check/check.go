@@ -50,6 +50,25 @@ type Finding struct {
 	// Stops says the definition does not read (a break) rather than a warning. A
 	// definition with a finding that stops is one hergy will not run.
 	Stops bool
+	// Doc is the displayed path of the document the finding stands in, when it
+	// stands in one. A sentence about a rule a role document writes names that
+	// document, so a screen can open it (d-8bbf).
+	Doc string
+	// At is the document's own field the sentence marks, when the finding
+	// comes from a rule file: "id", "text", "origin.0.refs.0", a report's name.
+	// Field says where the sentence stands (the rule, or the file); At says which
+	// part of that rule a screen marks. A screen showing one file uses it; the
+	// team's figure does not.
+	At string
+	// Role is the role whose document a finding about a combination names, and
+	// RuleID the rule in that document: enough for a screen to open the role at
+	// the rule. Both are empty when the finding is not about a role's rule.
+	Role   string
+	RuleID string
+	// RoleDoc is the displayed path of that role's document. It is what the
+	// command line puts before the sentence ("writer.yaml の規則 WRITE-7 が…"),
+	// so a person reading hergy validate knows which document to fix (T13 R2).
+	RoleDoc string
 }
 
 // Kind is what a finding is about.
@@ -83,6 +102,17 @@ const (
 	// (d-f4f6): the layout of a section is one way now, and the line does
 	// nothing.
 	KindStyle
+	// KindRule is a problem with one rule file itself, read as part of its own
+	// unit: a duplicate id, a derived reference that is not there, a style: line
+	// (d-a575). It is not a break of the definition unless it stops the file.
+	KindRule
+	// KindBetween is a problem that only the combination of the documents one
+	// member reads can cause: an id two of them hold, a derived rule across them
+	// (d-a575). It belongs to the team definition's check.
+	KindBetween
+	// KindSize is the warning that one definition is over the provisional size
+	// budget of its own unit (d-81c1, d-00a9).
+	KindSize
 	// KindLedger is the warning that a write a member of this team made broke a
 	// rule the definition's ledger: gives (spec-ledger). It does not stop a run
 	// (d-db1b).
@@ -147,85 +177,242 @@ func Definition(in Input) []Finding {
 	}
 	breaks := promptFindings(in, def)
 	breaks = append(breaks, profileFindings(in, def)...)
+	agreementBreaks, agreementWarnings := agreementFinding(in, def)
+	betweenBreaks, betweenWarnings := betweenFindings(in, def)
+	breaks = append(breaks, agreementBreaks...)
+	breaks = append(breaks, betweenBreaks...)
+	breaks = dropPromptDuplicates(in, breaks)
 	warnings = append(warnings, missionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
-	warnings = append(warnings, modelFindings(in, def)...)
-	warnings = append(warnings, styleFindings(in, def)...)
+	warnings = append(warnings, agreementWarnings...)
+	warnings = append(warnings, betweenWarnings...)
+	warnings = append(warnings, teamSizeFinding(in.Catalog, def)...)
 	warnings = append(warnings, hiddenGlobalFindings(in)...)
 	return append(breaks, warnings...)
 }
 
-// styleFindings is the warning about a rule file that still writes a section's
-// style: (d-f4f6). The layout of a section is one way now, so the line does
-// nothing: the file reads, and the person is told to take the line out. Every
-// file a member reads — the role documents, the agreement every team shares and
-// the team's own agreement — is read once, however many members read it, so one
-// file gets one warning per section that writes a style:.
-func styleFindings(in Input, def *definition.Definition) []Finding {
-	var out []Finding
+// dropPromptDuplicates removes a prompt break that a rule-file finding of the
+// same check already says better. A duplicate id between a role document and the
+// team's agreement makes the prompt unbuildable and is also the combination's
+// finding (betweenFindings); the person is shown the one standing on the rule,
+// not the same sentence twice. A duplicate inside one document is not in the
+// combination's findings, so its prompt break stays: the team's prompt cannot be
+// built even though the problem is the document's own.
+func dropPromptDuplicates(in Input, findings []Finding) []Finding {
+	said := map[string]bool{}
+	for _, finding := range findings {
+		if finding.Kind == KindBetween || finding.Kind == KindRule {
+			said[finding.Text] = true
+		}
+	}
+	layer := in.Layer
+	if layer == "" {
+		layer = resolvedLayer(in)
+	}
+	teamYAML := in.Catalog.Display(in.Catalog.TeamYAML(in.Name, layer))
+	out := make([]Finding, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Kind == KindPrompt && said[strings.TrimPrefix(finding.Text, teamYAML+": ")] {
+			continue
+		}
+		out = append(out, finding)
+	}
+	return out
+}
+
+// agreementFinding is the team's own rules read as its unit (d-a575): the
+// document's own problems (a repeated id, a report or a derived rule that is not
+// there, a style: line) and the model names its rule texts write. A rule's turn
+// warnings are TurnFindings's, which reads the agreement with the team's turns.
+//
+// The document is the team's own, so none of this belongs beside a role
+// document: a role document's own problems are check.Role's.
+func agreementFinding(in Input, def *definition.Definition) (breaks, warnings []Finding) {
+	if !def.HasAgreement {
+		return nil, nil
+	}
+	text, err := in.Catalog.Reader().Read(def.Agreement)
+	if err != nil {
+		return nil, nil
+	}
+	display := in.Catalog.Display(def.Agreement.Path)
+	doc, problems := rules.ReadAll(text, display)
+	if doc != nil {
+		problems = append(problems, localRuleProblems(doc)...)
+	}
+	for _, p := range problems {
+		finding := Finding{
+			Field:  problemField(p, display),
+			At:     p.Field,
+			Text:   p.Text,
+			Kind:   KindRule,
+			Stops:  p.Sev == rules.SevError,
+			Doc:    display,
+			RuleID: p.RuleID(),
+		}
+		if finding.Stops {
+			breaks = append(breaks, finding)
+		} else {
+			warnings = append(warnings, finding)
+		}
+	}
+	if doc == nil {
+		return breaks, warnings
+	}
+	for _, finding := range modelDocFindings(display, doc) {
+		finding.Doc = display
+		finding.At = "text"
+		warnings = append(warnings, finding)
+	}
+	return breaks, warnings
+}
+
+// betweenFindings is what only the documents one member reads can say together
+// (d-a575): an id that stands in the member's role document and in the team's
+// agreement, a derived rule that points across them, a report one names and the
+// other holds. Each finding names the document it stands in, and the role whose
+// document a rule belongs to, so a screen can open that role at the rule
+// (d-8bbf).
+func betweenFindings(in Input, def *definition.Definition) (breaks, warnings []Finding) {
+	if !def.HasAgreement || def.Graph == nil {
+		return nil, nil
+	}
+	agreement := parseDisplayed(in.Catalog, def.Agreement)
+	if agreement == nil {
+		return nil, nil
+	}
+	agreementPath := in.Catalog.Display(def.Agreement.Path)
+	var outBreaks, outWarnings []Finding
 	seen := map[string]bool{}
-	reader := in.Catalog.Reader()
-	add := func(doc source.Doc) {
-		if seen[doc.Path] {
-			return
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		roleDoc, ok := in.Catalog.Role(member.Role)
+		if !ok {
+			continue
 		}
-		seen[doc.Path] = true
-		text, err := reader.Read(doc)
-		if err != nil {
-			return
+		role := parseDisplayed(in.Catalog, roleDoc)
+		if role == nil {
+			continue
 		}
-		_, problems := rules.ReadAll(text, in.Catalog.Display(doc.Path))
-		for _, problem := range problems {
-			if problem.Sev == rules.SevWarning {
-				out = append(out, Finding{Kind: KindStyle, Text: problem.Text})
+		rolePath := in.Catalog.Display(roleDoc.Path)
+		for _, p := range rules.CheckAll([]*rules.Document{role, agreement}) {
+			if !betweenDocProblem(p, role, agreement, rolePath, agreementPath) {
+				continue
+			}
+			field := problemField(p, p.Path)
+			key := field + "\x00" + p.Text
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			finding := Finding{
+				Field:  field,
+				At:     p.Field,
+				Text:   p.Text,
+				Kind:   KindBetween,
+				Stops:  p.Sev == rules.SevError,
+				Doc:    p.Path,
+				RuleID: p.RuleID(),
+			}
+			if p.Path == rolePath || (p.Field == "id" && hasRuleID(role, p.RuleID())) {
+				finding.Role = member.Role
+				finding.RoleDoc = rolePath
+			}
+			if finding.Stops {
+				outBreaks = append(outBreaks, finding)
+			} else {
+				outWarnings = append(outWarnings, finding)
 			}
 		}
 	}
-	if def.HasAgreement {
-		add(def.Agreement)
+	return outBreaks, outWarnings
+}
+
+// betweenDocProblem says whether one problem of the two documents a member reads
+// is the combination's rather than one document's own. A repeated id or report
+// is the combination's only when both documents hold it; a repeated name inside
+// one document belongs to that document's own check (check.Role for a role,
+// agreementFinding for a team's agreement). A report or a derived reference that
+// is not there is the combination's: either document may hold what it names.
+func betweenDocProblem(p rules.Problem, role, agreement *rules.Document, rolePath, agreementPath string) bool {
+	switch {
+	case p.Field == "id":
+		if p.RuleID() == "" {
+			return false
+		}
+		inRole := hasRuleID(role, p.RuleID())
+		inAgreement := hasRuleID(agreement, p.RuleID())
+		return inRole && inAgreement
+	case strings.HasPrefix(p.Field, "reports."):
+		name := strings.TrimPrefix(p.Field, "reports.")
+		return hasReport(role, name) && hasReport(agreement, name)
+	default:
+		// A report a rule names, or a derived reference: the documents together
+		// are what can hold it, and they do not.
+		return p.Path == rolePath || p.Path == agreementPath
 	}
-	for i := range def.Graph.Members {
-		if doc, ok := in.Catalog.Role(def.Graph.Members[i].Role); ok {
-			add(doc)
+}
+
+// localRuleProblems is the problems one document has by itself that ReadAll does
+// not gather: an id or a report name that stands twice in it. The references
+// that point outside it are not named here: whether one is missing is the
+// combination's question (betweenFindings).
+func localRuleProblems(doc *rules.Document) []rules.Problem {
+	var out []rules.Problem
+	for _, p := range rules.CheckAll([]*rules.Document{doc}) {
+		if p.Field == "id" || strings.HasPrefix(p.Field, "reports.") {
+			out = append(out, p)
 		}
 	}
 	return out
 }
 
-// modelFindings is the warning about a role document that names a model in a
-// rule's text (C8): a role document is meant to read the same whatever model
-// runs it. Each role a member reads is read once, however many members play it,
-// so one document gets one warning per rule that names a model. A document that
-// does not read is left out: the break was reported where it stops the
-// definition, and a text that cannot be parsed has no rule to name.
-func modelFindings(in Input, def *definition.Definition) []Finding {
-	var out []Finding
-	seen := map[string]bool{}
-	reader := in.Catalog.Reader()
-	for i := range def.Graph.Members {
-		role := def.Graph.Members[i].Role
-		if seen[role] {
-			continue
-		}
-		seen[role] = true
-		doc, ok := in.Catalog.Role(role)
-		if !ok {
-			continue
-		}
-		text, err := reader.Read(doc)
-		if err != nil {
-			continue
-		}
-		// The rule's field names the document the way a person reads it, which
-		// is how the screen's own head names it too.
-		path := in.Catalog.Display(doc.Path)
-		parsed, err := rules.Parse(text, path)
-		if err != nil {
-			continue
-		}
-		out = append(out, modelDocFindings(path, parsed)...)
+// problemField is the field a rule-file problem stands beside: the rule it is
+// about, in the document the problem stands in, so a screen puts the sentence
+// on that rule's slip. A problem about the file as a whole keeps no field.
+func problemField(p rules.Problem, path string) string {
+	if p.RuleID() == "" {
+		return p.Field
 	}
-	return out
+	return "rule:" + path + "#" + p.RuleID()
+}
+
+// parseDisplayed reads one rule document through the catalog's path, the way a
+// person reads it, so the sentences about it name the file the same way a screen
+// does.
+func parseDisplayed(cat *catalog.Catalog, doc source.Doc) *rules.Document {
+	text, err := cat.Reader().Read(doc)
+	if err != nil {
+		return nil
+	}
+	parsed, err := rules.Parse(text, cat.Display(doc.Path))
+	if err != nil {
+		return nil
+	}
+	return parsed
+}
+
+// hasRuleID reports whether a document holds a rule id.
+func hasRuleID(doc *rules.Document, id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, rule := range doc.Rules() {
+		if rule.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// hasReport reports whether a document defines a report name.
+func hasReport(doc *rules.Document, name string) bool {
+	for _, report := range doc.Reports {
+		if report.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // modelDocFindings is one role document's warnings: one finding per rule whose
@@ -493,9 +680,15 @@ func hiddenGlobalFindings(in Input) []Finding {
 // about it.
 func TurnFindings(in Input, def *definition.Definition) []Finding {
 	members, docs := turnReading(in.Catalog, def)
+	roles := roleOfDoc(in.Catalog, def)
 	var out []Finding
 	seen := map[string]bool{}
 	for _, edge := range topology.Read(members, docs).Edges {
+		role := roles[edge.DocKey]
+		roleDoc := ""
+		if role != "" {
+			roleDoc = edge.DocKey
+		}
 		if word, ok := strangerSide(edge); ok {
 			if isPurpose(def, word) {
 				continue
@@ -505,7 +698,7 @@ func TurnFindings(in Input, def *definition.Definition) []Finding {
 				continue
 			}
 			seen[key] = true
-			out = append(out, Finding{Field: ruleField(edge), Kind: KindTurn, Text: i18n.Tf("validate.turn_unknown_name",
+			out = append(out, Finding{Field: ruleField(edge), At: "text", Kind: KindTurn, Doc: edge.DocKey, Role: role, RoleDoc: roleDoc, RuleID: edge.RuleID, Text: i18n.Tf("validate.turn_unknown_name",
 				edge.RuleID, edgeText(edge, members), word)})
 			continue
 		}
@@ -518,9 +711,25 @@ func TurnFindings(in Input, def *definition.Definition) []Finding {
 				continue
 			}
 			seen[key] = true
-			out = append(out, Finding{Field: ruleField(edge), Kind: KindTurn, Text: i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
+			out = append(out, Finding{Field: ruleField(edge), At: "text", Kind: KindTurn, Doc: edge.DocKey, Role: role, RoleDoc: roleDoc, RuleID: edge.RuleID, Text: i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
 				pair[0].String()+" → "+pair[1].String())})
 		}
+	}
+	return out
+}
+
+// roleOfDoc is the role each of a team's rule documents belongs to, by the path
+// a person reads it by. The team's own agreement has no role, and neither does
+// a document a role no longer names.
+func roleOfDoc(cat *catalog.Catalog, def *definition.Definition) map[string]string {
+	out := map[string]string{}
+	for i := range def.Graph.Members {
+		role := def.Graph.Members[i].Role
+		doc, ok := cat.Role(role)
+		if !ok {
+			continue
+		}
+		out[cat.Display(doc.Path)] = role
 	}
 	return out
 }
@@ -685,86 +894,6 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 		}
 	}
 	return members, docs
-}
-
-// MemberSize is what one member is handed, with the name the command line and a
-// screen write (C7).
-type MemberSize struct {
-	Name string
-	Size rules.MemberSize
-}
-
-// Size is one team definition's size: what it keeps, and what each of its
-// members is handed (C7).
-type Size struct {
-	Team    rules.TeamSize
-	Members []MemberSize
-}
-
-// SizeOf counts what one team definition keeps and what each of its members is
-// handed, from the members as starts and a reader (C7). Each rule file is read
-// and parsed once; a file two members read counts in the team's sources once,
-// because a person maintains it once. The command line and a screen both count
-// the amount a member is handed here, so they cannot drift apart.
-func SizeOf(starts []definition.Start, reader source.Reader) Size {
-	parsed := map[string]*rules.Document{}
-	texts := map[string]string{}
-	load := func(doc source.Doc) *rules.Document {
-		if document, ok := parsed[doc.Path]; ok {
-			return document
-		}
-		text, err := reader.Read(doc)
-		if err != nil {
-			parsed[doc.Path] = nil
-			return nil
-		}
-		texts[doc.Path] = text
-		document, err := rules.Parse(text, doc.Path)
-		if err != nil {
-			parsed[doc.Path] = nil
-			return nil
-		}
-		parsed[doc.Path] = document
-		return document
-	}
-	var out Size
-	var team rules.TeamSize
-	for _, member := range starts {
-		var read rules.MemberSize
-		files := make([]source.Doc, 0, len(member.Read)+1)
-		if member.HasRole {
-			files = append(files, member.RoleDoc)
-		}
-		files = append(files, member.Read...)
-		for _, doc := range files {
-			document := load(doc)
-			excluded := 0
-			if document != nil {
-				read.Add(document)
-				excluded = document.ExcludedCount()
-			}
-			if text, ok := texts[doc.Path]; ok {
-				team.AddSource(doc.Path, text, excluded)
-			}
-		}
-		out.Members = append(out.Members, MemberSize{Name: member.Name, Size: read})
-	}
-	out.Team = team
-	return out
-}
-
-// MemberRulesWarning is the sentence a member that is handed too many rules
-// gets, and MemberCharsWarning the one for too many characters. Both hergy
-// validate and a screen print these, so a person reads one sentence in both
-// places (C7).
-func MemberRulesWarning(name string, count int) string {
-	return i18n.Tf("size.member_rules", name, count, rules.MemberRuleLimit)
-}
-
-// MemberCharsWarning is the sentence a member that is handed too many
-// characters gets (C7).
-func MemberCharsWarning(name string, chars int) string {
-	return i18n.Tf("size.member_chars", name, chars, rules.MemberCharLimit)
 }
 
 // isFile reports whether a path is a regular file.

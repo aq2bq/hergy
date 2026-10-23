@@ -685,6 +685,81 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	return nil
 }
 
+// effectiveLayer is the place a definition's name resolves to: the project's
+// own when both layers hold it, the global one otherwise (K1).
+func effectiveLayer(row catalog.Listing) string {
+	if row.Local {
+		return source.LayerLocal
+	}
+	return source.LayerGlobal
+}
+
+// teamFindingsFor is what validate prints for one place's definition. The
+// effective definition prints every finding. A hidden one prints only what
+// stops it and the line that says it is not used: a warning about a guide
+// nobody reads would bury the warnings that can be fixed (T13 R3).
+func teamFindingsFor(row catalog.Listing, layer string, findings []check.Finding) []check.Finding {
+	if layer == effectiveLayer(row) {
+		return findings
+	}
+	out := make([]check.Finding, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Stops || finding.Kind == check.KindHidden {
+			out = append(out, finding)
+		}
+	}
+	return out
+}
+
+// effectiveTeamSize is one definition's size line for the list at the end of
+// validate: the effective place's file, once per name. A definition whose check
+// stops still has a size when its team.yaml reads (a missing profile does not
+// hide it), and the hidden place of a name is not listed (T13 R1).
+func effectiveTeamSize(cat *catalog.Catalog, env team.Env, row catalog.Listing, layer, path string) (teamSize, bool) {
+	if layer != effectiveLayer(row) {
+		return teamSize{}, false
+	}
+	def, err := cat.Definition(row.Name, layer)
+	if err != nil {
+		return teamSize{}, false
+	}
+	return teamSize{name: env.Display(filepath.Dir(path)), chars: check.TeamSizeChars(cat, def)}, true
+}
+
+// validateRoleFile checks one role document as its own unit and returns what
+// stops it, its size line when it is the effective document of its name, and
+// whether that line is the list's. A document of a name that the other place
+// holds is still checked (the screen can open that place), but it is not in the
+// size list: the list names the effective document once (T13 R1).
+func validateRoleFile(stdout io.Writer, env team.Env, cat *catalog.Catalog, layer, path string) (int, roleSize, bool) {
+	name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+	text, err := cat.Reader().Read(source.Doc{Path: path})
+	if err != nil {
+		reportFile(stdout, env, path, err)
+		return 1, roleSize{}, false
+	}
+	doc := check.Role(check.RoleInput{Catalog: cat, Place: layer, Name: name, Text: text})
+	effective, ok := cat.Role(name)
+	if !ok || effective.Path != path {
+		// A document of a name the project also holds is not used: only what
+		// stops it and the line that says so, not warnings about a guide nobody
+		// reads (T13 R4).
+		problems := make([]check.RoleProblem, 0, len(doc.Problems)+1)
+		for _, problem := range doc.Problems {
+			if problem.Sev == rules.SevError {
+				problems = append(problems, problem)
+			}
+		}
+		problems = append(problems, check.RoleProblem{
+			Sev: rules.SevWarning, Section: -1, Rule: -1,
+			Text: i18n.Tf("validate.role_hidden", name),
+		})
+		return printRoleFindings(stdout, env, path, problems), roleSize{}, false
+	}
+	return printRoleFindings(stdout, env, path, doc.Problems),
+		roleSize{name: env.Display(path), chars: doc.Markdown.Chars}, true
+}
+
 // runValidate reads every settings file the way up does, shows one line per
 // file, and fails when any of them is broken. It never touches Herdr. After the
 // files, it counts what the rules carry: where they came from, why they are
@@ -695,8 +770,8 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	checked, problems := 0, 0
 	tally := &rules.Tally{}
 	var teams []teamSize
+	var roles []roleSize
 	seenFiles := map[string]bool{}
-	saidStyles := map[string]bool{}
 	ledger := &ledgerCheck{env: env}
 	report := func(path string, err error) {
 		checked++
@@ -725,28 +800,53 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				continue
 			}
 			checked++
-			findings := styleOnce(check.Definition(check.Input{Catalog: cat, Name: row.Name, Layer: layer}), saidStyles)
-			if stops := printFindings(stdout, env, path, findings); stops > 0 {
+			// The team definition's own check: its team.yaml, its rules and the
+			// documents its members read together. A role document's own
+			// problems are not here; they are the role definition's (d-a575).
+			findings := teamFindingsFor(row, layer, check.Definition(check.Input{Catalog: cat, Name: row.Name, Layer: layer}))
+			stops := printFindings(stdout, env, path, findings)
+			// The size belongs to the definition the screen's list shows: the
+			// effective place, once per name, even when the check stops it
+			// (T13 R1).
+			if size, ok := effectiveTeamSize(cat, env, row, layer, path); ok {
+				teams = append(teams, size)
+			}
+			if stops > 0 {
 				problems += stops
 				continue
 			}
-			// The definition reads: the tally and the sizes are counted from it.
+			// The definition reads: the tally is counted from it.
 			r, err := validateTeam(cat, env.ProjectRoot, row.Name, layer)
 			if err != nil {
 				continue
 			}
 			printLedger(stdout, r.team.Definition, ledger)
 			collectRules(tally, seenFiles, r)
-			size := sizeOf(r)
-			size.name = env.Display(filepath.Dir(path))
-			teams = append(teams, size)
+		}
+	}
+	// Every role document is its own unit, checked once however many teams use
+	// it (d-a575): the section keeps a role document's own warnings out of the
+	// team definitions' sections.
+	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
+		dir := filepath.Join(cat.LayerDir(layer), "roles")
+		matches, _ := filepath.Glob(filepath.Join(dir, "*.yaml"))
+		slices.Sort(matches)
+		for _, path := range matches {
+			checked++
+			stops, size, ok := validateRoleFile(stdout, env, cat, layer, path)
+			if stops > 0 {
+				problems += stops
+			}
+			if ok {
+				roles = append(roles, size)
+			}
 		}
 	}
 
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
 	printTally(stdout, env, tally)
-	printSize(stdout, teams)
+	printSize(stdout, teams, roles)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
 	}
@@ -786,33 +886,51 @@ func printFindings(stdout io.Writer, env team.Env, path string, findings []check
 	}
 	for _, finding := range printed {
 		if finding.Stops {
-			indentField(stdout, 1, label("detail"), finding.Text)
+			indentField(stdout, 1, label("detail"), cliFindingText(finding))
 			continue
 		}
-		indentField(stdout, 1, label("warning"), finding.Text)
+		indentField(stdout, 1, label("warning"), cliFindingText(finding))
 	}
 	return stops
 }
 
-// styleOnce drops a leftover-style warning that an earlier definition of this
-// run already printed, and remembers the ones it prints. The sentence names one
-// file and one section (d-f4f6), and a file several teams read is one line to
-// delete: the command line says it once for the whole run, under the first
-// definition that reads the file, rather than once per team. A screen shows one
-// definition at a time, so this is the command line's own shaping of its output,
-// like the warning about a common/ directory.
-func styleOnce(findings []check.Finding, said map[string]bool) []check.Finding {
-	out := make([]check.Finding, 0, len(findings))
-	for _, finding := range findings {
-		if finding.Kind == check.KindStyle {
-			if said[finding.Text] {
-				continue
-			}
-			said[finding.Text] = true
-		}
-		out = append(out, finding)
+// cliFindingText is one finding as the command line writes it. A finding that
+// comes from a role document's rule names that document before the sentence
+// ("writer.yaml の規則 WRITE-7 が…"), so a person reading validate knows which
+// document to fix (T13 R2). A screen already stands the file name beside the
+// rule, so its sentences are the check's own.
+func cliFindingText(finding check.Finding) string {
+	if finding.RoleDoc == "" {
+		return finding.Text
 	}
-	return out
+	return i18n.Tf("validate.rule_doc", filepath.Base(finding.RoleDoc), finding.Text)
+}
+
+// printRoleFindings writes one role document's own check under its file line, in
+// the section for role definitions: the result, then what stops it, then the
+// warnings (d-a575). The sentences are the role check's own and name no team:
+// a problem a team's turns cause belongs to that team definition's section.
+func printRoleFindings(stdout io.Writer, env team.Env, path string, problems []check.RoleProblem) int {
+	field(stdout, label("file"), env.Display(path))
+	stops := 0
+	for _, problem := range problems {
+		if problem.Sev == rules.SevError {
+			stops++
+		}
+	}
+	if stops > 0 {
+		indentField(stdout, 1, label("result"), i18n.T("value.broken"))
+	} else {
+		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
+	}
+	for _, problem := range problems {
+		if problem.Sev == rules.SevError {
+			indentField(stdout, 1, label("detail"), problem.Text)
+			continue
+		}
+		indentField(stdout, 1, label("warning"), problem.Text)
+	}
+	return stops
 }
 
 // cliFindings is what hergy validate prints of what a check found. It is
@@ -944,71 +1062,40 @@ func printTally(w io.Writer, env team.Env, tally *rules.Tally) {
 	}
 }
 
-// memberSize is one member's size, with the name the output writes.
-type memberSize struct {
-	name string
-	size rules.MemberSize
-}
-
-// teamSize is one team definition's size, with where it stands and the members
-// it hands its rules to. The members stand under the definition in the output,
-// so a definition name that stands in both layers is told apart by the block it
-// is in.
+// teamSize is one team definition's own size (d-00a9): the prompt part of its
+// rules and the words of its templates. The per-member totals are gone (d-b87a);
+// the unit a person fixes is the definition.
 type teamSize struct {
-	name    string
-	size    rules.TeamSize
-	members []memberSize
+	name  string
+	chars int
 }
 
-// sizeOf counts what one team definition hands each member and what the team
-// keeps. The count lives in internal/check (C7), so hergy validate and the role
-// screen count the amount a member is handed in one place.
-func sizeOf(r *resolved) teamSize {
-	size := check.SizeOf(r.starts, source.Disk{})
-	team := teamSize{size: size.Team}
-	for _, member := range size.Members {
-		team.members = append(team.members, memberSize{name: member.Name, size: member.Size})
-	}
-	return team
+// roleSize is one role document's own size: the part of it that goes into the
+// prompt.
+type roleSize struct {
+	name  string
+	chars int
 }
 
-// printSize is the size of what each team definition keeps and of what each of
-// its members is handed, after the rules count. A definition comes first and its
-// members stand under it, so a name that stands in both layers says which file
-// its warnings are about. A member or a definition over one of the provisional
-// limits (d-f2bc) gets a warning line; the numbers move no exit code, because a
-// large team is a team to look at, not a broken one.
-func printSize(w io.Writer, teams []teamSize) {
-	if len(teams) == 0 {
+// printSize writes what each definition holds, after the rules count: the size
+// of the team definition's rules and templates, and of each role document, with
+// the provisional limit beside each (d-b87a). A number over its limit is already
+// a warning under the definition it belongs to, so this section does not say it
+// twice. The numbers move no exit code: a large guide is one to look at, not a
+// broken one.
+func printSize(w io.Writer, teams []teamSize, roles []roleSize) {
+	if len(teams) == 0 && len(roles) == 0 {
 		return
 	}
 	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
-	warned := false
+	line(i18n.T("validate.size_heading"))
 	for _, team := range teams {
-		line(i18n.Tf("validate.size_team", team.name, team.size.Sources, team.size.Chars, team.size.Excluded))
-		if team.size.OverTeamSources() {
-			line(i18n.Tf("validate.size_warn_team_sources", team.name, team.size.Sources, rules.TeamSourceLimit))
-			warned = true
-		}
-		if team.size.OverTeamChars() {
-			line(i18n.Tf("validate.size_warn_team_chars", team.name, team.size.Chars, rules.TeamSourceCharLimit))
-			warned = true
-		}
-		for _, member := range team.members {
-			line(i18n.Tf("validate.size_member", member.name, member.size.Rules, member.size.Chars, member.size.Excluded))
-			if member.size.OverMemberRules() {
-				line(i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning(member.name, member.size.Rules)))
-				warned = true
-			}
-			if member.size.OverMemberChars() {
-				line(i18n.Tf("validate.size_warn_member_chars", check.MemberCharsWarning(member.name, member.size.Chars)))
-				warned = true
-			}
-		}
+		line(i18n.Tf("validate.size_team", team.name, team.chars, check.TeamCharLimit))
 	}
-	if warned {
-		line(i18n.T("validate.size_note"))
+	for _, role := range roles {
+		line(i18n.Tf("validate.size_role", role.name, role.chars, check.RoleCharLimit))
 	}
+	line(i18n.T("validate.size_note"))
 }
 
 // validateConfig reads the global config.yaml the way up does, and holds its

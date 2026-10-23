@@ -225,6 +225,8 @@ func r2CheckAnswer(report check.DocReport, fromText bool) apiCheck {
 		Preview:  report.Markdown,
 		Effect:   apiEffect{Diff: report.Diff, Turns: report.Turns},
 		Readers:  report.Readers,
+		Limit:    report.Limit,
+		Size:     report.Markdown.Chars,
 	}
 }
 

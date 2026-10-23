@@ -111,8 +111,8 @@ window.hergyAPI = (() => {
   }
 
   // teamModel is GET /api/team read as the role screen's 割り当て model: one team
-  // per definition, with the members' roles and the amount one member reads. The
-  // hash a save carries is the project file's: the assign tab writes there.
+  // per definition, with the members' roles and the place it stands in. The hash
+  // a save carries is the project file's: the assign tab writes there.
   function teamModel(list) {
     return {
       teams: ((list && list.items) || []).map((item) => {
@@ -120,9 +120,8 @@ window.hergyAPI = (() => {
         const eff = item.effective || (places.project ? 'project' : 'global');
         const place = places[eff] || {}, proj = places.project || {};
         return {
-          id: item.name || '', hash: proj.hash || '',
+          id: item.name || '', hash: proj.hash || '', place: eff,
           turns: ((place.doc || {}).turns || []).map((t) => [t.from, t.to]),
-          agreement: s.amount || { rules: 0, chars: 0 },
           members: (s.members || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
         };
       }),
@@ -179,6 +178,7 @@ window.hergyAPI = (() => {
       return {
         problems: json.problems || [], preview: json.preview || null,
         diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
+        size: json.size || 0, limit: json.limit || 0,
       };
     },
   };

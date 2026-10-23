@@ -21,15 +21,16 @@ type AgreementInput struct {
 	Text    string           // the agreement's YAML as the YAML tab types it
 }
 
-// Agreement checks one team's agreement.yaml and returns the same shape as a
-// role document's check (C6), so the two screens share one part.
+// Agreement answers the rules tab with the team definition's one check (d-a575):
+// it lays the agreement's draft over the team.yaml the caller has already
+// overlaid, checks the definition with check.Team, and shows the part of that
+// answer that stands in agreement.yaml. The panel therefore counts the same
+// findings as the row and the topology panel; nothing is checked a second way by
+// the screen a person reached it through.
 //
-// The caller overlays the ops-applied team.yaml, so the arrows are judged
-// against the definition's draft turns: the turns the agreement's rules write
-// are compared with the turns overlay.Definition reads. The document is read as
-// if it were saved (catalog.With), so the members' amounts and the cross-document
-// checks see the draft. A definition that does not read still answers with the
-// document's own problems, the Markdown and the diff.
+// The Markdown and the diff draw the draft. Turns shows the agreement's arrows
+// judged against this team's turns (the team's own document, so this is the
+// team's check); Readers shows who reads it, by name only (d-8bbf).
 func Agreement(in AgreementInput) DocReport {
 	cat := in.Catalog
 	if cat == nil {
@@ -40,7 +41,7 @@ func Agreement(in AgreementInput) DocReport {
 
 	text := agreementText(in)
 	display := cat.Display(path)
-	doc, problems := rules.ReadAll(text, display)
+	doc, _ := rules.ReadAll(text, display)
 	if doc == nil {
 		doc = &rules.Document{Path: display}
 	}
@@ -51,27 +52,31 @@ func Agreement(in AgreementInput) DocReport {
 		Markdown: RoleMarkdown{Lines: doc.PreviewLines(), Chars: rules.CharCount(doc.Markdown())},
 		Diff:     roleDiff(saved, doc),
 	}
-	for _, p := range problems {
+	index := ruleIndex(doc)
+	for _, finding := range Team(TeamInput{Catalog: overlay, Name: in.Name, Layer: in.Place}).Problems {
+		// Only the findings that stand in this file: a role document's rule, the
+		// team figure's fields and the shared agreement are the other screens'
+		// parts of the same check.
+		if finding.Doc != display {
+			continue
+		}
+		section, rule := index.place(finding.Field, display)
+		sev := rules.SevWarning
+		if finding.Stops {
+			sev = rules.SevError
+		}
 		report.Problems = append(report.Problems, RoleProblem{
-			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
-			Line: p.Line, Text: withoutOwnName(p.Text, display),
+			Sev: sev, Section: section, Rule: rule, Field: finding.At,
+			Line: lines.At(section, rule, finding.At),
+			Text: withoutOwnName(finding.Text, display),
 		})
 	}
 
 	def, err := overlay.Definition(in.Name, in.Place)
-	if err != nil {
-		report.Problems = orderProblems(dedupeProblems(report.Problems))
-		return report
+	if err == nil {
+		report.Turns = agreementTurns(overlay, def, display, index)
+		report.Readers = agreementReaders(def)
 	}
-
-	index := ruleIndex(doc)
-	report.Problems = append(report.Problems, roleModelProblems(display, doc, index, lines)...)
-	report.Problems = append(report.Problems, roleDocProblems(overlay, def, "", display, index, lines)...)
-	report.Problems = append(report.Problems, roleTurnProblems(overlay, def, display, index, lines)...)
-	size := SizeOf(agreementStarts(overlay, def), overlay.Reader())
-	report.Problems = append(report.Problems, agreementSizeProblems(def.Name, size)...)
-	report.Turns = agreementTurns(overlay, def, display, index)
-	report.Readers = roleReaders(def.Name, size)
 	report.Problems = orderProblems(dedupeProblems(report.Problems))
 	return report
 }
@@ -93,57 +98,13 @@ func agreementText(in AgreementInput) string {
 	return in.Text
 }
 
-// agreementStarts is every member of one definition as the frames the size is
-// counted from: each member reads its own role document and this team's
-// agreement. It is roleStarts for the team's own agreement, where the readers
-// are all the members rather than one role's. The prompt is not built: a
-// definition whose prompt cannot be built still gives its readers' sizes.
-func agreementStarts(cat *catalog.Catalog, def *definition.Definition) []definition.Start {
-	starts := make([]definition.Start, 0, len(def.Graph.Members))
+// agreementReaders is the members that read this agreement, by name only: who
+// uses it, not how much each is handed (d-8bbf).
+func agreementReaders(def *definition.Definition) []RoleReader {
+	out := make([]RoleReader, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		var read []source.Doc
-		if def.HasAgreement {
-			read = append(read, def.Agreement)
-		}
-		start := definition.Start{
-			Name:    def.Name + "-" + member.Name,
-			Short:   member.Name,
-			Role:    member.Role,
-			Profile: member.Profile,
-			Read:    read,
-		}
-		if doc, ok := cat.Role(member.Role); ok {
-			start.HasRole = true
-			start.RoleDoc = doc
-		}
-		starts = append(starts, start)
-	}
-	return starts
-}
-
-// agreementSizeProblems is the size warning of every member that reads the
-// team's agreement and is over a provisional limit (C7). The sentence is
-// validate's own, with no definition name at its head: a team's agreement
-// belongs to one definition, so the panel it stands in already says which one
-// (spec-teams 1.7).
-func agreementSizeProblems(definitionName string, size Size) []RoleProblem {
-	var out []RoleProblem
-	for _, member := range size.Members {
-		if member.Size.OverMemberRules() {
-			out = append(out, RoleProblem{
-				Sev: rules.SevWarning, Section: -1, Rule: -1,
-				Definition: definitionName,
-				Text:       MemberRulesWarning(member.Name, member.Size.Rules),
-			})
-		}
-		if member.Size.OverMemberChars() {
-			out = append(out, RoleProblem{
-				Sev: rules.SevWarning, Section: -1, Rule: -1,
-				Definition: definitionName,
-				Text:       MemberCharsWarning(member.Name, member.Size.Chars),
-			})
-		}
+		out = append(out, RoleReader{Definition: def.Name, Member: def.Name + "-" + member.Name})
 	}
 	return out
 }

@@ -455,6 +455,7 @@ func TestValidateSaysALeftoverStyleOnce(t *testing.T) {
 		t.Fatalf("validate read %d definitions, want the 2 that read the role document:\n%s", n, got)
 	}
 	want := i18n.Tf("rules.style_gone", ".hergy/roles/lead.yaml", "sections[0]")
+	want = strings.TrimPrefix(want, ".hergy/roles/lead.yaml: ")
 	if n := strings.Count(got, want); n != 1 {
 		t.Errorf("validate says the leftover-style sentence %d times, want once:\n%s", n, got)
 	}
@@ -787,7 +788,11 @@ func TestValidateShape(t *testing.T) {
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
 		"  warning: "+i18n.T("validate.mission_placeholder"),
-		"checked: 3",
+		"file: .hergy/roles/builder.yaml",
+		"  result: ok",
+		"file: .hergy/roles/lead.yaml",
+		"  result: ok",
+		"checked: 5",
 		"problems: 0",
 		"rules 6 in 3 files",
 		"  with an origin 0 (incident 0 / instruction 0 / derived 0)  with no origin 6",
@@ -796,9 +801,11 @@ func TestValidateShape(t *testing.T) {
 		"no origin: .hergy/roles/lead.yaml: L1, L2",
 		"no origin: .hergy/teams/demo/agreement.yaml: C1, C2",
 		"no origin: .hergy/roles/builder.yaml: B1, B2",
-		"  team .hergy/teams/demo: sources 3, characters 1507, not in the prompt 0",
-		"    member demo-lead: rules 4, characters 372, not in the prompt 0",
-		"    member demo-builder: rules 4, characters 434, not in the prompt 0",
+		i18n.T("validate.size_heading"),
+		"  team .hergy/teams/demo: 198 characters (the provisional budget is 3000)",
+		"  role .hergy/roles/builder.yaml: 236 characters (the provisional budget is 3000)",
+		"  role .hergy/roles/lead.yaml: 174 characters (the provisional budget is 3000)",
+		"This budget is provisional, for cutting team and role definitions; it does not stop hergy up.",
 	)
 }
 
@@ -969,7 +976,7 @@ func TestValidateShapeReportsABrokenFile(t *testing.T) {
 	if !strings.Contains(got, "file: .hergy/teams/demo/team.yaml\n  result: broken\n") {
 		t.Fatalf("validate does not report the break in the one shape:\n%s", got)
 	}
-	if !strings.Contains(got, "checked: 3\nproblems: 1\n") {
+	if !strings.Contains(got, "checked: 5\nproblems: 1\n") {
 		t.Fatalf("validate summary is not in the one shape:\n%s", got)
 	}
 }

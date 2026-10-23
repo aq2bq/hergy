@@ -14,19 +14,19 @@ import (
 // sizedTeam is what writeSizedTeam wrote, so a test can build the lines validate
 // must print from the files themselves.
 type sizedTeam struct {
-	dir         string // the definition directory, as a person writes it
-	agreement   string
-	role        string
-	memberChars int
-	sourceChars int
+	dir       string // the definition directory, as a person writes it
+	agreement string
+	role      string
+	teamChars int
+	roleChars int
 }
 
-// writeSizedTeam writes one team definition whose one member reads a document of
-// exactly n rules and an empty role document, so the size the member is handed is
-// that document's. The document is the team's own agreement (段 4), so two
-// definitions of one layer read a document each, and the role document is the
-// layer's own.
-func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int) sizedTeam {
+// writeSizedTeam writes one team definition whose own agreement holds n rules of
+// the text it is given, and a layer's role document with one harmless rule. The
+// size of a team definition is the prompt part of its own rules (d-00a9): its
+// agreement's Markdown, with no template written. The size of a role document is
+// the part of it that goes into the prompt.
+func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int, text string) sizedTeam {
 	t.Helper()
 	base := filepath.Join(f.proj, ".hergy")
 	display := filepath.Join(".hergy", "teams", name)
@@ -39,80 +39,82 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int) s
 	for i := range n {
 		body.WriteString("      - id: R")
 		body.WriteString(strconv.Itoa(i))
-		body.WriteString("\n        text: rule ")
-		body.WriteString(strconv.Itoa(i))
+		body.WriteString("\n        text: ")
+		body.WriteString(text)
 		body.WriteString("\n")
 	}
 	agreement := filepath.Join(base, "teams", name, "agreement.yaml")
 	role := filepath.Join(base, "roles", "lead.yaml")
+	roleText := "version: 1\nsections:\n  - heading: 仕事\n    rules:\n      - id: LEAD-1\n        text: 何かをする。\n"
 	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),
 		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
-	writeFile(t, role, "version: 1\nsections:\n  - rules: []\n")
-	document, err := rules.Parse(readRule(t, agreement), agreement)
+	writeFile(t, role, roleText)
+	teamDoc, err := rules.Parse(readRule(t, agreement), agreement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleDoc, err := rules.Parse(roleText, role)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return sizedTeam{
-		dir:         display,
-		agreement:   agreement,
-		role:        role,
-		memberChars: rules.CharCount(document.Markdown()),
-		sourceChars: rules.CharCount(readRule(t, agreement)) + rules.CharCount(readRule(t, role)),
+		dir:       display,
+		agreement: agreement,
+		role:      role,
+		teamChars: rules.CharCount(teamDoc.Markdown()),
+		roleChars: rules.CharCount(roleDoc.Markdown()),
 	}
 }
 
 // TestValidateCountsTheSizeAndWarnsWithoutFailing: hergy validate prints each
-// team definition with what it keeps and what each of its members is handed,
-// warns over the provisional limits, and still exits 0, because a large team is
-// a team to look at rather than a broken one (r-40a2, d-f2bc).
+// team definition's own size and each role document's own size, with the
+// provisional budget beside them, and warns over the budget without failing
+// (d-00a9, d-b87a). A per-member total is nowhere.
 func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	small := writeSizedTeam(t, f, false, "small", rules.MemberRuleLimit)   // exactly the limit
-	large := writeSizedTeam(t, f, false, "large", rules.MemberRuleLimit+1) // one over
+	small := writeSizedTeam(t, f, false, "small", 2, "short")
+	large := writeSizedTeam(t, f, false, "large", 30, strings.Repeat("あ", 120))
 
 	got, _, code := run("validate")
 	if code != 0 {
 		t.Fatalf("a team over the size limit is a break?\n%s", got)
 	}
-
-	// A definition comes first; its members and their warnings stand under it.
-	wantLarge := strings.Join([]string{
-		i18n.Tf("validate.size_team", large.dir, 2, large.sourceChars, 0),
-		i18n.Tf("validate.size_member", "large-lead", rules.MemberRuleLimit+1, large.memberChars, 0),
-		i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("large-lead", rules.MemberRuleLimit+1)),
-	}, "\n")
-	if !strings.Contains(got, wantLarge+"\n") {
-		t.Errorf("validate does not print the large definition with its member under it:\n%s", got)
+	for _, want := range []string{
+		i18n.Tf("validate.size_team", small.dir, small.teamChars, check.TeamCharLimit),
+		i18n.Tf("validate.size_team", large.dir, large.teamChars, check.TeamCharLimit),
+		i18n.Tf("validate.size_role", ".hergy/roles/lead.yaml", large.roleChars, check.RoleCharLimit),
+		i18n.T("validate.size_note"),
+	} {
+		if !strings.Contains(got, want+"\n") {
+			t.Errorf("validate does not print %q:\n%s", want, got)
+		}
 	}
-	if !strings.Contains(got, i18n.T("validate.size_note")+"\n") {
-		t.Errorf("validate warns without saying what the limit is:\n%s", got)
+	warning := i18n.Tf("size.team_chars", large.teamChars, check.TeamCharLimit)
+	if n := strings.Count(got, warning); n != 1 {
+		t.Errorf("the large team's size warning stands %d times, want once:\n%s", n, got)
 	}
-
-	// The definition exactly on the limit warns about nothing. The block is what
-	// belongs to it: the next definition's line ends it.
-	wantSmall := strings.Join([]string{
-		i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars, 0),
-		i18n.Tf("validate.size_member", "small-lead", rules.MemberRuleLimit, small.memberChars, 0),
-	}, "\n")
-	if !strings.Contains(got, wantSmall+"\n") {
-		t.Errorf("validate does not print the small definition with its member under it:\n%s", got)
+	if small.teamChars > check.TeamCharLimit {
+		t.Errorf("the small team is %d characters, want under the budget %d", small.teamChars, check.TeamCharLimit)
 	}
-	if smallBlock := block(t, got, i18n.Tf("validate.size_team", small.dir, 2, small.sourceChars, 0)); strings.Contains(smallBlock, "warning") {
-		t.Errorf("a definition inside every limit is warned about:\n%s", smallBlock)
+	if large.teamChars <= check.TeamCharLimit {
+		t.Fatalf("the large team is %d characters, want over the budget %d", large.teamChars, check.TeamCharLimit)
+	}
+	if strings.Contains(got, i18n.T("validate.size_member")) || strings.Contains(got, "member small-lead") {
+		t.Errorf("validate still prints a member's total:\n%s", got)
 	}
 }
 
-// TestValidateSaysHowManyRulesAreNotInThePrompt: the amount a member is handed
-// leaves out the rules a file keeps out of the prompt (in_prompt: false), and
-// the count line says how many they are, for the member and for the team
-// definition's files (d-f187).
-func TestValidateSaysHowManyRulesAreNotInThePrompt(t *testing.T) {
+// TestValidateCountsOnlyThePromptPart: a rule kept out of the prompt
+// (in_prompt: false) is not part of the team definition's size either: the
+// number is the Markdown a member reads, not the file's bytes (d-00a9). No
+// per-member count line is printed (d-b87a).
+func TestValidateCountsOnlyThePromptPart(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	team := writeSizedTeam(t, f, false, "small", 2)
+	team := writeSizedTeam(t, f, false, "small", 2, "rule")
 	writeFile(t, team.agreement, "version: 1\nsections:\n  - rules:\n"+
 		"      - id: R0\n        text: rule 0\n        in_prompt: false\n"+
 		"      - id: R1\n        text: rule 1\n")
@@ -120,64 +122,77 @@ func TestValidateSaysHowManyRulesAreNotInThePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memberChars := rules.CharCount(document.Markdown())
-	sourceChars := rules.CharCount(readRule(t, team.agreement)) + rules.CharCount(readRule(t, team.role))
+	chars := rules.CharCount(document.Markdown())
 
 	got, _, code := run("validate")
 	if code != 0 {
 		t.Fatalf("a team with a rule kept out of the prompt is a break?\n%s", got)
 	}
-	for _, want := range []string{
-		i18n.Tf("validate.size_team", team.dir, 2, sourceChars, 1),
-		i18n.Tf("validate.size_member", "small-lead", 1, memberChars, 1),
-	} {
-		if !strings.Contains(got, want+"\n") {
-			t.Errorf("validate does not print %q:\n%s", want, got)
-		}
+	if want := i18n.Tf("validate.size_team", team.dir, chars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
+		t.Errorf("validate does not print %q:\n%s", want, got)
+	}
+	if strings.Contains(got, "member ") {
+		t.Errorf("validate prints a member's total:\n%s", got)
 	}
 }
 
 // TestValidateTellsTwoDefinitionsOfTheSameNameApart: hergy allows one definition
-// name in both layers, so the members stand under the definition they belong to
-// and a warning says which file to look at (S1).
+// name in both layers, so each definition's size line names the file it belongs
+// to, and a warning stands under the definition it is about (S1).
 func TestValidateTellsTwoDefinitionsOfTheSameNameApart(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	global := writeSizedTeam(t, f, true, "dup", 3)
-	local := writeSizedTeam(t, f, false, "dup", rules.MemberRuleLimit+1)
+	global := writeSizedTeam(t, f, true, "dup", 3, "short")
+	local := writeSizedTeam(t, f, false, "dup", 30, strings.Repeat("あ", 120))
 
 	got, _, code := run("validate")
 	if code != 0 {
 		t.Fatalf("a team over the size limit is a break?\n%s", got)
 	}
-	// Both members carry the same name, and each stands under its own
-	// definition exactly once.
-	for _, want := range []string{
-		i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars, 0),
-		i18n.Tf("validate.size_member", "dup-lead", rules.MemberRuleLimit+1, local.memberChars, 0),
-	} {
-		if n := strings.Count(got, want); n != 1 {
-			t.Errorf("validate prints %q %d times, want once:\n%s", want, n, got)
-		}
+	if !strings.Contains(got, i18n.T("validate.size_heading")+"\n") {
+		t.Errorf("validate does not head the size list:\n%s", got)
 	}
-
-	localBlock := block(t, got, i18n.Tf("validate.size_team", local.dir, 2, local.sourceChars, 0))
-	if !strings.Contains(localBlock, i18n.Tf("validate.size_warn_member_rules", check.MemberRulesWarning("dup-lead", rules.MemberRuleLimit+1))) {
-		t.Errorf("the local definition's warning is not in its block:\n%s", localBlock)
+	if want := i18n.Tf("validate.size_team", local.dir, local.teamChars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
+		t.Errorf("validate does not print the effective definition's size %q:\n%s", want, got)
 	}
-	globalBlock := block(t, got, i18n.Tf("validate.size_team", global.dir, 2, global.sourceChars, 0))
-	if strings.Contains(globalBlock, "warning") {
-		t.Errorf("the global definition, inside the limit, carries a warning:\n%s", globalBlock)
+	if hidden := i18n.Tf("validate.size_team", global.dir, global.teamChars, check.TeamCharLimit); strings.Contains(got, hidden) {
+		t.Errorf("validate prints the hidden definition's size %q:\n%s", hidden, got)
 	}
-	if !strings.Contains(globalBlock, i18n.Tf("validate.size_member", "dup-lead", 3, global.memberChars, 0)) {
-		t.Errorf("the global definition's member is not in its block:\n%s", globalBlock)
+	warning := i18n.Tf("size.team_chars", local.teamChars, check.TeamCharLimit)
+	if n := strings.Count(got, warning); n != 1 {
+		t.Errorf("the local definition's warning stands %d times, want once:\n%s", n, got)
+	}
+	if !strings.Contains(blockOf(t, got, "file: .hergy/teams/dup/team.yaml"), warning) {
+		t.Errorf("the local definition's block does not hold its warning:\n%s", got)
+	}
+	if strings.Contains(blockOf(t, got, "file: "+filepath.Join(global.dir, "team.yaml")), warning) {
+		t.Errorf("the global definition's block holds the local warning:\n%s", got)
 	}
 }
 
-// block is the part of the output that belongs to one team definition: its line
-// and the member lines and warnings under it, up to the next definition's line.
-// A definition line is indented with two spaces; a member line, with four.
-func block(t *testing.T, output, header string) string {
+// TestValidateSizesADefinitionThatDoesNotRead: a team definition whose check
+// stops (a worker names a profile that is not there) still has its size in the
+// list: the file reads, so the size can be measured (T13 R1). The size is the
+// effective definition's, the one the screen's list shows.
+func TestValidateSizesADefinitionThatDoesNotRead(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	team := writeSizedTeam(t, f, false, "broken", 2, "short")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
+
+	got, _, code := run("validate")
+	if code == 0 {
+		t.Fatalf("a worker with a missing profile is not a break:\n%s", got)
+	}
+	if want := i18n.Tf("validate.size_team", team.dir, team.teamChars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
+		t.Errorf("validate does not print the broken definition's size %q:\n%s", want, got)
+	}
+}
+
+// blockOf is the part of the output that belongs to one file: its line and the
+// details and warnings under it, up to the next file's line.
+func blockOf(t *testing.T, output, header string) string {
 	t.Helper()
 	lines := strings.Split(output, "\n")
 	start := -1
@@ -192,10 +207,70 @@ func block(t *testing.T, output, header string) string {
 	}
 	end := len(lines)
 	for i := start + 1; i < len(lines); i++ {
-		if len(lines[i]) > 2 && lines[i][0] == ' ' && lines[i][1] == ' ' && lines[i][2] != ' ' {
+		if strings.HasPrefix(lines[i], "file: ") || strings.HasPrefix(lines[i], "checked: ") {
 			end = i
 			break
 		}
 	}
 	return strings.Join(lines[start:end], "\n")
+}
+
+// TestValidateHidesWarningsOfAnUnusedDefinition: a definition the project's
+// own hides gets only the line that says it is not used, and what stops it when
+// it is broken; its warnings are not printed, because a person cannot fix them
+// there (T13 R3).
+func TestValidateHidesWarningsOfAnUnusedDefinition(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	global := writeSizedTeam(t, f, true, "dup", 2, "short")
+	writeSizedTeam(t, f, false, "dup", 2, "short")
+
+	// The hidden definition has a warning (a rule whose arrow no turn holds) and
+	// a stop (a worker whose profile is not there).
+	writeFile(t, global.agreement, "version: 1\nsections:\n  - rules:\n"+
+		"      - id: G-1\n        text: a → b\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "dup", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
+
+	got, _, code := run("validate")
+	if code == 0 {
+		t.Fatalf("a hidden definition with a missing worker profile is not a break:\n%s", got)
+	}
+	hidden := blockOf(t, got, "file: "+filepath.Join(global.dir, "team.yaml"))
+	if !strings.Contains(hidden, i18n.Tf("validate.global_hidden", "dup")) {
+		t.Errorf("the hidden definition does not say it is not used:\n%s", hidden)
+	}
+	if !strings.Contains(hidden, "workers[0]") {
+		t.Errorf("the hidden definition does not show what stops it:\n%s", hidden)
+	}
+	if strings.Contains(hidden, "G-1") {
+		t.Errorf("the hidden definition shows a warning that cannot be fixed there:\n%s", hidden)
+	}
+}
+
+// TestValidateSaysWhenAGlobalRoleIsNotUsed: a global role document the project's
+// own hides gets the not-used line, and its warnings are not printed (T13 R4).
+func TestValidateSaysWhenAGlobalRoleIsNotUsed(t *testing.T) {
+	f := newFixture(t)
+	initLocales(t)
+	project := filepath.Join(f.proj, ".hergy", "roles", "scout.yaml")
+	writeFile(t, project, "version: 1\ntitle: scout\nsections:\n  - rules:\n      - id: S-1\n        text: 何かをする。\n")
+	global := filepath.Join(f.cfg, "hergy", "roles", "scout.yaml")
+	writeFile(t, global, "version: 1\ntitle: scout\nsections:\n  - rules:\n      - id: S-1\n        text: claude に任せる。\n")
+
+	got, _, code := run("validate")
+	if code != 0 {
+		t.Fatalf("a hidden role document is a break?\n%s", got)
+	}
+	hidden := blockOf(t, got, "file: "+global)
+	if !strings.Contains(hidden, i18n.Tf("validate.role_hidden", "scout")) {
+		t.Errorf("the hidden role does not say it is not used:\n%s", hidden)
+	}
+	if strings.Contains(hidden, "claude") {
+		t.Errorf("the hidden role shows a warning that cannot be fixed there:\n%s", hidden)
+	}
+	projectBlock := blockOf(t, got, "file: .hergy/roles/scout.yaml")
+	if strings.Contains(projectBlock, i18n.Tf("validate.role_hidden", "scout")) {
+		t.Errorf("the effective role says it is not used:\n%s", projectBlock)
+	}
 }

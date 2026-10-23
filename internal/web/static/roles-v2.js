@@ -33,11 +33,9 @@
   // stay the server's (the same ones hergy validate prints).
   const fill = (s, ...a) => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() : ''));
   const LNAME = { project: 'プロジェクト', global: 'グローバル' };
-  const LIMIT = { rules: 20, chars: 6000 };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const other = (l) => (l === 'project' ? 'global' : 'project');
-  const num = (n) => Number(n || 0).toLocaleString('ja-JP');
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const rulesOf = RD.rulesOf;
@@ -52,6 +50,7 @@
   // YAML section.
   const API = window.hergyAPI;
   const YAML = window.hergyYaml;
+  const SIZE = window.hergyMeasure;
 
   // ---- the model -------------------------------------------------------
   const fromJSON = RD.fromJSON;
@@ -65,7 +64,7 @@
         const draft = fromJSON(r[l]);
         // A role no layer holds a document for opens as a new one (spec-roles
         // 1.2.10): nothing is saved yet, so the first 保存 writes the file, and
-        // the row counts no rules and no amount until it is saved.
+        // the row counts no rules until it is saved.
         const saved = r.noDoc ? null : draft;
         row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
       } else { row[l] = null; }
@@ -75,8 +74,7 @@
     return row;
   });
   const teams = API.teamModel(ISLAND.team).teams.map((t) => ({
-    id: t.id, hash: t.hash || '', turns: t.turns || [],
-    agree: t.agreement || { rules: 0, chars: 0 },
+    id: t.id, hash: t.hash || '', place: t.place || 'project', turns: t.turns || [],
     members: (t.members || []).map((m) => ({ name: m.name, saved: m.saved, draft: m.draft })),
   }));
   // A row a person adds gets an id of its own: start past the ones the island
@@ -94,7 +92,8 @@
   const whoReads = (n) => teams.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
   const readersCell = (name) => {
     const rs = whoReads(name);
-    return rs.length ? `<b>${rs.length}</b><span>${esc([...new Set(rs.map((x) => x.t.id))].join(' · '))}</span>` : '<span class="none">0</span>';
+    const teams = [...new Set(rs.map((x) => x.t.id))];
+    return teams.length ? `<b>${teams.length}</b><span>${esc(teams.join(' · '))}</span>` : '<span class="none">0</span>';
   };
   const pathOf = (l, d) => DIR[l] + (d.name || '…') + '.yaml';
 
@@ -145,7 +144,7 @@
       issues: convertProblems(e.draft, c.problems),
       markdown: c.preview || { lines: [], chars: 0 },
       diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      turns: c.turns || [], readers: c.readers,
+      turns: c.turns || [], readers: c.readers, size: c.size, limit: c.limit,
     };
     if (cb) cb();
   }
@@ -212,7 +211,8 @@
       const f = qs.get('filter');
       state.filter = (f === 'noorigin' || f === 'nowhy' || f === 'issues') ? f : null;
       state.q = qs.get('q') || '';
-      (qs.get('open') || '').split(',').filter(Boolean).forEach((name) => {
+      const opened = (qs.get('open') || '').split(',').filter(Boolean);
+      opened.forEach((name) => {
         // A row is found by the name it shows: a saved name, a written one, or
         // the name of a document only Markdown holds (spec-roles 2 節).
         const r = roles.find((x) => curName(x) === name);
@@ -220,13 +220,21 @@
         state.open.add(r.uid);
         if (r.noDoc) openNewPanel(r);
       });
+      // A rule is given as <role>.<place>.<id>, or as its id alone when the
+      // opening names the role (the team screen links so, d-8bbf).
       (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
         const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-        if (!m) return;
-        const r = roleByName(m[1]);
-        if (!r || !r[m[2]] || !r[m[2]].saved) return;
-        const hit = rulesOf(r[m[2]].saved).find((x) => x.id === m[3]);
-        if (hit) { state.open.add(r.uid); RD.state.ropen.add(`${r.uid}${m[2]}:${hit._k}`); }
+        const wanted = m ? [{ name: m[1], place: m[2], id: m[3] }] : opened.map((name) => ({ name, place: null, id: spec }));
+        wanted.forEach(({ name, place, id }) => {
+          const r = roleByName(name);
+          if (!r) return;
+          const places = place ? [place] : [eff(r)];
+          places.forEach((l) => {
+            if (!r[l] || !r[l].saved) return;
+            const hit = rulesOf(r[l].saved).find((x) => x.id === id);
+            if (hit) { state.open.add(r.uid); RD.state.ropen.add(`${r.uid}${l}:${hit._k}`); }
+          });
+        });
       });
     } else if (state.tab === 'assign') {
       state.roleHi = qs.get('role') || null;
@@ -323,7 +331,7 @@
       <input id="q" class="search" type="search" placeholder="規則を探す" value="${esc(state.q)}" autocomplete="off">
     </div>
     <div class="list">
-      <div class="head"><span></span><span>名前</span><span>置き場所</span><span>規則</span><span>由来・なぜ・確かめ</span><span>1 人が読む量</span><span>読んでいる人</span></div>
+      <div class="head"><span></span><span>名前</span><span>置き場所</span><span>規則</span><span>由来・なぜ・確かめ</span><span>大きさ</span><span>使っているチーム</span></div>
       <div id="rows"></div>
     </div>`;
   }
@@ -341,27 +349,11 @@
     return PLACES.filter((l) => r[l]).flatMap((l) => issuesOf(r, l));
   }
 
-  function maxReader(r) {
-    // The most a person reads this role: its rules and characters, plus the
-    // agreements of each team that plays it, counted from the island so a
-    // definition the server cannot build a prompt for still shows its amount.
-    const name = curName(r), seen = new Set(), zs = [];
-    for (const { t } of whoReads(name)) {
-      if (seen.has(t.id)) continue;
-      seen.add(t.id);
-      const z = sizeOf(t, name);
-      if (z) zs.push(z);
-    }
-    zs.sort((a, b) => b.rules - a.rules);
-    return zs[0] || null;
-  }
-
-  function amtHTML(rules, chars, withChars) {
-    const over = rules > LIMIT.rules || chars > LIMIT.chars;
-    const w = Math.min(100, rules / (LIMIT.rules * 1.25) * 100);
-    return `<span class="amt ${over ? 'over' : ''}"><span class="meter ${over ? 'over' : ''}"><i data-w="${w}"></i></span><span class="v">${rules}<span class="lim">/${LIMIT.rules}</span></span>${withChars ? `<span class="lim">${num(chars)} 字</span>` : ''}</span>`;
-  }
-
+  // sizeHTML is a document's own size against the provisional budget, drawn
+  // the same way on the roles list and the team list (d-00a9, d-b87a): the bar
+  // as before, the number as 1,234 / 3,000 字, and the warning colour once the
+  // document is over the budget.
+  const sizeHTML = (chars, limit) => SIZE.html(chars, limit);
   // The page's CSP refuses a style="…" written as markup, so what a person
   // computed (a meter's width, a Markdown line's indent) is put on the elements
   // after they are drawn, through the stylesheet object (spec-roles 1.2.6).
@@ -389,8 +381,9 @@
     const rs = rulesOf(d);
     const tip = `由来 ${rs.filter((x) => x.origin.length).length}/${rs.length}・なぜ ${rs.filter((x) => x.why).length}/${rs.length}・確かめ ${rs.filter((x) => x.tests.length || x.report).length}/${rs.length}`;
     const mx = rs.map((x) => `<i class="p ${x.origin[0] ? 'o-' + x.origin[0].kind : ''}"></i><i class="p ${x.why ? 'why' : ''}"></i><i class="p ${x.tests.length || x.report ? 'tst' : ''}"></i>`).join('');
-    const top = saved ? maxReader(r) : null;
-    const teamsTxt = [...new Set(readers.map((x) => x.t.id))].join(' · ');
+    const size = checks[r.uid + eff(r)];
+    const teamIds = [...new Set(readers.map((x) => x.t.id))];
+    const teamsTxt = teamIds.join(' · ');
     // The 規則 column carries the number of rules the prompt leaves out under
     // the count, when any does (A1, I1).
     const omitted = saved ? RD.outNote(rs.filter((x) => !inP(x)).length) : '';
@@ -399,8 +392,8 @@
       <span class="c-place">${pills}</span>
       <span class="c-count">${saved ? rs.length + omitted : '<span class="none">—</span>'}</span>
       <span class="c-backing" title="${tip}"><span class="mx" aria-label="${tip}">${mx}</span></span>
-      <span class="c-amount">${top ? amtHTML(top.rules, top.chars) : '<span class="none">—</span>'}</span>
-      <span class="c-readers">${readers.length ? `<b>${readers.length}</b><span>${esc(teamsTxt)}</span>` : '<span class="none">0</span>'}</span>`;
+      <span class="c-amount">${size && size.limit ? sizeHTML(size.size, size.limit) : '<span class="none">—</span>'}</span>
+      <span class="c-readers">${teamIds.length ? `<b>${teamIds.length}</b><span>${esc(teamsTxt)}</span>` : '<span class="none">0</span>'}</span>`;
   }
 
   function updateRow(r) {
@@ -424,10 +417,8 @@
   function usageHTML(r) {
     const readers = whoReads(curName(r));
     if (!readers.length) return '';
-    return `<span class="lbl">読んでいる人</span>` + readers.map(({ t, m }) => {
-      const z = sizeOf(t, curName(r)), over = z && (z.rules > LIMIT.rules || z.chars > LIMIT.chars);
-      return `<button class="uchip ${over ? 'over' : ''}" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}" data-i="${t.members.indexOf(m)}"><span class="g">${t.id}</span>${esc(m.name)}<span class="z">${z ? z.rules : '—'}/${LIMIT.rules}</span></button>`;
-    }).join('');
+    return `<span class="lbl">使っているチーム</span>` + readers.map(({ t, m }) =>
+      `<button class="uchip" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}" data-i="${t.members.indexOf(m)}"><span class="g">${t.id}</span>${esc(m.name)}</button>`).join('');
   }
 
   function detailHTML(r) {
@@ -534,22 +525,8 @@
     }).join('');
   }
 
-  // A member's amount, counted from the island: the rules and characters of the
-  // role the member plays, plus the agreements the team reads (spec-roles 1.3).
-  // It is not asked of the server, so a definition the server cannot build a
-  // prompt for — a profile that is not there — still shows its amount (6 C6),
-  // and a role picked for a member is counted before the definition reads it.
-  function sizeOf(t, roleName) {
-    const r = roleByName(roleName);
-    if (!r) return null;
-    const l = eff(r), c = checks[r.uid + l];
-    const rules = rulesOf(r[l].draft).filter((x) => inP(x)).length + t.agree.rules;
-    const chars = (c ? c.markdown.chars : 0) + t.agree.chars;
-    return { rules, chars, over: rules > LIMIT.rules || chars > LIMIT.chars };
-  }
-
   function arowHTML(t, m, i) {
-    const r = roleByName(m.draft), z = r ? sizeOf(t, m.draft) : null;
+    const r = roleByName(m.draft);
     const dim = state.roleHi && m.draft !== state.roleHi ? 'dim' : '';
     const errs = [];
     if (!r) {
@@ -558,11 +535,9 @@
       const places = [DIR.project + m.draft + '.yaml', DIR.global + m.draft + '.yaml'].join(TEXT.separator || '、');
       errs.push({ sev: 'err', msg: fill(TEXT.no_role_doc, m.name, m.draft, places) });
     }
-    if (z && z.rules > LIMIT.rules) errs.push({ sev: 'warn', msg: fill(TEXT.member_rules, `${t.id}-${m.name}`, z.rules, LIMIT.rules) });
     return `<div class="arow ${m.draft !== m.saved ? 'changed' : ''} ${r ? '' : 'missing'} ${dim}" data-m="${esc(m.name)}">
       <div class="who"><code>${esc(m.name)}</code></div>
       <div class="pick">${m.draft !== m.saved ? `<s class="was">${esc(m.saved)}</s>` : ''}<span class="sel"><select class="pickrole" id="s-${t.id}-${i}" data-t="${t.id}" data-i="${i}" aria-label="${esc(m.name)} のロール">${roleOptions(m.draft)}</select></span></div>
-      ${z ? amtHTML(z.rules, z.chars, true) : ''}
       ${errs.length ? `<ul class="vm">${errs.map(RD.vmItem).join('')}</ul>` : ''}
     </div>`;
   }
@@ -572,10 +547,8 @@
     const errs = t.members.filter((m) => !roleByName(m.draft)).length;
     const ok = state.ok['t' + t.id] ? (delete state.ok['t' + t.id], '<span class="ok">保存しました</span>') : '';
     return `<section class="team" data-t="${t.id}">
-      <header class="th"><span class="tl">チーム定義</span><code class="tid">${t.id}</code><span class="tn">${t.members.length}</span>
+      <header class="th"><span class="tl">チーム定義</span><code class="tid">${t.id}</code><span class="pill on">${LNAME[t.place] || LNAME.project}</span>
         <span class="tside">${errs ? `<span class="sev err">問題 ${errs}</span>` : ''}${dirty ? `<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="t-save" ${errs ? 'disabled' : ''}>保存</button>` : ok}</span>
-        <code class="path">.hergy/teams/${t.id}/team.yaml</code>
-        <span class="agree">ルール <b>${t.agree.rules}</b> 規則 · <b>${num(t.agree.chars)}</b> 字</span>
       </header>
       ${t.members.map((m, i) => arowHTML(t, m, i)).join('')}
     </section>`;

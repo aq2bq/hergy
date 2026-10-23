@@ -1,9 +1,6 @@
 package check
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,56 +39,81 @@ func TestRoleWarnsAboutAModelNameInARuleText(t *testing.T) {
 	}
 }
 
-// TestRoleNamesTheDefinitionAtTheHeadOfATurnWarning: the sentence hergy validate
-// writes is prefixed with the definition a screen is showing it for, so a person
-// reads the same sentence in both places (V4, 1.6).
-func TestRoleNamesTheDefinitionAtTheHeadOfATurnWarning(t *testing.T) {
+// TestRoleDoesNotJudgeATeamTurn: a rule whose arrow names a team's turn is the
+// team definition's problem, not the role document's (d-a575, d-8bbf). The role
+// check stays clean with no team's answer in it; the team check names the role
+// document, its rule and the role, so a screen can open it.
+func TestRoleDoesNotJudgeATeamTurn(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	lead := f.roleText("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
-	want := RoleProblem{
-		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 7,
-		Definition: "demo",
-		Text:       "demo: " + i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl"),
+	if len(report.Problems) != 0 {
+		t.Errorf("the role document got a team's problem: %+v", report.Problems)
 	}
-	if len(report.Problems) != 1 || report.Problems[0] != want {
-		t.Errorf("problems = %+v, want the one turn warning %+v", report.Problems, want)
+	if len(report.Turns) != 0 {
+		t.Errorf("turns = %+v, want none in a role document's check", report.Turns)
+	}
+
+	team := Team(TeamInput{Catalog: f.cat, Name: "demo", Layer: source.LayerLocal})
+	var found *Finding
+	for i := range team.Problems {
+		if team.Problems[i].RuleID == "LEAD-1" && strings.Contains(team.Problems[i].Text, "impl") {
+			found = &team.Problems[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("the team check does not name the role's turn: %+v", team.Problems)
+	}
+	if found.Role != "lead" || found.Doc != f.leadRolePath() {
+		t.Errorf("finding = %+v, want the role and its document", found)
+	}
+	if found.RoleDoc != f.leadRolePath() {
+		t.Errorf("role doc = %q, want %q", found.RoleDoc, f.leadRolePath())
+	}
+	want := i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl")
+	if found.Text != want {
+		t.Errorf("text = %q, want %q", found.Text, want)
 	}
 }
 
-// TestRoleNamesTheDefinitionAtTheHeadOfASizeWarning: a member handed more than
-// the provisional limit warns, with the definition the sentence is about at its
-// head and the member's herdr name in it (C7, 1.6).
-func TestRoleNamesTheDefinitionAtTheHeadOfASizeWarning(t *testing.T) {
+// TestRoleWarnsAboutItsOwnSize: a role document over the provisional budget
+// warns about the document itself, not about a member's amount (d-00a9,
+// d-b87a). Readers says who uses it, by name only.
+func TestRoleWarnsAboutItsOwnSize(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	var rulesText strings.Builder
-	for i := 0; i <= rules.MemberRuleLimit; i++ {
-		fmt.Fprintf(&rulesText, "      - id: LEAD-%d\n        text: 何かをする。\n", i)
+	for i := range 30 {
+		rulesText.WriteString("      - id: LEAD-" + string(rune('A'+i%26)) + strings.Repeat("A", i/26) + "\n")
+		rulesText.WriteString("        text: " + strings.Repeat("あ", 120) + "\n")
 	}
 	lead := f.roleText("lead", rulesText.String())
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
+	if report.Markdown.Chars <= RoleCharLimit {
+		t.Fatalf("chars = %d, want over the limit %d", report.Markdown.Chars, RoleCharLimit)
+	}
 	want := RoleProblem{
-		Sev: rules.SevWarning, Section: -1, Rule: -1, Line: 1, Definition: "demo",
-		Text: "demo: " + MemberRulesWarning("demo-lead", rules.MemberRuleLimit+1),
+		Sev: rules.SevWarning, Section: -1, Rule: -1, Line: 1,
+		Text: i18n.Tf("size.role_chars", report.Markdown.Chars, RoleCharLimit),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
 		t.Errorf("problems = %+v, want the one size warning %+v", report.Problems, want)
+	}
+	if report.Limit != RoleCharLimit {
+		t.Errorf("limit = %d, want %d", report.Limit, RoleCharLimit)
 	}
 	if len(report.Readers) != 1 {
 		t.Fatalf("readers = %+v, want the one member that reads it", report.Readers)
 	}
 	reader := report.Readers[0]
-	if reader.Definition != "demo" || reader.Member != "demo-lead" || !reader.Over {
-		t.Errorf("reader = %+v, want demo/demo-lead over the limit", reader)
-	}
-	if reader.Rules != rules.MemberRuleLimit+1 {
-		t.Errorf("rules = %d, want %d", reader.Rules, rules.MemberRuleLimit+1)
+	if reader.Definition != "demo" || reader.Member != "demo-lead" {
+		t.Errorf("reader = %+v, want demo/demo-lead", reader)
 	}
 }
 
@@ -142,16 +164,16 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 	}
 }
 
-// TestRoleReadsTheRoleTabsDraftAsIfItWereSaved: the draft a screen holds is
-// checked as if it were written, so a rule id it takes from the team's agreement
-// is refused before the save (C5, C6). The problem stands on the draft's rule,
-// which is where the screen draws it, and the file is left as it was.
-func TestRoleReadsTheRoleTabsDraftAsIfItWereSaved(t *testing.T) {
+// TestRoleLeavesADuplicateWithTheAgreementToTheTeam: an id the role document and
+// the team's agreement both hold is a combination problem, so it belongs to the
+// team definition's check, which names the role and the rule (d-a575, d-8bbf).
+// The role's own check is clean; the check writes nothing to disk.
+func TestRoleLeavesADuplicateWithTheAgreementToTheTeam(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	agreement := f.proj + "/.hergy/teams/demo/agreement.yaml"
 	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
 		"      - id: DUP-1\n        text: 何かをする。\n")
 
@@ -166,19 +188,31 @@ func TestRoleReadsTheRoleTabsDraftAsIfItWereSaved(t *testing.T) {
 		}},
 	}
 	report := reportFor(f, RoleInput{Name: "lead", Draft: draft})
-	want := RoleProblem{
-		Sev: rules.SevError, Section: 0, Rule: 1, Field: "id", Line: 8, Definition: "demo",
-		Text: i18n.Tf("error.rules_duplicate_id", agreement, "DUP-1", f.leadRolePath()),
+	if len(report.Problems) != 0 {
+		t.Errorf("the role document got the agreement's problem: %+v", report.Problems)
 	}
-	if len(report.Problems) != 1 || report.Problems[0] != want {
-		t.Errorf("problems = %+v, want the one repeated id %+v", report.Problems, want)
-	}
-	onDisk, err := os.ReadFile(f.leadRolePath())
+
+	text, err := rules.Emit(draft)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(onDisk), "DUP-1") || !strings.Contains(string(onDisk), "LEAD-1") {
-		t.Errorf("the check wrote the draft to disk:\n%s", onDisk)
+	cat := f.cat.With(f.leadRolePath(), text)
+	team := Team(TeamInput{Catalog: cat, Name: "demo", Layer: source.LayerLocal})
+	var found *Finding
+	for i := range team.Problems {
+		if team.Problems[i].RuleID == "DUP-1" {
+			found = &team.Problems[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("the team check does not name the repeated id: %+v", team.Problems)
+	}
+	if found.Role != "lead" || !strings.HasPrefix(found.Field, "rule:") || found.At != "id" {
+		t.Errorf("finding = %+v, want the role's id", found)
+	}
+	if !strings.Contains(found.Text, "DUP-1") {
+		t.Errorf("text = %q, want the repeated id", found.Text)
 	}
 }
 
@@ -208,37 +242,36 @@ func TestRoleReadsAnEmptiedYAMLFile(t *testing.T) {
 	}
 }
 
-// TestRoleJudgesEveryArrowOfTheDocumentForEachReader: a screen shows, for every
-// arrow the rule texts write, whether each definition that reads the document
-// holds it in turns:, whether it holds or not (C6, 1.6).
-func TestRoleJudgesEveryArrowOfTheDocumentForEachReader(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := f.roleText("lead", strings.Join([]string{
-		"      - id: LEAD-1\n        text: 設計は spec に渡す（lead → spec）。\n",
-		"      - id: LEAD-2\n        text: 報告は人間に渡す（lead → human）。\n",
-	}, ""))
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
+// TestRoleAnswerDoesNotChangeWithTheTeamsThatUseIt: the same role document is
+// checked once with a team that plays it and once with no team at all; the
+// check's problems and its size are the same (d-8bbf). Only Readers, which is
+// information apart from the check, changes.
+func TestRoleAnswerDoesNotChangeWithTheTeamsThatUseIt(t *testing.T) {
+	withTeam := newFixture(t)
+	withTeam.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	lead := withTeam.roleText("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
+	withTeam.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
-	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
-	got := map[string]RoleTurn{}
-	for _, turn := range report.Turns {
-		got[turn.Arrow] = turn
+	alone := newFixture(t)
+	alone.write(alone.leadRolePath(), lead)
+
+	a := reportFor(withTeam, RoleInput{Name: "lead", Text: lead})
+	b := reportFor(alone, RoleInput{Name: "lead", Text: lead})
+	if len(a.Problems) != len(b.Problems) {
+		t.Fatalf("problems with a team = %+v, alone = %+v", a.Problems, b.Problems)
 	}
-	for arrow, ok := range map[string]bool{"lead → spec": false, "lead → human": true} {
-		turn, there := got[arrow]
-		if !there {
-			t.Errorf("no turn for %q: %+v", arrow, report.Turns)
-			continue
-		}
-		if turn.Definition != "demo" || turn.OK != ok {
-			t.Errorf("turn %q = %+v, want demo/%v", arrow, turn, ok)
+	for i := range a.Problems {
+		if a.Problems[i] != b.Problems[i] {
+			t.Errorf("problem %d with a team = %+v, alone = %+v", i, a.Problems[i], b.Problems[i])
 		}
 	}
-	if lead := got["lead → spec"]; lead.Section != 0 || lead.Rule != 0 {
-		t.Errorf("the first rule's turn = %+v, want (0, 0)", lead)
+	if a.Markdown.Chars != b.Markdown.Chars || a.Limit != b.Limit {
+		t.Errorf("size with a team = %d/%d, alone = %d/%d", a.Markdown.Chars, a.Limit, b.Markdown.Chars, b.Limit)
 	}
-	if human := got["lead → human"]; human.Section != 0 || human.Rule != 1 {
-		t.Errorf("the second rule's turn = %+v, want (0, 1)", human)
+	if len(a.Turns) != 0 || len(b.Turns) != 0 {
+		t.Errorf("turns with a team = %+v, alone = %+v", a.Turns, b.Turns)
+	}
+	if len(a.Readers) != 1 || len(b.Readers) != 0 {
+		t.Errorf("readers with a team = %+v, alone = %+v", a.Readers, b.Readers)
 	}
 }

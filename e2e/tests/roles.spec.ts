@@ -4,7 +4,7 @@
 // text a person types being the one line a save writes, and the role a person
 // picks being the one line a save writes.
 import { test, expect } from './fixtures';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { changedLines, choose, press, q, readTo, set, there, wait } from './helpers';
 
@@ -19,7 +19,17 @@ test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
 
   // R4: a sentence about the document as a whole marks the first line of the
   // preview alone, not every heading and blank line. The screen's own script
-  // puts the mark on a line, so the browser is the only place it is seen.
+  // puts the mark on a line, so the browser is the only place it is seen. The
+  // document-wide sentence is the size warning now (d-00a9): a role document
+  // over the provisional budget gets one, on the document as a whole.
+  const analyst = path.join(app.proj, '.hergy', 'roles', 'analyst.yaml');
+  writeFileSync(
+    analyst,
+    readFileSync(analyst, 'utf8') +
+      '\n  - heading: 長さ\n    rules:\n      - id: LONG-1\n        text: ' +
+      'あ'.repeat(3100) +
+      '\n',
+  );
   await page.goto(`${app.base}/roles?open=analyst`);
   await wait(page, there('#rows .role.open .panel'));
   await readTo<number>(

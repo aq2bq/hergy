@@ -87,47 +87,50 @@ type RoleTurn struct {
 	OK         bool   `json:"ok"`
 }
 
-// RoleReader is one member that reads the document, with the amount it is handed
-// (C7): the rules and characters of its role document and the agreements, and
-// whether that is over a provisional limit.
+// RoleReader is one member that reads the document: the team definition it
+// plays the role in and its name. It says who uses the role (a reason to take it
+// to another project), not how much it is handed: the amount is what the prompt
+// preview shows, and no team-dependent amount is part of this check (d-8bbf).
 type RoleReader struct {
 	Definition string `json:"definition"`
 	Member     string `json:"member"`
-	Rules      int    `json:"rules"`
-	Chars      int    `json:"chars"`
-	Over       bool   `json:"over"`
 }
 
 // DocReport is what one rule document's check found: the document's own
 // problems, the Markdown a screen draws (C1), how that changed from the saved
-// document, the arrows the document's rules write, and the members that read it
-// with the amount each one is handed. It is the shape both a role document's
-// check (Role) and a team's agreement check (Agreement, spec-teams C6) answer
-// with, so the two screens share one part (spec-teams 7).
+// document, the arrows the document's rules write (for a team's agreement, whose
+// turns are the team's), and the members that read it by name. It is the shape
+// both a role document's check (Role) and a team's agreement check (Agreement,
+// spec-teams C6) answer with, so the two screens share one part (spec-teams 7).
 type DocReport struct {
 	Problems []RoleProblem `json:"problems"`
 	Markdown RoleMarkdown  `json:"markdown"`
 	Diff     RoleDiff      `json:"diff"`
 	Turns    []RoleTurn    `json:"turns"`
 	Readers  []RoleReader  `json:"readers"`
+	// Limit is the provisional size budget of this unit, in characters, for a
+	// screen that shows the document's size against it (d-8bbf).
+	Limit int `json:"limit,omitempty"`
 }
 
 // RoleReport is the old name of DocReport, kept so a caller that reads one role
 // document keeps its name (spec-teams 7).
 type RoleReport = DocReport
 
-// Role checks one role document the way the role screen needs it (C6): the
-// document's own problems read to the end (C2), the problems between the
-// documents each reader reads (C3), the turn warnings and the arrow results of
-// every definition that reads it, each reader's amount (C7), the model names its
-// rules write (C8), the Markdown a member reads, and how that changed from the
-// saved document.
+// Role checks one role document the way the role screen needs it (C6, d-a575):
+// the document's own problems read to the end (C2), an id or a report name it
+// repeats, the model names its rules write (C8), the size of the part of it that
+// goes into the prompt (d-00a9), and the Markdown a member reads, with how that
+// changed from the saved document.
+//
+// The answer does not depend on which team definitions use the role (d-8bbf): a
+// rule that names a team's turn is the team definition's check (TurnFindings),
+// and the documents one member reads are checked together there
+// (betweenFindings). Readers carries only who uses the role, by name, apart from
+// the check.
 //
 // The draft is checked as if it were saved: the document is read through a
-// catalog that carries the draft in its place (C5), so the agreements, the
-// readers and their sizes see it. A definition that cannot build a prompt still
-// gives its warnings and its readers' sizes, because the check builds only the
-// members' frames (C6), not their prompts, so a broken template hides nothing.
+// catalog that carries the draft in its place (C5), so the readers see it.
 func Role(in RoleInput) DocReport {
 	cat := in.Catalog
 	if cat == nil {
@@ -171,6 +174,7 @@ func Role(in RoleInput) DocReport {
 	report := DocReport{
 		Markdown: RoleMarkdown{Lines: doc.PreviewLines(), Chars: rules.CharCount(doc.Markdown())},
 		Diff:     roleDiff(saved, doc),
+		Limit:    RoleCharLimit,
 	}
 	for _, p := range problems {
 		report.Problems = append(report.Problems, RoleProblem{
@@ -179,15 +183,18 @@ func Role(in RoleInput) DocReport {
 		})
 	}
 	index := ruleIndex(doc)
+	for _, p := range localRuleProblems(doc) {
+		report.Problems = append(report.Problems, RoleProblem{
+			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
+			Line: lines.At(p.Section, p.Rule, p.Field),
+			Text: withoutOwnName(p.Text, display),
+		})
+	}
 	report.Problems = append(report.Problems, roleModelProblems(display, doc, index, lines)...)
+	report.Problems = append(report.Problems, roleSizeProblems(rules.CharCount(doc.Markdown()))...)
 
-	for _, def := range roleDefinitions(cat, in.Name) {
-		size := SizeOf(roleStarts(overlay, def, in.Name), overlay.Reader())
-		report.Problems = append(report.Problems, roleDocProblems(overlay, def, in.Name, display, index, lines)...)
-		report.Problems = append(report.Problems, roleTurnProblems(overlay, def, display, index, lines)...)
-		report.Problems = append(report.Problems, roleSizeProblems(def.Name, size)...)
-		report.Turns = append(report.Turns, roleTurns(overlay, def, in.Name, display, index)...)
-		report.Readers = append(report.Readers, roleReaders(def.Name, size)...)
+	for _, def := range roleDefinitions(overlay, in.Name) {
+		report.Readers = append(report.Readers, roleReaders(def, in.Name)...)
 	}
 	report.Problems = orderProblems(dedupeProblems(report.Problems))
 	return report
@@ -294,15 +301,6 @@ func (x roleIndex) place(field, path string) (int, int) {
 	return -1, -1
 }
 
-// placeID is where a rule id stands in the document, or -1, -1 when it stands
-// nowhere: the first occurrence wins, as it does for place.
-func (x roleIndex) placeID(id string) (int, int) {
-	if at, ok := x.places[id]; ok {
-		return at[0], at[1]
-	}
-	return -1, -1
-}
-
 // roleModelProblems is one document's model-name warnings (C8): one per rule
 // whose text names a model, in the written order.
 func roleModelProblems(path string, doc *rules.Document, index roleIndex, lines rules.Lines) []RoleProblem {
@@ -315,58 +313,6 @@ func roleModelProblems(path string, doc *rules.Document, index roleIndex, lines 
 		})
 	}
 	return out
-}
-
-// roleDocProblems is the C3 problems between the documents one definition's
-// members read: the role document, the agreement every team shares and the
-// team's own agreement, in the order a prompt joins them.
-//
-// A screen draws these beside the rule of the document it is checking, so
-// Section and Rule are the rule's place in that document rather than in
-// whichever document C3 found the problem in (which may be an agreement). A
-// problem that names a rule the document holds is placed on it; a problem about
-// another document's rule alone is placed on the document as a whole (-1, -1),
-// because there is no rule of this document to put it beside.
-func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, path string, index roleIndex, lines rules.Lines) []RoleProblem {
-	var out []RoleProblem
-	for _, p := range rules.CheckAll(roleDocs(cat, def, name)) {
-		section, rule := -1, -1
-		text := p.Text
-		switch {
-		case p.Path == path:
-			section, rule = p.Section, p.Rule
-			// The problem stands in the document this report is about, whose
-			// panel head names it: the sentence leaves the name to that head.
-			text = withoutOwnName(text, path)
-		case p.RuleID() != "":
-			section, rule = index.placeID(p.RuleID())
-		}
-		out = append(out, RoleProblem{
-			Sev: p.Sev, Section: section, Rule: rule, Field: p.Field,
-			Line:       lines.At(section, rule, p.Field),
-			Definition: def.Name, Text: text,
-		})
-	}
-	return out
-}
-
-// roleDocs is the documents one definition's members read, with the rules
-// parsed: the role document and the team's own agreement, in the order a prompt
-// joins them (段 4). A document that does not read is left out: the break was
-// reported where the document is its own.
-func roleDocs(cat *catalog.Catalog, def *definition.Definition, name string) []*rules.Document {
-	var docs []*rules.Document
-	if role, ok := cat.Role(name); ok {
-		if parsed := parseRoleDoc(cat, role); parsed != nil {
-			docs = append(docs, parsed)
-		}
-	}
-	if def.HasAgreement {
-		if parsed := parseRoleDoc(cat, def.Agreement); parsed != nil {
-			docs = append(docs, parsed)
-		}
-	}
-	return docs
 }
 
 // parseRoleDoc reads one rule document through the catalog, or nil when it does
@@ -385,63 +331,6 @@ func parseRoleDoc(cat *catalog.Catalog, doc source.Doc) *rules.Document {
 	return parsed
 }
 
-// roleTurnProblems is TurnFindings, of the rules this document writes, with the
-// definition named at the head of the sentence (spec-roles 1.6), so a screen
-// says which definition the sentence is about.
-func roleTurnProblems(cat *catalog.Catalog, def *definition.Definition, path string, index roleIndex, lines rules.Lines) []RoleProblem {
-	prefix := "rule:" + path + "#"
-	var out []RoleProblem
-	for _, finding := range TurnFindings(Input{Catalog: cat}, def) {
-		if !strings.HasPrefix(finding.Field, prefix) {
-			continue
-		}
-		section, rule := index.place(finding.Field, path)
-		out = append(out, RoleProblem{
-			Sev: rules.SevWarning, Section: section, Rule: rule, Field: "text",
-			Line:       lines.At(section, rule, "text"),
-			Definition: def.Name, Text: def.Name + ": " + finding.Text,
-		})
-	}
-	return out
-}
-
-// roleTurns is every arrow of this document's rule texts, judged for one
-// definition: whether the definition's turns: holds it. An arrow of a rule the
-// document does not hold is left out, and an arrow that names no member is not
-// held.
-func roleTurns(cat *catalog.Catalog, def *definition.Definition, name, path string, index roleIndex) []RoleTurn {
-	role, ok := cat.Role(name)
-	if !ok {
-		return nil
-	}
-	parsed := parseRoleDoc(cat, role)
-	if parsed == nil {
-		return nil
-	}
-	members := topologyMembers(def)
-	doc := topology.Doc{Key: path, Label: parsed.Title, Role: name}
-	for _, rule := range parsed.Rules() {
-		doc.Rules = append(doc.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
-	}
-	reading := topology.Read(members, []topology.Doc{doc})
-	var out []RoleTurn
-	for _, edge := range reading.Edges {
-		section, rule := index.place("rule:"+path+"#"+edge.RuleID, path)
-		out = append(out, RoleTurn{
-			Section: section, Rule: rule, Arrow: edgeText(edge, members),
-			Definition: def.Name, OK: edgeHeld(def, edge, members),
-		})
-	}
-	for _, unread := range reading.Unread {
-		section, rule := index.place("rule:"+path+"#"+unread.RuleID, path)
-		out = append(out, RoleTurn{
-			Section: section, Rule: rule, Arrow: unread.Text,
-			Definition: def.Name, OK: false,
-		})
-	}
-	return out
-}
-
 // edgeHeld is whether a definition's turns: holds an arrow: for "→" the one
 // pair, and for "⇄" both ways. An arrow with an end that is no node of the graph
 // is held by nothing.
@@ -458,73 +347,17 @@ func edgeHeld(def *definition.Definition, edge topology.Edge, members []topology
 	return true
 }
 
-// roleStarts is the members of one definition that play one role, as the frames
-// the size is counted from (C7). The prompt is not built: the size needs only
-// the documents a member reads, so a definition whose prompt cannot be built
-// still gives its readers' sizes (C6), and the role document is the one the
-// catalog carries (the draft, C5).
-func roleStarts(cat *catalog.Catalog, def *definition.Definition, name string) []definition.Start {
-	role, ok := cat.Role(name)
-	if !ok {
-		return nil
-	}
-	var starts []definition.Start
+// roleReaders is the members that read the document, by the definition they
+// play it in and their name: who uses the role, not how much each is handed
+// (d-8bbf).
+func roleReaders(def *definition.Definition, role string) []RoleReader {
+	var out []RoleReader
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		if member.Role != name {
+		if member.Role != role {
 			continue
 		}
-		var read []source.Doc
-		if def.HasAgreement {
-			read = append(read, def.Agreement)
-		}
-		starts = append(starts, definition.Start{
-			Name:    def.Name + "-" + member.Name,
-			Short:   member.Name,
-			Role:    member.Role,
-			Profile: member.Profile,
-			HasRole: true,
-			RoleDoc: role,
-			Read:    read,
-		})
-	}
-	return starts
-}
-
-// roleReaders is the members of one definition that read the document, with the
-// amount each is handed, told apart by the definition they play it in.
-func roleReaders(definitionName string, size Size) []RoleReader {
-	var out []RoleReader
-	for _, member := range size.Members {
-		out = append(out, RoleReader{
-			Definition: definitionName, Member: member.Name,
-			Rules: member.Size.Rules, Chars: member.Size.Chars,
-			Over: member.Size.OverMemberRules() || member.Size.OverMemberChars(),
-		})
-	}
-	return out
-}
-
-// roleSizeProblems is the size warning of every member of one definition that
-// reads the document and is over a provisional limit (C7), with the definition
-// named at the head of the sentence so a screen says which one it is about.
-func roleSizeProblems(definitionName string, size Size) []RoleProblem {
-	var out []RoleProblem
-	for _, member := range size.Members {
-		if member.Size.OverMemberRules() {
-			out = append(out, RoleProblem{
-				Sev: rules.SevWarning, Section: -1, Rule: -1,
-				Definition: definitionName,
-				Text:       definitionName + ": " + MemberRulesWarning(member.Name, member.Size.Rules),
-			})
-		}
-		if member.Size.OverMemberChars() {
-			out = append(out, RoleProblem{
-				Sev: rules.SevWarning, Section: -1, Rule: -1,
-				Definition: definitionName,
-				Text:       definitionName + ": " + MemberCharsWarning(member.Name, member.Size.Chars),
-			})
-		}
+		out = append(out, RoleReader{Definition: def.Name, Member: def.Name + "-" + member.Name})
 	}
 	return out
 }

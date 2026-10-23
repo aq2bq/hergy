@@ -44,7 +44,7 @@ func TestAgreementJudgesAnArrowAgainstTheDraftTurns(t *testing.T) {
 		t.Errorf("turn definition = %q, want demo", turn.Definition)
 	}
 
-	want := "demo: " + i18n.Tf("validate.turn_not_in_turns", "AGR-1", "lead → spec")
+	want := i18n.Tf("validate.turn_not_in_turns", "AGR-1", "lead → spec")
 	if len(got.Problems) != 1 || got.Problems[0].Text != want {
 		t.Errorf("problems = %+v, want the one warning %q", got.Problems, want)
 	}

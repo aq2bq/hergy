@@ -226,20 +226,6 @@ func ruNumbered(preview map[string]any) (int, int) {
 	return n, int(chars)
 }
 
-// ruReaderRules is the amount one member of one definition is handed, as a
-// check's readers answer it, or -1 when the member is not there. A reader's own
-// name is the definition's, qualified ("core-lead").
-func ruReaderRules(readers []any, definition, member string) int {
-	for _, r := range readers {
-		one, _ := r.(map[string]any)
-		if one["definition"] == definition && one["member"] == definition+"-"+member {
-			n, _ := one["rules"].(float64)
-			return int(n)
-		}
-	}
-	return -1
-}
-
 // ruIssues is a check's problems as the sentences a screen shows, in order.
 func ruIssues(problems []any) []string {
 	out := make([]string, 0, len(problems))
@@ -341,8 +327,8 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 	})
 
 	// A rule kept out of the prompt (in_prompt: false) is one struck line with no
-	// number: the numbered count and the character count fall, the amount lead's
-	// readers are handed falls by the one rule, and the prompt carries no LEAD-9.
+	// number: the numbered count and the character count fall, and the prompt
+	// carries no LEAD-9. No per-member amount is part of the answer (d-b87a).
 	t.Run("a rule kept out of the prompt", func(t *testing.T) {
 		f := ruFixtureRoles(t)
 		server := f.server(t)
@@ -354,10 +340,6 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 		})
 		beforePreview, _ := before["preview"].(map[string]any)
 		beforeLines, beforeChars := ruNumbered(beforePreview)
-		beforeReaders, _ := before["readers"].([]any)
-		if got := ruReaderRules(beforeReaders, "core", "lead"); got != 18 {
-			t.Fatalf("lead's amount before the switch reads %d, want 18", got)
-		}
 
 		si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "LEAD-9")
 		draft.Sections[si].Rules[ri].InPrompt = false
@@ -385,10 +367,6 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 		}
 		if afterChars >= beforeChars {
 			t.Errorf("the preview reads %d 文字 after the switch, want below %d", afterChars, beforeChars)
-		}
-		afterReaders, _ := after["readers"].([]any)
-		if got := ruReaderRules(afterReaders, "core", "lead"); got != 17 {
-			t.Errorf("lead's amount after the switch reads %d, want 17", got)
 		}
 
 		// The prompt carries the document without the rule: the same text the

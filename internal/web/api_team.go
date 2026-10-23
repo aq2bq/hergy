@@ -46,9 +46,8 @@ type apiTeamIn struct {
 }
 
 // apiTeamSummary is the team list's columns: the mission, who is on the team,
-// and how much the team's own agreement holds. Amount is the amount one member
-// reads from the team's own agreement, the same number the role screen's
-// 割り当て tab shows.
+// and how much the team's own agreement holds. The per-member amount is gone
+// (d-b87a); the definition's own size and budget are below.
 type apiTeamSummary struct {
 	Mission  string          `json:"mission"`
 	Members  []apiTeamMember `json:"members"`
@@ -56,7 +55,13 @@ type apiTeamSummary struct {
 	Rules    int             `json:"rules"`
 	Excluded int             `json:"excluded,omitempty"`
 	Broken   bool            `json:"broken,omitempty"`
-	Amount   r2Size          `json:"amount"`
+	// Size is the definition's own size, counted the way d-00a9 says: the part
+	// of its rules that goes into the prompt and the words of its templates.
+	// Limit is the provisional budget it is shown against. The figure's check
+	// answers the same pair, so the list's column and the panel count one number
+	// (r-2f83).
+	Size  int `json:"size"`
+	Limit int `json:"limit"`
 }
 
 // apiTeamMember is one member of a team definition: the name a person writes,
@@ -244,7 +249,13 @@ func (s *Server) t2SummaryOf(name, layer string, def *definition.Definition) api
 	}
 	agree := s.t2AgreeOf(name, layer)
 	out.Rules, out.Excluded = agree.Rules, agree.Excluded
-	out.Amount = s.r2AgreementSize(s.cat.TeamYAML(name, layer))
+	// The same size and budget the figure's check answers (d-00a9, r-2f83): a
+	// file that does not read has no size, but the budget it will be held to is
+	// still known.
+	out.Limit = check.TeamCharLimit
+	if def != nil {
+		out.Size = check.TeamSizeChars(s.cat, def)
+	}
 	return out
 }
 
@@ -294,22 +305,13 @@ func (s *Server) t2AgreeFile(name, layer string) string {
 }
 
 // t2CountsOf is how many errors and warnings one place's definition carries:
-// the figure's findings and the team's own agreement's problems, counted the
-// way the list's column does (spec-teams 1.2).
+// the one check's findings, counted the way the list's column does (spec-teams
+// 1.2). The row, the panel and the YAML head read this same check (d-a575).
 func (s *Server) t2CountsOf(name, layer string) apiCounts {
 	var out apiCounts
 	team := check.Team(check.TeamInput{Catalog: s.cat, Name: name, Layer: layer})
 	for _, finding := range team.Problems {
 		if finding.Stops {
-			out.Err++
-		} else {
-			out.Warn++
-		}
-	}
-	text, _ := s.cat.Reader().Read(source.Doc{Path: s.t2AgreeFile(name, layer)})
-	report := check.Agreement(check.AgreementInput{Catalog: s.cat, Name: name, Place: layer, Text: text})
-	for _, problem := range report.Problems {
-		if problem.Sev == rules.SevError {
 			out.Err++
 		} else {
 			out.Warn++
@@ -358,13 +360,14 @@ func (s *Server) t2FileOf(place, kind, name, path string, hidden bool) apiFile {
 		out.Problems = r2Problems(report.Problems, true)
 		return out
 	}
-	for _, finding := range check.Definition(check.Input{Catalog: s.cat.With(path, text), Name: name, Layer: layer}) {
+	for _, finding := range check.Team(check.TeamInput{Catalog: s.cat.With(path, text), Name: name, Layer: layer}).Problems {
 		sev := "warn"
 		if finding.Stops {
 			sev = "err"
 		}
 		out.Problems = append(out.Problems, apiProblem{
 			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(text, finding.Field), Text: withoutOwnHead(finding.Text, display),
+			Role: finding.Role, RuleID: finding.RuleID,
 		})
 	}
 	return out
@@ -535,6 +538,15 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 		report := check.TeamEffect(check.TeamInput{Catalog: k.s.cat, Name: in.Name, Layer: layer, Ops: body.ops}, op)
 		out.Effect = apiTeamEffect{Lines: report.Lines, Problems: t2FigureProblems(report.Problems, own)}
 	}
+	// The definition's own size, counted the way d-00a9 says, for the screen
+	// that shows it against the provisional budget (r-2f83). It is the same
+	// number the size warning counts, and the one the list's row carries.
+	out.Limit = check.TeamCharLimit
+	if overlay, refusal := k.overlay(in.Name, in.Place, body.ops); refusal == nil {
+		if def, err := overlay.Definition(in.Name, layer); err == nil {
+			out.Size = check.TeamSizeChars(overlay, def)
+		}
+	}
 	return out, nil
 }
 
@@ -614,7 +626,10 @@ func t2FigureProblems(findings []check.Finding, own string) []apiProblem {
 		if finding.Stops {
 			sev = "err"
 		}
-		out = append(out, apiProblem{Sev: sev, At: finding.Field, Field: finding.Field, Text: withoutOwnHead(finding.Text, own)})
+		out = append(out, apiProblem{
+			Sev: sev, At: finding.Field, Field: finding.Field, Text: withoutOwnHead(finding.Text, own),
+			Role: finding.Role, RuleID: finding.RuleID,
+		})
 	}
 	return out
 }
@@ -644,7 +659,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 	}
 	path := k.s.cat.TeamYAML(in.Name, layer)
 	display := k.s.cat.Display(path)
-	findings := check.Definition(check.Input{Catalog: k.s.cat.With(path, in.Text), Name: in.Name, Layer: layer})
+	findings := check.Team(check.TeamInput{Catalog: k.s.cat.With(path, in.Text), Name: in.Name, Layer: layer}).Problems
 	for _, finding := range findings {
 		sev := "warn"
 		if finding.Stops {
@@ -652,6 +667,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 		}
 		out.Problems = append(out.Problems, apiProblem{
 			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: withoutOwnHead(finding.Text, display),
+			Role: finding.Role, RuleID: finding.RuleID,
 		})
 	}
 	return out, nil
@@ -844,12 +860,12 @@ func t2RefuseNewTeamError(cat *catalog.Catalog, name, layer string, ops []defini
 // that the saved one did not, or nil.
 func t2RefuseNewTeamText(cat *catalog.Catalog, path, name, layer, before, after string) *apiErr {
 	known := map[string]bool{}
-	for _, finding := range check.Definition(check.Input{Catalog: cat.With(path, before), Name: name, Layer: layer}) {
+	for _, finding := range check.Team(check.TeamInput{Catalog: cat.With(path, before), Name: name, Layer: layer}).Problems {
 		if finding.Stops {
 			known[finding.Text] = true
 		}
 	}
-	for _, finding := range check.Definition(check.Input{Catalog: cat.With(path, after), Name: name, Layer: layer}) {
+	for _, finding := range check.Team(check.TeamInput{Catalog: cat.With(path, after), Name: name, Layer: layer}).Problems {
 		if finding.Stops && !known[finding.Text] {
 			return refuse(http.StatusUnprocessableEntity, withoutOwnHead(finding.Text, cat.Display(path)))
 		}

@@ -19,6 +19,7 @@
   const API = window.hergyAPI;
   const RD = window.hergyRuleDoc;
   const YAML = window.hergyYaml;
+  const SIZE = window.hergyMeasure;
   const PLACES = ['project', 'global'];
   const PLACE = { project: 'プロジェクト', global: 'グローバル' };
   const DIR = DATA.dirs || { project: '', global: '' };
@@ -38,7 +39,6 @@
   const sevChip = RD.sevChip;
   const vmItem = RD.vmItem;
   const counts = RD.counts;
-  const badge = RD.badge;
 
   // dkey is the key the screen's own state and DOM stand on: the definition's
   // saved name, or, for a definition that is not there yet (its name is what the
@@ -109,6 +109,7 @@
     const place = places[eff] || {};
     const doc = place.doc || {};
     const agree = doc.agreement || { path: '', hash: '', has: false, doc: null };
+    const sum = item.summary || {};
     const key = (item.name || '') + '.' + eff;
     let r = recs.get(key);
     if (r) return r;
@@ -137,6 +138,10 @@
       },
       savedTurns: cloneTeam(doc).turns,
       findings: [], turnsFindings: [],
+      // The list's own size and budget, the same pair the figure's check
+      // answers (d-00a9, r-2f83). A file that does not read has no size and
+      // draws 大きさ —.
+      size: sum.size || 0, limit: sum.limit || 0,
       problems: item.problems || {}, report: null, check: null, req: 0, areq: 0,
     };
     recs.set(key, r);
@@ -285,7 +290,7 @@
       else if (at === 'name') { field = 'name'; }
       else if (at.startsWith('rule:')) { field = at; }
       else { field = ''; }
-      return { sev: p.sev, field, node, worker, text: p.text };
+      return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '', ruleID: p.rule_id || '' };
     });
   }
   const agreeIssues = (r) => (r.check ? r.check.issues : []);
@@ -600,10 +605,18 @@
     const own = issues.filter((m) => !at(m));
     const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? '名前' : '');
     const file = (m) => esc((m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop());
+    // A finding about a role's own rule opens that role at the rule: the name
+    // the server put on the finding (d-8bbf). A finding that names no role
+    // still opens the roles screen, the way it did.
+    const roleHref = (m) => {
+      if (!m.role) return '/roles';
+      const q = `open=${encodeURIComponent(m.role)}`;
+      return m.ruleID ? `/roles?${q}&amp;rule=${encodeURIComponent(m.ruleID)}` : `/roles?${q}`;
+    };
     return `<div class="vhead"><span class="vt">validate</span>${issues.length ? `<span class="vcount">${counts(issues)}</span>` : '<span class="vclean">✓ 問題なし</span>'}</div>`
       + own.map((m) => `<button class="vitem" data-act="vpick" ${m.node ? `data-node="${esc(m.node)}"` : ''} ${m.worker != null && m.worker >= 0 ? `data-worker="${m.worker}"` : ''} ${m.field === 'name' ? 'data-name-field="1"' : ''}>${sevChip(m.sev)}<span class="lno">${esc(where(m))}</span><span class="msg">${esc(m.text)}</span></button>`).join('')
       + (teamOut.length ? `<div class="vsub">チームのルール</div>` + teamOut.map((m) => `<button class="vitem" data-act="vrule" data-name="${esc(r.dom)}" data-id="${esc(ruleID(m))}">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></button>`).join('') : '')
-      + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="/roles">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
+      + (out.length ? `<div class="vsub">ロールの文書</div>` + out.map((m) => `<a class="vitem" href="${roleHref(m)}">${sevChip(m.sev)}<span class="lno">${file(m)}</span><span class="msg">${esc(m.text)}</span></a>`).join('') : '');
   }
 
   // teamPanelHTML is the トポロジー tab: the figure, the check column, and, beside
@@ -885,7 +898,8 @@
     <span class="c-place">${pills}</span>
     <span class="c-members c-num">${broken ? '—' : t.members.length}</span>
     <span class="c-turns c-num">${broken ? '—' : t.workers.length}</span>
-    <span class="c-agree c-num">${rules.length}${outNote(outCount(rules))}</span>`;
+    <span class="c-agree c-num">${rules.length}${outNote(outCount(rules))}</span>
+    <span class="c-size">${broken || !r.limit ? '<span class="none">—</span>' : SIZE.html(r.size, r.limit)}</span>`;
   }
   const dtabOf = (r) => state.dtab[r.dom] || 'shape';
   function dtabsHTML(r) {
@@ -934,7 +948,7 @@
     const toolbar = '<div class="toolbar"><button class="btn primary" data-act="new">＋ チーム定義を追加</button></div>';
     if (!recs.size) return `${toolbar}<div class="list"><p class="none">チーム定義はありません</p></div>`;
     return `${toolbar}<div class="list">
-    <div class="head"><span></span><span>名前</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span></div>
+    <div class="head"><span></span><span>名前</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span></div>
     ${[...recs.values()].map(rowHTML).join('')}</div>`;
   }
   function refreshRow(name) {
@@ -984,7 +998,7 @@
       return `<div class="fgroup"><div class="gh"><b>${PLACE[p]}</b><code>${esc(DIR[p] || '')}</code></div>${fs.map((f) => {
         const r = recFor(f);
         const n = f.kind === 'agreement' && r ? rulesOf(r.agree.saved || r.agree.draft).length : '';
-        return `<button class="file ${state.yfile === f.file ? 'on' : ''} ${f.hidden ? 'hid' : ''}" data-act="yfile" data-file="${esc(f.file)}" aria-pressed="${state.yfile === f.file}"><code>${esc(f.name)}/${f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">${fileDirty(f.file) ? '<span class="dirty">●</span>' : ''}${badge(yIssues(f.file)) || n}</span><span class="ft">${f.hidden ? '隠れている' : esc(f.path)}</span></button>`;
+        return `<button class="file ${state.yfile === f.file ? 'on' : ''} ${f.hidden ? 'hid' : ''}" data-act="yfile" data-file="${esc(f.file)}" aria-pressed="${state.yfile === f.file}"><code>${esc(f.name)}/${f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">${fileDirty(f.file) ? '<span class="dirty">●</span>' : ''}${counts(yIssues(f.file)) || n}</span><span class="ft">${f.hidden ? '隠れている' : esc(f.path)}</span></button>`;
       }).join('')}</div>`;
     }).join('')}</nav>`;
   }
@@ -1039,11 +1053,17 @@
     <span><button class="btn" data-act="tab" data-t="list">一覧へ</button></span></section>`;
   const yamlTabHTML = () => (FILES.length ? `<div class="ylay">${filesHTML()}${yedHTML()}</div>` : yamlEmptyHTML());
 
+  // applySizes puts the width a person computed on the bar measure.js draws.
+  // The page's CSP refuses a style="…" written as markup, so it is set through
+  // the stylesheet object after the row is drawn (the roles screen does the same).
+  function applySizes(root) { $$('[data-w]', root).forEach((el) => { el.style.width = el.dataset.w + '%'; }); }
+
   // ---- 描く ------------------------------------------------------------
   function render() {
     $('#tabs').innerHTML = [['list', '一覧'], ['yaml', 'YAML']]
       .map(([t, label]) => `<button class="tab ${state.tab === t ? 'on' : ''}" data-act="tab" data-t="${t}" aria-pressed="${state.tab === t}">${label}</button>`).join('');
     view.innerHTML = state.tab === 'list' ? listHTML() : yamlTabHTML();
+    applySizes(view);
     setStick();
     if (state.tab === 'list') {
       $$('.panel.team-p', view).forEach(placeCard);
@@ -1126,7 +1146,7 @@
   function rerenderSides(r) {
     const row = $(`.tdef[data-name="${CSS.escape(r.dom)}"]`);
     if (!row) return;
-    if (!state.open.has(r.dom)) { row.outerHTML = rowHTML(r); return; }
+    if (!state.open.has(r.dom)) { row.outerHTML = rowHTML(r); applySizes(view); return; }
     const team = $(`.panel.team-p`, row);
     if (team) team.outerHTML = teamPanelHTML(r);
     const ag = $(`.panel.agree-p`, row);
@@ -1141,7 +1161,7 @@
   }
   function rerenderRow(r) {
     const row = $(`.tdef[data-name="${CSS.escape(r.dom)}"]`);
-    if (row) row.outerHTML = rowHTML(r);
+    if (row) { row.outerHTML = rowHTML(r); applySizes(view); }
   }
   const setStick = () => { const bar = $('.bar'); document.documentElement.style.setProperty('--stick', (bar ? bar.offsetHeight : 48) + 'px'); };
   // setBandCount keeps the band's number the same as the list's own: the band

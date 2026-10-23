@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
@@ -31,6 +32,8 @@ type t2TestProblem struct {
 // t2TestCheck is one check answer.
 type t2TestCheck struct {
 	Problems []t2TestProblem `json:"problems"`
+	Size     int             `json:"size"`
+	Limit    int             `json:"limit"`
 	Preview  struct {
 		Lines []struct {
 			Text string `json:"text"`
@@ -83,10 +86,11 @@ type t2TestItem struct {
 			Role    string `json:"role"`
 			Profile string `json:"profile"`
 		} `json:"members"`
-		Workers  int                        `json:"workers"`
-		Rules    int                        `json:"rules"`
-		Excluded int                        `json:"excluded"`
-		Amount   struct{ Rules, Chars int } `json:"amount"`
+		Workers  int `json:"workers"`
+		Rules    int `json:"rules"`
+		Excluded int `json:"excluded"`
+		Size     int `json:"size"`
+		Limit    int `json:"limit"`
 	} `json:"summary"`
 	Places map[string]struct {
 		Text string `json:"text"`
@@ -162,23 +166,6 @@ func teamsCheck(t *testing.T, body string) t2TestCheck {
 // TestTEAMS_S3_ListCarriesTheTable: the list page carries one item per definition,
 // with the places' readings and the columns the list shows, all of it from
 // check.Team and the catalog (spec-teams 1.1, 1.2).
-// TestAgreementSizeSkipsTheSharedAgreement: the amount one member reads counts
-// the team's own agreement, and not the agreement every team used to share
-// (d-31ad). SHARED-1 is left in the project's .hergy/agreement.yaml, the state a
-// person has before they move the rules.
-func TestAgreementSizeSkipsTheSharedAgreement(t *testing.T) {
-	f := newFixture(t)
-	f.write(t, "agreement.yaml", "version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n        why: だから。\n")
-	s := f.server(t)
-	got := s.r2AgreementSize(f.teamYAML())
-	if got.Rules != 1 {
-		t.Errorf("the amount counts %d rules, want the team's own one (TEAM-1)", got.Rules)
-	}
-	if got.Chars == 0 {
-		t.Error("the amount counts no characters for the team's own agreement")
-	}
-}
-
 func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
@@ -234,7 +221,49 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	}
 }
 
-// containsLine is whether lines holds one line, exactly.
+// TestTEAMS_ListSizeIsTheFigureCheck: the list's 大きさ column carries the same
+// size and budget as the figure's check answer (r-2f83). Both count the part of
+// the definition's rules and templates that goes into the prompt (d-00a9). A
+// file that does not read has no size, but its budget is still known.
+func TestTEAMS_ListSizeIsTheFigureCheck(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, filepath.Join("teams", "broken", "team.yaml"), "version: 2\n")
+	server := f.server(t)
+	resp, body := f.get(t, server, "/teams")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /teams answers %d, want 200", resp.StatusCode)
+	}
+	island := teamsIsland(t, body)
+	if len(island.Team.Items) != 2 {
+		t.Fatalf("the list holds %d items, want the readable demo and the broken one", len(island.Team.Items))
+	}
+	for _, item := range island.Team.Items {
+		resp, answer := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+			"place": item.Effective, "name": item.Name, "part": "team",
+			"doc": map[string]any{"ops": []map[string]any{}},
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("the figure check of %s answers %d: %s", item.Name, resp.StatusCode, answer)
+		}
+		checkAnswer := teamsCheck(t, answer)
+		if item.Summary.Size != checkAnswer.Size {
+			t.Errorf("%s's list size reads %d, the figure answers %d", item.Name, item.Summary.Size, checkAnswer.Size)
+		}
+		if item.Summary.Limit != checkAnswer.Limit {
+			t.Errorf("%s's list limit reads %d, the figure answers %d", item.Name, item.Summary.Limit, checkAnswer.Limit)
+		}
+		if item.Summary.Limit != check.TeamCharLimit {
+			t.Errorf("%s's limit reads %d, want the provisional budget %d", item.Name, item.Summary.Limit, check.TeamCharLimit)
+		}
+		if item.Name == "demo" && item.Summary.Size == 0 {
+			t.Errorf("the readable demo's size reads 0, want the agreement's part")
+		}
+		if item.Name == "broken" && item.Summary.Size != 0 {
+			t.Errorf("the broken definition's size reads %d, want 0", item.Summary.Size)
+		}
+	}
+}
+
 func containsLine(lines []string, want string) bool {
 	return slices.Contains(lines, want)
 }

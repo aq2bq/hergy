@@ -14,13 +14,12 @@ import (
 // the people that play the names. The screen's own checks come from
 // check.Role, one POST at a time, so nothing here decides what is wrong.
 
-// r2Reading is the role screen's reading of the catalog: one row per role name
-// and one entry per team definition. It is what the list answer and the page's
-// island are built from (spec-boundary 5).
+// r2Reading is the role screen's reading of the catalog: one row per role name.
+// It is what the list answer and the page's island are built from
+// (spec-boundary 5).
 type r2Reading struct {
 	Project string            `json:"project"`
 	Roles   []r2Row           `json:"roles"`
-	Teams   []r2TeamEntry     `json:"teams"`
 	Texts   map[string]string `json:"texts"`
 	Places  map[string]string `json:"places"`
 }
@@ -83,23 +82,10 @@ type r2Origin struct {
 	Note string   `json:"note"`
 }
 
-// r2Size is a member's amount: the rules and characters of the agreements.
-type r2Size struct {
-	Rules int `json:"rules"`
-	Chars int `json:"chars"`
-}
-
 type r2Member struct {
 	Name  string `json:"name"`
 	Saved string `json:"saved"`
 	Draft string `json:"draft"`
-}
-
-type r2TeamEntry struct {
-	ID        string     `json:"id"`
-	Hash      string     `json:"hash"`
-	Agreement r2Size     `json:"agreement"`
-	Members   []r2Member `json:"members"`
 }
 
 // r2ReadingOf reads the catalog into the screen's own reading.
@@ -108,10 +94,8 @@ func (s *Server) r2ReadingOf() r2Reading {
 	// The few sentences the screen shows without asking: the same words the
 	// server would say, so a screen builds no sentence of its own.
 	out.Texts = map[string]string{
-		"no_role_doc":  t("error.no_role_doc"),
-		"member_rules": t("size.member_rules"),
-		"member_chars": t("size.member_chars"),
-		"separator":    t("list.separator"),
+		"no_role_doc": t("error.no_role_doc"),
+		"separator":   t("list.separator"),
 	}
 	// Where each place keeps its role documents, as a person reads a path.
 	out.Places = map[string]string{
@@ -152,19 +136,6 @@ func (s *Server) r2ReadingOf() r2Reading {
 		uid++
 		row.UID = uid
 		out.Roles = append(out.Roles, row)
-	}
-	for _, listing := range s.cat.Definitions() {
-		path := listing.GlobalPath
-		if listing.Local {
-			path = listing.LocalPath
-		}
-		text, err := s.cat.Reader().Read(source.Doc{Path: path})
-		if err != nil {
-			continue
-		}
-		team := r2TeamEntry{ID: listing.Name, Hash: source.Hash(text), Agreement: s.r2AgreementSize(path)}
-		team.Members = r2MembersOf(text)
-		out.Teams = append(out.Teams, team)
 	}
 	return out
 }
@@ -328,25 +299,5 @@ func r2MembersOf(text string) []r2Member {
 	for _, member := range raw.Members {
 		out = append(out, r2Member{Name: member.Name, Saved: member.Role, Draft: member.Role})
 	}
-	return out
-}
-
-// r2AgreementSize is the amount of the agreement a team's members read: the
-// team's own agreement.yaml.
-func (s *Server) r2AgreementSize(teamPath string) r2Size {
-	var out r2Size
-	add := func(path string) {
-		text, err := s.cat.Reader().Read(source.Doc{Path: path})
-		if err != nil {
-			return
-		}
-		doc, _ := rules.ReadAll(text, s.cat.Display(path))
-		if doc == nil {
-			return
-		}
-		out.Rules += len(doc.IncludedRules())
-		out.Chars += rules.CharCount(doc.Markdown())
-	}
-	add(filepath.Join(filepath.Dir(teamPath), "agreement.yaml"))
 	return out
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/rules"
@@ -240,50 +241,24 @@ func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 
 	for _, one := range rows {
 		if one.name == "analyst" {
-			// The spec names core-analyst's amount, so pin the number the
-			// shared check.SizeOf hands it: the sentence below is not read from
-			// itself.
 			read := false
 			for _, reader := range one.readers {
-				if reader.Definition != "core" || reader.Member != "core-analyst" {
-					continue
-				}
-				read = true
-				if reader.Rules != 21 || !reader.Over {
-					t.Errorf("core-analyst is handed %d rules (over=%v), want 21, over the limit", reader.Rules, reader.Over)
+				if reader.Definition == "core" && reader.Member == "core-analyst" {
+					read = true
 				}
 			}
 			if !read {
 				t.Errorf("the analyst document names no core-analyst reader: %+v", one.readers)
 			}
 		}
-		// What hergy validate writes for this document: the findings of every
-		// definition that reads it, and the warning of every reader over a
-		// provisional limit.
+		// What hergy validate writes for this document: the role definition's
+		// own check (d-a575). A sentence a team's turns cause is the team
+		// definition's, so it does not stand here.
 		want := map[string]bool{}
-		display := cat.Display(cat.RolePath(one.place, one.name))
-		seen := map[string]bool{}
-		for _, ref := range cat.RoleUsers(one.name) {
-			if seen[ref.Definition] {
-				continue
-			}
-			seen[ref.Definition] = true
-			for _, finding := range check.Definition(check.Input{Catalog: cat, Name: ref.Definition}) {
-				if strings.Contains(finding.Text, display) || strings.Contains(finding.Field, display) {
-					want[rbValidateSentence(finding.Text, defs)] = true
-				}
-			}
-		}
-		for _, reader := range one.readers {
-			if !reader.Over {
-				continue
-			}
-			if reader.Rules > rules.MemberRuleLimit {
-				want[rbValidateSentence(reader.Definition+": "+check.MemberRulesWarning(reader.Member, reader.Rules), defs)] = true
-			}
-			if reader.Chars > rules.MemberCharLimit {
-				want[rbValidateSentence(reader.Definition+": "+check.MemberCharsWarning(reader.Member, reader.Chars), defs)] = true
-			}
+		for _, problem := range check.Role(check.RoleInput{
+			Catalog: cat, Place: catalog.Layer(one.place), Name: one.name, Text: one.text,
+		}).Problems {
+			want[rbValidateSentence(problem.Text, defs)] = true
 		}
 		got := map[string]int{}
 		for _, problem := range one.problems {
@@ -301,16 +276,15 @@ func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 		}
 	}
 
-	// The four the spec names, each on its rule and line.
+	// The one the spec names is the role document's own: the model name beside
+	// BUILD-5. The turn and the derived reference that only a team completes are
+	// the team definition's check now, so they do not stand here (d-a575).
 	for _, want := range []struct {
 		role, id, sev string
 		section, rule int
 		line          int
 	}{
-		{"builder", "BUILD-3", "warn", 0, 2, 21},
-		{"builder", "BUILD-4", "err", 0, 3, 26},
 		{"builder", "BUILD-5", "warn", 1, 0, 30},
-		{"analyst", "", "warn", -1, -1, 1},
 	} {
 		var one row
 		for _, candidate := range rows {
@@ -466,31 +440,23 @@ func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 	rbNoAbsolutePath(t, "the one role", body, f.proj, f.global, f.root)
 
 	// 検査: a text that repeats one of the shared team's rule ids is told with
-	// both files written as a person reads them, not as an absolute path.
+	// both files written as a person reads them, not as an absolute path. The
+	// repeat is the team definition's combination finding (d-a575), so the check
+	// of the team with the draft laid over its role document is the one that
+	// names both.
 	builder := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"))
 	draft := builder + "      - id: CORE-1\n        text: 重ねて書く。\n"
-	resp, body = f.api(t, server, http.MethodPost, "/api/role/check", map[string]any{
-		"place": "project", "name": "builder", "text": draft,
-	})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the check answers %d: %s", resp.StatusCode, body)
-	}
-	var answer struct {
-		Problems []apiProblem `json:"problems"`
-	}
-	if err := json.Unmarshal([]byte(body), &answer); err != nil {
-		t.Fatalf("the check is not JSON: %v: %s", err, body)
-	}
+	cat := f.catalog()
+	overlay := cat.With(cat.RolePath(catalog.PlaceProject, "builder"), draft)
 	told := false
-	for _, problem := range answer.Problems {
-		if strings.Contains(problem.Text, ".hergy/teams/core/agreement.yaml") && strings.Contains(problem.Text, ".hergy/roles/builder.yaml") {
+	for _, finding := range check.Definition(check.Input{Catalog: overlay, Name: "core"}) {
+		if strings.Contains(finding.Text, ".hergy/teams/core/agreement.yaml") && strings.Contains(finding.Text, ".hergy/roles/builder.yaml") {
 			told = true
 		}
 	}
 	if !told {
-		t.Errorf("the check does not name both files as a person reads them: %+v", answer.Problems)
+		t.Errorf("the check does not name both files as a person reads them")
 	}
-	rbNoAbsolutePath(t, "the check", body, f.proj, f.global, f.root)
 }
 
 // TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole: a role
