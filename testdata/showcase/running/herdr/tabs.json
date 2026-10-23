@@ -1,0 +1,18 @@
+{
+ "result": {
+  "tabs": [
+   {
+    "tab_id": "t1",
+    "label": "team:core@core"
+   },
+   {
+    "tab_id": "t2",
+    "label": "worker:core/deps"
+   },
+   {
+    "tab_id": "t3",
+    "label": "worker:core/loadtest"
+   }
+  ]
+ }
+}
