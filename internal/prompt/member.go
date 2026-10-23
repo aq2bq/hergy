@@ -133,6 +133,10 @@ func MemberName(team string, node *definition.MemberNode) (string, error) {
 // Built is one member's prompt and what it was built from.
 type Built struct {
 	Text string
+	// Segments is the prompt cut into the pieces it was built from, in the
+	// order they stand in Text: joining their texts gives Text exactly
+	// (r-4cf9).
+	Segments []definition.PromptSegment
 	// Role is the role document the prompt read, with HasRole saying whether
 	// there was one.
 	Role    source.Doc
@@ -148,13 +152,22 @@ type Built struct {
 // the roster, the contact guide and what it may hire, against the template the
 // member, the team or the locales give. It reads the graph and the catalog and
 // adds nothing to either.
+//
+// It also answers the prompt as segments with where each piece came from
+// (r-4cf9): the template's own words (hergy's default, the team's prompt or the
+// member's), the actor line, the role document, the team's rules, the roster,
+// the turns, the workers and the contact guide. Joining the segments' texts
+// gives Text exactly.
 func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*Built, error) {
 	template := MemberTemplate(run.Lang)
+	templateOrigin := definition.PromptOrigin{Kind: "hergy"}
 	switch {
 	case node.HasPrompt:
 		template = node.Prompt
+		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
 	case def.Prompt != "":
 		template = def.Prompt
+		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
 	}
 	if err := checkTemplate(run, def, node, template); err != nil {
 		return nil, err
@@ -165,75 +178,104 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	var read []source.Doc
 	var parsed []*rules.Document
 
-	readDoc := func(doc source.Doc, what Where) string {
+	readDoc := func(doc source.Doc, what Where) (string, bool) {
 		document, err := readRuleFile(run, doc)
 		if err != nil {
 			if buildErr == nil {
 				buildErr = withWhere(what, err)
 			}
-			return ""
+			return "", false
 		}
 		parsed = append(parsed, document)
-		return strings.TrimRight(document.Markdown(), "\n")
+		return strings.TrimRight(document.Markdown(), "\n"), true
 	}
 
 	memberName := run.Team + "-" + node.Name
-	parts := map[string]func() string{
+	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+	simple := map[string]func() string{
 		"team": func() string { return run.Team },
 		"role": func() string { return node.Role },
 		"name": func() string { return memberName },
-		"actor": func() string {
+	}
+	parts := map[string]func() []definition.PromptSegment{
+		"actor": func() []definition.PromptSegment {
 			// The name hergy writes into the pane's env as GY_ACTOR; the member's
 			// herdr name, which follows --as.
-			return run.textf("prompt.actor", memberName)
+			return []definition.PromptSegment{{
+				Kind: "actor", Text: run.textf("prompt.actor", memberName),
+				Origin: definition.PromptOrigin{Kind: "hergy"},
+			}}
 		},
-		"role_doc": func() string {
+		"role_doc": func() []definition.PromptSegment {
 			if buildErr != nil {
-				return ""
+				return nil
 			}
 			doc, err := memberRole(node, run)
 			if err != nil {
 				buildErr = withWhere(WhereRole, err)
-				return ""
+				return nil
 			}
 			found := doc
 			roleDoc = &found
-			return readDoc(doc, WhereRole)
+			text, ok := readDoc(doc, WhereRole)
+			if !ok {
+				return nil
+			}
+			return []definition.PromptSegment{{
+				Kind: "role_doc", Text: text,
+				Origin: definition.PromptOrigin{Kind: "role", Name: node.Role, Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
+			}}
 		},
-		"docs": func() string {
+		"docs": func() []definition.PromptSegment {
 			if buildErr != nil {
-				return ""
+				return nil
 			}
 			docs := documentsOf(def, run)
-			texts := make([]string, 0, len(docs))
-			for _, doc := range docs {
-				texts = append(texts, readDoc(doc, WhereFile))
-			}
 			read = append(read, docs...)
-			if len(texts) == 0 {
-				return ""
+			out := make([]definition.PromptSegment, 0, len(docs))
+			for i, doc := range docs {
+				text, ok := readDoc(doc, WhereFile)
+				if !ok {
+					continue
+				}
+				prefix := "\n"
+				if i > 0 {
+					prefix = "\n\n"
+				}
+				if i == len(docs)-1 {
+					text += "\n"
+				}
+				out = append(out, definition.PromptSegment{
+					Kind: "team_rules", Text: prefix + text,
+					Origin: definition.PromptOrigin{Kind: "team_rules", Name: def.Name, Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
+				})
 			}
-			return "\n" + strings.Join(texts, "\n\n") + "\n"
+			return out
 		},
-		"roster": func() string { return Roster(run.Lang, RosterOf(def, run.Team), memberName) },
-		"herdr": func() string {
-			return HerdrMember(run.Lang, run.textf("prompt.self_intro_member", run.Team, node.Role, memberName))
+		"roster": func() []definition.PromptSegment {
+			return oneSegment("roster", Roster(run.Lang, RosterOf(def, run.Team), memberName), teamOrigin)
 		},
-		"turns": func() string {
-			return TurnsNote(run.Lang, TurnsOf(def, node.Name, run.Team))
+		"herdr": func() []definition.PromptSegment {
+			return []definition.PromptSegment{{
+				Kind: "herdr", Text: HerdrMember(run.Lang, run.textf("prompt.self_intro_member", run.Team, node.Role, memberName)),
+				Origin: definition.PromptOrigin{Kind: "hergy"},
+			}}
 		},
-		"workers": func() string {
+		"turns": func() []definition.PromptSegment {
+			return oneSegment("turns", TurnsNote(run.Lang, TurnsOf(def, node.Name, run.Team)), teamOrigin)
+		},
+		"workers": func() []definition.PromptSegment {
 			workers := WorkersOf(def, node.Name)
 			if len(workers) == 0 {
-				return ""
+				return nil
 			}
 			// The worker reports back to this member: the note names the herdr
 			// name, the same name the worker's own prompt names, so it follows
 			// --as (the hire command takes the short name).
-			return WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name))
+			return oneSegment("workers", WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name)), teamOrigin)
 		},
 	}
-	text, err := Expand(template, parts)
+	text, segments, err := ExpandSegments(template, templateOrigin, simple, parts)
 	if err != nil {
 		return nil, err
 	}
@@ -243,12 +285,31 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	if err := rules.Check(parsed); err != nil {
 		return nil, withWhere(WhereRules, err)
 	}
-	built := &Built{Text: text, Read: read}
+	built := &Built{Text: text, Segments: segments, Read: read}
 	if roleDoc != nil {
 		built.Role = *roleDoc
 		built.HasRole = true
 	}
 	return built, nil
+}
+
+// oneSegment is one piece with text, or none when the piece is empty.
+func oneSegment(kind, text string, origin definition.PromptOrigin) []definition.PromptSegment {
+	if text == "" {
+		return nil
+	}
+	return []definition.PromptSegment{{Kind: kind, Text: text, Origin: origin}}
+}
+
+// promptPlace is a document's layer in the words a screen uses for its place.
+func promptPlace(layer string) string {
+	switch layer {
+	case source.LayerLocal:
+		return "project"
+	case source.LayerGlobal:
+		return "global"
+	}
+	return ""
 }
 
 // RosterOf is the team's members as the roster shows them: the herdr name each

@@ -15,6 +15,9 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
+	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -70,6 +73,9 @@ type apiTeamMember struct {
 	Name    string `json:"name"`
 	Role    string `json:"role"`
 	Profile string `json:"profile"`
+	// Segments is the member's prompt cut into the pieces it was built from,
+	// in order; joining their texts gives the prompt exactly (r-4cf9).
+	Segments []definition.PromptSegment `json:"segments,omitempty"`
 }
 
 // apiTeamWorker is one worker a member may hire.
@@ -204,21 +210,30 @@ func t2Effective(listing catalog.Listing) (string, []string) {
 
 // t2DocOf is one place's team definition in the screen's shape.
 func (s *Server) t2DocOf(name, layer string, def *definition.Definition) apiTeamDoc {
-	return s.t2DocWithAgree(name, def, s.t2AgreeOf(name, layer))
+	return s.t2DocWithAgree(s.cat, name, def, s.t2AgreeOf(name, layer))
 }
 
 // t2DocWithAgree is t2DocOf with the agreement given rather than read: a
 // definition that is not there yet has no agreement.yaml to read, so its rules
 // come from the text the row stands on (spec-teams B2).
-func (s *Server) t2DocWithAgree(name string, def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
+func (s *Server) t2DocWithAgree(cat *catalog.Catalog, name string, def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
 	out := apiTeamDoc{Agreement: agree}
 	if def == nil || def.Graph == nil {
 		out.Broken = true
 		return out
 	}
 	out.Mission = def.Mission
-	for _, m := range def.Graph.Members {
-		out.Members = append(out.Members, apiTeamMember{Name: m.Name, Role: m.Role, Profile: m.Profile})
+	run := prompt.Run{
+		Team: name, Executable: promptExecutable(), Base: cat.Base(),
+		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
+	}
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		entry := apiTeamMember{Name: member.Name, Role: member.Role, Profile: member.Profile}
+		if built, err := prompt.Member(def, member, run); err == nil {
+			entry.Segments = built.Segments
+		}
+		out.Members = append(out.Members, entry)
 	}
 	for _, w := range def.Graph.Workers {
 		out.Workers = append(out.Workers, apiTeamWorker{From: w.From, Purpose: w.Purpose, Profile: w.Profile})
@@ -226,6 +241,23 @@ func (s *Server) t2DocWithAgree(name string, def *definition.Definition, agree *
 	out.Turns = t2TurnsOf(def)
 	out.Prompt = t2PromptOf(def, name)
 	return out
+}
+
+// promptExecutable is the hergy binary a preview's hire command names. The serve
+// process is the same binary the command line is, so a prompt the screen shows
+// names what a real hire would.
+func promptExecutable() string {
+	path, err := os.Executable()
+	if err != nil || path == "" {
+		return "hergy"
+	}
+	return path
+}
+
+// apiMemberPrompt is one member's prompt as the check answers it before a save.
+type apiMemberPrompt struct {
+	Name     string                     `json:"name"`
+	Segments []definition.PromptSegment `json:"segments"`
 }
 
 // t2SummaryOf is the list's columns for one definition.
@@ -489,6 +521,9 @@ func (s *Server) t2Places(name string) (string, []string) {
 // text. The payload's own shape says which: a Doc is a document's draft, no Doc
 // is a whole text the YAML tab is typing.
 func (k apiTeam) Check(in apiIn) (any, *apiErr) {
+	if in.Part == "worker" {
+		return k.checkWorkerPrompt(in)
+	}
 	if in.New || in.Base != nil {
 		if in.Part == "agreement" {
 			return k.checkDraftAgreement(in)
@@ -502,6 +537,92 @@ func (k apiTeam) Check(in apiIn) (any, *apiErr) {
 		return k.checkAgreement(in)
 	}
 	return k.checkFigure(in)
+}
+
+// apiWorkerIn is the payload of a worker prompt preview: the worker's short
+// name, the purpose it is hired for, the task, and the member that hires it
+// (empty means the one member whose workers: name the purpose).
+type apiWorkerIn struct {
+	Name    string `json:"name"`
+	Purpose string `json:"purpose"`
+	Task    string `json:"task"`
+	From    string `json:"from"`
+}
+
+// checkWorkerPrompt answers one worker's prompt as segments, before the hire
+// (r-4cf9). It is the same prompt hire --dry builds, for the screen that shows
+// what a worker would receive.
+func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
+	if in.Name == "" || (in.Place != catalog.PlaceProject && in.Place != catalog.PlaceGlobal) {
+		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("web.error.not_found"))
+	}
+	var body apiWorkerIn
+	if err := json.Unmarshal(in.Doc, &body); err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	if body.Name == "" || body.Purpose == "" || body.Task == "" {
+		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_prompt_required"))
+	}
+	layer := catalog.Layer(in.Place)
+	def, err := k.s.cat.Definition(in.Name, layer)
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	lead, err := t2HiringMember(def, body.Purpose, body.From)
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	herdr := in.Name + "-" + body.Name
+	if !profile.NamePattern.MatchString(herdr) {
+		return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", herdr))
+	}
+	built, err := prompt.Worker(prompt.WorkerInput{
+		Team: in.Name, Lead: in.Name + "-" + lead.Name, LeadRole: lead.Role,
+		Purpose: body.Purpose, Name: herdr, Task: body.Task,
+	})
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	return apiCheck{Prompt: built.Segments}, nil
+}
+
+// t2HiringMember is the member a worker preview hires through: the one from:
+// names, or the one whose workers: pair this purpose. Two candidates are a
+// refusal, because the screen has to say which (the command line asks too).
+func t2HiringMember(def *definition.Definition, purpose, from string) (*definition.MemberNode, error) {
+	if def == nil || def.Graph == nil {
+		return nil, i18n.Errorf("error.no_member", from)
+	}
+	if from != "" {
+		for i := range def.Graph.Members {
+			member := &def.Graph.Members[i]
+			if member.Name == from || def.Name+"-"+member.Name == from {
+				return member, nil
+			}
+		}
+		return nil, i18n.Errorf("error.no_member", from)
+	}
+	var names []string
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		for _, worker := range def.Graph.Workers {
+			if worker.From == member.Name && worker.Purpose == purpose {
+				names = append(names, member.Name)
+				break
+			}
+		}
+	}
+	switch len(names) {
+	case 0:
+		return nil, i18n.Errorf("error.worker_prompt_none", purpose)
+	case 1:
+		for i := range def.Graph.Members {
+			if def.Graph.Members[i].Name == names[0] {
+				return &def.Graph.Members[i], nil
+			}
+		}
+	}
+	return nil, i18n.Errorf("error.from_required_many", strings.Join(names, i18n.T("list.separator")))
 }
 
 // checkFigure answers what is wrong with the figure a panel holds: the saved
@@ -545,9 +666,33 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 	if overlay, refusal := k.overlay(in.Name, in.Place, body.ops); refusal == nil {
 		if def, err := overlay.Definition(in.Name, layer); err == nil {
 			out.Size = check.TeamSizeChars(overlay, def)
+			out.Members = memberPrompts(overlay, def, in.Name)
 		}
 	}
 	return out, nil
+}
+
+// memberPrompts is every member's prompt in the overlaid definition, as the
+// segments the member's attribute shows (r-4cf9). A member whose prompt cannot
+// be built has none; the check's problems say why.
+func memberPrompts(cat *catalog.Catalog, def *definition.Definition, team string) []apiMemberPrompt {
+	if def == nil || def.Graph == nil {
+		return nil
+	}
+	run := prompt.Run{
+		Team: team, Executable: promptExecutable(), Base: cat.Base(),
+		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
+	}
+	out := make([]apiMemberPrompt, 0, len(def.Graph.Members))
+	for i := range def.Graph.Members {
+		member := &def.Graph.Members[i]
+		built, err := prompt.Member(def, member, run)
+		if err != nil {
+			continue
+		}
+		out = append(out, apiMemberPrompt{Name: member.Name, Segments: built.Segments})
+	}
+	return out
 }
 
 // checkAgreement answers what is wrong with a team's agreement, checked with

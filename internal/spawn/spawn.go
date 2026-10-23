@@ -47,33 +47,25 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		return nil, i18n.Errorf("error.no_profile_named", chosen)
 	}
 
-	var parts = map[string]func() string{
-		"team":      func() string { return team },
-		"lead":      func() string { return lead.Name },
-		"lead_role": func() string { return lead.Role },
-		"purpose":   func() string { return purpose },
-		"name":      func() string { return herdrName },
-		"actor":     func() string { return i18n.Tf("prompt.actor", herdrName) },
-		"task":      func() string { return task },
-		"herdr": func() string {
-			return prompt.HerdrWorker(i18n.Tf("prompt.self_intro_worker", team, purpose, herdrName))
-		},
-	}
-	text, err := prompt.Expand(prompt.WorkerTemplate(), parts)
+	built, err := prompt.Worker(prompt.WorkerInput{
+		Team: team, Lead: lead.Name, LeadRole: lead.Role,
+		Purpose: purpose, Name: herdrName, Task: task,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	worker := &definition.Start{
-		Name:    herdrName,
-		Short:   name,
-		Role:    i18n.Tf("role.worker", purpose),
-		Kind:    profileValue.Kind,
-		Args:    profileValue.Args,
-		Env:     profile.PaneEnv(profileValue.Env, herdrName),
-		Cwd:     lead.Cwd,
-		Prompt:  text,
-		Profile: profileValue.Name,
+		Name:     herdrName,
+		Short:    name,
+		Role:     i18n.Tf("role.worker", purpose),
+		Kind:     profileValue.Kind,
+		Args:     profileValue.Args,
+		Env:      profile.PaneEnv(profileValue.Env, herdrName),
+		Cwd:      lead.Cwd,
+		Prompt:   built.Text,
+		Segments: built.Segments,
+		Profile:  profileValue.Name,
 	}
 	return worker, nil
 }

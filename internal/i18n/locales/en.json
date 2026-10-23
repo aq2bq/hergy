@@ -100,6 +100,8 @@
   "error.worker_name_pattern": "worker name must match [a-z][a-z0-9_-]{0,31}",
   "error.worker_exists": "%s is already a team member; pass another worker name",
   "error.from_required_many": "--from is required (members hiring for this purpose: %s)",
+  "error.worker_prompt_required": "write the worker's name, purpose and task",
+  "error.worker_prompt_none": "no member hires a worker for %s; write a member name in from:",
   "error.cwd_not_dir": "cwd is not a directory: %s; pass a directory to -C",
   "error.live_names_in_use": "live agent names already in use: %s; run `hergy down`, then run this again",
   "error.missing_pane_id": "%s: the Herdr response has no pane_id; the versions of herdr and hergy may not go together. Check them with `herdr --version` and `hergy version`",

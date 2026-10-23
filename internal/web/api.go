@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -165,6 +166,12 @@ type apiCheck struct {
 	// name is a folder rather than one file (spec-teams B2). A kind that writes
 	// one file leaves it out.
 	Writes []string `json:"writes,omitempty"`
+	// Members is each member's prompt as the pieces it was built from, for a
+	// team's check answer (r-4cf9).
+	Members []apiMemberPrompt `json:"members,omitempty"`
+	// Prompt is one prompt's pieces, for a kind that answers a single prompt
+	// (the worker preview).
+	Prompt []definition.PromptSegment `json:"prompt,omitempty"`
 }
 
 // apiSaved is the answer of PUT /api/{kind}/{name}: the one document as GET

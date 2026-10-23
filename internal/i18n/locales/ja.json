@@ -100,6 +100,8 @@
   "error.worker_name_pattern": "ワーカー名は [a-z][a-z0-9_-]{0,31} の形にしてください",
   "error.worker_exists": "%s はすでにチームのメンバーです。別のワーカー名を指定してください",
   "error.from_required_many": "--from を指定してください（この目的のワーカーを持つメンバー: %s）",
+  "error.worker_prompt_required": "ワーカーの名前・目的・依頼を書いてください",
+  "error.worker_prompt_none": "%s のワーカーを持つメンバーがいません。from: にメンバー名を書いてください",
   "error.cwd_not_dir": "cwd がディレクトリではありません: %s。-C にディレクトリを指定してください",
   "error.live_names_in_use": "その名前のエージェントがすでに動いています: %s。hergy down でチームを終了してから、もう一度実行してください",
   "error.missing_pane_id": "%s: herdr の応答に pane_id がありません。herdr と hergy のバージョンの組み合わせが合っていないかもしれません。herdr --version と hergy version で確かめてください",

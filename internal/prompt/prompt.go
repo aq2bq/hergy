@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -17,29 +18,52 @@ func MemberTemplate(lang string) string { return i18n.Text(lang, "prompt.member"
 // WorkerTemplate is the bootstrap prompt for a hired worker.
 func WorkerTemplate() string { return i18n.T("prompt.worker") }
 
-// Expand replaces every %{name} with the value its builder returns. An unknown
-// placeholder is an error; %{ with no closing } and %{} stay literal.
-func Expand(template string, parts map[string]func() string) (string, error) {
-	var b strings.Builder
+// ExpandSegments says where each piece came from. A
+// placeholder in parts becomes one or more segments of its own; one in simple
+// is written into the template's own text; the text between placeholders is a
+// template segment. Joining every segment's Text in order gives the prompt
+// character for character (r-4cf9).
+func ExpandSegments(template string, origin definition.PromptOrigin, simple map[string]func() string, parts map[string]func() []definition.PromptSegment) (string, []definition.PromptSegment, error) {
+	var literal strings.Builder
+	var segments []definition.PromptSegment
+	flush := func() {
+		if literal.Len() == 0 {
+			return
+		}
+		segments = append(segments, definition.PromptSegment{
+			Kind: "template", Text: literal.String(), Origin: origin,
+		})
+		literal.Reset()
+	}
 	for i := 0; i < len(template); {
 		if template[i] == '%' && i+1 < len(template) && template[i+1] == '{' {
 			rest := template[i+2:]
 			end := strings.IndexByte(rest, '}')
 			if end > 0 {
 				key := rest[:end]
-				build, ok := parts[key]
-				if !ok {
-					return "", i18n.Errorf("error.unknown_placeholder", key)
+				if build, ok := parts[key]; ok {
+					flush()
+					segments = append(segments, build()...)
+					i += 2 + end + 1
+					continue
 				}
-				b.WriteString(build())
-				i += 2 + end + 1
-				continue
+				if build, ok := simple[key]; ok {
+					literal.WriteString(build())
+					i += 2 + end + 1
+					continue
+				}
+				return "", nil, i18n.Errorf("error.unknown_placeholder", key)
 			}
 		}
-		b.WriteByte(template[i])
+		literal.WriteByte(template[i])
 		i++
 	}
-	return b.String(), nil
+	flush()
+	var text strings.Builder
+	for _, segment := range segments {
+		text.WriteString(segment.Text)
+	}
+	return text.String(), segments, nil
 }
 
 // RosterEntry is one line of the roster.

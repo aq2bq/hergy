@@ -274,7 +274,7 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 		Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
 		Writes:   s.t2DraftWrites(row, in.Name),
 		Problems: problems,
-		Doc:      s.t2DocWithAgree(in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
+		Doc:      s.t2DocWithAgree(cat, in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
 		Preview: apiTeamPreview{
 			Lines: definition.YAMLLines(draft),
 			Diff:  check.LineDiff(t2LineTexts(definition.YAMLLines(row.Team)), t2LineTexts(definition.YAMLLines(draft))),

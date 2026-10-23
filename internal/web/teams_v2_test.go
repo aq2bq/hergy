@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/check"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
@@ -34,7 +35,12 @@ type t2TestCheck struct {
 	Problems []t2TestProblem `json:"problems"`
 	Size     int             `json:"size"`
 	Limit    int             `json:"limit"`
-	Preview  struct {
+	Members  []struct {
+		Name     string                     `json:"name"`
+		Segments []definition.PromptSegment `json:"segments"`
+	} `json:"members"`
+	Prompt  []definition.PromptSegment `json:"prompt"`
+	Preview struct {
 		Lines []struct {
 			Text string `json:"text"`
 			Part string `json:"part"`
@@ -98,8 +104,13 @@ type t2TestItem struct {
 		Path string `json:"path"`
 		Doc  struct {
 			Mission string `json:"mission"`
-			Members []any  `json:"members"`
-			Workers []any  `json:"workers"`
+			Members []struct {
+				Name     string                     `json:"name"`
+				Role     string                     `json:"role"`
+				Profile  string                     `json:"profile"`
+				Segments []definition.PromptSegment `json:"segments"`
+			} `json:"members"`
+			Workers []any `json:"workers"`
 			Turns   []struct {
 				From string `json:"from"`
 				To   string `json:"to"`
@@ -198,6 +209,9 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	place := item.Places["project"]
 	if place.Doc.Mission != "demo の使命" || len(place.Doc.Members) != 2 || len(place.Doc.Workers) != 3 || len(place.Doc.Turns) != 3 {
 		t.Errorf("the project's reading reads %+v", place.Doc)
+	}
+	if len(place.Doc.Members) == 0 || len(place.Doc.Members[0].Segments) == 0 {
+		t.Errorf("the saved document carries no prompt segments: %+v", place.Doc.Members)
 	}
 	if !place.Doc.Agreement.Has || place.Doc.Agreement.Rules != 1 {
 		t.Errorf("the agreement reads %+v, want the one rule", place.Doc.Agreement)
@@ -397,6 +411,81 @@ func TestTEAMS_MemberOpsThroughTheAPI(t *testing.T) {
 			}
 			tc.want(t, text.String())
 		})
+	}
+}
+
+// TestTEAMS_PromptSegmentsThroughTheAPI: the check answers each member's prompt
+// as the pieces it was built from, for the saved definition and with the panel's
+// ops applied; a worker's prompt is one prompt's pieces (r-4cf9).
+func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team",
+		"doc": map[string]any{"ops": []map[string]any{
+			{"kind": "addMember", "member": "ops", "role": "builder", "profile": "coder"},
+			{"kind": "addTurn", "from": "human", "to": "ops"},
+			{"kind": "addTurn", "from": "ops", "to": "human"},
+		}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the check answers %d: %s", resp.StatusCode, body)
+	}
+	check := teamsCheck(t, body)
+	var added *struct {
+		Name     string                     `json:"name"`
+		Segments []definition.PromptSegment `json:"segments"`
+	}
+	for i := range check.Members {
+		if check.Members[i].Name == "ops" {
+			added = &check.Members[i]
+		}
+	}
+	if added == nil {
+		t.Fatalf("the check does not answer the added member's prompt: %+v", check.Members)
+	}
+	if len(added.Segments) == 0 {
+		t.Fatal("the added member has no prompt segments")
+	}
+	var roster, role string
+	for _, segment := range added.Segments {
+		if segment.Kind == "roster" {
+			roster = segment.Text
+		}
+		if segment.Kind == "role_doc" {
+			role = segment.Origin.Path
+		}
+	}
+	if !strings.Contains(roster, "ops") {
+		t.Errorf("the added member's roster segment does not name it: %q", roster)
+	}
+	if !strings.HasSuffix(role, "/.hergy/roles/builder.yaml") {
+		t.Errorf("the added member's role segment reads %+v", role)
+	}
+
+	// The worker prompt: one prompt's segments, with the task it was hired for.
+	resp, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "worker",
+		"doc": map[string]any{"name": "helper", "purpose": "試作", "task": "read the thing"},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the worker check answers %d: %s", resp.StatusCode, body)
+	}
+	worker := teamsCheck(t, body)
+	if len(worker.Prompt) == 0 {
+		t.Fatal("the worker answer has no prompt")
+	}
+	var text strings.Builder
+	var task string
+	for _, segment := range worker.Prompt {
+		text.WriteString(segment.Text)
+		if segment.Kind == "task" {
+			task = segment.Text
+		}
+	}
+	if task != "read the thing" || !strings.Contains(text.String(), "read the thing") {
+		t.Errorf("the worker's task is not its own segment: %+v", worker.Prompt)
 	}
 }
 

@@ -259,20 +259,21 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 			return nil, i18n.Errorf("error.no_profile", fmt.Sprintf("members[%d]", i), node.Profile)
 		}
 		starts = append(starts, definition.Start{
-			Name:    herdr,
-			Short:   node.Name,
-			Role:    node.Role,
-			Profile: node.Profile,
-			Kind:    value.Kind,
-			Args:    value.Args,
-			Env:     profile.PaneEnv(value.Env, herdr),
-			Cwd:     node.Cwd,
-			Prompt:  built.Text,
-			RoleDoc: built.Role,
-			HasRole: built.HasRole,
-			Read:    built.Read,
-			Workers: workersOf(def, node.Name),
-			Turns:   turnsOf(def, node.Name),
+			Name:     herdr,
+			Short:    node.Name,
+			Role:     node.Role,
+			Profile:  node.Profile,
+			Kind:     value.Kind,
+			Args:     value.Args,
+			Env:      profile.PaneEnv(value.Env, herdr),
+			Cwd:      node.Cwd,
+			Prompt:   built.Text,
+			Segments: built.Segments,
+			RoleDoc:  built.Role,
+			HasRole:  built.HasRole,
+			Read:     built.Read,
+			Workers:  workersOf(def, node.Name),
+			Turns:    turnsOf(def, node.Name),
 		})
 	}
 	return starts, nil

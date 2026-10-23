@@ -32,6 +32,31 @@ type Start struct {
 	Turns []string
 	// Workers is what this member may hire: the graph's edges out of it.
 	Workers []WorkerNode
+	// Segments is the prompt cut into the pieces it was built from, in the
+	// order they stand in Prompt: joining their texts gives Prompt exactly
+	// (r-4cf9). A prompt built before this existed has none.
+	Segments []PromptSegment
+}
+
+// PromptOrigin is where one prompt segment came from: hergy's own words, the
+// team definition (its prompt or its roster/turns/workers), one member's own
+// prompt, a role document, the team's rules, or the hire that names a worker's
+// task.
+type PromptOrigin struct {
+	Kind  string `json:"kind"`
+	Name  string `json:"name,omitempty"`
+	Path  string `json:"path,omitempty"`
+	Place string `json:"place,omitempty"`
+}
+
+// PromptSegment is one contiguous piece of a prompt and where it came from. The
+// texts joined in order are the prompt, character for character.
+type PromptSegment struct {
+	// Kind is what the piece is: template, actor, role_doc, team_rules,
+	// roster, turns, workers, herdr or task.
+	Kind   string       `json:"kind"`
+	Text   string       `json:"text"`
+	Origin PromptOrigin `json:"origin"`
 }
 
 // ToPlan is the member as the --dry output shows it: the expanded prompt, cwd,
@@ -39,12 +64,13 @@ type Start struct {
 // rather than null.
 func (s Start) ToPlan() map[string]any {
 	out := map[string]any{
-		"name":   s.Name,
-		"role":   s.Role,
-		"kind":   s.Kind,
-		"args":   orEmpty(s.Args),
-		"cwd":    s.Cwd,
-		"prompt": s.Prompt,
+		"name":     s.Name,
+		"role":     s.Role,
+		"kind":     s.Kind,
+		"args":     orEmpty(s.Args),
+		"cwd":      s.Cwd,
+		"prompt":   s.Prompt,
+		"segments": orSegments(s.Segments),
 	}
 	if s.Profile != "" {
 		out["profile"] = s.Profile
@@ -83,6 +109,13 @@ func (s Start) sourceDisplays() []string {
 func orEmpty(values []string) []string {
 	if values == nil {
 		return []string{}
+	}
+	return values
+}
+
+func orSegments(values []PromptSegment) []PromptSegment {
+	if values == nil {
+		return []PromptSegment{}
 	}
 	return values
 }
