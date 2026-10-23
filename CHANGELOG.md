@@ -58,7 +58,8 @@
   one screen drawn in the system's fallback fonts.
 - **The team definitions' YAML tab says what to do when there is none**: with no
   team definition it said only "pick a file"; it now says how to add one and
-  links back to the list.
+  links back to the list. The roles' YAML tab does the same when there is no
+  role document.
 
 - **`hire --dry` plans for a team that is not running**: the plan and the
   worker's prompt are built from the team definition, and the command reads no

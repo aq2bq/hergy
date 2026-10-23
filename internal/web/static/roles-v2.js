@@ -592,7 +592,13 @@
 
   function viewYAML() {
     const files = filesList();
-    if (!files.length) return `<p class="none">ロールの文書はありません</p>`;
+    // With no role document at all, the YAML tab says what is missing and the
+    // one thing that makes the documents (n-f2ef, the same shape as the team
+    // definition's YAML tab).
+    if (!files.length) return `<section class="yed yempty">
+      <p>ロールの文書はまだありません。</p>
+      <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.yaml が並びます。</p>
+      <span><button class="btn" data-act="tab" data-t="roles">一覧へ</button></span></section>`;
     if (!state.yfile || !files.some(({ r, l }) => r.uid + l === state.yfile)) state.yfile = files[0] ? files[0].r.uid + files[0].l : null;
     return `<div class="ylay">
       <nav class="files">${PLACES.map((l) => `<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
@@ -753,6 +759,9 @@
         break;
       }
       case 'role-hi': state.roleHi = state.roleHi === b.dataset.n ? null : b.dataset.n; render(); syncURL(false); break;
+      // The tabs stand outside the screen, but a button in the screen may name
+      // one (the 一覧へ of the empty YAML tab), so it is answered here too.
+      case 'tab': state.tab = b.dataset.t; render(); syncURL(true); break;
       case 't-save': await doAssignSave(b.closest('.team').dataset.t); break;
       case 'yfile': state.yfile = b.dataset.key; render(); syncURL(false); break;
       case 'yaml-jump': YAML.jump(b.closest('.yed'), Number(b.dataset.line)); break;

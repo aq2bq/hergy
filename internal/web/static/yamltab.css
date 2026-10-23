@@ -2,6 +2,10 @@
    follows the lines in the file: six at the fewest and 34 at the most, on every
    screen (the designer put the number in the part, r-0f8c). The `h` class is the
    one yamltab.js writes; the box around the text is `.code` on every screen. */
+/* A YAML tab with nothing to show says so and offers the list (n-f2ef). The
+   teams screen and the roles screen both read this file. */
+.yempty { justify-items: start; max-width: 44rem; }
+.yempty p { margin: 0; }
 .code.h6 { height: 152px; }
 .code.h7 { height: 172px; }
 .code.h8 { height: 192px; }
