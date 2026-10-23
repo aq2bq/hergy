@@ -94,6 +94,7 @@ type options struct {
 	port  int
 	work  string
 	bin   string
+	mock  string
 	help  bool
 	// named says a scene was named on the command line, so a second one is a
 	// mistake rather than the default being replaced.
@@ -123,7 +124,7 @@ func usage() string {
 	var b strings.Builder
 	b.WriteString("ショーケース: 本物の hergy serve を、本物の規模の見本データと偽の herdr で起こす。\n\n")
 	b.WriteString("使い方:\n")
-	b.WriteString("  go run ./tools/showcase [<場面>] [--port N] [--work DIR] [--bin PATH]\n")
+	b.WriteString("  go run ./tools/showcase [<場面>] [--port N] [--work DIR] [--bin PATH] [--mock DIR]\n")
 	b.WriteString("  go run ./tools/showcase run <場面> [--work DIR] [--bin PATH] -- <hergy の引数...>\n")
 	b.WriteString("  go run ./tools/showcase snap <場面> <パス> <出力先> [--work DIR] [--bin PATH]\n\n")
 	b.WriteString("場面（書かなければ standard）:\n")
@@ -141,7 +142,18 @@ func usage() string {
   --port N    serve が待つポート（既定 0: OS が選ぶ。127.0.0.1 だけを待つ）
   --work DIR  作業用ディレクトリ（既定 .local/showcase/<場面>。serve は起こすたびに作り直す）
   --bin PATH  この hergy を使う（既定: hergy をビルドして作業用ディレクトリに置く）
+  --mock DIR  そのディレクトリの CSS と JS を、serve の画面に差し込む（試作を見るため）
   -h          これを出す
+
+--mock の決めごと:
+  ・serve の前に 127.0.0.1 の受け口が立ち、HTML の答えにだけ CSS と JS を差し込む。ほかの要求はそのまま serve に渡す
+  ・試作のファイルは同じ origin の /mock/<名前> で返す。HTML の <head> の終わりに CSS、</body> の前に JS を、この順で入れる
+  ・DIR/mock.yaml があれば従う。無ければ、そのディレクトリの .css を全部（名前順）そのあと .js を全部（名前順）、すべての画面に入れる
+      version: 1
+      paths: [/teams]     # 差し込む画面。前方一致（/teams は /teams と /teams/… に入る）。書かなければすべての画面
+      inject: [a.css, b.js] # 差し込むファイルと順。書かなければ .css と .js を全部
+  ・serve は default-src 'self' を返す。試作の style 属性は効かないので、class か CSSOM（element.style.setProperty）で書く
+  ・serve の画面はそのまま動く。試作が本物のボタンやタブを置き換えると、その部分は動かなくなる
 
 本物の ~/.config/hergy、~/.local/state/hergy、herdr には触れない。
 `)
@@ -176,12 +188,39 @@ func serveScene(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
-	srv, err := startServe(work, hergy, opts.port, stderr)
+	backendPort := opts.port
+	if opts.mock != "" {
+		// The proxy takes the person's port; the serve stands behind it on one
+		// the operating system picks.
+		backendPort = 0
+	}
+	srv, err := startServe(work, hergy, backendPort, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "ショーケース: %s — %s\n作業用: %s\nURL: %s\n（Ctrl-C で止まります）\n", sc.name, sc.about, work, srv.url)
+	url := srv.url
+	if opts.mock != "" {
+		mockDir, err := filepath.Abs(opts.mock)
+		if err != nil {
+			fmt.Fprintln(stderr, "showcase:", err)
+			return 1
+		}
+		mockSrv, err := startMock(mockDir, strings.TrimPrefix(srv.url, "http://"), opts.port)
+		if err != nil {
+			srv.stop()
+			fmt.Fprintln(stderr, "showcase:", err)
+			return 1
+		}
+		defer mockSrv.stop()
+		url = mockSrv.url
+		screens := "すべての画面"
+		if len(mockSrv.paths) > 0 {
+			screens = strings.Join(mockSrv.paths, "、")
+		}
+		fmt.Fprintf(stdout, "試作: %s（差し込む画面: %s）\n", mockDir, screens)
+	}
+	fmt.Fprintf(stdout, "ショーケース: %s — %s\n作業用: %s\nURL: %s\n（Ctrl-C で止まります）\n", sc.name, sc.about, work, url)
 	if err := waitStop(srv); err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
@@ -203,6 +242,10 @@ func runInScene(args []string, stdout, stderr io.Writer) int {
 	if help {
 		fmt.Fprint(stdout, usage())
 		return 0
+	}
+	if opts.mock != "" {
+		fmt.Fprintln(stderr, "showcase: --mock は serve の道だけで使えます（run と snap には差し込みません）")
+		return 2
 	}
 	sc, root, err := pick(opts)
 	if err != nil {
@@ -246,6 +289,10 @@ func snapScreen(args []string, stdout, stderr io.Writer) int {
 	if help {
 		fmt.Fprint(stdout, usage())
 		return 0
+	}
+	if opts.mock != "" {
+		fmt.Fprintln(stderr, "showcase: --mock は serve の道だけで使えます（run と snap には差し込みません）")
+		return 2
 	}
 	sc, root, err := pick(opts)
 	if err != nil {
@@ -323,6 +370,12 @@ func parseArgs(args []string) (options, error) {
 				return out, errors.New("--bin の後ろに hergy のパスを書いてください")
 			}
 			out.bin = value
+		case "--mock", "-mock":
+			value, i, hasValue = takeValue(args, i, value, hasValue)
+			if !hasValue {
+				return out, errors.New("--mock の後ろに試作のディレクトリを書いてください")
+			}
+			out.mock = value
 		default:
 			if strings.HasPrefix(args[i], "-") {
 				return out, fmt.Errorf("%q は知らない旗です", args[i])

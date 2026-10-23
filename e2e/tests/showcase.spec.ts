@@ -36,11 +36,14 @@ function buildTool(): void {
 }
 
 // start lays one scene out with the tool and returns the URL it printed. The
-// work directory is this walk's own, so two scenes may run side by side.
-async function start(scene: Scene): Promise<App> {
+// work directory is this walk's own, so two scenes may run side by side. mock,
+// when set, is a prototype's directory for --mock.
+async function start(scene: Scene, mock: string): Promise<App> {
   buildTool();
   const work = mkdtempSync(path.join(os.tmpdir(), `hergy-showcase-${scene}-`));
-  const child = spawn(tool, [scene, '--port', '0', '--work', work, '--bin', hergyBin], {
+  const args = [scene, '--port', '0', '--work', work, '--bin', hergyBin];
+  if (mock) args.push('--mock', mock);
+  const child = spawn(tool, args, {
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -115,10 +118,11 @@ async function listen(page: Page): Promise<string[]> {
 
 // test is one scene's screens, started for the walk and stopped after it, with
 // the console held to the one known break.
-const test = base.extend<{ scene: Scene; app: App }>({
+const test = base.extend<{ scene: Scene; mock: string; app: App }>({
   scene: ['standard', { option: true }],
-  app: async ({ scene, page }, use) => {
-    const app = await start(scene);
+  mock: ['', { option: true }],
+  app: async ({ scene, mock, page }, use) => {
+    const app = await start(scene, mock);
     const said = await listen(page);
     await use(app);
     try {
@@ -261,6 +265,25 @@ test('SHOWCASE-S1 the standard showcase holds the sample data', async ({ page, a
   expect(lead, "the member template did not stay with its member").not.toContain(
     '書き始める前に、読み手を 1 人決め',
   );
+});
+
+// mock puts a prototype's files into the real screens: the sample's one script
+// adds an element, and the screen itself is still the app's own (six rows).
+test.describe('mock', () => {
+  test.use({
+    scene: 'standard',
+    mock: path.join(repo, 'testdata', 'showcase', 'mock', 'sample'),
+  });
+
+  test('SHOWCASE-M1 the mock files stand in the real screen', async ({ page, app }) => {
+    await open(page, `${app.base}/teams`, '#view .tdef');
+    await readTo<string>(
+      page,
+      `document.querySelector('.mock-mark')?.textContent ?? ''`,
+      "the mock's element does not stand in the real screen",
+    ).toBe('mock が差し込んだ行');
+    await readTo<number>(page, count('#view .tdef'), 'the screen under the mock reads, want six rows').toBe(6);
+  });
 });
 
 // running is the same sample data with core running in the made-up herdr: its
