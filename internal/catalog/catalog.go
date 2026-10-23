@@ -626,12 +626,21 @@ func (c *Catalog) RolePlaces(name string) []string {
 // here, so a path reads the same wherever hergy prints it.
 func (c *Catalog) Display(path string) string { return c.display(path) }
 
-// SharedAgreement is the agreement every team of a layer shares: agreement.yaml
-// in the project's layer, else in the global layer's. There is one, not a list
-// (d-0ccd), and writing none is allowed (段 4); the second return says whether a
-// layer wrote one.
-func (c *Catalog) SharedAgreement() (source.Doc, bool) {
-	return c.firstFile("agreement.yaml")
+// SharedAgreements is every agreement.yaml a layer still holds at its top:
+// agreement.yaml beside the teams, the file every team of the layer used to
+// share. hergy does not read it any more (d-31ad): what is left stops the
+// commands that build prompts, and hergy validate names it, so a person moves
+// its rules to the teams or the roles before the file goes. The project's layer
+// comes first, then the global one, the order every name is looked up in (K1).
+func (c *Catalog) SharedAgreements() []source.Doc {
+	var out []source.Doc
+	for _, one := range c.layers() {
+		doc := source.Doc{Layer: one.name, Path: filepath.Join(one.dir, "agreement.yaml")}
+		if c.reader.IsFile(doc) {
+			out = append(out, doc)
+		}
+	}
+	return out
 }
 
 // firstFile is the first layer that holds one file, in the one order a name is

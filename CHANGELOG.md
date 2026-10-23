@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Breaking
+
+- **The agreement every team shares is gone**: hergy no longer reads
+  `agreement.yaml` at the top of a place — `.hergy/agreement.yaml`, or
+  `~/.config/hergy/agreement.yaml` for the settings outside the project. Its
+  rules reached every member of every team of that place; hergy now reads only a
+  team's own agreement (`teams/<definition>/agreement.yaml`) and the role
+  documents (`roles/<role>.yaml`).
+  While the file is still there, hergy stops rather than silently dropping its
+  rules: `hergy up` (with and without `--dry`), `hergy refresh`, `hergy reprompt`
+  and `hergy hire` stop with exit 1, name the file and say where the rules go,
+  and `hergy validate` names it as a broken file (also exit 1). The team
+  definitions screen and the role screen no longer count or show it: the amount
+  one member reads is the team's own agreement plus the role document, and the
+  sizes and the totals `hergy validate` prints leave it out.
+
+### Moving from 0.8.1
+
+1. Open `agreement.yaml` at the top of `.hergy/` (and at
+   `~/.config/hergy/agreement.yaml` if that file is there). Decide where each
+   rule goes now:
+   - a rule about how one team works — its turns, its review, its checks, its
+     ledger — goes into that team's `teams/<definition>/agreement.yaml`;
+   - a rule every member of one role must follow goes into that role's document,
+     `roles/<role>.yaml`;
+   - a rule every team read but none of them owns: write it into the agreements
+     of the teams that must still read it, or into the role documents that need
+     it. hergy does not copy it for you: one rule in four files would make it
+     unclear which copy to keep.
+2. Remove the file.
+3. Run `hergy validate`. It must no longer name the file, and the amounts and the
+   warnings must be counted from the files that are left.
+4. Run `hergy up <team> --dry` and check that the rules you moved stand in the
+   members' prompts (by their ids). A rule left in no file is in no prompt.
+
 ### Fixed
 
 - **`hire --dry` plans for a team that is not running**: the plan and the

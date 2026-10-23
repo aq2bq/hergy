@@ -141,21 +141,21 @@ func TestWithFindsAnAgreementThatIsNotWritten(t *testing.T) {
 	}
 }
 
-// TestWithFindsASharedAgreementThatIsNotWritten: the agreement every team of a
-// layer shares, made by the same edit (C3b).
-func TestWithFindsASharedAgreementThatIsNotWritten(t *testing.T) {
+// TestWithFindsAFileThatIsNotWritten: a document a screen is making, laid over
+// the disk by the same edit (C3b).
+func TestWithFindsAFileThatIsNotWritten(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	path := filepath.Join(l.local, "agreement.yaml")
+	path := filepath.Join(l.local, "roles", "r.yaml")
 
 	cat := l.catalog()
-	if _, ok := cat.SharedAgreement(); ok {
-		t.Fatal("the shared agreement is there before the edit")
+	if _, ok := cat.Role("r"); ok {
+		t.Fatal("the role document is there before the edit")
 	}
-	overlaid := cat.With(path, "the agreement every team shares\n")
-	doc, ok := overlaid.SharedAgreement()
+	overlaid := cat.With(path, "version: 1\ntitle: role\n")
+	doc, ok := overlaid.Role("r")
 	if !ok {
-		t.Fatal("the edit's shared agreement is not found")
+		t.Fatal("the edit's role document is not found")
 	}
 	if doc.Path != path {
 		t.Errorf("doc = %+v, want %q", doc, path)

@@ -4,11 +4,12 @@
 // prompt.Member's and this package must not import it.
 //
 // 段 4 moved where the documents stand (K3, K5): a team's own agreement is
-// teams/<name>/agreement.yaml, the agreement every team of the layer shares is
-// agreement.yaml in the layer's root, and a member's role document is
-// roles/<role>.yaml in the layer. A test team therefore stands in a layer (the
-// layer type below), and the catalog over that layer is what a prompt reads the
-// two documents through (prompt.Sources).
+// teams/<name>/agreement.yaml, and a member's role document is roles/<role>.yaml
+// in the layer's root. A test team therefore stands in a layer (the layer type
+// below), and the catalog over that layer is what a prompt reads the two
+// documents through (prompt.Sources). The agreement every team used to share
+// (agreement.yaml in the layer's root) is not read any more (d-31ad); a test
+// that leaves one there proves it stays out of the prompt.
 package definition_test
 
 import (
@@ -233,12 +234,12 @@ func oneRule(id, text string) string {
 	return "version: 1\nsections:\n  - rules:\n      - id: " + id + "\n        text: |-\n          " + text + "\n"
 }
 
-// TestMemberReadsTheRoleThenTheSharedThenTheTeamAgreement: the documents reach a
-// member's prompt in the one order (段 4): the member's role document, the
-// agreement every team of the layer shares, then the team's own agreement.
-// Built.Read carries the two agreements, in that order, and the role document is
-// the separate one that the member's own line shows.
-func TestMemberReadsTheRoleThenTheSharedThenTheTeamAgreement(t *testing.T) {
+// TestMemberReadsTheRoleThenTheTeamAgreement: the documents reach a member's
+// prompt in the one order (段 4): the member's role document, then the team's own
+// agreement. Built.Read carries the team's agreement, and the role document is
+// the separate one that the member's own line shows. The agreement every team
+// used to share is left in the layer and is not read (d-31ad).
+func TestMemberReadsTheRoleThenTheTeamAgreement(t *testing.T) {
 	l := newLayer(t, oneRule("S1", "shared doc"))
 	write(t, filepath.Join(l.team, "agreement.yaml"), oneRule("T1", "team doc"))
 
@@ -246,15 +247,18 @@ func TestMemberReadsTheRoleThenTheSharedThenTheTeamAgreement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "- **R0** role doc\n- **S1** shared doc\n\n- **T1** team doc\n"
+	want := "- **R0** role doc\n- **T1** team doc\n"
 	if got.starts[0].Prompt != want {
 		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, want)
+	}
+	if strings.Contains(got.starts[0].Prompt, "S1") {
+		t.Errorf("the shared agreement is read into the prompt:\n%s", got.starts[0].Prompt)
 	}
 	var read []string
 	for _, doc := range got.starts[0].Read {
 		read = append(read, l.rel(t, doc.Path))
 	}
-	if wantRead := "agreement.yaml,teams/t/agreement.yaml"; strings.Join(read, ",") != wantRead {
+	if wantRead := "teams/t/agreement.yaml"; strings.Join(read, ",") != wantRead {
 		t.Errorf("Read = %v, want %v", read, wantRead)
 	}
 	if !got.starts[0].HasRole || l.rel(t, got.starts[0].RoleDoc.Path) != "roles/r.yaml" {
@@ -400,26 +404,26 @@ func TestMemberTemplateMustKeepTheTwoDoors(t *testing.T) {
 // TestMemberStopsOnBreaksAcrossTheDocumentsOneMemberReads: a rule id and a report
 // name are unique among the documents that go into one member's prompt, and a
 // report and a derived rule point at something those documents hold. The two
-// documents are the layer's shared agreement and the team's own.
+// documents are the member's role document and the team's own.
 func TestMemberStopsOnBreaksAcrossTheDocumentsOneMemberReads(t *testing.T) {
 	audit := "reports:\n  監査:\n    where: 記録\n    fields:\n      scope: 範囲\n"
 	cases := []struct {
-		name   string
-		shared string
-		team   string
-		want   string
+		name string
+		role string
+		team string
+		want string
 	}{
 		{
-			name:   "a rule id that stands twice",
-			shared: oneRule("R1", "one"),
-			team:   oneRule("R1", "two"),
-			want:   "R1",
+			name: "a rule id that stands twice",
+			role: oneRule("R1", "one"),
+			team: oneRule("R1", "two"),
+			want: "R1",
 		},
 		{
-			name:   "a report name that stands twice",
-			shared: "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n" + audit,
-			team:   "version: 1\nsections:\n  - rules:\n      - id: B1\n        text: y\n" + audit,
-			want:   "監査",
+			name: "a report name that stands twice",
+			role: "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: x\n" + audit,
+			team: "version: 1\nsections:\n  - rules:\n      - id: B1\n        text: y\n" + audit,
+			want: "監査",
 		},
 		{
 			name: "a report that is not there",
@@ -434,7 +438,10 @@ func TestMemberStopsOnBreaksAcrossTheDocumentsOneMemberReads(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			l := newLayer(t, tc.shared)
+			l := newLayer(t, "")
+			if tc.role != "" {
+				write(t, filepath.Join(l.root, "roles", "r.yaml"), tc.role)
+			}
 			if tc.team != "" {
 				write(t, filepath.Join(l.team, "agreement.yaml"), tc.team)
 			}

@@ -101,9 +101,9 @@ version: 1              # 必須
 mission: "このチームは何のためか"  # 必須。1 行。チームを扱うコマンドの見出しと WebUI が最初に表示する
 team: myteam            # 任意。書くならチーム定義名（teams/<チーム定義名>/）と一致させる
 cwd: .                  # 作業場所（プロジェクトの直下が基準）
-                        # 文書を指す鍵はありません。共通の agreement.yaml（全チーム）、
-                        # teams/<チーム定義名>/agreement.yaml（このチーム）、roles/<ロール名>.yaml
-                        # の順に読みます（プロジェクトの .hergy/ が先、次に ~/.config/hergy/）
+                        # 文書を指す鍵はありません。teams/<チーム定義名>/agreement.yaml（このチーム）と
+                        # roles/<ロール名>.yaml を読みます（プロジェクトの .hergy/ が先、
+                        # 次に ~/.config/hergy/）
 prompt: "…"             # 初期プロンプトのテンプレート（任意）。%{role_doc} と %{docs} は消せません
 members:
   - name: lead            # メンバー名（短い名前）。herdr では「<チーム名>-lead」になる

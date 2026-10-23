@@ -46,7 +46,8 @@
   "error.name_team_placeholder": "メンバー名に %%{team} は書けません（チーム名は自動で付きます）: %s。%%{team} を消してください",
   "error.herdr_name_pattern": "herdr 名（チーム名-メンバー名）は [a-z][a-z0-9_-]{0,31} の形にしてください: %q",
   "error.members_empty": "%s: members が空です。members: にメンバーを 1 人以上書いてください",
-  "error.docs_gone": "team.yaml の docs: は無くなりました。チームのルールは teams/%s/agreement.yaml、全チーム共通のルールは agreement.yaml に書いてください",
+  "error.docs_gone": "team.yaml の docs: は無くなりました。チームのルールは teams/%s/agreement.yaml に、ほかのチームにも渡すルールはロールの文書（roles/<ロール名>.yaml）に書いてください",
+  "error.shared_agreement_gone": "全チームのルール（%s）は廃止しました。このファイルの規則は、もうメンバーのプロンプトに入りません。規則をチームのルール（%s）か、ロールの文書（%s）へ移してから、このファイルを消してください",
   "error.roles_gone": "team.yaml の roles: は無くなりました。ロールの文書は roles/<ロール名>.yaml に書いてください",
   "error.rules_not_mapping": "%s: %s はマップではありません。「キー: 値」の並びで書いてください",
   "error.rules_not_sequence": "%s: %s はリストではありません。「- 」で始まる行の並びで書いてください",
@@ -330,7 +331,7 @@
   "validate.mission_placeholder": "使命がひな形の例文のままです。このチームの使命を 1 行で書いてください",
   "validate.old_team_agreement": "%s は読まれません。チームのルールは %s に置きます（名前を変えてください）",
   "validate.old_team_role": "%s は読まれません。ロールの文書は %s に置きます",
-  "validate.old_common": "%s は読まれません。共通のルールは %s に置きます",
+  "validate.old_common": "%s は読まれません。規則は、チームごとの teams/<チーム定義名>/agreement.yaml か、ロールの文書（roles/<ロール名>.yaml）へ移します",
   "error.hire_purpose_outside": "%[1]s は目的「%[2]s」でワーカーを呼べません。呼べる目的: %[3]s（team.yaml の workers:）。この中の目的を指定してください",
   "error.profile_flag_gone": "--profile は無くなりました。プロファイルは team.yaml の workers: の組（from と目的）から決まります。team.yaml の workers: に組を書いてください",
   "error.hire_purpose_nobody": "目的「%s」でワーカーを呼べるメンバーはいません。呼べる目的: %s。この中の目的を指定してください",
@@ -449,5 +450,7 @@
   "web.profile.kind_needed": "kind を選んでください",
   "web.profile.name_needed": "プロファイルの名前を書いてください",
   "web.profiles.add": "足す",
-  "web.profiles.exists": "プロファイル %s はもうあります"
+  "web.profiles.exists": "プロファイル %s はもうあります",
+  "place.team_definition": "<チーム定義名>",
+  "place.role": "<ロール名>"
 }

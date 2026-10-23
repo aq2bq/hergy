@@ -162,6 +162,23 @@ func teamsCheck(t *testing.T, body string) t2TestCheck {
 // TestTEAMS_S3_ListCarriesTheTable: the list page carries one item per definition,
 // with the places' readings and the columns the list shows, all of it from
 // check.Team and the catalog (spec-teams 1.1, 1.2).
+// TestAgreementSizeSkipsTheSharedAgreement: the amount one member reads counts
+// the team's own agreement, and not the agreement every team used to share
+// (d-31ad). SHARED-1 is left in the project's .hergy/agreement.yaml, the state a
+// person has before they move the rules.
+func TestAgreementSizeSkipsTheSharedAgreement(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, "agreement.yaml", "version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n        why: だから。\n")
+	s := f.server(t)
+	got := s.r2AgreementSize(f.teamYAML())
+	if got.Rules != 1 {
+		t.Errorf("the amount counts %d rules, want the team's own one (TEAM-1)", got.Rules)
+	}
+	if got.Chars == 0 {
+		t.Error("the amount counts no characters for the team's own agreement")
+	}
+}
+
 func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)

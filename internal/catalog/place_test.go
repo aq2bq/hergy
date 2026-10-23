@@ -20,7 +20,6 @@ func TestNewPlaceInsideTheProject(t *testing.T) {
 		{NewTeam, "t", filepath.Join(l.local, "teams", "t"), "a team definition's directory"},
 		{NewRole, "watcher", filepath.Join(l.local, "roles", "watcher.yaml"), "a role document"},
 		{NewProfile, "builder", filepath.Join(l.local, "profiles.yaml"), "a profile"},
-		{NewAgreement, "", filepath.Join(l.local, "agreement.yaml"), "the agreement every team shares"},
 	}
 	for _, tc := range cases {
 		if got := cat.NewPlace(tc.kind, tc.name); got != tc.want {
@@ -43,9 +42,6 @@ func TestNewPlaceOutsideTheProject(t *testing.T) {
 	if got, want := cat.NewPlace(NewProfile, "builder"), filepath.Join(l.global, "profiles.yaml"); got != want {
 		t.Errorf("NewPlace(NewProfile, builder) = %q, want %q", got, want)
 	}
-	if got, want := cat.NewPlace(NewAgreement, ""), filepath.Join(l.global, "agreement.yaml"); got != want {
-		t.Errorf("NewPlace(NewAgreement, \"\") = %q, want %q", got, want)
-	}
 }
 
 // TestNewPlaceWithoutInRepoAnswersNothing: a catalog nobody told whether the
@@ -53,7 +49,7 @@ func TestNewPlaceOutsideTheProject(t *testing.T) {
 // project by default (spec/38 T3).
 func TestNewPlaceWithoutInRepoAnswersNothing(t *testing.T) {
 	cat := newLayers(t).catalog()
-	for _, kind := range []string{NewTeam, NewRole, NewProfile, NewAgreement, "something-else"} {
+	for _, kind := range []string{NewTeam, NewRole, NewProfile, "something-else"} {
 		if got := cat.NewPlace(kind, "x"); got != "" {
 			t.Errorf("NewPlace(%q, x) = %q, want none", kind, got)
 		}

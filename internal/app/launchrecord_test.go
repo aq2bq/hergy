@@ -33,7 +33,7 @@ func recordDev(t *testing.T, f *fixture) launchlog.Record {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "dev", "", "")
+	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "dev", "")
 	if err != nil {
 		t.Fatal(err)
 	}

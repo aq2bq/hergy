@@ -47,8 +47,8 @@ type apiTeamIn struct {
 
 // apiTeamSummary is the team list's columns: the mission, who is on the team,
 // and how much the team's own agreement holds. Amount is the amount one member
-// reads, the shared agreement's rules included, the same number the role
-// screen's 割り当て tab shows.
+// reads from the team's own agreement, the same number the role screen's
+// 割り当て tab shows.
 type apiTeamSummary struct {
 	Mission  string          `json:"mission"`
 	Members  []apiTeamMember `json:"members"`

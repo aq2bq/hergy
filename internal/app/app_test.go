@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 // passingHerdr is a fake herdr that answers every command the CLI may need, so
@@ -514,11 +516,10 @@ func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
 }
 
 // TestValidateWarnsAboutThePlacesHergyNoLongerReads: 段 4 moved a team's
-// agreement to agreement.yaml, a role document to the layer's roles/, and the
-// shared agreement to one agreement.yaml. A file left in one of the old places
-// is not read, so validate names it and where it goes now, once per file, and
-// moves no exit code (spec/32 D1). Each of the three old places is tried on its
-// own, so a fix that forgets one is still a warning here.
+// agreement to agreement.yaml and a role document to the layer's roles/. A file
+// left in one of the old places is not read, so validate names it and where it
+// goes now, once per file, and moves no exit code (spec/32 D1). Each of the old
+// places is tried on its own, so a fix that forgets one is still a warning here.
 func TestValidateWarnsAboutThePlacesHergyNoLongerReads(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -545,7 +546,7 @@ func TestValidateWarnsAboutThePlacesHergyNoLongerReads(t *testing.T) {
 		{
 			name: "a common/ directory",
 			key:  "validate.old_common",
-			args: []any{".hergy/common", ".hergy/agreement.yaml"},
+			args: []any{".hergy/common"},
 			write: func(t *testing.T, f *fixture) {
 				writeFile(t, filepath.Join(f.proj, ".hergy", "common", "old.yaml"), "version: 1\nsections: []\n")
 			},
@@ -809,7 +810,7 @@ func TestValidateCountsWhatTheRulesCarry(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: en\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  dev:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.cfg, "hergy", "agreement.yaml"), `version: 1
+	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "lead.yaml"), `version: 1
 sections:
   - rules:
       - id: A1
@@ -822,15 +823,6 @@ sections:
         text: two
         note: a note is not a reason
         tests: [T-1]
-reports:
-  audit:
-    where: the ledger
-    fields:
-      scope: the changed files
-`)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "lead.yaml"), `version: 1
-sections:
-  - rules:
       - id: L1
         text: three
         why: a reason that is not sent
@@ -840,6 +832,11 @@ sections:
         origin:
           - kind: derived
             refs: [A1]
+reports:
+  audit:
+    where: the ledger
+    fields:
+      scope: the changed files
 `)
 	for _, name := range []string{"demo", "other"} {
 		if name == "demo" {
@@ -855,17 +852,106 @@ sections:
 		t.Fatalf("a tally with missing origins is a break?\n%s", got)
 	}
 	for _, want := range []string{
-		"rules 5 in 3 files",
+		"rules 5 in 2 files",
 		"  with an origin 2 (incident 1 / instruction 0 / derived 1)  with no origin 3",
 		"  with a reason 2  with no reason 3",
 		"  with a check 3 (report 1 / test 2)  with no check 2",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "roles", "lead.yaml") + ": L1",
-		"no origin: " + filepath.Join(f.cfg, "hergy", "agreement.yaml") + ": A2",
+		"no origin: " + filepath.Join(f.cfg, "hergy", "roles", "lead.yaml") + ": A2, L1",
 		"no origin: " + filepath.Join(f.cfg, "hergy", "teams", "demo", "agreement.yaml") + ": P1",
 	} {
 		if !strings.Contains(got, want+"\n") {
 			t.Errorf("validate is missing %q:\n%s", want, got)
 		}
+	}
+}
+
+// TestSharedAgreementIsNotReadAndStops: the agreement every team used to share
+// (agreement.yaml beside the teams, in either place) does not reach a member's
+// prompt any more; while one is left, the commands that build a prompt and
+// validate stop on it, name the path and say where the rules go (d-31ad,
+// r-7de2, ac-b7b6).
+func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
+	shared := "version: 1\ntitle: 共通\nsections:\n  - heading: 台帳\n    rules:\n      - id: S1\n        text: 全員が読む。\n"
+	for _, place := range []string{"project", "global"} {
+		t.Run(place, func(t *testing.T) {
+			f := newFixture(t)
+			mustRun(t, "new", "demo")
+			path := filepath.Join(f.proj, ".hergy", "agreement.yaml")
+			shown := ".hergy/agreement.yaml"
+			if place == "global" {
+				path = filepath.Join(f.cfg, "hergy", "agreement.yaml")
+				shown = path
+			}
+			writeFile(t, path, shared)
+
+			// The projection does not read it: the rule stands in no member's
+			// prompt, even though the file is there.
+			cat := catalog.New(filepath.Join(f.cfg, "hergy"), filepath.Join(f.proj, ".hergy"), f.proj, source.Disk{}, func(path string) string { return path })
+			r, err := readDefinition(cat, f.proj, "demo", "")
+			if err != nil {
+				t.Fatalf("the definition does not read: %v", err)
+			}
+			for _, start := range r.starts {
+				if strings.Contains(start.Prompt, "S1") || strings.Contains(start.Prompt, "全員が読む") {
+					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name, start.Prompt)
+				}
+			}
+
+			// The commands that build a prompt stop, and say where the rules go.
+			for _, argv := range [][]string{
+				{"up", "demo", "--dry"},
+				{"up", "demo"},
+				{"hire", "w", "--purpose", "p", "--task", "t", "--team", "demo", "--dry"},
+				{"reprompt", "lead", "--team", "demo", "--dry"},
+			} {
+				_, stderr, code := run(argv...)
+				if code == 0 {
+					t.Errorf("%v succeeded with the shared agreement left", argv)
+					continue
+				}
+				for _, want := range []string{shown, "teams/<definition>/agreement.yaml", "roles/<role>.yaml"} {
+					if !strings.Contains(stderr, want) {
+						t.Errorf("%v does not name %q:\n%s", argv, want, stderr)
+					}
+				}
+			}
+
+			// The placeholders in the sentence are the language's own (T13 R2):
+			// Japanese reads <チーム定義名> and <ロール名>, not the English words.
+			_, stderr, code := run("up", "demo", "--dry", "--lang", "ja")
+			if code == 0 {
+				t.Fatal("up --dry --lang ja did not stop on the shared agreement")
+			}
+			for _, want := range []string{"<チーム定義名>", "<ロール名>"} {
+				if !strings.Contains(stderr, want) {
+					t.Errorf("the Japanese sentence does not read %q:\n%s", want, stderr)
+				}
+			}
+			if strings.Contains(stderr, "<definition>") || strings.Contains(stderr, "<role>") {
+				t.Errorf("the Japanese sentence carries an English placeholder:\n%s", stderr)
+			}
+
+			// validate names the file and stops with exit 1.
+			stdout, _, code := run("validate")
+			if code == 0 {
+				t.Fatal("validate did not stop on the shared agreement")
+			}
+			if !strings.Contains(stdout, "file: "+shown+"\n") || !strings.Contains(stdout, "problems: 1\n") {
+				t.Errorf("validate does not name the file and count it:\n%s", stdout)
+			}
+			if strings.Contains(stdout, "S1") {
+				t.Errorf("validate counts a rule of the shared agreement:\n%s", stdout)
+			}
+
+			// Moved where it belongs, the same rule reaches the member.
+			writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"), shared)
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if got := mustRun(t, "up", "demo", "--dry"); !strings.Contains(got, "S1") {
+				t.Errorf("the rule moved to the team's agreement does not reach the prompt:\n%s", got)
+			}
+		})
 	}
 }
 

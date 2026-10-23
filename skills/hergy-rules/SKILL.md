@@ -5,11 +5,11 @@ description: "Use when a person wants to write, change or move the rules of a he
 
 # hergy-rules
 
-A hergy team's rules are files: one team's agreements in `teams/<team>/agreement.yaml`, the agreement every team shares in `agreement.yaml`, and one file per role in `roles/<role>.yaml` (the last two under the project's `.hergy/` or, outside it, `~/.config/hergy/`). They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
+A hergy team's rules are files: one team's rules in `teams/<team>/agreement.yaml` and one file per role in `roles/<role>.yaml` (under the project's `.hergy/` or, outside it, `~/.config/hergy/`). The agreement every team used to share (`agreement.yaml` beside the teams) is gone: while one is left, `hergy up`, `refresh`, `reprompt` and `hire` stop and name it, and hergy validate reports it, so move its rules into the team that read them or into a role document and remove the file. They are YAML, but the person you are working with does not write them. You ask, they answer, and you write the file.
 
 This skill is for the person's side of that: writing a new team's rules, changing an existing team's rules, moving rules out of Markdown, and filling in the origins later. The shape of every key is in `hergy cheat --ai`; the format and the checks are what this skill walks through.
 
-The rules can also be changed on the screen: `hergy serve` shows the role documents at `/roles` and a team's own agreement on the team's row at `/teams` (its ルール tab). Both open a rule in place, keep it in the file but out of the prompt, reorder sections and rules, and show the Markdown each member reads. The agreement every team shares (`agreement.yaml`) is not on the screen: it is written as a file. Send the person to the screen for a change they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, an origin to fill in, or the shared agreement).
+The rules can also be changed on the screen: `hergy serve` shows the role documents at `/roles` and a team's own agreement on the team's row at `/teams` (its ルール tab). Both open a rule in place, keep it in the file but out of the prompt, reorder sections and rules, and show the Markdown each member reads. Send the person to the screen for a change they want to make themselves; come back to this skill when the change needs the questions (a new team, a move out of Markdown, an origin to fill in, or moving the rules of an agreement every team used to share).
 
 ## What you keep to
 

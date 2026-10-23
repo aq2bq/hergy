@@ -179,7 +179,7 @@ Web UI:
     /             moves to /activity while this project has a team running, else to /teams
     /activity     this project's running teams: a row each with 許可待ち / 人間の番 / 止まっている / 仕事中, who the row is about (the member the line is about, or the members working with the workers under them), and how long it has been that way, with the moment it began. A row opens under itself into the newest question the row's own member asked — its options, then one line each for the older ones, with ほか N 件 letting the rest out — and 画面の最後, the last lines of that member's pane, with ▸ 上に N 行 letting the lines held back out; どうして止まっているか stands beside it: every member with 人間に渡した / 止まっている / 仕事中 and when it stopped, newest first, and the workers under ワーカー. The screen reads itself again every ten seconds without moving the cursor, the scroll, the open rows or the let-out panes, and it is one a person reads alone: its three writes answer 405. /activity?open=<team>,… opens those rows
     /teams        the team definitions: the list (name, mission, place, and the counts of its people, turns and rules), a toolbar above it with ＋ チーム定義を追加 (the new row opens at the top, with プロジェクト / 共通, a name to fill in, and the team.yaml and agreement.yaml it would write listed), and each row carrying 複製, 共通にコピー / プロジェクトにコピー and 削除; a row opens in place with the two tabs トポロジー (team.yaml as a figure: the human and the members as points, the turns as lines; a turn is added or taken away by pressing a point or a line, a card shows what the change would do to the prompt before it is made, and the team.yaml the row would write is shown line by line beside the figure) and ルール (the team's own agreement.yaml, with the part the role screen uses)
-    /teams/yaml   every team.yaml and agreement.yaml as text, the project's and the shared one, with line numbers and validate's problems beside the editor
+    /teams/yaml   every team.yaml and agreement.yaml as text, the project's and the one outside it, with line numbers and validate's problems beside the editor
     /profiles     the profiles: the list (name, kind, place, args, env and who uses it), a row that opens and is written in place, and the kind chips and search above it
     /profiles/assign  the members' and workers' profiles, one card per team definition; a pick is saved into that team.yaml
     /profiles/yaml  both profiles.yaml files as text, line numbers and validate's problems beside the editor
@@ -234,8 +234,8 @@ Settings files and their keys:
     ledger:           list, optional; which member may make which write to gy, one rule per entry, written "<write> by <member>[, <member>...]". <write> is the name of a gy write, the first two words of the why it records: req add, req approve, req done, req revise, criterion satisfy, need add, need close, decide, question add, question close, or "question to human" for a question whose decider is no member of the team. <member> is a members[].name; a worker's name cannot be written (a worker takes no rules). It moves no exit code: hergy validate warns once for each write a writer of the team (GY_ACTOR begins with the team name, or the name the launch record shows) made that the rule gives to other members, and when gy cannot be read it says so in one line instead.
   Where a member's documents are (team.yaml has no key for them):
     roles/<role>.yaml                 under .hergy/ or ~/.config/hergy/: a member's role document; read first. The project's first, then outside it.
-    agreement.yaml                    under .hergy/ or ~/.config/hergy/: the agreement every team shares; read next. Optional.
-    teams/<definition>/agreement.yaml the team's own agreement; read last. Optional.
+    teams/<definition>/agreement.yaml the team's own agreement; read next. Optional.
+    agreement.yaml at the top of .hergy/ or ~/.config/hergy/ is not read any more (the agreement every team used to share). While one is left, up, refresh, reprompt and hire stop before they build a prompt, naming the file and where the rules go, and validate names it; move the rules into a team's agreement or a role document, then remove the file.
   profiles.yaml, at .hergy/profiles.yaml or ~/.config/hergy/profiles.yaml, next to teams/:
     version: 1        required, int; must be 1.
     profiles:         mapping of profile name to engine.
@@ -246,8 +246,8 @@ Settings files and their keys:
       A name equal to its kind reads as a choice of kind; validate warns on it and says to name the model or the settings.
   A team definition reads the project's profiles.yaml over the one outside it, wherever the definition sits: a profile of the same name resolves to the project's.
 
-Rule files (what the role documents and the agreements are):
-  Every document a member reads is one rule file: the agreements (agreement.yaml) and a role document (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a role left as <role>.md stops with the way to move it over.
+Rule files (what the role documents and the team agreements are):
+  Every document a member reads is one rule file: a team's agreement (teams/<definition>/agreement.yaml) and a role document (roles/<role>.yaml). hergy up renders each file to Markdown and puts it where %{role_doc} and %{docs} were. Markdown is not read: a role left as <role>.md stops with the way to move it over.
   version: 1        required, int; must be 1.
   title: <text>     string, optional; rendered as "# <text>".
   revision: <int>   int, optional; for the people reading the file; never sent.

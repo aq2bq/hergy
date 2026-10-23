@@ -158,8 +158,8 @@ var glossary = []term{
 	{
 		id:       "shared-agreement",
 		english:  "shared agreement",
-		japanese: "共通のルール",
-		meaning:  "the rules every team definition of a layer gives its members, kept in one place for that layer",
+		japanese: "全チームのルール",
+		meaning:  "the rules hergy used to read for every team of one place, kept in agreement.yaml beside the teams; it is not read any more (d-31ad), and what is left stops the commands that build a prompt",
 	},
 	{
 		id:       "human",

@@ -32,8 +32,8 @@ func Preview(changes []Change) []string {
 // line says what changes on the human's side, because "no member's prompt
 // changes" alone reads as if the turn did nothing (walk-3 P1).
 //
-// When the changes name members of two or more definitions — a profile, a role
-// document or a shared agreement reaches every definition that reads it — the
+// When the changes name members of two or more definitions — a profile or a
+// role document reaches every definition that reads it — the
 // definition's name stands before the member ("hergy-dev の lead …"), so the same
 // sentence twice says which team's member it is about (spec/41 R1). One
 // definition's change is said the way it always was.

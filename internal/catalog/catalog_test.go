@@ -285,21 +285,23 @@ func TestRoleWithNoDocumentAndOneStillMarkdown(t *testing.T) {
 	}
 }
 
-// TestSharedAgreementPrefersLocalOverGlobal: the agreement every team of a layer
-// shares is one file, looked up the same way (K1), and writing none is allowed.
-func TestSharedAgreementPrefersLocalOverGlobal(t *testing.T) {
+// TestSharedAgreementsNamesEveryLeftover: hergy no longer reads the agreement
+// every team of a place used to share, so the catalog hands back every one left
+// behind, in the order a name is looked up (the project's first), for the
+// sentence that stops a command on it (d-31ad).
+func TestSharedAgreementsNamesEveryLeftover(t *testing.T) {
 	l := newLayers(t)
-	if _, ok := l.catalog().SharedAgreement(); ok {
-		t.Error("SharedAgreement() found a document that is not there")
+	if docs := l.catalog().SharedAgreements(); len(docs) != 0 {
+		t.Errorf("SharedAgreements() = %v, want none", docs)
 	}
 	write(t, filepath.Join(l.global, "agreement.yaml"), "version: 1\n")
-	doc, ok := l.catalog().SharedAgreement()
-	if !ok || doc.Path != filepath.Join(l.global, "agreement.yaml") || doc.Layer != source.LayerGlobal {
-		t.Errorf("SharedAgreement() = %q (%s), %v; want the global one", doc.Path, doc.Layer, ok)
+	docs := l.catalog().SharedAgreements()
+	if len(docs) != 1 || docs[0].Path != filepath.Join(l.global, "agreement.yaml") || docs[0].Layer != source.LayerGlobal {
+		t.Errorf("SharedAgreements() = %v, want the global one", docs)
 	}
 	write(t, filepath.Join(l.local, "agreement.yaml"), "version: 1\n")
-	doc, ok = l.catalog().SharedAgreement()
-	if !ok || doc.Path != filepath.Join(l.local, "agreement.yaml") || doc.Layer != source.LayerLocal {
-		t.Errorf("SharedAgreement() = %q (%s), %v; want the project's one", doc.Path, doc.Layer, ok)
+	docs = l.catalog().SharedAgreements()
+	if len(docs) != 2 || docs[0].Path != filepath.Join(l.local, "agreement.yaml") || docs[1].Path != filepath.Join(l.global, "agreement.yaml") {
+		t.Errorf("SharedAgreements() = %v, want the project's one then the global one", docs)
 	}
 }

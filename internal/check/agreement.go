@@ -94,21 +94,15 @@ func agreementText(in AgreementInput) string {
 }
 
 // agreementStarts is every member of one definition as the frames the size is
-// counted from: each member reads its own role document, the agreement every
-// team shares, and this team's agreement. It is roleStarts for the team's own
-// agreement, where the readers are all the members rather than one role's.
-// The prompt is not built: a definition whose prompt cannot be built still gives
-// its readers' sizes.
+// counted from: each member reads its own role document and this team's
+// agreement. It is roleStarts for the team's own agreement, where the readers
+// are all the members rather than one role's. The prompt is not built: a
+// definition whose prompt cannot be built still gives its readers' sizes.
 func agreementStarts(cat *catalog.Catalog, def *definition.Definition) []definition.Start {
-	var shared []source.Doc
-	if doc, has := cat.SharedAgreement(); has {
-		shared = append(shared, doc)
-	}
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		read := make([]source.Doc, 0, len(shared)+1)
-		read = append(read, shared...)
+		var read []source.Doc
 		if def.HasAgreement {
 			read = append(read, def.Agreement)
 		}

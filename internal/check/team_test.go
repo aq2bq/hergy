@@ -2,6 +2,7 @@ package check
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -156,5 +157,47 @@ func TestTeamStopsOnAnOpTheFileCannotHold(t *testing.T) {
 	}
 	if len(got.Graph.Nodes) != 3 || len(got.Graph.Turns) != 3 {
 		t.Errorf("graph = %+v, want the saved figure still drawn", got.Graph)
+	}
+}
+
+// TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition: while a layer still
+// holds the agreement every team used to share, every definition's check carries
+// one break with the same sentence the commands stop with; removing the file
+// takes the break away (d-31ad, T13 R1).
+func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
+	cat := teamsV2Catalog(t)
+	path := filepath.Join(cat.Base(), ".hergy", "agreement.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	docs := cat.SharedAgreements()
+	if len(docs) != 1 {
+		t.Fatalf("SharedAgreements() = %v, want the leftover one", docs)
+	}
+	want := SharedAgreementText(cat, docs)
+	for _, name := range []string{"core", "docs", "migrate", "research"} {
+		team := Team(TeamInput{Catalog: cat, Name: name, Layer: source.LayerLocal})
+		found := 0
+		for _, finding := range team.Problems {
+			if finding.Stops && finding.Text == want {
+				found++
+			}
+		}
+		if found != 1 {
+			t.Errorf("%s carries %d leftover breaks, want one", name, found)
+		}
+	}
+
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	team := Team(TeamInput{Catalog: cat, Name: "core", Layer: source.LayerLocal})
+	for _, finding := range team.Problems {
+		if finding.Text == want {
+			t.Error("the break stands after the file was removed")
+		}
 	}
 }

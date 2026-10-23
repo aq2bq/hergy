@@ -48,10 +48,10 @@ func TestReadersOfARoleDocument(t *testing.T) {
 	sameRefs(t, "readers of a document nobody reads", cat.Readers(filepath.Join(l.local, "roles", "absent.yaml")))
 }
 
-// TestReadersOfTheAgreements is who reads an agreement: every member of every
-// definition, for the one every team shares, and the members of that team alone
-// for a team's own (C8).
-func TestReadersOfTheAgreements(t *testing.T) {
+// TestReadersOfAnAgreement: a team's own agreement is read by that team's
+// members alone (C8). The agreement every team used to share is read by nobody
+// now, so it names nobody (d-31ad).
+func TestReadersOfAnAgreement(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
 	l.writeFullTeam(t, source.LayerGlobal, "other", "another team")
@@ -59,9 +59,7 @@ func TestReadersOfTheAgreements(t *testing.T) {
 	write(t, shared, "the agreement every team shares\n")
 	cat := l.catalog()
 
-	// other is the global layer's, and it reads the shared agreement too: the
-	// one way to a name is the same for every definition (K1).
-	sameRefs(t, "readers of the shared agreement", cat.Readers(shared), "other/a", "other/b", "t/a", "t/b")
+	sameRefs(t, "readers of the shared agreement", cat.Readers(shared))
 
 	own := filepath.Join(l.local, "teams", "t", "agreement.yaml")
 	sameRefs(t, "readers of the team's own agreement", cat.Readers(own), "t/a", "t/b")

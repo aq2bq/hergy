@@ -351,18 +351,13 @@ func roleDocProblems(cat *catalog.Catalog, def *definition.Definition, name, pat
 }
 
 // roleDocs is the documents one definition's members read, with the rules
-// parsed: the role document, the agreement every team shares, and the team's own
-// agreement, in the order a prompt joins them (段 4). A document that does not
-// read is left out: the break was reported where the document is its own.
+// parsed: the role document and the team's own agreement, in the order a prompt
+// joins them (段 4). A document that does not read is left out: the break was
+// reported where the document is its own.
 func roleDocs(cat *catalog.Catalog, def *definition.Definition, name string) []*rules.Document {
 	var docs []*rules.Document
 	if role, ok := cat.Role(name); ok {
 		if parsed := parseRoleDoc(cat, role); parsed != nil {
-			docs = append(docs, parsed)
-		}
-	}
-	if shared, ok := cat.SharedAgreement(); ok {
-		if parsed := parseRoleDoc(cat, shared); parsed != nil {
 			docs = append(docs, parsed)
 		}
 	}
@@ -473,18 +468,13 @@ func roleStarts(cat *catalog.Catalog, def *definition.Definition, name string) [
 	if !ok {
 		return nil
 	}
-	var shared []source.Doc
-	if doc, has := cat.SharedAgreement(); has {
-		shared = append(shared, doc)
-	}
 	var starts []definition.Start
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
 		if member.Role != name {
 			continue
 		}
-		read := make([]source.Doc, 0, len(shared)+1)
-		read = append(read, shared...)
+		var read []source.Doc
 		if def.HasAgreement {
 			read = append(read, def.Agreement)
 		}

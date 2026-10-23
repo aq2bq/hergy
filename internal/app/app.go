@@ -189,8 +189,8 @@ type resolved struct {
 // readDefinition reads a team definition by name (up, show) and builds its
 // members. layer forces one layer; empty is the one way, local first. runName
 // names the team at run time; empty means the definition name.
-func readDefinition(cat *catalog.Catalog, base, name, layer, runName string) (*resolved, error) {
-	def, err := cat.Definition(name, layer)
+func readDefinition(cat *catalog.Catalog, base, name, runName string) (*resolved, error) {
+	def, err := cat.Definition(name, "")
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +582,7 @@ func runLs(env team.Env, stdout io.Writer) error {
 
 func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.As)
 	if err != nil {
 		return err
 	}
@@ -601,8 +601,7 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 }
 
 // agreementDocs is what every member of a definition reads besides its own role
-// document, in the order a prompt joins them: the agreement every team of the
-// layer shares, then the team's own (段 4). It is read off the built prompts, so
+// document: the team's own agreement (段 4). It is read off the built prompts, so
 // the list a person sees cannot disagree with what the members were handed. A
 // document two members read stands once.
 func agreementDocs(r *resolved) []source.Doc {
@@ -714,6 +713,9 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		if path := filepath.Join(dir, "profiles.yaml"); isFile(path) {
 			reportProfileFile(stdout, env, path, report)
 		}
+	}
+	for _, doc := range cat.SharedAgreements() {
+		report(doc.Path, sharedAgreementError(cat, []source.Doc{doc}))
 	}
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
 		reportOldCommon(stdout, env, cat.LayerDir(layer))
@@ -838,18 +840,18 @@ func cliFindings(findings []check.Finding) []check.Finding {
 	return printed
 }
 
-// reportOldCommon warns about the layer's common/ directory, where the agreement
-// every team shares used to stand as a folder of files: it is one agreement.yaml
-// at the layer's root now (段 4, spec/32 D1). It is asked once for the layer
-// rather than once per team, because the directory is the layer's, and it moves
-// no exit code.
+// reportOldCommon warns about the layer's common/ directory, where the rules
+// every team shared used to stand as a folder of files. Those rules go into a
+// team's own agreement or a role document now (段 4, spec/32 D1). It is asked
+// once for the layer rather than once per team, because the directory is the
+// layer's, and it moves no exit code.
 func reportOldCommon(w io.Writer, env team.Env, dir string) {
 	matches, _ := filepath.Glob(filepath.Join(dir, "common", "*.yaml"))
 	if len(matches) == 0 {
 		return
 	}
 	field(w, label("warning"), i18n.Tf("validate.old_common",
-		env.Display(filepath.Join(dir, "common")), env.Display(filepath.Join(dir, "agreement.yaml"))))
+		env.Display(filepath.Join(dir, "common"))))
 }
 
 // reportProfileFile writes one profiles.yaml's line and its warnings, from the
@@ -1038,9 +1040,31 @@ func isFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// sharedAgreementStops is the error a command that builds a prompt stops with
+// when a layer still holds agreement.yaml at its top, the file every team used
+// to share (d-31ad): hergy no longer reads it, and the rules it held would
+// silently stop reaching the members. It is nil when no layer holds one.
+func sharedAgreementStops(cat *catalog.Catalog) error {
+	docs := cat.SharedAgreements()
+	if len(docs) == 0 {
+		return nil
+	}
+	return sharedAgreementError(cat, docs)
+}
+
+// sharedAgreementError is the sentence for one or more leftover shared
+// agreements: the paths, and the two places a rule goes now, in the layer the
+// first file was found in.
+func sharedAgreementError(cat *catalog.Catalog, docs []source.Doc) error {
+	return errors.New(check.SharedAgreementText(cat, docs))
+}
+
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, "", opts.As)
+	if err := sharedAgreementStops(cat); err != nil {
+		return err
+	}
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.As)
 	if err != nil {
 		return err
 	}
@@ -1523,7 +1547,11 @@ func printStatusJudgement(stdout io.Writer, rows []status.Row, indent string) er
 }
 
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	cat := env.Catalog(source.Disk{})
+	if err := sharedAgreementStops(cat); err != nil {
+		return err
+	}
+	r, err := resolveTeam(cat, env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1561,7 +1589,11 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	cat := env.Catalog(source.Disk{})
+	if err := sharedAgreementStops(cat); err != nil {
+		return err
+	}
+	r, err := resolveTeam(cat, env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1595,6 +1627,9 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	cat := env.Catalog(source.Disk{})
+	if err := sharedAgreementStops(cat); err != nil {
+		return err
+	}
 	resolve := resolveTeam
 	if opts.Dry {
 		// A plan is made from the team definition alone: a team that is not

@@ -87,6 +87,9 @@ func Team(in TeamInput) TeamReport {
 	if opErr != nil {
 		report.Problems = []Finding{{Stops: true, Text: opErr.Error()}}
 	}
+	// A leftover agreement every team used to share is one break on every
+	// definition, whatever its own file says (d-31ad, T13 R1).
+	report.Problems = append(sharedAgreementFindings(cat), report.Problems...)
 	return report
 }
 

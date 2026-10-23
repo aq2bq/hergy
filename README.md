@@ -101,9 +101,9 @@ version: 1              # required
 mission: "what this team is for"  # required; one line, shown first by the commands that handle a team and by the web UI
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
-                        # no key points at the documents: the shared agreement.yaml (every team),
-                        # teams/<definition>/agreement.yaml (this team) and roles/<role>.yaml are
-                        # read, in that order (the project's .hergy/ first, then ~/.config/hergy/)
+                        # no key points at the documents: teams/<definition>/agreement.yaml
+                        # (this team) and roles/<role>.yaml are read (the project's .hergy/
+                        # first, then ~/.config/hergy/)
 prompt: "…"             # bootstrap prompt template (optional); it must keep %{role_doc} and %{docs}
 members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"

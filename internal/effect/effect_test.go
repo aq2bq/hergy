@@ -244,13 +244,13 @@ func TestOfRoleChangeMovesTheRosterAndTheRoleDocument(t *testing.T) {
 
 // TestOfARuleDocumentChangeMovesTheAgreements: a screen that writes one rule of
 // a document writes the same path, so the change is read from the text both
-// sides read, not from the paths (段 4, 設計 7.3)。Both members read the shared
-// agreement, so both have an Agreements part.
+// sides read, not from the paths (段 4, 設計 7.3)。Both members read the team's
+// own agreement, so both have an Agreements part.
 func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
 	l := newLayer(t)
 	write(t, filepath.Join(l.team, "team.yaml"), teamText())
 	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	agreement := filepath.Join(l.root, "agreement.yaml")
+	agreement := filepath.Join(l.team, "agreement.yaml")
 	write(t, agreement, oneRule("A1", "前の文"))
 	cat := l.catalog(t)
 	before, err := cat.Read("demo")
@@ -285,7 +285,7 @@ func TestOfTheSameValuesInAnotherShapeChangesNothing(t *testing.T) {
 	l := newLayer(t)
 	write(t, filepath.Join(l.team, "team.yaml"), teamText())
 	write(t, filepath.Join(l.root, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	agreement := filepath.Join(l.root, "agreement.yaml")
+	agreement := filepath.Join(l.team, "agreement.yaml")
 	write(t, agreement, "version: 1\nsections:\n  - rules:\n      - id: A1\n        text: 前の文\n        why: 'だから'\n")
 	cat := l.catalog(t)
 	before, err := cat.Read("demo")

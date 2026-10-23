@@ -34,8 +34,8 @@ const (
 	// RoleDocument is the role document a member reads; a role change reads a
 	// different one.
 	RoleDocument
-	// Agreements are the team's own agreement and the layer's shared agreement a
-	// member reads.
+	// Agreements is the team's own agreement a member reads. The agreement
+	// every team used to share is not read any more (d-31ad).
 	Agreements
 	// Launch is how a member's agent is started: its profile's kind and args.
 	Launch

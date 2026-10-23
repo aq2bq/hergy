@@ -35,10 +35,9 @@ type Definition struct {
 
 	// Agreement is the team's own agreement: agreement.yaml in the definition's
 	// own directory, with HasAgreement saying whether the team wrote one. It is
-	// optional. The agreement every team of a layer shares is not the
-	// definition's to carry: the catalog holds it (catalog.SharedAgreement),
-	// because a name is looked up in one place (K1). A member's role document is
-	// looked up the same way (catalog.Role).
+	// optional. A member's role document is not the definition's to carry: the
+	// catalog looks it up (catalog.Role), because a name is looked up in one
+	// place (K1).
 	Agreement    source.Doc
 	HasAgreement bool
 	// Prompt is the definition's own prompt template, empty when it writes none

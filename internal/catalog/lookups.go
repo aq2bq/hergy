@@ -15,17 +15,14 @@ type MemberRef struct {
 }
 
 // Readers is the members of every readable team definition that read one rule
-// document (C8): a role document, the agreement every team shares, or a team's
-// own agreement. The document is told by its path, the way a screen holds it. A
-// definition that does not read is left out: what cannot be read has no members
-// to name.
+// document (C8): a role document or a team's own agreement. The document is told
+// by its path, the way a screen holds it. A definition that does not read is
+// left out: what cannot be read has no members to name.
 //
-// Every member of a definition reads the shared agreement, so when the path is
-// that one, every member of every readable definition is named. A member reads
-// its own role document, so the path is matched against the document its role
-// resolves to (K1).
+// A member reads its own role document, so the path is matched against the
+// document its role resolves to (K1); every member of a definition reads the
+// definition's own agreement.
 func (c *Catalog) Readers(path string) []MemberRef {
-	shared, hasShared := c.SharedAgreement()
 	var out []MemberRef
 	for _, def := range c.readable() {
 		// A definition's members share roles, so a role's document is looked up
@@ -40,8 +37,6 @@ func (c *Catalog) Readers(path string) []MemberRef {
 				roles[member.Role] = doc
 			}
 			switch {
-			case hasShared && shared.Path == path:
-				out = append(out, MemberRef{Definition: def.Name, Member: member.Name})
 			case def.HasAgreement && def.Agreement.Path == path:
 				out = append(out, MemberRef{Definition: def.Name, Member: member.Name})
 			case doc != "" && doc == path:

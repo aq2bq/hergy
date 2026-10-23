@@ -99,6 +99,34 @@ type Input struct {
 	Layer   string
 }
 
+// SharedAgreementText is the sentence a definition's check carries, and the
+// commands stop with, while a layer still holds agreement.yaml at its top — the
+// agreement every team used to share (d-31ad). It names the files, and the two
+// places a rule goes now, in the layer the first file was found in.
+func SharedAgreementText(cat *catalog.Catalog, docs []source.Doc) string {
+	paths := make([]string, 0, len(docs))
+	for _, doc := range docs {
+		paths = append(paths, cat.Display(doc.Path))
+	}
+	layer := cat.LayerDir(docs[0].Layer)
+	return i18n.Tf("error.shared_agreement_gone",
+		strings.Join(paths, i18n.T("list.separator")),
+		cat.Display(filepath.Join(layer, "teams", i18n.T("place.team_definition"), "agreement.yaml")),
+		cat.Display(filepath.Join(layer, "roles", i18n.T("place.role"))+".yaml"))
+}
+
+// sharedAgreementFindings is the one break every definition's check carries
+// while a layer still holds the agreement every team used to share: the screens
+// show it on every row and under the figure, so a leftover is not silent there
+// while the commands stop on it (d-31ad, T13 R1).
+func sharedAgreementFindings(cat *catalog.Catalog) []Finding {
+	docs := cat.SharedAgreements()
+	if len(docs) == 0 {
+		return nil
+	}
+	return []Finding{{Kind: KindRead, Stops: true, Text: SharedAgreementText(cat, docs)}}
+}
+
 // Definition checks one team definition and returns what it found, in the order
 // a person reads it: what stops it (one finding per thing to fix), then the
 // warnings.
@@ -152,9 +180,6 @@ func styleFindings(in Input, def *definition.Definition) []Finding {
 				out = append(out, Finding{Kind: KindStyle, Text: problem.Text})
 			}
 		}
-	}
-	if shared, ok := in.Catalog.SharedAgreement(); ok {
-		add(shared)
 	}
 	if def.HasAgreement {
 		add(def.Agreement)
@@ -649,9 +674,6 @@ func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.M
 			entry.Rules = append(entry.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
 		}
 		docs = append(docs, entry)
-	}
-	if shared, ok := cat.SharedAgreement(); ok {
-		add(shared, "")
 	}
 	if def.HasAgreement {
 		add(def.Agreement, "")

@@ -331,8 +331,8 @@ func r2MembersOf(text string) []r2Member {
 	return out
 }
 
-// r2AgreementSize is the amount of the agreements a team's members read: the
-// agreement every team shares and the team's own.
+// r2AgreementSize is the amount of the agreement a team's members read: the
+// team's own agreement.yaml.
 func (s *Server) r2AgreementSize(teamPath string) r2Size {
 	var out r2Size
 	add := func(path string) {
@@ -346,9 +346,6 @@ func (s *Server) r2AgreementSize(teamPath string) r2Size {
 		}
 		out.Rules += len(doc.IncludedRules())
 		out.Chars += rules.CharCount(doc.Markdown())
-	}
-	if shared, ok := s.cat.SharedAgreement(); ok {
-		add(shared.Path)
 	}
 	add(filepath.Join(filepath.Dir(teamPath), "agreement.yaml"))
 	return out

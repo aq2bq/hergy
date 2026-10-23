@@ -46,7 +46,8 @@
   "error.name_team_placeholder": "a member name must not contain %%{team} (the team name is added automatically): %s; take %%{team} out",
   "error.herdr_name_pattern": "the name with the team prefix (the herdr name) must match [a-z][a-z0-9_-]{0,31}: %q",
   "error.members_empty": "%s: members is empty; write at least one member under members:",
-  "error.docs_gone": "docs: is gone from team.yaml; write a team's agreement in teams/%s/agreement.yaml, and the agreement every team shares in agreement.yaml",
+  "error.docs_gone": "docs: is gone from team.yaml; write a team's rules in teams/%s/agreement.yaml, and the rules other teams must read too in a role document (roles/<role>.yaml)",
+  "error.shared_agreement_gone": "the shared agreement (%s) is gone. Its rules no longer reach any member's prompt: move them into a team agreement (%s) or a role document (%s), then remove this file",
   "error.roles_gone": "roles: is gone from team.yaml; write a role document as roles/<role>.yaml",
   "error.rules_not_mapping": "%s: %s must be a mapping; write it as key: value lines",
   "error.rules_not_sequence": "%s: %s must be a list; write it as lines that start with -",
@@ -330,7 +331,7 @@
   "validate.mission_placeholder": "the mission is still the starter's example; write what this team is for, in one line",
   "validate.old_team_agreement": "%s is no longer read; a team's agreement goes in %s (rename the file)",
   "validate.old_team_role": "%s is no longer read; a role document goes in %s",
-  "validate.old_common": "%s is no longer read; the agreement every team shares goes in %s",
+  "validate.old_common": "%s is no longer read; move its rules into a team's agreement (teams/<definition>/agreement.yaml) or a role document (roles/<role>.yaml)",
   "error.hire_purpose_outside": "%[1]s cannot hire for \"%[2]s\"; it may hire for: %[3]s (team.yaml workers:). Pass one of those purposes",
   "error.profile_flag_gone": "--profile is gone; the profile comes from the workers: entry in team.yaml (its from and purpose). Write the entry under workers:",
   "error.hire_purpose_nobody": "no member may hire a worker for \"%s\"; who may hire for what: %s. Pass one of those purposes",
@@ -449,5 +450,7 @@
   "web.profile.kind_needed": "choose a kind",
   "web.profile.name_needed": "write the profile's name",
   "web.profiles.add": "Add",
-  "web.profiles.exists": "profile %s is already there"
+  "web.profiles.exists": "profile %s is already there",
+  "place.team_definition": "<definition>",
+  "place.role": "<role>"
 }

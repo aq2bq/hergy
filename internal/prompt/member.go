@@ -67,9 +67,8 @@ func (r Run) shown(path string) string {
 	return r.Display(path)
 }
 
-// Sources is the one place a role document and the shared agreement are looked
-// up (K1). internal/catalog implements it; a prompt reads through it and never
-// sees a layer.
+// Sources is the one place a role document is looked up (K1). internal/catalog
+// implements it; a prompt reads through it and never sees a layer.
 type Sources interface {
 	// Role is the role document for a role name, and whether a layer has one.
 	Role(name string) (source.Doc, bool)
@@ -80,9 +79,6 @@ type Sources interface {
 	// name is looked up. It is what the sentence a missing role document gets
 	// names, so a person sees the whole list.
 	RolePlaces(name string) []string
-	// SharedAgreement is the agreement every team of a layer shares, and
-	// whether a layer wrote one.
-	SharedAgreement() (source.Doc, bool)
 }
 
 // Where is what a prompt error is about: the team.yaml field a screen puts the
@@ -91,8 +87,8 @@ type Sources interface {
 type Where int
 
 const (
-	// WhereFile is a rule file that is not the member's own: the agreement every
-	// team of the layer shares, or the team's own. The sentence names the file.
+	// WhereFile is a rule file that is not the member's own: the team's own
+	// agreement. The sentence names the file.
 	WhereFile Where = iota
 	// WhereRole is the member's role document: not there, still Markdown, or
 	// unreadable.
@@ -379,20 +375,14 @@ func checkTemplate(run Run, def *definition.Definition, node *definition.MemberN
 }
 
 // documentsOf is what every member of a definition reads besides its own role
-// document, in the order a prompt joins them: the agreement every team of the
-// layer shares, then the team's own agreement (段 4). Either may be missing, and
-// a definition that wrote neither has none.
-func documentsOf(def *definition.Definition, run Run) []source.Doc {
-	var docs []source.Doc
-	if run.Sources != nil {
-		if shared, ok := run.Sources.SharedAgreement(); ok {
-			docs = append(docs, shared)
-		}
-	}
+// document: the team's own agreement (段 4). It may be missing, and a definition
+// that wrote none has none. The agreement every team of a layer used to share is
+// not read any more (d-31ad).
+func documentsOf(def *definition.Definition, _ Run) []source.Doc {
 	if def.HasAgreement {
-		docs = append(docs, def.Agreement)
+		return []source.Doc{def.Agreement}
 	}
-	return docs
+	return nil
 }
 
 // memberRole is one member's role document, from the catalog: the one way a name
