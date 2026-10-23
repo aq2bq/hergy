@@ -365,6 +365,8 @@
   "error.edit_yaml": "%s を読み取れません: %v。ファイルは変わっていません。YAML の書き方を直してから、もう一度保存してください",
   "error.edit_not_mapping": "%s がマップではありません。ファイルは変わっていません。「キー: 値」の並びで書いてください",
   "error.edit_no_member": "team.yaml の members: に %s がありません。画面を読み直してから、もう一度操作してください",
+  "error.edit_member_twice": "team.yaml の members: に %s はすでにいます。別の名前を書いてください",
+  "error.edit_member_required": "メンバーの名前・ロール・プロファイルを書いてください",
   "error.edit_turn_twice": "team.yaml の turns: に %s はすでにあります。画面を読み直してから、もう一度操作してください",
   "error.edit_no_turn": "team.yaml の turns: に %s がありません。画面を読み直してから、もう一度操作してください",
   "error.edit_shape": "%s の %s は、この画面では書き換えられない形です。ファイルを直接直してください",

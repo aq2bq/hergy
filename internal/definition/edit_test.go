@@ -34,9 +34,11 @@ func humanID() definition.NodeID {
 type editCase struct {
 	name    string
 	op      definition.Op
+	path    string // the team.yaml a member op needs for its team name; "" is "team.yaml"
 	golden  string
 	removed []string
 	added   []string
+	multi   bool // the op changes more than one region
 }
 
 func editCases() []editCase {
@@ -119,6 +121,72 @@ func editCases() []editCase {
 			},
 			added: []string{
 				`    profile: coder`,
+			},
+		},
+		{
+			name:   "add-member",
+			op:     definition.AddMember("ops", "builder", "coder"),
+			path:   "teams/demo/team.yaml",
+			golden: "add_member.yaml",
+			added: []string{
+				`  - name: ops`,
+				`    role: builder`,
+				`    profile: coder`,
+			},
+		},
+		{
+			name:   "remove-member",
+			op:     definition.RemoveMember("lead"),
+			path:   "teams/demo/team.yaml",
+			golden: "remove_member.yaml",
+			removed: []string{
+				`  # 進行を見る lead`,
+				`  - name: lead`,
+				`    role: "lead" # ロールは引用してある`,
+				`    profile: planner`,
+				`  - human -> lead`,
+				`  - lead -> spec`,
+				`  - spec -> lead`,
+				`  - lead -> human`,
+				`turns:`,
+				`  - from: lead`,
+				`    purpose: 実装`,
+				`    profile: coder`,
+			},
+			added: []string{
+				`turns: []`,
+			},
+			multi: true,
+		},
+		{
+			name:   "rename-member",
+			op:     definition.RenameMember("spec", "writer"),
+			path:   "teams/demo/team.yaml",
+			golden: "rename_member.yaml",
+			removed: []string{
+				`  - name: spec`,
+				`  - lead -> spec`,
+				`  - spec -> lead`,
+				`  - from: spec`,
+			},
+			added: []string{
+				`  - name: writer`,
+				`  - lead -> writer`,
+				`  - writer -> lead`,
+				`  - from: writer`,
+			},
+			multi: true,
+		},
+		{
+			name:   "move-worker",
+			op:     definition.MoveWorker("lead", "実装", "spec"),
+			path:   "teams/demo/team.yaml",
+			golden: "move_worker.yaml",
+			removed: []string{
+				`  - from: lead`,
+			},
+			added: []string{
+				`  - from: spec`,
 			},
 		},
 	}
@@ -228,7 +296,11 @@ func TestEditYAMLKeepsEveryLineItDoesNotTouch(t *testing.T) {
 	before := editGolden(t, "before.yaml")
 	for _, tc := range editCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
+			path := tc.path
+			if path == "" {
+				path = "team.yaml"
+			}
+			got, err := definition.EditYAML([]byte(before), path, tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +313,11 @@ func TestEditYAMLKeepsEveryLineItDoesNotTouch(t *testing.T) {
 			if string(got) != want {
 				t.Errorf("EditYAML changed more than the op:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 			}
-			assertOnly(t, before, string(got), tc.removed, tc.added)
+			if tc.multi {
+				assertRest(t, before, string(got), tc.removed, tc.added)
+			} else {
+				assertOnly(t, before, string(got), tc.removed, tc.added)
+			}
 		})
 	}
 }
@@ -269,22 +345,35 @@ func TestEditYAMLStopsOnANameTheFileDoesNotHold(t *testing.T) {
 	cases := []struct {
 		name string
 		op   definition.Op
+		path string
 		want string
 	}{
-		{"no member", definition.MemberRole("nope", "lead"), i18n.Tf("error.edit_no_member", "nope")},
-		{"no member profile", definition.MemberProfile("nope", "lead"), i18n.Tf("error.edit_no_member", "nope")},
-		{"turn twice", definition.AddTurn(memberID("lead"), memberID("spec")), i18n.Tf("error.edit_turn_twice", "lead -> spec")},
-		{"no turn", definition.RemoveTurn(memberID("spec"), humanID()), i18n.Tf("error.edit_no_turn", "spec -> human")},
-		{"turn end is not a node", definition.AddTurn(memberID("nope"), humanID()), i18n.Tf("error.graph_edge_from", "nope -> human", "nope")},
-		{"turn start is not a node", definition.AddTurn(humanID(), memberID("nope")), i18n.Tf("error.graph_edge_to", "human -> nope", "nope")},
-		{"worker from is not a member", definition.AddWorker("nope", "試作", "planner"), i18n.Tf("error.graph_worker_from", "nope")},
-		{"worker twice", definition.AddWorker("lead", "実装", "coder"), i18n.Tf("error.edit_worker_twice", "実装", "lead")},
-		{"no worker", definition.RemoveWorker("lead", "試作"), i18n.Tf("error.edit_no_worker", "試作", "lead")},
-		{"no worker profile", definition.WorkerProfile("lead", "試作", "coder"), i18n.Tf("error.edit_no_worker", "試作", "lead")},
+		{"no member", definition.MemberRole("nope", "lead"), "", i18n.Tf("error.edit_no_member", "nope")},
+		{"no member profile", definition.MemberProfile("nope", "lead"), "", i18n.Tf("error.edit_no_member", "nope")},
+		{"turn twice", definition.AddTurn(memberID("lead"), memberID("spec")), "", i18n.Tf("error.edit_turn_twice", "lead -> spec")},
+		{"no turn", definition.RemoveTurn(memberID("spec"), humanID()), "", i18n.Tf("error.edit_no_turn", "spec -> human")},
+		{"turn end is not a node", definition.AddTurn(memberID("nope"), humanID()), "", i18n.Tf("error.graph_edge_from", "nope -> human", "nope")},
+		{"turn start is not a node", definition.AddTurn(humanID(), memberID("nope")), "", i18n.Tf("error.graph_edge_to", "human -> nope", "nope")},
+		{"worker from is not a member", definition.AddWorker("nope", "試作", "planner"), "", i18n.Tf("error.graph_worker_from", "nope")},
+		{"worker twice", definition.AddWorker("lead", "実装", "coder"), "", i18n.Tf("error.edit_worker_twice", "実装", "lead")},
+		{"no worker", definition.RemoveWorker("lead", "試作"), "", i18n.Tf("error.edit_no_worker", "試作", "lead")},
+		{"no worker profile", definition.WorkerProfile("lead", "試作", "coder"), "", i18n.Tf("error.edit_no_worker", "試作", "lead")},
+		{"add member twice", definition.AddMember("lead", "lead", "coder"), "teams/demo/team.yaml", i18n.Tf("error.edit_member_twice", "lead")},
+		{"add member needs a role", definition.AddMember("ops", "", "coder"), "teams/demo/team.yaml", i18n.Tf("error.edit_member_required")},
+		{"add member name outside the herdr pattern", definition.AddMember("Ops", "lead", "coder"), "teams/demo/team.yaml", i18n.Tf("error.herdr_name_pattern", "demo-Ops")},
+		{"remove no member", definition.RemoveMember("nope"), "teams/demo/team.yaml", i18n.Tf("error.edit_no_member", "nope")},
+		{"rename no member", definition.RenameMember("nope", "writer"), "teams/demo/team.yaml", i18n.Tf("error.edit_no_member", "nope")},
+		{"rename to a member there", definition.RenameMember("lead", "spec"), "teams/demo/team.yaml", i18n.Tf("error.edit_member_twice", "spec")},
+		{"move no worker", definition.MoveWorker("lead", "試作", "spec"), "teams/demo/team.yaml", i18n.Tf("error.edit_no_worker", "試作", "lead")},
+		{"move to no member", definition.MoveWorker("lead", "実装", "nope"), "teams/demo/team.yaml", i18n.Tf("error.edit_no_member", "nope")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := definition.EditYAML([]byte(before), "team.yaml", tc.op)
+			path := tc.path
+			if path == "" {
+				path = "team.yaml"
+			}
+			got, err := definition.EditYAML([]byte(before), path, tc.op)
 			if err == nil {
 				t.Fatalf("EditYAML wrote %q, want an error", got)
 			}
@@ -322,6 +411,33 @@ func assertOnly(t *testing.T, before, after string, removed, added []string) {
 	if !slices.Equal(gotAdded, added) {
 		t.Errorf("the lines that come in = %q, want %q", gotAdded, added)
 	}
+}
+
+// assertRest takes the lines the case says leave and come in out of both sides
+// and compares what is left, in order: a comment or a line that moved fails, and
+// so does a change the case did not name. It is assertOnly for an op that
+// changes more than one region.
+func assertRest(t *testing.T, before, after string, removed, added []string) {
+	t.Helper()
+	b := removeLines(splitLines(before), removed)
+	a := removeLines(splitLines(after), added)
+	if !slices.Equal(b, a) {
+		t.Errorf("the lines the op did not name:\n--- before ---\n%s\n--- after ---\n%s",
+			strings.Join(b, "\n"), strings.Join(a, "\n"))
+	}
+}
+
+func removeLines(lines, drop []string) []string {
+	out := slices.Clone(lines)
+	for _, one := range drop {
+		for i, line := range out {
+			if line == one {
+				out = append(out[:i:i], out[i+1:]...)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func splitLines(text string) []string {
@@ -659,5 +775,42 @@ func TestEditYAMLKeepsTheShapeTheFileWroteASequenceIn(t *testing.T) {
 				t.Errorf("EditYAML = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestEditYAMLRefusesAWorkerMoveThatWouldDuplicate: moving a worker to a member
+// that already hires one for the same purpose is refused, the way adding the
+// same pair twice is (I12c).
+func TestEditYAMLRefusesAWorkerMoveThatWouldDuplicate(t *testing.T) {
+	const before = `version: 1
+members:
+  - name: lead
+    role: lead
+    profile: coder
+  - name: spec
+    role: spec
+    profile: coder
+turns:
+  - human -> lead
+  - lead -> human
+  - human -> spec
+  - spec -> human
+workers:
+  - from: lead
+    purpose: 実装
+    profile: coder
+  - from: spec
+    purpose: 実装
+    profile: coder
+`
+	got, err := definition.EditYAML([]byte(before), "teams/demo/team.yaml", definition.MoveWorker("lead", "実装", "spec"))
+	if err == nil {
+		t.Fatalf("EditYAML wrote %q, want an error", got)
+	}
+	if want := i18n.Tf("error.edit_worker_twice", "実装", "spec"); err.Error() != want {
+		t.Errorf("error = %q, want %q", err, want)
+	}
+	if string(got) != "" {
+		t.Errorf("EditYAML returned %q with the error", got)
 	}
 }

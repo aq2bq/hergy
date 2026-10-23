@@ -316,6 +316,90 @@ func TestTeamsFigureCheckAndEffect(t *testing.T) {
 	}
 }
 
+// TestTEAMS_MemberOpsThroughTheAPI: the four member and worker ops the canvas
+// sends reach definition.EditYAML's single-purpose edits through the panel's
+// check: the preview is the team.yaml the save would write, and the other lines
+// stay where they were (r-b614).
+func TestTEAMS_MemberOpsThroughTheAPI(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	cases := []struct {
+		name string
+		op   map[string]any
+		want func(t *testing.T, text string)
+	}{
+		{
+			name: "addMember",
+			op:   map[string]any{"kind": "addMember", "member": "ops", "role": "builder", "profile": "coder"},
+			want: func(t *testing.T, text string) {
+				for _, line := range []string{"- name: ops", "role: builder", "profile: coder"} {
+					if !strings.Contains(text, line) {
+						t.Errorf("the preview does not hold %q:\n%s", line, text)
+					}
+				}
+			},
+		},
+		{
+			name: "removeMember",
+			op:   map[string]any{"kind": "removeMember", "member": "builder"},
+			want: func(t *testing.T, text string) {
+				for _, line := range []string{"name: builder", "lead -> builder", "builder -> human"} {
+					if strings.Contains(text, line) {
+						t.Errorf("the preview still holds %q:\n%s", line, text)
+					}
+				}
+			},
+		},
+		{
+			name: "renameMember",
+			op:   map[string]any{"kind": "renameMember", "member": "builder", "new": "impl"},
+			want: func(t *testing.T, text string) {
+				for _, line := range []string{"name: impl", "lead -> impl", "impl -> human"} {
+					if !strings.Contains(text, line) {
+						t.Errorf("the preview does not hold %q:\n%s", line, text)
+					}
+				}
+				if strings.Contains(text, "name: builder") || strings.Contains(text, "-> builder") || strings.Contains(text, "builder ->") {
+					t.Errorf("the preview still names builder:\n%s", text)
+				}
+			},
+		},
+		{
+			name: "moveWorker",
+			op:   map[string]any{"kind": "moveWorker", "from": "lead", "purpose": "試作", "to": "builder"},
+			want: func(t *testing.T, text string) {
+				if strings.Count(text, "from: lead") != 2 {
+					t.Errorf("the workers lead hires read %d, want 2:\n%s", strings.Count(text, "from: lead"), text)
+				}
+				if strings.Count(text, "from: builder") != 1 {
+					t.Errorf("the workers builder hires read %d, want the moved one:\n%s", strings.Count(text, "from: builder"), text)
+				}
+				if !strings.Contains(text, "purpose: 試作") {
+					t.Errorf("the moved worker's purpose is not in the preview:\n%s", text)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+				"place": "project", "name": "demo", "part": "team",
+				"doc": map[string]any{"ops": []map[string]any{tc.op}},
+			})
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("the check answers %d: %s", resp.StatusCode, body)
+			}
+			check := teamsCheck(t, body)
+			var text strings.Builder
+			for _, line := range check.Preview.Lines {
+				text.WriteString(line.Text)
+				text.WriteString("\n")
+			}
+			tc.want(t, text.String())
+		})
+	}
+}
+
 // TestTEAMS_F1_FigureSaveWritesTheOneLine: a save writes the ops with byte-exact
 // edits, so every line a person did not touch, a comment among them, comes back
 // as it was (spec-teams 1.3, X1).

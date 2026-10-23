@@ -365,6 +365,8 @@
   "error.edit_yaml": "cannot read %s: %v. The file has not changed. Fix the YAML and save again",
   "error.edit_not_mapping": "%s is not a mapping. The file has not changed. Write it as key: value lines",
   "error.edit_no_member": "team.yaml's members: has no %s; reload the page and try again",
+  "error.edit_member_twice": "team.yaml's members: already has %s; write another name",
+  "error.edit_member_required": "write the member's name, role and profile",
   "error.edit_turn_twice": "team.yaml's turns: already holds %s; reload the page and try again",
   "error.edit_no_turn": "team.yaml's turns: has no %s; reload the page and try again",
   "error.edit_shape": "%s's %s cannot be rewritten on this screen. Edit the file itself",

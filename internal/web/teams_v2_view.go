@@ -53,6 +53,14 @@ func (o t2Op) op() (definition.Op, error) {
 		return definition.MemberRole(o.Member, o.Role), nil
 	case "memberProfile":
 		return definition.MemberProfile(o.Member, o.Profile), nil
+	case "addMember":
+		return definition.AddMember(o.Member, o.Role, o.Profile), nil
+	case "removeMember":
+		return definition.RemoveMember(o.Member), nil
+	case "renameMember":
+		return definition.RenameMember(o.Member, o.New), nil
+	case "moveWorker":
+		return definition.MoveWorker(o.From, o.Purpose, o.To), nil
 	}
 	return definition.Op{}, fmt.Errorf("unknown op %q", o.Kind)
 }

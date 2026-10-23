@@ -1,0 +1,17 @@
+# このチームの定義
+# コメントだらけの team.yaml。触らない行が 1 字も変わらないことを見る
+version: 1
+mission: "いまの使命" # 使命は 1 行
+# メンバーは 2 人
+members:
+  # 仕様を書く spec
+  - name: spec
+    role: spec
+    profile: reviewer
+# 誰が誰に渡すか
+turns: []
+# 呼べるワーカー
+workers:
+  - from: spec
+    purpose: 調査
+    profile: reader

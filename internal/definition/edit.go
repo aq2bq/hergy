@@ -1,9 +1,11 @@
 package definition
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/yamledit"
 	"go.yaml.in/yaml/v3"
 )
@@ -30,6 +32,16 @@ const (
 	OpSetWorkerProfile
 	// OpSetWorkerPurpose changes one worker's purpose.
 	OpSetWorkerPurpose
+	// OpAddMember appends one members: entry.
+	OpAddMember
+	// OpRemoveMember removes one member, with its turns and workers.
+	OpRemoveMember
+	// OpRenameMember changes one member's name, and every turn and worker that
+	// names it.
+	OpRenameMember
+	// OpMoveWorker moves one worker to another member, keeping its place in the
+	// workers: list.
+	OpMoveWorker
 )
 
 // Op is one edit to team.yaml: one place, one change. Build it with the
@@ -50,6 +62,11 @@ type Op struct {
 	// NewPurpose is the purpose an OpSetWorkerPurpose writes in place of the
 	// worker's own.
 	NewPurpose string // OpSetWorkerPurpose
+	// NewMember is the name an OpRenameMember writes in place of the member's
+	// old name.
+	NewMember string // OpRenameMember
+	// To is the member an OpMoveWorker moves the worker to.
+	To string // OpMoveWorker
 }
 
 // Mission is the op that writes team.yaml's mission.
@@ -95,6 +112,33 @@ func WorkerPurpose(from, old, next string) Op {
 	return Op{Kind: OpSetWorkerPurpose, From: from, Purpose: old, NewPurpose: next}
 }
 
+// AddMember is the op that appends one member. The three fields are required;
+// the name is the short name, and the herdr name (<team>-<name>) is checked
+// where the file is written, from the team.yaml's own directory. A role that no
+// role document holds is allowed: the team definition's check reports it
+// (d-a575).
+func AddMember(name, role, profile string) Op {
+	return Op{Kind: OpAddMember, Member: strings.TrimSpace(name), Role: strings.TrimSpace(role), Profile: strings.TrimSpace(profile)}
+}
+
+// RemoveMember is the op that removes one member, its turns in both directions
+// and the workers it hires.
+func RemoveMember(name string) Op {
+	return Op{Kind: OpRemoveMember, Member: strings.TrimSpace(name)}
+}
+
+// RenameMember is the op that changes one member's name. Every turn and every
+// worker that names the old name is rewritten.
+func RenameMember(old, next string) Op {
+	return Op{Kind: OpRenameMember, Member: strings.TrimSpace(old), NewMember: strings.TrimSpace(next)}
+}
+
+// MoveWorker is the op that moves one worker to another member. The worker keeps
+// its place in the workers: list; it is not removed and added.
+func MoveWorker(from, purpose, to string) Op {
+	return Op{Kind: OpMoveWorker, From: strings.TrimSpace(from), Purpose: strings.TrimSpace(purpose), To: strings.TrimSpace(to)}
+}
+
 // EditYAML changes one place in a team.yaml and writes the file back (C3).
 //
 // It reads the yaml.Node tree to find the node the op names, and the tree edit
@@ -127,8 +171,12 @@ func EditYAML(text []byte, path string, op Op) ([]byte, error) {
 		return nil, i18n.Errorf("error.edit_shape", path, key)
 	}
 
+	if op.Kind == OpRemoveMember {
+		return removeMemberEdit(text, path, op.Member)
+	}
+
 	src := yamledit.New(text, path)
-	if err := applyLines(src, root, op); err != nil {
+	if err := applyLines(src, root, op, path); err != nil {
 		return nil, err
 	}
 
@@ -180,6 +228,14 @@ func applyTree(root *yaml.Node, op Op) error {
 		return setWorkerProfile(root, op.From, op.Purpose, op.Profile)
 	case OpSetWorkerPurpose:
 		return setWorkerPurpose(root, op.From, op.Purpose, op.NewPurpose)
+	case OpAddMember:
+		return addMember(root, op.Member, op.Role, op.Profile)
+	case OpRenameMember:
+		return renameMember(root, op.Member, op.NewMember)
+	case OpMoveWorker:
+		return moveWorker(root, op.From, op.Purpose, op.To)
+	case OpRemoveMember:
+		return removeMemberItem(root, op.Member)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
@@ -187,7 +243,7 @@ func applyTree(root *yaml.Node, op Op) error {
 
 // applyLines is the edit on the file's own lines: one place, and every other
 // line left as it was.
-func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
+func applyLines(src *yamledit.Source, root *yaml.Node, op Op, path string) error {
 	switch op.Kind {
 	case OpSetMission:
 		return setMissionLines(src, root, op.Mission)
@@ -207,6 +263,14 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		return setWorkerProfileLines(src, root, op.From, op.Purpose, op.Profile)
 	case OpSetWorkerPurpose:
 		return setWorkerPurposeLines(src, root, op.From, op.Purpose, op.NewPurpose)
+	case OpAddMember:
+		return addMemberLines(src, root, op.Member, op.Role, op.Profile, path)
+	case OpRenameMember:
+		return renameMemberLines(src, root, op.Member, op.NewMember, path)
+	case OpMoveWorker:
+		return moveWorkerLines(src, root, op.From, op.Purpose, op.To)
+	case OpRemoveMember:
+		return removeMemberItemLines(src, root, op.Member)
 	default:
 		return i18n.Errorf("error.edit_unknown_op")
 	}
@@ -353,7 +417,7 @@ func addWorkerLines(src *yamledit.Source, root *yaml.Node, from, purpose, profil
 	if err != nil {
 		return err
 	}
-	if workerFlow(v) {
+	if sequenceFlow(v) {
 		src.Insert(place.AfterLast, yamledit.Spaces(place.DashCol)+"- {from: "+yamledit.ScalarLiteral(from, 0)+", purpose: "+yamledit.ScalarLiteral(purpose, 0)+", profile: "+yamledit.ScalarLiteral(profile, 0)+"}")
 		return nil
 	}
@@ -376,21 +440,6 @@ func checkWorkerNew(root *yaml.Node, from, purpose string) error {
 		}
 	}
 	return nil
-}
-
-// workerFlow is whether the workers: entries beside the new one are written as
-// flow mappings ({from: …}), so the new entry is written the same way.
-func workerFlow(v *yaml.Node) bool {
-	if v.Kind != yaml.SequenceNode {
-		return false
-	}
-	if v.Style&yaml.FlowStyle != 0 {
-		return true
-	}
-	for _, item := range v.Content {
-		return item.Kind == yaml.MappingNode && item.Style&yaml.FlowStyle != 0
-	}
-	return false
 }
 
 // removeWorkerLines takes out one workers: entry, by the member that hires it
@@ -704,4 +753,422 @@ func keyScalar(key string) *yaml.Node {
 // valueScalar is a mapping or sequence value.
 func valueScalar(value string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value}
+}
+
+// teamNameOf is the team a team.yaml belongs to: the directory it stands in.
+// A member's herdr name is <team>-<name>, and the check for it needs the name
+// the file itself does not write (the folder's).
+func teamNameOf(path string) string {
+	return filepath.Base(filepath.Dir(path))
+}
+
+// addMemberLines appends one members: entry. The three fields are required, the
+// herdr name has to fit its pattern, and the member's name has to be new in this
+// definition. The entry is written the way the entries beside it are.
+func addMemberLines(src *yamledit.Source, root *yaml.Node, name, role, profileName, path string) error {
+	if name == "" || role == "" || profileName == "" {
+		return i18n.Errorf("error.edit_member_required")
+	}
+	herdr := teamNameOf(path) + "-" + name
+	if !profile.NamePattern.MatchString(herdr) {
+		return i18n.Errorf("error.herdr_name_pattern", herdr)
+	}
+	if _, ok := findMember(root, name); ok {
+		return i18n.Errorf("error.edit_member_twice", name)
+	}
+	for _, value := range []string{name, role, profileName} {
+		if err := src.Writable(value, "members"); err != nil {
+			return err
+		}
+	}
+	v := yamledit.MappingValue(root, "members")
+	if v == nil {
+		src.Append("members:",
+			"  - name: "+yamledit.ScalarLiteral(name, 0),
+			"    role: "+yamledit.ScalarLiteral(role, 0),
+			"    profile: "+yamledit.ScalarLiteral(profileName, 0))
+		return nil
+	}
+	place, err := yamledit.BlockPlace(src, root, "members", v)
+	if err != nil {
+		return err
+	}
+	if sequenceFlow(v) {
+		src.Insert(place.AfterLast, yamledit.Spaces(place.DashCol)+"- {name: "+
+			yamledit.ScalarLiteral(name, 0)+", role: "+yamledit.ScalarLiteral(role, 0)+
+			", profile: "+yamledit.ScalarLiteral(profileName, 0)+"}")
+		return nil
+	}
+	src.Insert(place.AfterLast,
+		yamledit.Spaces(place.DashCol)+"- name: "+yamledit.ScalarLiteral(name, 0),
+		yamledit.Spaces(place.DashCol+2)+"role: "+yamledit.ScalarLiteral(role, 0),
+		yamledit.Spaces(place.DashCol+2)+"profile: "+yamledit.ScalarLiteral(profileName, 0))
+	return nil
+}
+
+// removeMemberItemLines takes one members: entry out. The member's turns and
+// workers are removed before this, by the same single-purpose edits, so every
+// step keeps the lines it does not touch.
+func removeMemberItemLines(src *yamledit.Source, root *yaml.Node, member string) error {
+	seq := yamledit.MappingValue(root, "members")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return i18n.Errorf("error.edit_no_member", member)
+	}
+	for _, item := range seq.Content {
+		name := yamledit.MappingValue(item, "name")
+		if name != nil && name.Kind == yaml.ScalarNode && strings.TrimSpace(name.Value) == member {
+			return yamledit.RemoveItemLines(src, root, "members", seq, item)
+		}
+	}
+	return i18n.Errorf("error.edit_no_member", member)
+}
+
+// renameMemberLines changes one member's name, and every turns: line and
+// workers: from: that names it. Only those values' own lines move; comments,
+// order and the rest stay as they were.
+func renameMemberLines(src *yamledit.Source, root *yaml.Node, old, next, path string) error {
+	item, ok := findMember(root, old)
+	if !ok {
+		return i18n.Errorf("error.edit_no_member", old)
+	}
+	if old == next {
+		return nil
+	}
+	if next == "" {
+		return i18n.Errorf("error.edit_member_required")
+	}
+	herdr := teamNameOf(path) + "-" + next
+	if !profile.NamePattern.MatchString(herdr) {
+		return i18n.Errorf("error.herdr_name_pattern", herdr)
+	}
+	if _, exists := findMember(root, next); exists {
+		return i18n.Errorf("error.edit_member_twice", next)
+	}
+	if err := putKeyLines(src, item, "name", next); err != nil {
+		return err
+	}
+	if err := renameTurnLines(src, root, old, next); err != nil {
+		return err
+	}
+	return renameWorkerFromLines(src, root, old, next)
+}
+
+// renameTurnLines rewrites the member's end of every turns: line. A quoted
+// value keeps its quotes, and a flow sequence stays on its own line.
+func renameTurnLines(src *yamledit.Source, root *yaml.Node, old, next string) error {
+	v := yamledit.MappingValue(root, "turns")
+	if v == nil {
+		return nil
+	}
+	flow := v.Style&yaml.FlowStyle != 0
+	replace := func(node *yaml.Node) error {
+		from, to, err := parseTurn(node.Value, "turns")
+		if err != nil {
+			return nil
+		}
+		changed := false
+		if from.Kind == KindMember && from.Name == old {
+			from.Name = next
+			changed = true
+		}
+		if to.Kind == KindMember && to.Name == old {
+			to.Name = next
+			changed = true
+		}
+		if !changed {
+			return nil
+		}
+		return yamledit.ReplaceScalar(src, node, (Edge{From: from, To: to}).String(), "turns", flow)
+	}
+	switch v.Kind {
+	case yaml.ScalarNode:
+		return replace(v)
+	case yaml.SequenceNode:
+		for _, turn := range v.Content {
+			if err := replace(turn); err != nil {
+				return err
+			}
+		}
+	default:
+		// A shape turns: does not read as is checked where the file is read.
+	}
+	return nil
+}
+
+// renameWorkerFromLines rewrites the from: of every worker the member hires.
+func renameWorkerFromLines(src *yamledit.Source, root *yaml.Node, old, next string) error {
+	for _, worker := range sequenceOf(root, "workers") {
+		if from, _, ok := workerKey(worker); ok && from == old {
+			if err := putKeyLines(src, worker, "from", next); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// moveWorkerLines changes one worker's from: to another member. The entry keeps
+// its place in the list and its other values; the target may not already hire a
+// worker for the same purpose.
+func moveWorkerLines(src *yamledit.Source, root *yaml.Node, from, purpose, to string) error {
+	seq := yamledit.MappingValue(root, "workers")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return i18n.Errorf("error.edit_no_worker", purpose, from)
+	}
+	if _, ok := findMember(root, to); !ok {
+		return i18n.Errorf("error.edit_no_member", to)
+	}
+	if from == to {
+		for _, item := range seq.Content {
+			if f, p, ok := workerKey(item); ok && f == from && p == purpose {
+				return nil
+			}
+		}
+		return i18n.Errorf("error.edit_no_worker", purpose, from)
+	}
+	if err := checkWorkerNew(root, to, purpose); err != nil {
+		return err
+	}
+	for _, item := range seq.Content {
+		if f, p, ok := workerKey(item); ok && f == from && p == purpose {
+			return putKeyLines(src, item, "from", to)
+		}
+	}
+	return i18n.Errorf("error.edit_no_worker", purpose, from)
+}
+
+// removeMemberEdit is OpRemoveMember: the member's turns in both directions and
+// its workers go first, each by the single-purpose edit, and then the member's
+// own entry. Every step keeps the lines it does not touch, comments included.
+func removeMemberEdit(text []byte, path, member string) ([]byte, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(text, &doc); err != nil {
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, i18n.Errorf("error.edit_not_mapping", path)
+	}
+	root := doc.Content[0]
+	if key, ok := yamledit.ShapeKeyOf(root); ok {
+		return nil, i18n.Errorf("error.edit_shape", path, key)
+	}
+	if _, ok := findMember(root, member); !ok {
+		return nil, i18n.Errorf("error.edit_no_member", member)
+	}
+	edges := turnsOf(root)
+	workers := workersOf(root)
+	out := text
+	for _, edge := range edges {
+		if edge.From.Kind == KindMember && edge.From.Name == member || edge.To.Kind == KindMember && edge.To.Name == member {
+			next, err := EditYAML(out, path, RemoveTurn(edge.From, edge.To))
+			if err != nil {
+				return nil, err
+			}
+			out = next
+		}
+	}
+	for _, worker := range workers {
+		if worker[0] != member {
+			continue
+		}
+		next, err := EditYAML(out, path, RemoveWorker(worker[0], worker[1]))
+		if err != nil {
+			return nil, err
+		}
+		out = next
+	}
+	return removeMemberEntry(out, path, member)
+}
+
+// removeMemberEntry takes the member's own members: entry out; removeMemberEdit
+// has already taken the turns and workers.
+func removeMemberEntry(text []byte, path, member string) ([]byte, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(text, &doc); err != nil {
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, i18n.Errorf("error.edit_not_mapping", path)
+	}
+	root := doc.Content[0]
+	if key, ok := yamledit.ShapeKeyOf(root); ok {
+		return nil, i18n.Errorf("error.edit_shape", path, key)
+	}
+	src := yamledit.New(text, path)
+	if err := removeMemberItemLines(src, root, member); err != nil {
+		return nil, err
+	}
+	var want yaml.Node
+	if err := yaml.Unmarshal(text, &want); err != nil {
+		return nil, i18n.Errorf("error.edit_yaml", path, err)
+	}
+	if err := removeMemberItem(want.Content[0], member); err != nil {
+		return nil, err
+	}
+	out := src.Bytes()
+	if err := yamledit.SameValues(&want, out, path, teamSaveBug()); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// turnsOf is every turn the file writes, a lone scalar included.
+func turnsOf(root *yaml.Node) []Edge {
+	v := yamledit.MappingValue(root, "turns")
+	if v == nil {
+		return nil
+	}
+	var items []*yaml.Node
+	switch v.Kind {
+	case yaml.ScalarNode:
+		items = []*yaml.Node{v}
+	case yaml.SequenceNode:
+		items = v.Content
+	default:
+		// Another shape holds no turn the reader can name.
+	}
+	out := make([]Edge, 0, len(items))
+	for _, item := range items {
+		if from, to, err := parseTurn(item.Value, "turns"); err == nil {
+			out = append(out, Edge{From: from, To: to})
+		}
+	}
+	return out
+}
+
+// workersOf is every worker the file writes, by the member and purpose that
+// name it.
+func workersOf(root *yaml.Node) [][2]string {
+	var out [][2]string
+	for _, item := range sequenceOf(root, "workers") {
+		if from, purpose, ok := workerKey(item); ok {
+			out = append(out, [2]string{from, purpose})
+		}
+	}
+	return out
+}
+
+// addMember is the tree form of OpAddMember.
+func addMember(root *yaml.Node, name, role, profileName string) error {
+	if name == "" || role == "" || profileName == "" {
+		return i18n.Errorf("error.edit_member_required")
+	}
+	if _, ok := findMember(root, name); ok {
+		return i18n.Errorf("error.edit_member_twice", name)
+	}
+	seq := ensureSequence(root, "members")
+	seq.Content = append(seq.Content, memberEntry(name, role, profileName))
+	return nil
+}
+
+// memberEntry is one members: entry as yaml nodes.
+func memberEntry(name, role, profileName string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
+		keyScalar("name"), valueScalar(name),
+		keyScalar("role"), valueScalar(role),
+		keyScalar("profile"), valueScalar(profileName),
+	}}
+}
+
+// renameMember is the tree form of OpRenameMember.
+func renameMember(root *yaml.Node, old, next string) error {
+	item, ok := findMember(root, old)
+	if !ok {
+		return i18n.Errorf("error.edit_no_member", old)
+	}
+	if old == next {
+		return nil
+	}
+	if next == "" {
+		return i18n.Errorf("error.edit_member_required")
+	}
+	if _, exists := findMember(root, next); exists {
+		return i18n.Errorf("error.edit_member_twice", next)
+	}
+	putKey(item, "name", next)
+	if v := yamledit.MappingValue(root, "turns"); v != nil {
+		var items []*yaml.Node
+		switch v.Kind {
+		case yaml.ScalarNode:
+			items = []*yaml.Node{v}
+		case yaml.SequenceNode:
+			items = v.Content
+		default:
+			// Another shape holds no turn the reader can name.
+		}
+		for _, turn := range items {
+			from, to, err := parseTurn(turn.Value, "turns")
+			if err != nil {
+				continue
+			}
+			if from.Kind == KindMember && from.Name == old {
+				from.Name = next
+			}
+			if to.Kind == KindMember && to.Name == old {
+				to.Name = next
+			}
+			putScalar(turn, (Edge{From: from, To: to}).String())
+		}
+	}
+	for _, worker := range sequenceOf(root, "workers") {
+		if from, _, ok := workerKey(worker); ok && from == old {
+			putKey(worker, "from", next)
+		}
+	}
+	return nil
+}
+
+// moveWorker is the tree form of OpMoveWorker.
+func moveWorker(root *yaml.Node, from, purpose, to string) error {
+	seq := yamledit.MappingValue(root, "workers")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return i18n.Errorf("error.edit_no_worker", purpose, from)
+	}
+	if _, ok := findMember(root, to); !ok {
+		return i18n.Errorf("error.edit_no_member", to)
+	}
+	if from != to {
+		if err := checkWorkerNew(root, to, purpose); err != nil {
+			return err
+		}
+	}
+	for _, item := range seq.Content {
+		if f, p, ok := workerKey(item); ok && f == from && p == purpose {
+			putKey(item, "from", to)
+			return nil
+		}
+	}
+	return i18n.Errorf("error.edit_no_worker", purpose, from)
+}
+
+// removeMemberItem is the tree form of the member's own entry removal.
+func removeMemberItem(root *yaml.Node, member string) error {
+	seq := yamledit.MappingValue(root, "members")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return i18n.Errorf("error.edit_no_member", member)
+	}
+	for i, item := range seq.Content {
+		name := yamledit.MappingValue(item, "name")
+		if name != nil && name.Kind == yaml.ScalarNode && strings.TrimSpace(name.Value) == member {
+			seq.Content = append(seq.Content[:i:i], seq.Content[i+1:]...)
+			return nil
+		}
+	}
+	return i18n.Errorf("error.edit_no_member", member)
+}
+
+// sequenceFlow is whether a sequence's items are written as flow mappings
+// ({name: …}), so a new item is written the same way. addWorkerLines and
+// addMemberLines share it.
+func sequenceFlow(v *yaml.Node) bool {
+	if v == nil || v.Kind != yaml.SequenceNode {
+		return false
+	}
+	if v.Style&yaml.FlowStyle != 0 {
+		return true
+	}
+	for _, item := range v.Content {
+		return item.Kind == yaml.MappingNode && item.Style&yaml.FlowStyle != 0
+	}
+	return false
 }
