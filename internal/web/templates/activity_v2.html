@@ -6,11 +6,14 @@
 <title>hergy 活動</title>
 <link rel="stylesheet" href="/static/activity-v2.css">
 <link rel="stylesheet" href="/static/nav.css">
+<link rel="stylesheet" href="/static/deliver.css">
 <script src="/static/nav.js" defer></script>
+<script src="/static/api.js" defer></script>
+<script src="/static/deliver.js" defer></script>
 <script src="/static/activity-v2.js" defer></script>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" data-token="{{.Token}}">
   {{template "nav_band" .Nav}}
   <header class="top"><nav class="tabs"><span class="tab">一覧</span></nav></header>
   <main class="list" id="list"></main>

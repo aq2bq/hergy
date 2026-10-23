@@ -305,12 +305,18 @@ func (a *activityRead) Deliver(names []string) (deliver.Answer, error) {
 			return deliver.Answer{}, err
 		}
 	}
-	a.deliveryMu.Lock()
-	a.deliveryAt = time.Time{}
-	a.deliveryMu.Unlock()
+	a.InvalidateDelivery()
 	answer := a.plan(a.clock()).answer
 	answer.Sent = append([]string(nil), names...)
 	return answer, nil
+}
+
+// InvalidateDelivery drops the delivery answer held for the band and the sheet.
+// A save calls it from the one place every write passes.
+func (a *activityRead) InvalidateDelivery() {
+	a.deliveryMu.Lock()
+	a.deliveryAt = time.Time{}
+	a.deliveryMu.Unlock()
 }
 
 // refusalError is one sentence for the API: every refused member and why.

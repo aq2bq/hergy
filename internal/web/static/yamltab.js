@@ -124,6 +124,7 @@ window.hergyYaml = (() => {
     render(section, section._problems || []);
     check(section);
     note(section);
+    API.saved();
   }
 
   function revert(section) {

@@ -14,6 +14,7 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_pr
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -23,7 +24,7 @@ import {
 import path from 'node:path';
 import os from 'node:os';
 import { hergyBin, repo } from '../scripts/fixture.mjs';
-import { press, q, readTo, there, wait } from './helpers';
+import { press, q, readTo, set, there, wait } from './helpers';
 
 // scene is one state of the screens the showcase lays out.
 type Scene = 'standard' | 'running';
@@ -185,6 +186,56 @@ const crew = (name: string) => {
     `return a.querySelectorAll('.crew .nodes .nm:not(.wk)').length+'|'+a.querySelectorAll('.crew .nodes .nm.wk').length})()`
   );
 };
+
+// recordHerdr keeps the made-up herdr's own answers and writes down every call
+// it is asked, so the walk can see who a send prompted. Two things the
+// showcase's fake does not answer are filled here: `agent get`, which the send
+// road reads before it prompts a member (tools/showcase fakeHerdrBody answers
+// only tab list, agent list, agent read and pane current), and a line per call.
+// The original answers stay; the wrapper is put down before the first page is
+// opened, while no screen is reading herdr.
+function recordHerdr(app: App): string {
+  const bin = path.join(app.work, 'bin');
+  const inner = path.join(bin, 'fake-herdr-inner');
+  const log = path.join(app.work, 'herdr-calls.log');
+  renameSync(path.join(bin, 'fake-herdr'), inner);
+  writeFileSync(
+    path.join(bin, 'fake-herdr'),
+    `#!/bin/sh
+printf '%s %s %s\\n' "$1" "$2" "$3" >> ${JSON.stringify(log)}
+if [ "$1 $2" = "agent get" ]; then
+  t="$3"
+  case "$t" in p-*) t="\${t#p-}" ;; esac
+  kind=$(awk -v want="$t" '
+    index($0, "\\"name\\": \\"" want "\\"") {on=1}
+    on && index($0, "\\"agent\\": ") {line=$0; sub(/.*"agent": "/,"",line); sub(/".*/,"",line); print line; exit}
+  ' "$SHOWCASE_HERDR_DIR/agents.json")
+  echo "{\\"result\\":{\\"agent\\":{\\"name\\":\\"$t\\",\\"agent\\":\\"$kind\\",\\"agent_status\\":\\"idle\\",\\"pane_id\\":\\"p-$t\\",\\"tab_id\\":\\"t1\\",\\"state_change_seq\\":1}}}"
+  exit 0
+fi
+exec ${JSON.stringify(inner)} "$@"
+`,
+    { mode: 0o755 },
+  );
+  return log;
+}
+
+// prompted is the herdr names the send asked herdr to prompt, in the order the
+// calls were made: one `agent prompt <pane> <text>` call per recipient, and the
+// pane hergy named after the member.
+function prompted(log: string): string[] {
+  return readFileSync(log, 'utf8')
+    .split('\n')
+    .filter((line) => line.startsWith('agent prompt '))
+    .map((line) => line.split(' ')[2].replace(/^p-/, ''));
+}
+
+// bandCount is the band's number, or -1 before the button is drawn.
+const bandCount = `Number(document.querySelector('.bar .dlv-bandbtn b')?.textContent ?? -1)`;
+
+// sheetNames is the herdr names of the sheet's boxes that answer the selector.
+const sheetNames = (state: string) =>
+  `[...document.querySelectorAll('.dlv-sheet input[data-dlv-name]:${state}')].map(function(e){return e.dataset.dlvName}).join(',')`;
 
 // walkTeams opens the team definitions: the list, every row's two tabs, and the
 // YAML tab. Seven definitions stand in two places (docs in both), so the list
@@ -624,5 +675,82 @@ test.describe('running', () => {
       '--task', '5 分の負荷', '--team', 'core', '--dry', '--json',
     ]);
     expect(hire.members[0]?.name, 'the hire the running scene answers reads').toBe('core-load-1');
+  });
+
+  // SHOWCASE-D1 — 変更を伝える (r-a8fa, ac-92ea). The running scene carries a
+  // launch record per member, so three members are stale before anything is
+  // saved: impl-a waits, lead works and reviewer waits for a permission. The
+  // band says 3, and the sheet lets a person pick impl-a alone. A saved
+  // builder.yaml rule makes impl-b stale too (4); sending to impl-a and impl-b
+  // takes the band to 2 and prompts those two and no one else.
+  test('SHOWCASE-D1 the band counts the members a change was not told to', async ({ page, app }) => {
+    const log = recordHerdr(app);
+    await open(page, `${app.base}/activity`, '#list .act');
+    await readTo<number>(page, bandCount, 'the band with three pending members, want 3').toBe(3);
+
+    // The first look: impl-a waits, so it is picked; lead works and reviewer
+    // waits for a permission, so neither can be picked.
+    await press(page, q('.bar .dlv-bandbtn'));
+    await wait(page, there('.dlv-sheet'));
+    await readTo<string>(page, sheetNames('checked'), 'the sheet starts with impl-a picked alone').toBe('core-impl-a');
+    await readTo<string>(page, sheetNames('disabled'), 'lead and reviewer cannot be picked').toBe(
+      'core-lead,core-reviewer',
+    );
+    await press(page, q('.dlv-sheet .dlv-acts [data-dlv=close]'));
+    await wait(page, `!${there('.dlv-sheet')}`);
+    expect(prompted(log), 'opening the sheet sent something').toEqual([]);
+
+    // A save asks nothing and sends nothing. The band reads its number again
+    // after the server's five-second answer has run out.
+    const rule = (id: string) =>
+      `[...document.querySelectorAll('#rows .role.open .panel .rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()===${JSON.stringify(id)}})`;
+    await open(page, `${app.base}/roles?open=builder`, '#rows .role.open .panel .rule');
+    await press(page, `${rule('BUILD-5')}.querySelector('.rsum')`);
+    await wait(page, there('#rows .role.open .rule.open .redit [data-f=text]'));
+    await set(page, q('#rows .role.open .rule.open .redit [data-f=text]'), 'SHOWCASE-D1 が書き換えた本文。');
+    await press(page, q('#rows .role.open .pf [data-act=save]'));
+    await wait(page, there('#rows .role.open .ok'));
+    await readTo<boolean>(page, there('.dlv-sheet'), 'a save opened the sheet').toBe(false);
+    await readTo<number>(page, bandCount, 'the band after the builder.yaml save, want 4').toBe(4);
+    expect(prompted(log), 'a save sent something').toEqual([]);
+
+    // The activity screen marks the members whose definition changed; the mark
+    // opens the same sheet. impl-b is stale now, so both builders are picked.
+    await open(page, `${app.base}/activity`, '#list .act');
+    await wait(page, there('#list .act[data-team="core"] .crew'));
+    await readTo<number>(
+      page,
+      count('#list .act[data-team="core"] .crew .dlv-badge'),
+      'the marks of the four stale members, want four',
+    ).toBe(4);
+    const mark = (short: string) =>
+      `[...document.querySelectorAll('#list .act[data-team="core"] .crew .nodes li')].find(function(li){var n=li.querySelector('.nm');return n&&n.textContent.trim()===${JSON.stringify(short)}}).querySelector('.dlv-badge')`;
+    await press(page, mark('impl-b'));
+    await wait(page, there('.dlv-sheet'));
+    await readTo<string>(page, sheetNames('checked'), 'impl-b did not join impl-a as picked').toBe(
+      'core-impl-a,core-impl-b',
+    );
+    await readTo<string>(page, sheetNames('disabled'), 'lead and reviewer cannot be picked').toBe(
+      'core-lead,core-reviewer',
+    );
+    await readTo<string>(
+      page,
+      `[...document.querySelectorAll('.dlv-sheet .dlv-what a')].map(function(a){return a.getAttribute('href')}).join('|')`,
+      'the changed rule is not a link to its place',
+    ).toContain('/roles?open=builder&rule=BUILD-5');
+
+    // Sending takes the two picked members off the band and prompts those two.
+    await press(page, q('.dlv-sheet [data-dlv=send]'));
+    await wait(page, `!${there('.dlv-sheet')}`);
+    await readTo<string>(
+      page,
+      `document.querySelector('.dlv-toast')?.textContent ?? ''`,
+      'the send did not say who it reached',
+    ).toBe('core-impl-a・core-impl-b に伝えました');
+    await readTo<number>(page, bandCount, 'the band after the send, want 2').toBe(2);
+    expect(prompted(log).sort(), 'the send prompted more than the two picked members').toEqual([
+      'core-impl-a',
+      'core-impl-b',
+    ]);
   });
 });

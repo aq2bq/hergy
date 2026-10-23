@@ -813,6 +813,7 @@
     // A rename changes the name the address opens the row by, so the address
     // follows the save (spec-roles 2 節).
     syncURL(false);
+    API.saved();
   }
 
   async function doDelete(r, l) {
@@ -845,6 +846,7 @@
     state.ok['t' + id] = 1;
     await Promise.all(savedRoles().map((r) => { const l = eff(r); return askCheck(r, l, null); }));
     render();
+    API.saved();
   }
 
   // ---- 帯への報告と持ち越し (spec-nav.md 1.4, 1.5) ---------------------

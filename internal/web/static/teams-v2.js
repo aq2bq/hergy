@@ -1045,6 +1045,7 @@
     cundo.delete(dkey(r));
     rerenderRow(r);
     tellDirty();
+    API.saved();
   }
   async function saveAgree(r, panel) {
     if (r.draftRow) return saveFolder(r, panel);
@@ -1059,6 +1060,7 @@
     state.ok['a' + dkey(r)] = 1;
     rerenderSides(r);
     tellDirty();
+    API.saved();
     // The saved text's own problems are the new baseline, and the check the
     // panel shows is the one it now holds.
     checkAgree(r);
@@ -1107,6 +1109,7 @@
     state.ok[(dtabOf(nr) === 'agree' ? 'a' : 't') + dkey(nr)] = 1;
     rerenderSides(nr);
     syncURL();
+    API.saved();
   }
   // doDelete takes one definition's folder out of one place (spec-teams B6): its
   // team.yaml and its agreement.yaml, and the directory itself when the two files

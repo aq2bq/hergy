@@ -24,7 +24,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 	nowDoc := "version: 1\nsections:\n  - rules:\n      - id: C1\n        text: 新しい本文。\n      - id: C2\n        text: 足した本文。\n"
 	oldPrompt := "## Team agreements\n\n" + oldDoc + "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-reviewer（ロール reviewer）\n"
 	current := definition.Start{
-		Short: "lead", Role: "lead", Prompt: "new prompt",
+		Name: "demo-lead", Short: "lead", Role: "lead", Prompt: "new prompt",
 		Segments: []definition.PromptSegment{
 			{Kind: "team_rules", Text: "\n" + nowDoc, Origin: definition.PromptOrigin{Path: "demo/agreement.yaml"}},
 			{Kind: "turns", Text: "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-builder（ロール builder）\n"},
@@ -43,7 +43,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 		kinds = append(kinds, change.Kind+":"+change.Rule+change.Turn+change.Worker)
 	}
 	joined := strings.Join(kinds, ",")
-	for _, want := range []string{"rule:C1", "rule:C2", "turn:demo-builder", "worker:校正 → cheap"} {
+	for _, want := range []string{"rule:C1", "rule:C2", "turn:lead → builder", "worker:校正"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("changes = %+v, want %s", changes, want)
 		}

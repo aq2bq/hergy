@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,8 +13,9 @@ import (
 // answer, so the boundary can be tested without a herdr.
 type fakeDelivery struct {
 	fakeActivity
-	answer deliver.Answer
-	sent   []string
+	answer      deliver.Answer
+	sent        []string
+	invalidated int
 }
 
 func (f *fakeDelivery) Delivery() deliver.Answer { return f.answer }
@@ -23,6 +25,36 @@ func (f *fakeDelivery) Deliver(names []string) (deliver.Answer, error) {
 	answer := f.answer
 	answer.Sent = f.sent
 	return answer, nil
+}
+
+func (f *fakeDelivery) InvalidateDelivery() { f.invalidated++ }
+
+func TestDeliveryCacheIsDroppedAfterASave(t *testing.T) {
+	f := newFixture(t)
+	reading := &fakeDelivery{answer: deliver.Answer{Herdr: deliver.Note{OK: true}}}
+	server, err := New(f.catalog(), reading)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, body := f.api(t, server, http.MethodGet, "/api/role/builder?place=project", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET builder answers %d: %s", resp.StatusCode, body)
+	}
+	var read map[string]any
+	if err := json.Unmarshal([]byte(body), &read); err != nil {
+		t.Fatal(err)
+	}
+	text, _ := read["text"].(string)
+	hash, _ := read["hash"].(string)
+	resp, body = f.api(t, server, http.MethodPut, "/api/role/builder", map[string]any{
+		"place": "project", "name": "builder", "original": "builder", "hash": hash, "text": text,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save builder answers %d: %s", resp.StatusCode, body)
+	}
+	if reading.invalidated != 1 {
+		t.Errorf("the save invalidated the delivery answer %d times, want 1", reading.invalidated)
+	}
 }
 
 func TestDeliveryAPIAnswersTheCountTheSheetAndOneSend(t *testing.T) {

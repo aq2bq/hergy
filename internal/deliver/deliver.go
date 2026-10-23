@@ -114,7 +114,7 @@ func Compare(oldPrompt string, oldDocs map[string]string, current definition.Sta
 			}
 			out = append(out, changes...)
 		case "turns":
-			out = append(out, turnChanges(segment.Text, oldPrompt)...)
+			out = append(out, turnChanges(current, segment.Text, oldPrompt)...)
 		case "workers":
 			out = append(out, workerChanges(current, segment.Text, oldPrompt)...)
 		case "roster":
@@ -198,49 +198,98 @@ func ruleChanges(doc Doc, oldText string) []Change {
 	return out
 }
 
-// turnChanges compares the bullets of the turns note. The heading is the first
-// nonempty line of the current segment; the old section runs from it to the
-// next section heading.
-func turnChanges(current, oldPrompt string) []Change {
-	heading := firstHeading(current)
-	now := bulletLines(current)
-	old := bulletLines(section(oldPrompt, heading))
+// turnChanges compares the turns a member hands to, by their endpoints. The
+// current endpoints come from the definition (short member names and human);
+// the old endpoints are read from the old prompt's turns section. The summary
+// is the pair "lead → analyst", never a prompt line (r-a8fa audit 1 B).
+func turnChanges(current definition.Start, segment, oldPrompt string) []Change {
+	team := teamOf(current)
+	now := turnNames(current.Turns, team)
+	old := oldTurnNames(bulletLines(section(oldPrompt, firstHeading(segment))), team)
 	var out []Change
-	for _, line := range now {
-		if !containsLine(old, line) {
-			out = append(out, Change{Kind: "turn", Turn: line,
-				Text: i18n.Tf("delivery.turn_added", line)})
+	for _, to := range now {
+		if !containsLine(old, to) {
+			pair := turnPair(current.Short, to)
+			out = append(out, Change{Kind: "turn", Turn: pair,
+				Text: i18n.Tf("delivery.turn_added", pair)})
 		}
 	}
-	for _, line := range old {
-		if !containsLine(now, line) {
-			out = append(out, Change{Kind: "turn", Turn: line,
-				Text: i18n.Tf("delivery.turn_removed", line)})
+	for _, to := range old {
+		if !containsLine(now, to) {
+			pair := turnPair(current.Short, to)
+			out = append(out, Change{Kind: "turn", Turn: pair,
+				Text: i18n.Tf("delivery.turn_removed", pair)})
 		}
 	}
 	return out
 }
 
-// workerChanges names the workers a member may hire that changed. The current
-// pairs are in the definition; the old note's pairs are compared as text.
+// teamOf is the running team's name, from the member the prompt is for.
+func teamOf(current definition.Start) string {
+	return strings.TrimSuffix(current.Name, "-"+current.Short)
+}
+
+// turnNames is the endpoints a definition's turns give, with the running team's
+// prefix taken off: a short member name, or human.
+func turnNames(turns []string, team string) []string {
+	out := make([]string, 0, len(turns))
+	for _, turn := range turns {
+		name := turn
+		if team != "" {
+			name = strings.TrimPrefix(name, team+"-")
+		}
+		if name == "human" || name == "人間" {
+			name = "human"
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+// oldTurnNames reads the endpoints from the bullets of an old turns note. The
+// line carries the herdr name and role; only the name before the role is used.
+func oldTurnNames(lines []string, team string) []string {
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		name := line
+		if i := strings.IndexAny(name, " （("); i >= 0 {
+			name = name[:i]
+		}
+		if name == "human" || name == "人間" {
+			name = "human"
+		} else if team != "" {
+			name = strings.TrimPrefix(name, team+"-")
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+func turnPair(from, to string) string { return from + " → " + to }
+
+// workerChanges names the workers a member may hire that changed, by purpose.
+// The current purposes are in the definition; the old note's pairs are compared
+// as text and reported by purpose, never by the whole prompt line.
 func workerChanges(current definition.Start, segment, oldPrompt string) []Change {
-	now := make([]string, 0, len(current.Workers))
+	var nowPairs, nowPurposes []string
 	for _, worker := range current.Workers {
-		now = append(now, worker.Purpose+" → "+worker.Profile)
+		nowPairs = append(nowPairs, worker.Purpose+" → "+worker.Profile)
+		nowPurposes = append(nowPurposes, worker.Purpose)
 	}
 	var out []Change
-	for _, pair := range now {
+	for i, pair := range nowPairs {
 		if !strings.Contains(oldPrompt, pair) {
-			out = append(out, Change{Kind: "worker", Worker: pair,
-				Text: i18n.Tf("delivery.worker_added", pair)})
+			out = append(out, Change{Kind: "worker", Worker: nowPurposes[i],
+				Text: i18n.Tf("delivery.worker_added", nowPurposes[i])})
 		}
 	}
 	heading := firstHeading(segment)
 	old := section(oldPrompt, heading)
 	for _, pair := range workerPairs(old) {
-		if !containsLine(now, pair) {
-			out = append(out, Change{Kind: "worker", Worker: pair,
-				Text: i18n.Tf("delivery.worker_removed", pair)})
+		purpose, _, _ := strings.Cut(pair, " → ")
+		if !containsLine(nowPurposes, purpose) {
+			out = append(out, Change{Kind: "worker", Worker: purpose,
+				Text: i18n.Tf("delivery.worker_removed", purpose)})
 		}
 	}
 	return out

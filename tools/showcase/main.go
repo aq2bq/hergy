@@ -23,6 +23,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -768,7 +769,7 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 			return "", "", err
 		}
 	}
-	if err := writeFakeHerdr(filepath.Join(work, "bin", "fake-herdr")); err != nil {
+	if err := writeFakeHerdr(filepath.Join(work, "bin", "fake-herdr"), filepath.Join(work, "herdr")); err != nil {
 		return "", "", err
 	}
 	// The project is a git repository of its own: hergy finds the project root
@@ -955,14 +956,71 @@ case "$1 $2" in
   "agent list") cat "$d/agents.json" ;;
   "agent read")
     if [ -f "$d/screens/$3.txt" ]; then cat "$d/screens/$3.txt"; else echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi ;;
+  "agent get")
+    if [ -f "$d/get/$3.json" ]; then cat "$d/get/$3.json"; else echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi ;;
+  "agent prompt")
+    if [ -f "$d/get/$3.name" ]; then n=$(cat "$d/get/$3.name"); else n="$3"; fi
+    printf '%s\n' "$n" >> "$d/prompts.txt"
+    echo '{"result":{}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
 
 // writeFakeHerdr writes the made-up herdr where the serve is told to find it.
-func writeFakeHerdr(path string) error {
+// It also writes one agent answer per name and pane, so the send road can read
+// the agent it is about to prompt; an agent prompt writes the member's name to
+// prompts.txt in the scene's herdr directory (r-a8fa audit 1 B).
+func writeFakeHerdr(path, herdrDir string) error {
+	if err := writeAgentAnswers(herdrDir); err != nil {
+		return err
+	}
 	return os.WriteFile(path, []byte(fakeHerdrBody), 0o755) //nolint:gosec // G302: this is the program the serve runs
+}
+
+// writeAgentAnswers turns the scene's agent list into the one-agent answers the
+// made-up herdr gives for a name or a pane. It reads the sample data, writes
+// nothing back to it, and a scene with no live agents writes no answers.
+func writeAgentAnswers(herdrDir string) error {
+	raw, err := os.ReadFile(filepath.Join(herdrDir, "agents.json"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var list struct {
+		Result struct {
+			Agents []map[string]any `json:"agents"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return fmt.Errorf("%s: %w", filepath.Join(herdrDir, "agents.json"), err)
+	}
+	getDir := filepath.Join(herdrDir, "get")
+	if err := os.MkdirAll(getDir, 0o755); err != nil {
+		return err
+	}
+	for _, agent := range list.Result.Agents {
+		name, _ := agent["name"].(string)
+		pane, _ := agent["pane_id"].(string)
+		payload, err := json.Marshal(map[string]any{"result": map[string]any{"agent": agent}})
+		if err != nil {
+			return err
+		}
+		for _, target := range []string{name, pane} {
+			if target == "" {
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(getDir, target+".json"), payload, 0o644); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(getDir, target+".name"), []byte(name), 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // serveEnv is the environment hergy runs with: every place it reads or writes is

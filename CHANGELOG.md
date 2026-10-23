@@ -68,6 +68,29 @@ the content goes. For each one:
 5. Remove `why`, `send_why`, `origin`, `report`, `tests` and `reports:` and run
    `hergy validate` again. It must stop naming them.
 
+### Added
+
+- **The topology tab is a canvas**: select a member or a worker to change its
+  role and profile, its turns and its workers in the column beside the figure;
+  draw a turn from a node's edge to another node; double-click the empty canvas,
+  or press "+ ワーカー" with nothing selected, to add a member or a worker there;
+  remove with Delete and take an operation back with ⌘Z ("取り消す"). A member
+  just added can be saved before it hands the turn to anyone; it stays the
+  definition's problem until a turn is drawn.
+- **Every line a member is handed can be read on a screen**: a member's column on
+  the canvas shows the lines this team definition hands it (the template, the
+  roster, the turns, the workers and hergy's contact text) and folds the role
+  document and the team's rules into a line each that opens them on their own
+  screens. Together they are `hergy up --dry`'s prompt, character for
+  character; no screen lays the whole prompt out in one place.
+- **Hand a changed definition to the members already running**: a button beside
+  the screens' tabs counts the running members whose last prompt differs from
+  what the definition builds now. It opens a sheet that lists them by running
+  team with their state and what changed for them (a rule, a turn, a worker, a
+  document); the waiting ones can be picked and sent the new prompt, the way
+  `hergy reprompt` does. Saving sends nothing. The activity screen marks a
+  member whose definition changed.
+
 ### Changed
 
 - **`reprompt`, `nudge`, `stop` and `tell` plan without herdr**: their `--dry`

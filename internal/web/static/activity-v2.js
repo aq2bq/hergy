@@ -152,7 +152,11 @@ ${shown.map((l) => esc(l)).join('\n')}</pre>
 
   // ---- 開いた中の右: どうして止まっているか (2.5) --------------------------
   function crew(d) {
-    const row = (n) => `<li class="${esc(n.state)}${n.name === d.last ? ' last' : ''}"><i class="dot ${esc(n.state)}"></i><span class="nm">${esc(n.name)}</span><span class="sw">${NS[n.state] || ''}</span><span class="t">${esc(n.at || '')}</span></li>`;
+    // 定義が変わった人には、その行の下の 1 段に印を出す (r-a8fa)。押すとシートが
+    // 開く（deliver.js が受ける）。印だけを出し、何が変わるかはシートがサーバから
+    // 読む（V1）。
+    const mark = (n) => n.stale ? '<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります">定義が変わった</button></span>' : '';
+    const row = (n) => `<li class="${esc(n.state)}${n.name === d.last ? ' last' : ''}"><i class="dot ${esc(n.state)}"></i><span class="nm">${esc(n.name)}</span><span class="sw">${NS[n.state] || ''}</span><span class="t">${esc(n.at || '')}</span>${mark(n)}</li>`;
     // ワーカーの行は名前だけ（X1）: 目的と呼んだメンバーは herdr にも起動の記録にも無い。
     const wrow = (n) => `<li class="${esc(n.state)}"><i class="dot ${esc(n.state)}"></i><span class="nm wk">${esc(n.name)}</span><span class="sw">${NS[n.state] || ''}</span><span class="t">${esc(n.at || '')}</span></li>`;
     const hired = (d.hired || []).length ? `<li class="sub">ワーカー</li>${d.hired.map(wrow).join('')}` : '';

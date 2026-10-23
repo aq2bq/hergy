@@ -6,8 +6,9 @@
 window.hergyAPI = (() => {
   'use strict';
 
-  const view = document.getElementById('view');
-  const token = (view && view.dataset.token) || '';
+  // The page carries this run's token wherever it writes; the activity screen
+  // holds it on its list, the others on #view (r-a8fa).
+  const token = (document.querySelector('[data-token]') || {}).dataset?.token || '';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -16,7 +17,8 @@ window.hergyAPI = (() => {
   // as JSON, and the token rides in the header, so POST, PUT and DELETE are one
   // shape (a DELETE carries no body at all).
   async function call(method, url, payload) {
-    const opts = { method, credentials: 'same-origin', headers: { 'X-Hergy-Token': token } };
+    const opts = { method, credentials: 'same-origin', headers: {} };
+    if (token) opts.headers['X-Hergy-Token'] = token;
     if (payload !== undefined) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(payload);
@@ -148,6 +150,18 @@ window.hergyAPI = (() => {
     // document away. The team kind takes a whole folder, so it carries the second
     // file's hash too (spec-teams B6).
     del: (kind, name, place, hash, agreementHash) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ''}`),
+    // ---- 変更を伝える (r-a8fa) -----------------------------------------
+    // delivery is GET /api/delivery: the running members whose prompt is not the
+    // one hergy last handed them, by running team.
+    delivery: () => call('GET', '/api/delivery'),
+    // deliveryCount is GET /api/delivery/count: the band's number alone.
+    deliveryCount: () => call('GET', '/api/delivery/count'),
+    // deliver is POST /api/delivery: hand the current prompt to the named herdr
+    // members. A refusal comes back 422 with the one sentence in text.
+    deliver: (members) => call('POST', '/api/delivery', { members }),
+    // saved says one save wrote. Every screen's successful save says it, and the
+    // band reads its number again (deliver.js).
+    saved: () => document.dispatchEvent(new CustomEvent('hergy:saved')),
     // after waits ms and calls fn, forgetting an earlier wait on the same box.
     after: (box, ms, fn) => {
       clearTimeout(box._apiTimer);

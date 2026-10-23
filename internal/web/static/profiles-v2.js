@@ -660,6 +660,7 @@
     updateTeam(team);
     updateKindbar();
     tellDirty();
+    API.saved();
   }
 
   // ---- the YAML tab ----------------------------------------------------
@@ -965,6 +966,7 @@
     if (!answer.ok) { showRefusal(panel, API.problemText(answer, '保存できませんでした')); return; }
     PROFILE = API.profileModel(API.answer(answer));
     renderRows(PROFILE, true, draft.name);
+    API.saved();
   }
 
   view.addEventListener('input', (event) => {

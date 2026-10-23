@@ -18,6 +18,9 @@ type Deliverer interface {
 	// Deliver hands the current prompt to the named members, refusing the whole
 	// request if one is not a waiting, stale member.
 	Deliver(names []string) (deliver.Answer, error)
+	// InvalidateDelivery drops the five-second delivery answer after a save, so
+	// the band reads the number the save made.
+	InvalidateDelivery()
 }
 
 // emptyDelivery is what a server with no deliverer answers: nothing stale, and

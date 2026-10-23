@@ -18,6 +18,10 @@ import (
 // page needs that is not in the answer.
 type a2PageData struct {
 	Nav navData
+	// Token is the write token of this serve, for the band's send and the sheet
+	// (r-a8fa). The activity page's template writes it as data-token; the page
+	// itself is read-only, but the changed-definition sheet is a write.
+	Token string
 	// Words is the island of the sentences the screen says when there is
 	// nothing to show. Every other word comes with the answer, because the
 	// server writes it (spec-activity 3, V1).
@@ -34,7 +38,7 @@ func (s *Server) a2Page(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, err)
 		return
 	}
-	data := a2PageData{Nav: s.navOf("activity"), Words: template.JS(words)} //nolint:gosec // words is json.Marshal output, which escapes <, > and &, so it cannot close the script element that carries it
+	data := a2PageData{Nav: s.navOf("activity"), Token: s.token, Words: template.JS(words)} //nolint:gosec // words is json.Marshal output, which escapes <, > and &, so it cannot close the script element that carries it
 	var buf bytes.Buffer
 	if err := s.tpl.ExecuteTemplate(&buf, "a2_page", data); err != nil {
 		s.problem(w, r, err)
