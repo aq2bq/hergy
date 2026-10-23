@@ -1238,10 +1238,10 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 	if got := mustRun(t, "refresh", "--all", "--dry"); !strings.HasSuffix(got, "next: refresh --all --team demo\n") {
 		t.Fatalf("refresh --all --dry does not end with next:\n%s", got)
 	}
-	if got := mustRun(t, "reprompt", "lead", "--dry"); !strings.HasSuffix(got, "next: reprompt lead --team demo\n") {
+	if got := mustRun(t, "reprompt", "lead", "--team", "demo", "--dry"); !strings.HasSuffix(got, "next: reprompt lead --team demo\n") {
 		t.Fatalf("reprompt <member> --dry does not end with next:\n%s", got)
 	}
-	if got := mustRun(t, "reprompt", "--all", "--dry"); !strings.HasSuffix(got, "next: reprompt --all --team demo\n") {
+	if got := mustRun(t, "reprompt", "--all", "--team", "demo", "--dry"); !strings.HasSuffix(got, "next: reprompt --all --team demo\n") {
 		t.Fatalf("reprompt --all --dry does not end with next:\n%s", got)
 	}
 }
@@ -2566,6 +2566,7 @@ func TestTeamCommandWithoutArgumentUsesTheOneRunningTeam(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:qw@qw"}`, "")
+	recordTeamLaunch(t, "qw")
 	got := mustRun(t, "reprompt", "lead", "--dry")
 	if !strings.HasSuffix(got, "next: reprompt lead --team qw\n") {
 		t.Fatalf("reprompt with no team does not name the one running team:\n%s", got)
@@ -2580,11 +2581,11 @@ func TestTeamCommandWithoutArgumentStopsWhenNone(t *testing.T) {
 	f.runningHerdr(t, "", "")
 	_, stderr, code := run("reprompt", "lead", "--dry")
 	if code == 0 {
-		t.Fatal("reprompt with no running team succeeded")
+		t.Fatal("reprompt --dry with no team and no record succeeded")
 	}
-	for _, want := range []string{"no teams are running", "hergy up <definition>"} {
+	for _, want := range []string{"--dry does not read herdr", "--team"} {
 		if !strings.Contains(stderr, want) {
-			t.Fatalf("reprompt with no running team does not say %q:\n%s", want, stderr)
+			t.Fatalf("reprompt --dry with no team does not say %q:\n%s", want, stderr)
 		}
 	}
 }
@@ -2596,13 +2597,15 @@ func TestTeamCommandWithoutArgumentStopsWhenSeveral(t *testing.T) {
 	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
+	recordTeamLaunch(t, "qw")
+	recordTeamLaunch(t, "qw2")
 	_, stderr, code := run("reprompt", "lead", "--dry")
 	if code == 0 {
-		t.Fatal("reprompt with several running teams succeeded")
+		t.Fatal("reprompt --dry with several records succeeded")
 	}
-	for _, want := range []string{"name a team", "qw", "qw2", "next: status"} {
+	for _, want := range []string{"name a team", "qw", "qw2"} {
 		if !strings.Contains(stderr, want) {
-			t.Fatalf("reprompt with several running teams does not say %q:\n%s", want, stderr)
+			t.Fatalf("reprompt --dry with several records does not say %q:\n%s", want, stderr)
 		}
 	}
 }
@@ -2720,6 +2723,7 @@ func TestTeamCommandTargetsTheNamedTeam(t *testing.T) {
 	mustRun(t, "new", "qw")
 	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
 	f.runningHerdr(t, tabs, "")
+	recordTeamLaunch(t, "qw2")
 	got := mustRun(t, "reprompt", "lead", "--team", "qw2", "--dry")
 	for _, line := range []string{"team: qw2 (from qw)", "member: qw2-lead"} {
 		if !strings.Contains(got, line+"\n") {

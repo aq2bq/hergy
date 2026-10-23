@@ -70,6 +70,14 @@ the content goes. For each one:
 
 ### Changed
 
+- **`reprompt`, `nudge`, `stop` and `tell` plan without herdr**: their `--dry`
+  now builds the plan from the team definition and this project's launch
+  record, like `hire --dry`, instead of reading herdr's live agents and tabs.
+  A team that is not running can be planned for; name it with `--team` (a team
+  name, or a team definition name the launch record does not know), and with no
+  `--team` the one team in the launch record is used. A `--dry` without a team
+  and without a record asks for `--team`. The real runs are unchanged, and
+  `down --dry` and `refresh --dry` still read the live state they check.
 - **A bootstrap prompt now says that sending a message hands the turn**: the
   contact guide (`herdr.guide_member` and `herdr.guide_worker`) says that
   sending to a teammate hands them the turn and that writing in one's own pane

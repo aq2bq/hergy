@@ -1487,7 +1487,11 @@ func runFocus(env team.Env, opts *options.Options, stdout io.Writer) error {
 // runNudge sends one member a short push to carry on, only when it is idle or
 // done. --dry prints the message and sends nothing.
 func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	resolve := resolveTeam
+	if opts.Dry {
+		resolve = resolveTeamDry
+	}
+	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1499,7 +1503,11 @@ func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if body == "" {
 		body = i18n.T("nudge.default")
 	}
-	text := sendText(senderName(r, os.Getenv("HERDR_PANE_ID")), body)
+	from := ""
+	if !opts.Dry {
+		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
+	}
+	text := sendText(from, body)
 	if opts.Dry {
 		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
 		return nil
@@ -1510,7 +1518,11 @@ func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
 // runStop interrupts one member's current turn. --dry prints what would stop and
 // reads nothing.
 func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	resolve := resolveTeam
+	if opts.Dry {
+		resolve = resolveTeamDry
+	}
+	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1540,7 +1552,11 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 // runTell sends one member a message from a person or another member. --dry
 // prints the message and sends nothing.
 func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	resolve := resolveTeam
+	if opts.Dry {
+		resolve = resolveTeamDry
+	}
+	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -1548,9 +1564,15 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	from, err := tellSender(r, opts)
-	if err != nil {
-		return err
+	from := ""
+	if opts.From != "" {
+		found, err := r.member(opts.From)
+		if err != nil {
+			return i18n.Errorf("error.tell_from_unknown", opts.From)
+		}
+		from = found.Name
+	} else if !opts.Dry {
+		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
 	}
 	text := sendText(from, opts.Body)
 	if opts.Dry {
@@ -1586,20 +1608,6 @@ func senderName(r *resolved, selfPane string) string {
 		}
 	}
 	return ""
-}
-
-// tellSender is who a tell's message is from: --from resolved against the team,
-// else the pane's member, else the human (""). A --from name the team does not
-// have is refused.
-func tellSender(r *resolved, opts *options.Options) (string, error) {
-	if opts.From == "" {
-		return senderName(r, os.Getenv("HERDR_PANE_ID")), nil
-	}
-	member, err := r.member(opts.From)
-	if err != nil {
-		return "", i18n.Errorf("error.tell_from_unknown", opts.From)
-	}
-	return member.Name, nil
 }
 
 // brokenTeamLine is why a running team's definition cannot be read, as one line:
@@ -1669,7 +1677,11 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	if err := sharedAgreementStops(cat); err != nil {
 		return err
 	}
-	r, err := resolveTeam(cat, env.ProjectRoot, opts)
+	resolve := resolveTeam
+	if opts.Dry {
+		resolve = resolveTeamDry
+	}
+	r, err := resolve(cat, env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}

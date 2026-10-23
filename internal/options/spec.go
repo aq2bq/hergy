@@ -52,8 +52,8 @@ var (
 	descJSON    = text("With --dry, print the plan as JSON (--dry is required)", "--dry の計画を JSON で表示する（--dry が必要）")
 	descTimeout = text("Startup timeout in milliseconds, 3001..300000 (default 30000)", "起動を待つ時間（ミリ秒。3001〜300000、既定 30000）")
 	descTeam    = text(
-		"The team to act on, by team name\n(left out: the one running team)",
-		"対象のチーム名\n（動いているチームが1つだけなら省ける）")
+		"The team to act on, by team name\n(with --dry, a team definition name the launch record does not\nknow is also taken; left out: the one running team, or with\n--dry the one team in this project's launch record)",
+		"対象のチーム名\n（--dry では、起動の記録に無いチーム定義名も書ける。\n省くと動いているチームが1つだけならそのチーム、--dry では\nこのプロジェクトの起動の記録にある1つのチーム）")
 	descHireTeam = text(
 		"The team, by team name or team definition name\n(left out: with --dry, the one team in this project's\nlaunch record; else the one running team)",
 		"対象のチーム（チーム名かチーム定義名）\n（省くと、--dry ではこのプロジェクトの起動の記録にある1つのチーム。\nそうでなければ、動いているチームが1つだけなら省ける）")
@@ -204,8 +204,8 @@ var specs = []Spec{
 		Flags: []Use{
 			use(flagTeam, descTeam),
 			use(flagDry, text(
-				"Print what would be sent and send nothing\nIt never reads herdr",
-				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
+				"Print what would be sent and send nothing\nIt never reads herdr; the sender is the human\n(a --dry run cannot read the pane's member)",
+				"送る予定だけを表示し、何も送らない\nherdr は読まない。送り主は人間として出す\n（--dry では、打ったペインのメンバーを読まない）")),
 			use(flagDir, descDir),
 		},
 	},
@@ -253,8 +253,8 @@ var specs = []Spec{
 				"誰からの本文か（短いメンバー名か herdr 名）\n省くと、打ったペインのメンバー。ペインがメンバーでなければ人間")),
 			use(flagTeam, descTeam),
 			use(flagDry, text(
-				"Print what would be sent and send nothing\nIt never reads herdr",
-				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
+				"Print what would be sent and send nothing\nIt never reads herdr; without --from the sender is the human",
+				"送る予定だけを表示し、何も送らない\nherdr は読まない。--from が無ければ送り主は人間")),
 			use(flagDir, descDir),
 		},
 	},

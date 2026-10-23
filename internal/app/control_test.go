@@ -386,9 +386,9 @@ func TestDryPrintsWhatWouldBeSentAndSendsNothing(t *testing.T) {
 		argv []string
 		want string
 	}{
-		{[]string{"nudge", "lead", "--dry"}, "would send to demo-lead: From the human: Please carry on."},
-		{[]string{"tell", "lead", "hello", "--from", "builder", "--dry"}, "would send to demo-lead: From demo-builder: hello"},
-		{[]string{"stop", "builder", "--dry"}, "would stop demo-builder"},
+		{[]string{"nudge", "lead", "--team", "demo", "--dry"}, "would send to demo-lead: From the human: Please carry on."},
+		{[]string{"tell", "lead", "hello", "--from", "builder", "--team", "demo", "--dry"}, "would send to demo-lead: From demo-builder: hello"},
+		{[]string{"stop", "builder", "--team", "demo", "--dry"}, "would stop demo-builder"},
 	}
 	for _, c := range cases {
 		got := mustRun(t, c.argv...)
