@@ -49,6 +49,9 @@ const (
 	// projectDir is the work directory's project: a name of its own, so the
 	// band that writes the project's name reads like a person's project.
 	projectDir = "shop"
+	// rebuildLine is what run and snap say when the built binary changed: a
+	// serve that is already up keeps running the hergy it started with.
+	rebuildLine = "bin/hergy を作り直しました。動いている serve は、起こし直すまで前の hergy のままです"
 )
 
 // scene is one state of the screens: the sample data it is laid from and the
@@ -135,13 +138,14 @@ func usage() string {
 道:
   serve  本物の hergy serve を起こして URL を出し、Ctrl-C で止まる。起こすたびに見本データを写し直す
   run    場面の作業用ディレクトリ・環境・bin/hergy・プロジェクトのまま hergy を走らせ、出力と終了コードをそのまま返す
-         （すでに写してある場面は写し直さない。serve が動いていても壊さない）
+         （すでに写してある場面は写し直さない。serve が動いていても壊さない。--bin が無ければ、打つたびに bin/hergy を作り直す）
   snap   その画面の DOM を Playwright で写し、script を除いて CSS を中に取り込み、file:// で同じ見た目になる HTML を出力先に書く
+         （--bin が無ければ、同じく bin/hergy を作り直してから写す）
 
 旗:
   --port N    serve が待つポート（既定 0: OS が選ぶ。127.0.0.1 だけを待つ）
   --work DIR  作業用ディレクトリ（既定 .local/showcase/<場面>。serve は起こすたびに作り直す）
-  --bin PATH  この hergy を使う（既定: hergy をビルドして作業用ディレクトリに置く）
+  --bin PATH  この hergy を使う（既定: hergy をビルドして作業用ディレクトリに置く。run と snap は、--bin が無ければ打つたびに作り直す）
   --mock DIR  そのディレクトリの CSS と JS を、serve の画面に差し込む（試作を見るため）
   -h          これを出す
 
@@ -154,6 +158,7 @@ func usage() string {
       inject: [a.css, b.js] # 差し込むファイルと順。書かなければ .css と .js を全部
   ・serve は default-src 'self' を返す。試作の style 属性は効かないので、class か CSSOM（element.style.setProperty）で書く
   ・serve の画面はそのまま動く。試作が本物のボタンやタブを置き換えると、その部分は動かなくなる
+  ・run と snap は bin/hergy を一時ファイルに作って rename で差し替える。同じ作業用ディレクトリで serve が動いているとき、serve は前の hergy のまま動き続ける（起こし直すまで）。中身が変わったときだけ、そのことを stderr に 1 行出す
 
 本物の ~/.config/hergy、~/.local/state/hergy、herdr には触れない。
 `)
@@ -523,11 +528,16 @@ func layOrReuse(root string, sc scene, opts options, stdout, stderr io.Writer) (
 	}
 	hergy := opts.bin
 	if hergy == "" {
+		// A command stands on the code as it is now, not on the binary an
+		// earlier run left: the build cache makes an unchanged tree cheap, and
+		// the rename below keeps a serve that is already up on its own file.
 		hergy = filepath.Join(work, "bin", "hergy")
-		if _, err := os.Stat(hergy); errors.Is(err, fs.ErrNotExist) {
-			if err := execIn(root, stdout, stderr, "go", "build", "-o", hergy, "."); err != nil {
-				return "", "", err
-			}
+		changed, err := buildHergy(root, hergy, stderr)
+		if err != nil {
+			return "", "", err
+		}
+		if changed {
+			fmt.Fprintln(stderr, rebuildLine)
 		}
 	}
 	if _, err := os.Stat(hergy); err != nil {
@@ -597,7 +607,7 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	hergy := opts.bin
 	if hergy == "" {
 		hergy = filepath.Join(work, "bin", "hergy")
-		if err := execIn(root, stdout, stderr, "go", "build", "-o", hergy, "."); err != nil {
+		if _, err := buildHergy(root, hergy, stderr); err != nil {
 			return "", "", err
 		}
 	}
@@ -963,6 +973,70 @@ func jsRuntime(root string) (string, error) {
 func isDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// buildHergy builds hergy into path. It writes a temporary file beside the path
+// and renames it over, so a serve that runs the old file keeps running it: the
+// old file still stands under the running process, and the next command gets the
+// new one. changed says the bytes are not the ones that stood at path, so the
+// caller can say that a running serve is still the old hergy. The build's own
+// words go to stderr, so a command's stdout stays the command's answer.
+func buildHergy(root, path string, stderr io.Writer) (bool, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return false, err
+	}
+	tmp, err := os.CreateTemp(dir, ".hergy-*")
+	if err != nil {
+		return false, err
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return false, err
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := execIn(root, stderr, stderr, "go", "build", "-o", tmpPath, "."); err != nil {
+		return false, err
+	}
+	if err := os.Chmod(tmpPath, 0o755); err != nil { //nolint:gosec // G302: the file becomes the hergy a command runs
+		return false, err
+	}
+	same := false
+	if _, err := os.Stat(path); err == nil {
+		same, err = sameBytes(path, tmpPath)
+		if err != nil {
+			return false, err
+		}
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return false, err
+	}
+	return !same, nil
+}
+
+// sameBytes says two files hold the same bytes.
+func sameBytes(a, b string) (bool, error) {
+	one, err := os.Stat(a)
+	if err != nil {
+		return false, err
+	}
+	two, err := os.Stat(b)
+	if err != nil {
+		return false, err
+	}
+	if one.Size() != two.Size() {
+		return false, nil
+	}
+	left, err := os.ReadFile(a)
+	if err != nil {
+		return false, err
+	}
+	right, err := os.ReadFile(b)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(left, right), nil
 }
 
 // execIn runs one program at dir, with its words going where this tool's do.

@@ -10,8 +10,8 @@
 // running (core is running in the made-up herdr). The walk reads only what the
 // browser alone can see; the counts are read again until they match (r-291a).
 import { test as base, expect, type Page } from '@playwright/test';
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { hergyBin, repo } from '../scripts/fixture.mjs';
@@ -37,11 +37,13 @@ function buildTool(): void {
 
 // start lays one scene out with the tool and returns the URL it printed. The
 // work directory is this walk's own, so two scenes may run side by side. mock,
-// when set, is a prototype's directory for --mock.
-async function start(scene: Scene, mock: string): Promise<App> {
+// when set, is a prototype's directory for --mock. built false lets the tool
+// build its own bin/hergy, which the run road rebuilds.
+async function start(scene: Scene, mock: string, built: boolean): Promise<App> {
   buildTool();
   const work = mkdtempSync(path.join(os.tmpdir(), `hergy-showcase-${scene}-`));
-  const args = [scene, '--port', '0', '--work', work, '--bin', hergyBin];
+  const args = [scene, '--port', '0', '--work', work];
+  if (built) args.push('--bin', hergyBin);
   if (mock) args.push('--mock', mock);
   const child = spawn(tool, args, {
     env: { ...process.env },
@@ -118,11 +120,12 @@ async function listen(page: Page): Promise<string[]> {
 
 // test is one scene's screens, started for the walk and stopped after it, with
 // the console held to the one known break.
-const test = base.extend<{ scene: Scene; mock: string; app: App }>({
+const test = base.extend<{ scene: Scene; mock: string; built: boolean; app: App }>({
   scene: ['standard', { option: true }],
   mock: ['', { option: true }],
-  app: async ({ scene, mock, page }, use) => {
-    const app = await start(scene, mock);
+  built: [true, { option: true }],
+  app: async ({ scene, mock, built, page }, use) => {
+    const app = await start(scene, mock, built);
     const said = await listen(page);
     await use(app);
     try {
@@ -283,6 +286,35 @@ test.describe('mock', () => {
       "the mock's element does not stand in the real screen",
     ).toBe('mock が差し込んだ行');
     await readTo<number>(page, count('#view .tdef'), 'the screen under the mock reads, want six rows').toBe(6);
+  });
+});
+
+// The command roads stand on the code as it is now, not on the binary an
+// earlier run left: a work directory without --bin has its bin/hergy rebuilt on
+// every run, through a rename, and the serve that was already up stays on the
+// file it started with. The walk puts an old binary where the new one goes (by
+// rename, the way the tool does), so the change is real; the run says so on
+// stderr once, the command's own answer stays on stdout, and the serve is still
+// there afterwards.
+test.describe('rebuild', () => {
+  test.use({ scene: 'standard', built: false });
+
+  test('SHOWCASE-B1 run rebuilds bin/hergy when the code changed', async ({ page, app }) => {
+    const bin = path.join(app.work, 'bin', 'hergy');
+    const old = path.join(app.work, 'bin', '.old-hergy');
+    writeFileSync(old, '#!/bin/sh\necho "old hergy"\n', { mode: 0o755 });
+    renameSync(old, bin);
+
+    const done = spawnSync(tool, ['run', 'standard', '--work', app.work, '--', 'version'], {
+      encoding: 'utf8',
+    });
+    expect(done.status, done.stderr).toBe(0);
+    expect(done.stderr, 'the rebuild was not said on stderr').toContain('bin/hergy を作り直しました');
+    expect(done.stdout, "the command's own answer is not on stdout").toMatch(/^hergy /);
+
+    // The serve started before the rebuild still answers: it is the old file.
+    await open(page, `${app.base}/teams`, '#view .tdef');
+    await readTo<number>(page, count('#view .tdef'), 'the serve under the rebuild reads, want six rows').toBe(6);
   });
 });
 
