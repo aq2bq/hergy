@@ -32,15 +32,22 @@ type Scene = 'standard' | 'running';
 // the tool itself.
 type App = { base: string; work: string; tool: ChildProcess };
 
-// bin is where the e2e run keeps what it builds, and tool is the showcase
-// built there once per walker.
+// bin is where the e2e run keeps what it builds, and tool is this walker's own
+// showcase. Four walkers run side by side: a path they all write would let one
+// replace the tool while another is starting it (or while SHOWCASE-B1 runs it),
+// so each process builds once into a name of its own.
 const bin = path.join(repo, 'e2e', '.bin');
-const tool = path.join(bin, 'showcase');
+const tool = path.join(bin, `showcase-${process.pid}`);
+let toolBuilt = false;
 
-// buildTool builds `go run ./tools/showcase` once, the way a person runs it.
+// buildTool builds `go run ./tools/showcase` once per walker, the way a person
+// runs it. One worker runs one test at a time, so the built file has no second
+// writer after this returns.
 function buildTool(): void {
+  if (toolBuilt) return;
   mkdirSync(bin, { recursive: true });
   execFileSync('go', ['build', '-o', tool, './tools/showcase'], { cwd: repo, stdio: 'inherit' });
+  toolBuilt = true;
 }
 
 // start lays one scene out with the tool and returns the URL it printed. The

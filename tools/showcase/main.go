@@ -6,6 +6,7 @@
 //	go run ./tools/showcase <scene>               one scene, by name
 //	go run ./tools/showcase run <scene> -- <args> a hergy command in the scene
 //	go run ./tools/showcase snap <scene> <path> <out>   one screen, as HTML
+//	go run ./tools/showcase <scene> --rev <commit>      the same, built from a commit
 //	go run ./tools/showcase -h                    the scenes, and what each is for
 //
 // Nothing of the person's machine is read or written: the config, the state and
@@ -64,6 +65,13 @@ const (
 	// rebuildLine is what run and snap say when the built binary changed: a
 	// serve that is already up keeps running the hergy it started with.
 	rebuildLine = "bin/hergy を作り直しました。動いている serve は、起こし直すまで前の hergy のままです"
+	// sourceDir is where --rev takes a commit out inside the work directory.
+	// The clone is not a worktree: its own .git makes Go stamp the commit, so
+	// the version names the version that was asked for.
+	sourceDir = "src"
+	// worktreeRev is the marker of a scene laid from the working tree. A scene
+	// laid from a commit writes that commit's short hash instead.
+	worktreeRev = "worktree"
 )
 
 // scene is one state of the screens: the sample data it is laid from and the
@@ -110,7 +118,12 @@ type options struct {
 	work  string
 	bin   string
 	mock  string
-	help  bool
+	// rev is the commit word a person gave; revCommit and revShort are what
+	// git resolved it to before the work directory is laid.
+	rev       string
+	revCommit string
+	revShort  string
+	help      bool
 	// named says a scene was named on the command line, so a second one is a
 	// mistake rather than the default being replaced.
 	named bool
@@ -139,9 +152,9 @@ func usage() string {
 	var b strings.Builder
 	b.WriteString("ショーケース: 本物の hergy serve を、本物の規模の見本データと偽の herdr で起こす。\n\n")
 	b.WriteString("使い方:\n")
-	b.WriteString("  go run ./tools/showcase [<場面>] [--port N] [--work DIR] [--bin PATH] [--mock DIR]\n")
-	b.WriteString("  go run ./tools/showcase run <場面> [--work DIR] [--bin PATH] -- <hergy の引数...>\n")
-	b.WriteString("  go run ./tools/showcase snap <場面> <パス> <出力先> [--work DIR] [--bin PATH]\n\n")
+	b.WriteString("  go run ./tools/showcase [<場面>] [--port N] [--work DIR] [--bin PATH] [--mock DIR] [--rev <版>]\n")
+	b.WriteString("  go run ./tools/showcase run <場面> [--work DIR] [--bin PATH] [--rev <版>] -- <hergy の引数...>\n")
+	b.WriteString("  go run ./tools/showcase snap <場面> <パス> <出力先> [--work DIR] [--bin PATH] [--rev <版>]\n\n")
 	b.WriteString("場面（書かなければ standard）:\n")
 	for _, sc := range scenes {
 		fmt.Fprintf(&b, "  %-9s %s\n", sc.name, sc.about)
@@ -155,10 +168,16 @@ func usage() string {
   snap   その画面の DOM を Playwright で写し、script を除いて CSS を中に取り込み、file:// で同じ見た目になる HTML を出力先に書く
          （--bin が無ければ、同じく bin/hergy を作り直してから写す）
 
+--rev を付けると、作業ツリーの hergy ではなく、その版を取り出した中の hergy と見本データを使う。
+  serve は毎回その版を取り出し直し、run と snap は同じ --work に同じ版があればそれを使う。
+  別の版の --work を渡すと、混ぜないように止まる。--rev を付けた --work と、付けない --work も混ぜない。
+
 旗:
   --port N    serve が待つポート（既定 0: OS が選ぶ。127.0.0.1 だけを待つ）
   --work DIR  作業用ディレクトリ（既定 .local/showcase/<場面>。serve は起こすたびに作り直す）
   --bin PATH  この hergy を使う（既定: hergy をビルドして作業用ディレクトリに置く。run と snap は、--bin が無ければ打つたびに作り直す）
+  --rev <版>  その版（HEAD・ブランチ・タグ・ハッシュ）を作業用ディレクトリに取り出し、その版の hergy と testdata/showcase で起こす。
+              作業ツリーが作りかけのときに使う（worktree は使わない。--bin とは併用しない。run の version はその版の短いハッシュを言う）
   --mock DIR  そのディレクトリの CSS と JS を、serve の画面に差し込む（試作を見るため）
   -h          これを出す
 
@@ -193,6 +212,10 @@ func serveScene(args []string, stdout, stderr io.Writer) int {
 	}
 	sc, root, err := pick(opts)
 	if err != nil {
+		fmt.Fprintln(stderr, "showcase:", err)
+		return 1
+	}
+	if err := resolveRevision(root, &opts); err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
@@ -250,7 +273,11 @@ func serveScene(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "試作: %s（差し込む画面: %s）\n", mockDir, screens)
 	}
-	fmt.Fprintf(stdout, "ショーケース: %s — %s\n作業用: %s\nURL: %s\n（Ctrl-C で止まります）\n", sc.name, sc.about, work, url)
+	fmt.Fprintf(stdout, "ショーケース: %s — %s\n作業用: %s\n", sc.name, sc.about, work)
+	if opts.rev != "" {
+		fmt.Fprintf(stdout, "版: %s\n", opts.revShort)
+	}
+	fmt.Fprintf(stdout, "URL: %s\n（Ctrl-C で止まります）\n", url)
 	if err := waitStop(srv); err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
@@ -279,6 +306,10 @@ func runInScene(args []string, stdout, stderr io.Writer) int {
 	}
 	sc, root, err := pick(opts)
 	if err != nil {
+		fmt.Fprintln(stderr, "showcase:", err)
+		return 1
+	}
+	if err := resolveRevision(root, &opts); err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
@@ -329,6 +360,10 @@ func snapScreen(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
+	if err := resolveRevision(root, &opts); err != nil {
+		fmt.Fprintln(stderr, "showcase:", err)
+		return 1
+	}
 	work, hergy, err := layOrReuse(root, sc, opts, stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
@@ -345,7 +380,11 @@ func snapScreen(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
-	if err := runSnap(root, srv.url, rest[0], out, stderr); err != nil {
+	staticRoot := root
+	if opts.rev != "" {
+		staticRoot = filepath.Join(work, sourceDir)
+	}
+	if err := runSnap(root, staticRoot, srv.url, rest[0], out, stderr); err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
@@ -364,6 +403,42 @@ func pick(opts options) (scene, string, error) {
 		return scene{}, "", err
 	}
 	return sc, root, nil
+}
+
+// resolveRevision turns the word a person gave into the commit and the short
+// hash every road lays down. It runs before a work directory is touched, so a
+// bad version names itself and leaves the directory alone.
+func resolveRevision(root string, opts *options) error {
+	if opts.rev == "" {
+		return nil
+	}
+	if opts.bin != "" {
+		return errors.New("--rev と --bin は同時に使えません（--rev はその版を自分でビルドします）")
+	}
+	commit, err := gitOutput(root, "rev-parse", "--verify", opts.rev+"^{commit}")
+	if err != nil {
+		return fmt.Errorf("--rev %q を版として読めません: %w", opts.rev, err)
+	}
+	short, err := gitOutput(root, "rev-parse", "--short=7", commit)
+	if err != nil {
+		return fmt.Errorf("--rev %q の短いハッシュを読めません: %w", opts.rev, err)
+	}
+	opts.revCommit, opts.revShort = commit, short
+	return nil
+}
+
+// gitOutput is one git answer, trimmed, for the revision this tool reads. The
+// git the person uses is the one on PATH; nothing here reaches a remote.
+func gitOutput(root string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...) //nolint:gosec // G204: git, and the arguments are this tool's own
+	cmd.Dir = root
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // parseArgs reads the serve's command line, without a flag package: every value
@@ -400,6 +475,12 @@ func parseArgs(args []string) (options, error) {
 				return out, errors.New("--bin の後ろに hergy のパスを書いてください")
 			}
 			out.bin = value
+		case "--rev", "-rev":
+			value, i, hasValue = takeValue(args, i, value, hasValue)
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return out, errors.New("--rev の後ろに版（HEAD・ブランチ・タグ・ハッシュ）を書いてください")
+			}
+			out.rev = value
 		case "--mock", "-mock":
 			value, i, hasValue = takeValue(args, i, value, hasValue)
 			if !hasValue {
@@ -466,6 +547,12 @@ func parseSnapArgs(args []string) (options, []string, bool, error) {
 				return out, nil, false, errors.New("--bin の後ろに hergy のパスを書いてください")
 			}
 			out.bin = value
+		case "--rev", "-rev":
+			value, i, hasValue = takeValue(args, i, value, hasValue)
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return out, nil, false, errors.New("--rev の後ろに版（HEAD・ブランチ・タグ・ハッシュ）を書いてください")
+			}
+			out.rev = value
 		default:
 			if strings.HasPrefix(args[i], "-") {
 				return out, nil, false, fmt.Errorf("%q は知らない旗です", args[i])
@@ -554,13 +641,29 @@ func layOrReuse(root string, sc scene, opts options, stdout, stderr io.Writer) (
 	if !have {
 		return prepare(root, sc, opts, work, stdout, stderr)
 	}
+	gotRev, err := markerRev(work)
+	if err != nil {
+		return "", "", err
+	}
+	buildRoot := root
+	switch {
+	case opts.rev != "" && gotRev != opts.revShort:
+		return "", "", fmt.Errorf("%s は版 %s の作業用ディレクトリです。--rev %s とは混ぜません。別の --work を指定してください", work, shortestRev(gotRev), opts.revShort)
+	case opts.rev != "":
+		buildRoot = filepath.Join(work, sourceDir)
+		if !isDir(buildRoot) {
+			return "", "", fmt.Errorf("%s に版 %s の取り出しがありません。serve を起こし直すか、別の --work を指定してください", work, opts.revShort)
+		}
+	case gotRev != "" && gotRev != worktreeRev:
+		return "", "", fmt.Errorf("%s は版 %s の作業用ディレクトリです。--rev %s を付けるか、別の --work を指定してください", work, gotRev, gotRev)
+	}
 	hergy := opts.bin
 	if hergy == "" {
 		// A command stands on the code as it is now, not on the binary an
 		// earlier run left: the build cache makes an unchanged tree cheap, and
 		// the rename below keeps a serve that is already up on its own file.
 		hergy = filepath.Join(work, "bin", "hergy")
-		changed, err := buildHergy(root, hergy, stderr)
+		changed, err := buildHergy(buildRoot, hergy, stderr)
 		if err != nil {
 			return "", "", err
 		}
@@ -572,6 +675,15 @@ func layOrReuse(root string, sc scene, opts options, stdout, stderr io.Writer) (
 		return "", "", fmt.Errorf("--bin の %s が読めません: %w", hergy, err)
 	}
 	return work, hergy, nil
+}
+
+// shortestRev keeps an error about a scene laid before --rev wrote its version
+// from saying an empty name: such a scene is the working tree's.
+func shortestRev(rev string) string {
+	if rev == "" {
+		return worktreeRev
+	}
+	return rev
 }
 
 // isLaid says the work directory is this tool's own, laid out before: a serve, a
@@ -613,11 +725,29 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 			return "", "", err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(work, marker), []byte("hergy showcase\nlayout: "+layoutVersion+"\n"), 0o644); err != nil {
+	rev := worktreeRev
+	if opts.rev != "" {
+		rev = opts.revShort
+	}
+	// The marker goes down before anything that can fail: a half-taken-out
+	// version is then still this tool's directory, and the next serve may clear
+	// it rather than refusing a non-empty directory it no longer knows.
+	if err := os.WriteFile(filepath.Join(work, marker), []byte("hergy showcase\nlayout: "+layoutVersion+"\nrev: "+rev+"\n"), 0o644); err != nil {
 		return "", "", err
 	}
+	// dataRoot is where the scene's sample data stands, and buildRoot is where
+	// the hergy to run is built. They are the working tree unless --rev asked
+	// for a commit, in which case both come from the same extracted version.
+	dataRoot, buildRoot := root, root
+	if opts.rev != "" {
+		source := filepath.Join(work, sourceDir)
+		if err := extractRevision(root, opts.revCommit, source, stderr); err != nil {
+			return "", "", err
+		}
+		dataRoot, buildRoot = source, source
+	}
 	for _, layer := range sc.layers {
-		from := filepath.Join(root, dataDir, layer)
+		from := filepath.Join(dataRoot, dataDir, layer)
 		for _, part := range []struct{ from, to string }{
 			{"project", projectDir},
 			{"config", filepath.Join(homeDir, configHome)},
@@ -630,8 +760,13 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 			}
 		}
 	}
-	if err := fillTimes(work, time.Now()); err != nil {
-		return "", "", err
+	// Only the scene's own trees are filled: the extracted source of a --rev
+	// scene is left byte for byte as the commit wrote it, so its build stays
+	// clean and its version reads the commit, not a dirty tree.
+	for _, dir := range []string{projectDir, homeDir, "herdr"} {
+		if err := fillTimes(filepath.Join(work, dir), time.Now()); err != nil {
+			return "", "", err
+		}
 	}
 	if err := writeFakeHerdr(filepath.Join(work, "bin", "fake-herdr")); err != nil {
 		return "", "", err
@@ -644,7 +779,7 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	hergy := opts.bin
 	if hergy == "" {
 		hergy = filepath.Join(work, "bin", "hergy")
-		if _, err := buildHergy(root, hergy, stderr); err != nil {
+		if _, err := buildHergy(buildRoot, hergy, stderr); err != nil {
 			return "", "", err
 		}
 	}
@@ -652,6 +787,41 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 		return "", "", fmt.Errorf("--bin の %s が読めません: %w", hergy, err)
 	}
 	return work, hergy, nil
+}
+
+// extractRevision takes one commit out into dir without a worktree: a local
+// clone with no checkout, then the commit checked out detached. The clone's own
+// .git is what makes go build stamp the commit into hergy version, which is the
+// one thing a plain archive cannot give without changing the product.
+func extractRevision(root, commit, dir string, stderr io.Writer) error {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		return err
+	}
+	if err := execIn(filepath.Dir(dir), stderr, stderr, "git", "clone", "--quiet", "--shared", "--no-checkout", root, dir); err != nil {
+		return fmt.Errorf("版 %s を作業用ディレクトリに取り出せません: %w", commit, err)
+	}
+	if err := execIn(dir, stderr, stderr, "git", "-c", "advice.detachedHead=false", "checkout", "--quiet", "--detach", commit); err != nil {
+		return fmt.Errorf("版 %s を checkout できません: %w", commit, err)
+	}
+	return nil
+}
+
+// markerRev is the version a laid scene was made from: worktree, a short hash,
+// or "" for a scene laid by a tool before --rev wrote one.
+func markerRev(work string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(work, marker))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		if value, ok := strings.CutPrefix(line, "rev: "); ok {
+			return strings.TrimSpace(value), nil
+		}
+	}
+	return "", nil
 }
 
 // resetWork makes the work directory empty. A directory without this tool's mark
@@ -957,7 +1127,7 @@ try {
 `
 
 // runSnap writes one screen to out, through Playwright from e2e/node_modules.
-func runSnap(root, base, page, out string, stderr io.Writer) error {
+func runSnap(root, staticRoot, base, page, out string, stderr io.Writer) error {
 	runtime, err := jsRuntime(root)
 	if err != nil {
 		return err
@@ -976,7 +1146,7 @@ func runSnap(root, base, page, out string, stderr io.Writer) error {
 		"SHOWCASE_URL="+base,
 		"SHOWCASE_PATH="+page,
 		"SHOWCASE_OUT="+out,
-		"SHOWCASE_STATIC="+filepath.Join(root, "internal", "web", "static"),
+		"SHOWCASE_STATIC="+filepath.Join(staticRoot, "internal", "web", "static"),
 	)
 	if browsers := filepath.Join(root, "e2e", ".bin", "browsers"); isDir(browsers) {
 		env = append(env, "PLAYWRIGHT_BROWSERS_PATH="+browsers)
