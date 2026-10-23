@@ -137,6 +137,7 @@ func usage() string {
 	b.WriteString(`
 道:
   serve  本物の hergy serve を起こして URL を出し、Ctrl-C で止まる。起こすたびに見本データを写し直す
+         （同じ作業用ディレクトリで別の serve が動いていれば、写し直さずに止まり、--work を付けるよう言う）
   run    場面の作業用ディレクトリ・環境・bin/hergy・プロジェクトのまま hergy を走らせ、出力と終了コードをそのまま返す
          （すでに写してある場面は写し直さない。serve が動いていても壊さない。--bin が無ければ、打つたびに bin/hergy を作り直す）
   snap   その画面の DOM を Playwright で写し、script を除いて CSS を中に取り込み、file:// で同じ見た目になる HTML を出力先に書く
@@ -188,6 +189,18 @@ func serveScene(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
+	// The hold comes before the layout: a second serve over a directory another
+	// one is serving must not clear it under the first (2026-10-23).
+	lock, err := lockWork(work)
+	if errors.Is(err, errLocked) {
+		fmt.Fprintf(stderr, "showcase: 同じ作業用ディレクトリで、別のショーケースの serve が動いています: %s\nその serve はそのまま動いています。別の作業用ディレクトリで起こすには --work を付けてください（例: --work %s-2）\n", work, work)
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "showcase:", err)
+		return 1
+	}
+	defer lock.release()
 	work, hergy, err := prepare(root, sc, opts, work, stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)

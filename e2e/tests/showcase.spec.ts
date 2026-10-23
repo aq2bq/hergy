@@ -11,7 +11,15 @@
 // browser alone can see; the counts are read again until they match (r-291a).
 import { test as base, expect, type Page } from '@playwright/test';
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { hergyBin, repo } from '../scripts/fixture.mjs';
@@ -286,6 +294,51 @@ test.describe('mock', () => {
       "the mock's element does not stand in the real screen",
     ).toBe('mock が差し込んだ行');
     await readTo<number>(page, count('#view .tdef'), 'the screen under the mock reads, want six rows').toBe(6);
+  });
+});
+
+// Two serves must not share one work directory: the second stops before it
+// lays anything out, so the first keeps answering and its data is not copied
+// again under it (2026-10-23, the owner's running showcase was rewritten under
+// them). It asks for --work instead.
+test.describe('two serves', () => {
+  test.use({ scene: 'running', mock: path.join(repo, 'testdata', 'showcase', 'mock', 'sample') });
+
+  test('SHOWCASE-L1 a second serve on a work directory in use stops', async ({ page, app }) => {
+    const data = path.join(app.work, 'shop', '.hergy', 'teams', 'core', 'team.yaml');
+    const before = statSync(data).mtimeMs;
+
+    const second = spawnSync(
+      tool,
+      [
+        'running',
+        '--port',
+        '0',
+        '--work',
+        app.work,
+        '--bin',
+        hergyBin,
+        '--mock',
+        path.join(repo, 'testdata', 'showcase', 'mock', 'sample'),
+      ],
+      { encoding: 'utf8' },
+    );
+    expect(second.status, second.stderr).toBe(1);
+    expect(second.stderr, 'the second serve does not say the directory is in use').toContain(
+      '同じ作業用ディレクトリ',
+    );
+    expect(second.stderr, 'the second serve does not ask for --work').toContain('--work');
+
+    expect(
+      statSync(data).mtimeMs,
+      "the second serve laid the first one's data out again",
+    ).toBe(before);
+    await open(page, `${app.base}/teams`, '#view .tdef');
+    await readTo<number>(
+      page,
+      count('#view .tdef'),
+      'the first serve under the second one reads, want six rows',
+    ).toBe(6);
   });
 });
 
