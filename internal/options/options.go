@@ -80,6 +80,11 @@ type Options struct {
 
 	HelpText string
 
+	// Argv is the command line as it was typed, without the program name. A
+	// failure prints the hergy up that was run as it was typed, so a person can
+	// run it again from what the message says.
+	Argv []string
+
 	seen map[string]bool
 }
 
@@ -131,7 +136,7 @@ func Parse(argv []string) (*Options, error) {
 		return &Options{Kind: Help, HelpText: Usage()}, nil
 	}
 	cmd := argv[0]
-	o := &Options{Timeout: DefaultTimeoutMS, Port: DefaultPort, seen: map[string]bool{}}
+	o := &Options{Timeout: DefaultTimeoutMS, Port: DefaultPort, Argv: append([]string(nil), argv...), seen: map[string]bool{}}
 	switch cmd {
 	case "help", "-h", "--help":
 		return &Options{Kind: Help, HelpText: Usage()}, nil

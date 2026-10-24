@@ -50,6 +50,20 @@ type fakePort struct {
 	// that is not in it answers a stable stand-in, so a status test can check the
 	// screen hash without pinning a real terminal.
 	screens map[string]string
+
+	// startupBlocked names the agents whose start herdr refuses with
+	// agent_not_ready, "blocked during startup": the agent is live and asks a
+	// human a question, so the start records it as blocked and answers the
+	// error. startedBlocked is the set of agents the fake started that way.
+	// onStartupGet runs before each reading of one while it is blocked, and
+	// onSettleGet before each reading after it stopped asking, so a test can
+	// answer its question (set idle) or end it (delete it) the way a person
+	// would answer in the pane. startupTab is the tab those agents report.
+	startupBlocked map[string]bool
+	startedBlocked map[string]bool
+	onStartupGet   func(name string)
+	onSettleGet    func(name string)
+	startupTab     string
 }
 
 func (p *fakePort) Verify(mode string) error {
@@ -115,7 +129,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 	case slices.Equal(args, []string{"pane", "list"}):
 		panes := make([]any, 0, len(p.panes))
 		for _, pane := range p.panes {
-			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label})
+			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label, "tab_id": pane.TabID})
 		}
 		return map[string]any{"panes": panes}, nil
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
@@ -123,6 +137,14 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{}, nil
 	case len(args) == 3 && args[0] == "agent" && args[1] == "get":
 		target := args[2]
+		if agent, ok := p.findAgent(target); ok && p.startedBlocked[agent.Name] {
+			switch {
+			case agent.Status == "blocked" && p.onStartupGet != nil:
+				p.onStartupGet(agent.Name)
+			case agent.Status != "blocked" && p.onSettleGet != nil:
+				p.onSettleGet(agent.Name)
+			}
+		}
 		if p.onAgentGet != nil {
 			p.onAgentGet(target)
 		}
@@ -155,6 +177,22 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		name := args[2]
 		if _, taken := p.agents[name]; taken && !p.gone[name] {
 			_, err := protocol.Result(args, `{"error":{"code":"agent_name_taken"}}`, "", 0)
+			return nil, err
+		}
+		if p.startupBlocked[name] {
+			// The agent is live, and it asks a human a question while it starts:
+			// herdr refuses the start as not ready, and keeps the agent.
+			p.agents[name] = protocol.Agent{
+				Name: name, Kind: argValue(args, "--kind"), Status: "blocked",
+				PaneID: argValue(args, "--pane"), TabID: p.startupTab,
+			}
+			if p.startedBlocked == nil {
+				p.startedBlocked = map[string]bool{}
+			}
+			p.startedBlocked[name] = true
+			delete(p.gone, name)
+			_, err := protocol.Result(args, `{"error":{"code":"agent_not_ready","message":"agent `+name+
+				` is blocked during startup and is not ready for prompts"}}`, "", 0)
 			return nil, err
 		}
 		p.agents[name] = protocol.Agent{

@@ -222,6 +222,20 @@ var glossary = []term{
 		meaning:  "hergy status: one line per member and worker with its live agent state, then who is waiting on the human",
 	},
 	{
+		id:       "waiting-for-permission",
+		english:  "waiting for permission",
+		japanese: "許可待ち",
+		meaning:  "herdr's blocked: an agent is asking the human a question (a permission, or a question while it starts, such as whether to trust a folder) and waits for the answer",
+		banned: []ban{
+			// 承認待ち and 確認待ち were the other words for the same state, and
+			// ブロック is herdr's word for it: hergy writes the state by what the
+			// member is doing, and the question itself is 確認.
+			{lang: "ja", word: "承認待ち"},
+			{lang: "ja", word: "確認待ち"},
+			{lang: "ja", word: "ブロック"},
+		},
+	},
+	{
 		id:       "cheatsheet",
 		english:  "cheatsheet",
 		japanese: "チートシート",

@@ -30,6 +30,7 @@ case "$g $s" in
   "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  "pane list")    echo '{"result":{"panes":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -53,6 +54,7 @@ case "$g $s" in
     esac
     ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "pane list")  echo '{"result":{"panes":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -228,6 +230,7 @@ case "$g $s" in
     done < "$tabs"
     printf ']}}'
     ;;
+  "pane list") echo '{"result":{"panes":[]}}' ;;
   "tab create")
     label=""
     prev=""

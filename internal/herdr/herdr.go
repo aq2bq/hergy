@@ -5,6 +5,7 @@ package herdr
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -116,28 +117,42 @@ func (h *Herdr) Tabs() ([]protocol.Tab, error) {
 // FindPane returns the id of the pane hergy named with this label, or "" when no
 // pane carries it. hergy names a pane after its member with pane rename.
 func (h *Herdr) FindPane(label string) (string, error) {
-	result, err := h.port.JSON("pane", "list")
+	panes, err := h.Panes()
 	if err != nil {
 		return "", err
+	}
+	for _, pane := range panes {
+		if pane.Label == label {
+			return pane.ID, nil
+		}
+	}
+	return "", nil
+}
+
+// Panes lists the server's panes, with the label hergy gave each and the tab it
+// is in. A pane hergy did not name has no label.
+func (h *Herdr) Panes() ([]protocol.Pane, error) {
+	result, err := h.port.JSON("pane", "list")
+	if err != nil {
+		return nil, err
 	}
 	raw, err := protocol.Dig(result, "panes")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	panes, ok := raw.([]any)
 	if !ok {
-		return "", i18n.Errorf("error.herdr_panes")
+		return nil, i18n.Errorf("error.herdr_panes")
 	}
+	out := make([]protocol.Pane, 0, len(panes))
 	for _, item := range panes {
 		object, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		if pane := protocol.PaneFrom(object); pane.Label == label {
-			return pane.ID, nil
-		}
+		out = append(out, protocol.PaneFrom(object))
 	}
-	return "", nil
+	return out, nil
 }
 
 // ClosePane closes one pane and nothing else. A tab is never closed as a unit:
@@ -203,6 +218,23 @@ func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) erro
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+// StartupBlockedCode is Herdr's error code when a start is refused because the
+// agent the start made is asking a human a question and is not ready for
+// prompts, and StartupBlockedMark is what its message says: "blocked during
+// startup". The agent is live and herdr knows it by name; the start only failed.
+const (
+	StartupBlockedCode = "agent_not_ready"
+	StartupBlockedMark = "blocked during startup"
+)
+
+// StartupBlocked is whether a start failed only because the agent is waiting for
+// a human to answer a question while it starts (whether to trust a folder, for
+// example). That is not a failure to report: the agent handed the turn to the
+// person. Every other start failure is the caller's to report (d-d589).
+func StartupBlocked(err error) bool {
+	return protocol.ErrorCode(err) == StartupBlockedCode && strings.Contains(err.Error(), StartupBlockedMark)
 }
 
 // Prompt sends text to a live agent name or a pane id.

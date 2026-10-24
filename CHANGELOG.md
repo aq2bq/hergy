@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`hergy down` closes what hergy made for a team, even with no agent running**:
+  a boot that stopped at a startup question (Ctrl-C, or an agent told not to trust
+  the folder) left hergy's tab and panes behind, and no live agent made the team a
+  running one, so `hergy down <team>` answered `no running team "<team>"` and the
+  panes stayed (ac-1b17, d-da92). Down now finds a team by what hergy wrote into
+  herdr: the tab labelled with the team's name, and the panes in it (and in its
+  worker tabs) named `<team>-<member>`, whether an agent stands in them or not. A
+  pane hergy did not name is a person's own and is left open. The way on the
+  startup messages name — `hergy down` and then the same `hergy up` — now works
+  the first time. A pane it closes with no agent in it says so, and the counts tell
+  a pane standing without an agent from a member that has no pane at all.
+
+### Added
+
+- **A member that asks a question while it starts is waited on**: when herdr
+  refuses a start because the agent is blocked during startup — Claude Code
+  asking whether to trust a new folder, and then whether to import a parent
+  folder's `CLAUDE.md` — `hergy up`, `hergy hire` and `hergy refresh` no longer
+  stop with the raw `agent_not_ready` reply. hergy names the member, the tab, the
+  pane and the kind, and waits with no limit while the person answers in that
+  pane; a second question in a row prints nothing more. Once the answer is in, it
+  says so, submits the bootstrap prompt and goes on, so a `down` and another `up`
+  are no longer needed. Ctrl-C stops the wait: the member's state is written as
+  waiting for permission (`許可待ち`), and the last line says how to go on. An
+  agent that ends after its question (it was told not to trust the folder) stops
+  with an error that names the same way on. hergy answers nothing itself, writes
+  no agent setting and moves no focus; every other start failure reads as before.
+  The state is `許可待ち` in Japanese and "waiting for permission" in English, and
+  it is in the glossary.
+
 ## 0.8.2 - 2026-10-23
 
 ### Breaking

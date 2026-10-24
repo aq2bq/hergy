@@ -1,6 +1,10 @@
 package team
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/aq2bq/hergy/internal/protocol"
+)
 
 // Running is a team herdr reports as running: the name it runs under (which is
 // what its tab is labelled) and the team definition it was booted from.
@@ -113,7 +117,7 @@ func runningOf(tab Tab, known map[string]string, agentsRead bool) (name, definit
 // team's tab from another tab that carries the same label.
 func HoldsMember(tab Tab, name string) bool {
 	for _, agent := range tab.Agents {
-		if strings.HasPrefix(agent, name+"-") {
+		if protocol.NamedForTeam(name, agent) {
 			return true
 		}
 	}
@@ -129,30 +133,16 @@ func HoldsMember(tab Tab, name string) bool {
 func MemberAgents(tabs []Tab, name string) []string {
 	var out []string
 	for _, tab := range tabs {
-		if !labelNamesTeam(tab.Label, name) {
+		if !protocol.NamesTeam(tab.Label, name) {
 			continue
 		}
 		for _, agent := range tab.Agents {
-			if strings.HasPrefix(agent, name+"-") {
+			if protocol.NamedForTeam(name, agent) {
 				out = append(out, agent)
 			}
 		}
 	}
 	return out
-}
-
-// labelNamesTeam reports whether a tab label stands for one team: the team's name
-// alone, or the older "team:<team>@<definition>" / "team:<team>" shapes.
-func labelNamesTeam(label, name string) bool {
-	if label == name {
-		return true
-	}
-	rest, ok := strings.CutPrefix(label, "team:")
-	if !ok {
-		return false
-	}
-	before, _, _ := strings.Cut(rest, "@")
-	return before == name
 }
 
 // splitTeamLabel reads the older "<team>@<definition>" or "<team>". The older

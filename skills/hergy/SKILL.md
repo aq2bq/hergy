@@ -29,8 +29,9 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - A member cannot `refresh` itself: hergy runs inside a member's pane, and stopping that member would stop hergy before it could start the agent again. Run it from another pane, or as the human.
 - `env` is fixed when a pane is made: after changing `env`, run `hergy down` then `hergy up`; `hergy refresh` keeps the pane and its env.
 - `hergy` sets `GY_ACTOR=<herdr name>` in every pane it makes, so an agent's records in gy carry the name herdr knows it by; the bootstrap prompt tells the agent not to change it. A profile that writes `GY_ACTOR` does not win, and `hergy validate` warns when one does.
-- `hergy down` closes the panes of the team you are in, your own pane included, and that pane last.
+- `hergy down` closes the panes of the team you are in, your own pane included, and that pane last. A pane is closed whether an agent stands in it or not (a member that never started, or whose agent ended, goes too), and a pane hergy did not name is a person's own and stays. A team whose boot stopped before any agent ran is still put away by `hergy down <team>`.
 - To read output, add `--lang en`, or use `--dry --json`; the `next:` line names what to type next.
+- `hergy up`, `hergy hire` and `hergy refresh` may wait: a new agent can ask a question while it starts (whether to trust this folder, for example). Run them in the background and read their output. The wait begins with a line naming the member, the tab and the pane; tell the person which pane to answer in, and wait for them. Do not answer that question yourself (no `send-keys`), do not write the agent's trust settings, and do not move their focus. If the person stops with Ctrl-C, the last line says how to go on.
 
 ## Reaching a member
 

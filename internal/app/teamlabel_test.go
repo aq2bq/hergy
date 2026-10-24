@@ -125,6 +125,7 @@ fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"qw2-m","agent":"codex","agent_status":"blocked","pane_id":"p-qw2-m","tab_id":"t1"},{"name":"qw2-x-lead","agent":"claude","agent_status":"idle","pane_id":"p-qw2-x-lead","tab_id":"t2"}]}}' ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"qw2"},{"tab_id":"t2","label":"qw2-x"}]}}' ;;
+  "pane list")  echo '{"result":{"panes":[{"pane_id":"p-qw2-m","label":"qw2-m","tab_id":"t1"},{"pane_id":"p-qw2-x-lead","label":"qw2-x-lead","tab_id":"t2"}]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac

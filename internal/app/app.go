@@ -1152,7 +1152,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, l.Boot); err != nil {
+	if err := runLaunch(ctx, stderr, l, func() error { return l.Boot(hergyCommand(opts)) }); err != nil {
 		return err
 	}
 	recordLaunch(stderr, env, r, launchlog.CommandUp, r.starts)
@@ -1169,7 +1169,10 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	chosen, err := pickTeam(running, opts.Team)
 	if err != nil {
-		return err
+		// A team that stopped before any agent ran — a boot cut short at a startup
+		// question — has no live agent to make it a running team, but the tab and
+		// the panes hergy made are still there (d-da92).
+		return downStopped(ctx, opts, err, stdout, stderr)
 	}
 	r, buildErr := buildRunning(cat, env.ProjectRoot, chosen)
 	if buildErr != nil {
@@ -1196,7 +1199,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	return runOperation(ctx, stderr, nil, func() error {
+	return runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.Down(r.starts, selfPane, false)
 		return err
 	})
@@ -1236,10 +1239,63 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	return runOperation(ctx, stderr, nil, func() error {
+	return runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, false)
 		return err
 	})
+}
+
+// downStopped puts away a team that stopped before any of its agents ran: hergy
+// made the tab and the panes, and no live agent makes it a running team (d-da92).
+// The panes are found by the names hergy gave them, so no definition is read. A
+// team name no tab carries, or no name at all, keeps the stop the caller had,
+// which names what to do next.
+func downStopped(ctx context.Context, opts *options.Options, stopped error, stdout, stderr io.Writer) error {
+	name := opts.Team
+	if name == "" {
+		return stopped
+	}
+	tabs, _, err := herdrTabs()
+	if err != nil {
+		return err
+	}
+	if !hasTeamTab(tabs, name) {
+		return stopped
+	}
+	selfPane := os.Getenv("HERDR_PANE_ID")
+	l := newLauncher(&resolved{team: team.Team{Name: name}}, opts.Timeout, stdout)
+	if opts.Dry {
+		field(stdout, label("team"), name)
+		closed, err := l.DownStopped(name, selfPane, true)
+		if err != nil {
+			return err
+		}
+		// A dry run that would close nothing has no next step to name.
+		if closed > 0 {
+			printNext(stdout, "down "+name)
+		}
+		return nil
+	}
+	if err := requireHerdrPane(); err != nil {
+		return err
+	}
+	field(stdout, label("team"), name)
+	return runOperation(ctx, stderr, nil, nil, func() error {
+		_, err := l.DownStopped(name, selfPane, false)
+		return err
+	})
+}
+
+// hasTeamTab reports whether a tab is this team's: one labelled with the team's
+// name (or an older label that carries it), or one of its worker tabs. It is how
+// down finds a team whose boot stopped before any agent ran.
+func hasTeamTab(tabs []team.Tab, name string) bool {
+	for _, tab := range tabs {
+		if protocol.NamesTeam(tab.Label, name) || strings.HasPrefix(tab.Label, protocol.WorkerTabPrefix(name)) {
+			return true
+		}
+	}
+	return false
 }
 
 // runStatus reports each member's and worker's live state, one "name: state"
@@ -1762,28 +1818,30 @@ func dryPlan(stdout io.Writer, env team.Env, r *resolved, mode string, members [
 // runLaunch runs one Herdr operation, and on a failure prints the progress
 // record and stops.
 func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, fn func() error) error {
-	return runOperation(ctx, stderr, l.ReportFailure, fn)
+	return runOperation(ctx, stderr, l.ReportFailure, l.ReportInterrupted, fn)
 }
 
-// runOperation runs one Herdr operation, and on Ctrl-C stops with 130. report,
-// when set, says where a failed or interrupted operation stopped.
-func runOperation(ctx context.Context, stderr io.Writer, report func(io.Writer), fn func() error) error {
+// runOperation runs one Herdr operation, and on Ctrl-C stops with 130. failure,
+// when set, says where a failed operation stopped; interrupted, when set, says
+// where an interrupted one stopped. The two differ: an interruption while hergy
+// waits on a member's question adds how to go on.
+func runOperation(ctx context.Context, stderr io.Writer, failure, interrupted func(io.Writer), fn func() error) error {
 	done := make(chan error, 1)
 	go func() { done <- fn() }()
 	select {
 	case err := <-done:
 		if err != nil {
 			fail(stderr, err)
-			if report != nil {
-				report(stderr)
+			if failure != nil {
+				failure(stderr)
 			}
 			return reportedError{err: err, code: 1}
 		}
 		return nil
 	case <-ctx.Done():
 		fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
-		if report != nil {
-			report(stderr)
+		if interrupted != nil {
+			interrupted(stderr)
 		}
 		return reportedError{err: context.Canceled, code: 130}
 	}
@@ -1927,6 +1985,13 @@ func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.S
 // wording is not translated: next: stays next: in every language.
 func printNext(w io.Writer, command string) {
 	fmt.Fprintln(w, i18n.Tf("next", command))
+}
+
+// hergyCommand is a command line as it was typed, program name first. A message
+// that says to run the same command again names it as it was typed, so a person
+// can copy it.
+func hergyCommand(opts *options.Options) string {
+	return strings.Join(append([]string{"hergy"}, opts.Argv...), " ")
 }
 
 // field writes one "name: value" line. depth is how many two-space levels to

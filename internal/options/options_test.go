@@ -1,8 +1,26 @@
 package options
 
 import (
+	"slices"
 	"testing"
 )
+
+func TestParseKeepsTheCommandLineAsTyped(t *testing.T) {
+	argv := []string{"up", "demo", "--as", "alpha", "--lang", "ja"}
+	opts, err := Parse(argv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(opts.Argv, argv) {
+		t.Fatalf("Argv = %v, want %v", opts.Argv, argv)
+	}
+	// A message names the command as it was typed, so a later change to the
+	// caller's slice must not change it.
+	argv[1] = "changed"
+	if opts.Argv[1] != "demo" {
+		t.Fatalf("Argv shares the caller's slice: %v", opts.Argv)
+	}
+}
 
 func TestParse(t *testing.T) {
 	tests := []struct {

@@ -104,19 +104,49 @@ func TabFrom(object map[string]any) Tab {
 	return tab
 }
 
-// Pane is one live pane as Herdr reports it. Label is the name pane rename set.
+// Pane is one live pane as Herdr reports it. Label is the name pane rename set,
+// and TabID is the tab the pane is in.
 type Pane struct {
 	ID    string
 	Label string
+	TabID string
 }
 
 // PaneFrom builds a Pane from a Herdr pane object. The name hergy gives a pane
-// with pane rename comes back as "label".
+// with pane rename comes back as "label", which is empty for a pane hergy did not
+// name.
 func PaneFrom(object map[string]any) Pane {
 	pane := Pane{}
 	pane.ID, _ = object["pane_id"].(string)
 	pane.Label, _ = object["label"].(string)
+	pane.TabID, _ = object["tab_id"].(string)
 	return pane
+}
+
+// WorkerTabPrefix is how the label of one team's worker tabs starts:
+// "worker:<team>/". hergy puts each hired worker in a tab of its own.
+func WorkerTabPrefix(teamName string) string { return "worker:" + teamName + "/" }
+
+// NamedForTeam reports whether a herdr name is one hergy gave a member, a worker
+// or an agent of this team: it starts with the team's name and a dash,
+// "<team>-<name>". A pane hergy did not name has no name at all, which is how down
+// tells hergy's panes from a person's (d-da92).
+func NamedForTeam(teamName, herdrName string) bool {
+	return strings.HasPrefix(herdrName, teamName+"-")
+}
+
+// NamesTeam reports whether a tab label stands for one team: the team's name
+// alone, or the older "team:<team>@<definition>" / "team:<team>" shapes.
+func NamesTeam(label, name string) bool {
+	if label == name {
+		return true
+	}
+	rest, ok := strings.CutPrefix(label, "team:")
+	if !ok {
+		return false
+	}
+	before, _, _ := strings.Cut(rest, "@")
+	return before == name
 }
 
 // Group is a Herdr command group and the subcommands the launcher needs.
@@ -142,7 +172,7 @@ var refreshGroups = []Group{
 
 var downGroups = []Group{
 	{Name: "agent", Subs: []string{"list"}},
-	{Name: "pane", Subs: []string{"close"}},
+	{Name: "pane", Subs: []string{"close", "list"}},
 	{Name: "tab", Subs: []string{"list"}},
 }
 
