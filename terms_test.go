@@ -337,6 +337,34 @@ var glossary = []term{
 		japanese: "元に戻す",
 		meaning:  "throw away every change not saved in this panel and write the file's own text again (the save band's 元に戻す)",
 	},
+	{
+		id:       "running-column",
+		english:  "Running",
+		japanese: "動き",
+		meaning:  "the column of the team definitions list that says whether a team of that definition is running, and starts or stops it",
+	},
+	{
+		id:       "find",
+		english:  "Find",
+		japanese: "探す",
+		meaning:  "the field in the band that finds running teams, team definitions, workspaces, members, roles, rules and profiles across the listed projects and the global settings",
+		banned: []ban{
+			// 検索 was the other word for this field; the screens say 探す.
+			{lang: "ja", word: "検索", instead: "探す"},
+		},
+	},
+	{
+		id:       "waiting-for-the-human",
+		english:  "waiting for the human",
+		japanese: "人間を待っている",
+		meaning:  "the group at the top of the activity screen: members waiting for permission and members that handed the turn to the human",
+	},
+	{
+		id:       "headquarters",
+		english:  "headquarters",
+		japanese: "本部",
+		meaning:  "hergy serve reading every project listed under projects: in the global config.yaml (d-73fc). The screens use it in the sheet's title 本部に並べるプロジェクト / Projects in the headquarters and in the notice about an unlisted project, and nowhere else",
+	},
 }
 
 // bannedWords are words hergy does not use for anything, ruled out by the

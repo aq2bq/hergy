@@ -104,7 +104,7 @@ window.hergyAPI = (() => {
     PLACES.forEach((l) => {
       const place = places[l];
       row[l] = (place && place.doc)
-        ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '' })
+        ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '', path: place.path || '' })
         : null;
     });
     if (s.noDoc) row.noDoc = true;
@@ -140,16 +140,17 @@ window.hergyAPI = (() => {
     teamModel,
     // list is GET /api/{kind}: every item and the hashes behind them.
     list: (kind) => call('GET', `/api/${kind}`),
-    // get is GET /api/{kind}/{name}?place=: one document.
-    get: (kind, name, place) => call('GET', `/api/${kind}/${enc(name)}${place ? `?place=${enc(place)}` : ''}`),
+    // get is GET /api/{kind}/{name}?place=&project=: one document. project names
+    // the listed project it stands in (d-73fc), empty for this one.
+    get: (kind, name, place, project) => call('GET', `/api/${kind}/${enc(name)}?${place ? `place=${enc(place)}&` : ''}${project ? `project=${enc(project)}` : ''}`),
     // check is POST /api/{kind}/check: what is wrong with a draft or a text.
     check: (kind, payload) => call('POST', `/api/${kind}/check`, payload),
     // save is PUT /api/{kind}/{name}: write one document.
     save: (kind, name, payload) => call('PUT', `/api/${kind}/${enc(name)}`, payload),
-    // del is DELETE /api/{kind}/{name}?place=&hash=&agreement_hash=: take one
-    // document away. The team kind takes a whole folder, so it carries the second
-    // file's hash too (spec-teams B6).
-    del: (kind, name, place, hash, agreementHash) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ''}`),
+    // del is DELETE /api/{kind}/{name}?place=&hash=&agreement_hash=&project=: take
+    // one document away. The team kind takes a whole folder, so it carries the
+    // second file's hash too (spec-teams B6).
+    del: (kind, name, place, hash, agreementHash, project) => call('DELETE', `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ''}${project ? `&project=${enc(project)}` : ''}`),
     // ---- 変更を伝える (r-a8fa) -----------------------------------------
     // delivery is GET /api/delivery: the running members whose prompt is not the
     // one hergy last handed them, by running team.

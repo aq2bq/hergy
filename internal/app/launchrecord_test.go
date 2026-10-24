@@ -290,3 +290,53 @@ func TestTheRecordKeepsARevision(t *testing.T) {
 	}
 	t.Fatalf("the record does not name %s:\n%v", protocol, rec.Docs)
 }
+
+// TestHireRecordsWhoAddedTheWorker: a hire leaves one line naming the worker,
+// the member that added it (the short name --from resolved to), the purpose and
+// the tab (d-b4b9). A launch record still holds every launch it held before, and
+// the hire line carries no members and no documents.
+func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "dev")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
+		"version: 1\nmission: a mission for the test\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: dev\n"+
+			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
+			"turns:\n  - human -> lead\n  - lead -> human\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	mustRun(t, "up", "dev")
+	mustRun(t, "hire", "researcher", "--purpose", "research",
+		"--task", "read the docs", "--team", "dev", "--from", "lead")
+
+	_, records := launchLog(t, f)
+	last := records[len(records)-1]
+	if !last.IsHire() || last.Hire == nil {
+		t.Fatalf("the last record is not a hire line: %+v", last)
+	}
+	want := launchlog.Hire{Worker: "dev-researcher", From: "lead", Purpose: "research", Tab: "worker:dev/researcher"}
+	if *last.Hire != want {
+		t.Errorf("hire = %+v, want %+v", *last.Hire, want)
+	}
+	if last.Project != f.proj || last.Team != "dev" || last.Definition != "dev" {
+		t.Errorf("project/team/definition = %q/%q/%q", last.Project, last.Team, last.Definition)
+	}
+	if len(last.Members) != 0 || len(last.Docs) != 0 || last.TeamYAML != "" {
+		t.Errorf("a hire line carries members, docs or team_yaml: %+v", last)
+	}
+	// The launch the up wrote keeps its own line: a hire is one more line, not
+	// a replacement for the launch.
+	found := false
+	for _, record := range records {
+		if record.Command == launchlog.CommandUp && record.Team == "dev" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the up's own launch line is gone: %+v", records)
+	}
+}

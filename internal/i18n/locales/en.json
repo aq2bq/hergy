@@ -501,5 +501,7 @@
   "web.hq.workspace_missing": "Workspace %s is not there. Read the screen again and choose one",
   "web.hq.project_shadows": "In %s, %s's own %s is used",
   "web.hq.path_relative": "%s is a relative path. Write an absolute path, or one that starts with ~/",
-  "web.hq.path_empty": "Write the path of a project directory"
+  "web.hq.path_empty": "Write the path of a project directory",
+  "web.hq.tab_created": "Created tab %s",
+  "web.hq.panes_created": "Created %d panes"
 }

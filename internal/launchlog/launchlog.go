@@ -33,13 +33,26 @@ const (
 	blobsDir = "blobs"
 )
 
-// Command is what a record was written for. hire is not recorded: a worker is
-// not a member of the team definition, and its prompt comes from its hirer.
+// Command is what a record was written for. A launcher's commands write their
+// launches; hire writes one line about the worker it added, so the activity
+// screen can say which member hired it (d-b4b9).
 const (
 	CommandUp       = "up"
 	CommandRefresh  = "refresh"
 	CommandReprompt = "reprompt"
+	CommandHire     = "hire"
 )
+
+// Hire is one worker a member hired, as its hire line records it: the name herdr
+// sees, the member that added it (the short name team.yaml writes), the purpose
+// it was hired for, and the tab it was put in. A worker hired before this line
+// was written has no hire line and no From anywhere.
+type Hire struct {
+	Worker  string `json:"worker"` // the name herdr sees ("<team>-<worker>")
+	From    string `json:"from"`   // the short name of the member that added it
+	Purpose string `json:"purpose"`
+	Tab     string `json:"tab"`
+}
 
 // Member is one member as it was handed a prompt. Prompt is the hash of the
 // prompt text, which is in blobs/.
@@ -88,7 +101,14 @@ type Record struct {
 	Lang        string   `json:"lang,omitempty"`
 	Members     []Member `json:"members"`
 	Docs        []Doc    `json:"docs"`
+	// Hire is the worker this line added, for CommandHire; nil for a launch.
+	// A hire line carries no members, no docs and no team_yaml: nothing was
+	// handed a prompt by it.
+	Hire *Hire `json:"hire,omitempty"`
 }
+
+// IsHire says this line records a worker's hire, not a launch.
+func (r Record) IsHire() bool { return r.Command == CommandHire }
 
 // Workspace is one herdr workspace as a launch names it: the label a person
 // reads, and the id it had when the team was started there.

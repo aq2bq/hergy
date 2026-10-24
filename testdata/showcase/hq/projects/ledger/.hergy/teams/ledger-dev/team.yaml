@@ -13,6 +13,10 @@ members:
   - name: tester
     role: builder
     profile: haiku-chore
+workers:
+  - from: lead
+    purpose: 差分の見本
+    profile: codex-high
 turns:
   - human -> lead
   - lead -> builder

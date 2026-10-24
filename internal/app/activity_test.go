@@ -18,6 +18,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // The activity screen's reading (internal/app/activity.go, spec-activity 6 A1)
@@ -685,4 +686,71 @@ func TestActivityTimeWordsAreTheServers(t *testing.T) {
 	if got := activity.SinceAt(activityNow, activityNow.Add(-18*time.Minute), false); !regexp.MustCompile(`^\d\d:\d\d から$`).MatchString(got) {
 		t.Errorf("SinceAt = %q, want a clock and から", got)
 	}
+}
+
+// TestActivityNodesCarryTheTerminalTitleAndTheHirer: the opened team says what
+// each agent's terminal says it is doing, exactly as herdr gives the title, and
+// which member added each worker, from the hire line of the launch record
+// (d-b4b9). A worker with no hire line has no member, and the screen says no
+// が追加 for it.
+func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
+	f := newActivityFixture(t)
+	f.writeHerdr(t, "tabs.json", `{"result":{"tabs":[
+ {"tab_id":"t1","label":"core"},
+ {"tab_id":"t2","label":"core-hotfix"},
+ {"tab_id":"t3","label":"worker:core/deps"},
+ {"tab_id":"t6","label":"worker:core/scout"},
+ {"tab_id":"t4","label":"other"},
+ {"tab_id":"t5","label":"notes"}]}}`)
+	f.writeHerdr(t, "agents.json", `{"result":{"agents":[
+ {"name":"core-lead","agent_status":"idle","tab_id":"t1","state_change_seq":90,"terminal_title_stripped":"r-7f3c の差分を読んでいる"},
+ {"name":"core-impl-a","agent_status":"idle","tab_id":"t1","state_change_seq":88},
+ {"name":"core-hotfix-impl-a","agent_status":"idle","tab_id":"t2","state_change_seq":30},
+ {"name":"core-deps","agent_status":"idle","tab_id":"t3","state_change_seq":80,"terminal_title_stripped":"依存を更新している"},
+ {"name":"core-scout","agent_status":"idle","tab_id":"t6","state_change_seq":70},
+ {"name":"other-lead","agent_status":"working","tab_id":"t4","state_change_seq":5},
+ {"name":"notes","agent_status":"idle","tab_id":"t5","state_change_seq":5}]}}`)
+	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
+	if err := log.Append(launchlog.Record{
+		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandHire,
+		Hergy: "hergy (test)", Project: f.proj, Team: "core",
+		Hire: &launchlog.Hire{Worker: "core-deps", From: "lead", Purpose: "依存の更新", Tab: "worker:core/deps"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	doc, ok := f.reader(t).One("core")
+	if !ok {
+		t.Fatal("core is running, so its opened part is there")
+	}
+	lead := nodeNamed(t, doc.Nodes, "lead")
+	if lead.Doing != "r-7f3c の差分を読んでいる" {
+		t.Errorf("lead's doing = %q, want the title herdr gives", lead.Doing)
+	}
+	if implA := nodeNamed(t, doc.Nodes, "impl-a"); implA.Doing != "" {
+		t.Errorf("impl-a has no title, so its doing = %q, want none", implA.Doing)
+	}
+	deps := nodeNamed(t, doc.Hired, "deps")
+	if deps.From != "lead" {
+		t.Errorf("deps was hired by %q, want lead (the hire line)", deps.From)
+	}
+	if deps.Doing != "依存を更新している" {
+		t.Errorf("deps' doing = %q, want its title", deps.Doing)
+	}
+	scout := nodeNamed(t, doc.Hired, "scout")
+	if scout.From != "" {
+		t.Errorf("scout has no hire line, so its from = %q, want none", scout.From)
+	}
+}
+
+// nodeNamed is one node of an opened team by its short name.
+func nodeNamed(t *testing.T, nodes []web.ActivityNode, name string) web.ActivityNode {
+	t.Helper()
+	for _, node := range nodes {
+		if node.Name == name {
+			return node
+		}
+	}
+	t.Fatalf("no node %q in %+v", name, nodes)
+	return web.ActivityNode{}
 }

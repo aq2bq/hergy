@@ -186,8 +186,7 @@ func (r *removalHQ) RemoveProject(path string) (HQProjects, error) {
 	return r.Projects()
 }
 
-// TestHQRemoveProjectReadsPath: DELETE /api/hq/projects carries the directory in
-// ?path=, as api.md writes it, and answers the project list (r-b7e1).
+// TestHQRemoveProjectReadsPath: DELETE /api/hq/projects carries the directory in// ?path=, as api.md writes it, and answers the project list (r-b7e1).
 func TestHQRemoveProjectReadsPath(t *testing.T) {
 	f := newFixture(t)
 	server := f.hqServer(t)
@@ -210,5 +209,85 @@ func TestHQRemoveProjectReadsPath(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"mode"`) {
 		t.Errorf("the answer is not the project list: %s", rec.Body.String())
+	}
+}
+
+// TestHQBandCountsEveryGroup: the band's three numbers are the listed projects'
+// and the global layer's, not the one project serve was started in (spec 2 章).
+func TestHQBandCountsEveryGroup(t *testing.T) {
+	f := newFixture(t)
+	other := filepath.Join(f.root, "other")
+	writeOtherTeam(t, other)
+	global := filepath.Join(f.global, "teams", "docs")
+	if err := os.MkdirAll(global, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "team.yaml"), []byte("version: 1\nmission: global docs\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server := f.hqServer(t)
+	hq := server.hq.(fakeHQ)
+	hq.projects = HQProjects{
+		Mode:    "listed",
+		Current: HQProject{Path: f.proj, Name: "proj", Listed: true},
+		Projects: []HQProject{
+			{Path: f.proj, Name: "proj", Listed: true, Defs: 1, Roles: 2, Profiles: 2},
+			{Path: other, Name: "other", Listed: true, Defs: 1, Roles: 1, Profiles: 0},
+		},
+		Global: HQGlobal{Path: f.global, Display: "~/.config/hergy", Defs: 1, Roles: 3, Profiles: 2},
+	}
+	hq.cats[other] = catalog.New(f.global, filepath.Join(other, ".hergy"), other, source.Disk{}, func(p string) string { return p })
+	server.hq, server.projects = hq, hq
+
+	nav := server.navOf("teams")
+	if nav.HQ == nil || nav.HQ.Mode != "listed" || nav.HQ.N != 2 {
+		t.Fatalf("the band's headquarters part = %+v", nav.HQ)
+	}
+	if nav.Teams != 3 || nav.Roles != 6 || nav.Profiles != 4 {
+		t.Errorf("the band's counts = %d/%d/%d, want the two projects' and the global layer's", nav.Teams, nav.Roles, nav.Profiles)
+	}
+}
+
+// writeOtherTeam writes one project with a team definition of its own.
+func writeOtherTeam(t *testing.T, dir string) {
+	t.Helper()
+	team := filepath.Join(dir, ".hergy", "teams", "ledger-dev")
+	if err := os.MkdirAll(team, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(team, "team.yaml"), []byte("version: 1\nmission: ledger\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAScreenCarriesTheProjectGroups: the three list screens carry the groups of
+// every listed project and the global layer, so the rows stand under their
+// project (spec 4 章).
+func TestAScreenCarriesTheProjectGroups(t *testing.T) {
+	f := newFixture(t)
+	server := f.hqServer(t)
+	for _, target := range []string{"/teams", "/roles", "/profiles"} {
+		resp, body := f.get(t, server, target)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s answers %d: %s", target, resp.StatusCode, body)
+		}
+		if !strings.Contains(body, `"hq":{"projects"`) {
+			t.Errorf("GET %s carries no headquarters groups: %s", target, body)
+		}
+	}
+}
+
+// TestTheBandSaysHowManyProjects: the band's crumb names the number of listed
+// projects; without projects: it keeps the one project and the way to list more
+// (spec 2 章).
+func TestTheBandSaysHowManyProjects(t *testing.T) {
+	f := newFixture(t)
+	server := f.hqServer(t)
+	_, body := f.get(t, server, "/teams")
+	if !strings.Contains(body, "ほかのプロジェクトも並べる") {
+		t.Errorf("a serve without projects: carries no way to list more: %s", body)
+	}
+	if !strings.Contains(body, `id="hq-q"`) {
+		t.Errorf("the band carries no search field: %s", body)
 	}
 }

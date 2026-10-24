@@ -379,6 +379,49 @@ func readHQIn[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 // projectQuery is the project one read or write names.
 func projectQuery(r *http.Request) string { return r.URL.Query().Get("project") }
 
+// hqScreenIsland is the headquarters part of a list screen's data island: the
+// projects reading, and the groups of each kind the screen draws (spec 4 章).
+// The screen builds its rows from the same answers GET /api/hq/{kind} gives, so a
+// page and an API read cannot show two different lists. It is nil when the
+// server has no headquarters reading: the screen then draws the one project's
+// rows as it always did.
+type hqScreenIsland struct {
+	Projects HQProjects `json:"projects"`
+	Teams    []HQGroup  `json:"teams,omitempty"`
+	Roles    []HQGroup  `json:"roles,omitempty"`
+	Profiles []HQGroup  `json:"profiles,omitempty"`
+}
+
+// hqScreenIsland reads the groups one screen draws, in the order they stand on
+// it: every listed project's own, then the global layer's once. It answers nil
+// when the headquarters cannot be read: the caller leaves the island out and the
+// screen falls back to the one project it was started in.
+func (s *Server) hqScreenIsland(kindNames ...string) *hqScreenIsland {
+	if s.hq == nil {
+		return nil
+	}
+	projects, err := s.hq.Projects()
+	if err != nil {
+		return nil
+	}
+	out := &hqScreenIsland{Projects: projects}
+	for _, kindName := range kindNames {
+		groups, refusal := s.hqGroupsOf(projects, kindName)
+		if refusal != nil {
+			return nil
+		}
+		switch kindName {
+		case apiTeamKind:
+			out.Teams = groups.Groups
+		case apiRoleKind:
+			out.Roles = groups.Groups
+		case apiProfileKind:
+			out.Profiles = groups.Groups
+		}
+	}
+	return out
+}
+
 // hqProjectGroups is GET /api/hq/{kind}: every listed project's own names, then
 // the global layer's once.
 func (s *Server) hqProjectGroups(kindName string) (HQGroups, *apiErr) {
@@ -386,6 +429,12 @@ func (s *Server) hqProjectGroups(kindName string) (HQGroups, *apiErr) {
 	if err != nil {
 		return HQGroups{}, hqRefusal(err)
 	}
+	return s.hqGroupsOf(projects, kindName)
+}
+
+// hqGroupsOf is hqProjectGroups over a projects reading the caller already made,
+// so one page does not read every project's catalogs twice.
+func (s *Server) hqGroupsOf(projects HQProjects, kindName string) (HQGroups, *apiErr) {
 	out := HQGroups{Groups: []HQGroup{}}
 	owners := map[string][]string{}
 	for _, project := range hqShownProjects(projects) {

@@ -70,7 +70,9 @@ to hergy up --as. Commands that read or write a team definition take a team
 definition name (up, new, show); commands that act on a running team take a team
 name (down, status, refresh, reprompt, hire). A running team's tab is labelled
 with the team's name alone, and a team command finds the definition behind it in
-this machine's launch record ($XDG_STATE_HOME/hergy/launches/log.jsonl). A tab is
+this machine's launch record ($XDG_STATE_HOME/hergy/launches/log.jsonl). The record
+also keeps one line for each worker a member hired, naming the member that added
+it. A tab is
 one of hergy's when a live agent or a named pane in it is named after its label
 ("<team>-<member>"), or when it still has the older shape
 "team:<team>@<definition>" ("team:<team>", where the definition name is the team

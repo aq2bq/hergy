@@ -392,7 +392,7 @@ func recordedDefinitions(base string) map[string]string {
 		return out
 	}
 	for _, record := range records {
-		if record.Team == "" || record.Definition == "" {
+		if record.Team == "" || record.Definition == "" || record.IsHire() {
 			continue
 		}
 		if record.Project != "" && !samePath(record.Project, base) {
@@ -457,6 +457,9 @@ func launchTeams() []team.Launch {
 	}
 	out := make([]team.Launch, 0, len(records))
 	for _, record := range records {
+		if record.IsHire() {
+			continue
+		}
 		out = append(out, team.Launch{Team: record.Team, Definition: record.Definition})
 	}
 	return out
@@ -1879,7 +1882,13 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	return runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) })
+	if err := runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) }); err != nil {
+		return err
+	}
+	// The worker is up, so the record says who added it (d-b4b9). The activity
+	// screen reads the line; the launch itself does not stand on it.
+	recordHire(stderr, env, r, *worker)
+	return nil
 }
 
 // dryPlan is the --dry output: the same plan as JSON with --json, and a

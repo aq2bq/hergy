@@ -26,7 +26,7 @@
     "pane_id": "p-core-impl-a",
     "tab_id": "t1",
     "state_change_seq": 88,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "設計の下書きを待っている"
    },
    {
     "name": "core-impl-b",
@@ -44,7 +44,7 @@
     "pane_id": "p-core-reviewer",
     "tab_id": "t1",
     "state_change_seq": 91,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "コマンドを実行してよいか聞いている"
    },
    {
     "name": "core-deps",
@@ -80,7 +80,7 @@
     "pane_id": "p-ledger-dev-builder",
     "tab_id": "t4",
     "state_change_seq": 71,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "bin/migrate を流してよいか聞いている"
    },
    {
     "name": "ledger-dev-reviewer",
@@ -89,7 +89,7 @@
     "pane_id": "p-ledger-dev-reviewer",
     "tab_id": "t4",
     "state_change_seq": 69,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "レビューを返して待機"
    },
    {
     "name": "ledger-dev-tester",
@@ -107,7 +107,7 @@
     "pane_id": "p-ledger-dev-deps",
     "tab_id": "t5",
     "state_change_seq": 73,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "差分の見本を作っている"
    },
    {
     "name": "atlas-dev-lead",
@@ -116,7 +116,7 @@
     "pane_id": "p-atlas-dev-lead",
     "tab_id": "t6",
     "state_change_seq": 60,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "配信の計画を読んでいる"
    },
    {
     "name": "atlas-dev-analyst",
@@ -125,7 +125,7 @@
     "pane_id": "p-atlas-dev-analyst",
     "tab_id": "t6",
     "state_change_seq": 59,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "タイルの要件をまとめている"
    },
    {
     "name": "atlas-dev-builder",
@@ -134,7 +134,7 @@
     "pane_id": "p-atlas-dev-builder",
     "tab_id": "t6",
     "state_change_seq": 61,
-    "terminal_title_stripped": ""
+    "terminal_title_stripped": "計測の準備をしている"
    },
    {
     "name": "atlas-dev-reviewer",

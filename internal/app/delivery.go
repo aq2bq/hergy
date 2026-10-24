@@ -185,7 +185,7 @@ func latestMemberRecords(env team.Env) map[string]map[string]launchlog.Record {
 		return out
 	}
 	for _, record := range records {
-		if record.Team == "" || record.Definition == "" {
+		if record.Team == "" || record.Definition == "" || record.IsHire() {
 			continue
 		}
 		if record.Project != "" && !samePath(record.Project, env.ProjectRoot) {

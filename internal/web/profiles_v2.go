@@ -30,6 +30,8 @@ import (
 type p2Island struct {
 	Profile apiList   `json:"profile"`
 	Assign  *p2Assign `json:"assign,omitempty"`
+	// HQ is the headquarters lists (d-73fc): the projects' groups of profiles.
+	HQ *hqScreenIsland `json:"hq,omitempty"`
 }
 
 // p2Page answers one tab of the profile screen with the whole page. It is not
@@ -37,7 +39,7 @@ type p2Island struct {
 // no other, so its look is the one the mock agreed on.
 func (s *Server) p2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	data := s.p2Data(tab, r.URL.Query())
-	island := p2Island{Profile: s.p2List()}
+	island := p2Island{Profile: s.p2List(), HQ: s.hqScreenIsland(apiProfileKind)}
 	if tab == "assign" {
 		island.Assign = data.Assign
 	}

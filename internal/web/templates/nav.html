@@ -1,13 +1,15 @@
 {{define "nav_band"}}
 <div class="bar">
-  <div class="crumb"><a class="mark" href="/">hergy</a><span class="sep">/</span><span>{{.Project}}</span></div>
+  <div class="crumb"><a class="mark" href="/">hergy</a><span class="sep">/</span>{{if .HQ}}{{if eq .HQ.Mode "listed"}}<button type="button" class="hq-pbtn{{if not .HQ.CurrentListed}} warn{{end}}" data-hq="projects" aria-haspopup="dialog" aria-label="並べているプロジェクト {{.HQ.N}}">プロジェクト <b>{{.HQ.N}}</b><i class="hq-caret"></i></button>{{else}}<span>{{.HQ.Current}}</span><button type="button" class="hq-pbtn" data-hq="projects" aria-haspopup="dialog" aria-label="ほかのプロジェクトも並べる">ほかのプロジェクトも並べる<i class="hq-caret"></i></button>{{end}}{{else}}<span>{{.Project}}</span>{{end}}</div>
   <nav class="screens" aria-label="画面" data-key="{{.Key}}">
     {{if eq .Current "activity"}}<span class="scr on" aria-current="page" data-screen="activity">活動{{if .Counts}}<span class="n">{{.Activity}}</span>{{end}}{{if .Waiting}}<span class="wait">待ち {{.Waiting}}</span>{{end}}</span>{{else}}<a class="scr" href="/activity" data-screen="activity">活動{{if .Counts}}<span class="n">{{.Activity}}</span>{{end}}{{if .Waiting}}<span class="wait">待ち {{.Waiting}}</span>{{end}}</a>{{end}}
     {{if eq .Current "teams"}}<span class="scr on" aria-current="page" data-screen="teams">チーム定義<span class="n">{{.Teams}}</span></span>{{else}}<a class="scr" href="/teams" data-screen="teams">チーム定義<span class="n">{{.Teams}}</span></a>{{end}}
     {{if eq .Current "roles"}}<span class="scr on" aria-current="page" data-screen="roles">ロール<span class="n">{{.Roles}}</span></span>{{else}}<a class="scr" href="/roles" data-screen="roles">ロール<span class="n">{{.Roles}}</span></a>{{end}}
     {{if eq .Current "profiles"}}<span class="scr on" aria-current="page" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></span>{{else}}<a class="scr" href="/profiles" data-screen="profiles">プロファイル<span class="n">{{.Profiles}}</span></a>{{end}}
   </nav>
+  {{if .HQ}}<label class="hq-search"><span class="hq-sk">探す</span><input id="hq-q" type="search" placeholder="チーム・ワークスペース・ロール・規則" autocomplete="off" aria-label="並べたプロジェクトを横断して探す"><kbd>/</kbd></label>{{end}}
 </div>
+{{if .HQ}}{{if and (eq .HQ.Mode "listed") (not .HQ.CurrentListed)}}<div class="hq-banner"><span>この hergy serve を起こした <code>{{.HQ.Current}}</code>（<code>{{.HQ.CurrentPath}}</code>）は、本部に並んでいません。並べていないプロジェクトのチームは出しません。</span><button type="button" class="hq-btn sm" data-hq="projects">並べる…</button></div>{{end}}{{end}}
 {{end}}
 
 {{define "nav_page"}}<!doctype html>
@@ -18,9 +20,11 @@
 <title>hergy</title>
 <link rel="stylesheet" href="/static/profiles-v2.css">
 <link rel="stylesheet" href="/static/nav.css">
+<link rel="stylesheet" href="/static/hq.css">
 <link rel="stylesheet" href="/static/deliver.css">
 <script src="/static/nav.js" defer></script>
 <script src="/static/api.js" defer></script>
+<script src="/static/hq.js" defer></script>
 <script src="/static/deliver.js" defer></script>
 </head>
 <body>

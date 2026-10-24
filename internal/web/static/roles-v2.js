@@ -56,30 +56,89 @@
   const fromJSON = RD.fromJSON;
   const toDoc = RD.toDoc;
 
-  const roles = API.roleModel(ISLAND.role).roles.map((r) => {
-    const row = { uid: r.uid };
-    if (r.markdown) { row.markdown = r.markdown; row.name = r.name || ''; row.project = null; row.global = null; return row; }
-    for (const l of PLACES) {
-      if (r[l]) {
-        const draft = fromJSON(r[l]);
-        // A role no layer holds a document for opens as a new one (spec-roles
-        // 1.2.10): nothing is saved yet, so the first 保存 writes the file, and
-        // the row counts no rules until it is saved.
-        const saved = r.noDoc ? null : draft;
-        row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
-      } else { row[l] = null; }
-    }
-    if (r.noDoc) row.noDoc = true;
-    if (r.isNew) row.isNew = true;
-    return row;
-  });
+  // HQ is the headquarters lists (d-73fc): every listed project's roles and team
+  // definitions, then the global layer's. Without it the screen is the one
+  // project's, as it always was.
+  const HQ = ISLAND.hq || null;
+  // GROUPED is a headquarters with projects: listed: every row stands in a
+  // group and carries its project. Without projects: the screen is the one
+  // project's, the way it always was (d-73fc).
+  const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
+  const CURRENT = GROUPED ? ((HQ.projects.current && HQ.projects.current.path) || '') : '';
+  const groupKeyOf = (g) => (g.global ? 'global' : (g.project ? g.project.path : ''));
+  const groupNameOf = (g) => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+  const currentGroup = () => (GROUPED ? CURRENT : '');
+  // currentProjectName is the name the プロジェクト column gives this serve's
+  // project, whether or not it is listed (d-8a45, r-5b96 audit 5).
+  const currentProjectName = () => {
+    if (!HQ) return LNAME.project;
+    const p = HQ.projects || {};
+    return (p.current && p.current.name) || '';
+  };
+  const currentGroupName = () => {
+    if (!HQ) return '';
+    const p = HQ.projects || {};
+    if (p.mode === 'current') return (p.current && p.current.name) || '';
+    const found = (p.projects || []).find((x) => x.path === CURRENT);
+    return found ? found.name : ((p.current && p.current.name) || '');
+  };
+
+  // rowsOf is every row the list draws: each group's answer read with the same
+  // api.js model as the one project's, and every row given its project's key and
+  // its own uid, so two projects' rows never share one.
+  function rowsOfModel(model, group) {
+    return model.roles.map((r) => {
+      const row = { uid: r.uid, group };
+      if (r.markdown) { row.markdown = r.markdown; row.name = r.name || ''; row.project = null; row.global = null; return row; }
+      row.paths = {};
+      for (const l of PLACES) {
+        if (r[l]) {
+          const draft = fromJSON(r[l]);
+          // A role no layer holds a document for opens as a new one (spec-roles
+          // 1.2.10): nothing is saved yet, so the first 保存 writes the file, and
+          // the row counts no rules until it is saved.
+          const saved = r.noDoc ? null : draft;
+          row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
+          if (r[l].path) row.paths[l] = r[l].path;
+        } else { row[l] = null; }
+      }
+      if (r.noDoc) row.noDoc = true;
+      if (r.isNew) row.isNew = true;
+      return row;
+    });
+  }
+  let roles = [];
+  if (GROUPED) {
+    (HQ.roles || []).forEach((g) => {
+      rowsOfModel(API.roleModel(g.list), groupKeyOf(g)).forEach((r) => roles.push(r));
+    });
+    roles.forEach((r) => { r.uid = ++uid; });
+  } else {
+    roles = rowsOfModel(API.roleModel(ISLAND.role), '');
+  }
+  // The definitions that read the roles: the current project's for the 割り当て
+  // tab, and every group's for the 使っているチーム column.
   const teams = API.teamModel(ISLAND.team).teams.map((t) => ({
     id: t.id, hash: t.hash || '', place: t.place || 'project', turns: t.turns || [],
     members: (t.members || []).map((m) => ({ name: m.name, saved: m.saved, draft: m.draft })),
+    group: currentGroup(),
   }));
+  const hqTeams = [];
+  if (GROUPED) {
+    (HQ.teams || []).forEach((g) => {
+      const key = groupKeyOf(g);
+      ((g.list && g.list.items) || []).forEach((item) => {
+        const sum = item.summary || {};
+        hqTeams.push({
+          id: item.name || '', group: key,
+          members: (sum.members || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
+        });
+      });
+    });
+  }
   // A row a person adds gets an id of its own: start past the ones the island
   // carries, so a new row never takes an opened row's place.
-  uid = roles.reduce((m, r) => Math.max(m, r.uid || 0), 0);
+  uid = roles.reduce((m, r) => Math.max(m, r.uid || 0), uid);
 
   // ---- lookups ---------------------------------------------------------
   const byUid = (id) => roles.find((r) => r.uid === Number(id));
@@ -89,13 +148,47 @@
   const curName = (r) => (r.markdown ? r.name || '' : (r[eff(r)].saved || r[eff(r)].draft).name);
   const savedRoles = () => roles.filter((r) => live(r, 'project') || live(r, 'global'));
   const roleByName = (n) => savedRoles().find((r) => curName(r) === n);
-  const whoReads = (n) => teams.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
-  const readersCell = (name) => {
-    const rs = whoReads(name);
-    const teams = [...new Set(rs.map((x) => x.t.id))];
-    return teams.length ? `<b>${teams.length}</b><span>${esc(teams.join(' · '))}</span>` : '<span class="none">0</span>';
+  // whoReads is the members that name a role: the row's own project's teams, and
+  // for a global row every project's (spec 4 章). Each answer says which project
+  // the team belongs to.
+  const whoReads = (n, group) => {
+    const pool = GROUPED ? hqTeams.filter((t) => (group === 'global' ? true : t.group === group)) : teams;
+    return pool.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
+  };
+  // readersCell draws 使っているチーム: one project's teams, or, for the global
+  // layer, each project's teams with its name in front.
+  const readersCell = (r) => {
+    if (!GROUPED) {
+      const teams = [...new Set(whoReads(curName(r), r.group).map((x) => x.t.id))];
+      return teams.length ? `<b>${teams.length}</b><span>${esc(teams.join(' · '))}</span>` : '<span class="none">0</span>';
+    }
+    const name = curName(r);
+    const rs = whoReads(name, r.group);
+    if (r.group === 'global') {
+      const byProject = new Map();
+      rs.forEach(({ t }) => {
+        const key = t.group;
+        if (!byProject.has(key)) byProject.set(key, []);
+        if (!byProject.get(key).includes(t.id)) byProject.get(key).push(t.id);
+      });
+      if (!byProject.size) return '<span class="none">0</span>';
+      const total = [...byProject.values()].reduce((n, xs) => n + xs.length, 0);
+      const parts = [...byProject.entries()].map(([key, ids]) => (key === 'global' ? ids.join(' · ') : `${projectNameOf(key)}: ${ids.join(' · ')}`));
+      return `<b>${total}</b><span>${esc(parts.join(' / '))}</span>`;
+    }
+    const ids = [...new Set(rs.map(({ t }) => t.id))];
+    return ids.length ? `<b>${ids.length}</b><span>${esc(ids.join(' · '))}</span>` : '<span class="none">0</span>';
+  };
+  const projectNameOf = (key) => {
+    if (key === 'global') return 'グローバル';
+    if (key === '' || key === CURRENT) return currentGroupName();
+    const found = HQ && ((HQ.projects || {}).projects || []).find((x) => x.path === key);
+    return found ? found.name : String(key || '').split('/').filter(Boolean).pop() || '';
   };
   const pathOf = (l, d) => DIR[l] + (d.name || '…') + '.yaml';
+  // pathOfRow is the file one panel stands behind: the answer's own path when
+  // the row is another project's, and the one this project's places build.
+  const pathOfRow = (r, l, d) => (r.paths && r.paths[l]) || pathOf(l, d);
 
   // ---- server checks ---------------------------------------------------
   const checks = {};
@@ -136,7 +229,7 @@
     const k = keyOf(r, l);
     const id = (reqs[k] || 0) + 1;
     reqs[k] = id;
-    const res = await API.check('role', { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base) });
+    const res = await API.check('role', { place: l, original: e.saved ? e.saved.name : null, project: r.group && r.group !== 'global' ? r.group : undefined, doc: toDoc(e.draft, e.saved || e.base) });
     if (reqs[k] !== id) return;
     if (!res.ok || !res.json) return;
     const c = API.checkAnswer(res);
@@ -180,7 +273,7 @@
       if (document.contains(panel)) markPanel(panel);
       if (r) scheduleCheck(r, panel.dataset.l, panel);
     },
-    readerCount: (name) => whoReads(name).length,
+    readerCount: (name) => whoReads(name, GROUPED ? CURRENT : '').length,
     filtering: () => filtering(),
     shown: (x, issues) => ruleShown(x, issues),
     query: () => state.q,
@@ -211,11 +304,13 @@
       const f = qs.get('filter');
       state.filter = (f === 'off' || f === 'issues') ? f : null;
       state.q = qs.get('q') || '';
-      const opened = (qs.get('open') || '').split(',').filter(Boolean);
-      opened.forEach((name) => {
-        // A row is found by the name it shows: a saved name, a written one, or
-        // the name of a document only Markdown holds (spec-roles 2 節).
-        const r = roles.find((x) => curName(x) === name);
+      const openedRaw = (qs.get('open') || '');
+      const openedRows = window.hergyHQ ? window.hergyHQ.parseOpen(openedRaw) : openedRaw.split(',').filter(Boolean).map((name) => ({ name, group: '' }));
+      openedRows.forEach(({ name, group: g }) => {
+        // A row is found by the name it shows and, from a search result, by the
+        // project it stands in: a saved name, a written one, or the name of a
+        // document only Markdown holds (spec-roles 2 節, spec 3 章).
+        const r = roles.find((x) => curName(x) === name && (!g || x.group === g)) || roles.find((x) => curName(x) === name);
         if (!r) return;
         state.open.add(r.uid);
         if (r.noDoc) openNewPanel(r);
@@ -224,7 +319,7 @@
       // opening names the role (the team screen links so, d-8bbf).
       (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
         const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-        const wanted = m ? [{ name: m[1], place: m[2], id: m[3] }] : opened.map((name) => ({ name, place: null, id: spec }));
+        const wanted = m ? [{ name: m[1], place: m[2], id: m[3] }] : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
         wanted.forEach(({ name, place, id }) => {
           const r = roleByName(name);
           if (!r) return;
@@ -256,7 +351,7 @@
     } else {
       if (state.filter) q.set('filter', state.filter);
       if (state.q) q.set('q', state.q);
-      const open = [...state.open].map((u) => { const r = byUid(u); return r ? curName(r) : ''; }).filter(Boolean);
+      const open = [...state.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? window.hergyHQ.token(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
       if (open.length) q.set('open', open.join(','));
       const rule = [...RD.state.ropen].map((kk) => {
         const m = /^(\d+)(project|global):(\d+)$/.exec(kk);
@@ -331,16 +426,35 @@
       <input id="q" class="search" type="search" placeholder="規則を探す" value="${esc(state.q)}" autocomplete="off">
     </div>
     <div class="list">
-      <div class="head"><span></span><span>名前</span><span>置き場所</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
+      <div class="head"><span></span><span>名前</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
       <div id="rows"></div>
     </div>`;
+  }
+
+  // groupHeaderHTML is one project's group's head (spec 4 章): its name, where it
+  // is, and how many roles it holds. The global layer comes last with the one
+  // sentence about being used from every project.
+  function groupHeaderHTML(g) {
+    const rows = (g.list && g.list.items) || [];
+    if (g.global) return `<div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">${esc(g.display || '')}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
+    return `<div class="hq-gh"><span class="hq-gn">${esc(groupNameOf(g))}</span><span class="hq-gp">${esc(g.project ? g.project.display : '')}</span><span class="hq-gc">ロール <b>${rows.length}</b></span></div>`;
   }
 
   function renderList() {
     const shown = roles.filter((r) => !filtering() || r.isNew || r.markdown
       || PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
-    document.getElementById('rows').innerHTML = shown.map(roleHTML).join('')
-      || `<div class="sum"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
+    let html;
+    if (GROUPED) {
+      html = '';
+      (HQ.roles || []).forEach((g) => {
+        html += groupHeaderHTML(g) + shown.filter((r) => r.group === groupKeyOf(g)).map(roleHTML).join('');
+      });
+      if (!html) html = `<div class="sum"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
+    } else {
+      html = shown.map(roleHTML).join('')
+        || `<div class="sum"><span></span><span class="none">${roles.length ? '0 件' : 'ロールはありません'}</span></div>`;
+    }
+    document.getElementById('rows').innerHTML = html;
     $$('.panel').forEach(markPanel);
     applyStyles();
   }
@@ -366,17 +480,15 @@
     if (r.markdown) {
       return `<span class="chev"></span>
         <span class="c-name"><span class="nm">${esc(r.name)}</span><span class="sev err">問題 1</span></span>
-        <span class="c-place"><span class="none">—</span></span>
+        <span class="c-place">${placePills(r)}</span>
         <span class="c-count"><span class="none">—</span></span>
         <span class="c-backing"></span>
         <span class="c-amount"><span class="none">—</span></span>
-        <span class="c-readers">${readersCell(r.name)}</span>`;
+        <span class="c-readers">${readersCell(r)}</span>`;
     }
     const d = cur(r), saved = live(r, 'project') || live(r, 'global');
-    const readers = whoReads(curName(r));
-    const pills = r.noDoc ? '' : PLACES.map((l) => (live(r, l)
-      ? `<span class="pill ${l === 'global' && live(r, 'project') ? 'shadow' : 'on'}">${LNAME[l]}</span>`
-      : r[l] ? `<span class="pill pending">${LNAME[l]}</span>` : '')).join('');
+    const readers = whoReads(curName(r), r.group);
+    const pills = r.noDoc ? '' : placePills(r);
     const issues = rowIssues(r);
     const rs = rulesOf(d);
     const on = rs.filter(inP).length, off = rs.length - on;
@@ -389,7 +501,23 @@
       <span class="c-count">${saved ? rs.length : '<span class="none">—</span>'}</span>
       <span class="c-backing">${saved ? `<span class="onoff">オン <b>${on}</b>${off ? ` · <span class="offn">オフ ${off}</span>` : ''}</span>` : '<span class="none">—</span>'}</span>
       <span class="c-amount">${size && size.limit ? sizeHTML(size.size, size.limit) : '<span class="none">—</span>'}</span>
-      <span class="c-readers">${teamIds.length ? `<b>${teamIds.length}</b><span>${esc(teamsTxt)}</span>` : '<span class="none">0</span>'}</span>`;
+      <span class="c-readers">${GROUPED ? readersCell(r) : teamIds.length ? `<b>${teamIds.length}</b><span>${esc(teamsTxt)}</span>` : '<span class="none">0</span>'}</span>`;
+  }
+
+  // placePills is the row's プロジェクト column (spec 4 章): the project's name,
+  // or グローバル. A project that overrides a global name carries the crossed-out
+  // グローバル, and the global row says which projects override it.
+  function placePills(r) {
+    if (!GROUPED) return PLACES.map((l) => (live(r, l)
+      ? `<span class="pill ${l === 'global' && live(r, 'project') ? 'shadow' : 'on'}">${l === 'global' ? LNAME.global : esc(currentProjectName())}</span>`
+      : r[l] ? `<span class="pill pending">${l === 'global' ? LNAME.global : esc(currentProjectName())}</span>` : '')).join('');
+    const label = r.group === 'global' ? 'グローバル' : projectNameOf(r.group);
+    let out = `<span class="pill on">${esc(label)}</span>`;
+    const globalGroup = (HQ.roles || []).find((g) => g.global);
+    const over = (globalGroup && globalGroup.overridden_by) || {};
+    if (r.group && r.group !== 'global' && (over[curName(r)] || []).includes(r.group)) out += '<span class="pill shadow">グローバル</span>';
+    if (r.group === 'global') out += (over[curName(r)] || []).map((p) => `<span class="pill hq-ov">${esc(projectNameOf(p))} で上書き</span>`).join('');
+    return out;
   }
 
   function updateRow(r) {
@@ -411,10 +539,10 @@
   }
 
   function usageHTML(r) {
-    const readers = whoReads(curName(r));
+    const readers = whoReads(curName(r), r.group);
     if (!readers.length) return '';
     return `<span class="lbl">使っているチーム</span>` + readers.map(({ t, m }) =>
-      `<button class="uchip" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}" data-i="${t.members.indexOf(m)}"><span class="g">${t.id}</span>${esc(m.name)}</button>`).join('');
+      `<button class="uchip" data-act="goto" data-t="${t.id}" data-m="${esc(m.name)}" data-i="${t.members.indexOf(m)}"><span class="g">${r.group === 'global' ? esc(projectNameOf(t.group)) + ': ' : ''}${t.id}</span>${esc(m.name)}</button>`).join('');
   }
 
   function detailHTML(r) {
@@ -434,15 +562,16 @@
   function panelHTML(r, l) {
     const e = r[l], d = e.draft, key = r.uid + l, both = live(r, 'project') && live(r, 'global');
     const shadowed = l === 'global' && live(r, 'project');
-    const nread = e.saved && !r[other(l)] ? whoReads(e.saved.name).length : 0;
+    const nread = e.saved && !r[other(l)] ? whoReads(e.saved.name, r.group).length : 0;
     const ok = state.ok[key] ? (delete state.ok[key], '<span class="ok">保存しました</span>') : '';
     const mode = state.pmode[key] || 'edit';
+    const placeLabel = GROUPED && r.group && r.group !== 'global' ? projectNameOf(r.group) : LNAME[l];
     return `<section class="panel ${shadowed ? 'shadowed' : ''}" data-uid="${r.uid}" data-l="${l}" data-mode="${mode}">
       <header class="ph">
         ${r.isNew
           ? `<div class="seg">${PLACES.map((x) => `<button class="${l === x ? 'on' : ''}" data-act="pick-place" data-x="${x}">${LNAME[x]}</button>`).join('')}</div>`
-          : `<span class="ln">${LNAME[l]}</span>`}
-        <code class="path">${esc(pathOf(l, d))}</code>
+          : `<span class="ln">${esc(placeLabel)}</span>`}
+        <code class="path">${esc(pathOfRow(r, l, d))}</code>
         <span class="phr">
           ${both ? `<span class="state ${shadowed ? 'off' : 'on'}">${shadowed ? '隠れている' : '効いている'}</span>` : ''}
           <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => `<button class="${mode === v ? 'on' : ''}" data-act="pmode" data-v="${v}" aria-pressed="${mode === v}">${label}</button>`).join('')}</span>
@@ -557,7 +686,10 @@
   const ychecks = {};
   function ykey(place, name) { return place + '.' + name; }
 
-  function filesList() { return allEntries().filter(({ r, l }) => live(r, l)); }
+  // filesList is the YAML tab's files: this serve's project and the global layer,
+  // which are the two places the tab writes to. Another project's rows are read
+  // and written in the list, not here.
+  function filesList() { return allEntries().filter(({ r, l }) => live(r, l) && (!GROUPED || r.group === CURRENT || r.group === 'global')); }
 
   function viewYAML() {
     const files = filesList();
@@ -681,7 +813,7 @@
       case 'filter': state.filter = b.dataset.f || null; render(); syncURL(false); break;
       case 'new': {
         const d = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: RD.nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
-        const nr = { uid: ++uid, isNew: true, project: { saved: null, draft: d, hash: '', text: '' }, global: null };
+        const nr = { uid: ++uid, isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: '', text: '' }, global: null };
         roles.unshift(nr); state.open.add(nr.uid); RD.state.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`); state.filter = null; state.q = '';
         render(); askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
         break;
@@ -696,7 +828,7 @@
         // writes the new file from the original's own lines (spec-roles 1.2.9).
         const src = r[c.l].saved;
         const d = clone(src); d.name += '-2';
-        const nr = { uid: ++uid, isNew: true, [c.l]: { saved: null, draft: d, base: clone(src), basePlace: { place: c.l, name: src.name }, hash: '', text: '' } };
+        const nr = { uid: ++uid, isNew: true, group: r.group, [c.l]: { saved: null, draft: d, base: clone(src), basePlace: { place: c.l, name: src.name }, hash: '', text: '' } };
         nr.project = nr.project || null; nr.global = nr.global || null;
         roles.splice(roles.indexOf(r) + 1, 0, nr); state.open.add(nr.uid); renderList();
         askCheck(nr, c.l, () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
@@ -774,6 +906,7 @@
     const e = r[l], sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`);
     const keepRename = (() => { const cb = document.getElementById('rn' + r.uid + l); return cb ? cb.checked : true; })();
     const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
+    if (r.group && r.group !== 'global') payload.project = r.group;
     if (e.basePlace) payload.base = e.basePlace;
     const res = await API.save('role', e.draft.name || (e.saved ? e.saved.name : '_'), payload);
     const json = API.answer(res);
@@ -803,7 +936,7 @@
         if (m.draft === old.name) m.draft = newName;
       }));
       const o = other(l);
-      if (r[o]) { const split = { uid: ++uid, project: null, global: null }; split[o] = r[o]; delete r[o]; roles.splice(roles.indexOf(r) + 1, 0, split); }
+      if (!GROUPED && r[o]) { const split = { uid: ++uid, project: null, global: null, group: r.group }; split[o] = r[o]; delete r[o]; roles.splice(roles.indexOf(r) + 1, 0, split); }
     }
     e.ytext = undefined;
     ychecks[ykey(l, newName)] = undefined;
@@ -819,7 +952,7 @@
   async function doDelete(r, l) {
     const e = r[l];
     if (!e || !e.saved) return;
-    const res = await API.del('role', e.saved.name, l, e.hash || '');
+    const res = await API.del('role', e.saved.name, l, e.hash || '', undefined, r.group && r.group !== 'global' ? r.group : undefined);
     if (!res.ok) { const sec = $(`.panel[data-uid="${r.uid}"][data-l="${l}"]`); showRefusal(sec, API.answer(res)); return; }
     ychecks[ykey(l, e.saved.name)] = undefined;
     delete r[l];

@@ -18,6 +18,33 @@
 
 ### Added
 
+- **The headquarters screens**: the band names the number of listed projects and
+  opens the sheet that lists and unlists them (a project the launch record knows
+  is offered as a candidate), and its Find field (`/`) looks through the running
+  teams, team definitions, workspaces, members, roles, rules and profiles of every
+  listed project and the global settings, each row saying where it stands and
+  going to it. The three lists stand in groups — each project's own in the
+  config's order, then the global layer once — with a プロジェクト column, and
+  another project's row opens and saves in place (two projects' rows can stand
+  open at once). The team definitions' Running column starts and stops a listed
+  project's team: the start sheet asks for the workspace in the order `hergy up`
+  uses (the one the team last ran in is picked, one with a team cannot be), shows
+  the start's steps and a member's startup question with where to answer, and the
+  stop leaves the workspace open. The activity screen is three tiers: the members
+  waiting for the human and the stalled teams with where to answer, one figure per
+  running team (the human, members and workers as points, turns as lines, and a
+  look for each state), and the opened team's last screen, members and workers,
+  with a member's one line of what it is doing being the terminal title herdr
+  reports, unchanged (d-b4b9). Without `projects:` the lists stay the one project
+  they were, and the band offers to list more.
+
+- **`hergy hire` keeps who added the worker**: the launch record gains one line
+  per hire, naming the team, the worker, the member that added it (the short name
+  `--from` resolves to), the purpose and the tab (d-b4b9). The activity screen
+  reads it to say "`<member>` が追加" for a worker, and says nothing where a
+  worker was hired before those lines existed. The worker's tab label and
+  `hergy status` print what they did.
+
 - **`hergy serve` is a headquarters for the projects a machine lists**: the
   global `config.yaml` takes a `projects:` list of directories (absolute, or
   `~/…`), and every listed project's team definitions, roles, profiles and

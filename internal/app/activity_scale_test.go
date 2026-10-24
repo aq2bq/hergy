@@ -17,6 +17,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // The activity screen's real-scale fixture (spec-activity 5 章), read without a
@@ -476,6 +477,21 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 	}
 	if want := at.Add(-160*time.Minute).Format("15:04") + " から"; core.Since.At != want {
 		t.Errorf("core has waited since %q, want %q", core.Since.At, want)
+	}
+	// The member the row is about carries the same moment in the words the row
+	// reads: the server writes them, so the screen writes no time word of its own
+	// (d-b4b9 audit 2).
+	var leadNode *web.ActivityNode
+	for i := range core.Nodes {
+		if core.Nodes[i].Name == "lead" {
+			leadNode = &core.Nodes[i]
+		}
+	}
+	if leadNode == nil {
+		t.Fatalf("core has no lead node: %+v", core.Nodes)
+	}
+	if leadNode.SinceAt != core.Since.At {
+		t.Errorf("the lead's いつから reads %q, want the row's %q", leadNode.SinceAt, core.Since.At)
 	}
 
 	// core-hotfix: its members were already stopped when the watching began, so

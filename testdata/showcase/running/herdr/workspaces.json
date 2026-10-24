@@ -1,0 +1,11 @@
+{
+ "result": {
+  "workspaces": [
+   {
+    "workspace_id": "w1",
+    "label": "shop-dev",
+    "focused": false
+   }
+  ]
+ }
+}

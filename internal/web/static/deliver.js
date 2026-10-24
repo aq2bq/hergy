@@ -31,7 +31,9 @@
   // 画面の切り替えの右隣に、独立したボタン。数が見える所を、そのまま押す所に
   // する（試作 3 回目）。0 のときは出さない。
   const bar = () => $('.bar');
-  const screens = () => $('.bar .screens');
+  // The search field of a headquarters stands right of the screens (spec 2 章),
+  // and the delivery button right of it: the two are one band's little row.
+  const screens = () => $('.bar .hq-search') || $('.bar .screens');
 
   function bandButton() {
     const el = $('.bar .dlv-bandbtn');

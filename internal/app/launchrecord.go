@@ -8,6 +8,7 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
@@ -19,10 +20,11 @@ import (
 // were built from. The WebUI reads it to show what changed since the last launch
 // and how the prompts differ.
 //
-// It runs after a launch has succeeded (up, refresh and reprompt; not --dry, not
-// a launch that failed, and not hire, because a worker is not a member of the
-// team definition). A record that cannot be written is one line on stderr and
-// nothing else: the team is already up, so the command still succeeds.
+// It runs after a launch has succeeded (up, refresh and reprompt; not --dry and
+// not a launch that failed). A hire writes its own line (recordHire): a worker
+// is not a member of the team definition, so it has no prompt to point at. A
+// record that cannot be written is one line on stderr and nothing else: the
+// team is already up, so the command still succeeds.
 func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start) {
 	recordLaunchIn(stderr, env, r, command, members, launchlog.Workspace{})
 }
@@ -33,6 +35,34 @@ func recordLaunchIn(stderr io.Writer, env team.Env, r *resolved, command string,
 	log, err := launchlog.Open()
 	if err == nil {
 		err = writeLaunch(log, env, r, command, members, workspace)
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))
+	}
+}
+
+// recordHire writes the one line a hire leaves in this machine's record: which
+// worker it added, which member added it, the purpose and the tab (d-b4b9). The
+// activity screen reads it to say "<member> が追加". A line that cannot be
+// written is one line on stderr and nothing else: the worker is already up.
+func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.Start) {
+	log, err := launchlog.Open()
+	if err == nil {
+		err = log.Append(launchlog.Record{
+			Time:       time.Now().Format(time.RFC3339),
+			Command:    launchlog.CommandHire,
+			Hergy:      version.Line(),
+			Project:    env.ProjectRoot,
+			Layer:      r.team.Definition.Layer,
+			Definition: r.team.Definition.Name,
+			Team:       r.team.Name,
+			Hire: &launchlog.Hire{
+				Worker:  worker.Name,
+				From:    worker.From,
+				Purpose: worker.Purpose,
+				Tab:     protocol.WorkerTabPrefix(r.team.Name) + worker.Short,
+			},
+		})
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))

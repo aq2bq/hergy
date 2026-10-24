@@ -157,6 +157,18 @@ type ActivityNode struct {
 	// At is when the state began, as HH:MM, and empty for a working member and
 	// for one with no agent (2.5).
 	At string `json:"at"`
+	// SinceAt is the same moment as the row's いつから reads it: "15:31 から",
+	// or "15:31 より前" when the watching began after it (d-b4b9 audit 2). Empty
+	// when At is.
+	SinceAt string `json:"since_at,omitempty"`
+	// Doing is what the agent's terminal says it is doing, exactly as herdr
+	// strips its own marks from the title (d-b4b9). It is shown whatever the
+	// state, and left out when the title is empty.
+	Doing string `json:"doing,omitempty"`
+	// From is the short name of the member that hired this worker, read from the
+	// hire line of the launch record (d-b4b9). Empty for a worker hired before
+	// that line was written, and always empty for a member.
+	From string `json:"from,omitempty"`
 	// Stale says hergy last handed this member a different prompt than its
 	// current definition builds (r-a8fa). Workers are never stale.
 	Stale bool `json:"stale,omitempty"`

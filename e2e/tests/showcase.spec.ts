@@ -180,10 +180,11 @@ async function open(page: Page, url: string, drawn: string): Promise<void> {
 // crew is one activity row's members and workers: the people with a state word,
 // split by the mark a hired worker carries (activity-v2.js).
 const crew = (name: string) => {
-  const row = q(`#list .act[data-team="${name}"]`);
+  const row = q(`#list .hq-tile[data-team="${name}"]`);
   return (
     `(function(){var a=${row};if(!a)return 'none';` +
-    `return a.querySelectorAll('.crew .nodes .nm:not(.wk)').length+'|'+a.querySelectorAll('.crew .nodes .nm.wk').length})()`
+    `var d=document.querySelector('#list .hq-detail');if(!d)return 'none';` +
+    `return d.querySelectorAll('.nodes .nm:not(.wk)').length+'|'+d.querySelectorAll('.nodes .nm.wk').length})()`
   );
 };
 
@@ -301,7 +302,8 @@ test('SHOWCASE-S1 the standard showcase holds the sample data', async ({ page, a
   await readTo<string>(page, 'location.pathname', 'the front page with nothing running, want /teams').toBe('/teams');
 
   await open(page, `${app.base}/activity`, '#list .gone');
-  await readTo<number>(page, count('#list .act'), 'the activity screen with nothing running, want no row').toBe(0);
+  await readTo<number>(page, count('#list .hq-tile'), 'the activity screen with nothing running, want no figure').toBe(0);
+  await readTo<number>(page, count('#list .hq-at'), 'the activity screen with nothing running, want no waiting row').toBe(0);
 
   await walkTeams(page, app.base);
   await walkProfiles(page, app.base);
@@ -643,16 +645,16 @@ test.describe('running', () => {
   test.use({ scene: 'running' });
 
   test('SHOWCASE-R1 the running showcase holds the sample data', async ({ page, app }) => {
-    await open(page, `${app.base}/`, '#list .act');
+    await open(page, `${app.base}/`, '#list .hq-tile');
     await readTo<string>(page, 'location.pathname', 'the front page with a team running, want /activity').toBe('/activity');
-    await readTo<number>(page, count('#list .act'), 'the activity screen reads, want the sample data\'s one running team').toBe(1);
+    await readTo<number>(page, count('#list .hq-tile'), 'the activity screen reads, want the sample data\'s one running team').toBe(1);
     await readTo<string>(
       page,
-      `document.querySelector('#list .act[data-team="core"] .c-st .st').textContent`,
+      `document.querySelector('#list .hq-tile[data-team="core"] .st').textContent`,
       'core\'s state reads, want 許可待ち (its reviewer is blocked)',
     ).toBe('許可待ち');
 
-    await wait(page, there('#list .act[data-team="core"] .crew'));
+    await wait(page, there('#list .hq-detail'));
     await readTo<string>(
       page,
       crew('core'),
@@ -660,7 +662,7 @@ test.describe('running', () => {
     ).toBe('5|2');
     await readTo<string>(
       page,
-      `[...new Set([...document.querySelectorAll('#list .act[data-team="core"] .crew .nodes .sw')].map(function(n){return n.textContent}))].sort().join(',')`,
+      `[...new Set([...document.querySelectorAll('#list .hq-detail .nodes .sw')].map(function(n){return n.textContent}))].sort().join(',')`,
       'the states core\'s crew shows read, want 仕事中・止まっている・許可待ち',
     ).toBe('仕事中,止まっている,許可待ち');
 
@@ -685,7 +687,7 @@ test.describe('running', () => {
   // takes the band to 2 and prompts those two and no one else.
   test('SHOWCASE-D1 the band counts the members a change was not told to', async ({ page, app }) => {
     const log = recordHerdr(app);
-    await open(page, `${app.base}/activity`, '#list .act');
+    await open(page, `${app.base}/activity`, '#list .hq-tile');
     await readTo<number>(page, bandCount, 'the band with three pending members, want 3').toBe(3);
 
     // The first look: impl-a waits, so it is picked; lead works and reviewer
@@ -716,15 +718,15 @@ test.describe('running', () => {
 
     // The activity screen marks the members whose definition changed; the mark
     // opens the same sheet. impl-b is stale now, so both builders are picked.
-    await open(page, `${app.base}/activity`, '#list .act');
-    await wait(page, there('#list .act[data-team="core"] .crew'));
+    await open(page, `${app.base}/activity`, '#list .hq-tile');
+    await wait(page, there('#list .hq-detail'));
     await readTo<number>(
       page,
-      count('#list .act[data-team="core"] .crew .dlv-badge'),
+      count('#list .hq-detail .nodes .dlv-badge'),
       'the marks of the four stale members, want four',
     ).toBe(4);
     const mark = (short: string) =>
-      `[...document.querySelectorAll('#list .act[data-team="core"] .crew .nodes li')].find(function(li){var n=li.querySelector('.nm');return n&&n.textContent.trim()===${JSON.stringify(short)}}).querySelector('.dlv-badge')`;
+      `[...document.querySelectorAll('#list .hq-detail .nodes li')].find(function(li){var n=li.querySelector('.nm');return n&&n.textContent.trim()===${JSON.stringify(short)}}).querySelector('.dlv-badge')`;
     await press(page, mark('impl-b'));
     await wait(page, there('.dlv-sheet'));
     await readTo<string>(page, sheetNames('checked'), 'impl-b did not join impl-a as picked').toBe(

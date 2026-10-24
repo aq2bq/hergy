@@ -82,6 +82,11 @@ type Event struct {
 	// Waiting is set while the launcher waits on a member's question, and nil
 	// when the wait is over.
 	Waiting *Waiting
+	// CreatedTab is the label of the tab the launcher just made, and
+	// CreatedPanes is how many panes a boot made in it: the lines a screen can
+	// keep as finished rather than as a step in progress (r-5b96 audit 9).
+	CreatedTab   string
+	CreatedPanes int
 }
 
 // Waiting is where a person answers a member's startup question.
@@ -152,6 +157,7 @@ func (l *Launcher) BootIn(workspace, up string) error {
 			return err
 		}
 	}
+	l.notify(Event{CreatedPanes: len(members), Workspace: l.workspace})
 	next := NextUp(l.team, up)
 	for i := range members {
 		if err := l.start(&members[i], next, l.teamTabLabel()); err != nil {
@@ -1020,6 +1026,7 @@ func (l *Launcher) createTab(workspace string, first *definition.Start, label st
 		return "", err
 	}
 	l.place(first.Name, root)
+	l.notify(Event{CreatedTab: label, Workspace: l.workspace})
 	return root, nil
 }
 
@@ -1112,7 +1119,10 @@ func (l *Launcher) waitingAt(member *definition.Start, tabLabel, tabID string) {
 		Workspace: l.workspace,
 		Waiting: &Waiting{
 			Member: member.Name, Herdr: member.Name,
-			Workspace: l.wsLabel, Tab: tabLabel, Pane: l.paneOf(member.Name),
+			// The pane is named as a person reads it on the screen, not herdr's
+			// pane id: the row the question stands on names the same place the
+			// activity screen does (r-5b96 audit 9).
+			Workspace: l.wsLabel, Tab: tabLabel, Pane: member.Name,
 		},
 	})
 }

@@ -126,6 +126,9 @@ type Node struct {
 	// states the screen shows a moment for: a node that is stopped or waiting
 	// for the human. It is zero for a working node and for one with no agent.
 	At time.Time
+	// Lower says At is when the watching began: the state was already there, so
+	// the real moment is somewhere before it (6 A2, A4).
+	Lower bool
 }
 
 // Team is one team's activity (設計 5.2).
@@ -389,6 +392,7 @@ type live struct {
 	human bool      // the node hands the turn to the human
 	hired bool      // the agent is no node of the graph: a worker a member hired
 	at    time.Time // when this state began, for the states the screen dates
+	lower bool      // at is when the watching began: the real moment is before it
 }
 
 // livesOf is the live agents, the graph's members first (in the graph's order,
@@ -409,15 +413,16 @@ func livesOf(in Input) []live {
 		l := live{name: member.Name, state: Absent, human: handsToHuman(in.Graph, member.Name)}
 		if agent, ok := byNode[member.Name]; ok {
 			l.herdr, l.seq, l.state = agent.Herdr, agent.Seq, stateOf(agent.Status)
-			l.at = atOf(l.state, in.Seen, agent.Herdr)
+			l.at, l.lower = atOf(l.state, in.Seen, agent.Herdr)
 		}
 		lives = append(lives, l)
 	}
 	for _, agent := range others {
 		state := stateOf(agent.Status)
+		at, lower := atOf(state, in.Seen, agent.Herdr)
 		lives = append(lives, live{
 			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq, state: state,
-			hired: true, at: atOf(state, in.Seen, agent.Herdr),
+			hired: true, at: at, lower: lower,
 		})
 	}
 	return lives
@@ -427,11 +432,12 @@ func livesOf(in Input) []live {
 // for: a node that is stopped or waiting for the human. A working node and one
 // with no agent have no such moment (2.5), and a caller that handed no watch for
 // the agent knows none (6 A2).
-func atOf(state NodeState, seen map[string]Watch, herdr string) time.Time {
+func atOf(state NodeState, seen map[string]Watch, herdr string) (time.Time, bool) {
 	if state != Idle && state != Blocked {
-		return time.Time{}
+		return time.Time{}, false
 	}
-	return seen[herdr].At
+	watch := seen[herdr]
+	return watch.At, watch.Lower
 }
 
 // hiredOf is the live agents that are no node of the graph, by their herdr
@@ -444,7 +450,7 @@ func hiredOf(lives []live) []Node {
 		if !l.hired {
 			continue
 		}
-		out = append(out, Node{Name: l.name, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at})
+		out = append(out, Node{Name: l.name, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at, Lower: l.lower})
 	}
 	slices.SortStableFunc(out, stopOrder)
 	return out
@@ -464,7 +470,7 @@ func nodesOf(in Input, lives []live) []Node {
 		member := &in.Graph.Members[i]
 		l := state[member.Name]
 		nodes = append(nodes, Node{
-			Name: member.Name, Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at,
+			Name: member.Name, Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at, Lower: l.lower,
 		})
 	}
 	slices.SortStableFunc(nodes, stopOrder)

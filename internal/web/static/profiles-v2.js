@@ -31,6 +31,46 @@
   const pathOf = (file) => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject);
   const otherOf = (file) => (file === 'global' ? 'project' : 'global');
 
+  // HQ is the headquarters lists (d-73fc): every listed project's profiles, then
+  // the global layer's. Without it the screen is the one project's, as it was.
+  const HQ = ISLAND.hq || null;
+  // GROUPED is a headquarters with projects: listed: the rows stand in groups
+  // and carry their project. Without projects: the screen is the one project's.
+  const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
+  const CURRENT = GROUPED ? ((HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
+  const groupKeyOf = (g) => (g.global ? 'global' : (g.project ? g.project.path : ''));
+  const groupNameOf = (g) => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+  const GROUPS = GROUPED ? (HQ.profiles || []) : null;
+  const groupOrder = () => (GROUPS || []).map(groupKeyOf);
+  const groupName = (key) => {
+    if (key === 'global') return 'グローバル';
+    if (!key || key === CURRENT) {
+      if (!GROUPED) return 'プロジェクト';
+      const p = HQ.projects || {};
+      if (p.mode === 'current') return (p.current && p.current.name) || 'プロジェクト';
+      const found = (p.projects || []).find((x) => x.path === CURRENT);
+      return found ? found.name : ((p.current && p.current.name) || 'プロジェクト');
+    }
+    const g = (GROUPS || []).find((x) => groupKeyOf(x) === key);
+    return g ? groupNameOf(g) : String(key).split('/').filter(Boolean).pop();
+  };
+  // currentProjectName is the name the プロジェクト column gives this serve's
+  // project, whether or not it is listed (d-8a45, r-5b96 audit 5).
+  const currentProjectName = () => {
+    if (!HQ) return 'プロジェクト';
+    const p = HQ.projects || {};
+    return (p.current && p.current.name) || '';
+  };
+  // pathFor is the file one panel of a group would write: the group's own
+  // profiles.yaml. The saved panels carry the server's path already; this is for
+  // a row a person is adding.
+  const pathFor = (file, group) => {
+    if (!GROUPED || !group || group === CURRENT) return pathOf(file);
+    if (group === 'global') return '~/.config/hergy/profiles.yaml';
+    const g = (GROUPS || []).find((x) => groupKeyOf(x) === group);
+    return `${(g && g.project && g.project.display) || ''}/.hergy/profiles.yaml`;
+  };
+
   // Every read and write goes through the one boundary (spec-boundary 5, 7);
   // the YAML tab is the shared part (yamltab.js).
   const API = window.hergyAPI;
@@ -40,7 +80,40 @@
   // state). The screen reads its model of the answers here, once, and redraws
   // from a model after every save.
   const OPEN = (new URLSearchParams(location.search).get('open') || '').split(',').filter(Boolean);
-  let PROFILE = API.profileModel(ISLAND.profile, OPEN);
+  const OPEN_ROWS = (window.hergyHQ ? window.hergyHQ.parseOpen(OPEN.join(',')) : OPEN.map((name) => ({ name, group: '' })));
+  const isOpenRow = (row) => OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
+  function modelOf(list, group) {
+    const model = API.profileModel(list, OPEN_ROWS.map((t) => t.name));
+    if (GROUPED) model.rows.forEach((row) => { row.group = group; row.open = isOpenRow(row); });
+    else model.rows.forEach((row) => { row.group = ''; });
+    return model;
+  }
+  let PROFILE = { rows: [], files: [], hashes: {} };
+  if (GROUPED) {
+    (GROUPS || []).forEach((g) => {
+      const model = modelOf(g.list || {}, groupKeyOf(g));
+      PROFILE.rows.push(...model.rows);
+    });
+  } else {
+    PROFILE = modelOf(ISLAND.profile);
+  }
+
+  // mergeGroup puts one project's answer back in place of its group's rows: a
+  // save answers with that project's list only (spec-boundary 5), and the other
+  // projects' rows stay as they were.
+  function mergeGroup(group, answer) {
+    const next = modelOf(answer, group);
+    const order = GROUPED ? groupOrder() : [''];
+    const byGroup = new Map();
+    (PROFILE.rows || []).forEach((row) => {
+      const key = row.group || '';
+      if (!byGroup.has(key)) byGroup.set(key, []);
+      byGroup.get(key).push(row);
+    });
+    byGroup.set(group || '', next.rows);
+    PROFILE.rows = order.flatMap((key) => byGroup.get(key) || []);
+    applyList(PROFILE);
+  }
 
   // applyList puts a list model's counts and hashes in place: a save answers
   // with the list, because the counts move with it (spec-boundary 5).
@@ -48,6 +121,7 @@
     if (!model) return;
     const count = (model.rows || []).length;
     if (window.hergyNav) window.hergyNav.setCount('profiles', count);
+    if (GROUPED) return; // the files' hashes are the YAML tab's, and stand for this project's own
     const hashes = model.hashes || {};
     if (hashes.project) view.dataset.hashProject = hashes.project;
     if (hashes.global) view.dataset.hashShared = hashes.global;
@@ -72,6 +146,15 @@
 
   function panelKind(panel) {
     return panel.dataset.draftKind || (savedOf(panel) || {}).kind || 'claude';
+  }
+
+  // projectOf is the listed project a panel writes to: the group the row stands
+  // in, and nothing for the global layer or this serve's own project (whose
+  // files the API writes without being told).
+  function projectOf(panel) {
+    const group = panel.closest('.row') ? panel.closest('.row').dataset.group : (panel.dataset.group || '');
+    if (!group || group === 'global' || group === CURRENT) return undefined;
+    return group;
   }
 
   function panelValues(panel) {
@@ -192,7 +275,7 @@
     const seq = (panel._seq || 0) + 1;
     panel._seq = seq;
     const answer = await API.check('profile', {
-      place: panel.dataset.file, original: saved ? saved.name : '', doc: draft,
+      place: panel.dataset.file, original: saved ? saved.name : '', project: projectOf(panel), doc: draft,
     });
     if (seq !== panel._seq || !panel.isConnected) return;
     const problems = API.problems(answer);
@@ -220,12 +303,22 @@
   // row it wrote by its new name.
   function renderRows(model, keepOpen, alsoOpen) {
     const rows = $('#rows');
-    const open = keepOpen ? $$('#rows .row.open').map((row) => row.dataset.name) : [];
+    const open = keepOpen ? $$('#rows .row.open').map((row) => row.dataset.name + '|' + (row.dataset.group || '')) : [];
     if (alsoOpen) open.push(alsoOpen);
     $$('.row', rows).forEach((row) => row.remove());
-    rows.insertAdjacentHTML('beforeend', (model.rows || []).map(rowHTML).join(''));
+    $$('.hq-gh', rows).forEach((head) => head.remove());
+    // The rows stand in groups: every listed project's, then the global layer's
+    // (spec 4 章). A group's head is drawn where its first row stands.
+    let html = '';
+    let last = null;
+    (model.rows || []).forEach((row) => {
+      const group = (GROUPED && row.group) || '';
+      if (GROUPED && group !== last) { html += groupHeaderHTML(group); last = group; }
+      html += rowHTML(row);
+    });
+    rows.insertAdjacentHTML('beforeend', html);
     $$('.row', rows).forEach((row) => {
-      if (open.indexOf(row.dataset.name) >= 0) {
+      if (open.indexOf(row.dataset.name + '|' + (row.dataset.group || '')) >= 0) {
         row.classList.add('open');
         const detail = $('.detail', row);
         if (detail) detail.hidden = false;
@@ -236,6 +329,17 @@
     });
     applyList(model);
     afterRowsChanged();
+  }
+
+  // groupHeaderHTML is one project's group's head (spec 4 章): its name, where it
+  // is, and how many profiles it holds. The global layer comes last with the one
+  // sentence about being used from every project.
+  function groupHeaderHTML(group) {
+    const g = (GROUPS || []).find((x) => groupKeyOf(x) === group);
+    if (!g) return '';
+    if (g.global) return `<div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">${esc(g.display || '')}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
+    const count = ((g.list && g.list.items) || []).length;
+    return `<div class="hq-gh"><span class="hq-gn">${esc(groupNameOf(g))}</span><span class="hq-gp">${esc(g.project ? g.project.display : '')}</span><span class="hq-gc">プロファイル <b>${count}</b></span></div>`;
   }
 
   // afterRowsChanged keeps the toolbar's counts and the empty line true after a
@@ -287,12 +391,12 @@
     return `<div class="envrow"><input data-f="ek" data-i="${i}" value="${esc(key)}" spellcheck="false" autocomplete="off"><span class="eq">=</span><textarea data-f="ev" data-i="${i}" rows="1" spellcheck="false">${esc(value)}</textarea><button class="x" data-act="env-del" data-i="${i}" aria-label="${esc(key)} を消す">×</button></div>`;
   }
 
-  function panelHTML(file, values, layerSwitch) {
+  function panelHTML(file, values, layerSwitch, group) {
     const head = layerSwitch
       ? `<div class="seg small">${['project', 'global'].map((x) => `<button class="${file === x ? 'on' : ''}" data-act="pick-layer" data-x="${x}">${labelOf(x)}</button>`).join('')}</div>`
-      : `<span class="ln">${labelOf(file)}</span>`;
-    return `<section class="panel" data-file="${file}" data-users="0" data-draft-kind="${esc(values.kind)}">
-  <header class="ph">${head}<code class="path">${esc(pathOf(file))}</code></header>
+      : `<span class="ln">${GROUPED && group && group !== 'global' ? esc(groupName(group)) : labelOf(file)}</span>`;
+    return `<section class="panel" data-file="${file}" data-group="${esc(group || '')}" data-users="0" data-draft-kind="${esc(values.kind)}">
+  <header class="ph">${head}<code class="path">${esc(pathFor(file, group))}</code></header>
   <div class="field"><label>名前</label><div>
     <input class="in-name" data-f="name" value="${esc(values.name)}" spellcheck="false" autocomplete="off">
     <label class="rename" hidden><input type="checkbox" checked><span></span></label>
@@ -333,8 +437,8 @@
     return `<a class="uchip" href="/profiles/assign#${esc(c.def)}.${esc(c.id)}" data-act="goto" data-g="${esc(c.def)}" data-k="${esc(c.id)}"><span class="g">${esc(c.def)}</span>${inner}</a>`;
   }
 
-  function savedPanelHTML(p) {
-    const head = `<span class="ln">${esc(p.label)}</span>`;
+  function savedPanelHTML(p, group) {
+    const head = `<span class="ln">${GROUPED && group && group !== 'global' ? esc(groupName(group)) : esc(p.label)}</span>`;
     const state = p.both ? `<span class="state ${p.shadowed ? 'off' : 'on'}">${p.shadowed ? '隠れている' : '効いている'}</span>` : '';
     const acts = `${p.saved ? '<button class="btn" data-act="dup">複製</button>' : ''}` +
       `${p.saved && !p.both ? `<button class="btn" data-act="copy">${esc(p.otherLabel)}にコピー</button>` : ''}` +
@@ -342,7 +446,7 @@
     const saved = p.saved
       ? ` data-saved="1" data-users="${p.users}" data-rename-users="${p.renameUsers}" data-saved-name="${esc(p.savedName)}" data-saved-kind="${esc(p.savedKind)}" data-saved-args="${esc(p.savedArgs)}" data-saved-env="${esc(p.savedEnv)}" data-hash="${esc(p.hash)}"`
       : ` data-users="${p.users}" data-rename-users="${p.renameUsers}" data-hash="${esc(p.hash)}" data-draft-kind="${esc(p.kind)}"`;
-    return `<section class="panel${p.shadowed ? ' shadowed' : ''}" data-file="${esc(p.file)}"${saved}>
+    return `<section class="panel${p.shadowed ? ' shadowed' : ''}" data-file="${esc(p.file)}" data-group="${esc(group || '')}"${saved}>
   <header class="ph">${head}<code class="path">${esc(p.path)}</code>${state}</header>
   <div class="field"><label>名前</label><div>
     <input class="in-name" data-f="name" value="${esc(p.name)}" spellcheck="false" autocomplete="off">
@@ -373,7 +477,24 @@
       ? `<div class="usage"><span class="lbl">使っている人</span>${row.chips.map(chipHTML).join('')}</div>`
       : '';
     const panels = row.panels || [];
-    return `${chips}<div class="panels${panels.length > 1 ? ' two' : ''}">${panels.map(savedPanelHTML).join('')}</div>`;
+    return `${chips}<div class="panels${panels.length > 1 ? ' two' : ''}">${panels.map((p) => savedPanelHTML(p, row.group)).join('')}</div>`;
+  }
+
+  // placePills is the row's プロジェクト column (spec 4 章): the project's name,
+  // or グローバル. A project that overrides a global name carries the crossed-out
+  // グローバル, and the global row says which projects override it.
+  function placePills(row) {
+    // Without projects: the list stays one, and the プロジェクト column names the
+    // project or グローバル (d-8a45, r-5b96 audit 5).
+    if (!GROUPED) return (row.places || []).map((place) => `<span class="pill ${esc(place.state)}">${place.label === 'プロジェクト' ? esc(currentProjectName()) : esc(place.label)}</span>`).join('');
+    if (!HQ) return (row.places || []).map(pillHTML).join('');
+    const label = row.group === 'global' ? 'グローバル' : groupName(row.group);
+    let out = `<span class="pill on">${esc(label)}</span>`;
+    const globalGroup = (GROUPS || []).find((g) => g.global);
+    const over = (globalGroup && globalGroup.overridden_by) || {};
+    if (row.group && row.group !== 'global' && (over[row.name] || []).includes(row.group)) out += '<span class="pill shadow">グローバル</span>';
+    if (row.group === 'global') out += (over[row.name] || []).map((p) => `<span class="pill hq-ov">${esc(groupName(p))} で上書き</span>`).join('');
+    return out;
   }
 
   function rowHTML(row) {
@@ -385,12 +506,12 @@
       : '<span class="none">—</span>';
     const users = row.users > 0 ? `<b>${row.users}</b><span>${esc(row.roles)}</span>` : '<span class="none">0</span>';
     const sev = row.err > 0 ? `<span class="sev err">問題 ${row.err}</span>` : (row.warn > 0 ? `<span class="sev warn">警告 ${row.warn}</span>` : '');
-    return `<div class="row${row.open ? ' open' : ''}" data-name="${esc(row.name)}" data-kind="${esc(row.kind)}">
+    return `<div class="row${row.open ? ' open' : ''}" data-name="${esc(row.name)}" data-group="${esc(row.group || '')}" data-kind="${esc(row.kind)}">
   <div class="sum" role="button" tabindex="0" aria-expanded="${row.open ? 'true' : 'false'}" data-act="toggle">
     <span class="chev"></span>
     <span class="c-name"><span class="nm">${name}</span>${row.new ? '<span class="tag">新規</span>' : ''}${sev}</span>
     <span class="c-kind">${kind}</span>
-    <span class="c-place">${(row.places || []).map(pillHTML).join('')}</span>
+    <span class="c-place">${placePills(row)}</span>
     <span class="c-args">${args}</span>
     <span class="c-env">${env}</span>
     <span class="c-users">${users}</span>
@@ -433,20 +554,21 @@
 </section>`;
   }
 
-  function newRow(file) {
+  function newRow(file, group) {
     const row = document.createElement('div');
     row.className = 'row open unsaved';
     row.dataset.name = '';
+    row.dataset.group = group || '';
     row.dataset.kind = 'claude';
     row.innerHTML = `<div class="sum" role="button" tabindex="0" aria-expanded="true" data-act="toggle">
       <span class="chev"></span>
       <span class="c-name"><span class="nm"><span class="none">—</span></span><span class="tag">新規</span></span>
       <span class="c-kind"><i class="sw k-claude"></i>claude</span>
-      <span class="c-place"><span class="pill pending">${labelOf(file)}</span></span>
+      <span class="c-place">${GROUPED ? `<span class="pill pending">${esc(groupName(group))}</span>` : `<span class="pill pending">${labelOf(file)}</span>`}</span>
       <span class="c-args"><span class="none">—</span></span>
       <span class="c-env"><span class="none">—</span></span>
       <span class="c-users"><span class="none">0</span></span>
-    </div><div class="detail">${panelHTML(file, { name: '', kind: 'claude', args: ['--model', ''], env: [] }, true)}</div>`;
+    </div><div class="detail">${panelHTML(file, { name: '', kind: 'claude', args: ['--model', ''], env: [] }, true, group)}</div>`;
     return row;
   }
 
@@ -490,7 +612,7 @@
     if (kind) params.set('kind', kind);
     const q = ($('#q') || {}).value || '';
     if (q) params.set('q', q);
-    const open = $$('#rows .row.open').map((row) => row.dataset.name).filter(Boolean);
+    const open = $$('#rows .row.open').map((row) => (GROUPED && row.dataset.group ? window.hergyHQ.token(row.dataset.name, row.dataset.group) : row.dataset.name)).filter(Boolean);
     if (open.length) params.set('open', open.join(','));
     const query = params.toString();
     history.replaceState(null, '', location.pathname + (query ? '?' + query : ''));
@@ -745,10 +867,12 @@
 
     if (act === 'new') {
       clearFilter();
-      const fresh = newRow('project');
+      const fresh = newRow('project', CURRENT);
       const rows = $('#rows');
-      const first = $('.row', rows);
-      if (first) rows.insertBefore(fresh, first); else rows.appendChild(fresh);
+      const same = $$('.row', rows).find((row) => (row.dataset.group || '') === CURRENT);
+      if (same) same.before(fresh);
+      else if ($('.hq-gh.global', rows)) $('.hq-gh.global', rows).before(fresh);
+      else rows.appendChild(fresh);
       $$('.panel', fresh).forEach(initPanel);
       const name = $('[data-f=name]', fresh);
       if (name) name.focus();
@@ -759,7 +883,7 @@
       const file = button.dataset.x;
       if (file !== panel.dataset.file) {
         panel.dataset.file = file;
-        $('.path', panel).textContent = pathOf(file);
+        $('.path', panel).textContent = pathFor(file, row.dataset.group || '');
         $$('.seg.small button', panel).forEach((el) => el.classList.toggle('on', el.dataset.x === file));
         const pill = $('.pill.pending', row);
         if (pill) pill.textContent = labelOf(file);
@@ -838,12 +962,12 @@
       const names = $$('#rows .row').map((el) => el.dataset.name);
       let suffix = 2;
       while (names.includes(`${saved.name}-${suffix}`)) suffix++;
-      const fresh = newRow(panel.dataset.file);
+      const fresh = newRow(panel.dataset.file, row.dataset.group || '');
       fresh.dataset.name = `${saved.name}-${suffix}`;
       const detail = $('.detail', fresh);
       detail.innerHTML = panelHTML(panel.dataset.file, {
         name: `${saved.name}-${suffix}`, kind: saved.kind, args: saved.args.slice(), env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
-      }, false);
+      }, false, row.dataset.group || '');
       row.after(fresh);
       initRow(fresh);
       const nm = $('.c-name .nm', fresh);
@@ -859,7 +983,7 @@
       const other = otherOf(panel.dataset.file);
       const panels = $('.panels', row);
       const holder = document.createElement('div');
-      holder.innerHTML = panelHTML(other, { name: saved.name, kind: saved.kind, args: saved.args.slice(), env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })) }, false);
+      holder.innerHTML = panelHTML(other, { name: saved.name, kind: saved.kind, args: saved.args.slice(), env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })) }, false, row.dataset.group || '');
       const fresh = holder.firstElementChild;
       panels.appendChild(fresh);
       $$('.panel', panels)
@@ -903,10 +1027,15 @@
     if (act === 'del-yes' && panel) {
       const saved = savedOf(panel);
       if (!saved) return;
-      API.del('profile', saved.name, panel.dataset.file, hashOf(panel.dataset.file)).then((answer) => {
+      API.del('profile', saved.name, panel.dataset.file, panel.dataset.hash || hashOf(panel.dataset.file), undefined, projectOf(panel)).then((answer) => {
         if (!answer.ok) { showRefusal(panel, API.problemText(answer, '削除できませんでした')); return; }
-        PROFILE = API.profileModel(API.answer(answer));
-        renderRows(PROFILE, true);
+        if (GROUPED) {
+          mergeGroup(panel.closest('.row').dataset.group || '', API.answer(answer));
+          renderRows(PROFILE, true);
+        } else {
+          PROFILE = API.profileModel(API.answer(answer));
+          renderRows(PROFILE, true);
+        }
       });
       return;
     }
@@ -959,13 +1088,19 @@
     const answer = await API.save('profile', saved ? saved.name : (draft.name || '_'), {
       place: panel.dataset.file,
       original: saved ? saved.name : '',
+      project: projectOf(panel),
       doc: draft,
       rename_users: !!(hint && hint.checked),
-      hash: hashOf(panel.dataset.file),
+      hash: panel.dataset.hash || hashOf(panel.dataset.file),
     });
     if (!answer.ok) { showRefusal(panel, API.problemText(answer, '保存できませんでした')); return; }
-    PROFILE = API.profileModel(API.answer(answer));
-    renderRows(PROFILE, true, draft.name);
+    if (GROUPED) {
+      mergeGroup(panel.closest('.row').dataset.group || '', API.answer(answer));
+      renderRows(PROFILE, true, draft.name);
+    } else {
+      PROFILE = API.profileModel(API.answer(answer));
+      renderRows(PROFILE, true, draft.name);
+    }
     API.saved();
   }
 
@@ -1160,7 +1295,7 @@
         return;
       }
       // a row a person added and had not saved yet
-      const fresh = newRow(c.file);
+      const fresh = newRow(c.file, CURRENT);
       const rows = $('#rows');
       const first = $('.row', rows);
       if (first) rows.insertBefore(fresh, first); else rows.appendChild(fresh);

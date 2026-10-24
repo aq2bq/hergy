@@ -11,7 +11,13 @@ type Start struct {
 	Name string
 	// Short is the short name team.yaml writes.
 	Short string
-	Role  string
+	// From is the short name of the member that hires this worker, for a worker
+	// a member hired (d-b4b9). Empty for a member of the definition.
+	From string
+	// Purpose is what a hired worker is for, as the member's workers: names it
+	// (d-b4b9). Empty for a member of the definition.
+	Purpose string
+	Role    string
 	// Profile is the profile the member names; Kind and Args are that profile's
 	// (I7), and Env is the profile's own env with hergy's GY_ACTOR set to Name
 	// (r-1c42), which is the environment the member's pane is made with.

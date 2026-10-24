@@ -1,0 +1,299 @@
+/* 本部の帯と欄（n-7f3c、d-73fc、d-8a45）。プロジェクトの切り替え、横断の検索、
+   起動と停止のシート、一覧の組、動きの列、活動の 3 段。
+   色と字は各画面の :root のトークンだけを使う。ここに色は書かない。 */
+
+/* ---- 帯: プロジェクトの切り替え --------------------------------------- */
+.crumb.hq-crumb { display: flex; gap: 8px; align-items: baseline; }
+.hq-pbtn {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 5px; padding: 4px 10px; min-height: 30px; cursor: pointer;
+  font: 500 13px var(--f-body); white-space: nowrap;
+}
+.hq-pbtn b { font-family: var(--f-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.hq-pbtn .hq-caret { width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg) translateY(-2px); }
+.hq-pbtn:hover { border-color: var(--muted); }
+.hq-pbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hq-pbtn.warn { border-color: var(--warn); }
+
+/* ---- シート（プロジェクト・起動・停止） --------------------------------- */
+.hq-sheet {
+  position: fixed; z-index: 31;
+  top: calc(var(--stick, 62px) + 8px);
+  width: min(36rem, calc(100% - 32px));
+  max-height: calc(100vh - var(--stick, 62px) - 28px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--ink); border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(10, 14, 22, .22);
+  padding: 14px 16px; display: grid; gap: 12px; font-size: 13px;
+}
+.hq-sheet.left { left: max(16px, env(safe-area-inset-left, 0px)); }
+.hq-sheet.right { right: max(16px, env(safe-area-inset-right, 0px)); }
+.hq-sheet:focus { outline: none; }
+.hq-h { display: flex; gap: 10px; align-items: baseline; }
+.hq-h b { font-size: 15px; }
+.hq-h code { font-size: 14px; font-weight: 600; }
+.hq-x { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+.hq-x:hover { color: var(--ink); }
+.hq-sub { color: var(--muted); font-size: 12.5px; margin: 0; }
+.hq-sec { display: grid; gap: 6px; }
+.hq-sec > .hq-lbl { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.hq-li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg);
+}
+.hq-li .hq-pn { font-family: var(--f-mono); font-weight: 600; font-size: 13.5px; }
+.hq-li .hq-pp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.hq-li .hq-pc { font-size: 12px; color: var(--muted); }
+.hq-li > .hq-act { grid-row: 1 / span 3; grid-column: 2; }
+.hq-li.cand { border-style: dashed; }
+.hq-note { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; margin: 0; }
+.hq-note code { color: var(--ink); }
+.hq-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* A sheet's own buttons stand at its foot, so a narrow sheet whose list is long
+   (nine workspaces, say) still shows 起動する (r-5b96 audit 12). */
+.hq-sheet > .hq-acts {
+  position: sticky; bottom: -14px; z-index: 1;
+  margin: 0 -16px -14px; padding: 10px 16px;
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.hq-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 4px; padding: 5px 12px; font: 500 13px var(--f-body); cursor: pointer; white-space: nowrap;
+  text-decoration: none;
+}
+.hq-btn:hover { border-color: var(--muted); }
+.hq-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hq-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.hq-btn.danger { color: var(--danger); }
+.hq-btn.danger:hover { border-color: var(--danger); }
+.hq-btn.danger.solid { background: var(--danger); border-color: var(--danger); color: var(--danger-ink, var(--bg)); }
+.hq-btn.sm { padding: 2px 9px; font-size: 12.5px; }
+.hq-btn:disabled { opacity: .5; cursor: default; }
+
+/* ワークスペースの選択 */
+.hq-ws { display: grid; gap: 5px; }
+.hq-wo {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; align-items: start;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
+}
+.hq-wo input { margin-top: 3px; }
+.hq-wo .hq-wn { font-family: var(--f-mono); font-weight: 600; font-size: 13px; }
+.hq-wo .hq-wd { grid-column: 2; font-size: 12px; color: var(--muted); }
+.hq-wo.no { cursor: default; opacity: .6; }
+.hq-wo:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.hq-wo .hq-in {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 4px;
+  padding: 2px 6px; font: 13px var(--f-mono); width: min(14rem, 100%);
+}
+.hq-sel { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 4px; padding: 4px 8px; font: 13px var(--f-mono); max-width: 100%; }
+.hq-kv { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 4px 10px; align-items: baseline; margin: 0; }
+.hq-kv dt { color: var(--muted); font-size: 12.5px; }
+.hq-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.hq-kv code { font-size: 12.5px; }
+.hq-err { color: var(--danger); font-size: 12.5px; margin: 0; }
+
+/* 起動の進み */
+.hq-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
+.hq-steps li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 6px; }
+.hq-steps li > span { min-width: 0; overflow-wrap: anywhere; }
+.hq-steps li::before { content: "·"; color: var(--faint); text-align: center; }
+.hq-steps li.done::before { content: "✓"; color: var(--ok); }
+.hq-steps li.now::before { content: "…"; color: var(--accent); }
+.hq-wait {
+  border: 1px solid var(--warn); background: var(--sunk); border-radius: 5px;
+  padding: 10px 12px; display: grid; gap: 6px;
+}
+.hq-wait .hq-wh { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.hq-wait p { margin: 0; }
+.hq-where { font-family: var(--f-mono); font-size: 12.5px; }
+.hq-ok { color: var(--ink); font-weight: 600; margin: 0; }
+
+/* ---- 一覧の組（プロジェクトごと） ---------------------------------------- */
+.hq-gh {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 16px 10px 6px; border-bottom: 1px solid var(--line);
+}
+.hq-gh .hq-gn { font-family: var(--f-mono); font-weight: 600; font-size: 15px; }
+.hq-gh .hq-gp { font-family: var(--f-mono); font-size: 12px; color: var(--faint); }
+.hq-gh .hq-gc { font-size: 12px; color: var(--muted); }
+.hq-gh .hq-gc b { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+.hq-gh.global .hq-gn { font-family: var(--f-body); font-weight: 700; }
+.hq-hide { display: none !important; }
+
+.pill.hq-ov { border: 1px dashed var(--muted); color: var(--muted); text-decoration: none; background: none; }
+
+/* チーム定義の一覧に「動き」の列 */
+@media (min-width: 1181px) {
+  .hq-teams .list .head, .hq-teams .list .sum {
+    grid-template-columns: 14px minmax(9rem, .8fr) minmax(0, 1.6fr) 9rem 4rem 4rem 4rem 11.5rem 12.5rem;
+    grid-template-areas: "chev name mission place members turns agree size run";
+  }
+  .hq-teams .list .head > .hq-runh { grid-area: run; }
+  .hq-teams .list .sum > .hq-runc { grid-area: run; }
+}
+@media (max-width: 1180px) {
+  .hq-teams .list .head > .hq-runh { display: none; }
+  .hq-teams .list .sum > .hq-runc { grid-column: 2 / -1; }
+}
+.hq-runc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.hq-on { font-size: 12px; line-height: 1.5; padding: 0 7px; border-radius: 3px; background: var(--accent-soft); color: var(--ink); white-space: nowrap; font-weight: 500; }
+.hq-on.wait { background: var(--warn); color: var(--on-warn); }
+.hq-wsn { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.hq-last { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+
+/* ---- 活動: チームの図 ------------------------------------------------------ */
+.hq-pw { font-size: 11.5px; color: var(--muted); white-space: nowrap; font-family: var(--f-mono); }
+.hq-banner {
+  border: 1px solid var(--warn); background: var(--surface); border-radius: 6px; padding: 8px 12px; margin: 0 0 14px;
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px;
+}
+.hq-banner code { font-weight: 600; }
+
+.hq-board { display: grid; gap: 18px; padding-top: 16px; }
+.hq-att { display: grid; gap: 8px; }
+.hq-att.calm p { margin: 0; color: var(--muted); font-size: 13px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 6px; }
+.hq-ah { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.hq-ah .n { font-family: var(--f-mono); font-weight: 600; color: var(--warn); }
+.hq-ah .sp { margin-left: 14px; }
+.hq-al { display: grid; gap: 6px; }
+.hq-at {
+  display: grid; grid-template-columns: 7rem minmax(10rem, 14rem) minmax(0, 1fr) minmax(0, auto) 6rem; gap: 4px 14px; align-items: center;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--surface); border: 1px solid var(--warn); border-left-width: 4px; border-radius: 6px; padding: 9px 12px;
+}
+.hq-at.stall { border-color: var(--ink); border-left-width: 4px; }
+.hq-at:hover { background: var(--sunk); }
+.hq-at:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hq-at .st { justify-self: start; }
+.hq-aw { display: grid; min-width: 0; }
+.hq-aw code { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.hq-aq { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hq-at .hq-where { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.hq-tl { font-size: 12px; color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.hq-tl b { font-family: var(--f-mono); color: var(--ink); font-size: 13px; }
+
+.hq-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 25rem), 1fr)); gap: 14px; align-items: start; }
+.hq-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; overflow: hidden; }
+.hq-tile.sel { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.hq-tile.answer, .hq-tile.turn { border-top: 3px solid var(--warn); }
+.hq-tile.stalled { border-top: 3px solid var(--ink); }
+.hq-tile.working { border-top: 3px solid var(--accent); }
+.hq-th {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tn st" "pw tl"; gap: 2px 10px; align-items: baseline;
+  border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; padding: 10px 14px 4px;
+}
+.hq-th:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hq-th .hq-tn { grid-area: tn; font-family: var(--f-mono); font-weight: 600; font-size: 15px; }
+.hq-th .hq-pw { grid-area: pw; }
+.hq-th .st { grid-area: st; justify-self: end; }
+.hq-th .hq-tl { grid-area: tl; }
+.hq-svg { width: 100%; height: auto; display: block; }
+.hq-why { margin: 0 14px 6px; font-size: 12.5px; color: var(--ink); background: var(--sunk); border-radius: 4px; padding: 6px 8px; }
+.hq-tc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); padding: 6px 14px 10px; border-top: 1px solid var(--line); }
+.hq-tc span { display: inline-flex; align-items: center; gap: 5px; }
+.hq-tc .wk { margin-left: auto; }
+
+/* 図の中 */
+.hq-svg .hq-e { stroke: var(--line); stroke-width: 1.5; fill: none; }
+.hq-svg .hq-e.wk { stroke-dasharray: 2 3; }
+.hq-svg .hq-call { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 5; animation: hq-flow 1s linear infinite; }
+@keyframes hq-flow { to { stroke-dashoffset: -10; } }
+.hq-svg .hq-n text { font-family: var(--f-mono); font-size: 11.5px; fill: var(--ink); text-anchor: middle; }
+.hq-svg .hq-n text.s { font-size: 10px; fill: var(--muted); }
+.hq-svg .human rect { fill: var(--ink); }
+.hq-svg .human text { fill: var(--bg); font-family: var(--f-body); font-size: 12px; font-weight: 700; }
+.hq-svg .dot { stroke-width: 2; }
+.hq-svg .ring { fill: none; stroke: none; }
+.hq-svg .active .dot { fill: var(--accent); stroke: var(--accent); }
+.hq-svg .active .ring { stroke: var(--accent); stroke-width: 2; opacity: .5; transform-box: fill-box; transform-origin: center; animation: hq-pulse 2.2s ease-out infinite; }
+@keyframes hq-pulse { 0% { transform: scale(.75); opacity: .6; } 100% { transform: scale(1.45); opacity: 0; } }
+.hq-svg .idle .dot { fill: var(--surface); stroke: var(--faint); }
+/* A member with no agent (absent) is drawn like the list's own dashed dot, so a
+   team starting or stopped half-way reads as it stands (r-5b96 audit K1). */
+.hq-svg .absent .dot { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
+.hq-svg .blocked .dot, .hq-svg .handed .dot { fill: var(--warn); stroke: var(--warn); }
+.hq-svg .blocked .ring { stroke: var(--warn); stroke-width: 2; opacity: .7; }
+.hq-svg .bang { fill: var(--on-warn) !important; font-weight: 700; font-family: var(--f-body) !important; }
+.hq-svg .wkr.active .dot { fill: var(--accent); stroke: var(--accent); opacity: .75; }
+.hq-svg .wkr.idle .dot { fill: var(--surface); stroke: var(--faint); }
+.hq-svg .wkr.blocked .dot { fill: var(--warn); stroke: var(--warn); }
+.hq-svg .wkr.absent .dot { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
+
+/* 選んだチームの中 */
+.hq-detail { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px 16px; display: grid; gap: 12px; }
+.hq-dh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.hq-dh b { font-family: var(--f-mono); font-size: 15px; }
+.hq-dacts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.hq-db { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem); gap: 16px; align-items: start; }
+.hq-db > .nodes { grid-column: 2; grid-row: 1; margin: 0; }
+.hq-db > .hq-dq { grid-column: 1; }
+.hq-db .nodes li:not(.sub) { grid-template-columns: 8px minmax(0, 1fr) auto auto; }
+.hq-db .nodes li .dlv-sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.hq-doing { grid-column: 2 / -1; font-size: 12px; color: var(--muted); font-family: var(--f-body); }
+.hq-dq .th { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.hq-dq .term { margin: 0; }
+.hq-ans { font-size: 12.5px; color: var(--ink); background: var(--surface); border: 1px dashed var(--warn); border-radius: 5px; padding: 6px 10px; display: grid; gap: 2px; margin-top: 10px; }
+.hq-ans .hq-where { overflow-wrap: anywhere; }
+
+@media (max-width: 1100px) {
+  .hq-at { grid-template-columns: 6.5rem minmax(0, 1fr) auto; }
+  .hq-at .hq-aq { grid-column: 2 / -1; }
+  .hq-at .hq-where { grid-column: 2 / -1; white-space: normal; }
+  .hq-db { grid-template-columns: minmax(0, 1fr); }
+  .hq-db > .nodes { grid-column: 1; grid-row: auto; }
+}
+@media (max-width: 760px) {
+  .hq-sheet { top: 12px; }
+  .hq-kv { grid-template-columns: minmax(0, 1fr); }
+  .hq-gh { padding-inline: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hq-svg .hq-call, .hq-svg .active .ring { animation: none; }
+}
+
+/* ---- 横断の検索 ---------------------------------------------------------- */
+.hq-search {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 0 8px 0 10px;
+  width: min(22rem, 100%);
+}
+.hq-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.hq-search .hq-sk { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.hq-search input { border: 0; background: none; color: var(--ink); font: 13px var(--f-body); min-width: 0; flex: 1; padding: 4px 0; outline: none; }
+.hq-search kbd { font: 11px var(--f-mono); color: var(--faint); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.hq-sr {
+  position: fixed; z-index: 32; top: calc(var(--stick, 62px) + 2px);
+  left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+  margin-inline: auto; width: min(46rem, calc(100% - 32px));
+  max-height: calc(100vh - var(--stick, 62px) - 24px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--ink); border-radius: 8px; box-shadow: 0 10px 30px rgba(10, 14, 22, .22);
+  padding: 8px; display: grid; gap: 6px; font-size: 13px;
+}
+.hq-srg { display: grid; gap: 1px; }
+.hq-srh { font-size: 11.5px; color: var(--muted); letter-spacing: .04em; padding: 6px 8px 2px; display: flex; gap: 6px; align-items: baseline; }
+.hq-srh .n { font-family: var(--f-mono); color: var(--faint); }
+.hq-ri {
+  display: grid; grid-template-columns: 5.5rem minmax(9rem, 13rem) minmax(0, 1fr); gap: 2px 12px; align-items: baseline;
+  padding: 6px 8px; border-radius: 4px; color: var(--ink); text-decoration: none;
+}
+a.hq-ri:hover, .hq-ri.sel { background: var(--accent-soft); }
+.hq-ri .hq-rp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hq-ri .hq-rl { font-family: var(--f-mono); font-weight: 600; font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.hq-ri .hq-rs { font-size: 12.5px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.hq-ri .hq-rw { color: var(--faint); font-size: 11.5px; white-space: nowrap; }
+.hq-ri mark { background: var(--accent-soft); color: var(--ink); border-radius: 2px; padding: 0 1px; }
+.hq-srm { font-size: 12px; color: var(--faint); padding: 2px 8px 4px calc(5.5rem + 20px); }
+@media (max-width: 760px) {
+  .hq-search { width: 100%; }
+  .hq-ri { grid-template-columns: minmax(0, 1fr); }
+  .hq-srm { padding-left: 8px; }
+}
+
+/* The sheet that lists projects keeps the field it adds one by at its foot too
+   (r-5b96 audit 12). */
+.hq-sheet > .hq-foot {
+  position: sticky; bottom: -14px; z-index: 1;
+  margin: 0 -16px -14px; padding: 10px 16px;
+  background: var(--surface); border-top: 1px solid var(--line);
+}

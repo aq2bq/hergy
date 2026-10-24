@@ -139,13 +139,17 @@ type r2Island struct {
 	Team   apiList           `json:"team"`
 	Texts  map[string]string `json:"texts"`
 	Places map[string]string `json:"places"`
+	// HQ is the headquarters lists (d-73fc): the projects' groups of roles and of
+	// the definitions that read them.
+	HQ *hqScreenIsland `json:"hq,omitempty"`
 }
 
 // r2PageIsland builds the role page's island from the same reading the answers
 // are built from.
 func (s *Server) r2PageIsland() r2Island {
 	reading := s.r2ReadingOf()
-	return r2Island{Role: s.r2ListOf(reading), Team: s.t2List(), Texts: reading.Texts, Places: reading.Places}
+	return r2Island{Role: s.r2ListOf(reading), Team: s.t2List(), Texts: reading.Texts, Places: reading.Places,
+		HQ: s.hqScreenIsland(apiRoleKind, apiTeamKind)}
 }
 
 // r2Read is one role document as the island carries it: the fields a person

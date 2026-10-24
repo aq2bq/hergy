@@ -25,6 +25,36 @@
   const PLACE = { project: 'プロジェクト', global: 'グローバル' };
   const DIR = DATA.dirs || { project: '', global: '' };
   const PROFILES = DATA.profiles || [];
+  // HQ is the headquarters lists (d-73fc): the projects' groups of definitions,
+  // roles and profiles. Without it (a server with no headquarters reading) the
+  // screen is the one project's, as it always was.
+  const HQ = DATA.hq || null;
+  // GROUPED is the headquarters with projects: listed: the rows stand in groups
+  // and carry their project. Without projects: the screen is the one project
+  // the way it always was (d-73fc: the old use is not broken).
+  const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
+  const GROUPS = GROUPED ? (HQ.teams || []) : null;
+  const groupKeyOf = (g) => (g.global ? 'global' : (g.project ? g.project.path : ''));
+  const groupNameOf = (g) => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+  // currentGroup is the key of the project this serve was started in: a row the
+  // screen adds goes there, and a row without a group is its own.
+  const CURRENT = HQ ? ((HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
+  const rowsIn = (g) => ((g.list && g.list.items) || []);
+  // ROLES_BY and PROFILES_BY are the names each project's member 属性 offers:
+  // another project's definition picks from that project's own documents and
+  // the global layer's (spec 4 章).
+  const ROLES_BY = {};
+  const PROFILES_BY = {};
+  if (HQ) {
+    (HQ.roles || []).forEach((g) => {
+      ROLES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => {
+        const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
+        return { name: item.name || '', title: ((places[eff] || {}).doc || {}).title || '' };
+      }).filter((x) => x.name);
+    });
+    (HQ.profiles || []).forEach((g) => { PROFILES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => item.name).filter(Boolean); });
+  }
+  if (HQ) document.body.classList.add('hq-teams');
   const CANVAS = window.hergyCanvas;
   // ROLES is the role documents the member's 属性 offers: the same list the
   // role screen shows, with the title each document carries. It is read once
@@ -69,8 +99,12 @@
   // files (new), or the definition it stands on (base). The server reads the base
   // from there and checks the row as if it were saved (spec-teams B2, B3).
   const draftIn = (r) => (!r.draftRow ? {} : r.how === 'new' ? { new: true } : { base: r.base });
-  const teamIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'team' }, draftIn(r), extra || {});
-  const agreeIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'agreement' }, draftIn(r), extra || {});
+  // projectIn is the project a write names: a listed project's path, and nothing
+  // for the global layer (which the server writes without being told) or for this
+  // serve's own project.
+  const projectIn = (project) => (project && project !== 'global' ? { project } : {});
+  const teamIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'team' }, projectIn(r.project), draftIn(r), extra || {});
+  const agreeIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'agreement' }, projectIn(r.project), draftIn(r), extra || {});
 
   // ---- 下書き（姿） ----------------------------------------------------
   const cloneTeam = (t) => ({
@@ -116,18 +150,25 @@
   const recs = new Map();
   let uids = 0;
 
-  // defOf is one item of GET /api/team read as the record the screen draws: the
-  // definition as one place reads it, the team's own agreement document, and the
-  // number of problems the server counted for the row (api.js lays the list out,
-  // so this screen reads no answer field by hand).
-  function defOf(item) {
+  const domOf = (name, group) => (GROUPED ? name + '|' + (group || '') : name);
+  const groupByKey = (key) => (GROUPS || []).find((g) => groupKeyOf(g) === key) || null;
+
+  // defOf is one item of GET /api/team (or of one group of GET /api/hq/teams)
+  // read as the record the screen draws: the definition as one place reads it,
+  // the team's own agreement document, and the number of problems the server
+  // counted for the row (api.js lays the list out, so this screen reads no
+  // answer field by hand). project is the group the row stands in: a listed
+  // project's path, "global", or empty for the one this serve was started in.
+  function defOf(item, project) {
+    project = project || '';
     const places = item.places || {};
     const eff = item.effective || (places.project ? 'project' : 'global');
     const place = places[eff] || {};
     const doc = place.doc || {};
     const agree = doc.agreement || { path: '', hash: '', has: false, doc: null };
     const sum = item.summary || {};
-    const key = (item.name || '') + '.' + eff;
+    const dom = domOf(item.name || '', project);
+    const key = dom + '.' + eff;
     let r = recs.get(key);
     if (r) return r;
     let saved = null;
@@ -139,7 +180,7 @@
       place: p, path: (places[p] || {}).path, hash: (places[p] || {}).hash,
     }));
     r = {
-      name: item.name || '', dom: item.name || '', place: eff, places: PLACES.filter((p) => places[p]), key,
+      name: item.name || '', dom, project, place: eff, places: PLACES.filter((p) => places[p]), key,
       teamPath: place.path || '', agreePath: agree.path || '',
       hash: place.hash || '', agreeHash: agree.hash || '', hasAgree: !!agree.has, broken: !!doc.broken,
       hidden, ins: doc.prompt || { turns: {}, workers: {} },
@@ -166,6 +207,17 @@
   }
   const byKey = (k) => recs.get(k);
   const byName = (n) => [...recs.values()].find((r) => r.dom === n);
+  // byRef is the record one address names: the row of one group, or, with no
+  // group, the row the screen wrote before the headquarters (its name alone).
+  const byRef = (name, group) => (group ? byName(domOf(name, group)) : (byName(name) || byRealName(name)));
+  // byRealName is the first row of a name, the project's own first: a link the
+  // older screens wrote names a definition, not a group.
+  const byRealName = (name) => [...recs.values()].find((r) => r.name === name && (r.project === CURRENT || r.project === ''))
+    || [...recs.values()].find((r) => r.name === name);
+  // groupOfRecord is the group a writable row belongs to: its own project, the
+  // global layer, or, for a row that is not there yet, this serve's project.
+  // Without projects: the screen writes to the one project, as it always did.
+  const groupOfRecord = (r) => (GROUPED ? (r.project || (r.place === 'global' ? 'global' : CURRENT)) : '');
   // The list is drawn in the order the records stand in, so a row that is added
   // or read again is put back where a person was looking: firstIndexOf is the
   // place of the first record one rule names, and orderRows puts one row there
@@ -189,9 +241,9 @@
   // definition it stands on, and what the server answered about it. The screen
   // builds no document of its own; it draws the check's own answer (spec-teams
   // B2, spec-boundary 5).
-  function draftRecord(how, place, name, base) {
+  function draftRecord(how, place, name, base, project) {
     const r = {
-      dom: '~new' + (++uids), draftRow: true, how, base: base || null,
+      dom: '~new' + (++uids), draftRow: true, how, base: base || null, project: project || '',
       name: name || '', place: place || 'project', places: [],
       key: '', teamPath: '', agreePath: '', hash: '', agreeHash: '', hasAgree: false, broken: false,
       hidden: [], ins: { turns: {}, workers: {} }, ops: [], uid: uids,
@@ -242,8 +294,8 @@
   // addDraft makes a row for a definition that is not there yet, checks it once,
   // and draws it: its figure, its rules and its preview are the server's own
   // reading of the base (spec-teams B2).
-  async function addDraft(how, place, name, base) {
-    const r = draftRecord(how, place, name, base);
+  async function addDraft(how, place, name, base, project) {
+    const r = draftRecord(how, place, name, base, project);
     await checkTeam(r);
     // The row stands where the mock draws it: one added from the scaffold stands
     // first, and a duplicate or a copy stands right under the row it came from
@@ -666,11 +718,11 @@
     const broken = r.broken;
     // A definition that is not there yet chooses its place: a row added from the
     // scaffold can go either way, and a copy is bound to the place it goes to
-    // (spec-teams B2, B3).
+    // (spec-teams B2, B3). A saved row says which project it is (spec 4 章).
     let pills;
     if (r.draftRow && r.how === 'copy') pills = `<span class="pill pending">${PLACE[r.place]}</span>`;
     else if (r.draftRow) pills = `<span class="seg" role="group" aria-label="置き場所">${PLACES.map((p) => `<button class="${p === r.place ? 'on' : ''}" data-act="pick-place" data-x="${p}" aria-pressed="${p === r.place}">${PLACE[p]}</button>`).join('')}</span>`;
-    else pills = (r.places || []).map((p) => `<span class="pill ${p === r.place ? 'on' : 'shadow'}">${PLACE[p]}</span>`).join('');
+    else pills = placePills(r);
     const cell = broken ? '—'
       : open
         ? `<input id="m-${esc(r.dom)}" class="in-mission ${t.mission !== r.team.saved.mission ? 'changed' : ''}" data-f="mission" value="${esc(t.mission)}" autocomplete="off" aria-label="${esc(teamLabel(r))} の使命">`
@@ -682,7 +734,59 @@
     <span class="c-members c-num">${broken ? '—' : t.members.length}</span>
     <span class="c-turns c-num">${broken ? '—' : t.workers.length}</span>
     <span class="c-agree c-num">${rules.length}${outNote(outCount(rules))}</span>
-    <span class="c-size">${broken || !r.limit ? '<span class="none">—</span>' : SIZE.html(r.size, r.limit)}</span>`;
+    <span class="c-size">${broken || !r.limit ? '<span class="none">—</span>' : SIZE.html(r.size, r.limit)}</span>
+    ${HQ && !r.draftRow ? `<span class="hq-runc">${runCellHTML(r)}</span>` : ''}`;
+  }
+
+  // placePills is the row's プロジェクト column (spec 4 章): the project's name,
+  // or グローバル. A project that overrides a global name carries the crossed-out
+  // グローバル, and the global row says which projects override it.
+  function placePills(r) {
+    // Without projects: the list stays one, and its プロジェクト column still
+    // names the project or グローバル (d-8a45, r-5b96 audit 5).
+    if (!GROUPED) return (r.places || []).map((p) => `<span class="pill ${p === r.place ? 'on' : 'shadow'}">${p === 'global' ? 'グローバル' : esc(currentProjectName())}</span>`).join('');
+    const hq = window.hergyHQ;
+    const label = r.project === 'global' ? 'グローバル' : (hq ? hq.projectName(r.project) : '');
+    let out = `<span class="pill on">${esc(label)}</span>`;
+    const globalGroup = (GROUPS || []).find((g) => g.global);
+    const over = (globalGroup && globalGroup.overridden_by) || {};
+    if (r.project && r.project !== 'global' && (over[r.name] || []).includes(r.project)) out += '<span class="pill shadow">グローバル</span>';
+    if (r.project === 'global') out += (over[r.name] || []).map((p) => `<span class="pill hq-ov">${esc(hq ? hq.projectName(p) : p)} で上書き</span>`).join('');
+    return out;
+  }
+
+  // runCellHTML is one row's 動き: the running teams, or 起動… (spec 5 章). The
+  // headquarters holds the reading; the screen only puts it in the row.
+  function runCellHTML(r) {
+    const hq = window.hergyHQ;
+    if (!hq) return '';
+    // A project's team runs in that project: without projects:, it is the one
+    // this serve was started in (r-5b96 audit 5).
+    const project = r.place === 'global' ? '' : (r.project || CURRENT);
+    return hq.runCell(r.name, r.place, project);
+  }
+  // currentProjectName is the name of the project serve was started in, as the
+  // band's sheet calls it.
+  function currentProjectName() {
+    const p = (HQ && HQ.projects) || {};
+    return (p.current && p.current.name) || '';
+  }
+  // groupHeaderHTML is one project's group's head (spec 4 章): its name, where it
+  // is, and how many definitions and running teams it holds. The global layer
+  // comes last, with the one sentence about being used from every project.
+  function groupHeaderHTML(g, extra) {
+    const key = groupKeyOf(g);
+    const live = window.hergyHQ ? (window.hergyHQ.state.running.teams || []).filter((t) => t.project === key).length : 0;
+    if (g.global) {
+      return `<div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">${esc(g.display || '')}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
+    }
+    return `<div class="hq-gh" data-group="${esc(key)}"><span class="hq-gn">${esc(groupNameOf(g))}</span><span class="hq-gp">${esc(g.project ? g.project.display : '')}</span><span class="hq-gc">${extra !== undefined ? extra : `チーム定義 <b>${rowsIn(g).length}</b> · 動いているチーム <b>${live}</b>`}</span></div>`;
+  }
+  // rowsOfGroup is the rows one group draws, in the list's own order: a row that
+  // is not there yet has no group yet and stands in this serve's project (or the
+  // global layer, when its place is global).
+  function rowsOfGroup(key) {
+    return [...recs.values()].filter((r) => (r.project ? r.project === key : key === (r.place === 'global' ? 'global' : CURRENT)));
   }
   const dtabOf = (r) => state.dtab[r.dom] || 'shape';
   function dtabsHTML(r) {
@@ -729,11 +833,44 @@
   }
   function listHTML() {
     const toolbar = '<div class="toolbar"><button class="btn primary" data-act="new">＋ チーム定義を追加</button></div>';
-    if (!recs.size) return `${toolbar}<div class="list"><p class="none">チーム定義はありません</p></div>`;
-    return `${toolbar}<div class="list">
-    <div class="head"><span></span><span>名前</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span></div>
+    if (!recs.size && !GROUPED) return `${toolbar}<div class="list"><p class="none">チーム定義はありません</p></div>`;
+    const head = `<div class="head"><span></span><span>名前</span><span>使命</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>${HQ ? '<span class="hq-runh">動き</span>' : ''}</div>`;
+    if (!GROUPED) return `${toolbar}<div class="list">${head}
     ${[...recs.values()].map(rowHTML).join('')}</div>`;
+    // The rows stand in groups: every listed project in the config's order, then
+    // the global layer once (spec 4 章).
+    let body = '';
+    let any = false;
+    GROUPS.forEach((g) => {
+      const rows = rowsOfGroup(groupKeyOf(g));
+      body += groupHeaderHTML(g);
+      if (rows.length) { any = true; body += rows.map(rowHTML).join(''); }
+    });
+    if (!any) body += '<p class="none">チーム定義はありません</p>';
+    return `${toolbar}<div class="list hq-grouped">${head}${body}</div>`;
   }
+  // refreshRunCells puts the headquarters reading in the 動き cells: only the
+  // cells move, so a field a person is typing in keeps its place (spec 5 章).
+  function refreshRunCells() {
+    if (!HQ) return;
+    $$('.tdef[data-key]').forEach((row) => {
+      const r = byKey(row.dataset.key);
+      const cell = row.querySelector(':scope > .sum > .hq-runc');
+      if (!r || !cell) return;
+      const html = runCellHTML(r);
+      if (cell.innerHTML !== html) cell.innerHTML = html;
+    });
+    $$('.hq-gh[data-group]').forEach((head) => {
+      const key = head.dataset.group;
+      const g = GROUPS.find((x) => groupKeyOf(x) === key);
+      const cell = head.querySelector('.hq-gc');
+      if (!g || !cell) return;
+      const live = ((window.hergyHQ && window.hergyHQ.state.running.teams) || []).filter((t) => t.project === key).length;
+      if (g.global) return;
+      cell.innerHTML = `チーム定義 <b>${rowsIn(g).length}</b> · 動いているチーム <b>${live}</b>`;
+    });
+  }
+  document.addEventListener('hergy:hq', refreshRunCells);
   function refreshRow(name) {
     const r = byName(name);
     if (!r) return;
@@ -769,7 +906,10 @@
     text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
   }));
   const fileByKey = new Map(FILES.map((f) => [f.file, f]));
-  const recFor = (f) => { const r = byName(f.name); return r && r.place === f.place ? r : null; };
+  const recFor = (f) => {
+    const r = [...recs.values()].find((x) => x.name === f.name && x.place === f.place && (x.project === CURRENT || x.project === ''));
+    return r || null;
+  };
   const fileText = (file) => (state.ytext[file] !== undefined ? state.ytext[file] : ((fileByKey.get(file) || {}).text || ''));
   const fileDirty = (file) => state.ytext[file] !== undefined && state.ytext[file] !== ((fileByKey.get(file) || {}).text || '');
   function yIssues(file) { return state.yc[file] || (fileByKey.get(file) || {}).problems || []; }
@@ -1039,7 +1179,7 @@
     r.savedTurns = cloneTeam(r.team.draft).turns;
     r.ops = [];
     r.baseFindings = r.findings;
-    setProblems(json.items);
+    setProblems(json.items, r.project);
     state.ok['t' + dkey(r)] = 1;
     CANVAS.reset(dkey(r));
     cundo.delete(dkey(r));
@@ -1056,7 +1196,7 @@
     r.agreeHash = json.hash || r.agreeHash;
     r.hasAgree = true;
     if (json.doc) { const d2 = RD.fromJSON(json.doc); d2.__path = r.agreePath; r.agree.saved = d2; r.agree.draft = clone(d2); }
-    setProblems(json.items);
+    setProblems(json.items, r.project);
     state.ok['a' + dkey(r)] = 1;
     rerenderSides(r);
     tellDirty();
@@ -1089,13 +1229,13 @@
     const at = firstIndexOf((x) => x.dom === dom || x.name === name);
     // Every reading of this name is taken again from the answer: a copy's save
     // joins the two places into one row (spec-teams B4).
-    [...recs.values()].filter((x) => x.dom === dom || x.name === name).forEach((x) => {
+    [...recs.values()].filter((x) => x.dom === dom).forEach((x) => {
       recs.delete(x.key); delete state.confirm['del' + x.key]; CANVAS.reset(x.key);
     });
-    setProblems(json.items);
+    setProblems(json.items, groupOfRecord(r));
     const item = (json.items || []).find((it) => it.name === name);
     if (!item) { state.open.delete(dom); delete state.dtab[dom]; render(); return; }
-    const nr = defOf(item);
+    const nr = defOf(item, groupOfRecord(r));
     orderRows(nr, at);
     if (opens) state.open.add(nr.dom);
     state.dtab[nr.dom] = dtab;
@@ -1116,20 +1256,20 @@
   // were all it held. Every record of that name is read again from the answer,
   // because the other place's reading may be the one in effect now.
   async function doDelete(r, panel) {
-    const res = await API.del('team', r.name, r.place, r.hash, r.agreeHash);
+    const res = await API.del('team', r.name, r.place, r.hash, r.agreeHash, r.project === 'global' ? undefined : r.project);
     if (!res.ok) { API.refusal(panel, API.problemText(res, '削除できませんでした')); return; }
     const json = API.answer(res);
     const name = r.name;
     // The row keeps its place in the list: taking one place's folder away leaves
     // the definition where a person was looking at it (spec-teams B6, N7).
-    const at = firstIndexOf((x) => x.name === name);
-    [...recs.values()].filter((x) => x.name === name).forEach((x) => {
+    const at = firstIndexOf((x) => x.dom === r.dom);
+    [...recs.values()].filter((x) => x.dom === r.dom).forEach((x) => {
       recs.delete(x.key); delete state.confirm['del' + x.key]; CANVAS.reset(x.key);
     });
-    setProblems(json.items);
+    setProblems(json.items, groupOfRecord(r));
     const item = (json.items || []).find((it) => it.name === name);
     if (item) {
-      const nr = defOf(item);
+      const nr = defOf(item, groupOfRecord(r));
       orderRows(nr, at);
       state.dtab[nr.dom] = state.dtab[nr.dom] || 'shape';
     }
@@ -1172,7 +1312,10 @@
   function readURL() {
     const p = new URLSearchParams(location.search);
     const open = p.get('open');
-    if (open) open.split(',').filter(Boolean).forEach((n) => state.open.add(n));
+    if (open) {
+      const rows = window.hergyHQ ? window.hergyHQ.parseOpen(open) : open.split(',').filter(Boolean).map((name) => ({ name, group: '' }));
+      rows.forEach(({ name, group }) => { const r = byRef(name, group); if (r) state.open.add(r.dom); });
+    }
     const agree = p.get('agree');
     if (agree) agree.split(',').filter(Boolean).forEach((n) => { state.dtab[n] = 'agree'; });
     const rule = p.get('rule');
@@ -1180,7 +1323,7 @@
     if (rule) rule.split(',').filter(Boolean).forEach((spec) => {
       const i = spec.indexOf('.');
       if (i < 0) return;
-      const r = byName(spec.slice(0, i));
+      const r = byRealName(spec.slice(0, i));
       if (!r) return;
       const hit = rulesOf(r.agree.draft).find((x) => x.id === spec.slice(i + 1));
       if (hit) {
@@ -1216,11 +1359,11 @@
   function pushOp(r, op) { r.ops.push(op); }
   // setProblems takes the counts a save answered with back into the rows, so the
   // row's 問題/警告 chip is the server's own count again (spec-boundary 5).
-  function setProblems(items) {
+  function setProblems(items, project) {
     (items || []).forEach((item) => {
       const places = item.places || {};
       const eff = item.effective || (places.project ? 'project' : 'global');
-      const r = recs.get((item.name || '') + '.' + eff);
+      const r = recs.get(domOf(item.name || '', project || '') + '.' + eff);
       if (r) r.problems = item.problems || {};
     });
   }
@@ -1319,7 +1462,7 @@
     r.wpromptReq = r.wpromptReq || {};
     if (r.wpromptReq[k]) return null;
     r.wpromptReq[k] = true;
-    API.check('team', { place: r.place, name: r.name, part: 'worker', doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+    API.check('team', { place: r.place, name: r.name, part: 'worker', project: r.project && r.project !== 'global' ? r.project : undefined, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
       delete r.wpromptReq[k];
       const ans = res.ok ? API.answer(res) : null;
       r.wprompts[k] = res.ok
@@ -1330,6 +1473,28 @@
     }).catch(() => { delete r.wpromptReq[k]; });
     return null;
   }
+  // rolesFor and profilesFor are the documents one row's member 属性 offers: the
+  // row's own project's and the global layer's, so another project's definition
+  // chooses from its own names (spec 4 章). Without a headquarters they are the
+  // one list the island carries.
+  function rolesFor(r) {
+    if (!HQ) return ROLES;
+    const key = r ? groupOfRecord(r) : CURRENT;
+    const all = key === 'global'
+      ? Object.values(ROLES_BY).flat()
+      : (ROLES_BY[key] || []).concat(ROLES_BY.global || []);
+    const seen = new Set();
+    return all.filter((x) => !seen.has(x.name) && seen.add(x.name));
+  }
+  function profilesFor(r) {
+    if (!HQ) return PROFILES;
+    const key = r ? groupOfRecord(r) : CURRENT;
+    const all = key === 'global'
+      ? Object.values(PROFILES_BY).flat()
+      : (PROFILES_BY[key] || []).concat(PROFILES_BY.global || []);
+    const seen = new Set();
+    return all.filter((x) => !seen.has(x) && seen.add(x));
+  }
   const CH = {
     key: dkey,
     row: (rowEl) => byKey(rowEl.dataset.key),
@@ -1338,8 +1503,8 @@
     findings: (r) => teamIssues(r),
     name: (r) => r.name,
     path: (r) => r.teamPath,
-    roles: () => ROLES,
-    profiles: () => PROFILES,
+    roles: (r) => rolesFor(r),
+    profiles: (r) => profilesFor(r),
     prompts: (r) => r.prompts || [],
     promptBlocked: (r) => r.promptsReady === false,
     workerPrompt,
@@ -1371,7 +1536,8 @@
     // edit just moved, and when they lit up (spec-teams B7).
     tlast: {}, tstep: {}, tglow: {}, tglowTimer: {},
   };
-  (LIST.items || []).forEach(defOf);
+  if (GROUPED) GROUPS.forEach((g) => rowsIn(g).forEach((item) => defOf(item, groupKeyOf(g))));
+  else (LIST.items || []).forEach((item) => defOf(item));
   readURL();
 
   const ctx = (el) => {
@@ -1387,6 +1553,10 @@
   };
 
   wrapEl.addEventListener('click', async (e) => {
+    // A button of the headquarters' 動き column (start, stop) acts on the
+    // definition, not on the row: it must not open or close the row (r-5b96
+    // audit 1).
+    if (e.target.closest('[data-hq]')) return;
     if (e.target.closest('.in-mission, .in-name')) return;
     const b = e.target.closest('[data-act]');
     if (!b) return;
@@ -1401,9 +1571,9 @@
       // The list's own toolbar adds a definition from the scaffold, and each row
       // duplicates itself, copies itself into the other place, or goes away
       // (spec-teams B1-B5).
-      case 'new': await addDraft('new', 'project', '', null); break;
-      case 'dup': { const r = byName(n); if (r) await addDraft('dup', r.place, theName(r.name), { place: r.place, name: r.name }); break; }
-      case 'copy': { const r = byName(n); if (r) await addDraft('copy', other(r.place), r.name, { place: r.place, name: r.name }); break; }
+      case 'new': await addDraft('new', 'project', '', null, GROUPED ? CURRENT : ''); break;
+      case 'dup': { const r = byName(n); if (r) await addDraft('dup', r.place, theName(r.name), { place: r.place, name: r.name }, r.project); break; }
+      case 'copy': { const r = byName(n); if (r) await addDraft('copy', other(r.place), r.name, { place: r.place, name: r.name }, r.project); break; }
       case 'pick-place': {
         const r = byName(n);
         if (!r || !r.draftRow || r.place === b.dataset.x) break;
@@ -1607,6 +1777,24 @@
     }).filter((x) => x.name);
     if ($('.panel.team-p')) render();
   }).catch(() => {});
+  // The roles and profiles a member's 属性 offers are read after the list: the
+  // page itself carries only the definitions, so a row opens without waiting
+  // for every project's roles and profiles (r-5b96, Enter lag).
+  if (HQ) {
+    const fill = (kind, map, toEntry) => API.call('GET', '/api/hq/' + kind).then((res) => {
+      if (!res.ok || !res.json) return;
+      (res.json.groups || []).forEach((g) => {
+        map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter(Boolean);
+      });
+      if ($('.panel.team-p')) render();
+    }).catch(() => {});
+    fill('roles', ROLES_BY, (item) => {
+      const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
+      const name = item.name || '';
+      return name ? { name, title: ((places[eff] || {}).doc || {}).title || '' } : null;
+    });
+    fill('profiles', PROFILES_BY, (item) => item.name || null);
+  }
   // Every definition is checked once at open, so the figure's problems and the
   // node badges are the server's own reading of the saved file, and the
   // agreement's saved problems are the baseline its save is held to

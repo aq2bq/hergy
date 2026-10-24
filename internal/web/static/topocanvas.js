@@ -257,7 +257,7 @@
     if (sel.type === 'worker') {
       const w = t.workers[sel.i];
       if (!w) return '';
-      const profs = (host.profiles().includes(w.profile) ? [] : [w.profile]).concat(host.profiles());
+      const profs = (host.profiles(r).includes(w.profile) ? [] : [w.profile]).concat(host.profiles(r));
       return `<div class="cv-t"><code>${esc(w.purpose || '（目的）')}</code><span class="cv-k">ワーカー</span></div>
         <div class="cv-f"><label for="cv-wp-${esc(team)}">目的</label><input id="cv-wp-${esc(team)}" data-cv-f="w-purpose" value="${esc(w.purpose)}" placeholder="例: 調べ物" autocomplete="off" spellcheck="false"></div>
         <div class="cv-f"><label for="cv-wf-${esc(team)}">追加するメンバー</label><span class="sel"><select id="cv-wf-${esc(team)}" data-cv-f="w-from">${t.members.map((m) => `<option ${m.name === w.from ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></span></div>
@@ -277,11 +277,11 @@
     const outs = t.turns.filter(([a]) => a === id).map(([, b]) => b);
     const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
     const nt = t.turns.filter(([a, b]) => a === id || b === id).length;
-    const role = (host.roles() || []).find((x) => x.name === m.role) || {};
+    const role = (host.roles(r) || []).find((x) => x.name === m.role) || {};
     return `<div class="cv-t"><code>${esc(m.name)}</code><span class="cv-k">メンバー${role.title ? ` · ${esc(role.title)}` : ''}</span></div>
       <div class="cv-f"><label for="cv-mn-${esc(team)}">名前</label><input id="cv-mn-${esc(team)}" data-cv-f="m-name" value="${esc(m.name)}" spellcheck="false" autocomplete="off">${msgs.map((x) => `<span class="cv-msg">${esc(x)}</span>`).join('')}<span class="cv-sub">herdr 名 ${esc(team)}-${esc(m.name)}</span></div>
-      <div class="cv-f"><label for="cv-mr-${esc(team)}">ロール</label><span class="sel"><select id="cv-mr-${esc(team)}" data-cv-f="m-role">${(host.roles() || []).map((x) => `<option value="${esc(x.name)}" ${x.name === m.role ? 'selected' : ''}>${esc(x.name)}${x.title ? ` · ${esc(x.title)}` : ''}</option>`).join('')}</select></span><span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span></div>
-      <div class="cv-f"><label for="cv-mp-${esc(team)}">プロファイル</label><span class="sel"><select id="cv-mp-${esc(team)}" data-cv-f="m-profile">${host.profiles().map((p) => `<option ${p === m.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span></div>
+      <div class="cv-f"><label for="cv-mr-${esc(team)}">ロール</label><span class="sel"><select id="cv-mr-${esc(team)}" data-cv-f="m-role">${(host.roles(r) || []).map((x) => `<option value="${esc(x.name)}" ${x.name === m.role ? 'selected' : ''}>${esc(x.name)}${x.title ? ` · ${esc(x.title)}` : ''}</option>`).join('')}</select></span><span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span></div>
+      <div class="cv-f"><label for="cv-mp-${esc(team)}">プロファイル</label><span class="sel"><select id="cv-mp-${esc(team)}" data-cv-f="m-profile">${host.profiles(r).map((p) => `<option ${p === m.profile ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></span></div>
       <div class="cv-sec"><span class="cv-sl">ターンを渡す相手</span>${turnRows(t, s, id, 'out')}${outs.length ? '' : '<span class="cv-note">まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください</span>'}${addTurnSel(t, id)}</div>
       <div class="cv-sec"><span class="cv-sl">ターンを受け取る相手</span>${turnRows(t, s, id, 'in')}</div>
       <div class="cv-sec"><span class="cv-sl">ワーカー</span>${ws.length ? ws.map(({ w, i }) => `<div class="cv-li${s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? '' : ' new'}"><span>${esc(w.purpose || '（目的）')} · ${esc(w.profile)}</span><span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i="${i}">選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" data-i="${i}" title="外す" aria-label="外す">×</button></span></div>`).join('') : '<span class="cv-empty">なし</span>'}
@@ -465,13 +465,13 @@
     S.menu = menu;
   }
   const svgPt = (svg, e) => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
-  function firstRole() { const rs = host.roles() || []; return (rs[0] || {}).name || ''; }
-  function firstProfile(cheap) {
-    const ps = host.profiles();
+  function firstRole(r) { const rs = host.roles(r) || []; return (rs[0] || {}).name || ''; }
+  function firstProfile(cheap, r) {
+    const ps = host.profiles(r);
     return (cheap ? ps.find((p) => /haiku|mini|flash/.test(p)) : '') || ps[0] || '';
   }
   function addMember(r, at) {
-    const t = host.draft(r), role = firstRole(), profile = firstProfile(false);
+    const t = host.draft(r), role = firstRole(r), profile = firstProfile(false, r);
     let n = 1; const base = role || 'member';
     while (t.members.some((m) => m.name === `${base}-${n}`)) n++;
     const name = `${base}-${n}`;
@@ -483,7 +483,7 @@
     });
   }
   function addWorker(r, from, at) {
-    const t = host.draft(r), idx = t.workers.length, profile = firstProfile(true);
+    const t = host.draft(r), idx = t.workers.length, profile = firstProfile(true, r);
     const ops = [{ kind: 'addWorker', from, purpose: '', profile }];
     if (at) posOf(r)['w' + idx] = at;
     got(S.sel, r).v = { type: 'worker', i: idx }; got(S.side, r).v = 'attr';

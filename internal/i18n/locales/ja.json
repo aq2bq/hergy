@@ -501,5 +501,7 @@
   "web.hq.workspace_missing": "ワークスペース %s はありません。画面を読み直してから、もう一度選んでください",
   "web.hq.project_shadows": "%s では、%s の %s が使われます",
   "web.hq.path_relative": "%s は相対パスです。絶対パスか ~/ で始まるパスを書いてください",
-  "web.hq.path_empty": "プロジェクトのディレクトリのパスを書いてください"
+  "web.hq.path_empty": "プロジェクトのディレクトリのパスを書いてください",
+  "web.hq.tab_created": "タブ %s を作りました",
+  "web.hq.panes_created": "ペインを %d 個作りました"
 }

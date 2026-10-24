@@ -58,6 +58,8 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 	worker := &definition.Start{
 		Name:     herdrName,
 		Short:    name,
+		From:     lead.Short,
+		Purpose:  purpose,
 		Role:     i18n.Tf("role.worker", purpose),
 		Kind:     profileValue.Kind,
 		Args:     profileValue.Args,

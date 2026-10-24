@@ -58,11 +58,14 @@ type t2Island struct {
 	Dirs     map[string]string `json:"dirs"`
 	Texts    map[string]string `json:"texts"`
 	Profiles []string          `json:"profiles"`
+	// HQ is the headquarters lists (d-73fc): the projects' groups of definitions,
+	// roles and profiles. Absent when the server has no headquarters reading.
+	HQ *hqScreenIsland `json:"hq,omitempty"`
 }
 
 // t2Island reads the catalog into the page's island.
 func (s *Server) t2Island() t2Island {
-	out := t2Island{Project: filepath.Base(s.cat.Base()), Team: s.t2List()}
+	out := t2Island{Project: filepath.Base(s.cat.Base()), Team: s.t2List(), HQ: s.hqScreenIsland(apiTeamKind)}
 	out.Places = map[string]string{
 		catalog.PlaceProject: "プロジェクト",
 		catalog.PlaceGlobal:  "共通",

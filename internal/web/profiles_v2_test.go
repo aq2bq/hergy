@@ -194,7 +194,7 @@ func TestProfilesTabsAreRealPages(t *testing.T) {
 		}
 	}
 	_, body := f.get(t, server, "/profiles")
-	for _, want := range []string{"名前", "kind", "置き場所", "引数", "環境変数", "使っている人", "＋ プロファイルを追加"} {
+	for _, want := range []string{"名前", "kind", "プロジェクト", "引数", "環境変数", "使っている人", "＋ プロファイルを追加"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the list does not hold %q", want)
 		}

@@ -559,6 +559,12 @@ func (h *hqRead) observe(op *launchOp, event launcher.Event) {
 		op.launch.Phase = "starting"
 		op.launch.Waiting = nil
 	}
+	if event.CreatedTab != "" {
+		op.stepLocked("done", i18n.Tf("web.hq.tab_created", event.CreatedTab))
+	}
+	if event.CreatedPanes > 0 {
+		op.stepLocked("done", i18n.Tf("web.hq.panes_created", event.CreatedPanes))
+	}
 	if event.Stage != "" {
 		op.stepLocked("stage", event.Stage)
 	}

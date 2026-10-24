@@ -209,7 +209,7 @@ func latestLaunches() map[string]launchlog.Record {
 	}
 	out := make(map[string]launchlog.Record, len(records))
 	for _, record := range records {
-		if record.Team != "" {
+		if record.Team != "" && !record.IsHire() {
 			out[record.Team] = record
 		}
 	}
@@ -718,6 +718,15 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 			stale[member.Name] = true
 		}
 	}
+	// What each agent's terminal says it is doing, and which member added a
+	// worker: the title herdr strips for us (d-b4b9), and the hire lines of the
+	// launch record. The title stands as herdr gives it, whatever the state.
+	titles := map[string]string{}
+	for _, agent := range read.agents {
+		if agent.Title != "" {
+			titles[agent.Name] = agent.Title
+		}
+	}
 	doc := web.ActivityDoc{
 		Name:        one.Name,
 		Definition:  one.Definition,
@@ -726,8 +735,8 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		Workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		State:       t.State.Slug(),
 		Last:        t.Last,
-		Nodes:       docNodes(t, now, stale),
-		Hired:       docHired(t, one.Name, now),
+		Nodes:       docNodes(t, now, stale, titles),
+		Hired:       docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
 		Questions:   []web.ActivityQuestion{},
 		Tail:        web.ActivityTail{Lines: []string{}, Shown: tailShown},
 		Gy:          web.ActivityNote{OK: true},
@@ -784,21 +793,25 @@ func roleOf(graph *definition.Graph, name string) string {
 	return member.Role
 }
 
-// docNodes is a team's members as the opened part shows them (2.5).
-func docNodes(t activity.Team, now time.Time, stale map[string]bool) []web.ActivityNode {
+// docNodes is a team's members as the opened part shows them (2.5): the state,
+// when it began, and what the agent's terminal says it is doing (d-b4b9).
+func docNodes(t activity.Team, now time.Time, stale map[string]bool, titles map[string]string) []web.ActivityNode {
 	out := make([]web.ActivityNode, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
+		at := activity.Clock(now, node.At)
 		out = append(out, web.ActivityNode{
-			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: activity.Clock(now, node.At),
-			Stale: stale[node.Herdr],
+			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: at,
+			SinceAt: activity.SinceAt(now, node.At, node.Lower),
+			Doing:   titles[node.Herdr],
+			Stale:   stale[node.Herdr],
 		})
 	}
 	return out
 }
 
 // docHired is a team's workers as the opened part shows them: the name without
-// the team's own prefix (X1, 2.5).
-func docHired(t activity.Team, teamName string, now time.Time) []web.ActivityNode {
+// the team's own prefix (X1, 2.5), the member that added it, and its title.
+func docHired(t activity.Team, teamName string, now time.Time, titles, from map[string]string) []web.ActivityNode {
 	out := make([]web.ActivityNode, 0, len(t.Hired))
 	for _, hired := range t.Hired {
 		out = append(out, web.ActivityNode{
@@ -806,7 +819,37 @@ func docHired(t activity.Team, teamName string, now time.Time) []web.ActivityNod
 			Herdr: hired.Herdr,
 			State: hired.State.Slug(),
 			At:    activity.Clock(now, hired.At),
+			Doing: titles[hired.Herdr],
+			From:  from[hired.Herdr],
 		})
+	}
+	return out
+}
+
+// hireSources is the member that added each of one team's workers, from the hire
+// lines of this machine's launch record (d-b4b9). The newest line for one worker
+// wins; a worker hired before those lines were written has none, and the screen
+// says no "が追加" for it.
+func hireSources(project, teamName string) map[string]string {
+	out := map[string]string{}
+	log, err := launchlog.Open()
+	if err != nil {
+		return out
+	}
+	records, err := log.Read()
+	if err != nil {
+		return out
+	}
+	for _, record := range records {
+		if !record.IsHire() || record.Hire == nil || record.Team != teamName {
+			continue
+		}
+		if record.Project != "" && !samePath(record.Project, project) {
+			continue
+		}
+		if record.Hire.Worker != "" && record.Hire.From != "" {
+			out[record.Hire.Worker] = record.Hire.From
+		}
 	}
 	return out
 }

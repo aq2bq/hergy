@@ -4,10 +4,10 @@
 // (N7), a draft the band did not carry is spent for good (R2), a draft made
 // before the file moved outside is not put back (N8), and a field inside a row
 // marks the band and unmarks it (R3).
-import { test } from './fixtures';
+import { expect, test } from './fixtures';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { choose, press, q, readTo, set, there, wait, waitPath } from './helpers';
+import { choose, press, q, read, readTo, set, there, wait, waitPath } from './helpers';
 
 // pick is the assign row N6〜N9 work on: the core team's impl-a, whose profile
 // the fixture has as codex-high.
@@ -93,4 +93,29 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
     `String(!!${q('.screens .dot')})`,
     'R3: the band still marks a screen after the field was put back',
   ).toBe('false');
+});
+
+test('NAV-F1 Find picks a row with the arrows and Enter opens it', async ({ page, app }) => {
+  // ac-d417: the arrows walk the result rows and Enter goes to the one picked.
+  // The row is read from the screen's own index, so the test does not depend on
+  // which kind comes first or on two rows standing on one address.
+  await page.goto(`${app.base}/activity`);
+  await wait(page, there('#hq-q'));
+  await page.keyboard.press('/');
+  await page.keyboard.type('builder');
+  await wait(page, `window.hergyHQSearch && window.hergyHQSearch().shown.length > 1`);
+  const sel0 = await read<number>(page, `window.hergyHQSearch().sel`);
+  let picked = '';
+  let sel = sel0;
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press('ArrowDown');
+    sel = await read<number>(page, `window.hergyHQSearch().sel`);
+    if (sel === sel0) break;
+    picked = await read<string>(page, `window.hergyHQSearch().shown[window.hergyHQSearch().sel] || ''`);
+    if (picked) break;
+  }
+  expect(sel, 'the arrows do not move the picked row').not.toBe(sel0);
+  expect(picked, 'the picked row has no address').not.toBe('');
+  await page.keyboard.press('Enter');
+  await page.waitForURL((u) => u.pathname + u.search === picked, { timeout: 15_000 });
 });

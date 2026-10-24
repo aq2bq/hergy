@@ -339,6 +339,9 @@ func launchProjects(records []launchlog.Record) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, record := range slices.Backward(records) {
+		if record.IsHire() {
+			continue
+		}
 		project := record.Project
 		if project == "" || seen[project] {
 			continue
@@ -353,6 +356,9 @@ func launchProjects(records []launchlog.Record) []string {
 func (h *hqRead) latestProjectLaunch(path string) (launchlog.Record, bool) {
 	records := h.launchRecords()
 	for _, record := range slices.Backward(records) {
+		if record.IsHire() {
+			continue
+		}
 		if samePath(record.Project, path) {
 			return record, true
 		}
