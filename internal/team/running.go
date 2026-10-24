@@ -14,13 +14,22 @@ type Running struct {
 }
 
 // Tab is one of herdr's tabs as telling hergy's own tabs apart needs it: its id,
-// the label on it, and the names of the live agents in it. hergy names a member's
-// agent "<team>-<member>", so the agents in a tab say whose team the tab is,
-// even when hergy has no launch record of it (d-a72d).
+// the label on it, the workspace it stands in, the names of the live agents in
+// it, and the names hergy put on its panes. hergy names a member's agent and its
+// pane "<team>-<member>", so the agents and panes in a tab say whose team the tab
+// is, even when hergy has no launch record of it (d-a72d), and even when no agent
+// is running there yet (d-da92).
 type Tab struct {
-	ID     string
-	Label  string
-	Agents []string
+	ID          string
+	Label       string
+	WorkspaceID string
+	Agents      []string
+	// Panes are the labels of the panes hergy named in this tab. A pane a person
+	// opened has no label.
+	Panes []string
+	// PaneDirs is where those panes stand, one per Pane. A team this machine has
+	// no launch record of is read as the project its panes stand in (d-73fc).
+	PaneDirs []string
 }
 
 // Launch is one team this machine recorded a launch of: the name it ran under
@@ -35,11 +44,12 @@ type Launch struct {
 // the running teams, in herdr's order. A team name seen twice is kept once, and
 // a tab that is nobody's team is skipped.
 //
-// A tab is one of hergy's when a live agent in it is named after the tab's label
-// ("<label>-<member>"), which is how a team is still found after a boot that
-// failed once the tab was made and left no record, or when the label still has
-// the older shape "team:<team>@<definition>" or "team:<team>", which carried the
-// definition itself. Another tab is not, even one a person labelled with the name
+// A tab is one of hergy's when a live agent or a named pane in it is named after
+// the tab's label ("<label>-<member>"), which is how a team is still found after
+// a boot that failed once the tab was made and left no record, and after every
+// agent ended (d-da92), or when the label still has the older shape
+// "team:<team>@<definition>" or "team:<team>", which carried the definition
+// itself. Another tab is not, even one a person labelled with the name
 // of a team that has stopped: the launch record is history, so it says where a
 // definition is read from, not which tab is a team's.
 //
@@ -112,12 +122,19 @@ func runningOf(tab Tab, known map[string]string, agentsRead bool) (name, definit
 	return tab.Label, recorded, true
 }
 
-// HoldsMember reports whether a tab holds an agent hergy started for the team of
-// this name: hergy names a member's agent "<team>-<member>". It is what tells a
-// team's tab from another tab that carries the same label.
+// HoldsMember reports whether a tab holds a member of the team of this name: an
+// agent or a pane hergy named "<team>-<member>". An agent that is not running
+// leaves its named pane behind, and that pane is what still says the tab is the
+// team's (d-da92). It is what tells a team's tab from another tab that carries
+// the same label.
 func HoldsMember(tab Tab, name string) bool {
 	for _, agent := range tab.Agents {
 		if protocol.NamedForTeam(name, agent) {
+			return true
+		}
+	}
+	for _, pane := range tab.Panes {
+		if protocol.NamedForTeam(name, pane) {
 			return true
 		}
 	}
@@ -139,6 +156,23 @@ func MemberAgents(tabs []Tab, name string) []string {
 		for _, agent := range tab.Agents {
 			if protocol.NamedForTeam(name, agent) {
 				out = append(out, agent)
+			}
+		}
+	}
+	return out
+}
+
+// MemberPanes is the panes hergy named for one team in the tab labelled for it:
+// the panes that are still there after their agent ended (d-da92).
+func MemberPanes(tabs []Tab, name string) []string {
+	var out []string
+	for _, tab := range tabs {
+		if !protocol.NamesTeam(tab.Label, name) {
+			continue
+		}
+		for _, pane := range tab.Panes {
+			if protocol.NamedForTeam(name, pane) {
+				out = append(out, pane)
 			}
 		}
 	}

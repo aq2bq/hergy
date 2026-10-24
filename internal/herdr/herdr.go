@@ -39,6 +39,88 @@ func (h *Herdr) CurrentWorkspace() (string, error) {
 	return protocol.DigString(result, "pane", "workspace_id")
 }
 
+// Workspace is one herdr workspace: its id, the label on it, and whether it is
+// focused. The headquarters offers these, and names the one a team runs in
+// (d-73fc).
+type Workspace struct {
+	ID      string
+	Label   string
+	Focused bool
+}
+
+// Workspaces lists the server's workspaces, in herdr's order.
+func (h *Herdr) Workspaces() ([]Workspace, error) {
+	result, err := h.port.JSON("workspace", "list")
+	if err != nil {
+		return nil, err
+	}
+	raw, err := protocol.Dig(result, "workspaces")
+	if err != nil {
+		return nil, err
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, i18n.Errorf("error.herdr_workspaces")
+	}
+	out := make([]Workspace, 0, len(items))
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, workspaceFrom(object))
+	}
+	return out, nil
+}
+
+// Workspace reads one workspace by id.
+func (h *Herdr) Workspace(id string) (Workspace, error) {
+	result, err := h.port.JSON("workspace", "get", id)
+	if err != nil {
+		return Workspace{}, err
+	}
+	raw, err := protocol.Dig(result, "workspace")
+	if err != nil {
+		return Workspace{}, err
+	}
+	object, ok := raw.(map[string]any)
+	if !ok {
+		return Workspace{}, i18n.Errorf("error.herdr_workspaces")
+	}
+	return workspaceFrom(object), nil
+}
+
+// CreateWorkspace makes a workspace with this label and returns it. It does not
+// move the person's focus: a start from the screens leaves them where they are.
+func (h *Herdr) CreateWorkspace(label, cwd string) (Workspace, error) {
+	args := []string{"workspace", "create", "--label", label, "--no-focus"}
+	if cwd != "" {
+		args = append(args, "--cwd", cwd)
+	}
+	result, err := h.port.JSON(args...)
+	if err != nil {
+		return Workspace{}, err
+	}
+	raw, err := protocol.Dig(result, "workspace")
+	if err != nil {
+		return Workspace{}, err
+	}
+	object, ok := raw.(map[string]any)
+	if !ok {
+		return Workspace{}, i18n.Errorf("error.herdr_workspaces")
+	}
+	return workspaceFrom(object), nil
+}
+
+// workspaceFrom reads one workspace object.
+func workspaceFrom(object map[string]any) Workspace {
+	space := Workspace{}
+	space.ID, _ = object["workspace_id"].(string)
+	space.Label, _ = object["label"].(string)
+	space.Focused, _ = object["focused"].(bool)
+	return space
+}
+
 // LiveAgents lists the agents running on the server, in Herdr's order.
 func (h *Herdr) LiveAgents() ([]protocol.Agent, error) {
 	result, err := h.port.JSON("agent", "list")

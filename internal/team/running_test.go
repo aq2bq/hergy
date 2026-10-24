@@ -112,3 +112,23 @@ func TestMemberAgentsKeepsAnotherTeamOut(t *testing.T) {
 		t.Errorf("MemberAgents(qw2-x) = %v", got)
 	}
 }
+
+// TestRunningTeamsFindsATeamByItsNamedPane: an agent that ended leaves its named
+// pane behind, and the pane still says whose tab it is. A tab whose only marks
+// are a person's labels and another tool's agents is still nobody's team
+// (d-da92).
+func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
+	tabs := []Tab{
+		{ID: "t1", Label: "half", Panes: []string{"half-lead", "half-builder"}},
+		{ID: "t2", Label: "notes", Panes: []string{"mine"}},
+		{ID: "t3", Label: "worker:half/deps", Panes: []string{"half-deps"}},
+	}
+	got := RunningTeams(tabs, []Launch{{Team: "half", Definition: "halfdef"}}, true)
+	want := []Running{{Team: "half", Definition: "halfdef"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
+	}
+	if panes := MemberPanes(tabs, "half"); !reflect.DeepEqual(panes, []string{"half-lead", "half-builder"}) {
+		t.Errorf("MemberPanes = %v", panes)
+	}
+}

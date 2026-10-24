@@ -37,7 +37,7 @@ func recordTeamLaunch(t *testing.T, team string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record %s: %v", team, err)
 	}
 }

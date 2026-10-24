@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -51,9 +52,23 @@ type runningTeam struct {
 	// Broken is why the definition cannot be built, as hergy status's 詳細 line
 	// reads. Empty when it builds.
 	Broken string
-	// Elsewhere says the definition is not in this project's catalog at all:
-	// it belongs to another project, which hergy status says in its own words.
+	// Elsewhere says the definition is not in its project's catalog at all.
 	Elsewhere bool
+	// Project is the listed project the team belongs to (d-73fc): the launch
+	// record's project, or the project whose layer holds the definition. Name is
+	// what a person reads, and Catalog is that project's reading, which the
+	// delivery check and the opened part use.
+	Project string
+	// Place is the definition's layer: "local" for a project's definition,
+	// "global" for one started in a project from the global layer.
+	Place       string
+	ProjectName string
+	Catalog     *catalog.Catalog
+	// Workspace is the herdr workspace the team's tab stands in.
+	WorkspaceID    string
+	WorkspaceLabel string
+	// TabID is the tab's id, for the answer location.
+	TabID string
 }
 
 // readRunningTeams reads this machine's running teams and builds each one's team
@@ -65,25 +80,160 @@ type runningTeam struct {
 // just read herdr — the activity's band and its list share one read for five
 // seconds (spec-activity 3) — does not read it again to find the teams.
 func readRunningTeams(env team.Env, read herdrNow) []runningTeam {
-	running := team.RunningTeams(read.tabs, launchTeams(), read.agentsRead)
 	cat := env.Catalog(source.Disk{})
+	view := projectView{Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot), Env: env, Cat: cat}
+	return readRunningTeamsIn([]projectView{view}, read, true)
+}
+
+// projectView is one project the activity reads: its root, the name a person
+// reads, the environment its layer lives in, and the catalog over that layer.
+type projectView struct {
+	Path string
+	Name string
+	Env  team.Env
+	Cat  *catalog.Catalog
+}
+
+// readRunningTeamsIn reads the running teams that belong to the given projects:
+// a team belongs to the project its launch record names, and a team with no
+// record belongs to the project whose layer holds its definition. Teams outside
+// these projects are left out (d-73fc: a serve shows the projects it lists).
+//
+// The herdr read is handed in rather than done here, so a screen that has just
+// read herdr — the activity's band and its list share one read for five seconds
+// (spec-activity 3) — does not read it again to find the teams.
+func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runningTeam {
+	running := team.RunningTeams(read.tabs, launchTeams(), read.agentsRead)
+	records := latestLaunches()
 	out := make([]runningTeam, 0, len(running))
 	for _, entry := range running {
-		one := runningTeam{Name: entry.Team, Definition: entry.Definition}
-		r, err := buildRunning(cat, env.ProjectRoot, entry)
+		view, recorded, ok := projectOf(entry, records, views, read.tabs, lenient)
+		if !ok {
+			continue
+		}
+		one := runningTeam{
+			Name: entry.Team, Definition: entry.Definition,
+			Project: view.Path, ProjectName: view.Name, Catalog: view.Cat,
+			Place: recorded.Layer,
+		}
+		if tab, found := teamTab(read.tabs, entry.Team); found {
+			one.TabID = tab.ID
+			one.WorkspaceID = tab.WorkspaceID
+			one.WorkspaceLabel = workspaceLabel(read.spaces, tab.WorkspaceID)
+		}
+		r, err := buildRunningIn(view.Cat, view.Env.ProjectRoot, entry, recorded.Layer)
 		if err != nil {
 			// A definition that does not read is not this reading's failure: the
 			// row says why in the definition's own words (2.2), as hergy status
 			// says it, so the reason is kept on the team rather than returned.
-			one.Broken = brokenTeamLine(env, err)
+			one.Broken = brokenTeamLine(view.Env, err)
 			one.Elsewhere = errors.Is(err, catalog.ErrNotFound)
 			out = append(out, one)
 			continue
 		}
 		one.Built = r
+		one.Place = r.team.Definition.Layer
 		out = append(out, one)
 	}
 	return out
+}
+
+// projectOf is the project one running team belongs to, and its newest launch
+// record. A team whose record names a project outside the views is left out: it
+// is another project's, and a serve shows only the projects it lists. A team
+// with no record belongs to the one view whose layer holds its definition.
+func projectOf(entry team.Running, records map[string]launchlog.Record, views []projectView, tabs []team.Tab, lenient bool) (projectView, launchlog.Record, bool) {
+	record, recorded := records[entry.Team]
+	if recorded && record.Project != "" {
+		for _, view := range views {
+			if samePath(record.Project, view.Path) {
+				return view, record, true
+			}
+		}
+		if lenient && len(views) == 1 {
+			return views[0], record, true
+		}
+		return projectView{}, launchlog.Record{}, false
+	}
+	// A team with no record belongs to the project its named panes stand in: a
+	// boot that failed once the tab was made leaves the panes in the project the
+	// work runs in, and another project's team is not taken for this one's
+	// (d-73fc).
+	for _, view := range views {
+		if panesIn(view.Path, tabs, entry.Team) {
+			return view, launchlog.Record{}, true
+		}
+	}
+	for _, view := range views {
+		if view.Cat.HoldsDefinition(entry.Definition, source.LayerLocal) {
+			return view, launchlog.Record{}, true
+		}
+	}
+	// The CLI reads one project and keeps every team it cannot place, saying why
+	// its definition does not read; the screens show only teams they can place.
+	if lenient && len(views) == 1 {
+		return views[0], launchlog.Record{}, true
+	}
+	return projectView{}, launchlog.Record{}, false
+}
+
+// panesIn reports whether one team's named panes stand in a project. The panes
+// are paired with their tab's PaneDirs by position.
+func panesIn(project string, tabs []team.Tab, name string) bool {
+	for _, tab := range tabs {
+		if !protocol.NamesTeam(tab.Label, name) {
+			continue
+		}
+		for i, pane := range tab.Panes {
+			if !protocol.NamedForTeam(name, pane) || i >= len(tab.PaneDirs) {
+				continue
+			}
+			if rel, err := filepath.Rel(project, tab.PaneDirs[i]); err == nil &&
+				rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// latestLaunches is the newest launch record of each team name, by name.
+func latestLaunches() map[string]launchlog.Record {
+	log, err := launchlog.Open()
+	if err != nil {
+		return nil
+	}
+	records, err := log.Read()
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]launchlog.Record, len(records))
+	for _, record := range records {
+		if record.Team != "" {
+			out[record.Team] = record
+		}
+	}
+	return out
+}
+
+// teamTab is the tab labelled for one team, with the workspace it stands in.
+func teamTab(tabs []team.Tab, name string) (team.Tab, bool) {
+	for _, tab := range tabs {
+		if protocol.NamesTeam(tab.Label, name) && team.HoldsMember(tab, name) {
+			return tab, true
+		}
+	}
+	return team.Tab{}, false
+}
+
+// workspaceLabel is one workspace's label, or the id when herdr did not list it.
+func workspaceLabel(spaces []herdr.Workspace, id string) string {
+	for _, space := range spaces {
+		if space.ID == id {
+			return space.Label
+		}
+	}
+	return id
 }
 
 // samePath reports whether two paths name the same directory. A launch records
@@ -102,41 +252,6 @@ func samePath(a, b string) bool {
 	return errA == nil && errB == nil && ra == rb
 }
 
-// ofThisProject reports whether one running team is this project's, which is the
-// only filter the activity screen keeps (spec-activity 1): the launch record says
-// which project a team was launched from, and a team with no record belongs to
-// this project when this project's own catalog holds its definition.
-func ofThisProject(one runningTeam, projects map[string]string, cat *catalog.Catalog, root string) bool {
-	if project, ok := projects[one.Name]; ok {
-		return samePath(project, root)
-	}
-	_, err := cat.Definition(one.Definition, source.LayerLocal)
-	return err == nil
-}
-
-// launchedProjects is the project each team was launched from, by team name, from
-// the newest record of that team (spec-activity 1). A team this machine has no
-// record of is not in the map.
-func launchedProjects() map[string]string {
-	log, err := launchlog.Open()
-	if err != nil {
-		return nil
-	}
-	records, err := log.Read()
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]string, len(records))
-	for _, record := range records {
-		// The record is history, oldest first: the last record of a team is the
-		// newest one.
-		if record.Team != "" && record.Project != "" {
-			out[record.Team] = record.Project
-		}
-	}
-	return out
-}
-
 // herdrNow is one read of herdr as the activity needs it: the tabs, each with the
 // live agents in it, the live agents themselves, whether the agent list could be
 // read at all, when each agent's state was first seen, and, when herdr could not
@@ -145,9 +260,12 @@ type herdrNow struct {
 	tabs       []team.Tab
 	agents     []protocol.Agent
 	agentsRead bool
-	seen       map[string]activity.Watch
-	at         time.Time
-	err        error
+	// spaces are herdr's workspaces: a team's tab names the one it stands in,
+	// and the headquarters offers them to start a team in (d-73fc).
+	spaces []herdr.Workspace
+	seen   map[string]activity.Watch
+	at     time.Time
+	err    error
 }
 
 // herdrMemory is how long one read of herdr stands (spec-activity 3): the screen
@@ -168,6 +286,11 @@ type activityRead struct {
 	// now is the clock: a test places the moments with it. A serve built without
 	// one reads the serve's own clock (serveClock).
 	now func() time.Time
+	// ctx is the serve's own lifetime: a start from the screens stops waiting
+	// when the serve stops. hq is the headquarters reading built on this one, so
+	// the screens' running teams and the activity are one reading (r-b7e1).
+	ctx context.Context
+	hq  *hqRead
 
 	mu      sync.Mutex
 	herdr   herdrNow
@@ -184,7 +307,9 @@ type activityRead struct {
 // kept in this machine's state directory, so a serve that is started again reads
 // a stop from when it was first seen rather than from its own start (6 A2).
 func newActivityRead(env team.Env) *activityRead {
-	return &activityRead{env: env, watcher: activity.NewWatcherAt(activityStatePath())}
+	read := &activityRead{env: env, watcher: activity.NewWatcherAt(activityStatePath())}
+	read.hq = newHQRead(read)
+	return read
 }
 
 // activityStatePath is where the watcher keeps its memory (6 A2):
@@ -221,10 +346,30 @@ func (a *activityRead) readHerdr(now time.Time) herdrNow {
 	tabs, agents, agentsRead, err := herdrRead()
 	read := herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, at: now, err: err}
 	if err == nil {
+		read.spaces, _ = herdrSpaceList()
 		read.seen = a.watcher.Observe(watchedAgents(agents), now)
 	}
 	a.herdr = read
 	return read
+}
+
+// forgetHerdr drops the read held for five seconds, so the next reader sees what
+// herdr reports now. A stop and a start change herdr under hergy's feet, and the
+// screens must show the change on their next read rather than up to five seconds
+// later (r-b7e1).
+func (a *activityRead) forgetHerdr() {
+	a.mu.Lock()
+	a.herdr = herdrNow{}
+	a.mu.Unlock()
+}
+
+// readHerdrFresh reads herdr now, whatever was read less than five seconds ago.
+// The decisions a start and a stop make read through this: acting on a memory of
+// a team that has just gone, or of a workspace that has just emptied, would start
+// a team beside another or refuse to stop one that is there (r-b7e1).
+func (a *activityRead) readHerdrFresh(now time.Time) herdrNow {
+	a.forgetHerdr()
+	return a.readHerdr(now)
 }
 
 // watchedAgents is the live agents as the watcher reads them: the name herdr
@@ -242,20 +387,59 @@ func watchedAgents(agents []protocol.Agent) []activity.Agent {
 	return out
 }
 
-// teamsOf is this project's running teams, in herdr's order, with their
-// definitions built, from one read of herdr. A team of another project running
-// on this machine is not the activity screen's (spec-activity 1).
+// teamsOf is the running teams of the projects this serve shows, in herdr's
+// order, with their definitions built, from one read of herdr. The projects are
+// the ones config.yaml lists; a serve whose config names none shows the project
+// it was started in, as it always has (d-73fc).
 func (a *activityRead) teamsOf(read herdrNow) []runningTeam {
-	all := readRunningTeams(a.env, read)
-	projects := launchedProjects()
-	cat := a.env.Catalog(source.Disk{})
-	out := make([]runningTeam, 0, len(all))
-	for _, one := range all {
-		if ofThisProject(one, projects, cat, a.env.ProjectRoot) {
-			out = append(out, one)
+	return readRunningTeamsIn(a.projectViews(), read, false)
+}
+
+// projectViews is the projects this serve reads, with their names, layers and
+// catalogs: the listed ones in the config's order, or the project serve was
+// started in when the config names none.
+func (a *activityRead) projectViews() []projectView {
+	cfg, err := a.env.ReadConfigFile()
+	if err != nil {
+		return []projectView{a.viewOf(a.env)}
+	}
+	paths, present, err := a.env.ProjectPaths(cfg)
+	if err != nil || !present {
+		return []projectView{a.viewOf(a.env)}
+	}
+	views := make([]projectView, 0, len(paths))
+	for _, path := range paths {
+		env, err := a.env.AtProject(path)
+		if err != nil {
+			continue
+		}
+		views = append(views, a.viewOf(env))
+	}
+	return nameProjects(views)
+}
+
+// viewOf is one project's view of this environment.
+func (a *activityRead) viewOf(env team.Env) projectView {
+	return projectView{
+		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot),
+		Env: env, Cat: env.Catalog(source.Disk{}),
+	}
+}
+
+// nameProjects adds the parent directory to a name two projects share, so a
+// person tells them apart (d-73fc: the name is the directory's, and the parent is
+// added only when names clash).
+func nameProjects(views []projectView) []projectView {
+	count := map[string]int{}
+	for _, view := range views {
+		count[view.Name]++
+	}
+	for i := range views {
+		if count[views[i].Name] > 1 {
+			views[i].Name = filepath.Join(filepath.Base(filepath.Dir(views[i].Path)), views[i].Name)
 		}
 	}
-	return out
+	return views
 }
 
 // List is GET /api/activity: the running teams of this project, in the order of
@@ -275,9 +459,12 @@ func (a *activityRead) List() web.ActivityList {
 	rows := make([]activityRow, 0, len(teams))
 	for _, one := range teams {
 		rows = append(rows, activityRow{
-			team:       judgeOf(one, read, now),
-			definition: one.Definition,
-			broken:     one.Broken,
+			team:        judgeOf(one, read, now),
+			definition:  one.Definition,
+			broken:      one.Broken,
+			project:     one.Project,
+			projectName: one.ProjectName,
+			workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		})
 	}
 	list.Items, list.Running, list.Waiting = orderedRows(rows, now)
@@ -287,9 +474,12 @@ func (a *activityRead) List() web.ActivityList {
 // activityRow is one row of the list: the judgement of one team and what the wire
 // needs beside it.
 type activityRow struct {
-	team       activity.Team
-	definition string
-	broken     string
+	team        activity.Team
+	definition  string
+	broken      string
+	project     string
+	projectName string
+	workspace   web.ActivitySpace
 }
 
 // orderedRows sorts the rows the way the screen lists them (2.2: the teams
@@ -429,7 +619,10 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 			State:      t.State.Slug(),
 			Last:       t.Last,
 		},
-		Error: row.broken,
+		Error:       row.broken,
+		Project:     row.project,
+		ProjectName: row.projectName,
+		Workspace:   row.workspace,
 	}
 	// いつから is left out for a working team and for one with no live agent
 	// (2.2): a working node has no moment to read, and there is no last turn.
@@ -526,16 +719,19 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		}
 	}
 	doc := web.ActivityDoc{
-		Name:       one.Name,
-		Definition: one.Definition,
-		State:      t.State.Slug(),
-		Last:       t.Last,
-		Nodes:      docNodes(t, now, stale),
-		Hired:      docHired(t, one.Name, now),
-		Questions:  []web.ActivityQuestion{},
-		Tail:       web.ActivityTail{Lines: []string{}, Shown: tailShown},
-		Gy:         web.ActivityNote{OK: true},
-		Error:      one.Broken,
+		Name:        one.Name,
+		Definition:  one.Definition,
+		Project:     one.Project,
+		ProjectName: one.ProjectName,
+		Workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
+		State:       t.State.Slug(),
+		Last:        t.Last,
+		Nodes:       docNodes(t, now, stale),
+		Hired:       docHired(t, one.Name, now),
+		Questions:   []web.ActivityQuestion{},
+		Tail:        web.ActivityTail{Lines: []string{}, Shown: tailShown},
+		Gy:          web.ActivityNote{OK: true},
+		Error:       one.Broken,
 	}
 	if since := sinceOf(t, now); since != nil {
 		doc.Since = since
@@ -546,7 +742,11 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		if len(t.Tail) > 0 {
 			doc.Tail.Lines = t.Tail
 		}
-		questions, err := gycli.OpenQuestionsBy(a.env.ProjectRoot, []string{main})
+		projectEnv := a.env
+		if scoped, err := a.env.AtProject(one.Project); err == nil {
+			projectEnv = scoped
+		}
+		questions, err := gycli.OpenQuestionsBy(projectEnv.ProjectRoot, []string{main})
 		if err != nil {
 			// gy is there and cannot be read: the question's place says so in
 			// one line rather than showing no question (2.4).

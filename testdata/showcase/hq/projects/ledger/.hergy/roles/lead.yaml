@@ -1,0 +1,6 @@
+version: 1
+title: 進行管理
+sections:
+  - rules:
+      - id: LEAD-1
+        text: 実装は 1 つの要求に 1 人で払い出す。

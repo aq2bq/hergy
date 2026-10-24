@@ -18,6 +18,29 @@
 
 ### Added
 
+- **`hergy serve` is a headquarters for the projects a machine lists**: the
+  global `config.yaml` takes a `projects:` list of directories (absolute, or
+  `~/…`), and every listed project's team definitions, roles, profiles and
+  running teams show with the project they belong to, wherever serve is started
+  (d-73fc). Without the key serve shows the project it was started in, as before;
+  an unlisted project started in says so and shows none of its teams. The screens
+  list and unlist projects, writing the list back as `~/…` where the home is
+  (unlisting changes no file of that project), and a team definition's Running
+  column starts and stops a listed project's team in a chosen herdr workspace —
+  one team to a workspace — with the same tab, members, prompts, launch record
+  and stop as `hergy up` and `hergy down`. A start is a request that returns at
+  once; its progress and a member's startup question are read from
+  `/api/hq/launches/<id>` and can be given up there. The launch record now keeps
+  the workspace a team was started in, so the start sheet offers the workspace it
+  last ran in. The activity screen reads every listed project too, and its
+  judgement is the one the headquarters' running teams come from. A team is now
+  also found by the panes hergy named `<team>-<member>` when no agent runs there
+  (d-da92), so a team stopped at a startup question is listed and can be stopped.
+  The same reading answers under `/api/hq/`: projects (list, add, remove), teams,
+  roles and profiles grouped by project, running, workspaces, launch options,
+  launch, launches/<id> and stop. Every existing `/api/` read and write takes an
+  optional `project` to read or write that listed project's `.hergy/`.
+
 - **A member that asks a question while it starts is waited on**: when herdr
   refuses a start because the agent is blocked during startup — Claude Code
   asking whether to trust a new folder, and then whether to import a parent

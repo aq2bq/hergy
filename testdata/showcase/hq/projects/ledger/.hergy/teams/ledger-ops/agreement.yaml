@@ -1,0 +1,5 @@
+version: 1
+sections:
+  - rules:
+      - id: LO-1
+        text: 障害の対応は、まず利用者に何が起きているかを 1 行で伝える。

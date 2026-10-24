@@ -40,7 +40,7 @@ func TestDeliveryFindsTheStaleMembersOfTwoTeamsAndSendsToOne(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", team, err)
 		}
-		if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts); err != nil {
+		if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
 			t.Fatalf("record %s: %v", team, err)
 		}
 	}

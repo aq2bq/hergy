@@ -1,0 +1,6 @@
+version: 1
+title: 要求定義
+sections:
+  - rules:
+      - id: AN-1
+        text: 配信の速さは、どの地域のどの時間帯かと一緒に測る。

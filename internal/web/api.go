@@ -25,6 +25,10 @@ import (
 // apiIn is one check's or one write's payload. The fields a kind does not read
 // stay empty; each kind is the one that says which fields it means.
 type apiIn struct {
+	// Project names the listed project a read or write is about (d-73fc): the
+	// kind then reads and writes that project's .hergy/ instead of the project
+	// serve was started in. Empty keeps the old behaviour.
+	Project     string          `json:"project"`
 	Place       string          `json:"place"`
 	Name        string          `json:"name"`
 	Part        string          `json:"part"`
@@ -236,7 +240,12 @@ const (
 
 // apiList answers GET /api/{kind}.
 func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
-	kind, ok := s.apiKindOf(r.PathValue("kind"))
+	scoped, refusal := s.withProject(projectQuery(r))
+	if refusal != nil {
+		apiAnswer(w, nil, refusal)
+		return
+	}
+	kind, ok := scoped.apiKindOf(r.PathValue("kind"))
 	if !ok {
 		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 		return
@@ -247,7 +256,12 @@ func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
 
 // apiGet answers GET /api/{kind}/{name}.
 func (s *Server) apiGet(w http.ResponseWriter, r *http.Request) {
-	kind, ok := s.apiKindOf(r.PathValue("kind"))
+	scoped, refusal := s.withProject(projectQuery(r))
+	if refusal != nil {
+		apiAnswer(w, nil, refusal)
+		return
+	}
+	kind, ok := scoped.apiKindOf(r.PathValue("kind"))
 	if !ok {
 		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 		return
@@ -258,13 +272,18 @@ func (s *Server) apiGet(w http.ResponseWriter, r *http.Request) {
 
 // apiCheck answers POST /api/{kind}/check.
 func (s *Server) apiCheck(w http.ResponseWriter, r *http.Request) {
-	kind, ok := s.apiKindOf(r.PathValue("kind"))
-	if !ok {
-		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
-		return
-	}
 	in, ok := s.apiRead(w, r)
 	if !ok {
+		return
+	}
+	scoped, refusal := s.withProject(in.Project)
+	if refusal != nil {
+		apiAnswer(w, nil, refusal)
+		return
+	}
+	kind, ok := scoped.apiKindOf(r.PathValue("kind"))
+	if !ok {
+		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 		return
 	}
 	value, refusal := kind.Check(in)
@@ -273,13 +292,18 @@ func (s *Server) apiCheck(w http.ResponseWriter, r *http.Request) {
 
 // apiSave answers PUT /api/{kind}/{name}.
 func (s *Server) apiSave(w http.ResponseWriter, r *http.Request) {
-	kind, ok := s.apiKindOf(r.PathValue("kind"))
-	if !ok {
-		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
-		return
-	}
 	in, ok := s.apiRead(w, r)
 	if !ok {
+		return
+	}
+	scoped, refusal := s.withProject(in.Project)
+	if refusal != nil {
+		apiAnswer(w, nil, refusal)
+		return
+	}
+	kind, ok := scoped.apiKindOf(r.PathValue("kind"))
+	if !ok {
+		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 		return
 	}
 	value, refusal := kind.Save(r.PathValue("name"), in)
@@ -290,15 +314,21 @@ func (s *Server) apiSave(w http.ResponseWriter, r *http.Request) {
 // apiDelete answers DELETE /api/{kind}/{name}. A delete carries no body, so its
 // place and hash travel in the query and its token in the header.
 func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
-	kind, ok := s.apiKindOf(r.PathValue("kind"))
+	if !s.apiGuard(w, r) {
+		return
+	}
+	scoped, refusal := s.withProject(projectQuery(r))
+	if refusal != nil {
+		apiAnswer(w, nil, refusal)
+		return
+	}
+	kind, ok := scoped.apiKindOf(r.PathValue("kind"))
 	if !ok {
 		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
 		return
 	}
-	if !s.apiGuard(w, r) {
-		return
-	}
 	value, refusal := kind.Delete(r.PathValue("name"), apiIn{
+		Project:       projectQuery(r),
 		Place:         r.URL.Query().Get("place"),
 		Hash:          r.URL.Query().Get("hash"),
 		AgreementHash: r.URL.Query().Get("agreement_hash"),

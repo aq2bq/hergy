@@ -94,6 +94,9 @@ func seqOf(value any) int {
 type Tab struct {
 	ID    string
 	Label string
+	// WorkspaceID is the workspace the tab stands in. The headquarters names
+	// the workspace a running team is in (d-73fc).
+	WorkspaceID string
 }
 
 // TabFrom builds a Tab from a Herdr tab object.
@@ -101,6 +104,7 @@ func TabFrom(object map[string]any) Tab {
 	tab := Tab{}
 	tab.ID, _ = object["tab_id"].(string)
 	tab.Label, _ = object["label"].(string)
+	tab.WorkspaceID, _ = object["workspace_id"].(string)
 	return tab
 }
 
@@ -110,6 +114,10 @@ type Pane struct {
 	ID    string
 	Label string
 	TabID string
+	// Cwd is the directory the pane stands in. The headquarters reads it to tell
+	// an unrecorded team's project: a tab and its named panes are in the project
+	// the work runs in (d-73fc).
+	Cwd string
 }
 
 // PaneFrom builds a Pane from a Herdr pane object. The name hergy gives a pane
@@ -120,6 +128,7 @@ func PaneFrom(object map[string]any) Pane {
 	pane.ID, _ = object["pane_id"].(string)
 	pane.Label, _ = object["label"].(string)
 	pane.TabID, _ = object["tab_id"].(string)
+	pane.Cwd, _ = object["cwd"].(string)
 	return pane
 }
 

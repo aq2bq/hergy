@@ -4,6 +4,8 @@
 package launcher
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +32,13 @@ type Launcher struct {
 	timeout int
 	herdr   *herdr.Herdr
 	out     io.Writer
+	// ctx stops a wait when the caller that asked for the operation goes away,
+	// as the headquarters does when the start is given up. A launcher without
+	// one waits as the command line always has.
+	ctx       context.Context
+	observe   func(Event)
+	workspace string
+	wsLabel   string
 
 	// kill stops a process group. It is a field so a test can record the call
 	// instead of signalling a real process group.
@@ -56,6 +65,55 @@ func New(starts []definition.Start, team string, h *herdr.Herdr, timeoutMS int, 
 	}
 }
 
+// ErrCancelled is a start stopped by its caller while the launcher was waiting:
+// the panes hergy made are left as they are, for down to put away.
+var ErrCancelled = errors.New("launcher: cancelled")
+
+// Event is one step of an operation as the headquarters reads it: the stage the
+// launcher moved to, a member's state, a pane, or a wait on a member's startup
+// question (d-d589).
+type Event struct {
+	Stage     string
+	Member    string
+	State     string
+	Pane      string
+	TabID     string
+	Workspace string
+	// Waiting is set while the launcher waits on a member's question, and nil
+	// when the wait is over.
+	Waiting *Waiting
+}
+
+// Waiting is where a person answers a member's startup question.
+type Waiting struct {
+	Member    string
+	Herdr     string
+	Workspace string
+	Tab       string
+	Pane      string
+}
+
+// WithContext stops the wait when ctx is done. It returns the launcher.
+func (l *Launcher) WithContext(ctx context.Context) *Launcher {
+	l.ctx = ctx
+	return l
+}
+
+// Observe hands each step to fn, for a caller that shows the progress while the
+// operation runs (the headquarters). A launcher without one writes the progress
+// to its out as before.
+func (l *Launcher) Observe(fn func(Event)) *Launcher {
+	l.observe = fn
+	return l
+}
+
+// WorkspaceID is the workspace the tab was made in, set once Boot or BootIn
+// creates it.
+func (l *Launcher) WorkspaceID() string { return l.workspace }
+
+// WorkspaceLabel is that workspace's label, when herdr could be read.
+func (l *Launcher) WorkspaceLabel() string { return l.wsLabel }
+
 // defaultKill sends SIGTERM to a process group.
 func defaultKill(pgid int) error {
 	return syscall.Kill(-pgid, syscall.SIGTERM)
@@ -69,6 +127,21 @@ func (l *Launcher) Boot(up string) error {
 	workspace, err := l.preflight(members)
 	if err != nil {
 		return err
+	}
+	return l.BootIn(workspace, up)
+}
+
+// BootIn boots the team in one workspace, chosen by the caller: the headquarters
+// starts a team in a workspace a person picked, which is not the one hergy runs
+// in (d-73fc). The preflight's own workspace is not read here.
+func (l *Launcher) BootIn(workspace, up string) error {
+	members := l.starts
+	if err := l.preflightIn(workspace, members); err != nil {
+		return err
+	}
+	l.workspace = workspace
+	if space, err := l.herdr.Workspace(workspace); err == nil {
+		l.wsLabel = space.Label
 	}
 	if _, err := l.createTab(workspace, &members[0], l.teamTabLabel()); err != nil {
 		return err
@@ -900,26 +973,39 @@ func (l *Launcher) report() []string {
 // preflight is everything that can be checked without changing Herdr; it also
 // returns the caller's workspace.
 func (l *Launcher) preflight(members []definition.Start) (string, error) {
-	for i := range members {
-		if !isDir(members[i].Cwd) {
-			return "", i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
-		}
-	}
-	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
-		return "", err
-	}
 	workspace, err := l.herdr.CurrentWorkspace()
 	if err != nil {
 		return "", err
 	}
-	live, err := l.herdr.LiveAgentNames()
-	if err != nil {
+	if err := l.preflightIn(workspace, members); err != nil {
 		return "", err
 	}
-	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
-		return "", i18n.Errorf("error.live_names_in_use", strings.Join(conflicts, ", "))
-	}
 	return workspace, nil
+}
+
+// preflightIn is the checks every boot makes, in a workspace the caller chose:
+// the members' directories, the herdr commands, that no member's name is live,
+// and that the workspace is there.
+func (l *Launcher) preflightIn(workspace string, members []definition.Start) error {
+	for i := range members {
+		if !isDir(members[i].Cwd) {
+			return i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
+		}
+	}
+	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
+		return err
+	}
+	if workspace == "" {
+		return i18n.Errorf("error.workspace_missing")
+	}
+	live, err := l.herdr.LiveAgentNames()
+	if err != nil {
+		return err
+	}
+	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
+		return i18n.Errorf("error.live_names_in_use", strings.Join(conflicts, ", "))
+	}
+	return nil
 }
 
 // createTab makes the new tab whose root pane the first member holds.
@@ -991,18 +1077,68 @@ func (l *Launcher) stage(stage string) {
 	l.mu.Lock()
 	l.progress.At(stage)
 	l.mu.Unlock()
+	l.notify(Event{Stage: stage, Workspace: l.workspace})
 }
 
 func (l *Launcher) mark(name, state string) {
 	l.mu.Lock()
 	l.progress.Mark(name, state)
 	l.mu.Unlock()
+	l.notify(Event{Member: name, State: state, Workspace: l.workspace})
 }
 
 func (l *Launcher) place(name, pane string) {
 	l.mu.Lock()
 	l.progress.Place(name, pane)
 	l.mu.Unlock()
+	l.notify(Event{Member: name, Pane: pane, Workspace: l.workspace})
+}
+
+// waitingAt tells the observer where a person answers a startup question, and
+// that the wait is over when member is nil (d-d589).
+func (l *Launcher) waitingAt(member *definition.Start, tabLabel, tabID string) {
+	if l.observe == nil {
+		return
+	}
+	if member == nil {
+		l.observe(Event{Workspace: l.workspace})
+		return
+	}
+	l.observe(Event{
+		Stage:     i18n.Tf("progress.stage.awaiting", member.Name),
+		Member:    member.Name,
+		Pane:      l.paneOf(member.Name),
+		TabID:     tabID,
+		Workspace: l.workspace,
+		Waiting: &Waiting{
+			Member: member.Name, Herdr: member.Name,
+			Workspace: l.wsLabel, Tab: tabLabel, Pane: l.paneOf(member.Name),
+		},
+	})
+}
+
+// notify hands one step to the observer, when there is one.
+func (l *Launcher) notify(event Event) {
+	if l.observe == nil {
+		return
+	}
+	event.TabID = l.tabID()
+	l.observe(event)
+}
+
+// sleeping waits one step of a watch. A cancelled launcher stops at once with
+// ErrCancelled instead of waiting for the member.
+func (l *Launcher) sleeping(step time.Duration) error {
+	if l.ctx == nil {
+		time.Sleep(step)
+		return nil
+	}
+	select {
+	case <-l.ctx.Done():
+		return ErrCancelled
+	case <-time.After(step):
+		return nil
+	}
 }
 
 func (l *Launcher) paneOf(name string) string {

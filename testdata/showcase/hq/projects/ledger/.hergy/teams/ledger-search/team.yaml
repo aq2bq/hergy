@@ -1,0 +1,19 @@
+version: 1
+mission: "全文検索を入れる"
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: builder
+    role: builder
+    profile: codex-high
+  - name: scout
+    role: scout
+    profile: haiku-chore
+turns:
+  - human -> lead
+  - lead -> scout
+  - lead -> builder
+  - builder -> lead
+  - scout -> lead
+  - lead -> human

@@ -1,0 +1,6 @@
+version: 1
+title: 調査
+sections:
+  - rules:
+      - id: SCOUT-1
+        text: 調べたことは、出典と一緒に台帳へ書く。

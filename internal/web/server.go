@@ -39,8 +39,14 @@ type Server struct {
 	// deliver is the band's count and the changed-definition sheet, or nil when
 	// the activity reading cannot say what is stale.
 	deliver Deliverer
-	token   string
-	tpl     *template.Template
+	// hq is the headquarters reading (d-73fc), or nil when the server was built
+	// without one: the routes answer 503 rather than showing a made-up list.
+	hq HQ
+	// projects reads one listed project's layer, for a screen that names a
+	// project beside a team, role or profile.
+	projects CatalogProvider
+	token    string
+	tpl      *template.Template
 	// handler is the routes with the guards in front of them.
 	handler http.Handler
 	// addr is this server's own address ("127.0.0.1:8787"), set when the socket
@@ -74,6 +80,12 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
 	if deliverer, ok := act.(Deliverer); ok {
 		s.deliver = deliverer
+	}
+	if hq, ok := act.(HQ); ok {
+		s.hq = hq
+	}
+	if projects, ok := act.(CatalogProvider); ok {
+		s.projects = projects
 	}
 	s.handler = s.guard(s.routes(static))
 	return s, nil
@@ -136,9 +148,10 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux := http.NewServeMux()
 
 	// 開いて最初の画面 (spec-nav.md 1.3): / is where a person should start. With
-	// a team running in this project it is the activity screen — what the human
-	// is being asked for is why they came (spec-activity 2.1, S6) — and with
-	// none it is the team definitions. A 302, not a 301: which of the two it is
+	// a team of a listed project running (without projects:, a team of this
+	// project) it is the activity screen — what the human is being asked for is
+	// why they came (spec-activity 2.1, S6) — and with none it is the team
+	// definitions. A 302, not a 301: which of the two it is
 	// changes as teams come and go.
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		if s.activity().List().Running > 0 {
@@ -184,6 +197,23 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/delivery", s.apiDeliveryList)
 	mux.HandleFunc("GET /api/delivery/count", s.apiDeliveryCount)
 	mux.HandleFunc("POST /api/delivery", s.apiDeliver)
+
+	// 本部 (d-73fc, r-b7e1): the projects a person lists, the lists of every
+	// project and the global layer, the workspaces, and starting and stopping a
+	// team from the screens.
+	mux.HandleFunc("GET /api/hq/projects", s.hqProjects)
+	mux.HandleFunc("POST /api/hq/projects", s.hqAddProject)
+	mux.HandleFunc("DELETE /api/hq/projects", s.hqRemoveProject)
+	mux.HandleFunc("GET /api/hq/teams", s.hqGroups(apiTeamKind))
+	mux.HandleFunc("GET /api/hq/roles", s.hqGroups(apiRoleKind))
+	mux.HandleFunc("GET /api/hq/profiles", s.hqGroups(apiProfileKind))
+	mux.HandleFunc("GET /api/hq/running", s.hqRunning)
+	mux.HandleFunc("GET /api/hq/workspaces", s.hqWorkspaces)
+	mux.HandleFunc("GET /api/hq/launch/options", s.hqLaunchOptions)
+	mux.HandleFunc("POST /api/hq/launch", s.hqLaunch)
+	mux.HandleFunc("GET /api/hq/launches/{id}", s.hqLaunchState)
+	mux.HandleFunc("DELETE /api/hq/launches/{id}", s.hqLaunchCancel)
+	mux.HandleFunc("POST /api/hq/stop", s.hqStop)
 
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)

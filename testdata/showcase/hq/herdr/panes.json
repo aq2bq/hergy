@@ -1,0 +1,114 @@
+{
+ "result": {
+  "panes": [
+   {
+    "pane_id": "p-core-lead",
+    "label": "core-lead",
+    "tab_id": "t1",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-analyst",
+    "label": "core-analyst",
+    "tab_id": "t1",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-impl-a",
+    "label": "core-impl-a",
+    "tab_id": "t1",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-impl-b",
+    "label": "core-impl-b",
+    "tab_id": "t1",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-reviewer",
+    "label": "core-reviewer",
+    "tab_id": "t1",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-deps",
+    "label": "core-deps",
+    "tab_id": "t2",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-core-loadtest",
+    "label": "core-loadtest",
+    "tab_id": "t3",
+    "workspace_id": "w1"
+   },
+   {
+    "pane_id": "p-ledger-dev-lead",
+    "label": "ledger-dev-lead",
+    "tab_id": "t4",
+    "workspace_id": "w4"
+   },
+   {
+    "pane_id": "p-ledger-dev-builder",
+    "label": "ledger-dev-builder",
+    "tab_id": "t4",
+    "workspace_id": "w4"
+   },
+   {
+    "pane_id": "p-ledger-dev-reviewer",
+    "label": "ledger-dev-reviewer",
+    "tab_id": "t4",
+    "workspace_id": "w4"
+   },
+   {
+    "pane_id": "p-ledger-dev-tester",
+    "label": "ledger-dev-tester",
+    "tab_id": "t4",
+    "workspace_id": "w4"
+   },
+   {
+    "pane_id": "p-ledger-dev-deps",
+    "label": "ledger-dev-deps",
+    "tab_id": "t5",
+    "workspace_id": "w4"
+   },
+   {
+    "pane_id": "p-atlas-dev-lead",
+    "label": "atlas-dev-lead",
+    "tab_id": "t6",
+    "workspace_id": "w7"
+   },
+   {
+    "pane_id": "p-atlas-dev-analyst",
+    "label": "atlas-dev-analyst",
+    "tab_id": "t6",
+    "workspace_id": "w7"
+   },
+   {
+    "pane_id": "p-atlas-dev-builder",
+    "label": "atlas-dev-builder",
+    "tab_id": "t6",
+    "workspace_id": "w7"
+   },
+   {
+    "pane_id": "p-atlas-dev-reviewer",
+    "label": "atlas-dev-reviewer",
+    "tab_id": "t6",
+    "workspace_id": "w7"
+   },
+   {
+    "pane_id": "p-review-reader",
+    "label": "review-reader",
+    "tab_id": "t7",
+    "workspace_id": "w6"
+   },
+   {
+    "pane_id": "p-review-writer",
+    "label": "review-writer",
+    "tab_id": "t7",
+    "workspace_id": "w6"
+   }
+  ]
+ }
+}

@@ -1,0 +1,6 @@
+version: 1
+title: 設計実装
+sections:
+  - rules:
+      - id: BUILD-1
+        text: 同じファイルを触る要求は、前の要求が取り込まれてから始める。

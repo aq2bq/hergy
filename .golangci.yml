@@ -86,3 +86,10 @@ linters:
         linters:
           - gosec
         text: "G703:"
+      # tools/fakeherdr writes and reads the scene's own files under the state
+      # directory the showcase made; the directory comes from its own
+      # environment, and the names it appends are fixed or a herdr agent name.
+      - path: ^tools/fakeherdr/
+        linters:
+          - gosec
+        text: "G703:"

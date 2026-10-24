@@ -116,10 +116,12 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 	tab := tabNamed(tabLabel, id)
 	l.stage(i18n.Tf("progress.stage.awaiting", name))
 	l.mark(name, i18n.T("progress.mark.blocked"))
+	l.waitingAt(member, tabLabel, id)
 	// The line is kept for an interrupt: it is printed under the progress
 	// report, which a Ctrl-C reads while this wait is still running.
 	l.waitOn(next.Line(member, tab))
 	defer l.waitOver()
+	defer l.waitingAt(nil, "", "")
 	fmt.Fprint(l.out, i18n.Tf("launcher.startup_blocked", name, tab, l.paneOf(name), member.Kind))
 	for {
 		switch {
@@ -145,7 +147,9 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 			// of a parent's CLAUDE.md): wait for its answer.
 			agent, err = l.herdr.Agent(name)
 		default:
-			time.Sleep(startupWatchStep)
+			if err := l.sleeping(startupWatchStep); err != nil {
+				return err
+			}
 			agent, err = l.herdr.Agent(name)
 		}
 	}
@@ -155,7 +159,9 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 // whether it takes input. A member that asks again answers false, and a member
 // herdr no longer knows answers agent_not_found: the caller reads that as an end.
 func (l *Launcher) settleStartup(name string) (bool, error) {
-	time.Sleep(startupSettleFor)
+	if err := l.sleeping(startupSettleFor); err != nil {
+		return false, err
+	}
 	agent, err := l.herdr.Agent(name)
 	if err != nil {
 		return false, err

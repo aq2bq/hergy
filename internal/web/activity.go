@@ -45,6 +45,18 @@ type ActivityItem struct {
 	// Error is why this team's definition cannot be read, as hergy status
 	// writes it (2.2). Empty when it reads.
 	Error string `json:"error"`
+	// Project is the listed project the team belongs to, and ProjectName is
+	// what a person reads beside it (d-73fc). Workspace is the herdr workspace
+	// its tab stands in.
+	Project     string        `json:"project"`
+	ProjectName string        `json:"project_name"`
+	Workspace   ActivitySpace `json:"workspace"`
+}
+
+// ActivitySpace is one herdr workspace as the activity names it.
+type ActivitySpace struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 // ActivitySummary is the row's columns: which definition it runs from, what it
@@ -99,10 +111,13 @@ type ActivityNote struct {
 
 // ActivityDoc is GET /api/activity/{team}'s doc: one team, opened.
 type ActivityDoc struct {
-	Name       string `json:"name"`
-	Definition string `json:"definition"`
-	State      string `json:"state"`
-	Last       string `json:"last"`
+	Name        string        `json:"name"`
+	Definition  string        `json:"definition"`
+	Project     string        `json:"project"`
+	ProjectName string        `json:"project_name"`
+	Workspace   ActivitySpace `json:"workspace"`
+	State       string        `json:"state"`
+	Last        string        `json:"last"`
 	// Herdr is the row's main member as herdr knows it ("core-lead"), which is
 	// the heading of the left column. Empty for a working team.
 	Herdr string `json:"herdr"`

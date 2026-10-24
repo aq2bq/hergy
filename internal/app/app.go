@@ -197,18 +197,18 @@ func readDefinition(cat *catalog.Catalog, base, name, runName string) (*resolved
 	if runName == "" {
 		runName = def.Name
 	}
-	return buildResolved(cat, source.Disk{}, base, def, runName)
+	return buildResolved(cat, base, def, runName)
 }
 
 // buildResolved builds the running members of one definition under a team name.
-// reader is what the prompt reads the rule files through; a screen's check hands
-// an edited file in place of the one on disk.
-func buildResolved(cat *catalog.Catalog, reader source.Reader, base string, def *definition.Definition, runName string) (*resolved, error) {
+// The prompt reads the rule files from disk: a screen's check reads its edited
+// text through its own catalog, not through this.
+func buildResolved(cat *catalog.Catalog, base string, def *definition.Definition, runName string) (*resolved, error) {
 	profiles, profilesYAML, err := cat.Profiles()
 	if err != nil {
 		return nil, err
 	}
-	starts, err := startsOf(cat, def, runName, base, profiles, reader)
+	starts, err := startsOf(cat, def, runName, base, profiles, source.Disk{})
 	if err != nil {
 		return nil, err
 	}
@@ -417,11 +417,18 @@ func dryTeamError(recorded map[string]string) error {
 // buildRunning resolves one running team's definition and builds the members
 // under the team's run name.
 func buildRunning(cat *catalog.Catalog, base string, running team.Running) (*resolved, error) {
-	def, err := cat.Definition(running.Definition, "")
+	return buildRunningIn(cat, base, running, "")
+}
+
+// buildRunningIn builds a running team from the layer its launch record names: a
+// global definition started in a project whose layer holds a same-named one is
+// still the global definition (d-73fc, M1).
+func buildRunningIn(cat *catalog.Catalog, base string, running team.Running, layer string) (*resolved, error) {
+	def, err := cat.Definition(running.Definition, layer)
 	if err != nil {
 		return nil, err
 	}
-	return buildResolved(cat, source.Disk{}, base, def, running.Team)
+	return buildResolved(cat, base, def, running.Team)
 }
 
 // runningTeams reads herdr's tabs and this machine's launch record, and returns
@@ -479,11 +486,26 @@ func herdrRead() (tabs []team.Tab, agents []protocol.Agent, agentsRead bool, err
 	if err != nil {
 		return nil, nil, false, err
 	}
+	panes, _ := herdrPanes()
 	agents, err = herdrAgents()
 	if err != nil {
-		return teamTabs(list, nil), nil, false, nil
+		return teamTabs(list, nil, panes), nil, false, nil
 	}
-	return teamTabs(list, agents), agents, true, nil
+	return teamTabs(list, agents, panes), agents, true, nil
+}
+
+// herdrPanes reads the labels hergy gave the panes, the way down finds a team
+// whose members are not running (d-da92). A read that fails leaves the panes
+// unknown: the live agents still say whose a tab is.
+func herdrPanes() ([]protocol.Pane, error) {
+	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
+	return herdr.New(port).Panes()
+}
+
+// herdrSpaceList reads herdr's workspaces, with their labels and ids.
+func herdrSpaceList() ([]herdr.Workspace, error) {
+	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
+	return herdr.New(port).Workspaces()
 }
 
 // herdrAgents reads the live agents herdr reports.
@@ -492,19 +514,31 @@ func herdrAgents() ([]protocol.Agent, error) {
 	return herdr.New(port).LiveAgents()
 }
 
-// teamTabs pairs herdr's tabs with the names of the live agents in each, which
-// is what tells hergy's own tabs apart: hergy names a member's agent
-// "<team>-<member>".
-func teamTabs(tabs []protocol.Tab, agents []protocol.Agent) []team.Tab {
+// teamTabs pairs herdr's tabs with the names of the live agents and of the named
+// panes in each, which is what tells hergy's own tabs apart: hergy names a
+// member's agent and pane "<team>-<member>". A pane that is there without its
+// agent still says the tab is the team's (d-da92).
+func teamTabs(tabs []protocol.Tab, agents []protocol.Agent, panes []protocol.Pane) []team.Tab {
 	inTab := map[string][]string{}
 	for _, agent := range agents {
 		if agent.Name != "" && agent.TabID != "" {
 			inTab[agent.TabID] = append(inTab[agent.TabID], agent.Name)
 		}
 	}
+	panesInTab := map[string][]string{}
+	dirsInTab := map[string][]string{}
+	for _, pane := range panes {
+		if pane.Label != "" && pane.TabID != "" {
+			panesInTab[pane.TabID] = append(panesInTab[pane.TabID], pane.Label)
+			dirsInTab[pane.TabID] = append(dirsInTab[pane.TabID], pane.Cwd)
+		}
+	}
 	out := make([]team.Tab, 0, len(tabs))
 	for _, tab := range tabs {
-		out = append(out, team.Tab{ID: tab.ID, Label: tab.Label, Agents: inTab[tab.ID]})
+		out = append(out, team.Tab{
+			ID: tab.ID, Label: tab.Label, WorkspaceID: tab.WorkspaceID,
+			Agents: inTab[tab.ID], Panes: panesInTab[tab.ID], PaneDirs: dirsInTab[tab.ID],
+		})
 	}
 	return out
 }
@@ -1094,11 +1128,18 @@ func validateConfig(path string) error {
 	if err != nil {
 		return err
 	}
-	lang, err := team.ParseConfig(string(text), path)
+	cfg, err := team.ReadConfig(string(text), path)
 	if err != nil {
 		return err
 	}
-	_, err = i18n.Resolve("", lang)
+	if _, err := i18n.Resolve("", cfg.Lang); err != nil {
+		return err
+	}
+	env, err := team.NewEnv()
+	if err != nil {
+		return err
+	}
+	_, _, err = env.ProjectPaths(cfg)
 	return err
 }
 
@@ -1108,7 +1149,7 @@ func validateTeam(cat *catalog.Catalog, base, name, layer string) (*resolved, er
 	if err != nil {
 		return nil, err
 	}
-	return buildResolved(cat, source.Disk{}, base, def, def.Name)
+	return buildResolved(cat, base, def, def.Name)
 }
 
 func isFile(path string) bool {
@@ -1155,7 +1196,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	if err := runLaunch(ctx, stderr, l, func() error { return l.Boot(hergyCommand(opts)) }); err != nil {
 		return err
 	}
-	recordLaunch(stderr, env, r, launchlog.CommandUp, r.starts)
+	recordLaunchIn(stderr, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{Label: l.WorkspaceLabel(), ID: l.WorkspaceID()})
 	return nil
 }
 
@@ -1173,6 +1214,13 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		// question — has no live agent to make it a running team, but the tab and
 		// the panes hergy made are still there (d-da92).
 		return downStopped(ctx, opts, err, stdout, stderr)
+	}
+	if !hasLiveMemberAgent(chosen.Team) && hasNamedPane(chosen.Team) {
+		// A team d-da92 now finds by its named panes alone prints what a stopped
+		// team always printed: the command's words do not change with the wider
+		// team (d-73fc keeps hergy down's behaviour). A tab with no named pane is
+		// the ordinary case of a team whose members ended, and keeps its header.
+		return downNoAgents(ctx, opts, chosen.Team, stdout, stderr)
 	}
 	r, buildErr := buildRunning(cat, env.ProjectRoot, chosen)
 	if buildErr != nil {
@@ -1262,6 +1310,39 @@ func downStopped(ctx context.Context, opts *options.Options, stopped error, stdo
 	if !hasTeamTab(tabs, name) {
 		return stopped
 	}
+	return downNoAgents(ctx, opts, name, stdout, stderr)
+}
+
+// hasLiveMemberAgent reports whether any member's agent of one team is live: a
+// team whose members all ended is put away with the words a stopped team always
+// had (d-da92, d-73fc).
+func hasLiveMemberAgent(name string) bool {
+	agents, err := herdrAgents()
+	if err != nil {
+		return true
+	}
+	for _, agent := range agents {
+		if protocol.NamedForTeam(name, agent.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasNamedPane reports whether any pane carries a member's name of this team: the
+// mark d-da92 leaves when an agent has ended.
+func hasNamedPane(name string) bool {
+	tabs, _, err := herdrTabs()
+	if err != nil {
+		return false
+	}
+	return len(team.MemberPanes(tabs, name)) > 0
+}
+
+// downNoAgents puts away a team no agent is running in: the tab and the panes
+// hergy named are closed by name, and the command prints the same lines it did
+// before d-da92 found such a team as a team.
+func downNoAgents(ctx context.Context, opts *options.Options, name string, stdout, stderr io.Writer) error {
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	l := newLauncher(&resolved{team: team.Team{Name: name}}, opts.Timeout, stdout)
 	if opts.Dry {

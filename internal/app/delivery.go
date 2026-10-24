@@ -74,7 +74,6 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 		return one
 	}
 	records := latestMemberRecords(a.env)
-	cat := a.env.Catalog(source.Disk{})
 	log, logErr := launchlog.Open()
 	for _, running := range a.teamsOf(read) {
 		if running.Built == nil {
@@ -96,7 +95,7 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 				continue
 			}
 			record, hasRecord := recorded[start.Name]
-			stale, changes := a.memberChanges(cat, log, logErr, running, start, record, hasRecord)
+			stale, changes := a.memberChanges(running.Catalog, log, logErr, running, start, record, hasRecord)
 			state := node.State.Slug()
 			one.members[start.Name] = plannedMember{
 				team: running, start: start, state: state, stale: stale, changes: changes,
@@ -282,7 +281,11 @@ func (a *activityRead) Deliver(names []string) (deliver.Answer, error) {
 	}
 	for _, name := range order {
 		group := groups[name]
-		r, err := buildRunning(a.env.Catalog(source.Disk{}), a.env.ProjectRoot, team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition})
+		projectEnv := a.env
+		if scoped, err := a.env.AtProject(group[0].team.Project); err == nil {
+			projectEnv = scoped
+		}
+		r, err := buildRunning(projectEnv.Catalog(source.Disk{}), projectEnv.ProjectRoot, team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition})
 		if err != nil {
 			return deliver.Answer{}, err
 		}
@@ -301,7 +304,7 @@ func (a *activityRead) Deliver(names []string) (deliver.Answer, error) {
 		if err != nil {
 			return deliver.Answer{}, err
 		}
-		if err := writeLaunch(log, a.env, r, launchlog.CommandReprompt, selected); err != nil {
+		if err := writeLaunch(log, projectEnv, r, launchlog.CommandReprompt, selected, launchlog.Workspace{}); err != nil {
 			return deliver.Answer{}, err
 		}
 	}

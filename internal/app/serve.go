@@ -48,8 +48,20 @@ func herdrTabList() ([]protocol.Tab, error) {
 // screens are already answering, so the command goes on and the line carries the
 // URL to open by hand (d-fb89).
 func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
+	// A projects: entry hergy cannot read is a broken setting, and a serve that
+	// started anyway would show a headquarters that silently lost a project
+	// (d-73fc). The language was checked before this ran.
+	cfg, err := env.ReadConfigFile()
+	if err != nil {
+		return err
+	}
+	if _, _, err := env.ProjectPaths(cfg); err != nil {
+		return fmt.Errorf("%s: %w", env.DisplayPath(env.ConfigPath()), err)
+	}
 	cat := env.Catalog(source.Disk{})
-	server, err := web.New(cat, newActivityRead(env))
+	read := newActivityRead(env)
+	read.ctx = ctx
+	server, err := web.New(cat, read)
 	if err != nil {
 		return err
 	}

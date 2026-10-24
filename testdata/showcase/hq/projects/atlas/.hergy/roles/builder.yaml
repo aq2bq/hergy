@@ -1,0 +1,6 @@
+version: 1
+title: 設計実装
+sections:
+  - rules:
+      - id: BUILD-1
+        text: タイルの形式を変えるときは、古い端末で読めることを確かめる。

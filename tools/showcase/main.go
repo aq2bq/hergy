@@ -86,6 +86,12 @@ type scene struct {
 	// different herdr, or with a rewritten prompt template, names the scene it
 	// stands on first, so the two cannot drift apart.
 	layers []string
+	// homeProjects says the scene's projects stand under the home directory
+	// (home/src/<name>), the way a person's projects do, so a path reads as
+	// ~/src/<name> on the screens (audit A3). The scene's own project is
+	// <work>/home/src/<projectDir> then, and the other projects are
+	// <work>/home/src/<name>.
+	homeProjects bool
 }
 
 // scenes is the one table the run, -h and the sample data come from.
@@ -99,6 +105,12 @@ var scenes = []scene{
 		name:   "running",
 		about:  "standard と同じデータで、core チームが動いている（仕事中・止まっている・許可待ち・終わりが混ざり、ワーカー 2 人も動いている）",
 		layers: []string{"standard", "running"},
+	},
+	{
+		name:         "hq",
+		about:        "本部（n-7f3c）: 並べたプロジェクト 3（チーム定義 4・3・1、グローバル 3）、動いているチーム 4（別々のワークスペース、許可待ち 2・止まっている 1・仕事中 1、うち 1 つはグローバルのチーム定義）、起動の記録にあって並べていないプロジェクト 2",
+		layers:       []string{"standard", "running", "hq"},
+		homeProjects: true,
 	},
 	{
 		name:   "empty",
@@ -248,7 +260,7 @@ func serveScene(args []string, stdout, stderr io.Writer) int {
 		// the operating system picks.
 		backendPort = 0
 	}
-	srv, err := startServe(work, hergy, backendPort, stderr)
+	srv, err := startServe(work, sc.projectDir(work), hergy, backendPort, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
@@ -320,7 +332,7 @@ func runInScene(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	cmd := exec.Command(hergy, hergyArgs...) //nolint:gosec // G204: hergy is this tool's own binary and the arguments are the person's own
-	cmd.Dir = filepath.Join(work, projectDir)
+	cmd.Dir = sc.projectDir(work)
 	cmd.Env = serveEnv(work)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = stdout
@@ -370,7 +382,7 @@ func snapScreen(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
 	}
-	srv, err := startServe(work, hergy, 0, stderr)
+	srv, err := startServe(work, sc.projectDir(work), hergy, 0, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "showcase:", err)
 		return 1
@@ -721,8 +733,8 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	if err := resetWork(work); err != nil {
 		return "", "", err
 	}
-	for _, dir := range []string{projectDir, homeDir, "bin", "herdr"} {
-		if err := os.MkdirAll(filepath.Join(work, dir), 0o755); err != nil {
+	for _, dir := range []string{sc.projectDir(work), filepath.Join(work, homeDir), filepath.Join(work, "bin"), filepath.Join(work, "herdr")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", "", err
 		}
 	}
@@ -750,32 +762,37 @@ func prepare(root string, sc scene, opts options, work string, stdout, stderr io
 	for _, layer := range sc.layers {
 		from := filepath.Join(dataRoot, dataDir, layer)
 		for _, part := range []struct{ from, to string }{
-			{"project", projectDir},
+			{"project", sc.projectDir(work)},
 			{"config", filepath.Join(homeDir, configHome)},
 			{"state", filepath.Join(homeDir, stateHome)},
 			{"herdr", "herdr"},
 		} {
 			src := filepath.Join(from, part.from)
-			if err := copyTree(src, filepath.Join(work, part.to)); err != nil {
+			if err := copyTree(src, targetUnder(work, part.to)); err != nil {
 				return "", "", err
 			}
+		}
+		if err := copyProjects(filepath.Join(from, "projects"), sc.projectsDir(work)); err != nil {
+			return "", "", err
 		}
 	}
 	// Only the scene's own trees are filled: the extracted source of a --rev
 	// scene is left byte for byte as the commit wrote it, so its build stays
 	// clean and its version reads the commit, not a dirty tree.
-	for _, dir := range []string{projectDir, homeDir, "herdr"} {
-		if err := fillPlaces(filepath.Join(work, dir), work, time.Now()); err != nil {
+	for _, dir := range []string{sc.projectDir(work), filepath.Join(work, homeDir), filepath.Join(work, "herdr")} {
+		if err := fillPlaces(dir, work, sc.projectDir(work), time.Now()); err != nil {
 			return "", "", err
 		}
 	}
-	if err := writeFakeHerdr(filepath.Join(work, "bin", "fake-herdr"), filepath.Join(work, "herdr")); err != nil {
+	if err := buildFakeHerdr(buildRoot, filepath.Join(work, "bin", "fake-herdr"), filepath.Join(work, "herdr"), stdout, stderr); err != nil {
 		return "", "", err
 	}
-	// The project is a git repository of its own: hergy finds the project root
+	// Every project is a git repository of its own: hergy finds the project root
 	// through git, and this keeps it from being the repository hergy lives in.
-	if err := execIn(filepath.Join(work, projectDir), stdout, stderr, "git", "init", "-q"); err != nil {
-		return "", "", err
+	for _, dir := range projectDirs(work, sc) {
+		if err := execIn(dir, stdout, stderr, "git", "init", "-q"); err != nil {
+			return "", "", err
+		}
 	}
 	hergy := opts.bin
 	if hergy == "" {
@@ -888,6 +905,75 @@ func copyTree(from, to string) error {
 	})
 }
 
+// targetUnder is a destination under the work directory, or the absolute path it
+// already is. filepath.Join would put an absolute destination under the work
+// directory, which the home-scene projects are not.
+func targetUnder(work, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(work, path)
+}
+
+// copyProjects lays a scene's other projects down: every directory under
+// <layer>/projects is one project of the headquarters, at <work>/<name>. The
+// scene's own project stays <layer>/project, laid at the project dir.
+func copyProjects(from, work string) error {
+	entries, err := os.ReadDir(from)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if err := copyTree(filepath.Join(from, entry.Name()), filepath.Join(work, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// projectDirs is every project the work directory holds: the scene's own and the
+// ones under projects/ that have a .hergy/ of their own.
+func projectDirs(work string, sc scene) []string {
+	out := []string{sc.projectDir(work)}
+	entries, err := os.ReadDir(sc.projectsDir(work))
+	if err != nil {
+		return out
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == projectDir {
+			continue
+		}
+		if isDir(filepath.Join(sc.projectsDir(work), entry.Name(), ".hergy")) {
+			out = append(out, filepath.Join(sc.projectsDir(work), entry.Name()))
+		}
+	}
+	return out
+}
+
+// projectDir is where the scene's own project stands: the work directory's
+// project, or under the home directory for a scene whose projects a person's
+// paths look like (audit A3).
+func (sc scene) projectDir(work string) string {
+	if sc.homeProjects {
+		return filepath.Join(work, homeDir, "src", projectDir)
+	}
+	return filepath.Join(work, projectDir)
+}
+
+// projectsDir is where the scene's other projects stand.
+func (sc scene) projectsDir(work string) string {
+	if sc.homeProjects {
+		return filepath.Join(work, homeDir, "src")
+	}
+	return work
+}
+
 // minutePlace is a moment the sample data keeps for the run: @T-<分>@ is that
 // many minutes before the run, written as RFC 3339 - the shape hergy's own
 // state files write. It lets a scene say a state began 47 minutes ago instead of
@@ -900,16 +986,18 @@ var minutePlace = regexp.MustCompile(`@T-([0-9]+)@`)
 // and @EXECUTABLE@ the hergy the serve runs. The launch record in the state
 // directory uses them, so the same sample answers for the work directory it was
 // copied to.
-func fillPlaces(root, work string, now time.Time) error {
+func fillPlaces(root, work, projectRoot string, now time.Time) error {
 	resolvedPath := func(path string) string {
 		if resolved, err := filepath.EvalSymlinks(path); err == nil {
 			return resolved
 		}
 		return path
 	}
-	project := resolvedPath(filepath.Join(work, projectDir))
+	project := resolvedPath(projectRoot)
 	home := resolvedPath(filepath.Join(work, homeDir))
 	executable := resolvedPath(filepath.Join(work, "bin", "hergy"))
+	workPath := resolvedPath(work)
+	projectPlace := regexp.MustCompile(`@PROJECT:([a-z0-9_-]+)@`)
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -919,14 +1007,20 @@ func fillPlaces(root, work string, now time.Time) error {
 			return err
 		}
 		if !bytes.Contains(raw, []byte("@T-")) && !bytes.Contains(raw, []byte("@PROJECT@")) &&
-			!bytes.Contains(raw, []byte("@HOME@")) && !bytes.Contains(raw, []byte("@EXECUTABLE@")) {
+			!bytes.Contains(raw, []byte("@HOME@")) && !bytes.Contains(raw, []byte("@EXECUTABLE@")) &&
+			!bytes.Contains(raw, []byte("@WORK@")) && !bytes.Contains(raw, []byte("@PROJECT:")) {
 			return nil
 		}
-		filled := strings.NewReplacer(
+		filled := projectPlace.ReplaceAllStringFunc(string(raw), func(place string) string {
+			name := strings.TrimSuffix(strings.TrimPrefix(place, "@PROJECT:"), "@")
+			return resolvedPath(filepath.Join(work, name))
+		})
+		filled = strings.NewReplacer(
 			"@PROJECT@", project,
+			"@WORK@", workPath,
 			"@HOME@", home,
 			"@EXECUTABLE@", executable,
-		).Replace(string(raw))
+		).Replace(filled)
 		filled = minutePlace.ReplaceAllStringFunc(filled, func(place string) string {
 			minutes, err := strconv.Atoi(strings.Trim(place, "@T-"))
 			if err != nil {
@@ -938,7 +1032,22 @@ func fillPlaces(root, work string, now time.Time) error {
 	})
 }
 
-// fakeHerdrBody is the made-up herdr: the answers are the files of the scene's
+// buildFakeHerdr builds the made-up herdr (tools/fakeherdr): it remembers the
+// tabs, panes, agents and workspaces hergy changes, so the screens can be walked
+// through a start, a startup question and a stop (audit A5). A version that
+// predates the tool gets the older shell fake, which only answers.
+func buildFakeHerdr(root, path, dir string, stdout, stderr io.Writer) error {
+	if !isDir(filepath.Join(root, "tools", "fakeherdr")) {
+		return writeFakeHerdr(path, dir)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return execIn(root, stdout, stderr, "go", "build", "-o", path, "./tools/fakeherdr")
+}
+
+// fakeHerdrBody is the older made-up herdr, kept for a version that predates
+// tools/fakeherdr: the answers are the files of the scene's
 // herdr directory, and it writes nothing. It answers the calls hergy's screens
 // make and nothing else, so a screen that starts asking for another call says so
 // here rather than reaching a real herdr.
@@ -953,6 +1062,9 @@ if [ -z "$2" ]; then
 fi
 case "$1 $2" in
   "tab list") cat "$d/tabs.json" ;;
+  "workspace list") if [ -f "$d/workspaces.json" ]; then cat "$d/workspaces.json"; else echo '{"result":{"workspaces":[]}}'; fi ;;
+  "workspace get") if [ -f "$d/workspaces.json" ]; then cat "$d/workspaces.json"; else echo '{"result":{"workspaces":[]}}'; fi ;;
+  "pane list") if [ -f "$d/panes.json" ]; then cat "$d/panes.json"; else echo '{"result":{"panes":[]}}'; fi ;;
   "agent list") cat "$d/agents.json" ;;
   "agent read")
     if [ -f "$d/screens/$3.txt" ]; then cat "$d/screens/$3.txt"; else echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi ;;
@@ -1070,9 +1182,9 @@ type served struct {
 
 // startServe starts `hergy serve --no-open` over the work directory's project and
 // returns it once its URL is printed.
-func startServe(work, hergy string, port int, stderr io.Writer) (*served, error) {
+func startServe(work, projectPath, hergy string, port int, stderr io.Writer) (*served, error) {
 	cmd := exec.Command(hergy, "serve", "--no-open", "--port", strconv.Itoa(port)) //nolint:gosec // G204: hergy is the binary this tool built or was given, and the flags are fixed
-	cmd.Dir = filepath.Join(work, projectDir)
+	cmd.Dir = projectPath
 	cmd.Env = serveEnv(work)
 	cmd.Stderr = stderr
 	out, err := cmd.StdoutPipe()

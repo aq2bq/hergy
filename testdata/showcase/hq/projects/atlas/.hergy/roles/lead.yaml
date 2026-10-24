@@ -1,0 +1,6 @@
+version: 1
+title: 進行管理
+sections:
+  - rules:
+      - id: LEAD-1
+        text: 地図の配信を速くする要求だけを、このチームで扱う。

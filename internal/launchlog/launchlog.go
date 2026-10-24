@@ -69,19 +69,32 @@ type Doc struct {
 // A record written before these were kept has neither, and nothing can be
 // rebuilt from it.
 type Record struct {
-	Time       string   `json:"time"` // RFC 3339, where hergy ran
-	Command    string   `json:"command"`
-	Hergy      string   `json:"hergy"` // which hergy wrote this: version.Line()
-	Project    string   `json:"project"`
-	Layer      string   `json:"layer"`
-	Definition string   `json:"definition"`
-	Team       string   `json:"team"`
-	TeamYAML   string   `json:"team_yaml"`
-	Hash       string   `json:"hash"`
-	Executable string   `json:"executable,omitempty"`
-	Lang       string   `json:"lang,omitempty"`
-	Members    []Member `json:"members"`
-	Docs       []Doc    `json:"docs"`
+	Time       string `json:"time"` // RFC 3339, where hergy ran
+	Command    string `json:"command"`
+	Hergy      string `json:"hergy"` // which hergy wrote this: version.Line()
+	Project    string `json:"project"`
+	Layer      string `json:"layer"`
+	Definition string `json:"definition"`
+	Team       string `json:"team"`
+	TeamYAML   string `json:"team_yaml"`
+	// Workspace is the herdr workspace the team was started in: the label a
+	// person reads, and the id it had then. The headquarters offers the last one
+	// as "前に動いた所" (d-73fc). A record written before this was kept has
+	// neither, and so has refresh, reprompt and hire: they start no tab.
+	Workspace   string   `json:"workspace,omitempty"`
+	WorkspaceID string   `json:"workspace_id,omitempty"`
+	Hash        string   `json:"hash"`
+	Executable  string   `json:"executable,omitempty"`
+	Lang        string   `json:"lang,omitempty"`
+	Members     []Member `json:"members"`
+	Docs        []Doc    `json:"docs"`
+}
+
+// Workspace is one herdr workspace as a launch names it: the label a person
+// reads, and the id it had when the team was started there.
+type Workspace struct {
+	Label string
+	ID    string
 }
 
 // Material is what the hash of a launch is made of: the team definition's

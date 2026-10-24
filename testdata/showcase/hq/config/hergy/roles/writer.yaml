@@ -1,0 +1,6 @@
+version: 1
+title: 執筆
+sections:
+  - rules:
+      - id: WRITE-1
+        text: 読み手が決めることだけを残して書く。

@@ -71,7 +71,7 @@ definition name (up, new, show); commands that act on a running team take a team
 name (down, status, refresh, reprompt, hire). A running team's tab is labelled
 with the team's name alone, and a team command finds the definition behind it in
 this machine's launch record ($XDG_STATE_HOME/hergy/launches/log.jsonl). A tab is
-one of hergy's when the live agents in it are named after its label
+one of hergy's when a live agent or a named pane in it is named after its label
 ("<team>-<member>"), or when it still has the older shape
 "team:<team>@<definition>" ("team:<team>", where the definition name is the team
 name): a team booted by an older hergy is still found from its label, and another
@@ -127,7 +127,7 @@ var behavior = map[options.Kind]string{
       It then counts the rule files the members of every team definition read (a file two definitions share counts once) and the rules in them.
       It then prints the size of what each member of every team definition is handed (the rules of the documents that go into its prompt, and the characters of the Markdown hergy renders from them) and the size of each team definition's rule files (counted once, however many members read them), and warns when one is over the provisional limit (20 rules and 6,000 characters per member; 8 files and 20,000 characters per team definition). Neither the count nor a warning is a break: only a broken file makes the exit 1.
 `,
-	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST, PUT or DELETE that must carry the token of this run in the X-Hergy-Token header and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings the way the commands do, and it changes nothing but the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs), a role document, and a team definition's team.yaml and agreement.yaml.
+	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST, PUT or DELETE that must carry the token of this run in the X-Hergy-Token header and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings the way the commands do, and it changes nothing but the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs), a role document, a team definition's team.yaml and agreement.yaml, and the projects: list of the global config.yaml. It is the headquarters: it shows the projects config.yaml lists (or, without that key, the project it was started in and the global settings), their teams, roles and profiles with the project each belongs to, the running teams and workspaces, and it starts and stops a listed project's team with the same result as hergy up and hergy down. A start runs in a workspace a person picks and reports its progress and a startup question at /api/hq/launches/<id>.
 `,
 	options.Version: `      Print the commit and time of this hergy. It takes no other flags.
 `,
@@ -220,6 +220,7 @@ Settings files and their keys:
   Global config.yaml, at <global>/config.yaml:
     version: 1        required, int; must be 1.
     lang: en|ja       string; the language when --lang is not given; default en.
+    projects:         list of directories, optional; the projects hergy serve shows as its headquarters (d-73fc). Each entry is an absolute path or starts with ~/; ~ is expanded when read. Without the key, serve shows the project it was started in and the global settings. With an empty list it shows the global settings alone. A relative path is a broken setting that validate and serve refuse.
   A team definition's team.yaml, at teams/<definition>/team.yaml under .hergy/ or ~/.config/hergy/; cwd is relative to the project root:
     version: 1        required, int; must be 1.
     mission: "<text>" string, required; one line saying what the team is for. A definition that writes none, or writes one over more than one line, does not read; hergy validate warns while it is still the starter example hergy new writes. The commands and the screens show it first.

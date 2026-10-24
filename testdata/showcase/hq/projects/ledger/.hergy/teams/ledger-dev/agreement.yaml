@@ -1,0 +1,5 @@
+version: 1
+sections:
+  - rules:
+      - id: LD-1
+        text: 台帳に書いていない要求は実装しない。

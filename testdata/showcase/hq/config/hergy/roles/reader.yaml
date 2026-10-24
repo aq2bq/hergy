@@ -1,0 +1,6 @@
+version: 1
+title: 読み合わせ
+sections:
+  - rules:
+      - id: READ-1
+        text: 書いた人が決めたことを、決めた理由ごと読む。

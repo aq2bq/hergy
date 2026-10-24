@@ -1,0 +1,24 @@
+version: 1
+mission: "地図タイルの配信を速くする"
+members:
+  - name: lead
+    role: lead
+    profile: sonnet-fast
+  - name: analyst
+    role: analyst
+    profile: sonnet-fast
+  - name: builder
+    role: builder
+    profile: opencode-mini
+  - name: reviewer
+    role: builder
+    profile: sonnet-fast
+turns:
+  - human -> lead
+  - lead -> analyst
+  - lead -> builder
+  - lead -> reviewer
+  - builder -> reviewer
+  - reviewer -> lead
+  - analyst -> lead
+  - lead -> human

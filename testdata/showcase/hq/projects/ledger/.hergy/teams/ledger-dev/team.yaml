@@ -1,0 +1,24 @@
+version: 1
+mission: "台帳の差分表示を作る"
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: builder
+    role: builder
+    profile: codex-high
+  - name: reviewer
+    role: builder
+    profile: opus-plan
+  - name: tester
+    role: builder
+    profile: haiku-chore
+turns:
+  - human -> lead
+  - lead -> builder
+  - lead -> reviewer
+  - lead -> tester
+  - builder -> reviewer
+  - reviewer -> lead
+  - tester -> lead
+  - lead -> human

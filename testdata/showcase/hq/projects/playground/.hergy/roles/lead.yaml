@@ -1,0 +1,6 @@
+version: 1
+title: 進行管理
+sections:
+  - rules:
+      - id: LEAD-1
+        text: 試すことを 1 つに絞る。

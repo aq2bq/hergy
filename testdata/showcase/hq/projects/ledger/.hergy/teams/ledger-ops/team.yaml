@@ -1,0 +1,19 @@
+version: 1
+mission: "リリースと障害の対応を回す"
+members:
+  - name: lead
+    role: lead
+    profile: opus-plan
+  - name: operator
+    role: operator
+    profile: codex-high
+  - name: reviewer
+    role: builder
+    profile: opus-plan
+turns:
+  - human -> lead
+  - lead -> operator
+  - lead -> reviewer
+  - operator -> reviewer
+  - reviewer -> lead
+  - lead -> human

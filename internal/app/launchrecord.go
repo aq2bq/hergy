@@ -24,9 +24,15 @@ import (
 // team definition). A record that cannot be written is one line on stderr and
 // nothing else: the team is already up, so the command still succeeds.
 func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start) {
+	recordLaunchIn(stderr, env, r, command, members, launchlog.Workspace{})
+}
+
+// recordLaunchIn writes one launch, naming the workspace its tab was made in
+// (d-73fc). A launch that makes no tab passes the zero workspace.
+func recordLaunchIn(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start, workspace launchlog.Workspace) {
 	log, err := launchlog.Open()
 	if err == nil {
-		err = writeLaunch(log, env, r, command, members)
+		err = writeLaunch(log, env, r, command, members, workspace)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))
@@ -35,21 +41,23 @@ func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, m
 
 // writeLaunch builds one record and appends it. The texts the record points at —
 // the prompts it handed out and the rule files it read — go into blobs/ first.
-func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, members []definition.Start) error {
+func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
 	material, err := teamMaterial(r)
 	if err != nil {
 		return err
 	}
 	rec := launchlog.Record{
-		Time:       time.Now().Format(time.RFC3339),
-		Command:    command,
-		Hergy:      version.Line(),
-		Project:    env.ProjectRoot,
-		Layer:      r.team.Definition.Layer,
-		Definition: r.team.Definition.Name,
-		Team:       r.team.Name,
-		TeamYAML:   r.team.Definition.TeamYAML,
-		Hash:       launchlog.Hash(material),
+		Time:        time.Now().Format(time.RFC3339),
+		Command:     command,
+		Hergy:       version.Line(),
+		Project:     env.ProjectRoot,
+		Layer:       r.team.Definition.Layer,
+		Definition:  r.team.Definition.Name,
+		Team:        r.team.Name,
+		TeamYAML:    r.team.Definition.TeamYAML,
+		Workspace:   workspace.Label,
+		WorkspaceID: workspace.ID,
+		Hash:        launchlog.Hash(material),
 		// The facts the prompts were built with, so a screen can rebuild them
 		// the way the launch did (C9, spec/43 S1).
 		Executable: executable(),
