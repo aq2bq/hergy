@@ -15,6 +15,14 @@
   startup messages name — `hergy down` and then the same `hergy up` — now works
   the first time. A pane it closes with no agent in it says so, and the counts tell
   a pane standing without an agent from a member that has no pane at all.
+- **A message to a teammate arrives as written**: the initial prompt taught
+  `herdr agent prompt <name> "<text>"`, so a backquote or `$( )` in the text was
+  run by the sending member's shell — the message arrived with holes, and a
+  command ran on the sender's machine (ac-ba20, d-e66d). The prompt now teaches
+  reading the text into a variable through a quoted here-document
+  (`IFS= read -r -d '' body <<'EOF'`) and sending `"$body"`; the shell expands
+  nothing in it, in bash (3.2 and 5), zsh and sh alike. Members of a team started
+  before this change are told the old way until their prompt is handed over again.
 
 ### Added
 
