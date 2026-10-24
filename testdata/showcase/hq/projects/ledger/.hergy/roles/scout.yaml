@@ -1,6 +1,14 @@
 version: 1
 title: 調査
+revision: 2
 sections:
-  - rules:
+  - heading: 調べ方
+    rules:
       - id: SCOUT-1
-        text: 調べたことは、出典と一緒に台帳へ書く。
+        text: '調べたことは、出典と一緒に台帳へ書く。'
+      - id: SCOUT-2
+        text: '出典は公式の文書から当たる。ブログは、公式の裏付けがあるときだけ使う。'
+      - id: SCOUT-3
+        text: '調べた結果は、わかったこと・わからなかったこと・次に調べることの 3 つに分けて渡す。'
+      - id: SCOUT-4
+        text: '調べる時間は、1 つの問いにつき 2 時間までにする。'

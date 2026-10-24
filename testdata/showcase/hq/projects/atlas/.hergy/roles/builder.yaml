@@ -1,6 +1,19 @@
 version: 1
 title: 設計実装
+revision: 2
 sections:
-  - rules:
+  - heading: 作り方
+    rules:
       - id: BUILD-1
-        text: タイルの形式を変えるときは、古い端末で読めることを確かめる。
+        text: 'タイルの形式を変えるときは、古い端末で読めることを確かめる。'
+        note: '由来: incident 2026-09-22 d-3f50'
+      - id: BUILD-2
+        text: '作業は自分のワークツリーで終え、main には触らない。'
+      - id: BUILD-3
+        text: '地図のデータの元は変えない。'
+  - heading: 測り方
+    rules:
+      - id: BUILD-4
+        text: '変更の前と後で、同じ条件で速さを 3 回ずつ測る。'
+      - id: BUILD-5
+        text: '測った値は、測ったコマンドと一緒に lead に渡す。'

@@ -8,7 +8,9 @@
 // has none of the latter three starts from its tabs and agents. A name listed in
 // startup-blocked.json answers "blocked during startup" for the seconds written
 // there, so a start from the screens can be walked through a startup question
-// (d-d589, audit A5, R1).
+// (d-d589, audit A5, R1). A name listed in startup-failed.json fails its agent
+// start with the message written there, so a start that cannot finish can be
+// walked through too (audit R4).
 package main
 
 import (
@@ -291,6 +293,12 @@ func startAgent(st *state, path, dir string, args []string) int {
 		}
 	}
 	st.Agents = removeAgent(st.Agents, func(one agent) bool { return one.Name == name })
+	if message := startFailure(dir, name); message != "" {
+		save(path, st)
+		raw, _ := json.Marshal(result{Error: map[string]any{"code": "agent_start_failed", "message": message}})
+		fmt.Println(string(raw))
+		return 1
+	}
 	entry := agent{Name: name, Kind: flagValue(args, "kind"), Status: "idle", PaneID: paneID, TabID: tabID, Seq: nextSeq(st)}
 	st.Agents = append(st.Agents, entry)
 	_ = space
@@ -374,6 +382,22 @@ func blockedSeconds(dir, name string) int {
 		return 0
 	}
 	return waits[name].Seconds
+}
+
+// startFailure is the message one member's agent start fails with, from the
+// scene's startup-failed.json: {"<herdr name>": {"message": "..."}} (audit R4).
+func startFailure(dir, name string) string {
+	raw, err := os.ReadFile(filepath.Join(dir, "startup-failed.json"))
+	if err != nil {
+		return ""
+	}
+	var failures map[string]struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &failures) != nil {
+		return ""
+	}
+	return failures[name].Message
 }
 
 // NextPaneOf is the next pane number, made unique against the scene's own ids.

@@ -1,6 +1,19 @@
 version: 1
 title: 運用
+revision: 2
 sections:
-  - rules:
+  - heading: 本番
+    rules:
       - id: OPS-1
-        text: 本番に触る前に、戻し方を 1 行で書く。
+        text: '本番に触る前に、戻し方を 1 行で書く。'
+      - id: OPS-2
+        text: '本番で打つコマンドは、先に reviewer に読んでもらう。'
+      - id: OPS-3
+        text: '本番で打ったコマンドは、時刻と結果と一緒に記録へ残す。'
+      - id: OPS-4
+        text: '作業の途中で予想と違う結果が出たら、続けずに止めて lead に知らせる。'
+        note: '由来: incident 2026-09-13 d-33a9'
+  - heading: 秘密
+    rules:
+      - id: OPS-5
+        text: '鍵とパスワードは、ログにも報告にも書かない。'

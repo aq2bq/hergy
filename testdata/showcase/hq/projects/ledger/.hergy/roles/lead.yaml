@@ -1,6 +1,24 @@
 version: 1
 title: 進行管理
+revision: 2
 sections:
-  - rules:
+  - heading: 使命
+    rules:
       - id: LEAD-1
-        text: 実装は 1 つの要求に 1 人で払い出す。
+        text: '人間と話すのは lead だけにする。人間に伝えるのは、人間が決めることと、人間の番が回ってきたことの 2 つだけにする。'
+      - id: LEAD-2
+        text: '要求を受けたら「誰が・何を・どうする」の 1 文に書き直して台帳に記録し、その ID を添えて仕事を割り振る。'
+        note: '由来: instruction 2026-09-03 d-2b10'
+  - heading: 払い出し
+    rules:
+      - id: LEAD-3
+        text: '実装は 1 つの要求に 1 人で払い出す。同じファイルを触る要求は、前の要求が取り込まれてから払い出す。'
+      - id: LEAD-4
+        text: '払い出すときは、読むもの、終わりの条件、触らないファイルを書く。'
+      - id: LEAD-5
+        text: '差し戻しは要求の言葉に直してから渡す。レビューの指摘をそのまま転送しない。'
+        note: '由来: derived  LEAD-3'
+  - heading: 見せる前の確認
+    rules:
+      - id: LEAD-6
+        text: '人間に見せる前に、lead が自分で動かして確かめる。'

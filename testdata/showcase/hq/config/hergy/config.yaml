@@ -1,6 +1,6 @@
 version: 1
 lang: ja
 projects:
-  - @HOME@/src/shop
-  - @HOME@/src/ledger
-  - @HOME@/src/atlas
+  - ~/src/shop
+  - ~/src/ledger
+  - ~/src/atlas

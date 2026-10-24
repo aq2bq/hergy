@@ -20,6 +20,8 @@ tools/showcase が起こすショーケースの見本データ。場面ごと�
 - config/hergy/: XDG_CONFIG_HOME/hergy（共通のチーム定義・ロール・プロファイル、config.yaml）
 - state/hergy/: XDG_STATE_HOME/hergy（活動の「いつから」を覚える activity.json）
 - herdr/: 偽の herdr の答え。tabs.json、agents.json、`screens/<エージェント名>.txt`
+  - startup-blocked.json: 名前を書いたメンバーは、書いた秒数だけ起動の途中で許可待ちになる
+  - startup-failed.json: 名前を書いたメンバーは、起動が書いた文で失敗する
 
 ## --mock（試作をショーケースの中で見る）
 
