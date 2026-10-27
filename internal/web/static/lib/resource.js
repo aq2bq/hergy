@@ -3,7 +3,7 @@
 // 画面は、読み込みを自分で並べない。resource に「どう読むか」を渡し、
 // `value` / `loading` / `error` を signal として受け取る。要求は後から出した
 // ものが勝ち、前の要求は AbortController で取り消す。だから画面は、どの答えが
-// 今の画面のものかを番号で合わせない（r.req は要らない）。
+// 今の画面のものかを番号で合わせない（要求に番号を振る必要が無い）。
 //
 //   const words = resource((signal) => getJSON('/api/words', { signal }));
 //   words.run();                       // 読み込みを始める
