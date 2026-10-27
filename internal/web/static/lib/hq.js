@@ -19,7 +19,7 @@ import {
   projectName, runningFor, runningTeam, lastWorkspaceOf, definitionOf, groupOf, itemGroup,
   readAll, readCore, readGroups, readRunning, startReads,
 } from './hq/state.js';
-import { runCellHTML } from './hq/run.js';
+import { RunCell } from './hq/run.js';
 import {
   closeSheet, projectsSheet, startSheet, stopSheet, mountSearch, renderResults, moveSel,
   resetSearch, searchHook, sheetOpen, searchBoxOpen,
@@ -89,7 +89,6 @@ window.hergyHQ = {
   definitionOf,
   groupOf,
   itemGroup,
-  runCell: runCellHTML,
   readAll,
   readCore,
   readGroups,
@@ -127,5 +126,5 @@ function stickBar() {
 // window.hergyHQ.
 export {
   st as state, rev, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
-  readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, runCellHTML, TeamFigure,
+  readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure,
 };

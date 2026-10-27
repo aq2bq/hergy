@@ -762,7 +762,7 @@ const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = 
 export {
   attach as mount, Counts, Badge, Vm, Sev, OutNote,
   S as state, rkey, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
-  outNote, outCount, lvlMark, nextKey, observeKeys, esc, clone, num,
+  outNote, outCount, lvlMark, nextKey, observeKeys, esc, clone, num, goRule,
 };
 
 // body is the skeleton a panel's .pmain starts from: the two elements the part

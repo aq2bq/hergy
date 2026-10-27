@@ -8,9 +8,8 @@
 // the page's CSP does not take an inline attribute, and a DOM set is not one
 // (the classic measure.js says the same).
 //
-// The classic screens (roles, teams) still read static/measure.js's html() as a
-// string; this component is that same bar for the screens that are modules, and
-// static/measure.js goes when the last of those two moves.
+// It is the one bar the role list and the team list draw; the classic
+// static/measure.js that returned it as a string went with the last screen.
 import { html } from '../vendor/preact.js';
 
 export const num = (n) => Number(n || 0).toLocaleString('ja-JP');

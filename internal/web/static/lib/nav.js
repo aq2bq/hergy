@@ -6,8 +6,7 @@
 //
 // 帯そのもの（`.screens` の span / a、数、`.wait`）はサーバーが描いたままで、
 // ここはその上の印と数だけを書く（要素は作り直さない。webui-preact-design 5 章）。
-// module の画面は setCount / setActivity / takeDraft を import し、classic の
-// teams-v2 は段 8 まで window.hergyNav から読む。
+// 画面は setCount / setActivity / takeDraft を import で読む。
 const band = document.querySelector('.screens');
 const key = (band && band.dataset.key) || '';
 
@@ -139,9 +138,6 @@ if (band) {
   });
 
   document.addEventListener('hergy:dirty', (e) => setDot(scr(mine()), !!e.detail));
-
-  // classic の画面（teams-v2）が読む。段 8 で teams が module になったら消す。
-  window.hergyNav = { takeDraft, setCount, setActivity };
 
   // Both scripts have run by the time the document is parsed, so the page
   // knows what it is: remember the place, and point the links.

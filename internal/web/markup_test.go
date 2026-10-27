@@ -34,14 +34,11 @@ type exception struct {
 // one does. Everything else under static/ (vendor/ aside) is held to the ban,
 // so a file made from now on is covered without being added here — the list
 // only ever shrinks.
-var markupExceptions = map[string]exception{
-	"teams-v2.js": {
-		why: "チーム定義の画面。パネルを文字列で組み立てて領域ごと差し替えている（段階 1 以降で移す）",
-	},
-	"topocanvas.js": {
-		why: "チーム定義の図を描く canvas（最後の段で移す）",
-	},
-}
+//
+// It stands empty: every screen and every part is drawn by Preact's render, and
+// the ban holds the whole WebUI (webui-preact-design 5 章 1). A file that wants
+// a line here is a screen that has not been moved.
+var markupExceptions = map[string]exception{}
 
 // TestTheDomIsWrittenOnlyByRender walks the WebUI's scripts and fails on a
 // markup write outside the exceptions. vendor/ is left alone: it is what the
