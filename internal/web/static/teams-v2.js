@@ -1107,6 +1107,15 @@
     row.classList.toggle('unsaved', dirtyDef(r));
     tellDirty();
   }
+  // inFlight is how many checks have not answered yet. Each answer draws the
+  // panel again, so window.hergyPage.pending lets the walks wait for the screen
+  // to be quiet before they act (TEAMS-C2): a line focused just before an answer
+  // is no longer on the page.
+  let inFlight = 0;
+  async function checkOf(payload) {
+    inFlight++;
+    try { return await API.check('team', payload); } finally { inFlight--; }
+  }
   async function checkTeam(r) {
     const id = ++r.req;
     // A check sent with no ops reads the saved file, so its findings are the
@@ -1116,7 +1125,7 @@
     // save would write over, and a person who writes before the first answer
     // has come back still gets the file's own problems as the baseline.
     const based = !r.ops.length;
-    const res = await API.check('team', teamIn(r, { doc: { ops: r.ops } }));
+    const res = await checkOf(teamIn(r, { doc: { ops: r.ops } }));
     if (!res.ok) return;
     const json = API.answer(res);
     // The first answer for a definition that is not there yet is the base it
@@ -1167,7 +1176,7 @@
   async function checkAgree(r, after) {
     const id = ++r.areq;
     const doc = RD.toDoc(r.agree.draft, r.agree.saved);
-    const res = await API.check('team', agreeIn(r, { doc: { ops: r.ops, doc } }));
+    const res = await checkOf(agreeIn(r, { doc: { ops: r.ops, doc } }));
     if (id !== r.areq || !res.ok) return;
     r.check = buildCheck(r.agree.draft, API.answer(res));
     if (!agreeDiff(r)) r.agree.savedIssues = r.check.issues;
@@ -1770,7 +1779,7 @@
   // settled turns true once the reads that follow the first frame have answered
   // (the roles, the HQ's roles and profiles, the first checks): each of them
   // draws the screen again, and a member added before the roles came has no role.
-  window.hergyPage = { screen: 'teams', dirty: false, settled: false, take, tellDirty };
+  window.hergyPage = { screen: 'teams', dirty: false, settled: false, get pending() { return inFlight; }, take, tellDirty };
 
   render();
   setStick();
