@@ -27,7 +27,7 @@ import { hergyBin, repo } from '../scripts/fixture.mjs';
 import { press, q, readTo, set, there, wait } from './helpers';
 
 // scene is one state of the screens the showcase lays out.
-type Scene = 'standard' | 'running';
+type Scene = 'standard' | 'running' | 'hq';
 
 // App is one scene's screens: the URL the tool printed, its work directory, and
 // the tool itself.
@@ -514,6 +514,23 @@ for (const scene of ['standard', 'running'] as const) {
     });
   });
 }
+
+// SHOWCASE-H1 (ac-8bf5) — a headquarters with projects listed draws every list
+// under the projects' heads. The hq scene lists three projects; each list has one
+// head for each of them and one for the global layer, and the console stays
+// clean (the fixture). The roles list drew nothing here once: a head called a
+// function its module did not import, and no walk opened the headquarters.
+test.describe('hq', () => {
+  test.use({ scene: 'hq' });
+
+  test('SHOWCASE-H1 every list stands under the listed projects', async ({ page, app }) => {
+    for (const [screen, row] of [['roles', '#rows .role'], ['teams', '#view .tdef'], ['profiles', '#rows .row']] as const) {
+      await open(page, `${app.base}/${screen}`, row);
+      await readTo<number>(page, count('.hq-gh:not(.global)'), `the ${screen} list's project heads, want the three listed`).toBe(3);
+      await readTo<number>(page, count('.hq-gh.global'), `the ${screen} list's global head`).toBe(1);
+    }
+  });
+});
 
 // adds an element, and the screen itself is still the app's own (six rows).
 test.describe('mock', () => {

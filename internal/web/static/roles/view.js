@@ -7,7 +7,7 @@ import { html } from '../vendor/preact.js';
 import { Measure } from '../lib/measure.js';
 import {
   PLACES, LNAME, HQ, GROUPED, state, rev, roles, teams, currentProjectName, groupKeyOf,
-  live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checks,
+  live, eff, cur, curName, whoReads, projectNameOf, groupNameOf, pathOfRow, issuesOf, rowIssues, checks,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf,
 } from './state.js';
 import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
