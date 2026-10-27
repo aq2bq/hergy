@@ -6,17 +6,20 @@ import (
 	"path/filepath"
 )
 
-// The undef gate: every name the WebUI's modules use is defined in the module,
-// imported, or one of the browser's own (eslint's no-undef, from
-// tools/weblint). A module that forgot an import throws only when the line runs,
-// so a road no walk opens (the headquarters' roles list, 3ec7db3) is caught here
-// rather than in a person's browser.
+// The names gate, both ways round, from eslint in tools/weblint:
+//   - every name the WebUI's modules use is defined in the module, imported, or
+//     one of the browser's own (no-undef). A module that forgot an import throws
+//     only when the line runs, so a road no walk opens (the headquarters' roles
+//     list, 3ec7db3) is caught here rather than in a person's browser.
+//   - every name a module defines or imports is read (no-unused-vars). The
+//     deadcode gate reads Go only; what the move to Preact left behind (18 names,
+//     e119b07) had no gate to fail.
 
 // webStatic is the WebUI's modules, from the module root; vendor/ is left out
 // by tools/weblint/eslint.config.js.
 var webStatic = filepath.Join("internal", "web", "static")
 
-func (r *runner) undefGate() error {
+func (r *runner) namesGate() error {
 	bun, err := r.bun()
 	if err != nil {
 		return err
