@@ -44,9 +44,6 @@ var markupExceptions = map[string]exception{
 	"hq.js": {
 		why: "本部の読みと、各画面が借りているシート。図（teamSVG）も文字列で返す（hq の段で移す）",
 	},
-	"ruledoc.js": {
-		why: "ルール文書の面。roles と teams の両方が使う（共通部品の段で移す）",
-	},
 	"deliver.js": {
 		why: "伝えていない変更のシート。各画面が借りている（共通部品の段で移す）",
 	},
