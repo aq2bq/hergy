@@ -95,6 +95,37 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   ).toBe('false');
 });
 
+test('NAV-N10 the team definition carries the mission a person did not save', async ({ page, app }) => {
+  // ac-afc9: the changes a person made on the team definition screen are carried
+  // by the band like the roles screen's and the profiles screen's (spec-nav
+  // 1.5). The mission is typed and not saved, the band walks to the roles screen
+  // and back, and the field holds the typed text — with no exception on the way
+  // (the screen used to answer dirty with a word the band then called as a
+  // function, so the walk threw and the draft was lost).
+  const mission = '帯が運ぶ、保存していない使命';
+  await page.goto(`${app.base}/teams?open=core`);
+  await wait(page, there('.tdef.open .in-mission'));
+  await set(page, q('.tdef.open .in-mission'), mission);
+  await readTo<string>(
+    page,
+    `String(!!${q('.scr.on[data-screen="teams"] .dot')})`,
+    'the band marks no dot while the mission is changed',
+  ).toBe('true');
+  await press(page, q('a.scr[data-screen="roles"]'));
+  await waitPath(page, '/roles');
+  await wait(page, there('#rows'));
+  await press(page, q('a.scr[data-screen="teams"]'));
+  await waitPath(page, '/teams');
+  await wait(page, there('.tdef[data-name="core"] .sum'));
+  await press(page, q('.tdef[data-name="core"] .sum'));
+  await wait(page, there('.tdef.open .in-mission'));
+  await readTo<string>(
+    page,
+    `${q('.tdef.open .in-mission')}.value`,
+    'ac-afc9: the mission the band carried back does not hold what was typed',
+  ).toBe(mission);
+});
+
 test('NAV-F1 Find picks a row with the arrows and Enter opens it', async ({ page, app }) => {
   // ac-d417: the arrows walk the result rows and Enter goes to the one picked.
   // The row is read from the screen's own index, so the test does not depend on

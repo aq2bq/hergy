@@ -7,7 +7,7 @@ import { html, render as draw } from '../vendor/preact.js';
 import { insertTab } from '../lib/yamltab.js';
 import { rulesOf, findRule, clone, mount as mountRules, state as ruleState } from '../lib/ruledoc.js';
 import {
-  view, tabsEl, state, render, onDraw, boot, take, tellDirty, dkey, byKey, byName,
+  view, tabsEl, state, render, onDraw, boot, take, dirty, tellDirty, dkey, byKey, byName,
   addDraft, dropDraft, checkTeam, checkAgree, syncTeam, saveTeam, saveAgree, doDelete,
   syncURL, readURL, jumpWantRule, jumpToRule, setStick, other, orderRows, firstIndexOf,
   forgetUndo, canvasUndoFromToast, recs, applyOps, pushOp, debounce, cloneTeam, theName,
@@ -20,7 +20,7 @@ if (view) {
   // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
   // settled turns true once the reads that follow the first frame have answered
   // (the roles, the HQ's roles and profiles, the first checks).
-  window.hergyPage = { screen: 'teams', dirty: false, settled: false, take, tellDirty };
+  window.hergyPage = { screen: 'teams', dirty, settled: false, take, tellDirty };
 
   onDraw(() => {
     draw(html`<${Tabs} />`, tabsEl);

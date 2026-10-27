@@ -19,7 +19,7 @@ import {
   fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, goRule,
 } from '../lib/ruledoc.js';
 import { parseOpen, projectName as hqProjectName, state as hqState } from '../lib/hq.js';
-import { setCount } from '../lib/nav.js';
+import { setCount, takeDraft } from '../lib/nav.js';
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
@@ -969,14 +969,47 @@ export function setBandCount() {
   for (const r of recs.values()) if (!r.draftRow) n++;
   setCount('teams', n);
 }
-// tellDirty says whether the screen holds anything unsaved. The band reads it
-// through window.hergyPage (nav.js 1.5).
-export function tellDirty() {
-  let dirty = false;
-  for (const r of recs.values()) if (dirtyDef(r)) dirty = true;
-  for (const f of FILES) if (fileDirty(f.file)) dirty = true;
-  if (window.hergyPage) window.hergyPage.dirty = dirty;
+// dirty is whether the screen holds anything the files do not: a row's ops, a
+// rules draft, a YAML text. The band asks it through window.hergyPage (nav.js
+// 1.5), the same way it asks the other screens.
+export function dirty() {
+  for (const r of recs.values()) if (dirtyDef(r)) return true;
+  for (const f of FILES) if (fileDirty(f.file)) return true;
+  return false;
 }
+// tellDirty says it again after a change, so the band's mark follows the field
+// a person is in (nav.js 1.5).
+export function tellDirty() {
+  document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+}
+// restore puts back what the band carried from this screen (spec-nav 1.5): the
+// ops of a row that was not saved, the rules draft, and the YAML text. A file
+// that moved outside since is not put back (its hash is not the one the draft
+// was read from).
+export function restore(carried) {
+  (carried.teams || []).forEach((c) => {
+    const r = [...recs.values()].find((x) => x.name === c.name && x.place === c.place && !x.draftRow);
+    if (!r || (c.hash && r.hash !== c.hash)) return;
+    r.ops = clone(c.ops);
+    r.team.draft = applyOps(r.team.saved, r.ops);
+    checkTeam(r);
+  });
+  (carried.agrees || []).forEach((c) => {
+    const r = [...recs.values()].find((x) => x.name === c.name && x.place === c.place && !x.draftRow);
+    if (!r || !r.agree.saved || (c.hash && r.agreeHash !== c.hash)) return;
+    const d = fromJSON(c.doc);
+    d.__path = r.agreePath;
+    r.agree.draft = d;
+    checkAgree(r);
+  });
+  (carried.files || []).forEach((c) => {
+    const f = fileByKey.get(c.file);
+    if (!f || (c.hash && f.hash !== c.hash)) return;
+    state.ytext[c.file] = c.text;
+  });
+  render();
+}
+
 export function take() {
   const teams = [];
   for (const r of recs.values()) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
@@ -992,6 +1025,10 @@ export function boot() {
   else (LIST.items || []).forEach((item) => defOf(item));
   readURL();
   pickFile();
+  // What the band carried here from this screen is put back once, before the
+  // first draw (spec-nav 1.5). A draft it did not carry is spent there.
+  const carried = takeDraft('teams');
+  if (carried) restore(carried);
   render();
   setStick();
   const later = [];
