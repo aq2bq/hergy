@@ -50,3 +50,32 @@ func TestSelectGatesRefusesAnUnknownName(t *testing.T) {
 		t.Fatalf("selectGates(vuln fmt) = %v, %v", got, err)
 	}
 }
+
+func TestGatesForPicksWhatAChangeCanFail(t *testing.T) {
+	names := func(paths ...string) string {
+		var out []string
+		for _, g := range gatesFor(paths) {
+			out = append(out, g.name)
+		}
+		return strings.Join(out, " ")
+	}
+	cases := []struct {
+		paths []string
+		want  string
+	}{
+		{nil, ""},
+		{[]string{"README.md"}, "test"},
+		{[]string{"internal/app/serve.go"}, "fmt tidy fix lint arch test e2e coverage deadcode"},
+		{[]string{"internal/app/serve_test.go"}, "fmt fix lint arch test coverage deadcode"},
+		{[]string{"tools/check/diff.go"}, "fmt fix lint arch test coverage deadcode"},
+		{[]string{"internal/web/static/app.js"}, "test e2e"},
+		{[]string{"e2e/tests/home.spec.ts"}, "test reading e2e"},
+		{[]string{"go.sum"}, "tidy lint test e2e deadcode vuln"},
+		{[]string{".testcoverage.yml", "skills/hergy/SKILL.md"}, "test coverage"},
+	}
+	for _, c := range cases {
+		if got := names(c.paths...); got != c.want {
+			t.Errorf("gatesFor(%v) = %q, want %q", c.paths, got, c.want)
+		}
+	}
+}

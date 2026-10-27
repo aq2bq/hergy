@@ -44,6 +44,8 @@ type runner struct {
 	root   string // the module root, where go.mod is
 	bin    string // root/.bin
 	stdout io.Writer
+	// cachedTests keeps go test's cache in the test gate (the diff run).
+	cachedTests bool
 }
 
 func newRunner() (*runner, error) {

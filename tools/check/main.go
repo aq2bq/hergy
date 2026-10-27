@@ -3,6 +3,7 @@
 //
 //	go run ./tools/check             every gate, in order
 //	go run ./tools/check lint test   only the named gates
+//	go run ./tools/check diff        the gates a change can fail, picked from what differs from the upstream
 //	go run ./tools/check nightly     the daily run: mutation testing and fuzzing
 //	go run ./tools/check -h          the gates, each with its rule
 //
@@ -71,6 +72,9 @@ func run(args []string) error {
 	if len(args) == 1 && args[0] == "nightly" {
 		return r.nightly()
 	}
+	if len(args) == 1 && args[0] == "diff" {
+		return r.diff()
+	}
 	selected, err := selectGates(args)
 	if err != nil {
 		return err
@@ -136,6 +140,7 @@ func (r *runner) runGates(selected []gate) error {
 func usage() string {
 	var b strings.Builder
 	b.WriteString("go run ./tools/check [gate ...]   run every gate, or the named ones, in this order\n")
+	b.WriteString("go run ./tools/check diff         the gates a change can fail, picked from the files that differ from the upstream; test keeps go test's cache (tools/check/diff.go)\n")
 	b.WriteString("go run ./tools/check nightly      the daily run: gremlins mutation testing and go test -fuzz (tools/check/nightly.yml)\n")
 	b.WriteString("\nGates:\n")
 	for _, g := range gates {
@@ -181,6 +186,9 @@ func (r *runner) archGate() error {
 }
 
 func (r *runner) testGate() error {
+	if r.cachedTests {
+		return r.exec("go", "test", "-race", "-coverprofile="+r.coverProfile(), "./...")
+	}
 	return r.exec("go", "test", "-race", "-count=1", "-coverprofile="+r.coverProfile(), "./...")
 }
 
