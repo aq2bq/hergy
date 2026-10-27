@@ -5,6 +5,7 @@
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../vendor/preact.js';
+import { resource } from '../lib/resource.js';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList } from '../lib/api.js';
 
 export const view = document.getElementById('view');
@@ -111,7 +112,6 @@ function panelOf(p, group, rowKey) {
     draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ key: pair.key, value: pair.value })) },
     problems: [],
     errors: 0,
-    seq: 0,
     savedLine: !!p.savedLine,
     refusal: '',
     confirming: false,
@@ -336,24 +336,36 @@ export function discardPanel(key) {
 }
 
 // ---- asking the server --------------------------------------------------
-// check asks what is wrong with one panel's draft. Only the newest request's
-// answer is kept (a panel's own seq), and a shut panel keeps its last answer.
+// checkers are one resource per panel: a check is a reading like any other, so
+// the newest request is the one whose answer is kept and the one before it is
+// dropped (5 章 3). The panel keeps no numbering of its own.
+const checkers = new Map();
+function checkerFor(key) {
+  let one = checkers.get(key);
+  if (one) return one;
+  one = resource(async (signal, payload) => {
+    try {
+      return await apiCheck('profile', payload, { signal });
+    } catch (e) {
+      // A refusal about the draft still carries what is wrong with it.
+      if (e && e.json) return { json: e.json };
+      throw e;
+    }
+  });
+  checkers.set(key, one);
+  return one;
+}
+
+// check asks what is wrong with one panel's draft. A panel that is shut keeps
+// its last answer, and a check a newer one replaced answers nothing.
 export async function checkPanel(key) {
   const panel = panelByKey(key);
   if (!panel) return;
-  const seq = panel.seq + 1;
-  patchPanel(key, { seq });
-  let problems = [];
-  try {
-    const answer = await apiCheck('profile', {
-      place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
-    });
-    problems = (answer.json && answer.json.problems) || [];
-  } catch (e) {
-    problems = (e && e.json && e.json.problems) || [];
-  }
-  const now = panelByKey(key);
-  if (!now || now.seq !== seq) return;
+  const answer = await checkerFor(key).run({
+    place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
+  });
+  const problems = (answer && answer.json && answer.json.problems) || [];
+  if (!panelByKey(key)) return;
   patchPanel(key, { problems, errors: problems.filter((p) => p.sev === 'err').length });
 }
 

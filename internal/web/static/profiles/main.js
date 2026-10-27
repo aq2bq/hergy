@@ -143,18 +143,24 @@ view.addEventListener('dragover', (event) => {
   event.preventDefault();
 });
 view.addEventListener('drop', (event) => {
+  // The order the drop makes is worked out from the state the chips show, not
+  // from where the elements stand (5 章 2): the chip carries its index, and the
+  // row's own arguments are the list the save writes.
   const target = event.target.closest('.arg');
   const source = view.querySelector('.dragging');
   if (!target || !source || target === source) return;
   event.preventDefault();
+  const panel = target.closest('.panel');
+  if (!panel) return;
+  const from = Number(source.dataset.i), to = Number(target.dataset.i);
   const rect = target.getBoundingClientRect();
-  const list = source.closest('.args');
-  if (event.clientX < rect.left + rect.width / 2) list.insertBefore(source, target); else list.insertBefore(source, target.nextSibling);
+  const order = (panelByKey(panel.dataset.key) || { draft: { args: [] } }).draft.args.slice();
+  if (!(from in order) || !(to in order)) return;
+  const [moved] = order.splice(from, 1);
+  const at = event.clientX < rect.left + rect.width / 2 ? (to > from ? to - 1 : to) : (to >= from ? to : to + 1);
+  order.splice(at, 0, moved);
   source.classList.remove('dragging');
   source.removeAttribute('draggable');
-  const panel = source.closest('.panel');
-  if (!panel) return;
-  const order = Array.from(list.querySelectorAll('.arg')).map((el) => el.querySelector('input').value);
   actions.reorderArgs(panel.dataset.key, order);
 });
 view.addEventListener('dragend', (event) => {
