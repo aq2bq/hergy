@@ -24,13 +24,18 @@ export const q = (selector: string) => `document.querySelector(${JSON.stringify(
 // drawn element goes through (the Go walks' `!!document.querySelector`).
 export const there = (selector: string) => `!!${q(selector)}`;
 
-// ready waits until the document has loaded: a person cannot read or press
-// before the page is there.
+// ready waits until the document has loaded, and until a screen that reads more
+// after its first frame says it has settled (window.hergyPage.settled): a person
+// cannot read or press before the page is there, and an answer that comes after
+// the first press draws the screen again under it — the teams screen's roles
+// came after ＋メンバー, took the cursor out of the name and left the new member
+// with no role (TEAMS-C1, main ba91188).
 export async function ready(page: Page): Promise<void> {
   const deadline = Date.now() + DEADLINE;
+  const loaded = `document.readyState==='complete'&&!(window.hergyPage&&window.hergyPage.settled===false)`;
   while (Date.now() < deadline) {
     try {
-      if ((await page.evaluate('document.readyState')) === 'complete') return;
+      if ((await page.evaluate(loaded)) === true) return;
     } catch {
       // A page being replaced has no document to ask yet.
     }

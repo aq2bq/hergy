@@ -1760,14 +1760,18 @@
     const files = FILES.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.ytext[f.file] }));
     return { teams, agrees, files };
   }
-  window.hergyPage = { screen: 'teams', dirty: false, take, tellDirty };
+  // settled turns true once the reads that follow the first frame have answered
+  // (the roles, the HQ's roles and profiles, the first checks): each of them
+  // draws the screen again, and a member added before the roles came has no role.
+  window.hergyPage = { screen: 'teams', dirty: false, settled: false, take, tellDirty };
 
   render();
   setStick();
+  const later = [];
   // The member's 属性 offers the roles the role screen holds; the team answer
   // carries no role documents, so they are read once from GET /api/role. A panel
   // already drawn gets them when the answer comes (the first frame is quick).
-  API.list('role').then((res) => {
+  later.push(API.list('role').then((res) => {
     if (!res.ok) return;
     const list = API.answer(res) || {};
     ROLES = (list.items || []).map((it) => {
@@ -1776,7 +1780,7 @@
       return { name: it.name || '', title: doc.title || '' };
     }).filter((x) => x.name);
     if ($('.panel.team-p')) render();
-  }).catch(() => {});
+  }).catch(() => {}));
   // The roles and profiles a member's 属性 offers are read after the list: the
   // page itself carries only the definitions, so a row opens without waiting
   // for every project's roles and profiles (r-5b96, Enter lag).
@@ -1788,22 +1792,24 @@
       });
       if ($('.panel.team-p')) render();
     }).catch(() => {});
-    fill('roles', ROLES_BY, (item) => {
+    later.push(fill('roles', ROLES_BY, (item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
       const name = item.name || '';
       return name ? { name, title: ((places[eff] || {}).doc || {}).title || '' } : null;
-    });
-    fill('profiles', PROFILES_BY, (item) => item.name || null);
+    }));
+    later.push(fill('profiles', PROFILES_BY, (item) => item.name || null));
   }
   // Every definition is checked once at open, so the figure's problems and the
   // node badges are the server's own reading of the saved file, and the
   // agreement's saved problems are the baseline its save is held to
   // (spec-teams C2, X3).
   const first = [...recs.values()];
-  Promise.all(first.flatMap((r) => [checkTeam(r), checkAgree(r)])).then(() => {
+  const checks = first.flatMap((r) => [checkTeam(r), checkAgree(r)]);
+  Promise.all(checks).then(() => {
     // A rule the address names opens with the cursor in its body, once the
     // panels the first checks redrew have settled (spec-teams 2, spec-roles
     // 1.2.4, 監査 R12).
     jumpWantRule();
   });
+  Promise.allSettled([...later, ...checks]).then(() => { window.hergyPage.settled = true; });
 })();
