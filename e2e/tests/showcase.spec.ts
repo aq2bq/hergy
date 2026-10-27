@@ -98,14 +98,6 @@ async function stop(app: App): Promise<void> {
   rmSync(app.work, { recursive: true, force: true });
 }
 
-// knownCSP is the one console error the screens carry and this walk does not
-// fix: n-19e4 — internal/web/static/teams-v2.js:547 writes the 「＋ ワーカー」
-// button with a style attribute, and the serve's Content-Security-Policy
-// (internal/web/server.go) refuses it. The walk opens no topology point, so it
-// does not stand today; naming it here keeps the day it does from reading as a
-// new break. Fixing n-19e4 takes this line away.
-const knownCSP = 'Refused to apply inline style';
-
 // listen is what the page wrote in red: a console error and an uncaught
 // exception both fail the walk at its end (the protocol's own console events,
 // as fixtures.ts reads them).
@@ -145,10 +137,10 @@ const test = base.extend<{ scene: Scene; mock: string; built: boolean; app: App 
     const said = await listen(page);
     await use(app);
     try {
-      expect(
-        said.filter((one) => !one.includes(knownCSP)),
-        'the screens wrote to the console',
-      ).toEqual([]);
+      // n-19e4 was the one console error this walk let stand (a style attribute
+      // the topology tab wrote). The tab is drawn by Preact now and writes no
+      // inline style, so the page is held to no error at all.
+      expect(said, 'the screens wrote to the console').toEqual([]);
     } finally {
       await stop(app);
     }
