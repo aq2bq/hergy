@@ -9,11 +9,10 @@
 // writes go.
 //
 // The part draws the inside of two elements the screen made: `.pmain`'s `.pedit`
-// (the edit) and `.pmain`'s `.yprev` (the preview), plus the one `.vcount` the
-// screen's foot leaves empty. It draws them with Preact's render and writes no
-// markup (webui-preact-design 5 章 1). The foot's other words — the places the
-// document changed, whether 保存 can be pressed, the rename hint's box — stay
-// the bridge's, as they were, until the two screens are modules.
+// (the edit) and `.pmain`'s `.yprev` (the preview), and the screen's foot draws
+// its own words — the places the document changed, whether 保存 can be pressed,
+// the rename hint's box. It draws everything with Preact's render and writes no
+// markup (webui-preact-design 5 章 1).
 //
 // The presses on those elements come from the screen that owns the view: it
 // hands the view to mount below, which listens once and reads the `data-act`
@@ -22,15 +21,13 @@
 // panel's head and foot are the screen's, and the address the open rules live in
 // is the screen's too.
 //
-// While the screens are still classic scripts, they hand the view to
-// window.hergyRuleDoc.mount and read the same names they always did: body (the
-// skeleton a panel's .pmain starts from), mark (draw one written panel), state
-// (the open rules, the confirmations, the field the caret is in), and the few
-// words a screen draws inside its own strings (badge, counts, vmItem, sevChip).
+// The screens are modules now: they render `RuleDoc` themselves and hand the
+// view to mount once, so a press inside a panel is handled once. `state` holds
+// what the screens share with the part (the open rules, the confirmations, the
+// field the caret is in).
 import { html, render as draw, signal, useLayoutEffect, useRef } from '../vendor/preact.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const num = (n) => Number(n || 0).toLocaleString('ja-JP');
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -148,21 +145,8 @@ let root = null;
 const rowOf = (panel) => (panel && host.row ? host.row(panel) : null);
 
 // ---- the shape of a problem, as the mock draws it -------------------
-// The string forms are what a classic screen puts inside its own markup; the
-// components are the same words for the part's own drawing. They read the same
-// five fields, and the string forms go when the last screen is a module.
-const sevChip = (sev) => `<span class="sev ${sev === 'err' ? 'err' : 'warn'}">${sev === 'err' ? '問題' : '警告'}</span>`;
-const vmItem = (m) => `<li>${sevChip(m.sev)}<span>${esc(m.msg)}</span></li>`;
-const counts = (list) => {
-  const e = list.filter((m) => m.sev === 'err').length, w = list.length - e;
-  return (e ? `<span class="sev err">問題 ${e}</span>` : '') + (w ? `<span class="sev warn">警告 ${w}</span>` : '');
-};
-const badge = (list) => {
-  const e = list.filter((m) => m.sev === 'err').length;
-  return e ? `<span class="sev err">問題 ${e}</span>` : list.length ? `<span class="sev warn">警告 ${list.length}</span>` : '';
-};
-const outNote = (n) => (n ? `<span class="outn">オフ ${n}</span>` : '');
-
+// The screens draw a problem's chip, a list of them, and the オフ count with
+// these; each reads the same five fields the strings did.
 function Sev({ sev }) {
   return html`<span class=${'sev ' + (sev === 'err' ? 'err' : 'warn')}>${sev === 'err' ? '問題' : '警告'}</span>`;
 }
@@ -189,7 +173,6 @@ function OutNote({ n }) {
 // for — and never one inside another.
 const ARROW_RE = /([A-Za-z][\w-]*|人間)\s*(→|⇄)\s*([A-Za-z][\w-]*|人間)/g;
 const MODEL_RE = /\b(claude|codex|opencode|gemini|opus|sonnet|haiku|fable|gpt-[\w.]+|deepseek[\w.-]*|qwen[\w.-]*)\b/gi;
-const arrowsOf = (text) => [...String(text).matchAll(ARROW_RE)].map((m) => ({ a: m[1], op: m[2], b: m[3], s: m[0] }));
 
 // cut splits the pieces that are still plain text by one pattern, and wraps each
 // match. A piece that is already a wrapped node is left alone, so nothing is
@@ -484,41 +467,6 @@ function diffCount(e) {
   return n;
 }
 
-function mark(panel, issues) {
-  const row = rowOf(panel);
-  if (!row) return;
-  const all = issues || row.issues || [];
-  paint($('.pedit', panel), html`<${Edit} row=${row} issues=${all} />`);
-  paint($('.yprev', panel), html`<${Preview} row=${row} issues=${all} />`);
-  if (!row.newRow) paint($('.pf .vcount', panel), html`<${Counts} list=${all} />`);
-  markFoot(panel, row, all);
-}
-
-// markFoot says where the document stands, in the words the screen's own foot
-// holds: the places it changed, whether 保存 can be pressed, and the count of
-// what is wrong. The team screen's shape tab draws that row's foot while a
-// definition is not there yet, and this part leaves it alone (監査 R9).
-function markFoot(panel, row, all) {
-  const foot = $('.pf', panel);
-  if (!foot || row.newRow) return;
-  const e = row.e, s = e && e.saved, n = e ? diffCount(e) : 0;
-  const dirty = $('.dirty', foot);
-  if (dirty) dirty.textContent = s && n ? `${n} か所` : '';
-  const save = $('[data-act=save]', foot);
-  if (save) {
-    const before = new Set(s && row.savedIssues ? row.savedIssues.filter((m) => m.sev === 'err').map((m) => m.msg) : all.filter((m) => m.sev === 'err').map((m) => m.msg));
-    save.disabled = !s ? all.some((m) => m.sev === 'err') : (all.some((m) => m.sev === 'err' && !before.has(m.msg)) || n === 0);
-  }
-}
-
-// refreshPrev draws the preview alone — the part's own way in, kept for the
-// scripts that call it (the caret moving to a line, the scroll of the box).
-function refreshPrev(panel, issues) {
-  const row = rowOf(panel);
-  if (!row) return;
-  paint($('.yprev', panel), html`<${Preview} row=${row} issues=${issues || row.issues || []} />`);
-}
-
 // ---- reordering ------------------------------------------------------
 function moveRule(d, si, ri, dir) {
   const s = d.sections[si], removed = s.rules.splice(ri, 1), x = removed[0];
@@ -761,40 +709,6 @@ const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = 
 // A screen that is a module imports the part rather than reading the bridge.
 export {
   attach as mount, Counts, Badge, Vm, Sev, OutNote,
-  S as state, rkey, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
-  outNote, outCount, lvlMark, nextKey, observeKeys, esc, clone, num, goRule,
-};
-
-// body is the skeleton a panel's .pmain starts from: the two elements the part
-// draws into, and nothing else — the part puts their insides in on the first
-// mark, so no markup a person could type in is ever written here twice
-// (webui-preact-design 5 章 1).
-function body() {
-  return '<div class="pedit"></div><aside class="yprev" aria-label="Markdown"></aside>';
-}
-
-// ---- the classic screens' way in (4 章, until the last of them is moved) ----
-window.hergyRuleDoc = {
-  mount: attach,
-  body,
-  mark,
-  refreshPrev,
-  rerender,
-  goRule,
-  state: S,
-  rkey,
-  rulesOf,
-  findRule,
-  fromJSON,
-  toDoc,
-  diffCount,
-  inP,
-  outNote,
-  outCount,
-  lvlMark,
-  // The few words a screen draws too: the shape of a problem, the count of a
-  // list of them, and the chip a row carries.
-  sevChip, vmItem, counts, badge, esc, clone, num, arrowsOf,
-  nextKey,
-  observeKeys,
+  S as state, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
+  outCount, nextKey, observeKeys, clone, goRule,
 };

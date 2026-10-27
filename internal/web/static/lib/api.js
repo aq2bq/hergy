@@ -6,8 +6,7 @@
 // the refusal a write can meet. A screen keeps its own look and draws a refusal
 // as its own state — nothing here writes the page (webui-preact-design 5 章 1).
 //
-// The classic screens still read this through window.hergyAPI, which the file
-// also writes while they are being moved (4 章). Their `call` answers
+// Every screen reads the server through this file. `call` answers
 // {ok, status, json, text}; the module's own `call` throws Refusal instead, so a
 // screen can hold the refusal as a resource's error and draw it (5 章 2・3).
 // The page carries this run's token wherever it writes; the activity screen
@@ -211,48 +210,3 @@ export function checkAnswer(a) {
     size: json.size || 0, limit: json.limit || 0,
   };
 }
-
-// ---- the classic screens' way in (4 章, until the last screen is moved) ----
-// A screen still written as a classic script reads window.hergyAPI. It gets the
-// old shape: a call that answers {ok, status, json, text} instead of throwing,
-// and the helpers that write the page for it (refusal), which no module uses.
-window.hergyAPI = {
-  token,
-  $,
-  $$,
-  call: raw,
-  profileModel,
-  roleModel,
-  teamModel,
-  list: (kind) => raw('GET', urls.list(kind)),
-  get: (kind, name, place, project) => raw('GET', urls.get(kind, name, place, project)),
-  check: (kind, payload) => raw('POST', `/api/${kind}/check`, payload),
-  save: (kind, name, payload) => raw('PUT', `/api/${kind}/${enc(name)}`, payload),
-  del: (kind, name, place, hash, agreementHash, project) => raw('DELETE', urls.del(kind, name, place, hash, agreementHash, project)),
-  delivery: () => raw('GET', '/api/delivery'),
-  deliveryCount: () => raw('GET', '/api/delivery/count'),
-  deliver: (members) => raw('POST', '/api/delivery', { members }),
-  saved,
-  // after waits ms and calls fn, forgetting an earlier wait on the same box.
-  after: (box, ms, fn) => {
-    clearTimeout(box._apiTimer);
-    box._apiTimer = setTimeout(fn, ms);
-  },
-  // refusal puts the server's own sentence beside a box's acts, the way every
-  // screen shows one. The screen builds no sentence of its own (spec-boundary 3).
-  refusal: (box, text) => {
-    $$('.refusal', box).forEach((el) => el.remove());
-    const span = document.createElement('span');
-    span.className = 'sev err refusal';
-    span.textContent = text;
-    const acts = $('.acts', box);
-    if (acts) acts.parentNode.insertBefore(span, acts); else box.appendChild(span);
-  },
-  problemText,
-  // ---- reading an answer (spec-boundary 5) ----------------------------
-  // A save, a check and a refusal answer under /api/, and the fields they carry
-  // are read here, once, so no screen digs into an answer itself.
-  answer: (a) => (a && a.json) || {},
-  problems: (a) => ((a && a.json && a.json.problems) || []),
-  checkAnswer,
-};
