@@ -829,3 +829,90 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		}
 	})
 }
+
+// TestROLES_F8_ALayerWithoutRolesGetsOne: a layer that is there but holds no
+// roles/ yet gets one on the first save, whether the save adds a role, copies one
+// to the shared place or writes the YAML tab's text; a layer that is not there is
+// still refused with the sentence that names it (n-86c7, d-4cba).
+func TestROLES_F8_ALayerWithoutRolesGetsOne(t *testing.T) {
+	// noRoles answers a fixture whose one layer has lost its roles/.
+	noRoles := func(t *testing.T, place string) *fixture {
+		t.Helper()
+		f := ruFixtureRoles(t)
+		if err := os.RemoveAll(filepath.Dir(ruRolePath(f, place, "x"))); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+
+	t.Run("a role added", func(t *testing.T) {
+		for _, place := range []string{catalog.PlaceProject, catalog.PlaceGlobal} {
+			f := noRoles(t, place)
+			server := f.server(t)
+			draft := r2NewRole("ra-new")
+			draft.Sections[0].Rules[0].Text = "roles/ の無い層に足したロールの規則。"
+			resp, body := f.api(t, server, http.MethodPut, "/api/role/ra-new", map[string]any{
+				"place": place, "hash": "", "doc": draft,
+			})
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s: the save answered %d: %s", place, resp.StatusCode, body)
+			}
+			if got := readFile(t, ruRolePath(f, place, "ra-new")); !strings.Contains(got, "roles/ の無い層に足したロールの規則。") {
+				t.Errorf("%s: the added file does not hold the rule:\n%s", place, got)
+			}
+		}
+	})
+
+	t.Run("copied to the shared place", func(t *testing.T) {
+		f := noRoles(t, catalog.PlaceGlobal)
+		server := f.server(t)
+		src := ruRolePath(f, catalog.PlaceProject, "builder")
+		before := readFile(t, src)
+		draft, _ := ruLoadDraft(t, src)
+		resp, body := f.api(t, server, http.MethodPut, "/api/role/builder", map[string]any{
+			"place": catalog.PlaceGlobal, "hash": "",
+			"base": map[string]any{"place": catalog.PlaceProject, "name": "builder"}, "doc": draft,
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("the save answered %d: %s", resp.StatusCode, body)
+		}
+		if got := readFile(t, ruRolePath(f, catalog.PlaceGlobal, "builder")); got != before {
+			t.Errorf("the copy does not keep the original's lines:\n%s", got)
+		}
+	})
+
+	t.Run("the YAML tab's text", func(t *testing.T) {
+		f := noRoles(t, catalog.PlaceGlobal)
+		server := f.server(t)
+		text := readFile(t, ruRolePath(f, catalog.PlaceProject, "builder"))
+		resp, body := f.api(t, server, http.MethodPut, "/api/role/builder", map[string]any{
+			"place": catalog.PlaceGlobal, "name": "builder", "hash": source.Hash(""), "text": text,
+		})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("the save answered %d: %s", resp.StatusCode, body)
+		}
+		if got := readFile(t, ruRolePath(f, catalog.PlaceGlobal, "builder")); got != text {
+			t.Errorf("the save wrote %q, want the typed text", got)
+		}
+	})
+
+	t.Run("a layer that is not there", func(t *testing.T) {
+		f := ruFixtureRoles(t)
+		server := f.server(t)
+		if err := os.RemoveAll(f.global); err != nil {
+			t.Fatal(err)
+		}
+		resp, body := f.api(t, server, http.MethodPut, "/api/role/ra-new", map[string]any{
+			"place": catalog.PlaceGlobal, "hash": "", "doc": r2NewRole("ra-new"),
+		})
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("the save answered %d, want 422: %s", resp.StatusCode, body)
+		}
+		if !strings.Contains(body, "roles/") {
+			t.Errorf("the refusal does not name roles/: %s", body)
+		}
+		if _, err := os.Stat(f.global); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the refused save made the layer: %v", err)
+		}
+	})
+}

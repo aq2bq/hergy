@@ -272,7 +272,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if err := json.Unmarshal(in.Doc, &doc); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	if err := s.r2LayerDir(in.Place); err != nil {
+	if err := s.r2RolesDir(in.Place); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	target := s.cat.RolePath(in.Place, doc.Name)
@@ -360,7 +360,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 // not have has appeared (spec-roles X3).
 func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
-	if err := s.r2LayerDir(in.Place); err != nil {
+	if err := s.r2RolesDir(in.Place); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	path := s.cat.RolePath(in.Place, in.Name)

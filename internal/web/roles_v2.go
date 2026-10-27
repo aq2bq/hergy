@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -62,15 +63,17 @@ func emitNewRole(doc *rules.Document) ([]byte, error) {
 	return []byte(text), nil
 }
 
-// r2LayerDir stops a write that would make a layer that is not there: a project
-// whose .hergy is gone has no place to put a role document. The place is the
-// screen's word; the catalog says which directory it is.
-func (s *Server) r2LayerDir(place string) error {
+// r2RolesDir makes the layer's roles/ ready for a write, and stops a write that
+// would make a layer that is not there: a project whose .hergy is gone has no
+// place to put a role document. A layer that is there but holds no role yet
+// gets its roles/ here (n-86c7, d-4cba). The place is the screen's word; the
+// catalog says which directory it is.
+func (s *Server) r2RolesDir(place string) error {
 	dir := s.cat.LayerDir(catalog.Layer(place))
 	if _, err := os.Stat(dir); err != nil {
 		return i18n.Errorf("error.roles_no_layer", s.cat.Display(dir))
 	}
-	return nil
+	return os.MkdirAll(filepath.Join(dir, "roles"), 0o755)
 }
 
 // r2WriteError turns a write's failure into the refusal a person reads.
