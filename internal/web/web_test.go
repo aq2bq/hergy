@@ -213,7 +213,7 @@ func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
 		`<span class="tab">一覧</span>`,
 		`<main class="list" id="list">`,
 		`/static/activity-v2.css`,
-		`/static/activity-v2.js`,
+		`<script type="module" src="/static/activity/main.js"></script>`,
 		`<script id="activity-words" type="application/json">`,
 	} {
 		if !strings.Contains(activity, want) {

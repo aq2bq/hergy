@@ -1,0 +1,11 @@
+{
+  "name": "hergy-webvendor",
+  "private": true,
+  "type": "module",
+  "comment": "The three packages the WebUI's modules are built on, pinned to exact versions (no ^ or ~): preact, htm, @preact/signals. static/vendor/preact.js is made from these (go run ./tools/check vendor). Preact 11 is beta, so the 10 line is the one pinned here.",
+  "dependencies": {
+    "@preact/signals": "2.11.4",
+    "htm": "3.1.1",
+    "preact": "10.29.8"
+  }
+}

@@ -46,6 +46,9 @@ type runner struct {
 	stdout io.Writer
 	// cachedTests keeps go test's cache in the test gate (the diff run).
 	cachedTests bool
+	// write is whether vendor, the one gate that writes, may write its file
+	// (go run ./tools/check vendor -write).
+	write bool
 }
 
 func newRunner() (*runner, error) {

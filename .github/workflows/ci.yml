@@ -31,7 +31,7 @@ jobs:
             e2e/node_modules
             e2e/.bin/bun-cache
             e2e/.bin/browsers
-          key: gates-${{ runner.os }}-${{ hashFiles('go.sum', 'e2e/bun.lock', 'tools/check/*.go') }}
+          key: gates-${{ runner.os }}-${{ hashFiles('go.sum', 'e2e/bun.lock', 'tools/webvendor/bun.lock', 'tools/check/*.go') }}
 
       # The one command every gate runs through, locally and here. The gates
       # and the tool versions are in tools/check; go run ./tools/check -h lists

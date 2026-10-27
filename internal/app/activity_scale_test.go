@@ -359,6 +359,30 @@ func activityCode(script string) string {
 	return strings.Join(lines, "\n")
 }
 
+// activityScript is the activity screen's own source: every module the screen is
+// made of, under internal/web/static/activity. Before the rewrite it was the one
+// classic script static/activity-v2.js (webui-preact-design 6 章).
+func activityScript(t *testing.T, cwd string) string {
+	t.Helper()
+	dir := filepath.Join(cwd, "..", "web", "static", "activity")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read the activity screen's files: %v", err)
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".js") {
+			continue
+		}
+		b.WriteString(readFile(t, filepath.Join(dir, e.Name())))
+		b.WriteString("\n")
+	}
+	if b.Len() == 0 {
+		t.Fatalf("the activity screen has no script under %s", dir)
+	}
+	return b.String()
+}
+
 // serveAt is the run's own moment: the serve reads its clock from it, so a walk
 // over the fixture is the same wherever and whenever it happens (r-f647). The
 // caller puts the clock back when the test is done.
@@ -522,10 +546,12 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 			core.Questions[1].Ago, core.Questions[2].Ago)
 	}
 
-	// V1: none of these words is the screen's own. The script the browser runs
-	// makes no length, no moment and no 何分前 of its own — the server says every
-	// one of them (spec-activity 3).
-	script := activityCode(readFile(t, filepath.Join(cwd, "..", "web", "static", "activity-v2.js")))
+	// V1: none of these words is the screen's own. The scripts the browser runs
+	// make no length, no moment and no 何分前 of their own — the server says every
+	// one of them (spec-activity 3). The screen is a set of modules since the
+	// Preact rewrite (webui-preact-design 6 章), so every file under
+	// static/activity/ is read.
+	script := activityCode(activityScript(t, cwd))
 	for _, word := range []string{"時間", "分", "秒", "から", "以上", "より前", "日", "時"} {
 		if strings.Contains(script, word) {
 			t.Errorf("the screen's own script says %q, which the server is the one to say", word)

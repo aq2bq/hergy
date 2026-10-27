@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -61,10 +62,16 @@ func gatesFor(paths []string) []gate {
 		case strings.HasSuffix(p, "_test.go"), strings.HasPrefix(p, "tools/check/"):
 			// Neither a test nor the gates' own code goes into what the walks run.
 			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
+		case strings.HasPrefix(p, "tools/webvendor/"):
+			// The packages the WebUI's one module is made from.
+			add("vendor", "deadcode")
 		case strings.HasSuffix(p, ".go"):
 			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode", "e2e")
 		case strings.HasPrefix(p, e2eDir+"/"):
 			add("reading", "e2e")
+		case filepath.ToSlash(p) == filepath.ToSlash(vendorFile):
+			// The one module the screens import the packages through.
+			add("vendor", "e2e")
 		case strings.HasPrefix(p, "internal/"):
 			// The WebUI's pages, scripts and styles are embedded into the binary.
 			add("e2e")

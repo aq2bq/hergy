@@ -4,6 +4,10 @@ HANDOFF.md
 TESTING.md
 .local
 .bin/
+
+# tools/webvendor holds the packages static/vendor/preact.js is built from: the
+# lock is committed, node_modules is not (webui-preact-design 3 章).
+tools/webvendor/node_modules/
 .hergy/
 
 # testdata holds project roots of its own: their .hergy/ is part of the sample,
