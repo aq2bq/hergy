@@ -13,22 +13,11 @@
 //   words.abort();                     // 読みかけを取り消す（画面を離れるとき）
 import { signal } from '../vendor/preact.js';
 
-// getJSON reads one address as JSON. A non-OK answer is a failure and is thrown,
-// so a resource can hold it as its error: what to draw then is the screen's
-// question, not this one's.
-export async function getJSON(url, { signal: stop } = {}) {
-  const res = await fetch(url, {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-    signal: stop,
-  });
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  return await res.json();
-}
-
 // resource is one reading whose answer is state. load is called with the
 // request's AbortSignal and may take arguments (run passes them on), so a screen
-// reads one team through the same shape as the whole board.
+// reads one team through the same shape as the whole board. The reading itself
+// goes through lib/api.js, which hands back the answer or throws a refusal
+// (lib/api.js); this file only holds it as state.
 //
 // Only the newest request's answer is kept: run aborts the one before it, and an
 // answer that came after its own abort is dropped. loading is true while the

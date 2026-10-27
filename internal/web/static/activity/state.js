@@ -6,7 +6,8 @@
 // で、状態の判定はサーバの 1 つをそのまま使う。長さ・時刻の言い方もサーバが
 // 作る（V1）。この画面は文を 1 つも作らない。
 import { signal, computed } from '../vendor/preact.js';
-import { resource, getJSON } from '../lib/resource.js';
+import { resource } from '../lib/resource.js';
+import { read } from '../lib/api.js';
 
 const A = window.hergyHQ;
 export const POLL = 10000;
@@ -93,14 +94,14 @@ async function readBoard(stop) {
   // The figures' turns are the team definitions' own, so the groups are read
   // with the activity (the other screens read them when their search opens).
   if (A && A.readGroups) await A.readGroups();
-  const answer = await getJSON('/api/activity', { signal: stop });
+  const answer = await read('/api/activity', { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: '' };
   window.hergyNav && window.hergyNav.setActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
 
   // The headquarters reading is the same one the list's 動き column uses, so a
   // team's state cannot read two ways (api.md 3.5).
-  const running = await getJSON('/api/hq/running', { signal: stop }).catch(() => null);
+  const running = await read('/api/hq/running', { signal: stop }).catch(() => null);
   if (running && A) A.state.running = running;
 
   // A sheet that could not be read keeps the one the screen already had: the
@@ -110,7 +111,7 @@ async function readBoard(stop) {
   const docs = new Map(before ? before.docs : []);
   const wanted = items.map((t) => t.name);
   await Promise.all(items.map(async (t) => {
-    const one = await getJSON('/api/activity/' + enc(t.name), { signal: stop }).catch(() => null);
+    const one = await read('/api/activity/' + enc(t.name), { signal: stop }).catch(() => null);
     if (one && one.doc) docs.set(t.name, one.doc);
   }));
   for (const name of Array.from(docs.keys())) if (wanted.indexOf(name) < 0) docs.delete(name);
