@@ -137,7 +137,7 @@ const lvlMark = (lv) => '#'.repeat(lv && lv > 2 ? lv : 2);
 // it, so a change only the part knows about is drawn without waiting for the
 // screen to draw the panel again. A change a screen makes is drawn when the
 // screen draws the panel (which is what those screens do after a change).
-const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {} };
+const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {}, rename: {} };
 const rev = signal(0);
 const touched = () => { rev.value += 1; };
 
@@ -258,7 +258,7 @@ function Edit({ row, issues, nameError }) {
       ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>名前</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
       <div class="dhf"><label for=${'t' + key}>タイトル</label><${Field} id=${'t' + key} class=${'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value=${d.title} /></div>
       <div class="dhf"><label for=${'v' + key}>revision</label><${Field} id=${'v' + key} class=${'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value=${d.revision} /></div>
-      <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} defaultChecked=${true} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
+      <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} checked=${S.rename[key] !== false} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
     </div>
     <ul class="vm dhvm"><${Vm} list=${doc} /></ul>
     ${d.sections.map((sec, si) => secHTML(row, si, issues))}
@@ -639,6 +639,16 @@ function attach(r, h) {
     if (b && handleClick(b)) e.stopPropagation();
   });
   root.addEventListener('input', (e) => { if (handleInput(e.target)) { /* handled */ } });
+  // The box that says whether a rename carries into the teams that read the role
+  // is the part's state: the screen reads it when it saves, not from the box
+  // (5 章 2).
+  root.addEventListener('change', (e) => {
+    const cb = e.target.closest && e.target.closest('.rename input[type=checkbox]');
+    if (!cb) return;
+    const panel = cb.closest('.panel'), row = panel && rowOf(panel);
+    if (!row) return;
+    S.rename[`${row.uid}${row.l}`] = cb.checked;
+  });
   root.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.rsum')) { e.preventDefault(); e.target.click(); }
   });

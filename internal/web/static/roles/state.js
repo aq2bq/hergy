@@ -10,6 +10,7 @@
 // ので、マイクロタスク待ちにすると要素がまだ無い。rev は「変わった」番号で、
 // 画面の木がこれを読んでいる。
 import { signal } from '../vendor/preact.js';
+import { resource } from '../lib/resource.js';
 import { takeDraft, setCount } from '../lib/nav.js';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
@@ -156,7 +157,25 @@ export const pathOfRow = (r, l, d) => (r.paths && r.paths[l]) || pathOf(l, d);
 
 // ---- server checks ---------------------------------------------------
 export const checks = {};
-const reqs = {};
+// checkers are one resource per document place: a check is a reading like any
+// other, so the newest request is the one whose answer is kept, and the one
+// before it is dropped (5 章 3). The screen keeps no numbering of its own.
+const checkers = new Map();
+function checkerFor(k) {
+  let one = checkers.get(k);
+  if (one) return one;
+  one = resource(async (signal, payload) => {
+    try {
+      return await apiCheck('role', payload, { signal });
+    } catch (err) {
+      // A refusal about the text still carries what is wrong with it.
+      if (err && err.json) return { json: err.json };
+      throw err;
+    }
+  });
+  checkers.set(k, one);
+  return one;
+}
 const timers = {};
 const keyOf = (r, l) => r.uid + l;
 const ruleKeyAt = (d, si, ri) => { const s = d.sections[si]; if (!s) return 0; const x = s.rules[ri]; return x ? x._k : 0; };
@@ -187,18 +206,13 @@ export async function askCheck(r, l, cb) {
   const e = r[l];
   if (!e) return;
   const k = keyOf(r, l);
-  const id = (reqs[k] || 0) + 1;
-  reqs[k] = id;
-  let answer;
-  try {
-    answer = await apiCheck('role', { place: l, original: e.saved ? e.saved.name : null, project: r.group && r.group !== 'global' ? r.group : undefined, doc: toDoc(e.draft, e.saved || e.base) });
-  } catch (err) {
-    // A refusal about the text still carries what is wrong with it.
-    const json = (err && err.json) || null;
-    if (reqs[k] !== id || !json) return;
-    answer = { json };
-  }
-  if (reqs[k] !== id) return;
+  // A check that a newer one has replaced answers nothing (the resource dropped
+  // it), so only the newest reading reaches the panel.
+  const answer = await checkerFor(k).run({
+    place: l, original: e.saved ? e.saved.name : null,
+    project: r.group && r.group !== 'global' ? r.group : undefined,
+    doc: toDoc(e.draft, e.saved || e.base),
+  });
   if (!answer || !answer.json) return;
   const c = checkAnswer(answer);
   checks[k] = {
@@ -590,7 +604,9 @@ export function pressYamlRevert(section) {
 export async function doSave(r, l) {
   const e = r[l];
   const key = r.uid + l;
-  const keepRename = (() => { const cb = document.getElementById('rn' + r.uid + l); return cb ? cb.checked : true; })();
+  // Whether the rename carries into the teams that read the role is the rule
+  // document's state, not a box the screen reads back (5 章 2).
+  const keepRename = ruleState.rename[key] !== false;
   const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
   if (r.group && r.group !== 'global') payload.project = r.group;
   if (e.basePlace) payload.base = e.basePlace;
