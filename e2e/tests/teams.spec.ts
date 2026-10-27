@@ -460,11 +460,13 @@ test('TEAMS-C3 ＋メンバー waits for the roles a new member is named after',
   // space's メンバーを足す cannot be pressed; once it has, the new member is named
   // after the first role and holds it. The list is held back here, so the
   // screen does not settle and the page is asked directly, without ready().
+  // The first checks are held with it: each answer draws the panel again, and a
+  // canvas measured just before one is no longer on the page.
   const panel = shape('core');
   const css = '.tdef[data-name="core"] .panel.team-p';
   let release = () => {};
   const held = new Promise<void>((done) => { release = done; });
-  await page.route(/\/api\/(role|hq\/roles)(\?|$)/, async (route) => { await held; await route.continue(); });
+  await page.route(/\/api\/(role|hq\/roles|team\/check)(\?|$)/, async (route) => { await held; await route.continue(); });
   await page.goto(`${app.base}/teams?open=core`);
   await page.waitForFunction(`!!(${panel}) && !!${panel}.querySelector('.cv-canvas svg')`);
   await page.waitForFunction(`${panel}.querySelector('[data-cv-act=m-add]').disabled===true`);
