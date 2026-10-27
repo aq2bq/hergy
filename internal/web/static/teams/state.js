@@ -488,13 +488,8 @@ export const vlistParts = (r) => {
 };
 
 // ---- 検査と保存 --------------------------------------------------------
-// inFlight is how many checks have not answered yet. window.hergyPage.pending
-// lets the walks wait for the screen to be quiet before they act (TEAMS-C2).
-let inFlight = 0;
-export const pending = () => inFlight;
 async function checkOf(payload) {
-  inFlight++;
-  try { return await apiCall('POST', '/api/team/check', payload); } finally { inFlight--; }
+  return apiCall('POST', '/api/team/check', payload);
 }
 export async function checkTeam(r) {
   const id = ++r.req;

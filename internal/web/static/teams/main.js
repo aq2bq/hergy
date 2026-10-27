@@ -7,7 +7,7 @@ import { html, render as draw } from '../vendor/preact.js';
 import { insertTab } from '../lib/yamltab.js';
 import { rulesOf, findRule, clone, mount as mountRules, state as ruleState } from '../lib/ruledoc.js';
 import {
-  view, tabsEl, state, render, onDraw, boot, take, tellDirty, pending, dkey, byKey, byName,
+  view, tabsEl, state, render, onDraw, boot, take, tellDirty, dkey, byKey, byName,
   addDraft, dropDraft, checkTeam, checkAgree, syncTeam, saveTeam, saveAgree, doDelete,
   syncURL, readURL, jumpWantRule, jumpToRule, setStick, other, orderRows, firstIndexOf,
   forgetUndo, canvasUndoFromToast, recs, applyOps, pushOp, debounce, cloneTeam, theName,
@@ -18,11 +18,9 @@ import { mountCanvas, selectPick, canvasReset, fitYboxes } from './canvas.js';
 
 if (view) {
   // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
-  // pending is the checks still out: their answers draw the panel again, so the
-  // walks wait for none before they act (TEAMS-C2). settled turns true once the
-  // reads that follow the first frame have answered (the roles, the HQ's roles
-  // and profiles, the first checks).
-  window.hergyPage = { screen: 'teams', dirty: false, settled: false, get pending() { return pending(); }, take, tellDirty };
+  // settled turns true once the reads that follow the first frame have answered
+  // (the roles, the HQ's roles and profiles, the first checks).
+  window.hergyPage = { screen: 'teams', dirty: false, settled: false, take, tellDirty };
 
   onDraw(() => {
     draw(html`<${Tabs} />`, tabsEl);

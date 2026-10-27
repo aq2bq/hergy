@@ -29,13 +29,10 @@ export const there = (selector: string) => `!!${q(selector)}`;
 // cannot read or press before the page is there, and an answer that comes after
 // the first press draws the screen again under it — the teams screen's roles
 // came after ＋メンバー, took the cursor out of the name and left the new member
-// with no role (TEAMS-C1, main ba91188). A screen that says how many of its
-// answers are still out (window.hergyPage.pending) is waited on until none is:
-// the teams screen's check answers draw the canvas again, and a line the walk
-// had focused just before one was gone (TEAMS-C2).
+// with no role (TEAMS-C1, main ba91188).
 export async function ready(page: Page): Promise<void> {
   const deadline = Date.now() + DEADLINE;
-  const loaded = `document.readyState==='complete'&&!(window.hergyPage&&(window.hergyPage.settled===false||window.hergyPage.pending>0))`;
+  const loaded = `document.readyState==='complete'&&!(window.hergyPage&&window.hergyPage.settled===false)`;
   while (Date.now() < deadline) {
     try {
       if ((await page.evaluate(loaded)) === true) return;
