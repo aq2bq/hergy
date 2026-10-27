@@ -87,11 +87,12 @@ const partOf = (section) => (section ? parts.get(section) : undefined);
 // gutter was last drawn from: the same moment the old part laid it out, when the
 // server's problems came back.
 export function YamlTab(props) {
-  const { section, label, path, badge, file, text, kind, place, name, extra, problems, onProblems, onSaved } = props;
+  const { section, label, path, badge, file, text, kind, place, name, extra, problems, onProblems, onSaved, onState, carried } = props;
   const ta = useRef(null);
   const gutter = useRef(null);
   const timer = useRef(0);
   const alive = useRef(true);
+  const seq = useRef(0);
   const base = useRef(text);
 
   const [now, setNow] = useState({ text, problems: problems || [], baseProblems: problems || [] });
@@ -115,6 +116,15 @@ export function YamlTab(props) {
     setNow((was) => (was.text === value ? was : { ...was, text: value }));
     if (value !== base.current) setSaved(false);
     tellDirty();
+    report();
+  }
+
+  // report says what the part holds to a screen that keeps it as its own state
+  // (a screen that was drawn from a string reads section._base instead).
+  function report() {
+    const el = ta.current;
+    if (!el || !onState) return;
+    onState({ base: base.current, text: el.value, hash: (section && section.dataset.hash) || props.hash || '' });
   }
 
   // layout draws what the server said about the text: the numbered gutter with a
@@ -137,8 +147,12 @@ export function YamlTab(props) {
   async function check() {
     const el = ta.current;
     if (!el) return;
+    const mine = (seq.current += 1);
     const found = await checkText(kind, place, name, el.value, extra);
-    if (!alive.current) return;
+    // Only the newest reading's answer is laid out: the check the mount started
+    // can answer after the one the typing started, and the older text's problems
+    // must not stand over the newer text (5 章 3).
+    if (!alive.current || mine !== seq.current) return;
     layout(found);
   }
 
@@ -163,6 +177,7 @@ export function YamlTab(props) {
       layout(now.problems);
       check();
       setSaved(true);
+      report();
       apiSaved();
     } catch (e) {
       if (!alive.current) return;
@@ -205,6 +220,18 @@ export function YamlTab(props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A text the band carried here is the field's, not the file's: it is put in
+  // once, and the part checks it as if it had been typed (spec-nav 1.5).
+  useEffect(() => {
+    if (carried == null) return;
+    const el = ta.current;
+    if (!el || el.value === carried) return;
+    el.value = carried;
+    autosize(el);
+    layout(now.problems);
+    check();
+  }, [carried]);
 
   // The gutter follows the text when it is laid out again, as it did then.
   useEffect(() => {
