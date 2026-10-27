@@ -29,14 +29,12 @@
 // words a screen draws inside its own strings (badge, counts, vmItem, sevChip).
 import { html, render as draw, signal, useLayoutEffect, useRef } from '../vendor/preact.js';
 
-const PLACES = ['project', 'global'];
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const num = (n) => Number(n || 0).toLocaleString('ja-JP');
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-const other = (l) => (l === 'project' ? 'global' : 'project');
 let kseq = 0;
 
 // ---- the document as the screen holds it -----------------------------
