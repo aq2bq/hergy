@@ -12,14 +12,13 @@
 import { html, useLayoutEffect, useRef } from '../vendor/preact.js';
 import { Counts } from '../lib/ruledoc.js';
 import {
-  state, render, byKey, dkey, memberOf, nodeName, pairKey, narrow,
+  state, render, byKey, dkey, memberOf, nodeName, narrow,
   teamIssues, rolesFor, profilesFor, rolesIn, promptsOf, promptBlockedOf,
   workerPrompt, canvasAct, canvasTyping, canvasEndTyping, canvasUndo, canvasToast, undoRow, openAgree,
   onCanvasReset,
 } from './state.js';
 
 const NAME = /^[a-z][a-z0-9_-]{0,31}$/;
-const clone = (x) => JSON.parse(JSON.stringify(x));
 const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 
 // ---- the part's own state ---------------------------------------------
@@ -197,7 +196,7 @@ function Figure({ r }) {
 
 // Opt is one choice of a select: the option carries the selected attribute a
 // person (and the walks) read, and the property the browser picks by, so the two
-// say the same thing (the classic markup wrote selected="").
+// say the same thing (the markup hergy wrote before carried selected="").
 function Opt({ v, on, children }) {
   return html`<option value=${v} selected=${on} ref=${(el) => { if (el) el.toggleAttribute('selected', !!on); }}>${children}</option>`;
 }
@@ -645,7 +644,7 @@ export function Canvas({ r, vlist }) {
 // ---- 操作 ------------------------------------------------------------
 // endField takes the focus away from the field the person was typing in: a press
 // on the figure is a press on a point, and the Delete that follows is meant for
-// the point. (The classic panel drew the field again on that press, which did
+// the point. (hergy drew the panel again on that press before, which did
 // the same thing.)
 function endField() {
   const act = document.activeElement;
@@ -725,10 +724,8 @@ function onPointerDown(e) {
   const svg = e.target.closest && e.target.closest('.cv-canvas svg');
   if (!svg) return;
   const r = rowOf(svg); if (!r) return;
-  const t = r.team.draft;
   // A press on the figure ends what the field held: the person has moved on to
-  // a point, and the next Delete is meant for the point, not for the text. (The
-  // classic panel drew the field again on that press, which did the same.)
+  // a point, and the next Delete is meant for the point, not for the text.
   endField();
   if (e.target.closest('[data-cv-act]')) return;
   const h = e.target.closest('[data-cv-h]');

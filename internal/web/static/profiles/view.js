@@ -8,7 +8,7 @@ import { html, useEffect, useRef } from '../vendor/preact.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED, pathFor,
+  focusAsk, scrollAsk, GROUPED,
 } from './state.js';
 
 // chipsURL is where a filter's link points: the same kind and search the state

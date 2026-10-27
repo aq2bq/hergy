@@ -26,7 +26,7 @@
 // view to mount once, so a press inside a panel is handled once. `state` holds
 // what the screens share with the part (the open rules, the confirmations, the
 // field the caret is in).
-import { html, render as draw, signal, useLayoutEffect, useRef } from '../vendor/preact.js';
+import { html, signal, useLayoutEffect, useRef } from '../vendor/preact.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -132,7 +132,7 @@ const lvlMark = (lv) => '#'.repeat(lv && lv > 2 ? lv : 2);
 // ---- state the part owns --------------------------------------------
 // The screens read and write this object themselves (roles keeps the rules it
 // opened in state.ropen, and reads it back when it writes the address), so it
-// stays one plain object for as long as they are classic scripts. `rev` is the
+// stays one plain object (the screens read and write it themselves). `rev` is the
 // number the part raises when it changes the object itself: the trees below read
 // it, so a change only the part knows about is drawn without waiting for the
 // screen to draw the panel again. A change a screen makes is drawn when the
@@ -229,23 +229,10 @@ function Field({ as: Tag = 'input', value, ...rest }) {
   return html`<${Tag} ...${rest} ref=${el} />`;
 }
 
-// paint draws one piece of a screen's panel for the first time by taking what
-// the screen put there (a skeleton, or nothing) out of the way, and draws it
-// again and again after that on the same element — so the fields a person is in,
-// and the box they scrolled, are the same elements afterwards.
-const painted = new WeakSet();
-function paint(el, vnode) {
-  if (!el) return;
-  if (!painted.has(el)) {
-    el.replaceChildren();
-    painted.add(el);
-  }
-  draw(vnode, el);
-}
 
 // ---- the edit --------------------------------------------------------
 // Edit is the document's fields and rules; Preview is the Markdown beside it.
-// Both read the row the screen holds — the bridge finds that row from the panel
+// Both read the row the screen holds — the part finds that row from the panel
 // element, a screen that is a module hands it in.
 function Edit({ row, issues, nameError }) {
   // Reading the part's own change count subscribes this tree to it (see S).
@@ -617,7 +604,9 @@ function handleInput(t) {
   if (!c.panel || !c.d || !t.dataset.f) return false;
   const v = t.value;
   switch (t.dataset.f) {
-    case 'name': c.d.name = v; { const p = c.panel.querySelector('.path'); if (p) p.textContent = host.path ? host.path(c.row.l, c.d) : p.textContent; } break;
+    // The panel's head draws the path from the draft the press changes, so the
+    // screen is asked to draw again: the part writes no word of the screen's (5 章 1).
+    case 'name': c.d.name = v; if (host.redraw) host.redraw(); break;
     case 'title': c.d.title = v; break;
     case 'revision': c.d.revision = v === '' ? null : +v; break;
     case 'heading': c.d.sections[c.si].heading = v; break;
@@ -728,7 +717,7 @@ const nextKey = () => ++kseq;
 const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = x._k; }); };
 
 // ---- the modules' way in (4 章) ----
-// A screen that is a module imports the part rather than reading the bridge.
+// A screen imports the part's names rather than reading them off a global.
 export {
   attach as mount, Counts, Badge, Vm, Sev, OutNote,
   S as state, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,

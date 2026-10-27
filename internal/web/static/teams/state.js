@@ -12,10 +12,7 @@
 // 作らない（spec-boundary 3）。
 import { signal } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
-import {
-  check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
-  list as apiList, call as apiCall, problemText as apiProblemText,
-} from '../lib/api.js';
+import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
 import {
   fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, goRule,
 } from '../lib/ruledoc.js';
@@ -77,7 +74,6 @@ export const rolesCame = () => { if (rolesIn) return; rolesIn = true; render(); 
 const LIST = DATA.team || { items: [], files: [] };
 
 export const $ = (s, root = document) => root.querySelector(s);
-export const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
 export const nodeName = (x) => (x === 'human' ? '人間' : x);
 const other = (p) => (p === 'project' ? 'global' : 'project');
 export const pairKey = (a, b) => [a, b].sort().join('|');
@@ -136,7 +132,6 @@ export const debounce = (k, fn, ms = 260) => { clearTimeout(debounceTimers[k]); 
 // person is typing), a stable id of its own (spec-teams B2).
 export const dkey = (d) => d.dom + '.' + d.place;
 export const domOf = (name, group) => (GROUPED ? name + '|' + (group || '') : name);
-const groupByKey = (key) => (GROUPS || []).find((g) => groupKeyOf(g) === key) || null;
 
 // ---- サーバとのやり取りの形 ---------------------------------------------
 // A definition that is not there yet carries how it was made: the starter's own

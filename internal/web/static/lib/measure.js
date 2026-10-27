@@ -6,10 +6,9 @@
 //
 // The bar's width is set through the style object, not as a style="…" attribute:
 // the page's CSP does not take an inline attribute, and a DOM set is not one
-// (the classic measure.js says the same).
+
 //
-// It is the one bar the role list and the team list draw; the classic
-// static/measure.js that returned it as a string went with the last screen.
+// It is the one bar the role list and the team list draw.
 import { html } from '../vendor/preact.js';
 
 export const num = (n) => Number(n || 0).toLocaleString('ja-JP');

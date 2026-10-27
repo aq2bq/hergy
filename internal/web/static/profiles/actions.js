@@ -4,7 +4,7 @@
 // ここへ渡す。だから同じ押し込みが 2 回走ることも、部品が自分の DOM を書き換える
 // こともない（webui-preact-design 5 章 1）。
 import {
-  rows, filterKind, query, GROUPED, CURRENT, pathFor, labelOf, classOf, BASE_KINDS,
+  rows, filterKind, query, CURRENT, pathFor, labelOf, classOf, BASE_KINDS,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
   patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL, tellDirty,
 } from './state.js';

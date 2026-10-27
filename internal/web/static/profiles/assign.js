@@ -3,7 +3,7 @@
 // チーム定義ごとの札と、メンバー・ワーカーのプロファイルの選択を描く。押し込みは
 // main.js が actions へ渡す（webui-preact-design 5 章 1）。
 import { html } from '../vendor/preact.js';
-import { assign, assignKind, pickChanged, teamDirty, teamMissing, ISLAND, classOf } from './state.js';
+import { assign, assignKind, pickChanged, teamDirty, teamMissing, ISLAND } from './state.js';
 
 const optionKind = (row) => {
   const group = (row.options || []).find((g) => (g.names || []).includes(row.profile));
