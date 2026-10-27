@@ -60,6 +60,12 @@
   // role screen shows, with the title each document carries. It is read once
   // from GET /api/role; the team answer itself carries no role documents.
   let ROLES = [];
+  // rolesIn turns true once the roles a new member is named after have answered:
+  // until then ＋メンバー and the blank space's メンバーを足す cannot be pressed,
+  // since a member added before them has no role (d-c5fe). A read that fails lets
+  // them be pressed as before.
+  let rolesIn = false;
+  const rolesCame = () => { if (rolesIn) return; rolesIn = true; if ($('.panel.team-p')) render(); };
   // The island is the same list answer GET /api/team gives (spec-boundary 5):
   // the items, and the files the YAML tab can open.
   const LIST = DATA.team || { items: [], files: [] };
@@ -1504,6 +1510,7 @@
     name: (r) => r.name,
     path: (r) => r.teamPath,
     roles: (r) => rolesFor(r),
+    rolesIn: () => rolesIn,
     profiles: (r) => profilesFor(r),
     prompts: (r) => r.prompts || [],
     promptBlocked: (r) => r.promptsReady === false,
@@ -1779,8 +1786,9 @@
       const doc = (places[eff] || {}).doc || {};
       return { name: it.name || '', title: doc.title || '' };
     }).filter((x) => x.name);
+    if (!HQ) rolesIn = true;
     if ($('.panel.team-p')) render();
-  }).catch(() => {}));
+  }).catch(() => {}).finally(() => { if (!HQ) rolesCame(); }));
   // The roles and profiles a member's 属性 offers are read after the list: the
   // page itself carries only the definitions, so a row opens without waiting
   // for every project's roles and profiles (r-5b96, Enter lag).
@@ -1790,13 +1798,14 @@
       (res.json.groups || []).forEach((g) => {
         map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter(Boolean);
       });
+      if (map === ROLES_BY) rolesIn = true;
       if ($('.panel.team-p')) render();
     }).catch(() => {});
     later.push(fill('roles', ROLES_BY, (item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
       const name = item.name || '';
       return name ? { name, title: ((places[eff] || {}).doc || {}).title || '' } : null;
-    }));
+    }).finally(rolesCame));
     later.push(fill('profiles', PROFILES_BY, (item) => item.name || null));
   }
   // Every definition is checked once at open, so the figure's problems and the

@@ -455,6 +455,35 @@ test('TEAMS-C1 the canvas adds a member, removes it, and adds a worker', async (
   await readTo<string>(page, `${panel}.querySelector('.cv-side .cv-t').textContent`, 'the picked line reads').toContain('analyst');
 });
 
+test('TEAMS-C3 ＋メンバー waits for the roles a new member is named after', async ({ page, app }) => {
+  // ac-ad8c, d-c5fe: until the role list has come, ＋メンバー and the blank
+  // space's メンバーを足す cannot be pressed; once it has, the new member is named
+  // after the first role and holds it. The list is held back here, so the
+  // screen does not settle and the page is asked directly, without ready().
+  const panel = shape('core');
+  const css = '.tdef[data-name="core"] .panel.team-p';
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  await page.route(/\/api\/(role|hq\/roles)(\?|$)/, async (route) => { await held; await route.continue(); });
+  await page.goto(`${app.base}/teams?open=core`);
+  await page.waitForFunction(`!!(${panel}) && !!${panel}.querySelector('.cv-canvas svg')`);
+  await page.waitForFunction(`${panel}.querySelector('[data-cv-act=m-add]').disabled===true`);
+  const box = await page.locator(`${css} .cv-canvas`).boundingBox();
+  expect(box, 'the canvas has no box').not.toBeNull();
+  await page.mouse.dblclick(box!.x + 10, box!.y + 10);
+  await page.waitForFunction(`!!${panel}.querySelector('.cv-menu [data-cv-act=menu-m]') && ${panel}.querySelector('.cv-menu [data-cv-act=menu-m]').disabled===true`);
+  await page.keyboard.press('Escape');
+
+  release();
+  await press(page, `${panel}.querySelector('[data-cv-act=m-add]')`);
+  await readTo<string>(page, `${panel}.querySelector('[data-cv-f=m-name]').value`, 'the new member is not named after a role').not.toMatch(/^member-/);
+  await readTo<string>(
+    page,
+    `(function(){var s=${panel}.querySelector('[data-cv-f=m-role]'),o=s&&s.querySelector('option[selected]');return o&&s.options[0]?String(o.value===s.options[0].value):'';})()`,
+    'the new member does not hold the first role',
+  ).toBe('true');
+});
+
 test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two points over each other', async ({ page, app }) => {
   // 監査 1: (1) ⌘Z takes back the newest operation even with nothing picked,
   // (2) a line is picked with Tab and Enter and goes with Delete, and (4) no

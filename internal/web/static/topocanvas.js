@@ -433,7 +433,7 @@
     const picked = cur && cur.type === 'node' && cur.id !== 'human' ? cur.id : '';
     const hint = picked ? `${esc(picked)} を選んでいる。縁の丸から引くとターン、<span class="cv-kbd">Delete</span> で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
     return `<div class="cv-main"><div class="cv-left">
-      <div class="cv-tools"><button class="btn sm" type="button" data-cv-act="m-add">＋ メンバー</button><button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button><span class="cv-hint">${hint}</span></div>
+      <div class="cv-tools"><button class="btn sm" type="button" data-cv-act="m-add"${rolesWait()}>＋ メンバー</button><button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button><span class="cv-hint">${hint}</span></div>
       <div class="cv-canvas">${canvasHTML(r)}</div>
       <div class="vlist">${host.validate(r)}</div>
     </div><aside class="cv-side" aria-label="選んだものの属性"><div class="cv-sh"><button type="button" class="${side === 'attr' ? 'on' : ''}" data-cv-side="attr">属性</button><button type="button" class="${side === 'yaml' ? 'on' : ''}" data-cv-side="yaml">YAML</button></div>
@@ -452,7 +452,7 @@
     if (!canvas) return;
     const t = host.draft(r);
     canvas.insertAdjacentHTML('beforeend', `<div class="cv-menu" role="menu" aria-label="${workersOnly ? 'ワーカーを足す' : 'ここに足す'}">
-      ${workersOnly ? '' : '<button type="button" role="menuitem" data-cv-act="menu-m">メンバーを足す</button>'}
+      ${workersOnly ? '' : `<button type="button" role="menuitem" data-cv-act="menu-m"${rolesWait()}>メンバーを足す</button>`}
       <div class="cv-mh${workersOnly ? ' cv-mh0' : ''}">ワーカーを足す（どのメンバーの？）</div>
       <div class="cv-mw">${t.members.map((m) => `<button type="button" role="menuitem" data-cv-act="menu-w" data-from="${esc(m.name)}">${esc(m.name)}</button>`).join('')}</div></div>`);
     const menu = $('.cv-menu', canvas), cr = canvas.getBoundingClientRect();
@@ -465,6 +465,9 @@
     S.menu = menu;
   }
   const svgPt = (svg, e) => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+  // rolesWait shuts the two ways of adding a member until the roles a new member
+  // is named after have come (d-c5fe).
+  const rolesWait = () => (host.rolesIn && !host.rolesIn() ? ' disabled' : '');
   function firstRole(r) { const rs = host.roles(r) || []; return (rs[0] || {}).name || ''; }
   function firstProfile(cheap, r) {
     const ps = host.profiles(r);
