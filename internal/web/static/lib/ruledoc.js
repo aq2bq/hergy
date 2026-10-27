@@ -260,16 +260,18 @@ function paint(el, vnode) {
 }
 
 // ---- the edit --------------------------------------------------------
-function RuleEdit({ panel, issues }) {
+// Edit is the document's fields and rules; Preview is the Markdown beside it.
+// Both read the row the screen holds — the bridge finds that row from the panel
+// element, a screen that is a module hands it in.
+function Edit({ row, issues, nameError }) {
   // Reading the part's own change count subscribes this tree to it (see S).
   rev.value;
-  const row = rowOf(panel);
   if (!row) return null;
   const d = row.draft, s = savedOf(row), key = row.uid + row.l;
   const doc = issues.filter((m) => m.k === 0);
   const nread = s && d.name && d.name !== s.name && host.readerCount ? host.readerCount(s.name) : 0;
   return html`<div class="dh">
-      ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>名前</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden></span></div>`}
+      ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>名前</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
       <div class="dhf"><label for=${'t' + key}>タイトル</label><${Field} id=${'t' + key} class=${'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value=${d.title} /></div>
       <div class="dhf"><label for=${'v' + key}>revision</label><${Field} id=${'v' + key} class=${'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value=${d.revision} /></div>
       <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} defaultChecked=${true} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
@@ -375,10 +377,9 @@ function ruleKeyAt(d, si, ri) {
   return x ? x._k : 0;
 }
 
-function Preview({ panel, issues }) {
+function Preview({ row, issues }) {
   const box = useRef(null);
   rev.value;
-  const row = rowOf(panel);
   const key = row ? row.uid + row.l : '';
   // The box keeps the place the person scrolled to, and the line they are in is
   // brought into it, after every draw of the preview — the same two moves the
@@ -487,8 +488,8 @@ function mark(panel, issues) {
   const row = rowOf(panel);
   if (!row) return;
   const all = issues || row.issues || [];
-  paint($('.pedit', panel), html`<${RuleEdit} panel=${panel} issues=${all} />`);
-  paint($('.yprev', panel), html`<${Preview} panel=${panel} issues=${all} />`);
+  paint($('.pedit', panel), html`<${Edit} row=${row} issues=${all} />`);
+  paint($('.yprev', panel), html`<${Preview} row=${row} issues=${all} />`);
   if (!row.newRow) paint($('.pf .vcount', panel), html`<${Counts} list=${all} />`);
   markFoot(panel, row, all);
 }
@@ -515,7 +516,7 @@ function markFoot(panel, row, all) {
 function refreshPrev(panel, issues) {
   const row = rowOf(panel);
   if (!row) return;
-  paint($('.yprev', panel), html`<${Preview} panel=${panel} issues=${issues || row.issues || []} />`);
+  paint($('.yprev', panel), html`<${Preview} row=${row} issues=${issues || row.issues || []} />`);
 }
 
 // ---- reordering ------------------------------------------------------
@@ -743,6 +744,27 @@ function attach(r, h) {
   root.addEventListener('dragend', () => { $$('.rule.dragging, .rule[draggable=true]').forEach((el) => { el.classList.remove('dragging'); el.draggable = false; }); clearDrop(); drag = null; });
 }
 
+// RuleDoc is the part as one component, for a screen that is a module: the two
+// containers a panel's .pmain holds, and the trees inside them.
+export function RuleDoc({ row, issues, nameError }) {
+  return html`<div class="pedit"><${Edit} row=${row} issues=${issues} nameError=${nameError} /></div><aside class="yprev" aria-label="Markdown"><${Preview} row=${row} issues=${issues} /></aside>`;
+}
+
+// nextKey hands out the key of a rule a person adds, and observeKeys takes the
+// keys a draft that came from elsewhere already holds: together they keep the
+// keys of one document together across a save, a carried draft and a screen's
+// own newrow (the address names an open rule by its key).
+const nextKey = () => ++kseq;
+const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = x._k; }); };
+
+// ---- the modules' way in (4 章) ----
+// A screen that is a module imports the part rather than reading the bridge.
+export {
+  attach as mount, Counts, Badge, Vm, Sev, OutNote,
+  S as state, rkey, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
+  outNote, outCount, lvlMark, nextKey, observeKeys, esc, clone, num,
+};
+
 // body is the skeleton a panel's .pmain starts from: the two elements the part
 // draws into, and nothing else — the part puts their insides in on the first
 // mark, so no markup a person could type in is ever written here twice
@@ -773,6 +795,6 @@ window.hergyRuleDoc = {
   // The few words a screen draws too: the shape of a problem, the count of a
   // list of them, and the chip a row carries.
   sevChip, vmItem, counts, badge, esc, clone, num, arrowsOf,
-  nextKey: () => ++kseq,
-  observeKeys: (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = x._k; }); },
+  nextKey,
+  observeKeys,
 };

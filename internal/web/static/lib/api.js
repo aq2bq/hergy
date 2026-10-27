@@ -201,6 +201,17 @@ export function teamModel(list) {
   };
 }
 
+// checkAnswer is a check's whole answer: the problems, the Markdown a person
+// reads, how the change moved it, and the people it named.
+export function checkAnswer(a) {
+  const json = (a && a.json) || {}, effect = json.effect || {};
+  return {
+    problems: json.problems || [], preview: json.preview || null, prompt: json.prompt || null,
+    diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
+    size: json.size || 0, limit: json.limit || 0,
+  };
+}
+
 // ---- the classic screens' way in (4 章, until the last screen is moved) ----
 // A screen still written as a classic script reads window.hergyAPI. It gets the
 // old shape: a call that answers {ok, status, json, text} instead of throwing,
@@ -243,14 +254,5 @@ window.hergyAPI = {
   // are read here, once, so no screen digs into an answer itself.
   answer: (a) => (a && a.json) || {},
   problems: (a) => ((a && a.json && a.json.problems) || []),
-  // checkAnswer is a check's whole answer: the problems, the Markdown a person
-  // reads, how the change moved it, and the people it named.
-  checkAnswer: (a) => {
-    const json = (a && a.json) || {}, effect = json.effect || {};
-    return {
-      problems: json.problems || [], preview: json.preview || null, prompt: json.prompt || null,
-      diff: effect.diff || null, turns: effect.turns || null, readers: json.readers || [],
-      size: json.size || 0, limit: json.limit || 0,
-    };
-  },
+  checkAnswer,
 };

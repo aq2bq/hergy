@@ -38,9 +38,6 @@ var markupExceptions = map[string]exception{
 	"teams-v2.js": {
 		why: "チーム定義の画面。パネルを文字列で組み立てて領域ごと差し替えている（段階 1 以降で移す）",
 	},
-	"roles-v2.js": {
-		why: "ロールの画面。行とパネルを文字列で組み立てている（段階 1 以降で移す）",
-	},
 	"hq.js": {
 		why: "本部の読みと、各画面が借りているシート。図（teamSVG）も文字列で返す（hq の段で移す）",
 	},
