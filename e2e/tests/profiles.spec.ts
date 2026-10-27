@@ -66,11 +66,13 @@ test('PROFILES-C1 typing in the YAML tab survives the check, and the save writes
   const typed = 'profiles:\n  x: [\n';
 
   // The server answers with the problem on its line, and the field still holds
-  // what the person typed: no draw put the page's own text back.
+  // what the person typed: no draw put the page's own text back. The save shuts
+  // only when the check has answered about this text (the file's own warning
+  // does not shut it), so that wait is what says the answer is here.
   await set(page, `document.querySelector('.yed .ytext')`, typed);
-  await readTo<number>(page, `${yed}.querySelectorAll('.vitem').length`, 'the check said nothing about the text').toBeGreaterThan(0);
-  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'the drawing put the text it was built with back').toBe(typed);
   await readTo<boolean>(page, `${yed}.querySelector('[data-act=yaml-save]').disabled`, 'the save stands open over an error the file did not have').toBe(true);
+  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'the drawing put the text it was built with back').toBe(typed);
+  await readTo<number>(page, `${yed}.querySelectorAll('.vitem').length`, 'the check said nothing about the text').toBeGreaterThan(0);
 
   // A problem's press puts the caret on the line it names: line 2 is the one the
   // server called out.
