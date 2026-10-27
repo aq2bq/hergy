@@ -277,15 +277,9 @@ export const host = {
     if (!e) return null;
     return rowOfPanel(r, l);
   },
-  // rerender draws the panel again and answers the fresh element: the part reads
-  // it right after (to put the caret in the rule it opened).
-  rerender: (panel, sel) => {
-    const u = panel.dataset.uid, l = panel.dataset.l;
-    render();
-    const fresh = panelEl(u, l) || panel;
-    if (sel) { const el = fresh.querySelector(sel); if (el) { el.focus(); el.select?.(); } }
-    return fresh;
-  },
+  // redraw draws the screen again: the part asks for it after a press that
+  // changes the document, and puts the caret where the press asked for itself.
+  redraw: () => render(),
   edited: (c) => {
     const panel = c.panel;
     if (!panel) return;
@@ -472,8 +466,10 @@ export function pressPickPlace(r, l, x) {
 }
 
 export function pressPmode(panel, v) {
+  // The switch's button is the one the person pressed: it keeps the focus
+  // through the draw, so nothing is put back (5 章 5).
   state.pmode[panel.dataset.uid + panel.dataset.l] = v;
-  host.rerender(panel, `[data-act=pmode][data-v="${v}"]`);
+  render();
 }
 
 export function pressDup(r, l) {

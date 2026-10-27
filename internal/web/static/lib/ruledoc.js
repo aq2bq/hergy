@@ -17,9 +17,10 @@
 // The presses on those elements come from the screen that owns the view: it
 // hands the view to mount below, which listens once and reads the `data-act`
 // the part put in its markup, so a press is handled once. A press that changes
-// the document asks the screen to draw the panel again (host.rerender): the
-// panel's head and foot are the screen's, and the address the open rules live in
-// is the screen's too.
+// the document asks the screen to draw again (host.redraw): the panel's head and
+// foot are the screen's, and the address the open rules live in is the
+// screen's too. The part puts the caret where the press asked for itself, in the
+// panel the press came from — the elements are the same after the draw.
 //
 // The screens are modules now: they render `RuleDoc` themselves and hand the
 // view to mount once, so a press inside a panel is handled once. `state` holds
@@ -495,15 +496,25 @@ function ctx(el) {
   return { panel, row, d, x: f && f.x, si: f ? f.si : si, ri: f && f.ri, oi, key: `${row.uid}${row.l}-${f ? f.x._k : ''}` };
 }
 
-function rerender(panel, focusSel) {
+// draw asks the screen to draw again, and puts the caret in the field the press
+// asked for — in the panel the press came from. The panel's elements are the
+// same after a draw (Preact updates them where they stand), so there is nothing
+// to look for again: the press that asked is the one that moved the caret
+// (webui-preact-design 5 章 5).
+function redraw(panel, focusSel) {
   const row = rowOf(panel);
   if (!row) return panel;
   const box = $('.ybox', panel);
   if (box && box.clientHeight) S.yscroll[row.uid + row.l] = box.scrollTop;
-  return host.rerender(panel, focusSel);
+  host.redraw();
+  if (focusSel) {
+    const el = panel.querySelector(focusSel);
+    if (el) { el.focus({ preventScroll: true }); if (el.select) el.select(); }
+  }
+  return panel;
 }
 
-function re(c, sel) { return rerender(c.panel, sel); }
+function re(c, sel) { return redraw(c.panel, sel); }
 
 // goRule opens one rule of a document and puts the cursor in its body (spec-roles
 // 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from a check, or
@@ -517,8 +528,8 @@ function goRule(panel, k) {
   S.ropen.add(rkey(row, { _k: k }));
   if (host.mode) host.mode(panel, 'edit');
   S.pfocus[row.uid + row.l] = { k, f: 'text' };
-  const fresh = rerender(panel, null);
-  const el = fresh && fresh.querySelector(`.rule[data-k="${k}"] [data-f=text]`);
+  redraw(panel, null);
+  const el = panel.querySelector(`.rule[data-k="${k}"] [data-f=text]`);
   if (el) {
     // The rule is brought into the middle of the window, so the band the screen
     // pins to the bottom never hides it; a rule taller than the window keeps its
@@ -529,7 +540,7 @@ function goRule(panel, k) {
     el.focus({ preventScroll: true });
   }
   if (host.url) host.url();
-  return fresh;
+  return panel;
 }
 
 function handleClick(b) {
@@ -589,10 +600,11 @@ function handleClick(b) {
       if (host.mode) host.mode(c.panel, 'edit');
       S.pfocus[pkey] = k ? { k, f: 'text' } : part === 'title' ? { k: 0, f: 'title' } : part === 'intro' ? { k: 0, f: `sec.${si}.intro` } : { k: 0, f: `sec.${si}` };
       // The Markdown box follows to the section's first rule: the panel is drawn
-      // again first, then the fresh box is scrolled (A2, P15).
-      const fresh = host.rerender(c.panel, null);
+      // again first, then the caret is put in the field the press named (A2, P15).
+      host.redraw();
       const target = k ? `.rule[data-k="${k}"] [data-f=text]` : part === 'title' ? '[data-f=title]' : `.sec[data-si="${si}"] [data-f=${part === 'intro' ? 'intro' : 'heading'}]`;
-      if (fresh) { const el = fresh.querySelector(target); if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); } }
+      const el = c.panel.querySelector(target);
+      if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
       if (host.url) host.url(); break;
     }
     default: return false;
@@ -684,8 +696,8 @@ function attach(r, h) {
     }
     const k = drag.k;
     drag = null; clearDrop();
-    const fresh = rerender(panel);
-    const moved = fresh && fresh.querySelector(`.rule[data-k="${k}"]`);
+    redraw(panel, null);
+    const moved = panel.querySelector(`.rule[data-k="${k}"]`);
     if (moved) moved.classList.add('flash');
     if (host.edited) host.edited({ panel, row, d });
   });

@@ -935,15 +935,9 @@ export const host = {
     const r = byKey(panel.dataset.key);
     return r ? rowOfPanel(r) : null;
   },
-  // rerender draws the screen again and answers the fresh element: the part
-  // reads it right after (to put the caret in the rule it opened).
-  rerender: (panel, sel) => {
-    render();
-    const fresh = panel && document.contains(panel) ? panel
-      : (panel && view && view.querySelector(`.panel.agree-p[data-key="${CSS.escape(panel.dataset.key)}"]`)) || panel;
-    if (sel && fresh) { const el = fresh.querySelector(sel); if (el) { el.focus(); el.select?.(); } }
-    return fresh;
-  },
+  // redraw draws the screen again: the part asks for it after a press that
+  // changes the document, and puts the caret where the press asked for itself.
+  redraw: () => render(),
   edited: (c) => {
     const panel = c && c.panel;
     const r = panel && byKey(panel.dataset.key);
