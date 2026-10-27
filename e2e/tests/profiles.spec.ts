@@ -1,10 +1,13 @@
-// PROFILES-P1 and PROFILES-P11 — walked in a
+// PROFILES-P1, PROFILES-P11 and PROFILES-C1 — walked in a
 // browser. Only what the browser alone can see is compared here (d-3e43): the
 // row a person presses opens inside the view (d-d475), the box that rewrites the
-// people using a renamed profile is ticked from the start, and a person's chip
-// puts the cursor on the person's row of the assign tab.
+// people using a renamed profile is ticked from the start, a person's chip puts
+// the cursor on the person's row of the assign tab, and the YAML text a person
+// types is still theirs after the check answered.
 import { test } from './fixtures';
-import { press, q, readTo, set, there, wait } from './helpers';
+import { press, q, read, readTo, set, there, wait } from './helpers';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 test.use({ reads: 'profiles' });
 
@@ -47,4 +50,44 @@ test('PROFILES-P11 usage jumps', async ({ page, app }) => {
     `document.activeElement.closest('.arow').dataset.k`,
     'the focus is on, want m-0',
   ).toBe('m-0');
+});
+
+test('PROFILES-C1 typing in the YAML tab survives the check, and the save writes it', async ({ page, app }) => {
+  // C1 is the rewrite's own reason (webui-preact-design 1 章): the check answers
+  // while the person is in the field, and a screen drawn again from a string put
+  // its own text back and lost the typing. So this walk holds four things the
+  // drawing must not take away: the typed text, the problem's press, 元に戻す,
+  // and the save that writes the file.
+  const yed = `document.querySelector('.yed')`;
+  await page.goto(`${app.base}/profiles/yaml`);
+  await wait(page, there('.yed .vlist .vhead'));
+  const file = await read<string>(page, `${yed}.querySelector('.path').textContent`);
+  const before = await read<string>(page, `${yed}.querySelector('.ytext').value`);
+  const typed = 'profiles:\n  x: [\n';
+
+  // The server answers with the problem on its line, and the field still holds
+  // what the person typed: no draw put the page's own text back.
+  await set(page, `document.querySelector('.yed .ytext')`, typed);
+  await readTo<number>(page, `${yed}.querySelectorAll('.vitem').length`, 'the check said nothing about the text').toBeGreaterThan(0);
+  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'the drawing put the text it was built with back').toBe(typed);
+  await readTo<boolean>(page, `${yed}.querySelector('[data-act=yaml-save]').disabled`, 'the save stands open over an error the file did not have').toBe(true);
+
+  // A problem's press puts the caret on the line it names: line 2 is the one the
+  // server called out.
+  await press(page, `${yed}.querySelector('.vitem')`);
+  await readTo<number>(page, `(function(){var t=${yed}.querySelector('.ytext');return t.value.slice(0, t.selectionStart).split('\\n').length;})()`, 'the caret did not move to the problem').toBe(2);
+
+  // 元に戻す puts the file's own text back.
+  await press(page, `${yed}.querySelector('[data-act=yaml-revert]')`);
+  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'revert did not put the file text back').toBe(before);
+
+  // A change the check takes saves, and the sentence and the file follow it.
+  await set(page, `document.querySelector('.yed .ytext')`, `${before}\n# a line the check takes\n`);
+  await wait(page, `!${yed}.querySelector('[data-act=yaml-save]').disabled`);
+  await press(page, `${yed}.querySelector('[data-act=yaml-save]')`);
+  await readTo<string>(page, `${yed}.querySelector('.ok').textContent`, 'the save said nothing').toBe('保存しました');
+  const written = readFileSync(path.join(app.proj, file), 'utf8');
+  if (!written.endsWith('# a line the check takes\n')) {
+    throw new Error(`the save did not write the file: ${JSON.stringify(written.slice(-40))}`);
+  }
 });
