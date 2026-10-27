@@ -530,6 +530,30 @@ test.describe('hq', () => {
       await readTo<number>(page, count('.hq-gh.global'), `the ${screen} list's global head`).toBe(1);
     }
   });
+
+  test('SHOWCASE-H2 a headquarters\' ＋メンバー waits for the projects\' roles', async ({ page, app }) => {
+    // r-08ea on the headquarters' road (ac-ad8c, d-c5fe): there the roles a new
+    // member is named after come from /api/hq/roles, not /api/role. Until they
+    // have come, ＋メンバー cannot be pressed; once they have, the new member is
+    // named after a role. The answer is held, so the screen does not settle and
+    // the page is asked directly, without ready() (as TEAMS-C3).
+    let release = () => {};
+    const held = new Promise<void>((done) => { release = done; });
+    await page.route(/\/api\/hq\/roles(\?|$)/, async (route) => { await held; await route.continue(); });
+    await page.goto(`${app.base}/teams`);
+    // page.waitForFunction evaluates its string under the page's CSP, which has
+    // no 'unsafe-eval'; page.evaluate is the driver's own and is let through.
+    const until = (script: string, why: string) =>
+      expect.poll(() => page.evaluate(`(function(){try{return !!(${script});}catch(e){return false;}})()`), { message: why }).toBe(true);
+    await until(`document.querySelector('#view .tdef')`, 'the team definitions read');
+    const name = await page.$eval('#view .tdef', (row) => (row as HTMLElement).dataset.name ?? '');
+    const panel = q(`.tdef[data-name="${name}"] .panel.team-p`);
+    await page.locator(`.tdef[data-name="${name}"] > .sum`).click();
+    await until(`${panel}.querySelector('[data-cv-act=m-add]').disabled===true`, 'before the roles came, want ＋メンバー held');
+    release();
+    await press(page, `${panel}.querySelector('[data-cv-act=m-add]')`);
+    await readTo<string>(page, `${panel}.querySelector('[data-cv-f=m-name]').value`, 'the new member is not named after a role').not.toMatch(/^member-/);
+  });
 });
 
 // adds an element, and the screen itself is still the app's own (six rows).
