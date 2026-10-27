@@ -13,10 +13,9 @@
 //
 // 中身は 4 つに分かれている: lib/hq/state.js（読みと状態）、lib/hq/figure.js
 // （チームの図の部品）、lib/hq/run.js（一覧の「動き」の欄）、lib/hq/sheets.js
-// （欄と検索）。classic の画面は今までどおり window.hergyHQ を読む（4 章）。
+// （欄と検索）。画面はここから import して読む。
 import {
-  st, POLL, rev, esc, token, parseOpen, projectOfGroup, groupKey, groupLabel, groupDisplay,
-  projectName, runningFor, runningTeam, lastWorkspaceOf, definitionOf, groupOf, itemGroup,
+  st, rev, token, parseOpen, projectName, runningTeam, definitionOf,
   readAll, readCore, readGroups, readRunning, startReads,
 } from './hq/state.js';
 import { RunCell } from './hq/run.js';
@@ -69,33 +68,6 @@ document.addEventListener('keydown', (e) => {
 // so a walk of the screens can tell a key that did not land from one that did.
 window.hergyHQSearch = searchHook;
 
-// ---- classic の画面への橋（4 章） ---------------------------------------
-window.hergyHQ = {
-  state: st,
-  POLL,
-  token,
-  parseOpen,
-  projectOfGroup,
-  groupKey,
-  groupLabel,
-  groupDisplay,
-  projectName,
-  runningFor,
-  runningTeam,
-  lastWorkspaceOf,
-  definitionOf,
-  groupOf,
-  itemGroup,
-  readAll,
-  readCore,
-  readGroups,
-  readRunning,
-  closeSheet,
-  startSheet,
-  stopSheet,
-  esc,
-};
-
 // ---- 立ち上げ -----------------------------------------------------------
 // The page's band is written by the server; the reading keeps its numbers right
 // (spec 2 章). The first reading runs now, the groups when a search is opened
@@ -120,9 +92,9 @@ function stickBar() {
   if (bar) document.documentElement.style.setProperty('--stick', bar.offsetHeight + 'px');
 }
 
-// ---- module の画面への口（4 章） ----------------------------------------
-// The screens that are modules import what they read instead of going through
-// window.hergyHQ.
+// ---- the screens' way in ------------------------------------------------
+// A screen imports what it reads: nothing of the headquarters goes through a
+// global any more.
 export {
   st as state, rev, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
   readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure,

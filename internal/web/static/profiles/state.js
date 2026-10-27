@@ -7,6 +7,7 @@
 import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList } from '../lib/api.js';
+import { parseOpen, token as hqToken } from '../lib/hq.js';
 
 export const view = document.getElementById('view');
 
@@ -81,7 +82,7 @@ export const hashOf = (file) => (file === 'global' ? hashes.value.global : hashe
 // starts from.
 const params = () => new URLSearchParams(location.search);
 const OPEN = (params().get('open') || '').split(',').filter(Boolean);
-const OPEN_ROWS = (window.hergyHQ ? window.hergyHQ.parseOpen(OPEN.join(',')) : OPEN.map((name) => ({ name, group: '' })));
+const OPEN_ROWS = parseOpen(OPEN.join(',')) || [];
 const isOpenRow = (row) => OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
 
 export const filterKind = signal(TAB === 'profiles' ? (params().get('kind') || '') : '');
@@ -449,7 +450,7 @@ export function syncURL() {
   if (query.value) params.set('q', query.value);
   const open = rows.value
     .filter((row) => row.open && !row.isNew)
-    .map((row) => (GROUPED && row.group ? window.hergyHQ.token(row.name, row.group) : row.name))
+    .map((row) => (GROUPED && row.group ? hqToken(row.name, row.group) : row.name))
     .filter(Boolean);
   if (open.length) params.set('open', open.join(','));
   const search = params.toString();

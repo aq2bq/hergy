@@ -6,6 +6,7 @@
 // （webui-preact-design 5 章 1）。class と data-* は CSS と e2e が読むので、
 // 移す前のマークアップから 1 つも変えない（5 章 6）。
 import { html } from '../vendor/preact.js';
+import * as A from '../lib/hq.js';
 import { teams, note, current, noneText, ST, NS, lastMoment } from './state.js';
 import { Figure } from './figure.js';
 
@@ -69,7 +70,7 @@ function Tile({ team: t }) {
 // Detail is the third tier: the opened team's last screen, where to answer, and
 // every member and worker with its state (spec 6 章).
 function Detail({ team: t }) {
-  const A = window.hergyHQ;
+  // The headquarters' reading is a module: the board imports it (5 章 1).
   // The screen's last lines are drawn when there are some: a team whose pane
   // could not be read (a working one, often) has no heading and no empty box
   // (r-5b96 audit 10). The place to answer stands on its own then.

@@ -4,7 +4,7 @@
 // yaml.js、状態は state.js、押し込みの中身は actions.js。ここも DOM を書かない
 // （5 章 1）。
 import { html, render } from '../vendor/preact.js';
-import { insertTab } from '../lib/yamltab.js';
+import { insertTab, jump as yamlJump, revert as yamlRevert, save as yamlSave } from '../lib/yamltab.js';
 import { takeDraft } from '../lib/nav.js';
 import {
   view, TAB, rows, assignKind, dirty, take, tellDirty, restore,
@@ -60,9 +60,9 @@ view.addEventListener('click', (event) => {
   if (act === 'pick-layer' && panel) { pressLayer(key, button.dataset.x); return; }
   if (act === 'kind-hi') { pressKind(button.dataset.k); return; }
   if (act === 'g-save' && team) { pressTeamSave(team.dataset.g); return; }
-  if (act === 'yaml-jump' && section) { window.hergyYaml.jump(section, Number(button.dataset.line)); return; }
-  if (act === 'yaml-revert' && section) { window.hergyYaml.revert(section); return; }
-  if (act === 'yaml-save' && section) { window.hergyYaml.save(section); return; }
+  if (act === 'yaml-jump' && section) { yamlJump(section, Number(button.dataset.line)); return; }
+  if (act === 'yaml-revert' && section) { yamlRevert(section); return; }
+  if (act === 'yaml-save' && section) { yamlSave(section); return; }
 });
 
 // pressLayer moves a row being added between the project's file and the

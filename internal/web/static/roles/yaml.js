@@ -17,7 +17,7 @@ const keyOfYed = (r, l) => r.uid + l;
 // YamlFile is one file's section. The section element is the screen's (it carries
 // the key the presses read and the hash the save carries); the part draws what
 // stands inside it. The part takes the section so the screen can hand it a
-// problem's press, a revert or a save through the bridge; the element is known
+// problem's press, a revert or a save through the screen's own call; the element is known
 // after the first draw, so the file draws itself once more with it.
 function YamlFile({ r, l }) {
   const section = useRef(null);

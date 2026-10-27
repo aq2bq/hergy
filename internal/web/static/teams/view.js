@@ -10,13 +10,14 @@ import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, diffCount } from '../lib/ruledoc.js';
 import { RunCell } from '../lib/hq/run.js';
+import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { rev as hqRev } from '../lib/hq.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, rev, render, allRecs,
-  rowsOfGroup, dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName, groupLabelOf,
+  rowsOfGroup, dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName,
   teamLabel, dtabOf, rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount,
-  vlistParts, rowOfPanel, okOf, refusalOf, FILES, fileByKey, fileText, fileDirty, yIssues,
-  recForFile, pickFile, hasTurn, memberOf,
+  vlistParts, rowOfPanel, okOf, refusalOf, FILES, fileByKey, fileDirty, yIssues,
+  recForFile, pickFile,
 } from './state.js';
 
 const other = (p) => (p === 'project' ? 'global' : 'project');
@@ -62,7 +63,7 @@ function GroupHead({ g }) {
   if (g.global) {
     return html`<div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">${g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
   }
-  const live = ((window.hergyHQ && window.hergyHQ.state.running.teams) || []).filter((t) => t.project === key).length;
+  const live = ((hq.running && hq.running.teams) || []).filter((t) => t.project === key).length;
   return html`<div class="hq-gh" data-group=${key}><span class="hq-gn">${groupNameOf(g)}</span><span class="hq-gp">${g.project ? g.project.display : ''}</span><span class="hq-gc">チーム定義 <b>${rowsIn(g).length}</b> · 動いているチーム <b>${live}</b></span></div>`;
 }
 
@@ -94,13 +95,12 @@ function placePills(r) {
   if (!GROUPED) {
     return (r.places || []).map((p) => html`<span class=${'pill ' + (p === r.place ? 'on' : 'shadow')}>${p === 'global' ? 'グローバル' : currentProjectName()}</span>`);
   }
-  const hq = window.hergyHQ;
-  const label = r.project === 'global' ? 'グローバル' : (hq ? hq.projectName(r.project) : '');
+  const label = r.project === 'global' ? 'グローバル' : hqProjectName(r.project);
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   const shadow = r.project && r.project !== 'global' && (over[r.name] || []).includes(r.project);
   const overriding = r.project === 'global' ? (over[r.name] || []) : [];
-  return html`<span class="pill on">${label}</span>${shadow ? html`<span class="pill shadow">グローバル</span>` : ''}${overriding.map((p) => html`<span class="pill hq-ov">${hq ? hq.projectName(p) : p} で上書き</span>`)}`;
+  return html`<span class="pill on">${label}</span>${shadow ? html`<span class="pill shadow">グローバル</span>` : ''}${overriding.map((p) => html`<span class="pill hq-ov">${hqProjectName(p)} で上書き</span>`)}`;
 }
 
 // runProject is the project a row's team runs in: without projects:, it is the
@@ -255,7 +255,7 @@ function Foot({ r, agree }) {
 
 // ---- ルールのパネル（ロールの画面と同じ共有の部品） --------------------
 function AgreePanel({ r }) {
-  const e = r.agree, both = (r.places || []).length > 1, shadowed = r.place === 'global' && (r.places || []).includes('project');
+  const both = (r.places || []).length > 1, shadowed = r.place === 'global' && (r.places || []).includes('project');
   const mode = state.pmode[dkey(r)] || 'edit';
   return html`<section class=${'panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid=${r.uid} data-l=${r.place} data-key=${dkey(r)} data-mode=${mode}>
     <header class="ph"><code class="path">${r.agreePath}</code>

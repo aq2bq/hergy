@@ -12,6 +12,7 @@
 import { signal } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { takeDraft, setCount } from '../lib/nav.js';
+import { parseOpen, token as hqToken } from '../lib/hq.js';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, checkAnswer,
@@ -40,7 +41,6 @@ export const LNAME = { project: 'プロジェクト', global: 'グローバル' 
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 const other = (l) => (l === 'project' ? 'global' : 'project');
 export const $ = (sel, root = document) => root.querySelector(sel);
-export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 let uid = 0;
 
 // HQ is the headquarters lists (d-73fc): every listed project's roles and team
@@ -333,7 +333,7 @@ export function parseURL() {
     state.filter = (f === 'off' || f === 'issues') ? f : null;
     state.q = qs.get('q') || '';
     const openedRaw = (qs.get('open') || '');
-    const openedRows = window.hergyHQ ? window.hergyHQ.parseOpen(openedRaw) : openedRaw.split(',').filter(Boolean).map((name) => ({ name, group: '' }));
+    const openedRows = parseOpen(openedRaw) || [];
     openedRows.forEach(({ name, group: g }) => {
       // A row is found by the name it shows and, from a search result, by the
       // project it stands in: a saved name, a written one, or the name of a
@@ -379,7 +379,7 @@ export function syncURL(push) {
   } else {
     if (state.filter) q.set('filter', state.filter);
     if (state.q) q.set('q', state.q);
-    const open = [...state.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? window.hergyHQ.token(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
+    const open = [...state.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
     if (open.length) q.set('open', open.join(','));
     const rule = [...ruleState.ropen].map((kk) => {
       const m = /^(\d+)(project|global):(\d+)$/.exec(kk);

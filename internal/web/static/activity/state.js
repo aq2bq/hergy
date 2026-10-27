@@ -8,9 +8,10 @@
 import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { read } from '../lib/api.js';
+import * as A from '../lib/hq.js';
 import { setActivity } from '../lib/nav.js';
 
-const A = window.hergyHQ;
+// The headquarters' reading is a module: the screen imports it (5 章 1).
 export const POLL = 10000;
 // The screen's fixed words (2.2, 2.5). The server's answer carries the state's
 // name (answer, idle, …) only; these are the letters a person reads.
@@ -164,7 +165,7 @@ export function pick(name) {
 }
 
 // stopTeam is the 止める… of the opened team: the sheet that asks is hq.js's
-// (the classic script this screen still borrows the sheet from).
+// (the headquarters' own sheet, imported from lib/hq.js).
 export function stopTeam(name) {
   if (A) A.stopSheet(name);
 }

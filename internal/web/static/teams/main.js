@@ -4,7 +4,7 @@
 // YAML）と canvas.js（トポロジー）、状態と書き込みは state.js。ここも DOM を書か
 // ない（5 章 1）。
 import { html, render as draw } from '../vendor/preact.js';
-import { insertTab } from '../lib/yamltab.js';
+import { insertTab, jump as yamlJump, revert as yamlRevert, save as yamlSave } from '../lib/yamltab.js';
 import { rulesOf, findRule, clone, mount as mountRules, state as ruleState } from '../lib/ruledoc.js';
 import {
   view, tabsEl, state, render, onDraw, boot, take, dirty, tellDirty, dkey, byKey, byName,
@@ -128,9 +128,9 @@ if (view) {
       case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
       case 'dtab': if (r) { state.dtab[n] = b.dataset.t; render(); if (b.dataset.t === 'agree') checkAgree(r); } break;
       case 'yfile': state.yfile = b.dataset.file; render(); break;
-      case 'yaml-jump': window.hergyYaml.jump(b.closest('.yed'), Number(b.dataset.line)); break;
-      case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; window.hergyYaml.revert(sec); render(); break; }
-      case 'yaml-save': window.hergyYaml.save(b.closest('.yed')); break;
+      case 'yaml-jump': yamlJump(b.closest('.yed'), Number(b.dataset.line)); break;
+      case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; yamlRevert(sec); render(); break; }
+      case 'yaml-save': yamlSave(b.closest('.yed')); break;
       case 'save': if (ar) saveAgree(ar); break;
       case 'revert': if (ar) { ar.agree.draft = clone(ar.agree.saved); checkAgree(ar); render(); } break;
       case 'pmode': if (ar) { state.pmode[dkey(ar)] = b.dataset.v; render(); } break;

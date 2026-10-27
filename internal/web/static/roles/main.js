@@ -4,7 +4,7 @@
 // yaml.js、状態と書き込みは state.js。ここも DOM を書かない（5 章 1）。規則の
 // 文書は共通部品（lib/ruledoc.js）が、その押し込みは部品が自分の器で受ける。
 import { html, render as draw } from '../vendor/preact.js';
-import { insertTab } from '../lib/yamltab.js';
+import { insertTab, jump as yamlJump, revert as yamlRevert, save as yamlSave } from '../lib/yamltab.js';
 import { mount } from '../lib/ruledoc.js';
 import {
   view, tabsEl, byUid, host, onDraw, boot, dirty, take,
@@ -82,14 +82,14 @@ if (view) {
       case 'tab': pressTab(b.dataset.t); break;
       case 't-save': await doAssignSave(b.closest('.team').dataset.t); break;
       case 'yfile': pressYfile(b.dataset.key); break;
-      case 'yaml-jump': window.hergyYaml.jump(b.closest('.yed'), Number(b.dataset.line)); break;
+      case 'yaml-jump': yamlJump(b.closest('.yed'), Number(b.dataset.line)); break;
       case 'yaml-revert': {
         const el = b.closest('.yed');
         pressYamlRevert(el);
-        window.hergyYaml.revert(el);
+        yamlRevert(el);
         break;
       }
-      case 'yaml-save': window.hergyYaml.save(b.closest('.yed')); break;
+      case 'yaml-save': yamlSave(b.closest('.yed')); break;
       default: break;
     }
   });

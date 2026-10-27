@@ -7,7 +7,7 @@
 //
 // 描くのは lib/hq/figure.js（図）、lib/hq/sheets.js（欄と検索）、
 // lib/hq/run.js（チーム定義の一覧の「動き」の欄）。入口は lib/hq.js で、
-// classic の画面は今までどおり window.hergyHQ から読む（4 章）。
+// 画面は lib/hq.js から import して読む。
 import { signal } from '../../vendor/preact.js';
 import { read, call, problemText } from '../api.js';
 import { setActivity, setCount } from '../nav.js';
@@ -152,8 +152,7 @@ export function bandCounts() {
   setCount('profiles', totals.profiles);
 }
 
-// say tells the screens a reading changed: the classic screens listen for
-// hergy:hq (4 章), the parts of this file read rev.
+// say tells the screens a reading changed: the parts that draw it read rev.
 export function say() {
   rev.value += 1;
   document.dispatchEvent(new CustomEvent('hergy:hq', { detail: st }));

@@ -14,15 +14,12 @@
 // from the screen that owns the section: it hands the section to save, revert or
 // jump below, so a press is handled once.
 //
-// While the screens are still classic scripts, they hand a section they have
-// drawn to window.hergyYaml.mount (4 章). The bridge reads that section's header
-// words and the text the page came with, renders this component inside it, and
-// keeps the two things those scripts read back: section._base and
-// section.dataset.hash.
-import { html, render as draw, useEffect, useRef, useState } from '../vendor/preact.js';
+// The screen draws the section's element (it carries data-key and data-hash, the
+// keys its presses and its save read) and hands it to YamlTab; the part draws
+// what stands inside it.
+import { html, useEffect, useRef, useState } from '../vendor/preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
 
-const $ = (sel, root) => root.querySelector(sel);
 
 // checkText asks the server what is wrong with one file's text. The kind says
 // which files these are, and extra carries the kind's own word for which one
@@ -74,9 +71,9 @@ const marksOf = (problems) => {
   return marks;
 };
 
-// parts is how a screen reaches one section's part: the bridge below finds the
-// component the section is drawn by, so a script that holds the section element
-// can still ask it to check, save, revert or jump.
+// parts is how a screen reaches one section's part: the section element it holds
+// is the key, so a press that names the section can ask it to check, save, revert
+// or jump.
 const parts = new WeakMap();
 const partOf = (section) => (section ? parts.get(section) : undefined);
 
@@ -251,50 +248,8 @@ export function YamlTab(props) {
   </footer>`;
 }
 
-// mount hands one section a screen has drawn to the part: the header words it
-// drew, the text the page came with, and what this file is to the server.
-export function mount(section, opts) {
-  const ta = $('.ytext', section);
-  const head = $('.ph', section);
-  const badgeEl = head && $('.state', head);
-  const props = {
-    section,
-    label: head ? $('.ln', head).textContent : '',
-    path: head ? $('.path', head).textContent : '',
-    badge: badgeEl ? { cls: badgeEl.className, text: badgeEl.textContent } : null,
-    file: ta.dataset.file || '',
-    text: ta.value,
-    kind: opts.kind,
-    place: opts.place,
-    name: opts.name,
-    extra: opts.extra || null,
-    problems: opts.problems || [],
-    onProblems: opts.onProblems || null,
-    onSaved: opts.onSaved || null,
-  };
-  section._base = ta.value;
-  section._problems = opts.problems || [];
-  section._baseProblems = opts.problems || [];
-  // The section came drawn: the part takes the inside of it over, so what the
-  // screen wrote there goes before Preact draws. This is the one place the
-  // bridge touches the DOM, and it writes no markup (4 章).
-  section.replaceChildren();
-  draw(html`<${YamlTab} ...${props} />`, section);
-}
-
-// ---- the classic screens' way in (4 章, until the last of them is moved) ----
-window.hergyYaml = {
-  mount,
-  check: (section) => partOf(section)?.check(),
-  schedule: (section) => partOf(section)?.schedule(),
-  render: (section, problems) => partOf(section)?.layout(problems || []),
-  foot: (section) => partOf(section)?.foot(),
-  save: (section) => partOf(section)?.save(),
-  revert: (section) => partOf(section)?.revert(),
-  jump: (section, line) => partOf(section)?.jump(line),
-  insertTab,
-  autosize,
-  checkText,
-  saveText,
-  tellDirty,
-};
+// jump, revert and save are the screen's way to one section's part: the section
+// element the screen drew stands for the part (5 章 1).
+export const jump = (section, line) => partOf(section)?.jump(line);
+export const revert = (section) => partOf(section)?.revert();
+export const save = (section) => partOf(section)?.save();
