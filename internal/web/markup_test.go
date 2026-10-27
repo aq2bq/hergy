@@ -50,9 +50,6 @@ var markupExceptions = map[string]exception{
 	"ruledoc.js": {
 		why: "ルール文書の面。roles と teams の両方が使う（共通部品の段で移す）",
 	},
-	"yamltab.js": {
-		why: "YAML の面。roles と teams が使う（共通部品の段で移す）",
-	},
 	"deliver.js": {
 		why: "伝えていない変更のシート。各画面が借りている（共通部品の段で移す）",
 	},
