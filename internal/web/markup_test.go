@@ -38,29 +38,11 @@ var markupExceptions = map[string]exception{
 	"teams-v2.js": {
 		why: "チーム定義の画面。パネルを文字列で組み立てて領域ごと差し替えている（段階 1 以降で移す）",
 	},
-	"hq.js": {
-		why: "本部の読みと、各画面が借りているシート。図（teamSVG）も文字列で返す（hq の段で移す）",
-	},
 	"deliver.js": {
 		why: "伝えていない変更のシート。各画面が借りている（共通部品の段で移す）",
 	},
 	"topocanvas.js": {
 		why: "チーム定義の図を描く canvas（最後の段で移す）",
-	},
-	// The one place a string of markup may be put into a page after the
-	// rewrite: the figure the activity screen borrows from hq.js.
-	//
-	// 理由: teamSVG は SVG を文字列で返し、活動の画面とチーム定義の画面が同じ
-	// 1 つの図を描いている。図を Preact の部品に書き直すのは hq.js を module に
-	// する段なので、それまでは「操作しない図」に限って流し込む。図の中身は
-	// svg(role="img") / g / circle / text / path / line だけで、押せるものも
-	// フォーカスの入るものも無い（activity/figure.js にも同じことを書いてある）。
-	//
-	// hq.js を module にして teamSVG が Preact の部品になったら、この行と
-	// activity/figure.js の dangerouslySetInnerHTML を一緒に消す。
-	"activity/figure.js": {
-		only: "dangerouslySetInnerHTML",
-		why:  "hq.js の teamSVG が返す「操作しない図」を流し込む 1 か所。hq.js を module にする段で消す",
 	},
 }
 

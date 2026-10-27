@@ -1,22 +1,12 @@
 // activity/figure.js — チームの図（spec 6 章）。
 //
-// これが WebUI で唯一、文字列のマークアップを流し込む所（webui-preact-design
-// 5 章 1 の例外。理由と、いつ消えるかは internal/web/markup_test.go の
-// figureException に書いてある）。
-//
-// 図は hq.js の teamSVG が返す。hq.js はまだ classic script で、この画面と
-// チーム定義の画面が同じ 1 つの図を描く。図を Preact の部品にするのは hq.js を
-// module にする段で、そのときこの dangerouslySetInnerHTML と markup_test.go の
-// 例外を一緒に消す。
-//
-// 流し込んでよいのは、図が「操作しない図」だから: teamSVG が出すのは
-// svg(role="img") / g / circle / text / path / line だけで、押せるものも、
-// フォーカスの入るものも無い。
+// 図は共通部品 lib/hq/figure.js が描く（活動の画面のタイルと詳細、そして将来は
+// チーム定義の画面も同じ 1 つの図）。前は hq.js が SVG の文字列を返し、ここが
+// 唯一 dangerouslySetInnerHTML で流し込んでいた。hq が module になったので、
+// その例外（markup_test.go）も一緒に消えた（webui-preact-design 5 章 1）。
 import { html } from '../vendor/preact.js';
-
-const A = window.hergyHQ;
+import { TeamFigure } from '../lib/hq/figure.js';
 
 export function Figure({ team }) {
-  const svg = A ? A.teamSVG(team, team.turns) : '';
-  return html`<div class="hq-fig" dangerouslySetInnerHTML=${{ __html: svg }}></div>`;
+  return html`<div class="hq-fig"><${TeamFigure} team=${team} turns=${team.turns} /></div>`;
 }
