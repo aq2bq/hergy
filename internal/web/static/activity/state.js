@@ -8,6 +8,7 @@
 import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { read } from '../lib/api.js';
+import { setActivity } from '../lib/nav.js';
 
 const A = window.hergyHQ;
 export const POLL = 10000;
@@ -97,7 +98,7 @@ async function readBoard(stop) {
   const answer = await read('/api/activity', { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: '' };
-  window.hergyNav && window.hergyNav.setActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
+  setActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
 
   // The headquarters reading is the same one the list's 動き column uses, so a
   // team's state cannot read two ways (api.md 3.5).

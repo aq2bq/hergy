@@ -10,6 +10,7 @@
 // ので、マイクロタスク待ちにすると要素がまだ無い。rev は「変わった」番号で、
 // 画面の木がこれを読んでいる。
 import { signal } from '../vendor/preact.js';
+import { takeDraft, setCount } from '../lib/nav.js';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, checkAnswer,
@@ -253,7 +254,7 @@ export function render() {
   paint();
   // The band's dot and its number are the screen's own answers.
   tellDirty();
-  if (window.hergyNav) window.hergyNav.setCount('roles', savedRoles().length);
+  setCount('roles', savedRoles().length);
   // A row a person just added opens on its name, after the last redraw the
   // check caused (spec-roles 1.2「道具の列」).
   const ask = state.wantFocus;
@@ -773,7 +774,7 @@ export async function boot() {
   parseURL();
   await Promise.all(roles.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => { r[l].__savedIssues = (checks[r.uid + l] || {}).issues; }))));
   roles.forEach((r) => updateRowSummary(r));
-  const carried = window.hergyNav && window.hergyNav.takeDraft('roles');
+  const carried = takeDraft('roles');
   if (carried) restore(carried);
   render();
 }

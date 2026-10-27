@@ -10,6 +10,7 @@
 // classic の画面は今までどおり window.hergyHQ から読む（4 章）。
 import { signal } from '../../vendor/preact.js';
 import { read, call, problemText } from '../api.js';
+import { setActivity, setCount } from '../nav.js';
 
 export const POLL = 10000;
 // esc is the words a sheet puts in its markup (the sheets that are still strings:
@@ -124,11 +125,9 @@ export function definitionDoc(definition, project) {
 // bandActivity keeps the band's two numbers the reading's own: 活動 N（動いている
 // チーム）と 待ち N（人間を待っているメンバー）(spec 2 章, spec-activity 2.1).
 export function bandActivity() {
-  const nav = window.hergyNav;
-  if (!nav || !nav.setActivity) return;
   const teams = st.running.teams || [];
   const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  nav.setActivity(teams.length, waiting, !!st.running.herdr.ok && teams.length > 0);
+  setActivity(teams.length, waiting, !!st.running.herdr.ok && teams.length > 0);
 }
 
 // bandCounts writes the projects reading's totals into the band, so the four
@@ -137,7 +136,7 @@ export function bandActivity() {
 // without a reload.
 export function bandCounts() {
   const p = st.projects;
-  if (!p || !window.hergyNav || !window.hergyNav.setCount) return;
+  if (!p) return;
   if (p.mode !== 'listed') return;
   const totals = { teams: 0, roles: 0, profiles: 0 };
   ((p.projects || []).filter((x) => x.listed)).forEach((x) => {
@@ -148,9 +147,9 @@ export function bandCounts() {
   totals.teams += (p.global && p.global.definitions) || 0;
   totals.roles += (p.global && p.global.roles) || 0;
   totals.profiles += (p.global && p.global.profiles) || 0;
-  window.hergyNav.setCount('teams', totals.teams);
-  window.hergyNav.setCount('roles', totals.roles);
-  window.hergyNav.setCount('profiles', totals.profiles);
+  setCount('teams', totals.teams);
+  setCount('roles', totals.roles);
+  setCount('profiles', totals.profiles);
 }
 
 // say tells the screens a reading changed: the classic screens listen for

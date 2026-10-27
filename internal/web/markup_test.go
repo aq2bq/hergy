@@ -38,9 +38,6 @@ var markupExceptions = map[string]exception{
 	"teams-v2.js": {
 		why: "チーム定義の画面。パネルを文字列で組み立てて領域ごと差し替えている（段階 1 以降で移す）",
 	},
-	"deliver.js": {
-		why: "伝えていない変更のシート。各画面が借りている（共通部品の段で移す）",
-	},
 	"topocanvas.js": {
 		why: "チーム定義の図を描く canvas（最後の段で移す）",
 	},

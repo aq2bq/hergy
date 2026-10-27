@@ -5,6 +5,7 @@
 // （5 章 1）。
 import { html, render } from '../vendor/preact.js';
 import { insertTab } from '../lib/yamltab.js';
+import { takeDraft } from '../lib/nav.js';
 import {
   view, TAB, rows, assignKind, dirty, take, tellDirty, restore,
   syncAssignURL, initAssign, initYaml, setPick, panelByKey, saveTeam, patchPanel, pathFor,
@@ -207,7 +208,7 @@ function flashFromHash() {
 // The band's promise: what one screen left unsaved is handed to this one, and
 // dropped whether or not it could be put back (spec-nav 1.5). It is put back
 // after the tab is set up, so what was typed is not read as the file's own text.
-const carried = window.hergyNav && window.hergyNav.takeDraft('profiles');
+const carried = takeDraft('profiles');
 if (carried) restore(carried);
 tellDirty();
 
