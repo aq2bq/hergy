@@ -12,8 +12,6 @@
 // The page carries this run's token wherever it writes; the activity screen
 // holds it on its list, the others on #view (r-a8fa).
 export const token = (document.querySelector('[data-token]') || {}).dataset?.token || '';
-export const $ = (sel, root = document) => root.querySelector(sel);
-export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
 
 // Refusal is the server saying it will not take this: the status it answered,

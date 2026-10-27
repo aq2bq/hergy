@@ -128,6 +128,7 @@ function StartSheet({ definition, place, project }) {
   const [chosen, setChosen] = useState('');
   const [picked, setPicked] = useState('');
   const [asName, setAsName] = useState('');
+  const [wsName, setWsName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -136,6 +137,7 @@ function StartSheet({ definition, place, project }) {
     setChosen(next.project ? next.project.path : '');
     setPicked(next.last_workspace ? next.last_workspace.id : '');
     setAsName(next.suggested_name || '');
+    setWsName(next.new_workspace_name || definition);
   };
   useEffect(() => {
     let alive = true;
@@ -171,6 +173,7 @@ function StartSheet({ definition, place, project }) {
     }));
     setPicked(next.last_workspace ? next.last_workspace.id : '');
     setAsName(next.suggested_name || '');
+    setWsName(next.new_workspace_name || definition);
   };
 
   if (!options) {
@@ -199,15 +202,15 @@ function StartSheet({ definition, place, project }) {
   const start = async () => {
     const proj = isGlobal ? chosen : project;
     if (!proj) { setError('どのプロジェクトで起こすかを選んでください'); return; }
-    const radio = document.querySelector('input[name="hq-ws"]:checked');
-    if (!radio) { setError('ワークスペースを選んでください'); return; }
+    // Which workspace is picked, and the name a new one takes, are the sheet's
+    // state: nothing is read back from the boxes (5 章 2).
+    if (!picked) { setError('ワークスペースを選んでください'); return; }
     let workspace;
-    if (radio.value === '__new') {
-      const field = document.getElementById('hq-wsname');
-      const name = field ? field.value : '';
-      if (!name.trim()) { setError('新しいワークスペースの名前を書いてください'); return; }
-      workspace = { new: name.trim() };
-    } else workspace = { id: radio.value };
+    if (picked === '__new') {
+      const name = wsName.trim();
+      if (!name) { setError('新しいワークスペースの名前を書いてください'); return; }
+      workspace = { new: name };
+    } else workspace = { id: picked };
     const body = { project: proj, definition, place: place || 'project', workspace };
     if (asName.trim()) body.name = asName.trim();
     setBusy(true);
@@ -243,7 +246,7 @@ function StartSheet({ definition, place, project }) {
         ? html`<p class="hq-sub">プロジェクトを選ぶと、ワークスペースが出ます</p>`
         : html`${(options.workspaces || []).map((w) => (w.selectable
           ? html`<label class="hq-wo"><input type="radio" name="hq-ws" value=${w.id} checked=${w.id === picked} onChange=${() => setPicked(w.id)} /><span class="hq-wn">${w.label}</span><span class="hq-wd">${wsWhy(w)}</span></label>`
-          : html`<label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">${w.label}</span><span class="hq-wd">${wsWhy(w)}</span></label>`))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked=${picked === '__new'} onChange=${() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><${Seeded} id="hq-wsname" class="hq-in" value=${options.new_workspace_name || definition} aria-label="新しいワークスペースの名前" /></span></label>`}</div></div>
+          : html`<label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">${w.label}</span><span class="hq-wd">${wsWhy(w)}</span></label>`))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked=${picked === '__new'} onChange=${() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><${Seeded} id="hq-wsname" class="hq-in" value=${options.new_workspace_name || definition} onInput=${(e) => setWsName(e.target.value)} aria-label="新しいワークスペースの名前" /></span></label>`}</div></div>
       <${Err} text=${error} />
       <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def=${definition} data-place=${place || 'project'} disabled=${busy} onClick=${start}>起動する</button><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>やめる</button>
       <span class="hq-sub" data-role="same">${same(asName)}</span></div>`;
@@ -386,6 +389,7 @@ let index = null;
 let indexTeams = null;
 let shown = [];
 let sel = 0;
+let q = '';
 
 // index builds the rows the search reads: names, missions, rules' ids and texts,
 // kinds and args — the fields api.md 3.5 names (spec 3 章).
@@ -485,8 +489,12 @@ function snippet(text, q) {
   return [a > 0 ? '…' : '', ...marks(s.slice(a, b), q), b < s.length ? '…' : ''];
 }
 
+// q is the text in the band's search, and box the list it opens: the part's own
+// state, so a re-reading draws the list it had without reading the field back
+// (5 章 2).
+let box = null;
+
 function resultsBox() {
-  let box = document.querySelector('.hq-sr');
   if (!box) {
     box = document.createElement('div');
     box.className = 'hq-sr';
@@ -497,17 +505,19 @@ function resultsBox() {
   return box;
 }
 
-export function renderResults(q) {
-  const box = document.querySelector('.hq-sr');
-  if (!q) { if (box) box.remove(); shown = []; return; }
+export const searchQuery = () => q;
+export function closeBox() {
+  if (box) { box.remove(); box = null; }
+  shown = [];
+}
+
+export function renderResults(text) {
+  q = String(text || '').trim();
+  if (!q) { closeBox(); return; }
   const out = resultsBox();
   if (!st.groupsLoaded) {
     draw(html`<p class="hq-sub">読み込んでいます…</p>`, out);
-    readGroups().then(() => {
-      const input = document.getElementById('hq-q');
-      const v = input ? input.value : '';
-      if (v.trim()) renderResults(v.trim());
-    });
+    readGroups().then(() => { if (q) renderResults(q); });
     return;
   }
   const low = q.toLowerCase();
@@ -537,22 +547,21 @@ export function renderResults(q) {
 
 export const searchShown = () => shown;
 export const searchSel = () => sel;
-export const searchBoxOpen = () => !!document.querySelector('.hq-sr');
+export const searchBoxOpen = () => !!box;
 
 export function moveSel(step) {
   if (!shown.length) return;
   sel = Math.max(0, Math.min(shown.length - 1, sel + step));
-  const input = document.getElementById('hq-q');
-  renderResults(input ? input.value.trim() : '');
-  const cur = document.querySelector('.hq-ri.sel');
+  renderResults(q);
+  const cur = box && box.querySelector('.hq-ri.sel');
   if (cur) cur.scrollIntoView({ block: 'nearest' });
 }
 
 export function mountSearch() {
   const input = document.getElementById('hq-q');
   if (!input) return;
-  input.addEventListener('input', () => { sel = 0; renderResults(input.value.trim()); });
-  input.addEventListener('focus', () => { if (input.value.trim()) renderResults(input.value.trim()); });
+  input.addEventListener('input', () => { sel = 0; renderResults(input.value); });
+  input.addEventListener('focus', () => { if (q) renderResults(q); });
 }
 
 export function resetSearch() {
@@ -560,8 +569,6 @@ export function resetSearch() {
   if (input) input.value = '';
   sel = 0;
   renderResults('');
-  const box = document.querySelector('.hq-sr');
-  if (box) box.remove();
 }
 
 // A test hook, the way the other screens carry one: what the search has on show,

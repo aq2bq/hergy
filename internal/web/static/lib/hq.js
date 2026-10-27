@@ -22,7 +22,7 @@ import {
 import { RunCell } from './hq/run.js';
 import {
   closeSheet, projectsSheet, startSheet, stopSheet, mountSearch, renderResults, moveSel,
-  resetSearch, searchHook, sheetOpen, searchBoxOpen,
+  resetSearch, searchHook, sheetOpen, searchBoxOpen, closeBox, searchQuery,
 } from './hq/sheets.js';
 import { TeamFigure } from './hq/figure.js';
 
@@ -44,10 +44,7 @@ document.addEventListener('click', async (e) => {
 // same way (spec 3 章).
 document.addEventListener('click', (e) => {
   if (sheetOpen() && !e.target.closest('.hq-sheet') && !e.target.closest('[data-hq]')) closeSheet();
-  if (searchBoxOpen() && !e.target.closest('.hq-sr, .hq-search')) {
-    const box = document.querySelector('.hq-sr');
-    if (box) box.remove();
-  }
+  if (searchBoxOpen() && !e.target.closest('.hq-sr, .hq-search')) closeBox();
 });
 
 // The search's keys (spec 3 章): "/" from anywhere outside a field, Esc closes,
@@ -105,8 +102,10 @@ window.hergyHQ = {
 // (the activity screen needs them for the figures' turns), and the ten-second one
 // while the page is looked at.
 readCore().then(() => {
-  const q = document.getElementById('hq-q');
-  if (q && q.value.trim()) readGroups().then(() => renderResults(q.value.trim()));
+  // A search the person had already typed is drawn again once the groups are
+  // read: the text is the part's state, not the field's (5 章 2).
+  const typed = searchQuery();
+  if (typed) readGroups().then(() => renderResults(typed));
   if (location.pathname.indexOf('/activity') === 0) readGroups();
 });
 startReads();
