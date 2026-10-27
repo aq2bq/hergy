@@ -62,6 +62,9 @@ func gatesFor(paths []string) []gate {
 		case strings.HasSuffix(p, "_test.go"), strings.HasPrefix(p, "tools/check/"):
 			// Neither a test nor the gates' own code goes into what the walks run.
 			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
+		case strings.HasPrefix(p, "tools/weblint/"):
+			// The undef gate's eslint and its one rule.
+			add("undef")
 		case strings.HasPrefix(p, "tools/webvendor/"):
 			// The packages the WebUI's one module is made from.
 			add("vendor", "deadcode")
@@ -75,6 +78,9 @@ func gatesFor(paths []string) []gate {
 		case strings.HasPrefix(p, "internal/"):
 			// The WebUI's pages, scripts and styles are embedded into the binary.
 			add("e2e")
+			if strings.HasPrefix(p, "internal/web/static/") && strings.HasSuffix(p, ".js") {
+				add("undef")
+			}
 		case p == ".golangci.yml":
 			add("fmt", "lint")
 		case p == ".testcoverage.yml":

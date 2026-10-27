@@ -218,7 +218,6 @@ export function YamlTab(props) {
       alive.current = false;
       clearTimeout(timer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // A text the band carried here is the field's, not the file's: it is put in

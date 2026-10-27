@@ -1,0 +1,10 @@
+{
+  "name": "hergy-weblint",
+  "private": true,
+  "type": "module",
+  "comment": "The one check the WebUI's modules get before a browser opens them: every name they use is defined or imported (eslint's no-undef, eslint.config.js). Pinned to exact versions (no ^ or ~). go run ./tools/check undef runs it: the gate copies this file, bun.lock and eslint.config.js into .bin/weblint and installs there, since Go would read the .go files one dependency ships. To move a version, edit it here, run bun install here, keep bun.lock and delete node_modules.",
+  "devDependencies": {
+    "eslint": "9.39.1",
+    "globals": "16.5.0"
+  }
+}

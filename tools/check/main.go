@@ -44,6 +44,7 @@ var gates = []gate{
 	{"tidy", Hard, "go mod tidy -diff is empty", (*runner).tidyGate},
 	{"fix", Hard, "go fix -diff is empty", (*runner).fixGate},
 	{"vendor", Hard, "internal/web/static/vendor/preact.js is what tools/webvendor makes (exact versions; go run ./tools/check vendor -write)", (*runner).vendorGate},
+	{"undef", Hard, "every name the WebUI's modules use is defined, imported or the browser's own (eslint no-undef from tools/weblint over internal/web/static, vendor/ left out)", (*runner).undefGate},
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
 	{"arch", Hard, "the direction of imports (arch_test.go); os/exec outside internal/herdrcli is caught by lint (depguard)", (*runner).archGate},
 	{"test", Hard, "go test -race -count=1 ./... with a coverage profile", (*runner).testGate},

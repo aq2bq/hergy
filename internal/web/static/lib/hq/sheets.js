@@ -149,7 +149,6 @@ function StartSheet({ definition, place, project }) {
       take(next);
     })();
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [definition, place, project]);
 
   const pickProject = async (path) => {
