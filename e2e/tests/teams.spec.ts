@@ -546,3 +546,32 @@ test('TEAMS-R1 the rules tab is the same switch and the same three fields', asyn
   const labels = await page.$$eval('.tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > label, .tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > .fl', (els) => els.map((e) => (e.textContent || '').trim()));
   expect(labels, 'the team rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
 });
+
+test('TEAMS-X3 an edit made while the first check is out keeps the file as the save\'s baseline', async ({ page, app }) => {
+  // spec-teams X3: a save stops only on an error the written file did not hold.
+  // The reading that says what the file holds is the check sent with no ops, and
+  // it is a request of its own: an edit sent while it is still out replaces the
+  // answer the panel draws, but not the baseline. docs carries a profile that
+  // does not resolve (an error), so a lost baseline would shut the save.
+  await page.route('**/api/team/check', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
+  await page.goto(`${app.base}/teams?open=docs`);
+  // The typed word has to land before the op-less answer does, so the field is
+  // waited on directly (the helpers wait for settled, which is after the answer).
+  for (let i = 0; i < 60; i++) {
+    if (await page.evaluate(`!!document.querySelector('.tdef.open .in-mission')`)) break;
+    await page.waitForTimeout(20);
+  }
+  await page.evaluate(`(function(){
+    var el = document.querySelector('.tdef.open .in-mission');
+    el.value = '書きかけの使命';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await page.waitForTimeout(2600);
+  const panel = `.tdef.open .panel.team-p`, row = q('.tdef.open');
+  await readTo<string>(page, `${row}.querySelector('.in-mission').value`, 'the typed mission was lost').toBe('書きかけの使命');
+  await readTo<string>(page, `${q(`${panel} .vlist`)}.textContent`, 'the file\'s own error is not drawn').toContain('gemini-flash');
+  await readTo<boolean>(page, `${q(`${panel} [data-act=t-save]`)}.disabled`, 'the save is shut although the error was in the file already').toBe(false);
+});

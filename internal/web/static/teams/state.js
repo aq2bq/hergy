@@ -11,6 +11,7 @@
 // 検査の文はすべてサーバ（check.Team / check.Agreement）が作る。この画面は文を
 // 作らない（spec-boundary 3）。
 import { signal } from '../vendor/preact.js';
+import { resource } from '../lib/resource.js';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   list as apiList, call as apiCall, problemText as apiProblemText,
@@ -236,7 +237,7 @@ function defOf(item, project) {
     // answers (d-00a9, r-2f83). A file that does not read has no size and
     // draws 大きさ —.
     size: sum.size || 0, limit: sum.limit || 0,
-    problems: item.problems || {}, report: null, check: null, req: 0, areq: 0,
+    problems: item.problems || {}, report: null, check: null, drawMark: 0,
   };
   recs.set(key, r);
   return r;
@@ -291,7 +292,7 @@ function draftRecord(how, place, name, base, project) {
       savedIssues: null,
     },
     savedTurns: [], findings: [], turnsFindings: [], problems: {}, report: null, check: null,
-    req: 0, areq: 0, starter: false, seeded: false, writes: [], nameIssues: [],
+    drawMark: 0, starter: false, seeded: false, writes: [], nameIssues: [],
     preview: { lines: [], diff: {} }, baseFindings: [],
   };
   r.key = dkey(r);
@@ -488,27 +489,32 @@ export const vlistParts = (r) => {
 };
 
 // ---- 検査と保存 --------------------------------------------------------
-async function checkOf(payload) {
-  return apiCall('POST', '/api/team/check', payload);
+// A check is a reading like any other (5 章 3), so each goes through
+// lib/resource.js: the newest request is the one whose answer is kept and the
+// one before it is dropped. A row keeps two of them, because one reading is not
+// like the others: the check sent with no ops reads the saved file, and its
+// findings are the baseline the save gate is held to (spec-teams X3). That
+// reading is a request of its own, so a person who starts typing before it comes
+// back still gets the file's own problems as the baseline.
+const teamChecks = new Map();
+function checkersFor(r) {
+  const k = dkey(r);
+  let one = teamChecks.get(k);
+  if (one) return one;
+  const load = async (signal, payload) => {
+    const res = await apiCall('POST', '/api/team/check', payload, { signal });
+    // A refused draft answers nothing here: the screen draws no findings of its
+    // own, and the refusal itself is the rules tab's to show (spec-teams X1).
+    return res.ok ? (res.json || {}) : null;
+  };
+  one = { draft: resource(load), base: resource(load), agree: resource(load) };
+  teamChecks.set(k, one);
+  return one;
 }
-export async function checkTeam(r) {
-  const id = ++r.req;
-  // A check sent with no ops reads the saved file, so its findings are the
-  // baseline the save gate is held to (spec-teams X3). It is taken from the
-  // request rather than from the answer's turn, and kept even when a later
-  // check has made this answer too old to draw: the file it read is the one a
-  // save would write over, and a person who writes before the first answer
-  // has come back still gets the file's own problems as the baseline.
-  const based = !r.ops.length;
-  const res = await checkOf(teamIn(r, { doc: { ops: r.ops } }));
-  if (!res.ok) return;
-  const json = (res && res.json) || {};
-  // The first answer for a definition that is not there yet is the base it
-  // stands on, and it is read once (spec-teams B2).
-  if (r.draftRow && !r.seeded) seedDraft(r, json);
-  const findings = figFindings(r, json.problems || []);
-  if (based) r.baseFindings = findings;
-  if (id !== r.req) return;
+export function forgetChecks(r) { teamChecks.delete(dkey(r)); }
+
+// applyTeamAnswer draws one check's answer into the row.
+function applyTeamAnswer(r, json, findings) {
   r.findings = findings;
   // Each member's prompt, cut into the pieces it was built from (r-4cf9),
   // follows the ops the check was sent with: the 属性 column shows it without
@@ -533,17 +539,41 @@ export async function checkTeam(r) {
       if (r.agree.draft) r.agree.draft.__path = ag.path;
     }
   }
+  r.drawMark = (r.drawMark || 0) + 1;
   render();
 }
-// afterAgree re-marks the panel the check answered for: the shared part reads
-// the Markdown, the diff and the problems through host.row, so it draws the
-// answer without this screen rebuilding the panel (spec-boundary 7).
+
+export async function checkTeam(r) {
+  const one = checkersFor(r);
+  const payload = teamIn(r, { doc: { ops: r.ops } });
+  if (!r.ops.length) {
+    // The op-less reading: the base a definition that is not there yet stands
+    // on (spec-teams B2), and the file's own problems as the save's baseline.
+    const at = r.drawMark || 0;
+    const json = await one.base.run(payload);
+    if (!json) return;
+    if (r.draftRow && !r.seeded) seedDraft(r, json);
+    const findings = figFindings(r, json.problems || []);
+    r.baseFindings = findings;
+    // The baseline is kept even when it is too old to draw (the guard above),
+    // but it does not draw over a newer answer (spec-teams X3).
+    if ((r.drawMark || 0) !== at) return;
+    applyTeamAnswer(r, json, findings);
+    return;
+  }
+  const json = await one.draft.run(payload);
+  if (!json) return;
+  applyTeamAnswer(r, json, figFindings(r, json.problems || []));
+}
+// checkAgree asks what is wrong with the rules draft: the newest answer is the
+// one the panel shows, and a draft that has not moved is the baseline its save
+// is held to (spec-teams X3).
 export async function checkAgree(r) {
-  const id = ++r.areq;
+  const one = checkersFor(r);
   const doc = toDoc(r.agree.draft, r.agree.saved);
-  const res = await checkOf(agreeIn(r, { doc: { ops: r.ops, doc } }));
-  if (id !== r.areq || !res.ok) return;
-  r.check = buildCheck(r.agree.draft, (res && res.json) || {});
+  const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops, doc } }));
+  if (!json) return;
+  r.check = buildCheck(r.agree.draft, json);
   if (!agreeDiff(r)) r.agree.savedIssues = r.check.issues;
   render();
 }
@@ -1071,6 +1101,16 @@ export function boot() {
   });
   Promise.allSettled([...later, ...checks]).then(() => { if (window.hergyPage) window.hergyPage.settled = true; });
 }
+// openAgree puts a row on its ルール tab and asks the rules' check: the same
+// step the tab's press takes, for a part that names the tab without a press.
+export function openAgree(r) {
+  state.open.add(r.dom);
+  state.dtab[r.dom] = 'agree';
+  render();
+  checkAgree(r);
+  syncURL();
+}
+
 // jumpToRule opens one rule of a team's own agreement and puts the cursor in
 // its body (spec-teams 1.4.5, spec-roles 1.2.4, 監査 R12). The check's column
 // reads through this, and so does the address.

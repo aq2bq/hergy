@@ -14,7 +14,7 @@ import { Counts } from '../lib/ruledoc.js';
 import {
   state, render, byKey, dkey, memberOf, nodeName, pairKey, narrow,
   teamIssues, rolesFor, profilesFor, rolesIn, promptsOf, promptBlockedOf,
-  workerPrompt, canvasAct, canvasTyping, canvasEndTyping, canvasUndo, canvasToast, undoRow,
+  workerPrompt, canvasAct, canvasTyping, canvasEndTyping, canvasUndo, canvasToast, undoRow, openAgree,
   onCanvasReset,
 } from './state.js';
 
@@ -26,7 +26,7 @@ const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\
 // The picks and the places a point was dragged to are the part's, not the
 // definition's: they stand per row key, and are dropped when the row is saved,
 // deleted or takes another place (d-a575).
-const M = { sel: {}, side: {}, pos: {}, drag: null, last: null, menu: null, flash: null };
+const M = { sel: {}, side: {}, pos: {}, drag: null, last: null, menu: null, flash: null, name: null };
 let root = null;
 
 const got = (map, r) => { const k = dkey(r); if (!map[k]) map[k] = {}; return map[k]; };
@@ -281,13 +281,17 @@ function SideAttr({ r }) {
   }
   const m = memberOf(t, id);
   if (!m) return '';
-  const msgs = memberMsgs(r, t, m).concat(fieldFindings(r, id).map((x) => x.text));
+  // The field holds what a person is typing: a name the server would refuse is
+  // not put into the draft, so the part keeps the typed letters itself and draws
+  // them with the words beside them (5 章 2).
+  const typed = M.name && M.name.row === dkey(r) && M.name.id === id ? M.name : null;
+  const msgs = (typed ? typed.msgs : memberMsgs(r, t, m)).concat(fieldFindings(r, id).map((x) => x.text));
   const outs = t.turns.filter(([a]) => a === id).map(([, b]) => b);
   const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
   const nt = t.turns.filter(([a, b]) => a === id || b === id).length;
   const role = (rolesFor(r) || []).find((x) => x.name === m.role) || {};
   return html`<div class="cv-t"><code>${m.name}</code><span class="cv-k">メンバー${role.title ? ` · ${role.title}` : ''}</span></div>
-      <div class="cv-f"><label for=${`cv-mn-${team}`}>名前</label><input id=${`cv-mn-${team}`} data-cv-f="m-name" value=${m.name} spellcheck="false" autocomplete="off" />${msgs.map((x) => html`<span class="cv-msg">${x}</span>`)}<span class="cv-sub">herdr 名 ${`${team}-${m.name}`}</span></div>
+      <div class="cv-f"><label for=${`cv-mn-${team}`}>名前</label><input id=${`cv-mn-${team}`} data-cv-f="m-name" value=${typed ? typed.value : m.name} spellcheck="false" autocomplete="off" />${msgs.map((x) => html`<span class="cv-msg">${x}</span>`)}<span class="cv-sub">herdr 名 ${`${team}-${m.name}`}</span></div>
       <div class="cv-f"><label for=${`cv-mr-${team}`}>ロール</label><span class="sel"><select id=${`cv-mr-${team}`} data-cv-f="m-role">${(rolesFor(r) || []).map((x) => html`<${Opt} v=${x.name} on=${x.name === m.role}>${x.name}${x.title ? ` · ${x.title}` : ''}</${Opt}>`)}</select></span><span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span></div>
       <div class="cv-f"><label for=${`cv-mp-${team}`}>プロファイル</label><span class="sel"><select id=${`cv-mp-${team}`} data-cv-f="m-profile">${profilesFor(r).map((p) => html`<${Opt} v=${p} on=${p === m.profile}>${p}</${Opt}>`)}</select></span></div>
       <div class="cv-sec"><span class="cv-sl">ターンを渡す相手</span>${turnRows(t, s, id, 'out')}${outs.length ? '' : html`<span class="cv-note">まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください</span>`}${addTurnSel(t, id)}</div>
@@ -651,6 +655,7 @@ function endField() {
 // selectPick is the screen's way in: a press on a preview line or a finding
 // picks the point, the line or the worker it names (spec-teams B7).
 export function selectPick(r, sel, side) {
+  M.name = null;
   got(M.sel, r).v = sel;
   if (side) got(M.side, r).v = side;
   render();
@@ -883,22 +888,18 @@ function onInput(e) {
   if (f === 'm-name') {
     const m = sel && sel.type === 'node' ? memberOf(t, sel.id) : null;
     if (!m) return;
-    // The messages stand beside the field as it is typed, so a name the
-    // server would refuse is said before the field is left (監査 R9). The field
-    // itself is not drawn again: it holds what the person typed.
-    const msgs = nameMsgs(r, t, m, v);
-    const field = e.target.closest('.cv-f');
-    if (field) {
-      Array.from(field.querySelectorAll('.cv-msg')).forEach((x) => x.remove());
-      const sub = field.querySelector('.cv-sub');
-      msgs.forEach((msg) => { const span = document.createElement('span'); span.className = 'cv-msg'; span.textContent = msg; field.insertBefore(span, sub || null); });
-    }
     const ok = NAME.test(v) && v !== m.name;
     if (ok) {
       const p = posOf(r); if (p[m.name]) { p[v] = p[m.name]; delete p[m.name]; }
+      M.name = null;
       canvasTyping(r, { kind: 'renameMember', member: m.name, new: v }, 'm-name');
       got(M.sel, r).v = { type: 'node', id: v };
+      return;
     }
+    // The messages stand beside the field as it is typed, so a name the server
+    // would refuse is said before the field is left (監査 R9).
+    M.name = { row: dkey(r), id: sel.id, value: v, msgs: nameMsgs(r, t, m, v) };
+    render();
     return;
   }
   if (f === 'm-role' || f === 'm-profile') {
@@ -960,13 +961,10 @@ function onKey(e) {
   }
 }
 
-// toAgree opens the rules tab of the row a prompt fold names (the screen's own
-// tab press, as it always was).
+// toAgree opens the rules tab of the row a prompt fold names: the screen's own
+// tab, drawn from its state (5 章 1).
 function toAgree(r) {
-  if (!r) return;
-  const row = document.querySelector(`.tdef[data-name="${CSS.escape(r.dom)}"]`);
-  const tab = row && row.querySelector('.dtab[data-t=agree]');
-  if (tab) tab.click();
+  if (r) openAgree(r);
 }
 
 // mountCanvas puts the part's own listeners on the page once: the keys stand on

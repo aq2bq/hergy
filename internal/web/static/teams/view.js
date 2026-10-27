@@ -324,12 +324,12 @@ function YamlFile({ f }) {
       onSaved=${(sec, answer) => {
     const json = (answer && answer.json) || {};
     f.hash = json.hash || f.hash;
-    if (sec) {
-      const ta = sec.querySelector('.ytext');
-      if (ta) f.text = ta.value;
-    }
+    // The written text is the server's, or what the person typed (5 章 2).
+    if (typeof json.text === 'string') f.text = json.text;
+    else if (state.ytext[f.file] !== undefined) f.text = state.ytext[f.file];
     delete state.ytext[f.file];
     delete state.yc[f.file];
+    void sec;
   }} />
   </section>`;
 }
