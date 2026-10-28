@@ -1,27 +1,26 @@
 // teams/state.js — チーム定義の画面の状態と、サーバーとのやり取り
-// （webui-preact-design 4 章・5 章）。
+// （webui-preact-design 4 章・5 章、webui-components 1・2 章）。
 //
-// 定義の記録（recs）、下書き（ops と draft）、チェックの答え、URL、帯への約束を
-// ここが持つ。描くのは view.js / canvas.js / yaml.js で、どれもここを読むだけ。
-// 状態は 1 つのオブジェクトと Map のまま（部品 ruledoc が下書きをその場で書き換え、
-// 画面も同じ下書きを読む）。変えたら render() を呼ぶ。render() は同期に描く:
-// 部品が描き直しの直後に自分の要素を読む（規則を開いて、その本文に caret を置く）
-// ので、マイクロタスク待ちにすると要素がまだ無い。
+// 定義の記録（recs）と画面の状態は signals に置く。1 つの記録は欄ごとの signal
+// の束で、姿（draft）は保存した定義と ops から作る computed にする。だから
+// 記録を書き換えたら描き直す、という関数は無い: 部品は signal を読み、値が変われ
+// ば Preact が自分で描き直す（依頼書 1）。押し込みは部品の onClick / onInput /
+// onKeyDown から、ここの関数を直接呼ぶ（依頼書 2。ひとまず (a) では main.js の
+// 委譲がここを呼ぶ）。
 //
 // 検査の文はすべてサーバ（check.Team / check.Agreement）が作る。この画面は文を
 // 作らない（spec-boundary 3）。
-import { signal } from '../vendor/preact.js';
+import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
 import {
   fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, openRule,
 } from '../lib/ruledoc.js';
-import { parseOpen, projectName as hqProjectName, state as hqState } from '../lib/hq.js';
-import { setCount, takeDraft } from '../lib/nav.js';
+import { parseOpen } from '../lib/hq.js';
+import { takeDraft } from '../lib/nav.js';
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
-export const rev = signal(0);
 
 const DATA = JSON.parse((document.getElementById('teams-data') || {}).textContent || '{}');
 export const PLACES = ['project', 'global'];
@@ -47,9 +46,12 @@ if (HQ) document.body.classList.add('hq-teams');
 
 // ROLES_BY and PROFILES_BY are the names each project's member 属性 offers:
 // another project's definition picks from that project's own documents and
-// the global layer's (spec 4 章).
+// the global layer's (spec 4 章). They are filled after the first frame, and
+// ROLES_REV is the number that says they changed, so the columns that read
+// them are drawn again without the screen asking.
 const ROLES_BY = {};
 const PROFILES_BY = {};
+const ROLES_REV = signal(0);
 if (HQ) {
   (HQ.roles || []).forEach((g) => {
     ROLES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => {
@@ -62,75 +64,72 @@ if (HQ) {
 // ROLES is the role documents the member's 属性 offers: the same list the
 // role screen shows, with the title each document carries. It is read once
 // from GET /api/role; the team answer itself carries no role documents.
-export let ROLES = [];
+const ROLES = signal([]);
 // rolesIn turns true once the roles a new member is named after have answered:
 // until then ＋メンバー and the blank space's メンバーを足す cannot be pressed,
 // since a member added before them has no role (d-c5fe). A read that fails lets
 // them be pressed as before.
-export let rolesIn = false;
-export const rolesCame = () => { if (rolesIn) return; rolesIn = true; render(); };
+const ROLES_IN = signal(false);
+export const rolesIn = () => ROLES_IN.value;
+export const rolesCame = () => { ROLES_IN.value = true; };
 // The island is the same list answer GET /api/team gives (spec-boundary 5):
 // the items, and the files the YAML tab can open.
 const LIST = DATA.team || { items: [], files: [] };
 
 export const $ = (s, root = document) => root.querySelector(s);
 export const nodeName = (x) => (x === 'human' ? '人間' : x);
-const other = (p) => (p === 'project' ? 'global' : 'project');
-export const pairKey = (a, b) => [a, b].sort().join('|');
+export const other = (p) => (p === 'project' ? 'global' : 'project');
 const hasTurn = (t, a, b) => (t.turns || []).some(([p, q]) => p === a && q === b);
 const memberOf = (t, n) => (t.members || []).find((m) => m.name === n);
-const turnLabel = (d, t, b) => (b === 'human'
-  ? '人間（ターンを渡したら、止まって人の答えを待つ）'
-  : `${d.name}-${b}（ロール ${(memberOf(t, b) || {}).role || '?'}）`);
 export const narrow = () => window.innerWidth <= 760;
+// thin is narrow as the figure reads it: a page that grows or shrinks draws the
+// figure again through this (main.js puts the width in).
+export const thin = signal(narrow());
 
-// ---- 状態 ---------------------------------------------------------------
-export const state = {
+// ---- 画面の状態 ---------------------------------------------------------
+// state is what the screen knows about itself: the tab, the open rows, the
+// files' own drafts and the notices. Every change puts a new value in (依頼書 1),
+// so nothing here is written in place.
+const put = (patch) => { state.value = { ...state.value, ...patch }; };
+export const state = signal({
   tab: (view && view.dataset.tab) === 'yaml' ? 'yaml' : 'list',
   open: new Set(), dtab: {}, confirm: {},
   ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
-  // The topology tab's preview bookkeeping: the lines drawn last, the lines one
-  // edit just moved, and when they lit up (spec-teams B7).
-  tlast: {}, tstep: {}, tglow: {}, tglowTimer: {},
   // refusal is the server's sentence on one row's foot (the shape tab's or the
   // rules tab's), and toast the words the canvas says at the bottom.
   refusal: {}, toast: null,
-  // focusAsk is the one field a person's press should land in after the draw
-  // (5 章 5): a member just added, a rule just opened.
-  focusAsk: null,
+});
+// focusAsk is the one field a person's press should land in after the draw
+// (5 章 5): a member just added, a rule just opened. The row it names puts the
+// cursor there itself.
+export const focusAsk = signal(null);
+// withKey puts one entry of a map the screen keeps (a text, a check, a notice).
+const withKey = (name, key, value) => {
+  const m = { ...state.value[name] };
+  if (value === undefined) delete m[key];
+  else m[key] = value;
+  put({ [name]: m });
 };
-
-// render is the screen's draw: the tabs and the view are drawn again from this
-// state, synchronously, because the shared part reads its fresh element at once.
-let paint = () => {};
-export const onDraw = (fn) => { paint = fn; };
-export function render() {
-  rev.value += 1;
-  paint();
-  applyFocusAsk();
-  setBandCount();
-  tellDirty();
-}
-// applyFocusAsk puts the cursor in the one field a person's press asked for,
-// right after the draw (5 章 5). Nothing here puts the focus back after a
-// redraw: the element is the same one, so there is nothing to put back.
-function applyFocusAsk() {
-  const a = state.focusAsk;
-  if (!a) return;
-  state.focusAsk = null;
-  const row = document.querySelector(`.tdef[data-name="${CSS.escape(a.dom)}"]`);
-  const el = row && row.querySelector(a.sel);
-  if (!el) return;
-  el.focus({ preventScroll: true });
-  if (el.select) el.select();
-}
+const withOpen = (dom, on) => {
+  const s = new Set(state.value.open);
+  if (on) s.add(dom); else s.delete(dom);
+  put({ open: s });
+};
+export const isOpen = (dom) => state.value.open.has(dom);
+export const dtabOf = (r) => state.value.dtab[r.dom] || 'shape';
+export const pmodeOf = (r) => state.value.pmode[dkey(r)] || 'edit';
+export const okOf = (key) => !!state.value.ok[key];
+export const refusalOf = (r, which) => state.value.refusal[which + dkey(r)] || '';
+const setDtab = (dom, t) => { put({ dtab: { ...state.value.dtab, [dom]: t } }); };
+const dropDtab = (dom) => { const m = { ...state.value.dtab }; delete m[dom]; put({ dtab: m }); };
+const setConfirm = (key, on) => { const m = { ...state.value.confirm }; if (on) m[key] = 1; else delete m[key]; put({ confirm: m }); };
 const debounceTimers = {};
 export const debounce = (k, fn, ms = 260) => { clearTimeout(debounceTimers[k]); debounceTimers[k] = setTimeout(fn, ms); };
 
 // dkey is the key the screen's own state and DOM stand on: the definition's
 // saved name, or, for a definition that is not there yet (its name is what the
 // person is typing), a stable id of its own (spec-teams B2).
-export const dkey = (d) => d.dom + '.' + d.place;
+export const dkey = (d) => d.dom + '.' + d.place.value;
 export const domOf = (name, group) => (GROUPED ? name + '|' + (group || '') : name);
 
 // ---- サーバとのやり取りの形 ---------------------------------------------
@@ -142,8 +141,8 @@ const draftIn = (r) => (!r.draftRow ? {} : r.how === 'new' ? { new: true } : { b
 // for the global layer (which the server writes without being told) or for this
 // serve's own project.
 const projectIn = (project) => (project && project !== 'global' ? { project } : {});
-const teamIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'team' }, projectIn(r.project), draftIn(r), extra || {});
-const agreeIn = (r, extra) => Object.assign({ place: r.place, name: r.name, part: 'agreement' }, projectIn(r.project), draftIn(r), extra || {});
+const teamIn = (r, extra) => Object.assign({ place: r.place.value, name: r.name.value, part: 'team' }, projectIn(r.project), draftIn(r), extra || {});
+const agreeIn = (r, extra) => Object.assign({ place: r.place.value, name: r.name.value, part: 'agreement' }, projectIn(r.project), draftIn(r), extra || {});
 
 // ---- 下書き（姿） ------------------------------------------------------
 export const cloneTeam = (t) => ({
@@ -182,7 +181,26 @@ export function applyOps(saved, ops) {
 }
 
 // ---- 記録（1 定義ごと） ------------------------------------------------
-const recs = new Map();
+// Still are the fields a record is made with and never changes: they are read
+// as they are. Every other field is a signal of its own, so a change draws the
+// parts that read that field and nothing else (依頼書 1). ops and saved make
+// draft, a computed: no one keeps the two in step by hand any more.
+const STILL = ['uid', 'dom', 'project', 'places', 'draftRow', 'how', 'base'];
+function recOf(init) {
+  const r = {};
+  Object.keys(init).forEach((k) => { r[k] = STILL.includes(k) ? init[k] : signal(init[k]); });
+  r.draft = computed(() => applyOps(r.saved.value, r.ops.value));
+  r.key = computed(() => dkey(r));
+  // wprompts is the worker prompts the server answered, per worker; the request
+  // that is out is the drawing's own bookkeeping and is not a signal.
+  r.wprompts = signal({});
+  r.wpromptReq = {};
+  // pos is where the figure lays the points out: the drawing's own memory, kept
+  // as it is by ensurePos (canvas.js) while the figure is drawn.
+  r.pos = {};
+  return r;
+}
+export const recs = signal([]);
 let uids = 0;
 
 // defOf is one item of GET /api/team (or of one group of GET /api/hq/teams)
@@ -200,9 +218,8 @@ function defOf(item, project) {
   const agree = doc.agreement || { path: '', hash: '', has: false, doc: null };
   const sum = item.summary || {};
   const dom = domOf(item.name || '', project);
-  const key = dom + '.' + eff;
-  let r = recs.get(key);
-  if (r) return r;
+  const had = byKey(dom + '.' + eff);
+  if (had) return had;
   let saved = null;
   if (agree.doc) {
     saved = fromJSON(agree.doc);
@@ -211,62 +228,61 @@ function defOf(item, project) {
   const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
     place: p, path: (places[p] || {}).path, hash: (places[p] || {}).hash,
   }));
-  r = {
-    name: item.name || '', dom, project, place: eff, places: PLACES.filter((p) => places[p]), key,
+  const r = recOf({
+    name: item.name || '', dom, project, place: eff, places: PLACES.filter((p) => places[p]),
     teamPath: place.path || '', agreePath: agree.path || '',
-    hash: place.hash || '', agreeHash: agree.hash || '', hasAgree: !!agree.has, broken: !!doc.broken,
-    hidden, ins: doc.prompt || { turns: {}, workers: {} },
-    ops: [], uid: ++uids,
-    team: { saved: cloneTeam(doc), draft: cloneTeam(doc) },
-    agree: {
-      saved,
-      draft: saved ? clone(saved) : fromJSON({ name: '', title: (item.name || '') + ' チームのルール', revision: 1, sections: [] }),
-      // The saved document's own problems are the agreement save's baseline:
-      // a save stops only when an error the saved text did not hold has
-      // appeared (spec-teams X3).
-      savedIssues: null,
-    },
-    savedTurns: cloneTeam(doc).turns,
-    findings: [], turnsFindings: [],
+    hash: place.hash || '', agreeHash: agree.hash || '', broken: !!doc.broken,
+    hidden, ops: [],
+    saved: cloneTeam(doc),
+    agreeSaved: saved,
+    agreeDraft: saved ? clone(saved) : fromJSON({ name: '', title: (item.name || '') + ' チームのルール', revision: 1, sections: [] }),
+    // The saved document's own problems are the agreement save's baseline:
+    // a save stops only when an error the saved text did not hold has
+    // appeared (spec-teams X3).
+    agreeSavedIssues: null,
+    findings: [],
     // The list's own size and budget, the same pair the figure's check
     // answers (d-00a9, r-2f83). A file that does not read has no size and
     // draws 大きさ —.
     size: sum.size || 0, limit: sum.limit || 0,
-    problems: item.problems || {}, report: null, check: null, drawMark: 0,
-  };
-  recs.set(key, r);
+    problems: item.problems || {}, check: null, drawMark: 0,
+    draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
+    preview: { lines: [], diff: {} }, baseFindings: [], prompts: [], promptsReady: undefined,
+    // The canvas's own picks for this row (webui-components 3 章): what is
+    // picked, which column stands on the right, the blank space's menu, the
+    // member name being typed, and the line that just lit up.
+    sel: null, side: 'attr', menu: null, typed: null, flash: null,
+    lastAct: 0,
+  });
+  r.uid = ++uids;
+  recs.value = [...recs.value, r];
   return r;
 }
-export const allRecs = () => [...recs.values()];
-export const byKey = (k) => recs.get(k);
-export const byName = (n) => [...recs.values()].find((r) => r.dom === n);
+export const allRecs = () => recs.value;
+export const byKey = (k) => recs.value.find((r) => r.key.value === k) || null;
+export const byName = (n) => recs.value.find((r) => r.dom === n) || null;
 // byRef is the record one address names: the row of one group, or, with no
 // group, the row the screen wrote before the headquarters (its name alone).
 const byRef = (name, group) => (group ? byName(domOf(name, group)) : (byName(name) || byRealName(name)));
 // byRealName is the first row of a name, the project's own first: a link the
 // older screens wrote names a definition, not a group.
-const byRealName = (name) => [...recs.values()].find((r) => r.name === name && (r.project === CURRENT || r.project === ''))
-  || [...recs.values()].find((r) => r.name === name);
+const byRealName = (name) => recs.value.find((r) => r.name.value === name && (r.project === CURRENT || r.project === ''))
+  || recs.value.find((r) => r.name.value === name) || null;
 // groupOfRecord is the group a writable row belongs to: its own project, the
 // global layer, or, for a row that is not there yet, this serve's project.
 // Without projects: the screen writes to the one project, as it always did.
-export const groupOfRecord = (r) => (GROUPED ? (r.project || (r.place === 'global' ? 'global' : CURRENT)) : '');
+export const groupOfRecord = (r) => (GROUPED ? (r.project || (r.place.value === 'global' ? 'global' : CURRENT)) : '');
 // The list is drawn in the order the records stand in, so a row that is added
 // or read again is put back where a person was looking: firstIndexOf is the
 // place of the first record one rule names, and orderRows puts one row there
 // (spec-teams B1-B6).
-const firstIndexOf = (want) => {
-  const all = [...recs.values()];
-  for (let i = 0; i < all.length; i++) if (want(all[i])) return i;
-  return -1;
-};
-function orderRows(r, at) {
-  const all = [...recs.values()].filter((x) => x !== r);
+export const firstIndexOf = (want) => recs.value.findIndex((x) => want(x));
+export function orderRows(r, at) {
+  const all = recs.value.filter((x) => x !== r);
   all.splice(Math.max(0, Math.min(at < 0 ? 0 : at, all.length)), 0, r);
-  recs.clear();
-  all.forEach((x) => recs.set(x.key, x));
+  recs.value = all;
 }
-export const rowsOfGroup = (key) => [...recs.values()].filter((r) => (r.project ? r.project === key : key === (r.place === 'global' ? 'global' : CURRENT)));
+export const rowsOfGroup = (key) => recs.value.filter((r) => (r.project ? r.project === key : key === (r.place.value === 'global' ? 'global' : CURRENT)));
 
 // ---- まだ無い定義（B2, B3） --------------------------------------------
 // A definition that is not there yet is one row the screen holds rather than a
@@ -275,23 +291,23 @@ export const rowsOfGroup = (key) => [...recs.values()].filter((r) => (r.project 
 // builds no document of its own; it draws the check's own answer (spec-teams
 // B2, spec-boundary 5).
 function draftRecord(how, place, name, base, project) {
-  const r = {
+  const r = recOf({
     dom: '~new' + (++uids), draftRow: true, how, base: base || null, project: project || '',
     name: name || '', place: place || 'project', places: [],
-    key: '', teamPath: '', agreePath: '', hash: '', agreeHash: '', hasAgree: false, broken: false,
-    hidden: [], ins: { turns: {}, workers: {} }, ops: [], uid: uids,
-    team: { saved: cloneTeam(null), draft: cloneTeam(null) },
-    agree: {
-      saved: null,
-      draft: fromJSON({ name: '', title: 'チームのルール', revision: 1, sections: [] }),
-      savedIssues: null,
-    },
-    savedTurns: [], findings: [], turnsFindings: [], problems: {}, report: null, check: null,
-    drawMark: 0, starter: false, seeded: false, writes: [], nameIssues: [],
-    preview: { lines: [], diff: {} }, baseFindings: [],
-  };
-  r.key = dkey(r);
-  recs.set(r.key, r);
+    teamPath: '', agreePath: '', hash: '', agreeHash: '', broken: false,
+    hidden: [], ops: [],
+    saved: cloneTeam(null),
+    agreeSaved: null,
+    agreeDraft: fromJSON({ name: '', title: 'チームのルール', revision: 1, sections: [] }),
+    agreeSavedIssues: null,
+    findings: [], problems: {}, check: null,
+    size: 0, limit: 0,
+    drawMark: 0, seeded: false, writes: [], nameIssues: [],
+    preview: { lines: [], diff: {} }, baseFindings: [], prompts: [], promptsReady: undefined,
+    sel: null, side: 'attr', menu: null, typed: null, flash: null,
+    lastAct: 0,
+  });
+  recs.value = [...recs.value, r];
   return r;
 }
 // seedDraft reads the first check of a definition that is not there yet into
@@ -299,25 +315,26 @@ function draftRecord(how, place, name, base, project) {
 // would write it (spec-teams B2, B3).
 function seedDraft(r, json) {
   const doc = json.doc || {}, agree = doc.agreement || {};
-  r.seeded = true;
-  r.team.saved = cloneTeam(doc);
-  r.team.draft = cloneTeam(doc);
-  r.savedTurns = cloneTeam(doc).turns;
-  r.broken = !!doc.broken;
-  r.ins = doc.prompt || { turns: {}, workers: {} };
-  r.teamPath = json.path || '';
-  r.agreePath = agree.path || '';
-  r.hash = json.hash || '';
-  r.agreeHash = agree.hash || '';
-  r.hasAgree = !!agree.has;
-  r.starter = !!json.starter;
-  if (agree.doc) { const d = fromJSON(agree.doc); observeKeys(rulesOf(d)); d.__path = agree.path; r.agree.saved = d; r.agree.draft = clone(d); }
+  r.seeded.value = true;
+  r.saved.value = cloneTeam(doc);
+  r.broken.value = !!doc.broken;
+  r.teamPath.value = json.path || '';
+  r.agreePath.value = agree.path || '';
+  r.hash.value = json.hash || '';
+  r.agreeHash.value = agree.hash || '';
+  if (agree.doc) {
+    const d = fromJSON(agree.doc);
+    observeKeys(rulesOf(d));
+    d.__path = agree.path;
+    r.agreeSaved.value = d;
+    r.agreeDraft.value = clone(d);
+  }
 }
 // theName is the name a duplicate takes: the source's with -2, -3 … until one
 // is free, so the row starts without the name problem the same name would raise
 // (spec-teams B3).
 export function theName(base) {
-  const taken = new Set([...recs.values()].map((r) => r.name));
+  const taken = new Set(recs.value.map((r) => r.name.value));
   for (let i = 2; i < 1000; i++) {
     const n = `${base}-${i}`;
     if (!taken.has(n) && n.length <= 25) return n;
@@ -334,23 +351,23 @@ export async function addDraft(how, place, name, base, project) {
   // first, and a duplicate or a copy stands right under the row it came from
   // (spec-teams B1, B3, B4).
   let at = 0;
-  if (base) { const i = firstIndexOf((x) => x.name === base.name); at = i >= 0 ? i + 1 : 0; }
+  if (base) { const i = firstIndexOf((x) => x.name.value === base.name); at = i >= 0 ? i + 1 : 0; }
   orderRows(r, at);
-  state.open.add(r.dom);
-  state.dtab[r.dom] = 'shape';
+  withOpen(r.dom, true);
+  setDtab(r.dom, 'shape');
   // The name a copy already holds is chosen, so the first letter a person
   // types replaces it rather than landing beside it (監査 R8).
-  state.focusAsk = { dom: r.dom, sel: '.in-name' };
-  render();
+  focusAsk.value = { dom: r.dom, sel: '.in-name' };
   return r;
 }
 // dropDraft takes a row that is not there yet away without writing anything
 // (spec-teams B2).
 export function dropDraft(r) {
-  recs.delete(dkey(r));
-  state.open.delete(r.dom); delete state.dtab[r.dom]; canvasReset(dkey(r));
-  delete state.confirm['del' + dkey(r)];
-  render();
+  recs.value = recs.value.filter((x) => x !== r);
+  withOpen(r.dom, false);
+  dropDtab(r.dom);
+  setConfirm('del' + dkey(r), false);
+  resetCanvas(r);
 }
 
 function ruleKeyAt(doc, si, ri) {
@@ -378,7 +395,7 @@ const buildCheck = (doc, json) => {
 // rule) becomes the node, the worker or the word a row stands by. The server
 // writes every sentence; this only says where it goes (spec-teams X1).
 function figFindings(r, problems) {
-  const t = r.team.draft;
+  const t = r.draft.value;
   return (problems || []).map((p) => {
     const at = p.at || p.field || '';
     let node = null, worker = null, field = at, m;
@@ -394,17 +411,17 @@ function figFindings(r, problems) {
     return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '', ruleID: p.rule_id || '' };
   });
 }
-export const agreeIssues = (r) => (r.check ? r.check.issues : []);
-export const agreeDiff = (r) => diffCount(r.agree);
-export const teamIssues = (r) => r.findings;
+export const agreeIssues = (r) => (r.check.value ? r.check.value.issues : []);
+export const agreeDiff = (r) => diffCount({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
+export const teamIssues = (r) => r.findings.value;
 const pcountList = (c) => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
 // rowIssues is the problems a row's own chip shows: the server's count for a
 // saved definition, and the findings the server answered for a definition that
 // is not there yet (spec-teams B2).
-export const rowIssues = (r) => (r.draftRow ? teamIssues(r) : pcountList(r.problems));
+export const rowIssues = (r) => (r.draftRow ? teamIssues(r) : pcountList(r.problems.value));
 // A definition that is not there yet counts as unsaved whatever it holds: it is
 // written only when 保存 is pressed (spec-teams B2).
-export const dirtyDef = (r) => r.draftRow || changeCount(r) > 0 || (r.agree.saved ? agreeDiff(r) > 0 : false);
+export const dirtyDef = (r) => r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
 
 // workerOrigin is the worker of the saved file a draft worker stands in, read
 // back through the ops that changed its purpose or profile, or null when the
@@ -426,7 +443,7 @@ function workerOrigin(w, ops) {
 // left, each worker added or taken away, and each worker whose purpose or
 // profile changed — one apiece, however many keystrokes wrote it.
 export function changeCount(r) {
-  const t = r.team.draft, s = r.team.saved, ops = r.ops || [];
+  const t = r.draft.value, s = r.saved.value, ops = r.ops.value || [];
   let n = t.mission !== s.mission ? 1 : 0;
   const key = (a, b) => a + '\x00' + b;
   const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
@@ -461,7 +478,8 @@ export function changeCount(r) {
 // 1.7, 監査 R9).
 const ownAgreement = (r, m) => {
   const path = (m.field || '').replace(/^rule:/, '').split('#')[0];
-  return !!r.agreePath && path.endsWith('/teams/' + r.name + '/agreement.yaml');
+  const name = r.name.value;
+  return !!r.agreePath.value && path.endsWith('/teams/' + name + '/agreement.yaml');
 };
 const ruleID = (m) => ((m.field || '').split('#')[1] || '');
 export const vlistParts = (r) => {
@@ -470,7 +488,7 @@ export const vlistParts = (r) => {
   const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
   const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
   const own = issues.filter((m) => !at(m));
-  const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? 'チーム定義名' : '');
+  const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.draft.value.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? 'チーム定義名' : '');
   const file = (m) => (m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop();
   // A finding about a role's own rule opens that role at the rule: the name
   // the server put on the finding (d-8bbf). A finding that names no role
@@ -510,52 +528,55 @@ export function forgetChecks(r) { teamChecks.delete(dkey(r)); }
 
 // applyTeamAnswer draws one check's answer into the row.
 function applyTeamAnswer(r, json, findings) {
-  r.findings = findings;
+  r.findings.value = findings;
   // Each member's prompt, cut into the pieces it was built from (r-4cf9),
   // follows the ops the check was sent with: the 属性 column shows it without
   // building a line of its own. A definition with a problem is not given any,
   // and the column says why (d-20ac).
-  r.prompts = Array.isArray(json.members) ? json.members : [];
-  r.promptsReady = !!(json.members && json.members.length);
+  r.prompts.value = Array.isArray(json.members) ? json.members : [];
+  r.promptsReady.value = !!(json.members && json.members.length);
   // Both a saved definition and one that is not there yet get the topology
   // tab's own preview from the check (spec-teams B7).
-  r.preview = json.preview || r.preview;
+  const pv = json.preview || r.preview.value;
+  r.preview.value = pv;
   if (r.draftRow) {
-    r.writes = json.writes || r.writes;
-    r.nameIssues = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
+    r.writes.value = json.writes || r.writes.value;
+    r.nameIssues.value = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
     // The paths the row would be written to are the server's, and they move
     // with the name a person is typing: both panels' heads follow the check
     // (spec-teams B2, 監査 R5).
-    if (json.path) r.teamPath = json.path;
+    if (json.path) r.teamPath.value = json.path;
     const ag = (json.doc || {}).agreement || {};
     if (ag.path) {
-      r.agreePath = ag.path;
-      if (r.agree.saved) r.agree.saved.__path = ag.path;
-      if (r.agree.draft) r.agree.draft.__path = ag.path;
+      r.agreePath.value = ag.path;
+      const saved = r.agreeSaved.value;
+      const draft = r.agreeDraft.value;
+      if (saved) saved.__path = ag.path;
+      if (draft) draft.__path = ag.path;
     }
   }
-  r.drawMark = (r.drawMark || 0) + 1;
-  render();
+  r.drawMark.value = (r.drawMark.value || 0) + 1;
 }
 
 export async function checkTeam(r) {
   const one = checkersFor(r);
-  const payload = teamIn(r, { doc: { ops: r.ops } });
-  if (!r.ops.length) {
+  const payload = teamIn(r, { doc: { ops: r.ops.value } });
+  if (!r.ops.value.length) {
     // The op-less reading: the base a definition that is not there yet stands
     // on (spec-teams B2), and the file's own problems as the save's baseline.
-    const at = r.drawMark || 0;
+    const at = r.drawMark.value || 0;
     const json = await one.base.run(payload);
     if (!json) return;
-    if (r.draftRow && !r.seeded) seedDraft(r, json);
+    if (r.draftRow && !r.seeded.value) seedDraft(r, json);
     const findings = figFindings(r, json.problems || []);
-    r.baseFindings = findings;
-    // The baseline is kept even when it is too old to draw (the guard above),
+    // The baseline is kept even when it is too old to draw (the guard below),
     // but it does not draw over a newer answer (spec-teams X3). The foot is
     // drawn again all the same: its save is held to the baseline, and an
     // answer that came last would otherwise leave the save shut on an error
-    // the file already held.
-    if ((r.drawMark || 0) !== at) { render(); return; }
+    // the file already held. The foot reads baseFindings, so putting it in
+    // draws it.
+    r.baseFindings.value = findings;
+    if ((r.drawMark.value || 0) !== at) return;
     applyTeamAnswer(r, json, findings);
     return;
   }
@@ -568,57 +589,57 @@ export async function checkTeam(r) {
 // is held to (spec-teams X3).
 export async function checkAgree(r) {
   const one = checkersFor(r);
-  const doc = toDoc(r.agree.draft, r.agree.saved);
-  const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops, doc } }));
+  const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
+  const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops.value, doc } }));
   if (!json) return;
-  r.check = buildCheck(r.agree.draft, json);
-  if (!agreeDiff(r)) r.agree.savedIssues = r.check.issues;
-  render();
+  r.check.value = buildCheck(r.agreeDraft.value, json);
+  if (!agreeDiff(r)) r.agreeSavedIssues.value = r.check.value.issues;
 }
-export const scheduleAgree = (r) => debounce('a' + r.key, () => syncAgree(r));
+export const scheduleAgree = (r) => debounce('a' + dkey(r), () => syncAgree(r));
 
 export function syncTeam(r) {
-  r.team.draft = applyOps(r.team.saved, r.ops);
-  render();
   checkTeam(r);
 }
 export function syncAgree(r) {
-  render();
   checkAgree(r);
 }
-export function pushOp(r, op) { r.ops.push(op); }
+export function pushOp(r, op) { r.ops.value = [...r.ops.value, op]; }
+// setOps puts a whole list of operations in: a revert drops them all at once.
+export function setOps(r, ops) { r.ops.value = ops; }
 
 // saveTeam writes the team.yaml's ops (spec-teams B6). The refusal is the
 // screen's own state: the panel's foot draws it (5 章 2).
 export async function saveTeam(r) {
   if (r.draftRow) return saveFolder(r);
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name)}`, teamIn(r, { hash: r.hash, doc: { ops: r.ops } }));
+  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } }));
   if (!res.ok) return refuse(r, 't', apiProblemText(res, '保存できませんでした'));
   const json = (res && res.json) || {};
-  r.hash = json.hash || r.hash;
-  r.team.saved = cloneTeam(r.team.draft);
-  r.savedTurns = cloneTeam(r.team.draft).turns;
-  r.ops = [];
-  r.baseFindings = r.findings;
+  r.hash.value = json.hash || r.hash.value;
+  r.saved.value = cloneTeam(r.draft.value);
+  r.ops.value = [];
+  r.baseFindings.value = r.findings.value;
   setProblems(json.items, r.project);
-  state.ok['t' + dkey(r)] = 1;
-  canvasReset(dkey(r));
+  withKey('ok', 't' + dkey(r), 1);
+  resetCanvas(r);
   cundo.delete(dkey(r));
-  render();
   apiSaved();
 }
 export async function saveAgree(r) {
   if (r.draftRow) return saveFolder(r);
-  const doc = toDoc(r.agree.draft, r.agree.saved);
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name)}`, agreeIn(r, { hash: r.agreeHash, doc: { ops: r.ops, doc } }));
+  const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
+  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } }));
   if (!res.ok) return refuse(r, 'a', apiProblemText(res, '保存できませんでした'));
   const json = (res && res.json) || {};
-  r.agreeHash = json.hash || r.agreeHash;
-  r.hasAgree = true;
-  if (json.doc) { const d2 = fromJSON(json.doc); observeKeys(rulesOf(d2)); d2.__path = r.agreePath; r.agree.saved = d2; r.agree.draft = clone(d2); }
+  r.agreeHash.value = json.hash || r.agreeHash.value;
+  if (json.doc) {
+    const d2 = fromJSON(json.doc);
+    observeKeys(rulesOf(d2));
+    d2.__path = r.agreePath.value;
+    r.agreeSaved.value = d2;
+    r.agreeDraft.value = clone(d2);
+  }
   setProblems(json.items, r.project);
-  state.ok['a' + dkey(r)] = 1;
-  render();
+  withKey('ok', 'a' + dkey(r), 1);
   apiSaved();
   // The saved text's own problems are the new baseline, and the check the
   // panel shows is the one it now holds.
@@ -630,39 +651,37 @@ export async function saveAgree(r) {
 // 保存 writes the whole folder. The row becomes the saved definition in its
 // place, so the person keeps working on it.
 async function saveFolder(r) {
-  const doc = toDoc(r.agree.draft, r.agree.saved);
+  const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
   const body = Object.assign(teamIn(r), {
-    hash: r.hash, agreement_hash: r.agreeHash, part: 'folder', doc: { ops: r.ops, doc },
+    hash: r.hash.value, agreement_hash: r.agreeHash.value, part: 'folder', doc: { ops: r.ops.value, doc },
   });
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name)}`, body);
+  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, body);
   if (!res.ok) return refuse(r, 't', apiProblemText(res, '保存できませんでした'));
   const json = (res && res.json) || {};
-  const name = r.name, dom = r.dom, dtab = state.dtab[dom] || 'shape', opens = state.open.has(dom);
+  const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
   // The row stands where the row a person was looking at stood: the first
   // reading of this name keeps its place, and a copy's save joins into it
   // (spec-teams B1-B4).
-  const at = firstIndexOf((x) => x.dom === dom || x.name === name);
+  const at = firstIndexOf((x) => x.dom === dom || x.name.value === name);
   // Every reading of this name is taken again from the answer: a copy's save
   // joins the two places into one row (spec-teams B4).
-  [...recs.values()].filter((x) => x.dom === dom).forEach((x) => {
-    recs.delete(x.key); delete state.confirm['del' + x.key]; canvasReset(x.key);
-  });
+  const gone = recs.value.filter((x) => x.dom === dom);
+  recs.value = recs.value.filter((x) => x.dom !== dom);
+  gone.forEach((x) => { setConfirm('del' + dkey(x), false); resetCanvas(x); });
   setProblems(json.items, groupOfRecord(r));
   const item = (json.items || []).find((it) => it.name === name);
-  if (!item) { state.open.delete(dom); delete state.dtab[dom]; render(); return; }
+  if (!item) { withOpen(dom, false); dropDtab(dom); return; }
   const nr = defOf(item, groupOfRecord(r));
   orderRows(nr, at);
-  if (opens) state.open.add(nr.dom);
-  state.dtab[nr.dom] = dtab;
-  render();
+  if (opens) withOpen(nr.dom, true);
+  setDtab(nr.dom, dtab);
   // The definition the save wrote holds its own checks now: the figure's and
   // the rules' are read again from the file it wrote (spec-boundary 5). The
   // 保存しました stands on the row's own foot after that reading, so the
   // check's own draw does not take it away (1.4.6, 監査 R7).
   await checkTeam(nr);
-  if (nr.agree.saved) await checkAgree(nr);
-  state.ok[(state.dtab[nr.dom] === 'agree' ? 'a' : 't') + dkey(nr)] = 1;
-  render();
+  if (nr.agreeSaved.value) await checkAgree(nr);
+  withKey('ok', (dtabOf(nr) === 'agree' ? 'a' : 't') + dkey(nr), 1);
   syncURL();
   apiSaved();
 }
@@ -674,48 +693,51 @@ export async function doDelete(r) {
   const res = await apiCall('DELETE', delURL(r));
   if (!res.ok) return refuse(r, 't', apiProblemText(res, '削除できませんでした'));
   const json = (res && res.json) || {};
-  const name = r.name;
+  const name = r.name.value;
   // The row keeps its place in the list: taking one place's folder away leaves
   // the definition where a person was looking at it (spec-teams B6, N7).
   const at = firstIndexOf((x) => x.dom === r.dom);
-  [...recs.values()].filter((x) => x.dom === r.dom).forEach((x) => {
-    recs.delete(x.key); delete state.confirm['del' + x.key]; canvasReset(x.key);
-  });
+  const gone = recs.value.filter((x) => x.dom === r.dom);
+  recs.value = recs.value.filter((x) => x.dom !== r.dom);
+  gone.forEach((x) => { setConfirm('del' + dkey(x), false); resetCanvas(x); });
   setProblems(json.items, groupOfRecord(r));
   const item = (json.items || []).find((it) => it.name === name);
   if (item) {
     const nr = defOf(item, groupOfRecord(r));
     orderRows(nr, at);
-    state.dtab[nr.dom] = state.dtab[nr.dom] || 'shape';
+    if (!state.value.dtab[nr.dom]) setDtab(nr.dom, 'shape');
   }
-  render();
   syncURL();
 }
 const delURL = (r) => {
-  const qs = [`place=${encodeURIComponent(r.place)}`, `hash=${encodeURIComponent(r.hash)}`];
-  if (r.agreeHash) qs.push(`agreement_hash=${encodeURIComponent(r.agreeHash)}`);
+  const qs = [`place=${encodeURIComponent(r.place.value)}`, `hash=${encodeURIComponent(r.hash.value)}`];
+  if (r.agreeHash.value) qs.push(`agreement_hash=${encodeURIComponent(r.agreeHash.value)}`);
   if (r.project && r.project !== 'global') qs.push(`project=${encodeURIComponent(r.project)}`);
-  return `/api/team/${encodeURIComponent(r.name)}?${qs.join('&')}`;
+  return `/api/team/${encodeURIComponent(r.name.value)}?${qs.join('&')}`;
 };
 // refuse holds the server's sentence on the row's foot (the shape tab's, or the
 // rules tab's) and draws it; a screen builds no sentence of its own.
 export function refuse(r, which, text) {
-  state.refusal[which + dkey(r)] = text || '保存できませんでした';
-  render();
+  withKey('refusal', which + dkey(r), text || '保存できませんでした');
 }
-export const refusalOf = (r, which) => state.refusal[which + dkey(r)] || '';
-export const okOf = (key) => !!state.ok[key];
-// okShown takes the notice away when the words it stood for change: a save's
+// clearOk takes the notice away when the words it stood for change: a save's
 // 保存しました stays until the next change writes over it (1.4.6).
-export function clearOk(r) { delete state.ok['t' + dkey(r)]; delete state.ok['a' + dkey(r)]; }
+export function clearOk(r) {
+  if (state.value.ok['t' + dkey(r)] || state.value.ok['a' + dkey(r)]) {
+    const m = { ...state.value.ok };
+    delete m['t' + dkey(r)];
+    delete m['a' + dkey(r)];
+    put({ ok: m });
+  }
+}
 // setProblems takes the counts a save answered with back into the rows, so the
 // row's 問題/警告 chip is the server's own count again (spec-boundary 5).
 function setProblems(items, project) {
   (items || []).forEach((item) => {
     const places = item.places || {};
     const eff = item.effective || (places.project ? 'project' : 'global');
-    const r = recs.get(domOf(item.name || '', project || '') + '.' + eff);
-    if (r) r.problems = item.problems || {};
+    const r = byKey(domOf(item.name || '', project || '') + '.' + eff);
+    if (r) r.problems.value = item.problems || {};
   });
 }
 
@@ -732,38 +754,35 @@ let toastRow = null, toastTimer = null;
 const cloneOps = (ops) => JSON.parse(JSON.stringify(ops || []));
 function canvasUndoPoint(r, label) {
   const k = dkey(r), st = cundo.get(k) || [];
-  st.push({ ops: cloneOps(r.ops), label });
+  st.push({ ops: cloneOps(r.ops.value), label });
   while (st.length > 80) st.shift();
   cundo.set(k, st);
 }
 export function canvasToast(r, msg, withUndo) {
   toastRow = r;
-  state.toast = { msg, undo: !!withUndo };
-  render();
+  put({ toast: { msg, undo: !!withUndo } });
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { state.toast = null; toastRow = null; render(); }, 4000);
+  toastTimer = setTimeout(() => { put({ toast: null }); toastRow = null; }, 4000);
 }
 export function canvasUndoFromToast() { if (toastRow) canvasUndo(toastRow); }
 // forgetUndo drops the operations a row could take back (a save, a revert).
 export function forgetUndo(r) { cundo.delete(dkey(r)); }
 export function canvasAct(r, ops, o) {
   o = o || {};
-  r.lastAct = ++actSeq;
-  r.promptsReady = undefined;
+  r.lastAct.value = ++actSeq;
+  r.promptsReady.value = undefined;
   clearOk(r);
   canvasUndoPoint(r, o.undo || '');
-  (ops || []).forEach((op) => pushOp(r, op));
+  r.ops.value = [...r.ops.value, ...(ops || [])];
   ctyping = { key: null, field: null };
-  r.team.draft = applyOps(r.team.saved, r.ops);
-  if (o.focus) state.focusAsk = { dom: r.dom, sel: o.focus };
-  render();
+  if (o.focus) focusAsk.value = { dom: r.dom, sel: o.focus };
   checkTeam(r);
   if (o.message) canvasToast(r, o.message, true);
 }
 export function canvasTyping(r, op, field) {
   const k = dkey(r);
-  r.lastAct = ++actSeq;
-  r.promptsReady = undefined;
+  r.lastAct.value = ++actSeq;
+  r.promptsReady.value = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
     const label = { mission: '使命を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
@@ -771,8 +790,6 @@ export function canvasTyping(r, op, field) {
     ctyping = { key: k, field };
   }
   pushOp(r, op);
-  r.team.draft = applyOps(r.team.saved, r.ops);
-  render();
   debounce('ct' + k, () => checkTeam(r));
 }
 export function canvasEndTyping(r) {
@@ -781,27 +798,32 @@ export function canvasEndTyping(r) {
 }
 export function canvasUndo(r) {
   const k = dkey(r), st = cundo.get(k);
-  r.promptsReady = undefined;
+  r.promptsReady.value = undefined;
   clearOk(r);
   if (!st || !st.length) return;
   const point = st.pop();
-  r.ops = cloneOps(point.ops);
-  r.team.draft = applyOps(r.team.saved, r.ops);
+  setOps(r, cloneOps(point.ops));
   ctyping = { key: null, field: null };
-  render();
   checkTeam(r);
   canvasToast(r, point.label || '元に戻した', false);
 }
 // The row the newest operation stands on: ⌘Z acts on it even when nothing is
 // picked (監査 1-1).
 export function undoRow() {
-  return [...recs.values()].filter((x) => state.open.has(x.dom) && (cundo.get(dkey(x)) || []).length)
-    .sort((a, b) => (b.lastAct || 0) - (a.lastAct || 0))[0] || null;
+  return recs.value.filter((x) => isOpen(x.dom) && (cundo.get(dkey(x)) || []).length)
+    .sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
 }
-// canvasReset forgets the canvas's picks and places for one row (a save, a
+// resetCanvas forgets the canvas's picks and places for one row (a save, a
 // delete: the figure lays out afresh, d-a575).
-let canvasReset = () => {};
-export const onCanvasReset = (fn) => { canvasReset = fn; };
+export function resetCanvas(r) {
+  if (!r) return;
+  r.sel.value = null;
+  r.side.value = 'attr';
+  r.menu.value = null;
+  r.typed.value = null;
+  r.flash.value = null;
+  r.pos = {};
+}
 
 // The worker's prompt is the one hire --dry builds (r-4cf9). Its name and task
 // are chosen at hire, so the screen asks with values that cannot be mistaken
@@ -809,30 +831,36 @@ export const onCanvasReset = (fn) => { canvasReset = fn; };
 // place. The values are the walk's own too, so it can put them back.
 const WRK_NAME = 'zz-worker-name-0', WRK_TASK = 'zzTaskPlaceholder0';
 export function workerPrompt(r, i) {
-  const w = r.team.draft.workers[i];
+  const w = r.draft.value.workers[i];
   if (!w || !w.purpose || !w.from) return null;
   const k = w.from + '\u0000' + w.purpose;
-  r.wprompts = r.wprompts || {};
-  if (r.wprompts[k]) return r.wprompts[k];
-  r.wpromptReq = r.wpromptReq || {};
+  const got = r.wprompts.value[k];
+  if (got) return got;
+  // The request that is out is the drawing's own bookkeeping, not something a
+  // part reads: it stands beside the drawing so asking again while drawing does
+  // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCall('POST', '/api/team/check', { place: r.place, name: r.name, part: 'worker', project: r.project && r.project !== 'global' ? r.project : undefined, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  apiCall('POST', '/api/team/check', { place: r.place.value, name: r.name.value, part: 'worker', project: r.project && r.project !== 'global' ? r.project : undefined, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.ok ? (res.json || {}) : null;
-    r.wprompts[k] = res.ok
-      ? { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK }
-      : { segments: [], name: WRK_NAME, task: WRK_TASK, err: apiProblemText(res, 'プロンプトを読めませんでした') };
-    render();
+    r.wprompts.value = {
+      ...r.wprompts.value,
+      [k]: res.ok
+        ? { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK }
+        : { segments: [], name: WRK_NAME, task: WRK_TASK, err: apiProblemText(res, 'プロンプトを読めませんでした') },
+    };
   }).catch(() => { delete r.wpromptReq[k]; });
   return null;
 }
 // rolesFor and profilesFor are the documents one row's member 属性 offers: the
 // row's own project's and the global layer's, so another project's definition
 // chooses from its own names (spec 4 章). Without a headquarters they are the
-// one list the island carries.
+// one list the island carries. ROLES_REV is read so a list that comes after the
+// first frame draws the columns again.
 export function rolesFor(r) {
-  if (!HQ) return ROLES;
+  ROLES_REV.value;
+  if (!HQ) return ROLES.value;
   const key = r ? groupOfRecord(r) : CURRENT;
   const all = key === 'global'
     ? Object.values(ROLES_BY).flat()
@@ -841,6 +869,7 @@ export function rolesFor(r) {
   return all.filter((x) => !seen.has(x.name) && seen.add(x.name));
 }
 export function profilesFor(r) {
+  ROLES_REV.value;
   if (!HQ) return PROFILES;
   const key = r ? groupOfRecord(r) : CURRENT;
   const all = key === 'global'
@@ -849,47 +878,82 @@ export function profilesFor(r) {
   const seen = new Set();
   return all.filter((x) => !seen.has(x) && seen.add(x));
 }
+const bumpRoles = () => { ROLES_REV.value += 1; };
 
 // ---- YAML のタブ ------------------------------------------------------
-export const FILES = (LIST.files || []).map((f) => ({
+// yfiles is the answer's own file list. A save replaces the file it wrote with
+// a new one (the text and the hash are the server's), so the tab draws the
+// file as it now stands (5 章 2).
+export const yfiles = signal((LIST.files || []).map((f) => ({
   file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name, kind: f.kind,
   label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
   text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
-}));
-export const fileByKey = new Map(FILES.map((f) => [f.file, f]));
-export const fileText = (file) => (state.ytext[file] !== undefined ? state.ytext[file] : ((fileByKey.get(file) || {}).text || ''));
-export const fileDirty = (file) => state.ytext[file] !== undefined && state.ytext[file] !== ((fileByKey.get(file) || {}).text || '');
-export const yIssues = (file) => state.yc[file] || (fileByKey.get(file) || {}).problems || [];
-export const recForFile = (f) => [...recs.values()].find((x) => x.name === f.name && x.place === f.place && (x.project === CURRENT || x.project === '')) || null;
-// The file nav chooses one file when the tab opens: the first the places hold.
+})));
+export const fileOf = (file) => yfiles.value.find((f) => f.file === file) || null;
+export const fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
+export const fileText = (file) => (state.value.ytext[file] !== undefined ? state.value.ytext[file] : ((fileOf(file) || {}).text || ''));
+export const fileDirty = (file) => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || '');
+export const yIssues = (file) => state.value.yc[file] || (fileOf(file) || {}).problems || [];
+export const recForFile = (f) => recs.value.find((x) => x.name.value === f.name && x.place.value === f.place && (x.project === CURRENT || x.project === '')) || null;
+// pickFile chooses one file for the address when the tab opens: the first the
+// places hold. The drawing itself asks chosenFile, which writes nothing.
 export function pickFile() {
-  const keys = PLACES.flatMap((p) => FILES.filter((f) => f.place === p).map((f) => f.file));
-  if (!state.yfile || !keys.includes(state.yfile)) state.yfile = keys[0] || null;
-  return state.yfile;
+  const keys = fileKeys();
+  if (!state.value.yfile || !keys.includes(state.value.yfile)) put({ yfile: keys[0] || null });
+  return state.value.yfile;
+}
+export const chosenFile = () => {
+  const keys = fileKeys();
+  const y = state.value.yfile;
+  return y && keys.includes(y) ? y : (keys[0] || null);
+};
+export function pressYfile(file) {
+  put({ yfile: file });
+  syncURL();
+}
+// yamltab's own state, kept by the screen: the text a person typed, and the
+// problems the part's check answered.
+export function yamlState(file, st) {
+  const f = fileOf(file);
+  withKey('ytext', file, f && st.text === f.text ? undefined : st.text);
+}
+export function yamlProblems(file, list) {
+  withKey('yc', file, list);
+}
+export function yamlRevert(file) {
+  withKey('ytext', file, undefined);
+}
+export function yamlSaved(file, answer) {
+  const json = (answer && answer.json) || {};
+  const typed = state.value.ytext[file];
+  const f = fileOf(file);
+  if (!f) return;
+  const text = typeof json.text === 'string' ? json.text : (typed !== undefined ? typed : f.text);
+  yfiles.value = yfiles.value.map((x) => (x.file === file ? { ...x, hash: json.hash || x.hash, text } : x));
+  withKey('ytext', file, undefined);
+  withKey('yc', file, undefined);
 }
 
 // promptsOf is each member's prompt, cut into the pieces it was built from
 // (r-4cf9): the check answers it, and the column shows it without building a
 // line of its own. A definition with a problem is not given any (d-20ac).
-export const promptsOf = (r) => r.prompts || [];
-export const promptBlockedOf = (r) => r.promptsReady === false;
+export const promptsOf = (r) => r.prompts.value;
+export const promptBlockedOf = (r) => r.promptsReady.value === false;
 
 // ---- 描くための小さな問い ----------------------------------------------
-export const dtabOf = (r) => state.dtab[r.dom] || 'shape';
-export const teamLabel = (r) => r.name || '新しいチーム定義';
+export const teamLabel = (r) => r.name.value || '新しいチーム定義';
 export const currentProjectName = () => {
   const p = (HQ && HQ.projects) || {};
   return (p.current && p.current.name) || '';
 };
-export const groupLabelOf = (g) => (g.global ? 'グローバル' : hqProjectName(groupKeyOf(g)));
-export const liveRunning = (key) => ((hqState.running && hqState.running.teams) || []).filter((t) => t.project === key).length;
 
 // ---- 住所 --------------------------------------------------------------
 export function syncURL() {
+  const s = state.value;
   const params = new URLSearchParams();
-  if (state.tab === 'yaml') { if (state.yfile) params.set('file', state.yfile); }
+  if (s.tab === 'yaml') { if (s.yfile) params.set('file', s.yfile); }
   else {
-    const opens = [...state.open].filter((n) => { const r = byName(n); return r && !r.draftRow; });
+    const opens = [...s.open].filter((n) => { const r = byName(n); return r && !r.draftRow; });
     if (opens.length) params.set('open', opens.join(','));
     const agrees = opens.filter((n) => { const r = byName(n); return r && dtabOf(r) === 'agree'; });
     if (agrees.length) params.set('agree', agrees.join(','));
@@ -898,15 +962,15 @@ export function syncURL() {
       const r = byName(n);
       if (!r) return;
       ruleState.ropen.forEach((kk) => {
-        const head = `${r.uid}${r.place}:`;
+        const head = `${r.uid}${r.place.value}:`;
         if (!kk.startsWith(head)) return;
-        const hit = rulesOf(r.agree.draft).find((x) => x._k === Number(kk.slice(head.length)));
-        if (hit && hit.id) rules.push(`${r.name}.${hit.id}`);
+        const hit = rulesOf(r.agreeDraft.value).find((x) => x._k === Number(kk.slice(head.length)));
+        if (hit && hit.id) rules.push(`${r.name.value}.${hit.id}`);
       });
     });
     if (rules.length) params.set('rule', rules.join(','));
   }
-  const path = state.tab === 'yaml' ? '/teams/yaml' : '/teams';
+  const path = s.tab === 'yaml' ? '/teams/yaml' : '/teams';
   const q = params.toString();
   history.replaceState({}, '', q ? `${path}?${q}` : path);
 }
@@ -915,65 +979,68 @@ export function readURL() {
   const open = p.get('open');
   if (open) {
     const rows = parseOpen(open) || [];
-    rows.forEach(({ name, group }) => { const r = byRef(name, group); if (r) state.open.add(r.dom); });
+    rows.forEach(({ name, group }) => { const r = byRef(name, group); if (r) withOpen(r.dom, true); });
   }
   const agree = p.get('agree');
-  if (agree) agree.split(',').filter(Boolean).forEach((n) => { state.dtab[n] = 'agree'; });
+  if (agree) {
+    const m = { ...state.value.dtab };
+    agree.split(',').filter(Boolean).forEach((n) => { m[n] = 'agree'; });
+    put({ dtab: m });
+  }
   const rule = p.get('rule');
-  state.wantRule = null;
+  put({ wantRule: null });
   if (rule) rule.split(',').filter(Boolean).forEach((spec) => {
     const i = spec.indexOf('.');
     if (i < 0) return;
     const r = byRealName(spec.slice(0, i));
     if (!r) return;
-    const hit = rulesOf(r.agree.draft).find((x) => x.id === spec.slice(i + 1));
+    const hit = rulesOf(r.agreeDraft.value).find((x) => x.id === spec.slice(i + 1));
     if (hit) {
-      state.open.add(r.dom);
-      state.dtab[r.dom] = 'agree';
-      ruleState.ropen.add(`${r.uid}${r.place}:${hit._k}`);
-      state.wantRule = { name: r.dom, k: hit._k };
+      withOpen(r.dom, true);
+      setDtab(r.dom, 'agree');
+      ruleState.ropen.add(`${r.uid}${r.place.value}:${hit._k}`);
+      put({ wantRule: { name: r.dom, k: hit._k } });
     }
   });
   const file = p.get('file');
-  if (file) state.yfile = file;
-  if (location.pathname === '/teams/yaml') state.tab = 'yaml';
+  if (file) put({ yfile: file });
+  if (location.pathname === '/teams/yaml') put({ tab: 'yaml' });
 }
 
 // ---- 共有の部品（ruledoc）の受け口 ------------------------------------
 export const rowOfPanel = (r) => {
-  const e = r.agree;
+  const saved = r.agreeSaved.value, draft = r.agreeDraft.value;
+  const check = r.check.value;
   return {
-    uid: r.uid, l: r.place, e, saved: e.saved, draft: e.draft, name: r.name,
+    uid: r.uid, l: r.place.value, e: { saved, draft, savedIssues: r.agreeSavedIssues.value },
+    saved, draft, name: r.name.value,
     // newRow says the definition is not there yet: the rule document's shared
     // foot is not this row's own, so the part leaves it alone (監査 R9).
     newRow: !!r.draftRow,
     issues: agreeIssues(r),
-    savedIssues: e.savedIssues,
-    markdown: r.check ? r.check.markdown : { lines: [], chars: 0 },
-    diff: r.check ? r.check.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    turns: r.check ? r.check.turns : [],
+    savedIssues: r.agreeSavedIssues.value,
+    markdown: check ? check.markdown : { lines: [], chars: 0 },
+    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false },
+    turns: check ? check.turns : [],
   };
 };
 
 // ---- 帯と、ページの外への約束 ------------------------------------------
-// setBandCount keeps the band's number the same as the list's own: the band
-// counts the definitions, which are the rows that are saved — a row that is
-// not there yet is not one (spec-nav 1.1, 監査 R7).
-export function setBandCount() {
-  let n = 0;
-  for (const r of recs.values()) if (!r.draftRow) n++;
-  setCount('teams', n);
-}
+// savedCount is the number the band shows: the definitions, which are the rows
+// that are saved — a row that is not there yet is not one (spec-nav 1.1,
+// 監査 R7). main.js keeps the band's number on it.
+export const savedCount = () => recs.value.filter((r) => !r.draftRow).length;
 // dirty is whether the screen holds anything the files do not: a row's ops, a
 // rules draft, a YAML text. The band asks it through window.hergyPage (nav.js
-// 1.5), the same way it asks the other screens.
+// 1.5), the same way it asks the other screens. main.js keeps the band's dot on
+// it.
 export function dirty() {
-  for (const r of recs.values()) if (dirtyDef(r)) return true;
-  for (const f of FILES) if (fileDirty(f.file)) return true;
+  for (const r of recs.value) if (dirtyDef(r)) return true;
+  for (const f of yfiles.value) if (fileDirty(f.file)) return true;
   return false;
 }
-// tellDirty says it again after a change, so the band's mark follows the field
-// a person is in (nav.js 1.5).
+// tellDirty says it again now, for a part that changed something without a
+// value the screen can watch (lib/yamltab.js asks for it).
 export function tellDirty() {
   document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
 }
@@ -983,35 +1050,157 @@ export function tellDirty() {
 // was read from).
 export function restore(carried) {
   (carried.teams || []).forEach((c) => {
-    const r = [...recs.values()].find((x) => x.name === c.name && x.place === c.place && !x.draftRow);
-    if (!r || (c.hash && r.hash !== c.hash)) return;
-    r.ops = clone(c.ops);
-    r.team.draft = applyOps(r.team.saved, r.ops);
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    if (!r || (c.hash && r.hash.value !== c.hash)) return;
+    r.ops.value = clone(c.ops);
     checkTeam(r);
   });
   (carried.agrees || []).forEach((c) => {
-    const r = [...recs.values()].find((x) => x.name === c.name && x.place === c.place && !x.draftRow);
-    if (!r || !r.agree.saved || (c.hash && r.agreeHash !== c.hash)) return;
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    if (!r || !r.agreeSaved.value || (c.hash && r.agreeHash.value !== c.hash)) return;
     const d = fromJSON(c.doc);
-    d.__path = r.agreePath;
-    r.agree.draft = d;
+    d.__path = r.agreePath.value;
+    r.agreeDraft.value = d;
     checkAgree(r);
   });
   (carried.files || []).forEach((c) => {
-    const f = fileByKey.get(c.file);
+    const f = fileOf(c.file);
     if (!f || (c.hash && f.hash !== c.hash)) return;
-    state.ytext[c.file] = c.text;
+    withKey('ytext', c.file, c.text);
   });
-  render();
 }
 
 export function take() {
   const teams = [];
-  for (const r of recs.values()) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place, name: r.name, hash: r.hash, ops: r.ops });
+  for (const r of recs.value) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place.value, name: r.name.value, hash: r.hash.value, ops: r.ops.value });
   const agrees = [];
-  for (const r of recs.values()) if (!r.draftRow && r.agree.saved && agreeDiff(r)) agrees.push({ place: r.place, name: r.name, hash: r.agreeHash, doc: toDoc(r.agree.draft, r.agree.saved) });
-  const files = FILES.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.ytext[f.file] }));
+  for (const r of recs.value) if (!r.draftRow && r.agreeSaved.value && agreeDiff(r)) agrees.push({ place: r.place.value, name: r.name.value, hash: r.agreeHash.value, doc: toDoc(r.agreeDraft.value, r.agreeSaved.value) });
+  const files = yfiles.value.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
   return { teams, agrees, files };
+}
+
+// ---- 押し込み（部品が呼ぶ） --------------------------------------------
+export function pressTab(t) {
+  if (state.value.tab === t) return;
+  put({ tab: t });
+  syncURL();
+}
+export function pressToggle(r) {
+  withOpen(r.dom, !isOpen(r.dom));
+  syncURL();
+}
+export async function pressNew() {
+  await addDraft('new', 'project', '', null, GROUPED ? CURRENT : '');
+}
+export async function pressDup(r) {
+  await addDraft('dup', r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
+}
+export async function pressCopy(r) {
+  await addDraft('copy', other(r.place.value), r.name.value, { place: r.place.value, name: r.name.value }, r.project);
+}
+// pressPlace moves a definition that is not there yet to the other place. The
+// row keeps its place in the list while its place changes (spec-teams B1, N4).
+export async function pressPlace(r, place) {
+  if (!r || !r.draftRow || r.place.value === place) return;
+  const at = firstIndexOf((x) => x === r);
+  r.place.value = place;
+  orderRows(r, at);
+  resetCanvas(r);
+  // The base is read again: the other place's role documents and profile are
+  // not the ones the row stood on (spec-teams B2).
+  r.seeded.value = false;
+  r.saved.value = cloneTeam(null);
+  r.agreeSaved.value = null;
+  await checkTeam(r);
+  focusAsk.value = { dom: r.dom, sel: `[data-act=pick-place][data-x="${place}"]` };
+}
+export function pressDiscard(r) {
+  if (r) dropDraft(r);
+}
+export function pressDel(r) { setConfirm('del' + dkey(r), true); }
+export function pressDelNo(r) { setConfirm('del' + dkey(r), false); }
+export async function pressDelYes(r) { if (r) await doDelete(r); }
+// pressName is a definition that is not there yet being named: the name is
+// checked, and the files a save would write are read again: the server owns
+// both (spec-teams B2). The field keeps its place and its cursor while the
+// person types.
+export function pressName(r, value) {
+  r.name.value = value;
+  debounce('n' + r.dom, () => checkTeam(r));
+}
+// pressMission is the row's own mission field: it writes one operation and asks
+// the check again (spec-teams 1.4.6).
+export function pressMission(r, value) {
+  const text = value.replace(/\n/g, ' ');
+  r.ops.value = r.ops.value.filter((o) => o.kind !== 'mission');
+  if (text !== r.saved.value.mission) pushOp(r, { kind: 'mission', text });
+  checkTeam(r);
+}
+export function pressDtab(r, t) {
+  setDtab(r.dom, t);
+  syncURL();
+  if (t === 'agree') checkAgree(r);
+}
+export function pressPmode(r, v) {
+  put({ pmode: { ...state.value.pmode, [dkey(r)]: v } });
+}
+export function pressToYaml(key) {
+  put({ tab: 'yaml', yfile: `${key}.team` });
+  syncURL();
+  window.scrollTo(0, 0);
+}
+export function pressTSave(r) { saveTeam(r); }
+export function pressTRevert(r) {
+  setOps(r, []);
+  resetCanvas(r);
+  forgetUndo(r);
+  put({ confirm: {} });
+  syncTeam(r);
+}
+export function pressSave(r) { saveAgree(r); }
+export function pressRevert(r) {
+  r.agreeDraft.value = clone(r.agreeSaved.value);
+  checkAgree(r);
+}
+export function pressToastUndo() { canvasUndoFromToast(); }
+// pressVrule opens the team's own rule a finding names (spec-teams 1.4.5,
+// 監査 R9) in the ルール tab, with the cursor in its body (監査 R12).
+export function pressVrule(r, id) {
+  if (!r) return;
+  withOpen(r.dom, true);
+  setDtab(r.dom, 'agree');
+  const hit = rulesOf(r.agreeDraft.value).find((x) => String(x.id) === id);
+  checkAgree(r);
+  syncURL();
+  if (hit) jumpToRule(r, hit._k);
+}
+// pressVpick puts the cursor in a finding's own field, or picks what it names on
+// the figure.
+export function pressVpick(r, m) {
+  if (m.nameField) { focusAsk.value = { dom: r.dom, sel: '.in-name' }; return; }
+  if (m.node) selectPick(r, { type: 'node', id: m.node }, 'attr');
+  else if (m.worker != null) selectPick(r, { type: 'worker', i: m.worker }, 'attr');
+}
+// pressLine is a press on one line of the topology tab's YAML preview: it picks
+// what the line stands for, the way a press on the canvas's own point does
+// (spec-teams B7). A mission line puts the cursor in the mission field.
+export function pressLine(r, p) {
+  if (p.f === 'mission') {
+    selectPick(r, null, 'attr');
+    focusAsk.value = { dom: r.dom, sel: '[data-cv-f="mission"]' };
+    return;
+  }
+  if (p.node) selectPick(r, { type: 'node', id: p.node }, 'attr');
+  else if (p.worker != null) selectPick(r, { type: 'worker', i: p.worker }, 'attr');
+  else if (p.a) selectPick(r, { type: 'edge', k: [p.a, p.b].sort().join('|') }, 'attr');
+  else selectPick(r, null, 'attr');
+}
+// selectPick is the canvas's own pick, for a part that picks without a press on
+// the figure (canvas.js keeps the drawing of it).
+export function selectPick(r, sel, side) {
+  r.typed.value = null;
+  r.sel.value = sel;
+  if (side) r.side.value = side;
 }
 
 // ---- 立ち上げ ----------------------------------------------------------
@@ -1024,20 +1213,19 @@ export function boot() {
   // first draw (spec-nav 1.5). A draft it did not carry is spent there.
   const carried = takeDraft('teams');
   if (carried) restore(carried);
-  render();
   setStick();
   const later = [];
   // The member's 属性 offers the roles the role screen holds; the team answer
   // carries no role documents, so they are read once from GET /api/role. A panel
   // already drawn gets them when the answer comes (the first frame is quick).
   later.push(apiList('role').then((list) => {
-    ROLES = (list.items || []).map((it) => {
+    ROLES.value = (list.items || []).map((it) => {
       const places = it.places || {}, eff = it.effective || (places.project ? 'project' : 'global');
       const doc = (places[eff] || {}).doc || {};
       return { name: it.name || '', title: doc.title || '' };
     }).filter((x) => x.name);
-    if (!HQ) rolesIn = true;
-    render();
+    if (!HQ) ROLES_IN.value = true;
+    bumpRoles();
   }).catch(() => {}).finally(() => { if (!HQ) rolesCame(); }));
   // The roles and profiles a member's 属性 offers are read after the list: the
   // page itself carries only the definitions, so a row opens without waiting
@@ -1048,8 +1236,8 @@ export function boot() {
       (res.json.groups || []).forEach((g) => {
         map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter(Boolean);
       });
-      if (map === ROLES_BY) rolesIn = true;
-      render();
+      if (map === ROLES_BY) ROLES_IN.value = true;
+      bumpRoles();
     }).catch(() => {});
     later.push(fill('roles', ROLES_BY, (item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
@@ -1062,7 +1250,7 @@ export function boot() {
   // node badges are the server's own reading of the saved file, and the
   // agreement's saved problems are the baseline its save is held to
   // (spec-teams C2, X3).
-  const first = [...recs.values()];
+  const first = recs.value.slice();
   const checks = first.flatMap((r) => [checkTeam(r), checkAgree(r)]);
   Promise.all(checks).then(() => {
     // A rule the address names opens with the cursor in its body, once the
@@ -1070,14 +1258,13 @@ export function boot() {
     // 1.2.4, 監査 R12).
     jumpWantRule();
   });
-  Promise.allSettled([...later, ...checks]).then(() => { if (window.hergyPage) window.hergyPage.settled = true; });
+  return Promise.allSettled([...later, ...checks]);
 }
 // openAgree puts a row on its ルール tab and asks the rules' check: the same
 // step the tab's press takes, for a part that names the tab without a press.
 export function openAgree(r) {
-  state.open.add(r.dom);
-  state.dtab[r.dom] = 'agree';
-  render();
+  withOpen(r.dom, true);
+  setDtab(r.dom, 'agree');
   checkAgree(r);
   syncURL();
 }
@@ -1086,16 +1273,15 @@ export function openAgree(r) {
 // its body (spec-teams 1.4.5, spec-roles 1.2.4, 監査 R12). The check's column
 // reads through this, and so does the address.
 export function jumpToRule(r, k) {
-  state.focusAsk = null;
-  state.pmode[dkey(r)] = 'edit';
-  render();
+  focusAsk.value = null;
+  pressPmode(r, 'edit');
   openRule(rowOfPanel(r), k);
   syncURL();
 }
 export function jumpWantRule() {
-  const w = state.wantRule;
-  state.wantRule = null;
+  const w = state.value.wantRule;
   if (!w) return;
+  put({ wantRule: null });
   const r = byName(w.name);
   if (r) jumpToRule(r, w.k);
 }
@@ -1103,5 +1289,12 @@ export const setStick = () => {
   const bar = $('.bar');
   document.documentElement.style.setProperty('--stick', (bar ? bar.offsetHeight : 48) + 'px');
 };
+// readAddress is the back button's way back: the rows the address opens, the
+// rule it opens and the file it chose are read again.
+export function readAddress() {
+  put({ open: new Set() });
+  readURL();
+  jumpWantRule();
+}
 // The view needs these to read one row's parts.
-export { hasTurn, memberOf, turnLabel, other, firstIndexOf, orderRows, byRef, recs };
+export { hasTurn, memberOf };

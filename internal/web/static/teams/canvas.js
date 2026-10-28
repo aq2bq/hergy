@@ -12,31 +12,40 @@
 import { html, useLayoutEffect, useRef } from '../vendor/preact.js';
 import { Counts } from '../lib/ruledoc.js';
 import {
-  state, render, byKey, dkey, memberOf, nodeName, narrow,
-  teamIssues, rolesFor, profilesFor, rolesIn, promptsOf, promptBlockedOf,
-  workerPrompt, canvasAct, canvasTyping, canvasEndTyping, canvasUndo, canvasToast, undoRow, openAgree,
-  onCanvasReset,
+  recs, byKey, dkey, memberOf, nodeName, thin, teamIssues, rolesFor, profilesFor, rolesIn,
+  promptsOf, promptBlockedOf, workerPrompt, canvasAct, canvasTyping, canvasEndTyping,
+  canvasUndo, canvasToast, undoRow, openAgree, selectPick, pressLine,
 } from './state.js';
 
 const NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 
 // ---- the part's own state ---------------------------------------------
-// The picks and the places a point was dragged to are the part's, not the
-// definition's: they stand per row key, and are dropped when the row is saved,
-// deleted or takes another place (d-a575).
-const M = { sel: {}, side: {}, pos: {}, drag: null, last: null, menu: null, flash: null, name: null };
+// The picks stand on the record of the definition they belong to (state.js
+// keeps them, and drops them when the row is saved, deleted or takes another
+// place, d-a575). The places the figure lays the points out in are its own
+// memory, kept while it draws (r.pos): a point that was laid out once does not
+// move when another is added. A drag writes the element's transform as the
+// pointer moves, so nothing is drawn again until the person lets go; the place
+// it was let go at is already in r.pos by then.
 let root = null;
+// GLOW is the preview's own bookkeeping: the lines drawn last, the lines one
+// edit just moved, and when they lit up (spec-teams B7).
+const GLOW = { last: {}, step: {}, glow: {}, timer: {} };
 
-const got = (map, r) => { const k = dkey(r); if (!map[k]) map[k] = {}; return map[k]; };
-export const selOf = (r) => got(M.sel, r).v || null;
-const sideOf = (r) => got(M.side, r).v || 'attr';
-const posOf = (r) => { const k = dkey(r); if (!M.pos[k]) M.pos[k] = {}; return M.pos[k]; };
-export function canvasReset(k) {
-  delete M.sel[k]; delete M.side[k]; delete M.pos[k];
-  if (M.menu && M.menu.key === k) M.menu = null;
+// livePick is the pick the draft still holds: a point the draft no longer has
+// is no pick, and the panel would show an attribute of nothing.
+function livePick(r, sel) {
+  if (!sel) return null;
+  const t = r.draft.value;
+  if (sel.type === 'node' && sel.id !== 'human' && !memberOf(t, sel.id)) return null;
+  if (sel.type === 'worker' && !t.workers[sel.i]) return null;
+  if (sel.type === 'edge' && !sel.k.split('|').every((x) => x === 'human' || memberOf(t, x))) return null;
+  return sel;
 }
-onCanvasReset(canvasReset);
+export const selOf = (r) => livePick(r, r.sel.value);
+const sideOf = (r) => r.side.value || 'attr';
+const posOf = (r) => { if (!r.pos) r.pos = {}; return r.pos; };
 
 // ---- 形 --------------------------------------------------------------
 function boxOf(id, t) {
@@ -77,9 +86,9 @@ function workerWant(t, p, from, wbox) {
 }
 function autoPos(t) {
   const ids = ['human', ...t.members.map((m) => m.name)];
-  const n = Math.max(ids.length, 2), thin = narrow();
+  const n = Math.max(ids.length, 2), narrowPage = thin.value;
   const R = n <= 3 ? 140 : 112 + n * 14;
-  const rx = thin ? (n <= 3 ? 95 : 105) : R, ry = thin ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
+  const rx = narrowPage ? (n <= 3 ? 95 : 105) : R, ry = narrowPage ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
   const out = {};
   ids.forEach((id, i) => {
     const a = (-90 + i * 360 / n) * Math.PI / 180;
@@ -92,7 +101,7 @@ function autoPos(t) {
   return out;
 }
 export function ensurePos(r) {
-  const t = r.team.draft, p = posOf(r), ids = ['human', ...t.members.map((m) => m.name), ...t.workers.map((w, i) => 'w' + i)];
+  const t = r.draft.value, p = posOf(r), ids = ['human', ...t.members.map((m) => m.name), ...t.workers.map((w, i) => 'w' + i)];
   Object.keys(p).forEach((k) => { if (!ids.includes(k)) delete p[k]; });
   if (!Object.keys(p).length) Object.assign(p, autoPos(t));
   const missing = ids.filter((id) => !p[id]);
@@ -137,7 +146,7 @@ function Bdg({ m, b }) {
 
 // ---- 図 --------------------------------------------------------------
 function Figure({ r }) {
-  const t = r.team.draft, s = r.team.saved, p = ensurePos(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, s = r.saved.value, p = ensurePos(r), sel = selOf(r), issues = teamIssues(r) || [];
   const ids = ['human', ...t.members.map((m) => m.name)];
   const all = ids.concat(t.workers.map((w, i) => 'w' + i));
   const boxes = {};
@@ -159,7 +168,7 @@ function Figure({ r }) {
     const mk = selE === k ? 'a' : isNew ? 'c' : 'n';
     const dd = `M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
     const [mx, my] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-    return html`<path class="cv-hit" d=${dd} data-cv-e=${k} tabindex="0" role="button" aria-label=${`${nodeName(a)} と ${nodeName(b)} のターン`}></path><path class=${'cv-e' + (isNew ? ' new' : '') + (selE === k ? ' sel' : '') + (M.flash === k ? ' cv-flash' : '')} d=${dd} marker-end=${fwd ? `url(#cv-ar-${mi}-${mk})` : null} marker-start=${back ? `url(#cv-ar-${mi}-${mk})` : null}></path>${selE === k ? html`<g class="cv-ex" data-cv-act="edge-del" data-k=${k} transform=${`translate(${mx.toFixed(1)},${my.toFixed(1)})`} role="button" tabindex="0" aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r="11"></circle><text x="0" y="4.5" text-anchor="middle">×</text></g>` : ''}`;
+    return html`<path class="cv-hit" d=${dd} data-cv-e=${k} tabindex="0" role="button" aria-label=${`${nodeName(a)} と ${nodeName(b)} のターン`}></path><path class=${'cv-e' + (isNew ? ' new' : '') + (selE === k ? ' sel' : '') + (r.flash.value === k ? ' cv-flash' : '')} d=${dd} marker-end=${fwd ? `url(#cv-ar-${mi}-${mk})` : null} marker-start=${back ? `url(#cv-ar-${mi}-${mk})` : null}></path>${selE === k ? html`<g class="cv-ex" data-cv-act="edge-del" data-k=${k} transform=${`translate(${mx.toFixed(1)},${my.toFixed(1)})`} role="button" tabindex="0" aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r="11"></circle><text x="0" y="4.5" text-anchor="middle">×</text></g>` : ''}`;
   });
   const wedges = t.workers.map((w, i) => {
     if (!p['w' + i] || !p[w.from]) return '';
@@ -189,7 +198,7 @@ function Figure({ r }) {
     handles = [[0, -b.h / 2], [b.w / 2, 0], [0, b.h / 2], [-b.w / 2, 0]].map(([dx, dy]) => html`<circle class="cv-h" cx=${(x + dx).toFixed(1)} cy=${(y + dy).toFixed(1)} r="6" data-cv-h=${sel.id}><title>引いて、ターンを渡す相手につなぐ</title></circle>`);
   }
   const marker = (id, cls) => html`<marker id=${`cv-ar-${mi}-${id}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class=${'cv-mk-' + cls} d="M0,0 L10,5 L0,10 z"></path></marker>`;
-  return html`<svg viewBox=${`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} role="group" aria-label=${`${r.name} のトポロジー`}>
+  return html`<svg viewBox=${`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} role="group" aria-label=${`${r.name.value} のトポロジー`}>
       <defs>${marker('n', 'n')}${marker('a', 'a')}${marker('c', 'c')}</defs>
       ${wedges}${edges}${t.workers.map(wnode)}${ids.map(node)}${handles}<path class="cv-ghost" d="" hidden="hidden"></path><text class="cv-gl" x="0" y="0" hidden="hidden"></text></svg>`;
 }
@@ -203,7 +212,7 @@ function Opt({ v, on, children }) {
 
 // ---- the right column: 属性 -----------------------------------------
 function diffList(r) {
-  const s = r.team.saved, t = r.team.draft, out = [];
+  const s = r.saved.value, t = r.draft.value, out = [];
   const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
   if (s.mission !== t.mission) out.push(['c', `使命: ${t.mission}`]);
   cm.forEach((m, n) => {
@@ -238,12 +247,12 @@ function memberMsgs(r, t, m) {
   const msgs = [];
   if (!NAME.test(m.name)) msgs.push('英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください');
   if (t.members.filter((x) => x.name === m.name).length > 1) msgs.push('このチームにもういます');
-  if (`${r.name}-${m.name}`.length > 32) msgs.push(`herdr 名 ${r.name}-${m.name} が 32 文字を超えます`);
+  if (`${r.name.value}-${m.name}`.length > 32) msgs.push(`herdr 名 ${r.name.value}-${m.name} が 32 文字を超えます`);
   return msgs;
 }
 
 function SideAttr({ r }) {
-  const t = r.team.draft, s = r.team.saved, sel = selOf(r), team = r.name;
+  const t = r.draft.value, s = r.saved.value, sel = selOf(r), team = r.name.value;
   if (!sel) {
     const d = diffList(r), humanIn = t.turns.some(([, b]) => b === 'human');
     return html`<div class="cv-t"><code>${team}</code><span class="cv-k">チーム定義</span></div>
@@ -283,7 +292,7 @@ function SideAttr({ r }) {
   // The field holds what a person is typing: a name the server would refuse is
   // not put into the draft, so the part keeps the typed letters itself and draws
   // them with the words beside them (5 章 2).
-  const typed = M.name && M.name.row === dkey(r) && M.name.id === id ? M.name : null;
+  const typed = r.typed.value && r.typed.value.id === id ? r.typed.value : null;
   const msgs = (typed ? typed.msgs : memberMsgs(r, t, m)).concat(fieldFindings(r, id).map((x) => x.text));
   const outs = t.turns.filter(([a]) => a === id).map(([, b]) => b);
   const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
@@ -411,7 +420,7 @@ function WorkerPrompt({ r, w, i }) {
   else if (pv.err) body = html`<span class="cv-note">${pv.err}</span>`;
   else {
     const { lines, blocks } = promptBlocks(pv.segments || []);
-    const full = `${r.name}-${pv.name}`;
+    const full = `${r.name.value}-${pv.name}`;
     // A worker's name and task are chosen at hire, so the lines show the slots
     // they stand in (<ワーカー名> / <依頼>) instead.
     const slotText = (t) => {
@@ -423,7 +432,7 @@ function WorkerPrompt({ r, w, i }) {
         if (at < 0) { out.push(s); return out; }
         out.push(s.slice(0, at));
         if (at === a) {
-          out.push(`${r.name}-`);
+          out.push(`${r.name.value}-`);
           out.push(html`<span class="cv-slot" data-v=${pv.name}>${'<ワーカー名>'}</span>`);
           s = s.slice(at + full.length);
         } else {
@@ -456,15 +465,15 @@ function WorkerPrompt({ r, w, i }) {
 // for and the marks all come from the server (spec-teams B7, spec-boundary 5).
 function TPrev({ r }) {
   const key = dkey(r);
-  const pv = r.preview || { lines: [], diff: {} }, at = pv.lines || [], df = pv.diff || {};
+  const pv = r.preview.value || { lines: [], diff: {} }, at = pv.lines || [], df = pv.diff || {};
   const added = df.added || [], removed = df.removedBefore || [], lastDel = !!df.removedAtEnd;
   const lines = at.map((z) => z.text);
-  const prev = state.tlast[key];
+  const prev = GLOW.last[key];
   // The first answer for a row is not a move: the text was not drawn before,
   // so the row's whole file is not marked as changed (監査 R1).
-  if (prev && prev.length && prev.join('\n') !== lines.join('\n')) { state.tstep[key] = [...stepOf(prev, lines)]; state.tglow[key] = Date.now(); }
-  state.tlast[key] = lines;
-  const step = new Set(state.tstep[key] || []);
+  if (prev && prev.length && prev.join('\n') !== lines.join('\n')) { GLOW.step[key] = [...stepOf(prev, lines)]; GLOW.glow[key] = Date.now(); }
+  GLOW.last[key] = lines;
+  const step = new Set(GLOW.step[key] || []);
   const marks = lineMarks(r), cur = selOf(r), n = at.length;
   const nadd = added.length, ndel = removed.length + (lastDel ? 1 : 0);
   const issues = teamIssues(r);
@@ -472,7 +481,7 @@ function TPrev({ r }) {
     const p = atParts(z.at);
     const go = !!p.node || p.worker != null || !!p.a || p.f === 'mission';
     const cls = [marks[z.at] === 'err' ? 'err' : marks[z.at] ? 'warn' : '', added.includes(i) ? 'ins' : '', removed.includes(i) ? 'del' : '', lastDel && i === n - 1 ? 'dele' : '', isCurLine(z, cur) ? 'cur' : '', step.has(i) ? 'step' : '', go ? 'go' : ''].filter(Boolean).join(' ');
-    return html`<div class=${'yl ' + cls} data-act=${go ? 'tyline' : null} data-node=${p.node || null} data-worker=${p.worker != null ? p.worker : null} data-a=${p.a || null} data-b=${p.b || null} data-f=${p.f || null}><span class="lno">${i + 1}</span><span class="yt"><${YamlLine} text=${z.text} /></span></div>`;
+    return html`<div class=${'yl ' + cls} data-act=${go ? 'tyline' : null} data-node=${p.node || null} data-worker=${p.worker != null ? p.worker : null} data-a=${p.a || null} data-b=${p.b || null} data-f=${p.f || null} onClick=${go ? () => pressLine(r, p) : null}><span class="lno">${i + 1}</span><span class="yt"><${YamlLine} text=${z.text} /></span></div>`;
   })}</div></aside>`;
 }
 
@@ -558,9 +567,9 @@ export function afterTPrev(r) {
   if (!panel) return;
   const box = panel.querySelector('.ybox');
   if (!box || !box.clientHeight) return;
-  const at = (r.preview || { lines: [] }).lines || [];
-  const step = state.tstep[key] || [];
-  const df = (r.preview || {}).diff || {};
+  const at = (r.preview.value || { lines: [] }).lines || [];
+  const step = GLOW.step[key] || [];
+  const df = (r.preview.value || {}).diff || {};
   // The lines a change moved are the glow's own step, and also the lines the
   // server's diff names — the ones it added, and the place it took one from
   // (spec-teams B7). A step the glow marks alone can miss a removal the added
@@ -578,10 +587,10 @@ export function afterTPrev(r) {
     if (lr.top < br.top) box.scrollTop -= br.top - lr.top;
     else if (lr.bottom > br.bottom) box.scrollTop += lr.bottom - br.bottom;
   }
-  if (state.tglow[key]) {
-    const glowed = state.tglow[key];
-    clearTimeout(state.tglowTimer[key]);
-    state.tglowTimer[key] = setTimeout(() => {
+  if (GLOW.glow[key]) {
+    const glowed = GLOW.glow[key];
+    clearTimeout(GLOW.timer[key]);
+    GLOW.timer[key] = setTimeout(() => {
       if (Date.now() - glowed < 1700) return;
       Array.from(box.querySelectorAll('.yl.step')).forEach((el) => el.classList.remove('step'));
     }, 1800);
@@ -593,7 +602,7 @@ export function afterTPrev(r) {
 // member, or a worker under one member (the mock of 2026-10-23).
 function Menu({ r }) {
   const box = useRef(null);
-  const m = M.menu;
+  const m = r.menu.value;
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !m) return;
@@ -606,10 +615,10 @@ function Menu({ r }) {
     const first = el.querySelector('button');
     if (first) first.focus();
   });
-  if (!m || m.key !== dkey(r)) return null;
-  const t = r.team.draft;
+  if (!m) return null;
+  const t = r.draft.value;
   return html`<div class="cv-menu" role="menu" aria-label=${m.workersOnly ? 'ワーカーを足す' : 'ここに足す'} ref=${box} style=${{ left: `${m.x}px`, top: `${m.y}px` }}>
-    ${m.workersOnly ? '' : html`<button type="button" role="menuitem" data-cv-act="menu-m" disabled=${!rolesIn}>メンバーを足す</button>`}
+    ${m.workersOnly ? '' : html`<button type="button" role="menuitem" data-cv-act="menu-m" disabled=${!rolesIn()}>メンバーを足す</button>`}
     <div class=${'cv-mh' + (m.workersOnly ? ' cv-mh0' : '')}>ワーカーを足す（どのメンバーの？）</div>
     <div class="cv-mw">${t.members.map((x) => html`<button type="button" role="menuitem" data-cv-act="menu-w" data-from=${x.name}>${x.name}</button>`)}</div></div>`;
 }
@@ -622,18 +631,13 @@ export function Canvas({ r, vlist }) {
     if (el) fitYbox(el);
     afterTPrev(r);
   });
-  const t = r.team.draft, sel = selOf(r);
-  // A picked point or line that the draft no longer holds is no pick: the
-  // panel would show an attribute of nothing.
-  if (sel && sel.type === 'node' && sel.id !== 'human' && !memberOf(t, sel.id)) got(M.sel, r).v = null;
-  if (sel && sel.type === 'worker' && !t.workers[sel.i]) got(M.sel, r).v = null;
-  if (sel && sel.type === 'edge' && !sel.k.split('|').every((x) => x === 'human' || memberOf(t, x))) got(M.sel, r).v = null;
-  const cur = selOf(r), side = sideOf(r);
+  const sel = selOf(r);
+  const cur = sel, side = sideOf(r);
   const picked = cur && cur.type === 'node' && cur.id !== 'human' ? cur.id : '';
   const hint = picked ? `${picked} を選んでいる。縁の丸から引くとターン、Delete で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
-  return html`<div class="cv-main" ref=${box} onPointerDown=${onPointerDown} onClick=${onClick} onInput=${onInput} onChange=${onInput}>
+  return html`<div class="cv-main" ref=${box} onPointerDown=${(e) => onPointerDown(r, e)} onClick=${(e) => onClick(r, e)} onInput=${(e) => onInput(r, e)} onChange=${(e) => onInput(r, e)}>
       <div class="cv-left">
-        <div class="cv-tools"><button class="btn sm" type="button" data-cv-act="m-add" disabled=${!rolesIn}>＋ メンバー</button><button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button><span class="cv-hint">${hint}</span></div>
+        <div class="cv-tools"><button class="btn sm" type="button" data-cv-act="m-add" disabled=${!rolesIn()}>＋ メンバー</button><button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button><span class="cv-hint">${hint}</span></div>
         <div class="cv-canvas"><${Figure} r=${r} /><${Menu} r=${r} /></div>
         <div class="vlist">${vlist}</div>
       </div>
@@ -644,36 +648,30 @@ export function Canvas({ r, vlist }) {
 // ---- 操作 ------------------------------------------------------------
 // endField takes the focus away from the field the person was typing in: a press
 // on the figure is a press on a point, and the Delete that follows is meant for
-// the point. (hergy drew the panel again on that press before, which did
-// the same thing.)
+// the point.
 function endField() {
   const act = document.activeElement;
   if (act && act.matches && act.matches('input, select, textarea') && act.closest('.panel.team-p')) act.blur();
 }
 
-// selectPick is the screen's way in: a press on a preview line or a finding
-// picks the point, the line or the worker it names (spec-teams B7).
-export function selectPick(r, sel, side) {
-  M.name = null;
-  got(M.sel, r).v = sel;
-  if (side) got(M.side, r).v = side;
-  render();
+function menuClose(r) {
+  if (!r || !r.menu.value) return;
+  r.menu.value = null;
 }
-
-const rowOf = (el) => {
-  const row = el && el.closest && el.closest('.tdef');
-  return row ? byKey(row.dataset.key) : null;
-};
-function menuClose() { if (!M.menu) return; M.menu = null; render(); }
+// openMenu opens the blank space's two ways of adding at one place (the mock of
+// 2026-10-23).
 function openMenu(r, at, e, workersOnly) {
   const panelEl = document.querySelector(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
   const canvas = panelEl && panelEl.querySelector('.cv-canvas');
   if (!canvas) return;
   const cr = canvas.getBoundingClientRect();
   const x = e ? e.clientX - cr.left : 6, y = e ? e.clientY - cr.top : 6;
-  M.menu = { key: dkey(r), x, y, ax: at ? at[0] : null, ay: at ? at[1] : null, workersOnly: !!workersOnly };
-  render();
+  r.menu.value = { x, y, ax: at ? at[0] : null, ay: at ? at[1] : null, workersOnly: !!workersOnly };
 }
+const rowOf = (el) => {
+  const row = el && el.closest && el.closest('.tdef');
+  return row ? byKey(row.dataset.key) : null;
+};
 const svgPt = (svg, e) => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
 function firstRole(r) { const rs = rolesFor(r) || []; return (rs[0] || {}).name || ''; }
 function firstProfile(cheap, r) {
@@ -681,74 +679,77 @@ function firstProfile(cheap, r) {
   return (cheap ? ps.find((p) => /haiku|mini|flash/.test(p)) : '') || ps[0] || '';
 }
 function addMember(r, at) {
-  const t = r.team.draft, role = firstRole(r), profile = firstProfile(false, r);
+  const t = r.draft.value, role = firstRole(r), profile = firstProfile(false, r);
   let n = 1; const base = role || 'member';
   while (t.members.some((m) => m.name === `${base}-${n}`)) n++;
   const name = `${base}-${n}`;
   if (at) posOf(r)[name] = at;
-  got(M.sel, r).v = { type: 'node', id: name }; got(M.side, r).v = 'attr';
+  selectPick(r, { type: 'node', id: name }, 'attr');
   canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
     message: `メンバー ${name} を足した。メンバー名・ロール・プロファイルを右で決める`,
     undo: `メンバー ${name} を足したのを取り消した`, focus: '[data-cv-f="m-name"]',
   });
 }
 function addWorker(r, from, at) {
-  const t = r.team.draft, idx = t.workers.length, profile = firstProfile(true, r);
+  const t = r.draft.value, idx = t.workers.length, profile = firstProfile(true, r);
   const ops = [{ kind: 'addWorker', from, purpose: '', profile }];
   if (at) posOf(r)['w' + idx] = at;
-  got(M.sel, r).v = { type: 'worker', i: idx }; got(M.side, r).v = 'attr';
+  selectPick(r, { type: 'worker', i: idx }, 'attr');
   canvasAct(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを足したのを取り消した', focus: '[data-cv-f="w-purpose"]' });
 }
 function del(r) {
-  const t = r.team.draft, sel = selOf(r);
+  const t = r.draft.value, sel = selOf(r);
   if (!sel) return;
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
-    got(M.sel, r).v = null;
+    selectPick(r, null);
     canvasAct(r, [{ kind: 'removeMember', member: id }], { message: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops = [];
     if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
     if (hasTurn(t, b, a)) ops.push({ kind: 'removeTurn', from: b, to: a });
-    got(M.sel, r).v = null;
+    selectPick(r, null);
     if (ops.length) canvasAct(r, ops, { message: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
   } else if (sel.type === 'worker') {
     const w = t.workers[sel.i];
     if (!w) return;
-    got(M.sel, r).v = null;
+    selectPick(r, null);
     canvasAct(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
   }
 }
 
-function onPointerDown(e) {
+// lastPress and DRAG are the part's own short-lived memory: the double press on
+// the blank space, and the pointer's drag while it is out.
+let lastPress = null;
+let DRAG = null;
+function onPointerDown(r, e) {
   const svg = e.target.closest && e.target.closest('.cv-canvas svg');
   if (!svg) return;
-  const r = rowOf(svg); if (!r) return;
   // A press on the figure ends what the field held: the person has moved on to
   // a point, and the next Delete is meant for the point, not for the text.
   endField();
   if (e.target.closest('[data-cv-act]')) return;
   const h = e.target.closest('[data-cv-h]');
-  if (h) { M.drag = { what: 'conn', r, from: h.dataset.cvH, svg, start: svgPt(svg, e) }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+  if (h) { DRAG = { what: 'conn', r, from: h.dataset.cvH, svg, start: svgPt(svg, e) }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
   const n = e.target.closest('[data-cv-n], [data-cv-w]');
   if (n) {
     const id = n.dataset.cvN || ('w' + n.dataset.cvW);
-    M.drag = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [...ensurePos(r)[id]], moved: false };
+    DRAG = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [...ensurePos(r)[id]], moved: false };
     svg.setPointerCapture(e.pointerId); return;
   }
   const ed = e.target.closest('[data-cv-e]');
-  if (ed) { got(M.sel, r).v = { type: 'edge', k: ed.dataset.cvE }; got(M.side, r).v = 'attr'; render(); return; }
+  if (ed) { selectPick(r, { type: 'edge', k: ed.dataset.cvE }, 'attr'); return; }
   const now = Date.now(), pt = svgPt(svg, e);
-  if (M.last && now - M.last.t < 400 && Math.hypot(pt.x - M.last.x, pt.y - M.last.y) < 8 && M.last.r === r) {
-    M.last = null; openMenu(r, [pt.x, pt.y], e); return;
+  if (lastPress && now - lastPress.t < 400 && Math.hypot(pt.x - lastPress.x, pt.y - lastPress.y) < 8 && lastPress.r === r) {
+    lastPress = null; openMenu(r, [pt.x, pt.y], e); return;
   }
-  M.last = { t: now, x: pt.x, y: pt.y, r };
-  menuClose();
-  if (selOf(r)) { got(M.sel, r).v = null; render(); }
+  lastPress = { t: now, x: pt.x, y: pt.y, r };
+  menuClose(r);
+  if (selOf(r)) selectPick(r, null);
 }
 function onPointerMove(e) {
-  const d = M.drag; if (!d) return;
-  const r = d.r, t = r.team.draft, svg = d.svg;
+  const d = DRAG; if (!d) return;
+  const r = d.r, t = r.draft.value, svg = d.svg;
   const p = svgPt(svg, e);
   if (d.what === 'move') {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
@@ -781,56 +782,49 @@ function onPointerMove(e) {
   label.textContent = to ? (hasTurn(t, d.from, to) ? `${nodeName(d.from)} → ${nodeName(to)} はもうある` : `${nodeName(d.from)} → ${nodeName(to)} に渡す`) : `${nodeName(d.from)} から、渡す相手の点まで引く`;
 }
 function onPointerUp(e) {
-  const d = M.drag; if (!d) return;
-  M.drag = null;
+  const d = DRAG; if (!d) return;
+  DRAG = null;
   const r = d.r;
   if (d.what === 'move') {
-    if (d.moved) { render(); return; }
-    got(M.sel, r).v = d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id };
-    got(M.side, r).v = 'attr'; render(); return;
+    if (d.moved) { selectPick(r, null); return; }
+    selectPick(r, d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id }, 'attr');
+    return;
   }
   const over = document.elementFromPoint(e.clientX, e.clientY), g = over && over.closest('[data-cv-n]');
   const to = g && g.dataset.cvN;
-  if (!to || to === d.from) { render(); return; }
-  const t = r.team.draft;
+  if (!to || to === d.from) return;
+  const t = r.draft.value;
   if (hasTurn(t, d.from, to)) {
-    got(M.sel, r).v = { type: 'edge', k: pair(d.from, to) }; got(M.side, r).v = 'attr';
-    render();
+    selectPick(r, { type: 'edge', k: pair(d.from, to) }, 'attr');
     canvasToast(r, `${nodeName(d.from)} → ${nodeName(to)} はもうある`, false);
     return;
   }
   const k = pair(d.from, to);
   canvasAct(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足した`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足したのを取り消した` });
-  got(M.sel, r).v = { type: 'edge', k }; got(M.side, r).v = 'attr';
-  M.flash = k;
-  render();
+  selectPick(r, { type: 'edge', k }, 'attr');
+  r.flash.value = k;
   setTimeout(() => {
-    const cur = M.flash;
-    if (cur !== k) return;
-    M.flash = null;
-    const panelEl = document.querySelector(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
-    const el = panelEl && panelEl.querySelector('.cv-e.cv-flash');
-    if (el) el.classList.remove('cv-flash');
+    if (r.flash.value !== k) return;
+    r.flash.value = null;
   }, 1400);
 }
-function onClick(e) {
+function onClick(r, e) {
   // A press made without a pointer (the keyboard's Enter, or a click a walk
   // sends) picks the point or line too: the pointer path is not the only one.
   if (e.target.closest('.cv-canvas')) endField();
   const hit = e.target.closest('[data-cv-n], [data-cv-w], [data-cv-e]');
   if (hit) {
-    const r = rowOf(hit); if (!r) return;
     const sel = hit.dataset.cvN ? { type: 'node', id: hit.dataset.cvN }
       : hit.dataset.cvW != null ? { type: 'worker', i: Number(hit.dataset.cvW) }
         : { type: 'edge', k: hit.dataset.cvE };
     if (JSON.stringify(selOf(r)) === JSON.stringify(sel)) return;
-    got(M.sel, r).v = sel; got(M.side, r).v = 'attr'; render(); return;
+    selectPick(r, sel, 'attr');
+    return;
   }
   const b = e.target.closest('[data-cv-act], [data-cv-side]');
   if (!b) return;
-  const r = rowOf(b); if (!r) return;
-  const t = r.team.draft, a = b.dataset.cvAct;
-  if (b.dataset.cvSide) { got(M.side, r).v = b.dataset.cvSide; render(); return; }
+  const t = r.draft.value, a = b.dataset.cvAct;
+  if (b.dataset.cvSide) { r.side.value = b.dataset.cvSide; return; }
   if (a === 'm-add') { addMember(r, null); return; }
   if (a === 'w-add') {
     const sel = selOf(r), from = sel && sel.type === 'node' && sel.id !== 'human' ? sel.id : null;
@@ -838,21 +832,21 @@ function onClick(e) {
     addWorker(r, from, null); return;
   }
   if (a === 'menu-m' || a === 'menu-w') {
-    const menu = M.menu;
+    const menu = r.menu.value;
     const at = menu && menu.ax != null ? [menu.ax, menu.ay] : null;
-    M.menu = null;
+    r.menu.value = null;
     if (a === 'menu-m') addMember(r, at);
     else addWorker(r, b.dataset.from, at);
     return;
   }
-  if (a === 'to-yaml') { got(M.side, r).v = 'yaml'; render(); return; }
-  if (a === 'to-agree') { toAgree(r); return; }
+  if (a === 'to-yaml') { r.side.value = 'yaml'; return; }
+  if (a === 'to-agree') { openAgree(r); return; }
   if (a === 'del') { del(r); return; }
   if (a === 'edge-del') {
     const [p, q] = (b.dataset.k || '').split('|'), ops = [];
     if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
     if (hasTurn(t, q, p)) ops.push({ kind: 'removeTurn', from: q, to: p });
-    got(M.sel, r).v = null;
+    selectPick(r, null);
     if (ops.length) canvasAct(r, ops, { message: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
     return;
   }
@@ -869,12 +863,11 @@ function onClick(e) {
     canvasAct(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
     return;
   }
-  if (a === 'pick-w') { got(M.sel, r).v = { type: 'worker', i: +b.dataset.i }; got(M.side, r).v = 'attr'; render(); }
+  if (a === 'pick-w') selectPick(r, { type: 'worker', i: +b.dataset.i }, 'attr');
 }
-function onInput(e) {
+function onInput(r, e) {
   const f = e.target.dataset && e.target.dataset.cvF; if (!f) return;
-  const r = rowOf(e.target); if (!r) return;
-  const t = r.team.draft, sel = selOf(r), v = e.target.value;
+  const t = r.draft.value, sel = selOf(r), v = e.target.value;
   if (f === 'turn-add') {
     if (v) { canvasAct(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足した`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足したのを取り消した` }); e.target.value = ''; }
     return;
@@ -888,15 +881,14 @@ function onInput(e) {
     const ok = NAME.test(v) && v !== m.name;
     if (ok) {
       const p = posOf(r); if (p[m.name]) { p[v] = p[m.name]; delete p[m.name]; }
-      M.name = null;
+      r.typed.value = null;
       canvasTyping(r, { kind: 'renameMember', member: m.name, new: v }, 'm-name');
-      got(M.sel, r).v = { type: 'node', id: v };
+      selectPick(r, { type: 'node', id: v }, 'attr');
       return;
     }
     // The messages stand beside the field as it is typed, so a name the server
     // would refuse is said before the field is left (監査 R9).
-    M.name = { row: dkey(r), id: sel.id, value: v, msgs: nameMsgs(r, t, m, v) };
-    render();
+    r.typed.value = { id: sel.id, value: v, msgs: nameMsgs(r, t, m, v) };
     return;
   }
   if (f === 'm-role' || f === 'm-profile') {
@@ -915,9 +907,12 @@ function nameMsgs(r, t, m, v) {
   const msgs = [];
   if (!NAME.test(v)) msgs.push('英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください');
   if (t.members.some((x) => x !== m && x.name === v)) msgs.push('このチームにもういます');
-  if (`${r.name}-${v}`.length > 32) msgs.push(`herdr 名 ${r.name}-${v} が 32 文字を超えます`);
+  if (`${r.name.value}-${v}`.length > 32) msgs.push(`herdr 名 ${r.name.value}-${v} が 32 文字を超えます`);
   return msgs;
 }
+// menuRow is the row whose blank space's menu stands open: Esc closes it even
+// when no point is picked (監査 2-8).
+const menuRow = () => recs.value.find((x) => x.menu.value) || null;
 function onKey(e) {
   const inField = e.target.closest && e.target.closest('input, select, textarea');
   // The keys stand on the row a person is working in, not only on what has the
@@ -940,28 +935,21 @@ function onKey(e) {
   if (inField) { if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); } return; }
   // The blank space's menu and the toolbar's ask stand even when no point is
   // picked; Esc closes them before anything else (監査 2-8).
-  if (e.key === 'Escape' && M.menu) { e.preventDefault(); menuClose(); return; }
+  const openMenuRow = menuRow();
+  if (e.key === 'Escape' && openMenuRow) { e.preventDefault(); menuClose(openMenuRow); return; }
   if (!r) return;
   const sel = selOf(r);
   if (e.key === 'Delete' || e.key === 'Backspace') { if (sel) { e.preventDefault(); del(r); } return; }
-  if (e.key === 'Escape') { menuClose(); if (sel) { e.preventDefault(); got(M.sel, r).v = null; render(); } return; }
+  if (e.key === 'Escape') { menuClose(r); if (sel) { e.preventDefault(); selectPick(r, null); } return; }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.cv-n, .cv-hit, .cv-ex')) {
     e.preventDefault();
-    if (e.target.matches('.cv-hit')) { got(M.sel, r).v = { type: 'edge', k: e.target.dataset.cvE }; got(M.side, r).v = 'attr'; render(); }
+    if (e.target.matches('.cv-hit')) selectPick(r, { type: 'edge', k: e.target.dataset.cvE }, 'attr');
     else if (e.target.matches('.cv-ex')) e.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     else {
       const id = e.target.dataset.cvN || ('w' + e.target.dataset.cvW);
-      got(M.sel, r).v = e.target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(e.target.dataset.cvW) };
-      got(M.side, r).v = 'attr';
-      render();
+      selectPick(r, e.target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(e.target.dataset.cvW) }, 'attr');
     }
   }
-}
-
-// toAgree opens the rules tab of the row a prompt fold names: the screen's own
-// tab, drawn from its state (5 章 1).
-function toAgree(r) {
-  if (r) openAgree(r);
 }
 
 // mountCanvas puts the part's own listeners on the page once: the keys stand on
