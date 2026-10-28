@@ -14,7 +14,7 @@ import { signal } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
 import {
-  fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, goRule,
+  fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, openRule,
 } from '../lib/ruledoc.js';
 import { parseOpen, projectName as hqProjectName, state as hqState } from '../lib/hq.js';
 import { setCount, takeDraft } from '../lib/nav.js';
@@ -954,33 +954,6 @@ export const rowOfPanel = (r) => {
     turns: r.check ? r.check.turns : [],
   };
 };
-export const host = {
-  // A team's rules document has no name of its own to edit: the definition's
-  // name is the row's, so the part leaves the チーム定義名 field out (監査 R9).
-  hasName: false,
-  row: (panel) => {
-    if (!panel || !panel.classList.contains('agree-p')) return null;
-    const r = byKey(panel.dataset.key);
-    return r ? rowOfPanel(r) : null;
-  },
-  // redraw draws the screen again: the part asks for it after a press that
-  // changes the document, and puts the caret where the press asked for itself.
-  redraw: () => render(),
-  edited: (c) => {
-    const panel = c && c.panel;
-    const r = panel && byKey(panel.dataset.key);
-    if (!r) return;
-    render();
-    scheduleAgree(r);
-  },
-  readerCount: () => 0,
-  filtering: () => false,
-  shown: () => true,
-  query: () => '',
-  path: (l, d) => (d && d.__path) || '',
-  mode: (panel, v) => { const r = panel && byKey(panel.dataset.key); if (r) state.pmode[dkey(r)] = v; },
-  url: () => syncURL(),
-};
 
 // ---- 帯と、ページの外への約束 ------------------------------------------
 // setBandCount keeps the band's number the same as the list's own: the band
@@ -1114,8 +1087,10 @@ export function openAgree(r) {
 // reads through this, and so does the address.
 export function jumpToRule(r, k) {
   state.focusAsk = null;
-  const p = $(`.panel.agree-p[data-key="${CSS.escape(dkey(r))}"]`);
-  if (p) goRule(p, k);
+  state.pmode[dkey(r)] = 'edit';
+  render();
+  openRule(rowOfPanel(r), k);
+  syncURL();
 }
 export function jumpWantRule() {
   const w = state.wantRule;

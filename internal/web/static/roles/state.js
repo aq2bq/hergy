@@ -282,38 +282,9 @@ export function render() {
   if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
 }
 
-// panelEl is the panel of one place as it stands in the page now — the part
-// hands its own redraw back through this.
+// panelEl is the panel of one place as it stands in the page now — a press puts
+// the cursor on a button it just drew through this.
 export const panelEl = (u, l) => $(`.panel[data-uid="${u}"][data-l="${l}"]`);
-
-// ---- the hooks the shared part calls back into -----------------------
-export const host = {
-  row: (panel) => {
-    const r = byUid(panel.dataset.uid);
-    if (!r) return null;
-    const l = panel.dataset.l, e = r[l];
-    if (!e) return null;
-    return rowOfPanel(r, l);
-  },
-  // redraw draws the screen again: the part asks for it after a press that
-  // changes the document, and puts the caret where the press asked for itself.
-  redraw: () => render(),
-  edited: (c) => {
-    const panel = c.panel;
-    if (!panel) return;
-    const r = byUid(panel.dataset.uid);
-    tellDirty();
-    if (document.contains(panel)) render();
-    if (r) scheduleCheck(r, panel.dataset.l);
-  },
-  readerCount: (name) => whoReads(name, GROUPED ? CURRENT : '').length,
-  filtering: () => filtering(),
-  shown: (x, issues) => ruleShown(x, issues),
-  query: () => state.q,
-  path: (l, d) => pathOf(l, d),
-  mode: (panel, v) => { state.pmode[panel.dataset.uid + panel.dataset.l] = v; },
-  url: () => syncURL(false),
-};
 
 // ---- URL -------------------------------------------------------------
 // openNewPanel opens the row a screen shows for a role no document holds: its
@@ -597,11 +568,10 @@ export function pressYfile(key) {
   syncURL(false);
 }
 
-export function pressYamlRevert(section) {
-  const m = /^(\d+)(project|global)$/.exec(section.dataset.key);
+export function pressYamlRevert(r, l) {
   // The text goes back to the saved one, and the shared part checks the text it
   // now shows: a result for the thrown-away text must not stay.
-  if (m) { const r = byUid(m[1]), l = m[2]; if (r && r[l]) delete r[l].ytext; }
+  if (r && r[l]) delete r[l].ytext;
 }
 
 // ---- writes ----------------------------------------------------------

@@ -3,44 +3,40 @@
 // 左にファイルの並び、右に選んだ 1 つのファイルの面。面そのものは共通部品
 // （lib/yamltab.js）が描く。この画面が持つのは、どのファイルをどのテキストで
 // 読んだか、そのファイルのチェックの答え（並びの ● に使う）、そして保存の答えを
-// 行へ戻すこと（state.js）。
-import { html, useEffect, useRef, useState } from '../vendor/preact.js';
+// 行へ戻すこと（state.js）。面の中の押し込みは部品のもので、画面は props で
+// 読むものと知らせる先を渡す（依頼書 4）。
+import { html } from '../vendor/preact.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { fromJSON, Badge, rulesOf } from '../lib/ruledoc.js';
 import {
   PLACES, LNAME, DIR, state, filesList, live, issuesOf,
-  ychecksOf, setYchecks, docText, pathOf, clone,
+  ychecksOf, setYchecks, docText, pathOf, clone, pressYamlRevert,
 } from './state.js';
 
 const keyOfYed = (r, l) => r.uid + l;
 
-// YamlFile is one file's section. The section element is the screen's (it carries
-// the key the presses read and the hash the save carries); the part draws what
-// stands inside it. The part takes the section so the screen can hand it a
-// problem's press, a revert or a save through the screen's own call; the element is known
-// after the first draw, so the file draws itself once more with it.
+// YamlFile is one file's section: the section is the screen's (it carries the
+// key the presses read and the hash the save carries); the part draws what
+// stands inside it, and reads the file and the hash as props.
 function YamlFile({ r, l }) {
-  const section = useRef(null);
-  const [drawn, setDrawn] = useState(false);
   const e = r[l];
   const hid = l === 'global' && live(r, 'project');
   const both = live(r, 'project') && live(r, 'global');
   const name = e.saved.name;
-  useEffect(() => { if (!drawn) setDrawn(true); }, [drawn]);
-  return html`<section class="yed" data-key=${keyOfYed(r, l)} data-hash=${e.hash || ''} ref=${section}>
-    <${YamlTab} key=${keyOfYed(r, l)} section=${section.current} label=${LNAME[l]} path=${pathOf(l, e.saved)}
+  return html`<section class="yed" data-key=${keyOfYed(r, l)} data-hash=${e.hash || ''}>
+    <${YamlTab} key=${keyOfYed(r, l)} label=${LNAME[l]} path=${pathOf(l, e.saved)}
       badge=${both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '隠れている' : '効いている' } : null}
-      text=${docText(r, l)} kind="role" place=${l} name=${name}
+      text=${docText(r, l)} hash=${e.hash || ''} kind="role" place=${l} name=${name}
       problems=${ychecksOf(l, name) || []}
-      onProblems=${(sec, probs) => setYchecks(l, name, probs)}
+      onProblems=${(probs) => setYchecks(l, name, probs)}
+      onRevert=${() => pressYamlRevert(r, l)}
       onState=${({ text }) => { e.ytext = text; }}
-      onSaved=${(sec, answer) => {
+      onSaved=${(answer) => {
         const json = (answer && answer.json) || {};
         e.hash = json.hash || e.hash;
         if (typeof json.text === 'string') e.text = json.text;
         if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
         e.ytext = undefined;
-        if (sec) sec.dataset.hash = e.hash;
       }} />
   </section>`;
 }

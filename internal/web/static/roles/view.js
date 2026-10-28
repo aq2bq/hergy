@@ -6,9 +6,9 @@
 import { html } from '../vendor/preact.js';
 import { Measure } from '../lib/measure.js';
 import {
-  PLACES, LNAME, HQ, GROUPED, state, rev, roles, teams, currentProjectName, groupKeyOf,
+  PLACES, LNAME, HQ, GROUPED, state, rev, roles, teams, currentProjectName, groupKeyOf, CURRENT,
   live, eff, cur, curName, whoReads, projectNameOf, groupNameOf, pathOfRow, issuesOf, rowIssues, checks,
-  rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf,
+  rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, syncURL, tellDirty, scheduleCheck, render,
 } from './state.js';
 import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
 import { AssignPage } from './assign.js';
@@ -197,7 +197,12 @@ function Panel({ r, l }) {
           <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => html`<button class=${mode === v ? 'on' : ''} data-act="pmode" data-v=${v} aria-pressed=${mode === v}>${label}</button>`)}</span>
         </span>
       </header>
-      <div class="pmain"><${RuleDoc} row=${row} issues=${issues} nameError=${nameError} /></div>
+      <div class="pmain"><${RuleDoc} row=${row} issues=${issues} nameError=${nameError}
+        filtering=${filtering()} shown=${ruleShown} query=${state.q}
+        readerCount=${(name) => whoReads(name, GROUPED ? CURRENT : '').length}
+        onChange=${() => { tellDirty(); render(); scheduleCheck(r, l); }}
+        onMode=${(v) => { state.pmode[key] = v; render(); }}
+        onURL=${() => syncURL(false)} /></div>
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled=${blocked}>保存</button><span class="errline doc" hidden=${!docError}>${docError}</span><span class="dirty">${e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><${Counts} list=${issues} /></span>${okOf(key) ? html`<span class="ok">保存しました</span>` : ''}
         <span class="acts">

@@ -1,37 +1,38 @@
 // lib/ruledoc.js — the part a screen uses to edit one rule document and to show
 // the Markdown a member reads (spec-teams 7), as a Preact component since the
-// rewrite (webui-preact-design 段階 1-4). The role screen mounts it and the team
-// screen mounts the same part: everything inside a panel that edits a document —
+// rewrite (webui-preact-design 段階 1-4). The role screen draws it and the team
+// screen draws the same part: everything inside a panel that edits a document —
 // the title and revision, the sections, the rules, the オン / オフ switch of a
 // rule, the memo, the heading depth, the reordering (↑ ↓ and the ⋮ drag), and
 // the Markdown box — lives here. What a screen keeps for itself is the panel's
 // head and foot (where the document stands, 複製, 削除) and where the checks and
 // writes go.
 //
-// The part draws the inside of two elements the screen made: `.pmain`'s `.pedit`
-// (the edit) and `.pmain`'s `.yprev` (the preview), and the screen's foot draws
-// its own words — the places the document changed, whether 保存 can be pressed,
-// the rename hint's box. It draws everything with Preact's render and writes no
-// markup (webui-preact-design 5 章 1).
+// The part takes what it reads and who it tells, as props (依頼書 4):
 //
-// The presses on those elements come from the screen that owns the view: it
-// hands the view to mount below, which listens once and reads the `data-act`
-// the part put in its markup, so a press is handled once. A press that changes
-// the document asks the screen to draw again (host.redraw): the panel's head and
-// foot are the screen's, and the address the open rules live in is the
-// screen's too. The part puts the caret where the press asked for itself, in the
-// panel the press came from — the elements are the same after the draw.
+//   row          the document this panel edits: { uid, l, draft, saved, markdown,
+//                diff, issues, e } — the screen's own reading of it
+//   issues       the problems the last check named
+//   nameError    the sentence a save refused the name with
+//   hasName      whether the document has a name of its own to edit (a team's
+//                rules document has not; the definition's name is the row's)
+//   filtering    whether the list is showing only some rules
+//   shown        which rule the filter keeps: (rule, issues) => boolean
+//   query        the search the person typed: the part marks it in the text
+//   readerCount  how many people name the document: (name) => number
+//   onChange     the document changed: the screen draws its head and foot again
+//                and asks the server what is wrong with the draft
+//   onMode       the person asked for the edit ('edit') or the Markdown ('md')
+//   onURL        the open rules and the caret's rule ride in the screen's address
 //
-// The screens are modules now: they render `RuleDoc` themselves and hand the
-// view to mount once, so a press inside a panel is handled once. `state` holds
-// what the screens share with the part (the open rules, the confirmations, the
-// field the caret is in).
+// The part writes no markup outside Preact's render (webui-preact-design 5 章 1)
+// and never reaches into a screen's state: a press changes the draft it was
+// handed and says so through onChange.
 import { html, signal, useLayoutEffect, useRef } from '../vendor/preact.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const num = (n) => Number(n || 0).toLocaleString('ja-JP');
-const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 let kseq = 0;
 
@@ -130,20 +131,60 @@ const sinceText = (row, x) => {
 const lvlMark = (lv) => '#'.repeat(lv && lv > 2 ? lv : 2);
 
 // ---- state the part owns --------------------------------------------
-// The screens read and write this object themselves (roles keeps the rules it
-// opened in state.ropen, and reads it back when it writes the address), so it
-// stays one plain object (the screens read and write it themselves). `rev` is the
-// number the part raises when it changes the object itself: the trees below read
-// it, so a change only the part knows about is drawn without waiting for the
-// screen to draw the panel again. A change a screen makes is drawn when the
-// screen draws the panel (which is what those screens do after a change).
-const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {}, rename: {} };
+// What the part knows about itself: which rules stand open, which section's
+// heading depth is being picked, which delete is being confirmed, where the
+// caret was, how far the preview was scrolled, whether a rename carries. The
+// screens read parts of it (roles keeps the open rules in the address, and
+// reads the rename box when it saves), so it stays one object of the part's own.
+// `rev` is the number the part raises when it changes the object: the trees
+// below read it, so a change only the part knows about is drawn at once.
+const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {}, rename: {}, ask: null, flash: null };
 const rev = signal(0);
+let askSeq = 0;
 const touched = () => { rev.value += 1; };
 
-let host = {};
-let root = null;
-const rowOf = (panel) => (panel && host.row ? host.row(panel) : null);
+// ask says where the caret goes once the press has been drawn: the field the
+// person's press named, in the panel that press came from (5 章 5). It is put
+// there after the draw, in the part's own tree — never by looking for an element
+// the screen drew.
+function ask(sel, how) {
+  if (sel) { askSeq += 1; S.ask = { sel, how: how || 'focus', seq: askSeq }; }
+  touched();
+}
+
+// applyAsk puts the caret where the last press asked for it, once the part has
+// drawn. It runs after every draw and acts only on a new ask, so a redraw that
+// nobody asked for never moves the caret.
+function applyAsk(root, last) {
+  const one = S.ask;
+  if (!one || !root || one.seq <= last.current) return;
+  const el = root.querySelector(one.sel);
+  if (!el) return;
+  last.current = one.seq;
+  if (one.how === 'center') {
+    // The rule is brought into the middle of the window, so the band the screen
+    // pins to the bottom never hides it; a rule taller than the window keeps its
+    // head in it.
+    el.scrollIntoView({ block: 'center' });
+    const top = el.getBoundingClientRect().top;
+    if (top < 0) window.scrollBy(0, top);
+  } else if (one.how === 'nearest') {
+    el.scrollIntoView({ block: 'nearest' });
+  }
+  el.focus({ preventScroll: true });
+  if (el.select) el.select();
+}
+
+// applyFlash marks the rule a drag just moved: the class stands on the element
+// until the part draws it again, the way it always did.
+function applyFlash(root, last) {
+  const one = S.flash;
+  if (!one || !root || one.seq <= last.current) return;
+  const el = root.querySelector(`.rule[data-k="${one.k}"]`);
+  if (!el) return;
+  last.current = one.seq;
+  el.classList.add('flash');
+}
 
 // ---- the shape of a problem, as the mock draws it -------------------
 // The screens draw a problem's chip, a list of them, and the オフ count with
@@ -196,19 +237,18 @@ const flat = (pieces) => pieces.map((p) => (p.node ? p.node : p.text));
 const started = (text) => (String(text) ? [{ text: String(text) }] : []);
 const models = (text) => flat(cut(started(text), MODEL_RE, (m) => html`<span class="mw">${m}</span>`));
 
-function deco(text) {
+function deco(text, q) {
   let pieces = started(text);
   pieces = cut(pieces, ARROW_RE, (m) => html`<span class="arrow">${m}</span>`);
   pieces = cut(pieces, MODEL_RE, (m) => html`<span class="mw">${m}</span>`);
-  const q = host.query ? host.query() : '';
   if (q) pieces = cut(pieces, new RegExp(reEsc(q), 'gi'), (m) => html`<mark>${m}</mark>`);
   return flat(pieces);
 }
 function firstPhrase(t) { const i = t.indexOf('。'); return i >= 0 && i < t.length - 1 ? t.slice(0, i + 1) : t; }
-function snippet(t) {
-  const f = firstPhrase(t), q = (host.query ? host.query() : '').toLowerCase();
-  if (!q || f.toLowerCase().includes(q) || !t.toLowerCase().includes(q)) return f;
-  const hit = t.split(/(?<=。)/).find((x) => x.toLowerCase().includes(q));
+function snippet(t, q) {
+  const f = firstPhrase(t), want = (q || '').toLowerCase();
+  if (!want || f.toLowerCase().includes(want) || !t.toLowerCase().includes(want)) return f;
+  const hit = t.split(/(?<=。)/).find((x) => x.toLowerCase().includes(want));
   return hit ? `${f} … ${hit}` : f;
 }
 
@@ -232,9 +272,8 @@ function Field({ as: Tag = 'input', value, ...rest }) {
 
 // ---- the edit --------------------------------------------------------
 // Edit is the document's fields and rules; Preview is the Markdown beside it.
-// Both read the row the screen holds — the part finds that row from the panel
-// element, a screen that is a module hands it in.
-function Edit({ row, issues, nameError }) {
+// Both read the row the screen hands them.
+function Edit({ row, issues, nameError, h }) {
   // Reading the part's own change count subscribes this tree to it (see S).
   rev.value;
   if (!row) return null;
@@ -242,22 +281,22 @@ function Edit({ row, issues, nameError }) {
   // The name's own problem stands under the name field, not in this list a
   // second time (d-841e).
   const doc = issues.filter((m) => m.k === 0 && m.f !== 'name');
-  const nread = s && d.name && d.name !== s.name && host.readerCount ? host.readerCount(s.name) : 0;
+  const nread = s && d.name && d.name !== s.name && h.readerCount ? h.readerCount(s.name) : 0;
   return html`<div class="dh">
-      ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>ロール名</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
+      ${h.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>ロール名</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
       <div class="dhf"><label for=${'t' + key}>タイトル</label><${Field} id=${'t' + key} class=${'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value=${d.title} /></div>
       <div class="dhf"><label for=${'v' + key}>revision</label><${Field} id=${'v' + key} class=${'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value=${d.revision} /></div>
       <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} checked=${S.rename[key] !== false} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
     </div>
     <ul class="vm dhvm"><${Vm} list=${doc} /></ul>
-    ${d.sections.map((sec, si) => secHTML(row, si, issues))}
+    ${d.sections.map((sec, si) => secHTML(row, si, issues, h))}
     <button class="add secadd" data-act="sec-add">＋ 節</button>`;
 }
 
-function secHTML(row, si, issues) {
+function secHTML(row, si, issues, h) {
   const d = row.draft, sec = d.sections[si], key = secKey(row, si), ck = `${row.uid}${row.l}s${si}`;
-  const filtering = host.filtering ? host.filtering() : false;
-  const rules = sec.rules.filter((x) => !filtering || host.shown(x, row.issues));
+  const filtering = !!h.filtering;
+  const rules = sec.rules.filter((x) => !filtering || !h.shown || h.shown(x, issues));
   if (filtering && !rules.length) return null;
   const a = (savedOf(row) || { sections: [] }).sections[si];
   const pick = S.secPick[ck];
@@ -276,7 +315,7 @@ function secHTML(row, si, issues) {
     </div>
     ${opts ? html`<div class="pickrow">${opts}</div>` : ''}
     ${sec.intro !== '' || S.introOpen === key ? html`<${Field} as="textarea" id=${'in' + key} class=${'intro' + (!a || a.intro !== sec.intro ? ' changed' : '')} data-f="intro" rows="1" placeholder="前置き" value=${sec.intro} />` : ''}
-    <div class="rules">${rules.map((x) => ruleHTML(row, x, issues))}</div>
+    <div class="rules">${rules.map((x) => ruleHTML(row, x, issues, h))}</div>
     <button class="add secadd" data-act="rule-add">＋ 規則</button>
   </section>`;
 }
@@ -291,21 +330,21 @@ function secEnd(row, sec, si, ck) {
   return html`${adding}${confirm}`;
 }
 
-function ruleHTML(row, x, issues) {
+function ruleHTML(row, x, issues, h) {
   const open = S.ropen.has(rkey(row, x));
   const mine = issues.filter((m) => m.k === x._k);
   const cls = ['rule', open ? 'open' : '', ruleChanged(row, x) ? 'unsaved' : '', inP(x) ? '' : 'out'].filter(Boolean).join(' ');
   return html`<div class=${cls} data-k=${x._k}>
-      <div class="rsum" role="button" tabindex="0" aria-expanded=${open} data-act="rtoggle">${rsumInner(row, x, mine)}</div>
+      <div class="rsum" role="button" tabindex="0" aria-expanded=${open} data-act="rtoggle">${rsumInner(row, x, mine, h)}</div>
       ${open ? ruleEditHTML(row, x, mine) : ''}
     </div>`;
 }
 
-function rsumInner(row, x, mine) {
+function rsumInner(row, x, mine, h) {
   const id = String(x.id || '');
   return html`<span class="grip" aria-hidden="true">⋮</span>
-      <span class="rid"><b>${id ? deco(id) : html`<span class="none">—</span>`}</b><${Badge} list=${mine} /></span>
-      <span class="rtx">${deco(snippet(String(x.text || '')))}</span>
+      <span class="rid"><b>${id ? deco(id, h.query) : html`<span class="none">—</span>`}</b><${Badge} list=${mine} /></span>
+      <span class="rtx">${deco(snippet(String(x.text || ''), h.query), h.query)}</span>
       <span class="marks">${x.note ? html`<span class="mk memo">メモ</span>` : ''}${inP(x) ? '' : html`<span class="since">${sinceText(row, x)}</span>`}<button class="onsw" type="button" role="switch" aria-checked=${inP(x)} data-act="rule-toggle" aria-label=${`${String(x.id || '')} をプロンプトに${inP(x) ? '入れている' : '入れていない'}`}>${inP(x) ? 'オン' : 'オフ'}</button></span>`;
 }
 
@@ -378,8 +417,8 @@ function Preview({ row, issues }) {
     ri++;
     // A problem about the document as a whole (no rule of its own) is marked on
     // the first line alone; a problem about a rule is marked on the lines that
-    // rule stands on (spec-roles 1.2.6). A heading or a blank line has no rule of
-    // its own, so it is not one of a rule's lines.
+    // rule stands on (spec-roles 1.2.6). A heading or a blank line has no rule
+    // of its own, so it is not one of a rule's lines.
     const ms = issues.filter((m) => m.f !== 'name' && (k ? m.k === k : m.k === 0 && ri === 0));
     const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
     const { h, node } = mdHL(String(z.text || ''));
@@ -397,7 +436,7 @@ function Preview({ row, issues }) {
   });
   const nadd = added.size, ndel = removedBefore.size;
   return html`<div class="yph"><span class="pkl">Markdown</span><span class="yinfo"><span class="vt">${`${ri + 1} 行 · ${num(md.chars)} 文字`}</span>${nadd || ndel ? html`<span class="dirty">${`+${nadd} −${ndel}`}</span>` : ''}<span class="yr">${issues.length ? html`<span class="vcount"><${Counts} list=${issues} /></span>` : html`<span class="vclean">✓ 問題なし</span>`}</span></span></div>
-    <div class="ybox" ref=${box}>${rows}</div>`;
+    <div class="ybox" ref=${box} onScroll=${() => { if (box.current && row) S.yscroll[key] = box.current.scrollTop; }}>${rows}</div>`;
 }
 
 // follow brings the line the caret is on into the box: a line taller than the
@@ -473,68 +512,35 @@ const clearDrop = () => $$('.drop-b, .drop-a, .drop-end').forEach((el) => el.cla
 // The drag classes are put on the elements themselves while the pointer is over
 // them: the panel is not drawn again until the drop, so nothing takes them away.
 // The parts a press reads are the DOM's and the drafts', as they were.
-function ctx(el) {
-  const panel = el.closest('.panel');
-  if (!panel) return {};
-  const row = rowOf(panel);
-  if (!row) return {};
+function ctx(row, el) {
   const d = row.draft;
   const ruleEl = el.closest('.rule'), f = ruleEl ? findRule(d, ruleEl.dataset.k) : null;
   const secEl = el.closest('.sec'), si = secEl ? +secEl.dataset.si : null;
   const oi = el.closest('.orow') ? +el.closest('.orow').dataset.oi : null;
-  return { panel, row, d, x: f && f.x, si: f ? f.si : si, ri: f && f.ri, oi, key: `${row.uid}${row.l}-${f ? f.x._k : ''}` };
+  return { row, d, x: f && f.x, si: f ? f.si : si, ri: f && f.ri, oi, key: `${row.uid}${row.l}-${f ? f.x._k : ''}` };
 }
 
-// draw asks the screen to draw again, and puts the caret in the field the press
-// asked for — in the panel the press came from. The panel's elements are the
-// same after a draw (Preact updates them where they stand), so there is nothing
-// to look for again: the press that asked is the one that moved the caret
-// (webui-preact-design 5 章 5).
-function redraw(panel, focusSel) {
-  const row = rowOf(panel);
-  if (!row) return panel;
-  const box = $('.ybox', panel);
-  if (box && box.clientHeight) S.yscroll[row.uid + row.l] = box.scrollTop;
-  host.redraw();
-  if (focusSel) {
-    const el = panel.querySelector(focusSel);
-    if (el) { el.focus({ preventScroll: true }); if (el.select) el.select(); }
-  }
-  return panel;
-}
+// edited says the draft changed: the screen draws its head and foot again and
+// asks the server what is wrong with the document.
+function edited(h, row) { if (h.onChange) h.onChange(row); }
+function url(h) { if (h.onURL) h.onURL(); }
+function mode(h, v) { if (h.onMode) h.onMode(v); }
 
-function re(c, sel) { return redraw(c.panel, sel); }
-
-// goRule opens one rule of a document and puts the cursor in its body (spec-roles
-// 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from a check, or
-// from the address, reads through this, so the rule stands open where the editor
-// shows, brought into the window — never under the save's band — with the body
-// ready to be typed in. A rule the document does not hold leaves the panel as it
-// is.
-function goRule(panel, k) {
-  const row = rowOf(panel);
-  if (!row || !k) return null;
+// openRule opens one rule of a document and puts the cursor in its body
+// (spec-roles 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from a
+// check, or from the address, reads through this, so the rule stands open where
+// the editor shows, brought into the window — never under the save's band — with
+// the body ready to be typed in. A rule the document does not hold leaves the
+// panel as it is.
+export function openRule(row, k) {
+  if (!row || !k) return;
   S.ropen.add(rkey(row, { _k: k }));
-  if (host.mode) host.mode(panel, 'edit');
   S.pfocus[row.uid + row.l] = { k, f: 'text' };
-  redraw(panel, null);
-  const el = panel.querySelector(`.rule[data-k="${k}"] [data-f=text]`);
-  if (el) {
-    // The rule is brought into the middle of the window, so the band the screen
-    // pins to the bottom never hides it; a rule taller than the window keeps its
-    // head in it.
-    el.scrollIntoView({ block: 'center' });
-    const top = el.getBoundingClientRect().top;
-    if (top < 0) window.scrollBy(0, top);
-    el.focus({ preventScroll: true });
-  }
-  if (host.url) host.url();
-  return panel;
+  ask(`.rule[data-k="${k}"] [data-f=text]`, 'center');
 }
 
-function handleClick(b) {
-  const act = b.dataset.act, c = ctx(b);
-  const row = c.row;
+function handleClick(h, b) {
+  const act = b.dataset.act, c = ctx(h.row, b), row = c.row;
   if (!row) return false;
   const pkey = row.uid + row.l, ck = c.x ? 'r' + c.key : null;
   const sk = c.si != null ? `${row.uid}${row.l}s${c.si}` : null;
@@ -542,9 +548,9 @@ function handleClick(b) {
     case 'rtoggle': {
       const k = rkey(row, c.x);
       if (S.ropen.has(k)) S.ropen.delete(k); else S.ropen.add(k);
-      re(c, `.rule[data-k="${c.x._k}"] .rsum`); if (host.url) host.url(); break;
+      ask(`.rule[data-k="${c.x._k}"] .rsum`); url(h); break;
     }
-    case 'sec-pick': S.secPick[sk] = S.secPick[sk] === b.dataset.w ? null : b.dataset.w; re(c, `.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=${b.dataset.w}]`); break;
+    case 'sec-pick': S.secPick[sk] = S.secPick[sk] === b.dataset.w ? null : b.dataset.w; ask(`.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=${b.dataset.w}]`); break;
     case 'sec-level': {
       const s0 = c.d.sections[c.si], v = +b.dataset.v;
       // Choosing ## for a section the file wrote no level for leaves it unwritten
@@ -552,63 +558,63 @@ function handleClick(b) {
       s0.level = v === 2 && !s0.level ? 0 : v;
       S.secPick[sk] = null;
       if (s0.rules[0]) S.pfocus[pkey] = { k: s0.rules[0]._k, f: 'text' };
-      re(c, `.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=lvl]`); edited(c); break;
+      ask(`.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=lvl]`); edited(h, row); break;
     }
-    case 'sec-add': c.d.sections.push({ _s: null, heading: '', level: 0, intro: '', rules: [] }); re(c, `.sec[data-si="${c.d.sections.length - 1}"] [data-f=heading]`); edited(c); break;
-    case 'sec-del': S.confirm[sk] = 1; re(c, `.sec[data-si="${c.si}"] [data-act=sec-del-yes]`); break;
-    case 'sec-del-no': delete S.confirm[sk]; re(c); break;
-    case 'sec-del-yes': delete S.confirm[sk]; c.d.sections.splice(c.si, 1); re(c); edited(c); break;
+    case 'sec-add': c.d.sections.push({ _s: null, heading: '', level: 0, intro: '', rules: [] }); ask(`.sec[data-si="${c.d.sections.length - 1}"] [data-f=heading]`); edited(h, row); break;
+    case 'sec-del': S.confirm[sk] = 1; ask(`.sec[data-si="${c.si}"] [data-act=sec-del-yes]`); break;
+    case 'sec-del-no': delete S.confirm[sk]; ask(); break;
+    case 'sec-del-yes': delete S.confirm[sk]; c.d.sections.splice(c.si, 1); ask(); edited(h, row); break;
     case 'sec-up': case 'sec-down': {
       const j = c.si + (act === 'sec-up' ? -1 : 1), ss = c.d.sections;
       if (j < 0 || j >= ss.length) break;
       const at = ss[c.si]; ss[c.si] = ss[j]; ss[j] = at;
       S.secPick = {};
       Object.keys(S.confirm).filter((k2) => k2.startsWith(`${row.uid}${row.l}s`)).forEach((k2) => delete S.confirm[k2]);
-      re(c, `.sec[data-si="${j}"] [data-act=${act}]`); edited(c); break;
+      ask(`.sec[data-si="${j}"] [data-act=${act}]`); edited(h, row); break;
     }
-    case 'intro-add': S.introOpen = secKey(row, c.si); re(c, `.sec[data-si="${c.si}"] [data-f=intro]`); break;
+    case 'intro-add': S.introOpen = secKey(row, c.si); ask(`.sec[data-si="${c.si}"] [data-f=intro]`); break;
     case 'rule-add': {
       const x = { _k: ++kseq, id: nextID(row), text: '', note: '', in_prompt: true, off_since: '' };
       c.d.sections[c.si].rules.push(x); S.ropen.add(rkey(row, x));
-      re(c, `.rule[data-k="${x._k}"] [data-f=text]`); edited(c); break;
+      ask(`.rule[data-k="${x._k}"] [data-f=text]`); edited(h, row); break;
     }
-    case 'rule-up': case 'rule-down': moveRule(c.d, c.si, c.ri, act === 'rule-up' ? -1 : 1); re(c, `.rule[data-k="${c.x._k}"] [data-act=${act}]`); edited(c); break;
-    case 'rule-revert': { const sx = clone(savedRule(row, c.x._k)); if (sx) { sx._k = c.x._k; c.d.sections[c.si].rules[c.ri] = sx; } re(c, `.rule[data-k="${c.x._k}"] .rsum`); edited(c); break; }
-    case 'rule-del': S.confirm[ck] = 1; re(c, `.rule[data-k="${c.x._k}"] [data-act=rule-del-yes]`); break;
-    case 'rule-del-no': delete S.confirm[ck]; re(c); break;
-    case 'rule-del-yes': delete S.confirm[ck]; c.d.sections[c.si].rules.splice(c.ri, 1); re(c); edited(c); break;
+    case 'rule-up': case 'rule-down': moveRule(c.d, c.si, c.ri, act === 'rule-up' ? -1 : 1); ask(`.rule[data-k="${c.x._k}"] [data-act=${act}]`); edited(h, row); break;
+    case 'rule-revert': { const sx = clone(savedRule(row, c.x._k)); if (sx) { sx._k = c.x._k; c.d.sections[c.si].rules[c.ri] = sx; } ask(`.rule[data-k="${c.x._k}"] .rsum`); edited(h, row); break; }
+    case 'rule-del': S.confirm[ck] = 1; ask(`.rule[data-k="${c.x._k}"] [data-act=rule-del-yes]`); break;
+    case 'rule-del-no': delete S.confirm[ck]; ask(); break;
+    case 'rule-del-yes': delete S.confirm[ck]; c.d.sections[c.si].rules.splice(c.ri, 1); ask(); edited(h, row); break;
     case 'rule-toggle': {
       c.x.in_prompt = !inP(c.x);
       if (inP(c.x)) c.x.off_since = '';
-      re(c, `.rule[data-k="${c.x._k}"] .onsw`);
-      edited(c); break;
+      ask(`.rule[data-k="${c.x._k}"] .onsw`);
+      edited(h, row); break;
     }
     case 'yline': {
       const k = +b.dataset.k, si = b.dataset.si, part = b.dataset.part;
       if (k) S.ropen.add(`${row.uid}${row.l}:${k}`);
-      if (host.mode) host.mode(c.panel, 'edit');
+      mode(h, 'edit');
       S.pfocus[pkey] = k ? { k, f: 'text' } : part === 'title' ? { k: 0, f: 'title' } : part === 'intro' ? { k: 0, f: `sec.${si}.intro` } : { k: 0, f: `sec.${si}` };
       // The Markdown box follows to the section's first rule: the panel is drawn
       // again first, then the caret is put in the field the press named (A2, P15).
-      host.redraw();
       const target = k ? `.rule[data-k="${k}"] [data-f=text]` : part === 'title' ? '[data-f=title]' : `.sec[data-si="${si}"] [data-f=${part === 'intro' ? 'intro' : 'heading'}]`;
-      const el = c.panel.querySelector(target);
-      if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
-      if (host.url) host.url(); break;
+      ask(target, 'nearest');
+      url(h); break;
     }
     default: return false;
   }
   return true;
 }
 
-function handleInput(t) {
-  const c = ctx(t);
-  if (!c.panel || !c.d || !t.dataset.f) return false;
+function handleInput(h, t) {
+  const row = h.row;
+  if (!row) return false;
+  const c = ctx(row, t);
+  if (!c.d || !t.dataset.f) return false;
   const v = t.value;
   switch (t.dataset.f) {
     // The panel's head draws the path from the draft the press changes, so the
-    // screen is asked to draw again: the part writes no word of the screen's (5 章 1).
-    case 'name': c.d.name = v; if (host.redraw) host.redraw(); break;
+    // screen is told the draft moved.
+    case 'name': c.d.name = v; if (h.onChange) h.onChange(row); break;
     case 'title': c.d.title = v; break;
     case 'revision': c.d.revision = v === '' ? null : +v; break;
     case 'heading': c.d.sections[c.si].heading = v; break;
@@ -616,99 +622,93 @@ function handleInput(t) {
     case 'id': case 'text': case 'note': c.x[t.dataset.f] = v; break;
     default: return false;
   }
-  edited(c);
+  edited(h, row);
   return true;
 }
 
-function edited(c) { if (host.edited) host.edited(c); }
-
-function attach(r, h) {
-  root = r;
-  host = h || {};
-  root.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act]');
-    if (b && handleClick(b)) e.stopPropagation();
+// ---- the part as one component --------------------------------------
+// RuleDoc draws the two containers a panel's .pmain holds — the edit and the
+// preview — and answers every press, typing and drag inside them. The screen
+// hands it the document and the ways to tell it things (the header above).
+export function RuleDoc(props) {
+  const edit = useRef(null);
+  const lastAsk = useRef(0), lastFlash = useRef(0);
+  const h = props;
+  // The part's own changes redraw the part: the trees inside read the count, and
+  // so does this component, so the caret the press asked for is put in place
+  // after the draw whether or not the screen drew too.
+  rev.value;
+  useLayoutEffect(() => {
+    applyAsk(edit.current, lastAsk);
+    applyFlash(edit.current, lastFlash);
   });
-  root.addEventListener('input', (e) => { if (handleInput(e.target)) { /* handled */ } });
-  // The box that says whether a rename carries into the teams that read the role
-  // is the part's state: the screen reads it when it saves, not from the box
-  // (5 章 2).
-  root.addEventListener('change', (e) => {
-    const cb = e.target.closest && e.target.closest('.rename input[type=checkbox]');
-    if (!cb) return;
-    const panel = cb.closest('.panel'), row = panel && rowOf(panel);
-    if (!row) return;
-    S.rename[`${row.uid}${row.l}`] = cb.checked;
-  });
-  root.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.rsum')) { e.preventDefault(); e.target.click(); }
-  });
-  root.addEventListener('focusin', (e) => {
-    const t = e.target;
-    if (!t.closest('.pedit')) return;
-    const c = ctx(t);
-    if (!c.panel) return;
-    const k = c.row.uid + c.row.l, fc = { k: c.x ? c.x._k : 0, f: focusField(t) };
-    const was = S.pfocus[k];
-    if (was && was.k === fc.k && was.f === fc.f) return;
-    S.pfocus[k] = fc;
-    // The preview marks the line the caret is in: the part says its own state
-    // changed, and the preview is drawn from it (S).
-    touched();
-  });
-  root.addEventListener('scroll', (e) => {
-    if (e.target.matches?.('.ybox')) { const p = e.target.closest('.panel'); if (p) S.yscroll[p.dataset.uid + p.dataset.l] = e.target.scrollTop; }
-  }, true);
-  // A rule is dragged by its ⋮ handle: above or below another rule's row, or to
-  // the end of a section (A5). The drop line is 2px of the accent, and the row
-  // that is dragged goes faint.
-  root.addEventListener('pointerdown', (e) => { const g = e.target.closest && e.target.closest('.grip'); if (g) g.closest('.rule').draggable = true; });
-  root.addEventListener('dragstart', (e) => {
-    const el = e.target.closest && e.target.closest('.rule[draggable=true]');
-    if (!el) return;
-    drag = { panel: el.closest('.panel'), k: +el.dataset.k, to: null };
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', el.dataset.k); } catch (err) { /* the move is inside this screen */ }
-    el.classList.add('dragging');
-  });
-  root.addEventListener('dragover', (e) => {
-    if (!drag) return;
-    const sec = e.target.closest('.sec');
-    if (!sec || sec.closest('.panel') !== drag.panel) return;
-    e.preventDefault(); clearDrop();
-    const el = e.target.closest('.rule');
-    if (el) {
-      const rc = el.getBoundingClientRect(), before = e.clientY < rc.top + rc.height / 2;
-      el.classList.add(before ? 'drop-b' : 'drop-a');
-      drag.to = { si: +sec.dataset.si, k: +el.dataset.k, before };
-    } else {
-      sec.classList.add('drop-end');
-      drag.to = { si: +sec.dataset.si, k: null };
-    }
-  });
-  root.addEventListener('drop', (e) => {
-    if (!drag || !drag.to) return;
-    e.preventDefault();
-    const panel = drag.panel, row = rowOf(panel), d = row.draft, to = drag.to;
-    const from = findRule(d, drag.k);
-    if (from && to.k !== drag.k) {
-      const [x] = d.sections[from.si].rules.splice(from.ri, 1), rs = d.sections[to.si].rules;
-      rs.splice(to.k == null ? rs.length : rs.findIndex((y) => y._k === to.k) + (to.before ? 0 : 1), 0, x);
-    }
-    const k = drag.k;
-    drag = null; clearDrop();
-    redraw(panel, null);
-    const moved = panel.querySelector(`.rule[data-k="${k}"]`);
-    if (moved) moved.classList.add('flash');
-    if (host.edited) host.edited({ panel, row, d });
-  });
-  root.addEventListener('dragend', () => { $$('.rule.dragging, .rule[draggable=true]').forEach((el) => { el.classList.remove('dragging'); el.draggable = false; }); clearDrop(); drag = null; });
-}
-
-// RuleDoc is the part as one component, for a screen that is a module: the two
-// containers a panel's .pmain holds, and the trees inside them.
-export function RuleDoc({ row, issues, nameError }) {
-  return html`<div class="pedit"><${Edit} row=${row} issues=${issues} nameError=${nameError} /></div><aside class="yprev" aria-label="Markdown"><${Preview} row=${row} issues=${issues} /></aside>`;
+  return html`<div class="pedit" ref=${edit}
+      onClick=${(e) => { const b = e.target.closest('[data-act]'); if (b) handleClick(h, b); }}
+      onInput=${(e) => { handleInput(h, e.target); }}
+      onChange=${(e) => {
+        const cb = e.target.closest && e.target.closest('.rename input[type=checkbox]');
+        if (!cb) return;
+        S.rename[`${h.row.uid}${h.row.l}`] = cb.checked;
+      }}
+      onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.rsum')) { e.preventDefault(); e.target.click(); } }}
+      onFocusIn=${(e) => {
+        const t = e.target;
+        if (!t.closest('.pedit')) return;
+        const c = ctx(h.row, t);
+        const k = h.row.uid + h.row.l, fc = { k: c.x ? c.x._k : 0, f: focusField(t) };
+        const was = S.pfocus[k];
+        if (was && was.k === fc.k && was.f === fc.f) return;
+        S.pfocus[k] = fc;
+        // The preview marks the line the caret is in: the part says its own state
+        // changed, and the preview is drawn from it (S).
+        touched();
+      }}
+      onPointerDown=${(e) => { const g = e.target.closest && e.target.closest('.grip'); if (g) g.closest('.rule').draggable = true; }}
+      onDragStart=${(e) => {
+        const el = e.target.closest && e.target.closest('.rule[draggable=true]');
+        if (!el) return;
+        drag = { row: h.row, key: h.row.uid + h.row.l, k: +el.dataset.k, to: null };
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', el.dataset.k); } catch (err) { /* the move is inside this screen */ }
+        }
+        el.classList.add('dragging');
+      }}
+      onDragOver=${(e) => {
+        // A rule moves inside its own panel: a drag over another panel's rules is
+        // not a drop this panel takes.
+        if (!drag || drag.key !== h.row.uid + h.row.l) return;
+        const sec = e.target.closest('.sec');
+        if (!sec) return;
+        e.preventDefault(); clearDrop();
+        const el = e.target.closest('.rule');
+        if (el) {
+          const rc = el.getBoundingClientRect(), before = e.clientY < rc.top + rc.height / 2;
+          el.classList.add(before ? 'drop-b' : 'drop-a');
+          drag.to = { si: +sec.dataset.si, k: +el.dataset.k, before };
+        } else {
+          sec.classList.add('drop-end');
+          drag.to = { si: +sec.dataset.si, k: null };
+        }
+      }}
+      onDrop=${(e) => {
+        if (!drag || !drag.to || drag.key !== h.row.uid + h.row.l) return;
+        e.preventDefault();
+        const row = drag.row, d = row.draft, to = drag.to;
+        const from = findRule(d, drag.k);
+        if (from && to.k !== drag.k) {
+          const [x] = d.sections[from.si].rules.splice(from.ri, 1), rs = d.sections[to.si].rules;
+          rs.splice(to.k == null ? rs.length : rs.findIndex((y) => y._k === to.k) + (to.before ? 0 : 1), 0, x);
+        }
+        const k = drag.k;
+        drag = null; clearDrop();
+        const one = { k, seq: (S.flash && S.flash.seq ? S.flash.seq : 0) + 1 };
+        S.flash = one;
+        touched();
+        edited(h, row);
+      }}
+      onDragEnd=${() => { $$('.rule.dragging, .rule[draggable=true]').forEach((el) => { el.classList.remove('dragging'); el.draggable = false; }); clearDrop(); drag = null; }}
+      ><${Edit} row=${h.row} issues=${h.issues} nameError=${h.nameError} h=${h} /></div><aside class="yprev" aria-label="Markdown" onClick=${(e) => { const b = e.target.closest('[data-act]'); if (b) handleClick(h, b); }}><${Preview} row=${h.row} issues=${h.issues} /></aside>`;
 }
 
 // nextKey hands out the key of a rule a person adds, and observeKeys takes the
@@ -718,10 +718,10 @@ export function RuleDoc({ row, issues, nameError }) {
 const nextKey = () => ++kseq;
 const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = x._k; }); };
 
-// ---- the modules' way in (4 章) ----
+// ---- the screens' way in (4 章) ----
 // A screen imports the part's names rather than reading them off a global.
 export {
-  attach as mount, Counts, Badge, Vm, Sev, OutNote,
+  Counts, Badge, Vm, Sev, OutNote,
   S as state, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
-  outCount, nextKey, observeKeys, clone, goRule,
+  outCount, nextKey, observeKeys, clone,
 };

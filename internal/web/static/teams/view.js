@@ -4,7 +4,7 @@
 // 入れ子は、移す前のマークアップから 1 つも変えない（5 章 6）。押し込みは持たず
 // （main.js が state.js へ渡す）、状態は state.js を読むだけ。規則の文書の中は
 // 共通部品（lib/ruledoc.js）が描く。
-import { html, useLayoutEffect, useRef, useState } from '../vendor/preact.js';
+import { html } from '../vendor/preact.js';
 import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
@@ -17,7 +17,7 @@ import {
   rowsOfGroup, dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName,
   teamLabel, dtabOf, rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount,
   vlistParts, rowOfPanel, okOf, refusalOf, FILES, fileByKey, fileDirty, yIssues,
-  recForFile, pickFile,
+  recForFile, pickFile, scheduleAgree, syncURL,
 } from './state.js';
 
 const other = (p) => (p === 'project' ? 'global' : 'project');
@@ -263,7 +263,10 @@ function AgreePanel({ r }) {
         ${both ? html`<span class=${'state ' + (shadowed ? 'off' : 'on')}>${shadowed ? '隠れている' : '効いている'}</span>` : ''}
         <span class="seg pview">${[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => html`<button class=${mode === v ? 'on' : ''} data-act="pmode" data-v=${v} aria-pressed=${mode === v}>${label}</button>`)}</span>
       </span></header>
-    <div class="pmain"><${RuleDoc} row=${rowOfPanel(r)} issues=${agreeIssues(r)} /></div>
+    <div class="pmain"><${RuleDoc} row=${rowOfPanel(r)} issues=${agreeIssues(r)} hasName=${false}
+      onChange=${() => { render(); scheduleAgree(r); }}
+      onMode=${(v) => { state.pmode[dkey(r)] = v; render(); }}
+      onURL=${() => syncURL()} /></div>
     <${Foot} r=${r} agree=${true} />
   </section>`;
 }
@@ -304,24 +307,22 @@ export function YamlPage() {
 
 // YamlFile is one file's section. The section element is the screen's (it
 // carries the key the presses read and the hash the save carries); the part
-// draws what stands inside it.
+// draws what stands inside it and reads the file and the hash as props.
 function YamlFile({ f }) {
-  const section = useRef(null);
-  const [drawn, setDrawn] = useState(false);
   const r = recForFile(f);
   const both = r ? (r.places || []).length > 1 : false;
-  useLayoutEffect(() => { if (!drawn) setDrawn(true); }, [drawn]);
-  return html`<section class="yed" data-key=${keyOfFile(f)} data-hash=${f.hash} ref=${section}>
-    <${YamlTab} section=${section.current} label=${f.label} path=${f.path}
+  return html`<section class="yed" data-key=${keyOfFile(f)} data-hash=${f.hash}>
+    <${YamlTab} label=${f.label} path=${f.path}
       badge=${both ? { cls: 'state ' + (f.hidden ? 'off' : 'on'), text: f.hidden ? '隠れている' : '効いている' } : null}
-      text=${f.text} kind="team" place=${f.place} name=${f.name} extra=${{ part: f.kind }}
+      text=${f.text} hash=${f.hash} kind="team" place=${f.place} name=${f.name} extra=${{ part: f.kind }}
       problems=${yIssues(f.file)}
-      onProblems=${(sec, probs) => { state.yc[f.file] = probs; }}
+      onProblems=${(probs) => { state.yc[f.file] = probs; }}
+      onRevert=${() => { delete state.ytext[f.file]; }}
       onState=${({ text }) => {
     if (text === f.text) delete state.ytext[f.file]; else state.ytext[f.file] = text;
     render();
   }}
-      onSaved=${(sec, answer) => {
+      onSaved=${(answer) => {
     const json = (answer && answer.json) || {};
     f.hash = json.hash || f.hash;
     // The written text is the server's, or what the person typed (5 章 2).
@@ -329,7 +330,6 @@ function YamlFile({ f }) {
     else if (state.ytext[f.file] !== undefined) f.text = state.ytext[f.file];
     delete state.ytext[f.file];
     delete state.yc[f.file];
-    void sec;
   }} />
   </section>`;
 }

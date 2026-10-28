@@ -7,16 +7,13 @@
 // line makes. The server writes every sentence a problem shows; this file only
 // lays them out (spec-boundary 3).
 //
-// The section element is the screen's (it carries the file's name and hash, and
-// the screens read those back); the part draws what stands inside it, from the
-// header down to the 保存 footer, and nothing here writes markup outside
-// Preact's render (webui-preact-design 5 章 1). The presses on those buttons come
-// from the screen that owns the section: it hands the section to save, revert or
-// jump below, so a press is handled once.
-//
-// The screen draws the section's element (it carries data-key and data-hash, the
-// keys its presses and its save read) and hands it to YamlTab; the part draws
-// what stands inside it.
+// The part draws one section's contents, from the header down to the 保存
+// footer, and nothing here writes markup outside Preact's render
+// (webui-preact-design 5 章 1). The presses on those buttons are the part's own
+// (the problem's line, 元に戻す, 保存, and the Tab that writes two spaces), so a
+// press is handled once: the screen draws the section's element, the part draws
+// what stands inside it, and the screen passes the file and the ways to tell it
+// things as props (依頼書 4).
 import { html, useEffect, useRef, useState } from '../vendor/preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
 
@@ -71,26 +68,29 @@ const marksOf = (problems) => {
   return marks;
 };
 
-// parts is how a screen reaches one section's part: the section element it holds
-// is the key, so a press that names the section can ask it to check, save, revert
-// or jump.
-const parts = new WeakMap();
-const partOf = (section) => (section ? parts.get(section) : undefined);
-
 // YamlTab is one file's section contents. text is the text the page came with
 // and does not change under the part: it is the textarea's first content, not a
 // value the part keeps putting back — the person's typing lives in the field
 // itself, so no render moves the caret or undoes a change. laid is the text the
 // gutter was last drawn from: the same moment the old part laid it out, when the
 // server's problems came back.
+//
+// What the part reads and who it tells (依頼書 4):
+//   file, label, path, badge, text, hash, kind, place, name, extra, carried
+//   problems   the problems the last check named
+//   onProblems(list)      the check answered: the file's own problems
+//   onSaved(answer)       the save wrote the file: the screen keeps its hash
+//   onState({base,text,hash})  what the part holds, for the band's draft
+//   onRevert()            the person pressed 元に戻す, before the text goes back
 export function YamlTab(props) {
-  const { section, label, path, badge, file, text, kind, place, name, extra, problems, onProblems, onSaved, onState, carried } = props;
+  const { label, path, badge, file, text, hash, kind, place, name, extra, problems, onProblems, onSaved, onState, onRevert, carried } = props;
   const ta = useRef(null);
   const gutter = useRef(null);
   const timer = useRef(0);
   const alive = useRef(true);
   const seq = useRef(0);
   const base = useRef(text);
+  const mine = useRef(hash || '');
 
   const [now, setNow] = useState({ text, problems: problems || [], baseProblems: problems || [] });
   const [laid, setLaid] = useState(text);
@@ -116,12 +116,11 @@ export function YamlTab(props) {
     report();
   }
 
-  // report says what the part holds to a screen that keeps it as its own state
-  // (a screen that was drawn from a string reads section._base instead).
+  // report says what the part holds to a screen that keeps it as its own state.
   function report() {
     const el = ta.current;
     if (!el || !onState) return;
-    onState({ base: base.current, text: el.value, hash: (section && section.dataset.hash) || props.hash || '' });
+    onState({ base: base.current, text: el.value, hash: mine.current });
   }
 
   // layout draws what the server said about the text: the numbered gutter with a
@@ -133,11 +132,7 @@ export function YamlTab(props) {
     const value = el.value;
     setLaid(value);
     setNow((was) => ({ text: value, problems: next, baseProblems: value === base.current ? next : was.baseProblems }));
-    if (section) {
-      section._problems = next;
-      if (value === base.current) section._baseProblems = next;
-    }
-    if (onProblems) onProblems(section, next);
+    if (onProblems) onProblems(next);
     foot();
   }
 
@@ -163,14 +158,11 @@ export function YamlTab(props) {
     if (!el) return;
     setRefusal('');
     try {
-      const answer = await saveText(kind, name, place, el.value, (section && section.dataset.hash) || '', extra);
+      const answer = await saveText(kind, name, place, el.value, mine.current, extra);
       if (!alive.current) return;
       base.current = el.value;
-      if (section) {
-        section._base = el.value;
-        if (answer.json && answer.json.hash) section.dataset.hash = answer.json.hash;
-      }
-      if (onSaved) onSaved(section, { ok: true, status: answer.status, json: answer.json, text: answer.text });
+      if (answer.json && answer.json.hash) mine.current = answer.json.hash;
+      if (onSaved) onSaved({ ok: true, status: answer.status, json: answer.json, text: answer.text });
       layout(now.problems);
       check();
       setSaved(true);
@@ -185,6 +177,7 @@ export function YamlTab(props) {
   function revert() {
     const el = ta.current;
     if (!el) return;
+    if (onRevert) onRevert();
     el.value = base.current;
     setRefusal('');
     layout(now.problems);
@@ -203,8 +196,6 @@ export function YamlTab(props) {
     el.scrollTop = Math.max(0, (line - 4) * 20);
     el.scrollLeft = 0;
   }
-
-  if (section) parts.set(section, { layout, check, schedule, save, revert, jump, foot });
 
   // The part asks the server what is wrong with the text as it came, once (mount
   // did this before it drew anything), and stops the wait when the screen goes.
@@ -234,22 +225,24 @@ export function YamlTab(props) {
     if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop;
   }, [laid, now.problems]);
 
+  // The hash the page read is the one a save carries: the answer's own hash
+  // travels through the screen, and comes back as this prop (5 章 2).
+  useEffect(() => {
+    if (hash) mine.current = hash;
+  }, [hash]);
+
   const lines = laid.split('\n');
   const marks = marksOf(now.problems);
   return html`<header class="ph"><span class="ln">${label}</span><code class="path">${path}</code>${badge ? html`<span class=${badge.cls}>${badge.text}</span>` : ''}</header>
   <div class="ybody">
-    <div class=${'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref=${gutter}>${lines.map((_, i) => html`<span class=${marks[i + 1] || ''}>${i + 1}</span>`)}</pre><textarea class="ytext" data-file=${file || undefined} wrap="off" spellcheck="false" autocomplete="off" aria-label=${path} ref=${ta} onInput=${() => { foot(); schedule(); }}>${text}</textarea></div>
-    <div class="vlist"><div class="vhead"><span class="vt">validate</span>${now.problems.length ? html`<span class="vcount">${errs ? html`<span class="sev err">問題 ${errs}</span>` : ''}${warns ? html`<span class="sev warn">警告 ${warns}</span>` : ''}</span>` : html`<span class="vclean">✓ 問題なし</span>`}</div>${now.problems.map((p) => html`<button class="vitem" data-act="yaml-jump" data-line=${p.line}><span class=${'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>${p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">${p.line} 行</span><span class="msg">${p.text}</span></button>`)}</div>
+    <div class=${'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref=${gutter}>${lines.map((_, i) => html`<span class=${marks[i + 1] || ''}>${i + 1}</span>`)}</pre><textarea class="ytext" data-file=${file || undefined} wrap="off" spellcheck="false" autocomplete="off" aria-label=${path} ref=${ta} onInput=${() => { foot(); schedule(); }} onScroll=${() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown=${(e) => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); insertTab(e.target); } }}>${text}</textarea></div>
+    <div class="vlist"><div class="vhead"><span class="vt">validate</span>${now.problems.length ? html`<span class="vcount">${errs ? html`<span class="sev err">問題 ${errs}</span>` : ''}${warns ? html`<span class="sev warn">警告 ${warns}</span>` : ''}</span>` : html`<span class="vclean">✓ 問題なし</span>`}</div>${now.problems.map((p) => html`<button class="vitem" data-act="yaml-jump" data-line=${p.line} onClick=${() => jump(p.line)}><span class=${'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>${p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">${p.line} 行</span><span class="msg">${p.text}</span></button>`)}</div>
   </div>
   <footer class="pf">
-    <button class="btn primary" data-act="yaml-save" disabled=${!dirty || grew}>保存</button><span class="dirty">${dirty ? '変更あり' : ''}</span>
+    <button class="btn primary" data-act="yaml-save" disabled=${!dirty || grew} onClick=${save}>保存</button><span class="dirty">${dirty ? '変更あり' : ''}</span>
     ${refusal ? html`<span class="sev err refusal">${refusal}</span>` : ''}${saved ? html`<span class="ok">保存しました</span>` : ''}
-    <span class="acts"><button class="btn" data-act="yaml-revert" hidden=${!dirty}>元に戻す</button></span>
+    <span class="acts"><button class="btn" data-act="yaml-revert" hidden=${!dirty} onClick=${revert}>元に戻す</button></span>
   </footer>`;
 }
 
-// jump, revert and save are the screen's way to one section's part: the section
-// element the screen drew stands for the part (5 章 1).
-export const jump = (section, line) => partOf(section)?.jump(line);
-export const revert = (section) => partOf(section)?.revert();
-export const save = (section) => partOf(section)?.save();
+

@@ -4,14 +4,13 @@
 // YAML）と canvas.js（トポロジー）、状態と書き込みは state.js。ここも DOM を書か
 // ない（5 章 1）。
 import { html, render as draw } from '../vendor/preact.js';
-import { insertTab, jump as yamlJump, revert as yamlRevert, save as yamlSave } from '../lib/yamltab.js';
-import { rulesOf, findRule, clone, mount as mountRules, state as ruleState } from '../lib/ruledoc.js';
+import { rulesOf, findRule, clone, state as ruleState } from '../lib/ruledoc.js';
 import {
   view, tabsEl, state, render, onDraw, boot, take, dirty, tellDirty, dkey, byKey, byName,
   addDraft, dropDraft, checkTeam, checkAgree, syncTeam, saveTeam, saveAgree, doDelete,
   syncURL, readURL, jumpWantRule, jumpToRule, setStick, other, orderRows, firstIndexOf,
   forgetUndo, canvasUndoFromToast, recs, applyOps, pushOp, debounce, cloneTeam, theName,
-  narrow, GROUPED, CURRENT, host,
+  narrow, GROUPED, CURRENT,
 } from './state.js';
 import { Tabs, App } from './view.js';
 import { mountCanvas, selectPick, canvasReset, fitYboxes } from './canvas.js';
@@ -27,10 +26,6 @@ if (view) {
     draw(html`<${App} />`, view);
   });
 
-  // The shared part listens on the view first: its presses are its own (the
-  // rules, the sections, the preview), and what it does not answer comes on to
-  // this screen's list below.
-  mountRules(view, host);
   mountCanvas(view);
   render();
 
@@ -128,9 +123,6 @@ if (view) {
       case 'to-yaml': state.tab = 'yaml'; state.yfile = `${b.dataset.key}.team`; render(); window.scrollTo(0, 0); break;
       case 'dtab': if (r) { state.dtab[n] = b.dataset.t; render(); if (b.dataset.t === 'agree') checkAgree(r); } break;
       case 'yfile': state.yfile = b.dataset.file; render(); break;
-      case 'yaml-jump': yamlJump(b.closest('.yed'), Number(b.dataset.line)); break;
-      case 'yaml-revert': { const sec = b.closest('.yed'); delete state.ytext[sec.dataset.key]; yamlRevert(sec); render(); break; }
-      case 'yaml-save': yamlSave(b.closest('.yed')); break;
       case 'save': if (ar) saveAgree(ar); break;
       case 'revert': if (ar) { ar.agree.draft = clone(ar.agree.saved); checkAgree(ar); render(); } break;
       case 'pmode': if (ar) { state.pmode[dkey(ar)] = b.dataset.v; render(); } break;
@@ -176,18 +168,10 @@ if (view) {
     const x = ruleEl ? findRule(r.agree.draft, +ruleEl.dataset.k) : null;
     ruleState.pfocus[r.uid + r.place] = { k: x ? x._k : 0 };
   });
-  view.addEventListener('scroll', (e) => {
-    if (e.target.matches?.('.ytext')) {
-      const g = e.target.closest('.code');
-      const gutter = g && g.querySelector('.gutter');
-      if (gutter) gutter.scrollTop = e.target.scrollTop;
-    }
-  }, true);
   view.addEventListener('keydown', (e) => {
     // A point or a line of the canvas answers its own keys (canvas.js); this
     // screen answers the row, the list and the validate column.
     if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cv-canvas') && e.target.matches('.sum, .vitem, [role=button]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Tab' && e.target.matches('.ytext') && !e.shiftKey) { e.preventDefault(); insertTab(e.target); }
     if (e.key === 'Enter' && e.target.matches('.in-mission, .in-name')) e.preventDefault();
   });
 
