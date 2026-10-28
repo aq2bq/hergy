@@ -1,4 +1,4 @@
-// lib/resource.js: a reading whose answer is state. Only the newest request's
+// lib/resource.ts: a reading whose answer is state. Only the newest request's
 // answer is kept (webui-preact-design 5 章 3), so no screen numbers its
 // requests to tell an old answer from the one it is waiting for.
 import { expect, test } from 'bun:test';

@@ -59,7 +59,7 @@ import {
 } from "../chunk/nav-ry986x43.js";
 import {
   resource
-} from "../chunk/nav-cf8v2srb.js";
+} from "../chunk/nav-xcvtgqjz.js";
 
 // teams/place.js
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);

@@ -6,7 +6,7 @@
 // で、状態の判定はサーバの 1 つをそのまま使う。長さ・時刻の言い方もサーバが
 // 作る（V1）。この画面は文を 1 つも作らない。
 import { signal, computed } from '../lib/preact.js';
-import { resource } from '../lib/resource.js';
+import { resource } from '../lib/resource';
 import { read } from '../lib/api.js';
 import * as A from '../lib/hq.js';
 import { setActivity } from '../lib/nav.js';

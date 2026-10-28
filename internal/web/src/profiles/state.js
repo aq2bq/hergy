@@ -5,7 +5,7 @@
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
-import { resource } from '../lib/resource.js';
+import { resource } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { setDirty } from '../lib/nav.js';

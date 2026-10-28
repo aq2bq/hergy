@@ -34,7 +34,7 @@ import {
 } from "../chunk/nav-97pgjwg4.js";
 import {
   resource
-} from "../chunk/nav-cf8v2srb.js";
+} from "../chunk/nav-xcvtgqjz.js";
 
 // profiles/state.js
 var view = document.getElementById("view");

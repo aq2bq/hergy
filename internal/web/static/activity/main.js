@@ -38,7 +38,7 @@ import {
 } from "../chunk/nav-829c570p.js";
 import {
   resource
-} from "../chunk/nav-cf8v2srb.js";
+} from "../chunk/nav-xcvtgqjz.js";
 
 // activity/state.js
 var POLL = 1e4;

@@ -58,7 +58,7 @@ import {
 } from "../chunk/nav-ry986x43.js";
 import {
   resource
-} from "../chunk/nav-cf8v2srb.js";
+} from "../chunk/nav-xcvtgqjz.js";
 
 // roles/state.js
 var view = document.getElementById("view");

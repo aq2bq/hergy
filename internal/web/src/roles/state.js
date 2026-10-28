@@ -7,7 +7,7 @@
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
 import { signal } from '../lib/preact.js';
-import { resource } from '../lib/resource.js';
+import { resource } from '../lib/resource';
 import { takeDraft, setCount, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import {

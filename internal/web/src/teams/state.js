@@ -11,7 +11,7 @@
 // 検査の文はすべてサーバ（check.Team / check.Agreement）が作る。この画面は文を
 // 作らない（spec-boundary 3）。
 import { signal, computed } from '../lib/preact.js';
-import { resource } from '../lib/resource.js';
+import { resource } from '../lib/resource';
 import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
 import {
   fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
@@ -521,7 +521,7 @@ export const vlistParts = (r) => {
 
 // ---- 検査と保存 --------------------------------------------------------
 // A check is a reading like any other (5 章 3), so each goes through
-// lib/resource.js: the newest request is the one whose answer is kept and the
+// lib/resource.ts: the newest request is the one whose answer is kept and the
 // one before it is dropped. A row keeps two of them, because one reading is not
 // like the others: the check sent with no ops reads the saved file, and its
 // findings are the baseline the save gate is held to (spec-teams X3). That

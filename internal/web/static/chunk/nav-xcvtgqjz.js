@@ -11,7 +11,7 @@ import {
   y
 } from "./nav-hd8fn60s.js";
 
-// lib/resource.js
+// lib/resource.ts
 function resource(load) {
   const value = y(null);
   const loading = y(false);
