@@ -139,18 +139,23 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 }
 
 // projectOf is the project one running team belongs to, and its newest launch
-// record. A team whose record names a project outside the views is left out: it
-// is another project's, and a serve shows only the projects it lists. A team
-// with no record belongs to the one view whose layer holds its definition.
-func projectOf(entry team.Running, records map[string]launchlog.Record, views []projectView, tabs []team.Tab, lenient bool) (projectView, launchlog.Record, bool) {
-	record, recorded := records[entry.Team]
-	if recorded && record.Project != "" {
+// record. The record the reading chose says the project when it names one: it is
+// the record of the project the team's panes stand in, so another project's team
+// of the same name is not taken for this one's (r-87c8). A team whose record
+// names a project outside the views is left out: it is another project's, and a
+// serve shows only the projects it lists. A team with no record belongs to the one
+// view whose layer holds its definition, or, when the record says nothing, whose
+// panes its own stand among (d-73fc).
+func projectOf(entry team.Running, records launchRecords, views []projectView, tabs []team.Tab, lenient bool) (projectView, launchlog.Record, bool) {
+	if entry.Project != "" {
 		for _, view := range views {
-			if samePath(record.Project, view.Path) {
+			if samePath(entry.Project, view.Path) {
+				record, _ := records.at(view.Path, entry.Team)
 				return view, record, true
 			}
 		}
 		if lenient && len(views) == 1 {
+			record, _ := records.at(views[0].Path, entry.Team)
 			return views[0], record, true
 		}
 		return projectView{}, launchlog.Record{}, false
@@ -161,7 +166,8 @@ func projectOf(entry team.Running, records map[string]launchlog.Record, views []
 	// (d-73fc).
 	for _, view := range views {
 		if panesIn(view.Path, tabs, entry.Team) {
-			return view, launchlog.Record{}, true
+			record, _ := records.at(view.Path, entry.Team)
+			return view, record, true
 		}
 	}
 	for _, view := range views {
@@ -197,20 +203,42 @@ func panesIn(project string, tabs []team.Tab, name string) bool {
 	return false
 }
 
-// latestLaunches is the newest launch record of each team name, by name.
-func latestLaunches() map[string]launchlog.Record {
+// launchRecords is this machine's launch record as reading a running team needs
+// it: the newest record of each project and team name, and of each team name
+// alone, for a team whose tab does not say where it stands (r-87c8).
+type launchRecords struct {
+	byPlace map[string]launchlog.Record
+	byTeam  map[string]launchlog.Record
+}
+
+// at is the newest record of one team in one project.
+func (r launchRecords) at(project, name string) (launchlog.Record, bool) {
+	record, ok := r.byPlace[project+"\x00"+name]
+	return record, ok
+}
+
+// latestLaunches is the newest launch record of each project and team name, and
+// of each team name alone.
+func latestLaunches() launchRecords {
 	log, err := launchlog.Open()
 	if err != nil {
-		return nil
+		return launchRecords{}
 	}
 	records, err := log.Read()
 	if err != nil {
-		return nil
+		return launchRecords{}
 	}
-	out := make(map[string]launchlog.Record, len(records))
+	out := launchRecords{
+		byPlace: make(map[string]launchlog.Record, len(records)),
+		byTeam:  make(map[string]launchlog.Record, len(records)),
+	}
 	for _, record := range records {
-		if record.Team != "" && !record.IsHire() {
-			out[record.Team] = record
+		if record.Team == "" || record.IsHire() {
+			continue
+		}
+		out.byTeam[record.Team] = record
+		if record.Project != "" {
+			out.byPlace[record.Project+"\x00"+record.Team] = record
 		}
 	}
 	return out

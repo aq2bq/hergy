@@ -466,7 +466,7 @@ func launchTeams() []team.Launch {
 		if record.IsHire() {
 			continue
 		}
-		out = append(out, team.Launch{Team: record.Team, Definition: record.Definition})
+		out = append(out, team.Launch{Team: record.Team, Definition: record.Definition, Project: record.Project})
 	}
 	return out
 }

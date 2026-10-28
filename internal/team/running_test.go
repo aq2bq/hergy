@@ -132,3 +132,38 @@ func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
 		t.Errorf("MemberPanes = %v", panes)
 	}
 }
+
+// TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn: two projects run a
+// team of the same name, and the records of both are in the launch log. The tab's
+// named panes stand in one project, so the record of that project and name is the
+// one read: the other project's record is newer, and its definition is not this
+// team's (r-87c8).
+func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
+	launches := []Launch{
+		{Team: "core", Definition: "alpha-core", Project: "/work/alpha"},
+		{Team: "core", Definition: "beta-core", Project: "/work/beta"}, // the newest of the name
+	}
+	tabs := []Tab{{
+		ID: "t1", Label: "core",
+		Panes:    []string{"core-lead"},
+		PaneDirs: []string{"/work/alpha"},
+	}}
+	got := RunningTeams(tabs, launches, true)
+	want := []Running{{Team: "core", Definition: "alpha-core", Project: "/work/alpha"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
+	}
+
+	// A tab whose named panes stand in no recorded project has no record: the
+	// definition is the team's own name, and the project is left to the reading
+	// that knows the projects a serve lists.
+	other := []Tab{{
+		ID: "t2", Label: "core",
+		Panes:    []string{"core-lead"},
+		PaneDirs: []string{"/work/gamma"},
+	}}
+	want = []Running{{Team: "core", Definition: "core"}}
+	if got := RunningTeams(other, launches, true); !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
+	}
+}

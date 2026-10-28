@@ -17,6 +17,7 @@ import (
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -753,4 +754,82 @@ func nodeNamed(t *testing.T, nodes []web.ActivityNode, name string) web.Activity
 	}
 	t.Fatalf("no node %q in %+v", name, nodes)
 	return web.ActivityNode{}
+}
+
+// TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition: two listed projects
+// run a team of the same name, and the other project's launch is the newer one.
+// The tab's panes stand in this project, so the row is this project's team, read
+// from this project's definition: the record of a project and a name is the one a
+// team is read from, not the newest record of its name (r-87c8, d-73fc).
+func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "core")
+	alpha := f.proj
+	beta := filepath.Join(filepath.Dir(f.proj), "other")
+	if err := copyTree(filepath.Join(alpha, ".hergy"), filepath.Join(beta, ".hergy")); err != nil {
+		t.Fatal(err)
+	}
+	for _, one := range []struct{ dir, mission string }{{alpha, "alpha の使命"}, {beta, "beta の使命"}} {
+		path := filepath.Join(one.dir, ".hergy", "teams", "core", "team.yaml")
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mine := ""
+		for line := range strings.SplitSeq(string(raw), "\n") {
+			if strings.HasPrefix(line, "mission:") {
+				mine = line
+				break
+			}
+		}
+		writeFile(t, path, strings.Replace(string(raw), mine, "mission: "+one.mission, 1))
+	}
+
+	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
+	// alpha's launch first, beta's second: beta's is the newest of the name core.
+	for _, one := range []struct {
+		when time.Time
+		proj string
+	}{
+		{time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC), alpha},
+		{time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC), beta},
+	} {
+		if err := log.Append(launchlog.Record{
+			Time: one.when.Format(time.RFC3339), Command: launchlog.CommandUp,
+			Project: one.proj, Layer: "local", Definition: "core", Team: "core",
+			TeamYAML: filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml"), Hash: "test",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	env := func(root string) team.Env {
+		return team.Env{ProjectRoot: root, GlobalDir: filepath.Join(f.cfg, "hergy"), LocalDir: filepath.Join(root, ".hergy")}
+	}
+	views := []projectView{
+		{Path: alpha, Name: "alpha", Env: env(alpha), Cat: env(alpha).Catalog(source.Disk{})},
+		{Path: beta, Name: "other", Env: env(beta), Cat: env(beta).Catalog(source.Disk{})},
+	}
+	read := herdrNow{
+		tabs: []team.Tab{{
+			ID: "t1", Label: "core", WorkspaceID: "w1",
+			Agents: []string{"core-lead"}, Panes: []string{"core-lead"}, PaneDirs: []string{alpha},
+		}},
+		agentsRead: true,
+		seen:       map[string]activity.Watch{},
+	}
+	out := readRunningTeamsIn(views, read, false)
+	if len(out) != 1 {
+		t.Fatalf("the reading has %d teams, want the one running", len(out))
+	}
+	one := out[0]
+	if !samePath(one.Project, alpha) {
+		t.Errorf("the team stands in %q, want the project its panes stand in, %q", one.Project, alpha)
+	}
+	if one.Built == nil {
+		t.Fatalf("the team's definition did not read: %q", one.Broken)
+	}
+	if got, want := one.Built.team.Definition.Mission, "alpha の使命"; got != want {
+		t.Errorf("the team runs from the definition of %q, want %q", got, want)
+	}
 }
