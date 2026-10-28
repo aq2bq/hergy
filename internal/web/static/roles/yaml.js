@@ -5,12 +5,12 @@
 // 読んだか、そのファイルのチェックの答え（並びの ● に使う）、そして保存の答えを
 // 行へ戻すこと（state.js）。面の中の押し込みは部品のもので、画面は props で
 // 読むものと知らせる先を渡す（依頼書 4）。
-import { html } from '../vendor/preact.js';
+import { html, useEffect } from '../vendor/preact.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { fromJSON, Badge, rulesOf } from '../lib/ruledoc.js';
 import {
   PLACES, LNAME, DIR, state, filesList, live, issuesOf,
-  ychecksOf, setYchecks, docText, pathOf, clone, pressYamlRevert,
+  ychecksOf, setYchecks, docText, pathOf, clone, pressYamlRevert, pressTab, pressYfile, setYfile,
 } from './state.js';
 
 const keyOfYed = (r, l) => r.uid + l;
@@ -52,21 +52,24 @@ export function YamlPage() {
   // With no role document at all, the tab says what is missing and the one thing
   // that makes the documents (n-f2ef, the same shape as the team definition's
   // YAML tab).
+  const picked = state.value.yfile;
+  const chosen = picked && files.some(({ r, l }) => keyOfYed(r, l) === picked)
+    ? picked
+    : (files[0] ? keyOfYed(files[0].r, files[0].l) : null);
+  // The address names no file (or one that is not here): the first file stands,
+  // and the screen keeps it for the address its presses write.
+  useEffect(() => { if (chosen && picked !== chosen) setYfile(chosen); }, [chosen]);
   if (!files.length) {
     return html`<section class="yed yempty">
       <p>ロールの文書はまだありません。</p>
       <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.yaml が並びます。</p>
-      <span><button class="btn" data-act="tab" data-t="roles">一覧へ</button></span></section>`;
+      <span><button class="btn" data-act="tab" data-t="roles" onClick=${() => pressTab('roles')}>一覧へ</button></span></section>`;
   }
-  const chosen = state.yfile && files.some(({ r, l }) => keyOfYed(r, l) === state.yfile)
-    ? state.yfile
-    : (files[0] ? keyOfYed(files[0].r, files[0].l) : null);
-  if (state.yfile !== chosen) state.yfile = chosen;
   const one = files.find(({ r, l }) => keyOfYed(r, l) === chosen) || null;
   return html`<div class="ylay">
       <nav class="files">${PLACES.map((l) => html`<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
         const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
-        return html`<button class=${['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key=${key} aria-pressed=${chosen === key}><code>${e.saved.name}.yaml</code><span class="fs">${ychecksText(l, e.saved.name)}${badgeOrCount(is, e.saved)}</span><span class="ft">${e.saved.title}${hid ? '・隠れている' : ''}</span></button>`;
+        return html`<button class=${['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key=${key} aria-pressed=${chosen === key} onClick=${() => pressYfile(key)}><code>${e.saved.name}.yaml</code><span class="fs">${ychecksText(l, e.saved.name)}${badgeOrCount(is, e.saved)}</span><span class="ft">${e.saved.title}${hid ? '・隠れている' : ''}</span></button>`;
       })}</div>`)}</nav>
       ${one ? html`<${YamlFile} key=${chosen} r=${one.r} l=${one.l} />` : html`<div class="none">ロールの文書はありません</div>`}
     </div>`;

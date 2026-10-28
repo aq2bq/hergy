@@ -1,14 +1,11 @@
 // roles/state.js — ロールの画面の state（webui-preact-design 4 章・5 章）。
 //
 // 一覧の行、割り当てのチーム、YAML のファイル、そしてサーバーのチェックの答えは、
-// すべてここに置く（5 章 2）。部品（view.js / assign.js / yaml.js）はここを読んで
-// 描くだけで、捕まえておいた要素に答えを書かない。
-//
-// 状態は 1 つのオブジェクトと配列のまま（部品 ruledoc が下書きをその場で書き換え、
-// 画面も同じ下書きを読む）。変えたら render() を呼ぶ。render() は同期に描く:
-// 部品が描き直しの直後に自分の要素を読む（規則を開いて、その本文に caret を置く）
-// ので、マイクロタスク待ちにすると要素がまだ無い。rev は「変わった」番号で、
-// 画面の木がこれを読んでいる。
+// すべてここに signal で置く（5 章 2）。部品（view.js / assign.js / yaml.js）は
+// signal を読んで描き、値が変われば Preact が自分で描き直す。だから描き直しを
+// 呼ぶ関数は無い（依頼書 1）。行の下書きは共通部品（ruledoc）が書き換え、変える
+// たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
+// signal に入れる。
 import { signal } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { takeDraft, setCount } from '../lib/nav.js';
@@ -23,7 +20,6 @@ import {
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
-export const rev = signal(0);
 
 const ISLAND = (() => {
   const el = document.getElementById('roles-data');
@@ -40,7 +36,6 @@ export const fill = (s, ...a) => String(s || '').replace(/%[sd]/g, () => (a.leng
 export const LNAME = { project: 'プロジェクト', global: 'グローバル' };
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 const other = (l) => (l === 'project' ? 'global' : 'project');
-export const $ = (sel, root = document) => root.querySelector(sel);
 let uid = 0;
 
 // HQ is the headquarters lists (d-73fc): every listed project's roles and team
@@ -95,22 +90,50 @@ function rowsOf(model, group) {
     return row;
   });
 }
-export let roles = [];
-if (GROUPED) {
-  (HQ.roles || []).forEach((g) => {
-    rowsOf(roleModel(g.list), groupKeyOf(g)).forEach((r) => roles.push(r));
-  });
-  roles.forEach((r) => { r.uid = ++uid; });
-} else {
-  roles = rowsOf(roleModel(ISLAND.role), '');
+function initialRoles() {
+  if (!GROUPED) return rowsOf(roleModel(ISLAND.role), '');
+  const out = [];
+  (HQ.roles || []).forEach((g) => { rowsOf(roleModel(g.list), groupKeyOf(g)).forEach((r) => out.push(r)); });
+  out.forEach((r) => { r.uid = ++uid; });
+  return out;
 }
-// The definitions that read the roles: the current project's for the 割り当て
-// tab, and every group's for the 使っているチーム column.
-export const teams = teamModel(ISLAND.team).teams.map((t) => ({
+
+// ---- the screen's state ---------------------------------------------
+// roles is every row; state is what the screen knows about itself; checks and
+// ychecks are the server's answers; teams is the assign tab's cards. Each is a
+// signal, and every change puts a new value in (5 章 2).
+const FIRST = initialRoles();
+export const roles = signal(FIRST);
+export const state = signal({
+  tab: 'roles', open: new Set(), filter: null, q: '', roleHi: null,
+  confirm: {}, ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {},
+});
+export const checks = signal({});
+export const ychecks = signal({});
+// okShowing is the 保存しました the current drawing shows: a save's answer shows
+// it once, until the next change (the part that says a document is saved).
+export const okShowing = signal({});
+// focusAsk and gotoAsk are where the caret goes after a press: which row's which
+// field (5 章 5), and which member of the assign tab a chip sent it to (P11).
+export const focusAsk = signal(null);
+export const gotoAsk = signal(null);
+
+const patch = (part) => { state.value = { ...state.value, ...part }; };
+export const askFocus = (id, sel) => {
+  focusAsk.value = { uid: Number(id), sel, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
+};
+export const askGoto = (team, member, i) => {
+  gotoAsk.value = { team, member, i, seq: ((gotoAsk.value && gotoAsk.value.seq) || 0) + 1 };
+};
+
+const TEAMS = teamModel(ISLAND.team).teams.map((t) => ({
   id: t.id, hash: t.hash || '', place: t.place || 'project', turns: t.turns || [],
   members: (t.members || []).map((m) => ({ name: m.name, saved: m.saved, draft: m.draft })),
   group: currentGroup(),
 }));
+// The definitions that read the roles: the current project's for the 割り当て
+// tab, and every group's for the 使っているチーム column.
+export const teams = signal(TEAMS);
 export const hqTeams = [];
 if (GROUPED) {
   (HQ.teams || []).forEach((g) => {
@@ -126,22 +149,22 @@ if (GROUPED) {
 }
 // A row a person adds gets an id of its own: start past the ones the island
 // carries, so a new row never takes an opened row's place.
-uid = roles.reduce((m, r) => Math.max(m, r.uid || 0), uid);
+uid = FIRST.reduce((m, r) => Math.max(m, r.uid || 0), uid);
 export const nextUid = () => { uid += 1; return uid; };
 
 // ---- lookups ---------------------------------------------------------
-export const byUid = (id) => roles.find((r) => r.uid === Number(id));
+export const byUid = (id) => roles.value.find((r) => r.uid === Number(id));
 export const live = (r, l) => !!(r[l] && r[l].saved);
 export const eff = (r) => (live(r, 'project') ? 'project' : live(r, 'global') ? 'global' : (r.project ? 'project' : 'global'));
 export const cur = (r) => r[eff(r)].draft;
 export const curName = (r) => (r.markdown ? r.name || '' : (r[eff(r)].saved || r[eff(r)].draft).name);
-export const savedRoles = () => roles.filter((r) => live(r, 'project') || live(r, 'global'));
+export const savedRoles = () => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));
 export const roleByName = (n) => savedRoles().find((r) => curName(r) === n);
 // whoReads is the members that name a role: the row's own project's teams, and
 // for a global row every project's (spec 4 章). Each answer says which project
 // the team belongs to.
 export const whoReads = (n, group) => {
-  const pool = GROUPED ? hqTeams.filter((t) => (group === 'global' ? true : t.group === group)) : teams;
+  const pool = GROUPED ? hqTeams.filter((t) => (group === 'global' ? true : t.group === group)) : teams.value;
   return pool.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
 };
 export const projectNameOf = (key) => {
@@ -155,8 +178,27 @@ export const pathOf = (l, d) => DIR[l] + (d.name || '…') + '.yaml';
 // row is another project's, and the one this project's places build.
 export const pathOfRow = (r, l, d) => (r.paths && r.paths[l]) || pathOf(l, d);
 
+// ---- the rows, changed ----------------------------------------------
+// withRow puts a new row in place of one: the array is new, so every part that
+// reads roles is drawn again, and the row itself is the new one (5 章 2).
+export const withRow = (id, fn) => {
+  const one = Number(id);
+  roles.value = roles.value.map((r) => (r.uid === one ? fn(r) : r));
+};
+// withEntry puts a new place's entry in place of one row's, and the row with it.
+export const withEntry = (id, l, fn) => withRow(id, (r) => (r[l] ? { ...r, [l]: fn(r[l]) } : r));
+
+// touch is what a change that the rows do not show by themselves goes through:
+// the 保存しました that stands for one drawing, the band's dot and its number.
+export function touch() {
+  okShowing.value = { ...state.value.ok };
+  if (Object.keys(state.value.ok).length) patch({ ok: {} });
+  roles.value = roles.value.slice();
+  tellDirty();
+  setCount('roles', savedRoles().length);
+}
+
 // ---- server checks ---------------------------------------------------
-export const checks = {};
 // checkers are one resource per document place: a check is a reading like any
 // other, so the newest request is the one whose answer is kept, and the one
 // before it is dropped (5 章 3). The screen keeps no numbering of its own.
@@ -187,13 +229,13 @@ function convertProblems(d, list) {
   }));
 }
 
-export function issuesOf(r, l) { const c = checks[keyOf(r, l)]; return c ? c.issues : []; }
+export function issuesOf(r, l) { const c = checks.value[keyOf(r, l)]; return c ? c.issues : []; }
 
 // rowOf is one panel as the shared part reads it: the draft and the saved
 // document, and the check the server last answered (its problems, the Markdown,
 // the diff, the arrows).
 export function rowOfPanel(r, l) {
-  const e = r[l], c = checks[keyOf(r, l)];
+  const e = r[l], c = checks.value[keyOf(r, l)];
   return {
     uid: r.uid, l, e, saved: e.saved, draft: e.draft,
     issues: c ? c.issues : [], markdown: c ? c.markdown : { lines: [], chars: 0 },
@@ -215,76 +257,51 @@ export async function askCheck(r, l, cb) {
   });
   if (!answer || !answer.json) return;
   const c = checkAnswer(answer);
-  checks[k] = {
-    issues: convertProblems(e.draft, c.problems),
-    markdown: c.preview || { lines: [], chars: 0 },
-    diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
-    turns: c.turns || [], readers: c.readers, size: c.size, limit: c.limit,
+  const issues = convertProblems(e.draft, c.problems);
+  checks.value = {
+    ...checks.value,
+    [k]: {
+      issues,
+      markdown: c.preview || { lines: [], chars: 0 },
+      diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
+      turns: c.turns || [], readers: c.readers, size: c.size, limit: c.limit,
+    },
   };
   // A save's refusal under ロール名 is the same answer, older: the check speaks
   // for the name field now, so a refusal it no longer holds goes (d-841e).
-  const shown = state.refusals[k];
-  if (shown && shown.at === 'name' && !checks[k].issues.some((m) => m.f === 'name')) delete state.refusals[k];
+  const shown = state.value.refusals[k];
+  if (shown && shown.at === 'name' && !issues.some((m) => m.f === 'name')) {
+    const next = { ...state.value.refusals };
+    delete next[k];
+    patch({ refusals: next });
+  }
   if (cb) cb();
 }
 
 export function scheduleCheck(r, l) {
   const k = keyOf(r, l);
   clearTimeout(timers[k]);
-  timers[k] = setTimeout(() => askCheck(r, l, () => { updateRowSummary(r); render(); }), 300);
+  timers[k] = setTimeout(() => askCheck(r, l, () => { updateRowSummary(r.uid); touch(); }), 300);
 }
 export const clearTimer = (r, l) => clearTimeout(timers[keyOf(r, l)]);
 
 // updateRowSummary is what a check's answer changes about the row itself: the
 // saved document's own problems are what a save is held to (X3).
-function updateRowSummary(r) {
+function updateRowSummary(id) {
+  const r = byUid(id);
+  if (!r) return;
+  const entries = {};
   PLACES.forEach((l) => {
     if (!r[l] || !r[l].saved) return;
-    const c = checks[keyOf(r, l)];
-    if (c) r[l].__savedIssues = c.issues;
+    const c = checks.value[keyOf(r, l)];
+    if (c) entries[l] = { ...r[l], __savedIssues: c.issues };
   });
+  if (Object.keys(entries).length) withRow(id, (old) => ({ ...old, ...entries }));
 }
 
-// ---- state -----------------------------------------------------------
-export const state = {
-  tab: 'roles', open: new Set(), filter: null, q: '', roleHi: null,
-  confirm: {}, ok: {}, yfile: null, pmode: {}, wantFocus: null,
-  refusals: {}, teamErrors: {},
-};
-
-// okShowing is the 保存しました the current drawing shows: a save's answer shows
-// it once, until the next drawing (the part that says a document is saved).
-let okShowing = {};
-export const okOf = (key) => !!okShowing[key];
-export const refusalOf = (key) => state.refusals[key] || null;
-export const teamErrorOf = (id) => state.teamErrors[id] || '';
-
-// ---- render ----------------------------------------------------------
-// paint is main.js's draw of the two trees (#tabs and #view). render() is the
-// one way a change reaches the page.
-let paint = () => {};
-export const onDraw = (fn) => { paint = fn; };
-
-export function render() {
-  okShowing = state.ok;
-  state.ok = {};
-  rev.value += 1;
-  paint();
-  // The band's dot and its number are the screen's own answers.
-  tellDirty();
-  setCount('roles', savedRoles().length);
-  // A row a person just added opens on its name, after the last redraw the
-  // check caused (spec-roles 1.2「道具の列」).
-  const ask = state.wantFocus;
-  if (!ask) return;
-  state.wantFocus = null;
-  const el = $(`.panel[data-uid="${ask.uid}"] ${ask.sel}`);
-  if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
-}
-
-// panelEl is the panel of one place as it stands in the page now — a press puts
-// the cursor on a button it just drew through this.
-export const panelEl = (u, l) => $(`.panel[data-uid="${u}"][data-l="${l}"]`);
+export const okOf = (k) => !!okShowing.value[k];
+export const refusalOf = (k) => state.value.refusals[k] || null;
+export const teamErrorOf = (id) => state.value.teamErrors[id] || '';
 
 // ---- URL -------------------------------------------------------------
 // openNewPanel opens the row a screen shows for a role no document holds: its
@@ -296,28 +313,31 @@ export function openNewPanel(r) {
   const first = e && e.draft.sections[0] && e.draft.sections[0].rules[0];
   if (!first) return;
   ruleState.ropen.add(`${r.uid}${l}:${first._k}`);
-  if (!checks[keyOf(r, l)]) askCheck(r, l, () => render());
+  if (!checks.value[keyOf(r, l)]) askCheck(r, l, () => touch());
 }
 
 export function parseURL() {
   const path = location.pathname;
-  state.tab = /\/roles\/assign$/.test(path) ? 'assign' : /\/roles\/yaml$/.test(path) ? 'yaml' : 'roles';
+  const tab = /\/roles\/assign$/.test(path) ? 'assign' : /\/roles\/yaml$/.test(path) ? 'yaml' : 'roles';
   const qs = new URLSearchParams(location.search);
-  if (state.tab === 'roles') {
+  const next = { tab };
+  if (tab === 'roles') {
     const f = qs.get('filter');
-    state.filter = (f === 'off' || f === 'issues') ? f : null;
-    state.q = qs.get('q') || '';
+    next.filter = (f === 'off' || f === 'issues') ? f : null;
+    next.q = qs.get('q') || '';
     const openedRaw = (qs.get('open') || '');
     const openedRows = parseOpen(openedRaw) || [];
+    const open = new Set(state.value.open);
     openedRows.forEach(({ name, group: g }) => {
       // A row is found by the name it shows and, from a search result, by the
       // project it stands in: a saved name, a written one, or the name of a
       // document only Markdown holds (spec-roles 2 節, spec 3 章).
-      const r = roles.find((x) => curName(x) === name && (!g || x.group === g)) || roles.find((x) => curName(x) === name);
+      const r = roles.value.find((x) => curName(x) === name && (!g || x.group === g)) || roles.value.find((x) => curName(x) === name);
       if (!r) return;
-      state.open.add(r.uid);
+      open.add(r.uid);
       if (r.noDoc) openNewPanel(r);
     });
+    next.open = open;
     // A rule is given as <role>.<place>.<id>, or as its id alone when the
     // opening names the role (the team screen links so, d-8bbf).
     (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
@@ -330,31 +350,40 @@ export function parseURL() {
         places.forEach((l) => {
           if (!r[l] || !r[l].saved) return;
           const hit = rulesOf(r[l].saved).find((x) => x.id === id);
-          if (hit) { state.open.add(r.uid); ruleState.ropen.add(`${r.uid}${l}:${hit._k}`); }
+          if (hit) { open.add(r.uid); ruleState.ropen.add(`${r.uid}${l}:${hit._k}`); }
         });
       });
     });
-  } else if (state.tab === 'assign') {
-    state.roleHi = qs.get('role') || null;
+    next.open = open;
+  } else if (tab === 'assign') {
+    next.roleHi = qs.get('role') || null;
   } else {
     const f = qs.get('file');
-    if (f) { const m = /^(project|global)\.(.+)$/.exec(f); if (m) { const r = roleByName(m[2]); if (r && r[m[1]] && r[m[1]].saved && eff(r) === m[1]) state.yfile = r.uid + m[1]; } }
+    if (f) {
+      const m = /^(project|global)\.(.+)$/.exec(f);
+      if (m) {
+        const r = roleByName(m[2]);
+        if (r && r[m[1]] && r[m[1]].saved && eff(r) === m[1]) next.yfile = r.uid + m[1];
+      }
+    }
   }
+  patch(next);
 }
 
 export function syncURL(push) {
+  const s = state.value;
   let path = '/roles';
   const q = new URLSearchParams();
-  if (state.tab === 'assign') {
+  if (s.tab === 'assign') {
     path = '/roles/assign';
-    if (state.roleHi) q.set('role', state.roleHi);
-  } else if (state.tab === 'yaml') {
+    if (s.roleHi) q.set('role', s.roleHi);
+  } else if (s.tab === 'yaml') {
     path = '/roles/yaml';
-    if (state.yfile) { const m = /^(\d+)(project|global)$/.exec(state.yfile); if (m) { const r = byUid(m[1]); if (r) q.set('file', m[2] + '.' + curName(r)); } }
+    if (s.yfile) { const m = /^(\d+)(project|global)$/.exec(s.yfile); if (m) { const r = byUid(m[1]); if (r) q.set('file', m[2] + '.' + curName(r)); } }
   } else {
-    if (state.filter) q.set('filter', state.filter);
-    if (state.q) q.set('q', state.q);
-    const open = [...state.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
+    if (s.filter) q.set('filter', s.filter);
+    if (s.q) q.set('q', s.q);
+    const open = [...s.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
     if (open.length) q.set('open', open.join(','));
     const rule = [...ruleState.ropen].map((kk) => {
       const m = /^(\d+)(project|global):(\d+)$/.exec(kk);
@@ -372,18 +401,19 @@ export function syncURL(push) {
 
 // ---- the list's filters ---------------------------------------------
 export const FILTERS = [[null, 'すべて'], ['off', 'オフがある'], ['issues', '問題・警告']];
-export const allEntries = () => roles.flatMap((r) => PLACES.filter((l) => r[l]).map((l) => ({ r, l, e: r[l] })));
+export const allEntries = () => roles.value.flatMap((r) => PLACES.filter((l) => r[l]).map((l) => ({ r, l, e: r[l] })));
 export function ruleShown(x, issues) {
-  if (state.filter === 'off' && inP(x)) return false;
-  if (state.filter === 'issues' && !issues.some((m) => m.k === x._k)) return false;
-  if (state.q) { const q = state.q.toLowerCase(); if (![x.id, x.text, x.note].some((s) => String(s).toLowerCase().includes(q))) return false; }
+  const s = state.value;
+  if (s.filter === 'off' && inP(x)) return false;
+  if (s.filter === 'issues' && !issues.some((m) => m.k === x._k)) return false;
+  if (s.q) { const q = s.q.toLowerCase(); if (![x.id, x.text, x.note].some((v) => String(v).toLowerCase().includes(q))) return false; }
   return true;
 }
-export const filtering = () => !!(state.filter || state.q);
+export const filtering = () => !!(state.value.filter || state.value.q);
 export const rowIssues = (r) => PLACES.filter((l) => r[l]).flatMap((l) => issuesOf(r, l));
 
 export function filterCount(f) {
-  if (f === 'off') return roles.filter((r) => PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => !inP(x)))).length;
+  if (f === 'off') return roles.value.filter((r) => PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => !inP(x)))).length;
   return allEntries().reduce((c, { r, l, e }) => {
     const is = issuesOf(r, l);
     return c + rulesOf(e.draft).filter((x) => f === null || is.some((m) => m.k === x._k)).length;
@@ -393,10 +423,9 @@ export function filterCount(f) {
 // ---- the YAML tab's own state ---------------------------------------
 // A file's problems are what the file nav marks a file with; the part checks the
 // text and hands them back (yamltab.js).
-export const ychecks = {};
 export const ykey = (place, name) => place + '.' + name;
-export const ychecksOf = (place, name) => ychecks[ykey(place, name)];
-export const setYchecks = (place, name, list) => { ychecks[ykey(place, name)] = list; };
+export const ychecksOf = (place, name) => ychecks.value[ykey(place, name)];
+export const setYchecks = (place, name, list) => { ychecks.value = { ...ychecks.value, [ykey(place, name)]: list }; };
 // filesList is the YAML tab's files: this serve's project and the global layer,
 // which are the two places the tab writes to. Another project's rows are read and
 // written in the list, not here.
@@ -407,177 +436,192 @@ export const docText = (r, l) => { const e = r[l]; return e.ytext !== undefined 
 // A refusal stands where its field does: a name's refusal under the name field,
 // the document's in the panel's footer (spec-roles 1.2.9).
 export function showRefusal(key, at, text) {
-  state.refusals[key] = { at: at === 'name' ? 'name' : 'doc', text: text || '保存できませんでした' };
-  render();
+  patch({ refusals: { ...state.value.refusals, [key]: { at: at === 'name' ? 'name' : 'doc', text: text || '保存できませんでした' } } });
+  touch();
 }
 export function clearRefusal(key) {
-  if (!state.refusals[key]) return;
-  delete state.refusals[key];
-  render();
+  if (!state.value.refusals[key]) return;
+  const next = { ...state.value.refusals };
+  delete next[key];
+  patch({ refusals: next });
+  touch();
 }
 
 // pressToggle opens or closes a row. A row a person presses into opens in front
 // of them; the caret goes back to the line they pressed (5 章 5).
-export function pressToggle(uidPressed) {
-  const r = byUid(uidPressed);
+export function pressToggle(idPressed) {
+  const r = byUid(idPressed);
   if (!r) return;
-  if (state.open.has(r.uid)) state.open.delete(r.uid);
-  else { state.open.add(r.uid); if (r.noDoc) openNewPanel(r); }
-  render();
+  const open = new Set(state.value.open);
+  if (open.has(r.uid)) open.delete(r.uid);
+  else { open.add(r.uid); if (r.noDoc) openNewPanel(r); }
+  patch({ open });
+  askFocus(r.uid, '.sum');
+  touch();
   syncURL(false);
-  const s = $(`.role[data-uid="${r.uid}"] .sum`);
-  if (s) s.focus();
 }
 
 export function pressFilter(f) {
-  state.filter = f || null;
-  render();
+  patch({ filter: f || null });
+  touch();
   syncURL(false);
 }
 
 export function pressNew() {
   const d = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
   const nr = { uid: nextUid(), isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: '', text: '' }, global: null };
-  roles.unshift(nr);
-  state.open.add(nr.uid);
+  roles.value = [nr, ...roles.value];
+  const open = new Set(state.value.open);
+  open.add(nr.uid);
+  patch({ open, filter: null, q: '' });
   ruleState.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
-  state.filter = null;
-  state.q = '';
-  render();
-  askCheck(nr, 'project', () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
+  touch();
+  askCheck(nr, 'project', () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
 
-export function pressPickPlace(r, l, x) {
+export function pressPickPlace(id, l, x) {
   if (x === l) return;
-  r[x] = r[l];
-  r[l] = null;
-  render();
+  withRow(id, (r) => ({ ...r, [x]: r[l], [l]: null }));
+  touch();
 }
 
-export function pressPmode(panel, v) {
+export function pressPmode(id, l, v) {
   // The switch's button is the one the person pressed: it keeps the focus
   // through the draw, so nothing is put back (5 章 5).
-  state.pmode[panel.dataset.uid + panel.dataset.l] = v;
-  render();
+  patch({ pmode: { ...state.value.pmode, [id + l]: v } });
+  touch();
 }
 
-export function pressDup(r, l) {
+export function pressDup(id, l) {
   // The copy keeps the places its rules stood in (their _k), so the server
   // writes the new file from the original's own lines (spec-roles 1.2.9).
-  const src = r[l].saved;
+  const r = byUid(id);
+  const src = r && r[l] && r[l].saved;
+  if (!src) return;
   const d = clone(src);
   d.name += '-2';
   const nr = { uid: nextUid(), isNew: true, group: r.group, [l]: { saved: null, draft: d, base: clone(src), basePlace: { place: l, name: src.name }, hash: '', text: '' } };
   nr.project = nr.project || null;
   nr.global = nr.global || null;
-  roles.splice(roles.indexOf(r) + 1, 0, nr);
-  state.open.add(nr.uid);
-  render();
-  askCheck(nr, l, () => { state.wantFocus = { uid: nr.uid, sel: '[data-f=name]' }; render(); });
+  const at = roles.value.indexOf(r);
+  roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
+  const open = new Set(state.value.open);
+  open.add(nr.uid);
+  patch({ open });
+  touch();
+  askCheck(nr, l, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
 
-export function pressCopy(r, l) {
-  r[other(l)] = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: '', text: '' };
-  render();
-  askCheck(r, other(l), () => render());
+export function pressCopy(id, l) {
+  const r = byUid(id);
+  if (!r || !r[l] || !r[l].saved) return;
+  const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: '', text: '' };
+  withRow(id, (old) => ({ ...old, [other(l)]: e }));
+  touch();
+  askCheck(byUid(id), other(l), () => touch());
 }
 
-export function pressDel(r, l) {
-  state.confirm[r.uid + l] = 1;
-  render();
-  focusIn(panelEl(r.uid, l), '[data-act=del-yes]');
+export function pressDel(id, l) {
+  patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
+  askFocus(id, '[data-act=del-yes]');
+  touch();
 }
 
-export function pressDelNo(r, l) {
-  delete state.confirm[r.uid + l];
-  render();
+export function pressDelNo(id, l) {
+  const next = { ...state.value.confirm };
+  delete next[id + l];
+  patch({ confirm: next });
+  touch();
 }
 
-// focusIn puts the cursor on one element of a just-drawn panel: a press's own
-// next step, never a caret put back after a redraw (5 章 5).
-function focusIn(el, sel) {
-  const target = el && el.querySelector(sel);
-  if (target) target.focus();
-}
-
-export function pressDiscard(r, l) {
-  delete state.confirm[r.uid + l];
-  if (r[l].saved) r[l].draft = clone(r[l].saved);
-  else delete r[l];
-  if (!r.project && !r.global) {
-    const i = roles.indexOf(r);
-    if (i >= 0) roles.splice(i, 1);
-    state.open.delete(r.uid);
+export function pressDiscard(id, l) {
+  const next = { ...state.value.confirm };
+  delete next[id + l];
+  patch({ confirm: next });
+  const r = byUid(id);
+  if (!r) return;
+  if (r[l] && r[l].saved) {
+    withEntry(id, l, (e) => ({ ...e, draft: clone(e.saved) }));
+  } else {
+    withRow(id, (old) => ({ ...old, [l]: null }));
   }
-  render();
+  const after = byUid(id);
+  if (after && !after.project && !after.global) {
+    roles.value = roles.value.filter((x) => x.uid !== id);
+    const open = new Set(state.value.open);
+    open.delete(Number(id));
+    patch({ open });
+  }
+  touch();
 }
 
-// pressSearch is the list's search: the letters go into the state the list is
-// drawn from, and the caret stays in the field (5 章 5).
 // pressSearch is the list's search: the letters go into the state the list is
 // drawn from. The field is the same element after the draw, so the cursor stays
 // where the person put it (5 章 5).
 export function pressSearch(value) {
-  state.q = value;
-  render();
+  patch({ q: value });
+  touch();
   syncURL(false);
 }
 
 export function pressTab(t) {
-  state.tab = t;
-  render();
+  patch({ tab: t });
+  touch();
   syncURL(true);
 }
 
 export function pressRoleHi(name) {
-  state.roleHi = state.roleHi === name ? null : name;
-  render();
+  patch({ roleHi: state.value.roleHi === name ? null : name });
+  touch();
   syncURL(false);
 }
 
 // pressGoto walks to the assign tab and puts the cursor on the member the row
 // named (spec-roles 2「割り当てのタブ」).
 export function pressGoto(team, member, i) {
-  state.tab = 'assign';
-  render();
+  patch({ tab: 'assign' });
+  touch();
   syncURL(true);
-  const el = $(`.team[data-t="${team}"] .arow[data-m="${member}"]`);
-  if (el) {
-    el.scrollIntoView({ block: 'center' });
-    el.classList.add('flash');
-    const s = el.querySelector('select');
-    if (s) s.focus({ preventScroll: true });
-  }
+  askGoto(team, member, i);
   history.replaceState(null, '', `${location.pathname}${location.search}#${team}.m-${i}`);
 }
 
 // pickRole is one member's role picked in the assign tab: the pick is the
 // screen's draft until the team's 保存 writes it.
 export function pickRole(id, i, value) {
-  const t = teams.find((x) => x.id === id);
+  const t = teams.value.find((x) => x.id === id);
   if (!t) return;
-  t.members[Number(i)].draft = value;
   // The select is the same element after the draw, so the cursor stays in it:
   // nothing puts it back (5 章 5).
-  render();
+  teams.value = teams.value.map((one) => (one.id !== id
+    ? one
+    : { ...one, members: one.members.map((m, j) => (j === Number(i) ? { ...m, draft: value } : m)) }));
+  touch();
 }
 
 export function pressYfile(key) {
-  state.yfile = key;
-  render();
+  patch({ yfile: key });
+  touch();
   syncURL(false);
+}
+
+// setYfile is the file the tab shows when the address names none: the first one.
+export function setYfile(key) {
+  patch({ yfile: key });
 }
 
 export function pressYamlRevert(r, l) {
   // The text goes back to the saved one, and the shared part checks the text it
   // now shows: a result for the thrown-away text must not stay.
-  if (r && r[l]) delete r[l].ytext;
+  if (r && r[l]) withEntry(r.uid, l, (e) => { const next = { ...e }; delete next.ytext; return next; });
 }
 
 // ---- writes ----------------------------------------------------------
-export async function doSave(r, l) {
-  const e = r[l];
-  const key = r.uid + l;
+export async function doSave(id, l) {
+  const r = byUid(id);
+  const e = r && r[l];
+  if (!e) return;
+  const key = id + l;
   // Whether the rename carries into the teams that read the role is the rule
   // document's state, not a box the screen reads back (5 章 2).
   const keepRename = ruleState.rename[key] !== false;
@@ -593,68 +637,83 @@ export async function doSave(r, l) {
   }
   clearRefusal(key);
   const json = res.json || {};
-  const old = e.saved;
-  const newName = e.draft.name;
+  const now = byUid(id);
+  const cur0 = now && now[l];
+  if (!cur0) return;
+  const old = cur0.saved;
+  const newName = cur0.draft.name;
   // The written document comes back with the answer: hergy wrote the day a rule
   // was switched off (off_since), so the screen takes the document the server
   // made rather than the one it sent (d-85dc).
-  if (json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
-  else e.saved = clone(e.draft);
-  e.hash = json.hash || e.hash;
-  // The written text comes back with the answer, so the YAML tab shows the file
-  // this save just made (a moved line, a rule the write re-emitted).
-  if (typeof json.text === 'string') e.text = json.text;
-  delete e.base;
-  delete e.basePlace;
-  delete r.isNew;
-  delete r.noDoc;
+  const saved = json.doc ? fromJSON(json.doc) : clone(cur0.draft);
+  withEntry(id, l, (one) => {
+    const next = { ...one, hash: json.hash || one.hash, saved, draft: clone(saved) };
+    // The written text comes back with the answer, so the YAML tab shows the file
+    // this save just made (a moved line, a rule the write re-emitted).
+    if (typeof json.text === 'string') next.text = json.text;
+    delete next.base;
+    delete next.basePlace;
+    delete next.ytext;
+    return next;
+  });
+  withRow(id, (one) => {
+    const next = { ...one };
+    delete next.isNew;
+    delete next.noDoc;
+    return next;
+  });
   if (old && old.name !== newName && keepRename) {
-    teams.forEach((t) => t.members.forEach((m) => {
-      if (m.saved === old.name) m.saved = newName;
-      if (m.draft === old.name) m.draft = newName;
+    teams.value = teams.value.map((t) => ({
+      ...t,
+      members: t.members.map((m) => ({ ...m, saved: m.saved === old.name ? newName : m.saved, draft: m.draft === old.name ? newName : m.draft })),
     }));
     const o = other(l);
-    if (!GROUPED && r[o]) {
-      const split = { uid: nextUid(), project: null, global: null, group: r.group };
-      split[o] = r[o];
-      delete r[o];
-      roles.splice(roles.indexOf(r) + 1, 0, split);
+    if (!GROUPED && now[o]) {
+      const split = { uid: nextUid(), project: null, global: null, group: now.group };
+      split[o] = now[o];
+      const at = roles.value.findIndex((x) => x.uid === id);
+      roles.value = [...roles.value.slice(0, at + 1), split, ...roles.value.slice(at + 1)];
+      withRow(id, (one) => ({ ...one, [o]: null }));
     }
   }
-  e.ytext = undefined;
-  ychecks[ykey(l, newName)] = undefined;
-  state.ok[key] = 1;
-  await askCheck(r, l, null);
-  render();
+  setYchecks(l, newName, undefined);
+  patch({ ok: { ...state.value.ok, [key]: 1 } });
+  await askCheck(byUid(id), l, null);
+  touch();
   // A rename changes the name the address opens the row by, so the address
   // follows the save (spec-roles 2 節).
   syncURL(false);
   apiSaved();
 }
 
-export async function doDelete(r, l) {
-  const e = r[l];
+export async function doDelete(id, l) {
+  const r = byUid(id);
+  const e = r && r[l];
   if (!e || !e.saved) return;
   try {
     await apiDel('role', e.saved.name, l, e.hash || '', undefined, r.group && r.group !== 'global' ? r.group : undefined);
   } catch (err) {
-    showRefusal(r.uid + l, err && err.json && err.json.at, problemText(err, '削除できませんでした'));
+    showRefusal(id + l, err && err.json && err.json.at, problemText(err, '削除できませんでした'));
     return;
   }
-  ychecks[ykey(l, e.saved.name)] = undefined;
-  delete r[l];
-  if (!r.project && !r.global) {
-    const i = roles.indexOf(r);
-    if (i >= 0) roles.splice(i, 1);
-    state.open.delete(r.uid);
+  setYchecks(l, e.saved.name, undefined);
+  withRow(id, (one) => ({ ...one, [l]: null }));
+  const after = byUid(id);
+  if (!after) return;
+  if (!after.project && !after.global) {
+    roles.value = roles.value.filter((x) => x.uid !== Number(id));
+    const open = new Set(state.value.open);
+    open.delete(Number(id));
+    patch({ open, tab: 'roles' });
+  } else {
+    patch({ tab: 'roles' });
   }
-  state.tab = 'roles';
-  render();
+  touch();
   syncURL(false);
 }
 
 export async function doAssignSave(id) {
-  const t = teams.find((x) => x.id === id);
+  const t = teams.value.find((x) => x.id === id);
   if (!t) return;
   const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
   if (!changes.length) return;
@@ -664,17 +723,21 @@ export async function doAssignSave(id) {
   try {
     res = await apiSave('team', id, { place: 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } });
   } catch (err) {
-    state.teamErrors[id] = problemText(err, '保存できませんでした');
-    render();
+    patch({ teamErrors: { ...state.value.teamErrors, [id]: problemText(err, '保存できませんでした') } });
+    touch();
     return;
   }
-  delete state.teamErrors[id];
   const json = res.json || {};
-  t.members.forEach((m) => { m.saved = m.draft; });
-  t.hash = json.hash || t.hash;
-  state.ok['t' + id] = 1;
-  await Promise.all(savedRoles().map((r) => { const l = eff(r); return askCheck(r, l, null); }));
-  render();
+  const nextErrors = { ...state.value.teamErrors };
+  delete nextErrors[id];
+  patch({ teamErrors: nextErrors, ok: { ...state.value.ok, ['t' + id]: 1 } });
+  teams.value = teams.value.map((one) => (one.id !== id ? one : {
+    ...one,
+    hash: json.hash || one.hash,
+    members: one.members.map((m) => ({ ...m, saved: m.draft })),
+  }));
+  for (const r of savedRoles()) await askCheck(r, eff(r), null);
+  touch();
   apiSaved();
 }
 
@@ -686,8 +749,8 @@ function rowDirty(r) {
 }
 
 export function dirty() {
-  const rows = roles.some(rowDirty);
-  const members = teams.some((t) => t.members.some((m) => m.draft !== m.saved));
+  const rows = roles.value.some(rowDirty);
+  const members = teams.value.some((t) => t.members.some((m) => m.draft !== m.saved));
   const ytexts = allEntries().some(({ r, l }) => r[l].ytext !== undefined && r[l].ytext !== (r[l].text || ''));
   return rows || members || ytexts;
 }
@@ -702,7 +765,7 @@ export function tellDirty() {
 // file that moved outside is not written over by a page that read another one.
 export function take() {
   const rows = [], ytexts = [], members = [];
-  roles.forEach((r) => {
+  roles.value.forEach((r) => {
     PLACES.forEach((l) => {
       const e = r[l];
       if (!e) return;
@@ -716,7 +779,7 @@ export function take() {
       }
     });
   });
-  teams.forEach((t) => t.members.forEach((m) => {
+  teams.value.forEach((t) => t.members.forEach((m) => {
     if (m.draft !== m.saved) members.push({ team: t.id, hash: t.hash || '', name: m.name, saved: m.saved, draft: m.draft });
   }));
   return { rows, ytexts, members };
@@ -727,40 +790,42 @@ export function take() {
 export function restore(carried) {
   (carried.rows || []).forEach((c) => {
     const r = c.saved
-      ? roles.find((x) => x[c.place] && x[c.place].saved && x[c.place].saved.name === c.saved)
-      : roles.find((x) => x[c.place] && !x[c.place].saved && (x.noDoc || x.isNew || x[c.place].draft.name === c.name));
+      ? roles.value.find((x) => x[c.place] && x[c.place].saved && x[c.place].saved.name === c.saved)
+      : roles.value.find((x) => x[c.place] && !x[c.place].saved && (x.noDoc || x.isNew || x[c.place].draft.name === c.name));
     if (!r || !r[c.place]) return;
     const e = r[c.place];
     if (c.hash && e.hash !== c.hash) return;
-    e.draft = clone(c.draft);
-    observeKeys(rulesOf(e.draft));
-    if (c.isNew) r.isNew = true;
+    observeKeys(rulesOf(c.draft));
+    withEntry(r.uid, c.place, (one) => ({ ...one, draft: clone(c.draft) }));
+    if (c.isNew) withRow(r.uid, (one) => ({ ...one, isNew: true }));
     clearTimer(r, c.place);
-    askCheck(r, c.place, null);
+    askCheck(byUid(r.uid), c.place, null);
   });
   (carried.ytexts || []).forEach((c) => {
-    const r = roles.find((x) => x[c.place] && (x[c.place].saved || x[c.place].draft).name === c.name);
+    const r = roles.value.find((x) => x[c.place] && (x[c.place].saved || x[c.place].draft).name === c.name);
     if (!r) return;
     const e = r[c.place];
     if (c.hash && e.hash !== c.hash) return;
-    e.ytext = c.text;
+    withEntry(r.uid, c.place, (one) => ({ ...one, ytext: c.text }));
   });
   (carried.members || []).forEach((c) => {
-    const t = teams.find((x) => x.id === c.team);
+    const t = teams.value.find((x) => x.id === c.team);
     if (!t || (c.hash && t.hash !== c.hash)) return;
-    const m = t.members.find((x) => x.name === c.name && x.saved === c.saved);
-    if (m) m.draft = c.draft;
+    const at = t.members.findIndex((x) => x.name === c.name && x.saved === c.saved);
+    if (at >= 0) {
+      teams.value = teams.value.map((one) => (one.id !== t.id ? one : { ...one, members: one.members.map((m, i) => (i === at ? { ...m, draft: c.draft } : m)) }));
+    }
   });
-  render();
+  touch();
 }
 
 // boot reads the address, asks every saved document's check, and keeps what the
 // band carried from the screen before this one (spec-nav.md 1.5).
 export async function boot() {
   parseURL();
-  await Promise.all(roles.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => { r[l].__savedIssues = (checks[r.uid + l] || {}).issues; }))));
-  roles.forEach((r) => updateRowSummary(r));
+  await Promise.all(roles.value.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => { updateRowSummary(r.uid); }))));
+  roles.value.forEach((r) => updateRowSummary(r.uid));
   const carried = takeDraft('roles');
   if (carried) restore(carried);
-  render();
+  touch();
 }

@@ -1,15 +1,11 @@
 // roles/main.js — ロールの画面の入口（webui-preact-design 4 章）。
 //
-// mount と、押し込み・住所・帯への約束だけを持つ。描くのは view.js / assign.js /
-// yaml.js、状態と書き込みは state.js。ここも DOM を書かない（5 章 1）。規則の
-// 文書は共通部品（lib/ruledoc.js）が、その押し込みは部品が自分の器で受ける。
-import { html, render as draw } from '../vendor/preact.js';
-import {
-  view, tabsEl, byUid, onDraw, boot, dirty, take,
-  pressToggle, pressFilter, pressNew, pressPickPlace, pressPmode, pressDup, pressCopy,
-  pressDel, pressDelNo, pressDiscard, pressGoto, pressRoleHi, pressTab, pressYfile,
-  pressSearch, pickRole, doSave, doDelete, doAssignSave,
-} from './state.js';
+// mount と、住所・帯への約束だけを持つ。描くのは view.js / assign.js / yaml.js、
+// 状態は state.js の signal、押し込みは部品が自分の onClick / onInput から
+// state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
+import { html, effect, render } from '../vendor/preact.js';
+import { setCount } from '../lib/nav.js';
+import { view, tabsEl, dirty, take, savedRoles, boot } from './state.js';
 import { Tabs, App } from './view.js';
 
 if (view) {
@@ -19,61 +15,14 @@ if (view) {
   const page = { screen: 'roles', dirty, take, settled: false };
   window.hergyPage = page;
 
-  onDraw(() => {
-    draw(html`<${Tabs} />`, tabsEl);
-    draw(html`<${App} />`, view);
-  });
+  // The two trees the page holds stand where the server drew them, and stay
+  // where they are: a signal they read draws them again (5 章 2).
+  render(html`<${Tabs} />`, tabsEl);
+  render(html`<${App} />`, view);
 
-  tabsEl.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act=tab]');
-    if (b) pressTab(b.dataset.t);
-  });
-
-  view.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.sum')) { e.preventDefault(); e.target.click(); }
-  });
-
-  view.addEventListener('input', (e) => {
-    if (e.target.id === 'q') pressSearch(e.target.value);
-  });
-
-  view.addEventListener('change', (e) => {
-    const t = e.target;
-    if (t.matches('.pickrole')) pickRole(t.dataset.t, t.dataset.i, t.value);
-  });
-
-  view.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-act]');
-    if (!b) return;
-    const act = b.dataset.act;
-    const panel = b.closest('.panel');
-    const roleEl = b.closest('.role');
-    const r = panel ? byUid(panel.dataset.uid) : roleEl ? byUid(roleEl.dataset.uid) : null;
-    const l = panel && panel.dataset.l;
-
-    switch (act) {
-      case 'toggle': if (roleEl) pressToggle(roleEl.dataset.uid); break;
-      case 'filter': pressFilter(b.dataset.f); break;
-      case 'new': pressNew(); break;
-      case 'pick-place': if (r) pressPickPlace(r, l, b.dataset.x); break;
-      case 'save': if (r) await doSave(r, l); break;
-      case 'pmode': if (panel) pressPmode(panel, b.dataset.v); break;
-      case 'dup': if (r) pressDup(r, l); break;
-      case 'copy': if (r) pressCopy(r, l); break;
-      case 'del': if (r) pressDel(r, l); break;
-      case 'del-no': if (r) pressDelNo(r, l); break;
-      case 'del-yes': if (r) await doDelete(r, l); break;
-      case 'discard': if (r) pressDiscard(r, l); break;
-      case 'goto': pressGoto(b.dataset.t, b.dataset.m, b.dataset.i); break;
-      case 'role-hi': pressRoleHi(b.dataset.n); break;
-      // The tabs stand outside the screen, but a button in the screen may name
-      // one (the 一覧へ of the empty YAML tab), so it is answered here too.
-      case 'tab': pressTab(b.dataset.t); break;
-      case 't-save': await doAssignSave(b.closest('.team').dataset.t); break;
-      case 'yfile': pressYfile(b.dataset.key); break;
-      default: break;
-    }
-  });
+  // The band's number is the list's own: it counts the definitions that are saved
+  // (spec-nav 1.1).
+  effect(() => { setCount('roles', savedRoles().length); });
 
   // boot reads the address and the saved documents; the band's promise (what the
   // screen before this one left unsaved) is part of it.
