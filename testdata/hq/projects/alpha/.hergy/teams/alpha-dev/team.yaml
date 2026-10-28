@@ -1,0 +1,14 @@
+version: 1
+mission: "注文の流れを作り直す"
+members:
+  - name: lead
+    role: lead
+    profile: alpha-fast
+  - name: builder
+    role: builder
+    profile: alpha-fast
+turns:
+  - human -> lead
+  - lead -> builder
+  - builder -> lead
+  - lead -> human

@@ -1,0 +1,5 @@
+version: 1
+profiles:
+  gamma-fast:
+    kind: claude
+    args: ["--model", "claude-haiku-5-5"]

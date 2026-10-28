@@ -1,0 +1,6 @@
+version: 1
+lang: ja
+projects:
+  - ~/src/alpha
+  - ~/src/beta
+  - ~/src/gamma

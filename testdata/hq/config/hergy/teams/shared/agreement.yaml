@@ -1,0 +1,5 @@
+version: 1
+sections:
+  - rules:
+      - id: SHARED-1
+        text: 相談は、まず 1 文で書く。

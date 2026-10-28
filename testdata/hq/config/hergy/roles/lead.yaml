@@ -1,0 +1,9 @@
+version: 1
+title: 進行
+sections:
+  - heading: 進め方
+    rules:
+      - id: LEAD-1
+        text: 最初に、今日決めることを 1 つ書く。
+      - id: LEAD-2
+        text: 終わったら、次に渡す人を 1 人だけ決める。

@@ -1,0 +1,14 @@
+version: 1
+mission: "見積もりの計算をそろえる"
+members:
+  - name: lead
+    role: lead
+    profile: beta-fast
+  - name: builder
+    role: builder
+    profile: beta-fast
+turns:
+  - human -> lead
+  - lead -> builder
+  - builder -> lead
+  - lead -> human

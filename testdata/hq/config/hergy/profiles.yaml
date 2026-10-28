@@ -1,0 +1,8 @@
+version: 1
+profiles:
+  coder:
+    kind: claude
+    args: ["--model", "claude-sonnet-5-5"]
+  planner:
+    kind: codex
+    args: ["--model", "gpt-5-5"]

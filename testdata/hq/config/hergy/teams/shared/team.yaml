@@ -1,0 +1,9 @@
+version: 1
+mission: "どのプロジェクトでも使う、困りごとの相談"
+members:
+  - name: lead
+    role: lead
+    profile: planner
+turns:
+  - human -> lead
+  - lead -> human
