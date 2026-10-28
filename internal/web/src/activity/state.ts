@@ -19,7 +19,6 @@ type ActivityDocument = components['schemas']['ActivityDocument'];
 type ActivityOpened = components['schemas']['ActivityOpened'];
 type ActivityNode = components['schemas']['ActivityNode'];
 type HQRunning = components['schemas']['HQRunning'];
-type HQRunningTeam = components['schemas']['HQRunningTeam'];
 type HQMember = components['schemas']['HQMember'];
 type HQWorker = components['schemas']['HQWorker'];
 type HQTeamDocument = components['schemas']['HQTeamDocument'];
@@ -110,7 +109,7 @@ function lastMoment(t: Pick<ActivityTeam, 'crew'>): string {
 // turns of team.yaml, and the sentence of the screen's last line (spec 6 章).
 function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): ActivityTeam {
   const doc = docs.get(item.name);
-  const run = A ? A.runningTeam(item.name) as HQRunningTeam | null : null;
+  const run = A ? A.runningTeam(item.name) : null;
   const defName = item.summary.definition || item.name;
   const def = (A && A.definitionOf(item.project, defName)) || null;
   const nodes: ActivityNode[] = doc ? (doc.nodes || []) : ((run && run.members) || []).map((m: HQMember) => ({ name: m.name, herdr: m.herdr, state: m.state, at: '' }));
