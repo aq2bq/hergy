@@ -17,7 +17,7 @@ import globals from 'globals';
 export default [
   {
     files: ['**/*.js'],
-    ignores: ['vendor/**'],
+    ignores: ['static/vendor/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
