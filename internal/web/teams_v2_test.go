@@ -1277,3 +1277,46 @@ func TestTEAMS_CopyMemberThroughTheAPI(t *testing.T) {
 		}
 	}
 }
+
+// TestTeamsSayARoleNameThatIsNotOne: a definition one of whose members plays a
+// role that is not a role name cannot be built, so the definition's own check
+// says it — in the figure's answer and in the list's problems — with the sentence
+// the roles screen and the save use (r-fc16). The role's document is there, so
+// nothing else about the definition stops.
+func TestTeamsSayARoleNameThatIsNotOne(t *testing.T) {
+	f := newFixture(t)
+	f.write(t, filepath.Join("roles", "進行管理.yaml"), "version: 1\nsections:\n  - rules:\n      - id: SPEC-1\n        text: 何かをする。\n")
+	text := "version: 1\nmission: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: 進行管理\n    profile: coder\n"
+	f.write(t, filepath.Join("teams", "demo", "team.yaml"), text)
+	server := f.server(t)
+
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team", "text": text,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d: %s", resp.StatusCode, body)
+	}
+	answer := teamsCheck(t, body)
+	found := false
+	for _, problem := range answer.Problems {
+		if problem.Sev == "err" && strings.Contains(problem.Text, "進行管理") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the check of a definition whose member plays 進行管理 found no error: %+v", answer.Problems)
+	}
+
+	_, body = f.get(t, server, "/teams")
+	island := teamsIsland(t, body)
+	for _, item := range island.Team.Items {
+		if item.Name != "demo" {
+			continue
+		}
+		if item.Problems.Err == 0 {
+			t.Errorf("the list reads %+v for demo, want the role name's error", item.Problems)
+		}
+		return
+	}
+	t.Fatal("the list holds no demo")
+}

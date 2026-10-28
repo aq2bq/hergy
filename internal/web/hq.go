@@ -141,6 +141,10 @@ type HQRunningTeam struct {
 	// NotUp is the members the definition has that no agent of the team is live
 	// for, by short name: the ones a screen offers 起動 for (r-5d1a).
 	NotUp []string `json:"not_up"`
+	// Error is why the definition cannot be built, in the words hergy status uses
+	// (2.2). A definition that does not build has no member to offer 起動 for, so
+	// a screen shows this sentence instead of leaving the column silent (r-fc16).
+	Error string `json:"error,omitempty"`
 }
 
 // HQWorkspace is one herdr workspace: its id, its label, and the team that is in

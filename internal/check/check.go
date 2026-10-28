@@ -175,7 +175,8 @@ func Definition(in Input) []Finding {
 	if err != nil {
 		return append(breakFindings(in, err), warnings...)
 	}
-	breaks := promptFindings(in, def)
+	breaks := roleNameFindings(in, def)
+	breaks = append(breaks, promptFindings(in, def)...)
 	breaks = append(breaks, profileFindings(in, def)...)
 	agreementBreaks, agreementWarnings := agreementFinding(in, def)
 	betweenBreaks, betweenWarnings := betweenFindings(in, def)
@@ -527,6 +528,34 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 // hergy does not start the member from it. The reading no longer refuses this
 // name, so the sentence is written here, and it is the same sentence the reading
 // used to stop with.
+// roleNameFindings is the break a member makes whose role is not a role name:
+// the reading of team.yaml holds such a member, but hergy cannot build the
+// definition from it (app.startsOf stops on catalog.RoleNameProblem), so the
+// check says it as the definition's own break rather than leaving the team
+// unbuildable and silent (r-fc16, d-841e). The sentence is the one the team's
+// save and the roles screen use, and it says how to fix the name.
+func roleNameFindings(in Input, def *definition.Definition) []Finding {
+	if def.Graph == nil {
+		return nil
+	}
+	var out []Finding
+	for i := range def.Graph.Members {
+		node := &def.Graph.Members[i]
+		err := catalog.RoleNameProblem(node.Role)
+		if err == nil {
+			continue
+		}
+		label := fmt.Sprintf("members[%d]", i)
+		out = append(out, Finding{
+			Field: label + ".role",
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Kind:  KindRead,
+			Stops: true,
+		})
+	}
+	return out
+}
+
 func profileFindings(in Input, def *definition.Definition) []Finding {
 	if def.Graph == nil {
 		return nil

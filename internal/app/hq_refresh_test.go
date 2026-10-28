@@ -183,3 +183,31 @@ func TestRefreshMembersRefusesAMemberThatIsRunning(t *testing.T) {
 		t.Errorf("core's waiting members = %v, want the lead", got.Waiting)
 	}
 }
+
+// TestRunningSaysWhyTheDefinitionCannotBeBuilt: a team whose definition cannot be
+// built is read as the live agents alone, so it names no member it has and has
+// nothing to offer 起動 for. The reading carries the reason in the words hergy
+// status uses — with the way to fix it — instead of leaving the 動き column
+// silent (r-fc16, 2.2).
+func TestRunningSaysWhyTheDefinitionCannotBeBuilt(t *testing.T) {
+	f, env, _ := hqFixture(t)
+	path := filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, strings.Replace(string(raw), "    role: builder\n", "    role: 進行管理\n", 1))
+
+	read := newActivityRead(env)
+	read.now = func() time.Time { return activityNow }
+	core := teamNamed(read.Running(), "core")
+	if core.Error == "" {
+		t.Fatalf("core's reading = %+v, want the reason its definition cannot be built", core)
+	}
+	if !strings.Contains(core.Error, "進行管理") {
+		t.Errorf("the reason %q does not name the role that stops the build", core.Error)
+	}
+	if len(core.NotUp) != 0 {
+		t.Errorf("not_up = %v, want none: the definition names no member it can start", core.NotUp)
+	}
+}

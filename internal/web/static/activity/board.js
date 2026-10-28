@@ -56,6 +56,9 @@ function Tile({ team: t }) {
   const stall = t.state === 'stalled'
     ? html`<p class="hq-why">誰もターンを持っていません（人間の番でもない）。最後に動いたのは ${lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>`
     : '';
+  // 定義を組み立てられないチームは、理由も直し方もこの行に出す: 本部の動きの欄と
+  // 同じ文で、hergy status が書くもの（r-fc16）。
+  const broken = t.error ? html`<p class="hq-why" data-role="definition-error">${t.error}</p>` : '';
   return html`<article class=${'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team=${t.name}>
     <button type="button" class="hq-th" data-pick=${t.name} aria-pressed=${sel ? 'true' : 'false'} onClick=${() => pick(t.name)}>
       <span class="hq-tn">${t.name}</span><span class="hq-pw">${t.projectName} · ${t.workspace}</span>
@@ -63,6 +66,7 @@ function Tile({ team: t }) {
       <span class="hq-tl">${t.since ? html`<b>${t.since.len}</b> ${t.since.at}` : ''}</span>
     </button>
     <${Figure} team=${t} />
+    ${broken}
     ${stall}
     ${countsLine(t)}
   </article>`;

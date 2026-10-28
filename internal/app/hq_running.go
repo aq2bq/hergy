@@ -44,6 +44,7 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 		ProjectName: one.ProjectName,
 		Workspace:   web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		Tab:         web.HQTab{ID: one.TabID, Label: teamName},
+		Error:       one.Broken,
 		Members:     []web.HQMember{},
 		Workers:     []web.HQWorker{},
 		Waiting:     []string{},

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -199,5 +200,37 @@ func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
 		if finding.Text == want {
 			t.Error("the break stands after the file was removed")
 		}
+	}
+}
+
+// TestTeamSaysARoleNameThatIsNotOne: a member whose role is not a role name is
+// the definition's own break (r-fc16). The document for that role is there, so
+// nothing else about the definition stops: only the name does, and hergy cannot
+// build the definition from it (catalog.RoleNameProblem). The sentence is the one
+// the team's save and the roles screen use, and it says how to fix the name.
+func TestTeamSaysARoleNameThatIsNotOne(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+		leadMember+
+		"  - name: spec-2\n    role: 進行管理\n    profile: claude\n"+
+		"turns:\n  - human -> lead\n  - lead -> human\n  - spec-2 -> human\n")
+	f.roles()
+	f.role("進行管理", "      - id: SPEC-1\n        text: 何かをする。\n")
+
+	report := Team(teamInput(f))
+	var found *Finding
+	for i := range report.Problems {
+		if report.Problems[i].Field == "members[1].role" {
+			found = &report.Problems[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("problems = %+v, want the member's role named", report.Problems)
+	}
+	if !found.Stops {
+		t.Errorf("the finding about the role name does not stop: %+v", found)
+	}
+	if want := i18n.Tf("error.role_name_pattern", "進行管理"); !strings.Contains(found.Text, want) {
+		t.Errorf("the finding is %q, want the sentence %q", found.Text, want)
 	}
 }
