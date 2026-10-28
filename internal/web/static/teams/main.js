@@ -8,6 +8,7 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  S,
   R,
   h,
   _,
@@ -15,7 +16,8 @@ import {
   y,
   O,
   x,
-  html
+  html,
+  u
 } from "../chunk/nav-hx0kbeeq.js";
 import {
   takeDraft2,
@@ -23,11 +25,14 @@ import {
   setCount2
 } from "../chunk/nav-vyr0f22b.js";
 import {
-  call2,
   list2,
+  check2,
+  save2,
+  del2,
+  hqList2,
   saved2,
   problemText2
-} from "../chunk/nav-xz225p52.js";
+} from "../chunk/nav-5wv4wf6d.js";
 import {
   clone2,
   fromJSON2,
@@ -50,10 +55,10 @@ import {
   parseOpen2,
   projectName2,
   RunCell2
-} from "../chunk/nav-h88sd146.js";
+} from "../chunk/nav-eyqgghqe.js";
 import {
   YamlTab2
-} from "../chunk/nav-9etws71j.js";
+} from "../chunk/nav-bx89t3fm.js";
 import {
   Measure
 } from "../chunk/nav-nag3kawt.js";
@@ -259,8 +264,8 @@ var dkey = (d) => d.dom + "." + d.place.value;
 var domOf = (name, group) => GROUPED ? name + "|" + (group || "") : name;
 var draftIn = (r) => !r.draftRow ? {} : r.how === "new" ? { new: true } : { base: r.base };
 var projectIn = (project) => project && project !== "global" ? { project } : {};
-var teamIn = (r, extra) => Object.assign({ place: r.place.value, name: r.name.value, part: "team" }, projectIn(r.project), draftIn(r), extra || {});
-var agreeIn = (r, extra) => Object.assign({ place: r.place.value, name: r.name.value, part: "agreement" }, projectIn(r.project), draftIn(r), extra || {});
+var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
+var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
 var cloneTeam = (t) => ({
   mission: t && t.mission || "",
   members: (t && t.members || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
@@ -422,7 +427,7 @@ function defOf(item, project) {
     seeded: true,
     writes: [],
     nameIssues: [],
-    preview: { lines: [], diff: {} },
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
     promptsReady: undefined,
@@ -481,7 +486,7 @@ function draftRecord(how, place, name, base, project) {
     seeded: false,
     writes: [],
     nameIssues: [],
-    preview: { lines: [], diff: {} },
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
     promptsReady: undefined,
@@ -566,7 +571,7 @@ var buildCheck = (doc, json) => {
   const effect = saved.effect || {};
   return {
     issues: convProblems(doc, json.problems || []),
-    markdown: json.preview || { lines: [], chars: 0 },
+    markdown: json.preview && !("diff" in json.preview) ? json.preview : { lines: [], chars: 0 },
     diff: effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
     turns: effect.turns || [],
     readers: saved.readers || []
@@ -699,8 +704,12 @@ function checkersFor(r) {
   if (had)
     return had;
   const load = async (signal, payload) => {
-    const res = await call2("POST", "/api/team/check", payload, { signal });
-    return res.ok ? res.json || {} : null;
+    try {
+      const res = await check2("team", payload, { signal });
+      return res.json || {};
+    } catch {
+      return null;
+    }
   };
   const one = { draft: resource(load), base: resource(load), agree: resource(load) };
   teamChecks.set(k, one);
@@ -711,7 +720,7 @@ function applyTeamAnswer(r, json, findings) {
   const answered = json;
   r.prompts.value = Array.isArray(answered.members) ? answered.members : [];
   r.promptsReady.value = !!(answered.members && answered.members.length);
-  const pv = json.preview || r.preview.value;
+  const pv = json.preview && "diff" in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
   if (r.draftRow) {
     const draft = json;
@@ -782,10 +791,9 @@ function setOps(r, ops) {
 async function saveTeam(r) {
   if (r.draftRow)
     return saveFolder(r);
-  const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } }));
-  if (!res.ok)
-    return refuse(r, "t", problemText2(res, "保存できませんでした"));
-  const json = res.json || {};
+  const json = await answered(r, "t", save2("team", r.name.value, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } })), "保存できませんでした");
+  if (!json)
+    return;
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -800,10 +808,9 @@ async function saveAgree(r) {
   if (r.draftRow)
     return saveFolder(r);
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
-  const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } }));
-  if (!res.ok)
-    return refuse(r, "a", problemText2(res, "保存できませんでした"));
-  const json = res.json || {};
+  const json = await answered(r, "a", save2("team", r.name.value, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } })), "保存できませんでした");
+  if (!json)
+    return;
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON2(json.doc);
@@ -825,10 +832,9 @@ async function saveFolder(r) {
     part: "folder",
     doc: { ops: r.ops.value, doc }
   });
-  const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, body);
-  if (!res.ok)
-    return refuse(r, "t", problemText2(res, "保存できませんでした"));
-  const json = res.json || {};
+  const json = await answered(r, "t", save2("team", r.name.value, body), "保存できませんでした");
+  if (!json)
+    return;
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
   const at = firstIndexOf((x) => x.dom === dom || x.name.value === name);
   const gone = recs.value.filter((x) => x.dom === dom);
@@ -857,10 +863,9 @@ async function saveFolder(r) {
   saved2();
 }
 async function doDelete(r) {
-  const res = await call2("DELETE", delURL(r));
-  if (!res.ok)
-    return refuse(r, "t", problemText2(res, "削除できませんでした"));
-  const json = res.json || {};
+  const json = await answered(r, "t", del2("team", r.name.value, r.place.value, r.hash.value, r.agreeHash.value, r.project && r.project !== "global" ? r.project : undefined), "削除できませんでした");
+  if (!json)
+    return;
   const name = r.name.value;
   const at = firstIndexOf((x) => x.dom === r.dom);
   const gone = recs.value.filter((x) => x.dom === r.dom);
@@ -879,14 +884,15 @@ async function doDelete(r) {
   }
   syncURL();
 }
-var delURL = (r) => {
-  const qs = [`place=${encodeURIComponent(r.place.value)}`, `hash=${encodeURIComponent(r.hash.value)}`];
-  if (r.agreeHash.value)
-    qs.push(`agreement_hash=${encodeURIComponent(r.agreeHash.value)}`);
-  if (r.project && r.project !== "global")
-    qs.push(`project=${encodeURIComponent(r.project)}`);
-  return `/api/team/${encodeURIComponent(r.name.value)}?${qs.join("&")}`;
-};
+async function answered(r, which, one, fallback) {
+  try {
+    const res = await one;
+    return res.json;
+  } catch (e) {
+    refuse(r, which, problemText2(e, fallback));
+    return null;
+  }
+}
 function refuse(r, which, text) {
   withKey("refusal", which + dkey(r), text || "保存できませんでした");
 }
@@ -1012,15 +1018,19 @@ function workerPrompt(r, i) {
   if (r.wpromptReq[k])
     return null;
   r.wpromptReq[k] = true;
-  call2("POST", "/api/team/check", { place: r.place.value, name: r.name.value, part: "worker", project: r.project && r.project !== "global" ? r.project : undefined, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...r.project && r.project !== "global" ? { project: r.project } : {}, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
-    const ans = res.ok ? res.json || {} : null;
+    const ans = res.json || {};
     r.wprompts.value = {
       ...r.wprompts.value,
-      [k]: res.ok ? { segments: ans && ans.prompt || [], name: WRK_NAME, task: WRK_TASK } : { segments: [], name: WRK_NAME, task: WRK_TASK, err: problemText2(res, "プロンプトを読めませんでした") }
+      [k]: { segments: ans.prompt || [], name: WRK_NAME, task: WRK_TASK }
     };
-  }).catch(() => {
+  }).catch((e) => {
     delete r.wpromptReq[k];
+    r.wprompts.value = {
+      ...r.wprompts.value,
+      [k]: { segments: [], name: WRK_NAME, task: WRK_TASK, err: problemText2(e, "プロンプトを読めませんでした") }
+    };
   });
   return null;
 }
@@ -1415,10 +1425,7 @@ function boot() {
       rolesCame();
   }));
   if (HQ) {
-    const fill = (kind, map, toEntry) => call2("GET", "/api/hq/" + kind).then((res) => {
-      if (!res.ok || !res.json)
-        return;
-      const answer = res.json;
+    const fill = (kind, map, toEntry) => hqList2(kind).then((answer) => {
       (answer.groups || []).forEach((g) => {
         map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter((x) => x !== null);
       });
@@ -2524,40 +2531,191 @@ function mountCanvas(el) {
   });
 }
 
-// teams/view.js
+// teams/view.tsx
+function messagesOf(list) {
+  return list.map((m) => ({ sev: m.sev, msg: m.msg !== undefined ? m.msg : m.text || "" }));
+}
+function inputValue(e) {
+  const t = e.target;
+  return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ? t.value : "";
+}
+function keyOf(e) {
+  return e instanceof KeyboardEvent ? e.key : "";
+}
 var other2 = (p) => p === "project" ? "global" : "project";
 function Tabs() {
   const tab = state.value.tab;
-  return [["list", "一覧"], ["yaml", "YAML"]].map(([t, label]) => html`<button class=${"tab" + (tab === t ? " on" : "")} data-act="tab" data-t=${t} aria-pressed=${tab === t} onClick=${() => pressTab(t)}>${label}</button>`);
+  return [["list", "一覧"], ["yaml", "YAML"]].map(([t, label]) => /* @__PURE__ */ u("button", {
+    class: "tab" + (tab === t ? " on" : ""),
+    "data-act": "tab",
+    "data-t": t,
+    "aria-pressed": tab === t,
+    onClick: () => pressTab(t),
+    children: label
+  }));
 }
 function App() {
-  return html`${state.value.tab === "list" ? html`<${List} />` : html`<${YamlPage} />`}<${CanvasToast} />`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      state.value.tab === "list" ? /* @__PURE__ */ u(List, {}) : /* @__PURE__ */ u(YamlPage, {}),
+      /* @__PURE__ */ u(CanvasToast, {})
+    ]
+  });
 }
 function List() {
-  const toolbar = html`<div class="toolbar"><button class="btn primary" data-act="new" onClick=${() => pressNew()}>＋ チーム定義を追加</button></div>`;
+  const toolbar = /* @__PURE__ */ u("div", {
+    class: "toolbar",
+    children: /* @__PURE__ */ u("button", {
+      class: "btn primary",
+      "data-act": "new",
+      onClick: () => pressNew(),
+      children: "＋ チーム定義を追加"
+    })
+  });
   const recs = allRecs();
   if (!recs.length && !GROUPED)
-    return html`${toolbar}<div class="list"><p class="none">チーム定義はありません</p></div>`;
-  const head = html`<div class="head"><span></span><span>チーム定義名</span><span>使命</span><span>${HQ ? "プロジェクト" : "置き場所"}</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>${HQ ? html`<span class="hq-runh">動き</span>` : ""}</div>`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        toolbar,
+        /* @__PURE__ */ u("div", {
+          class: "list",
+          children: /* @__PURE__ */ u("p", {
+            class: "none",
+            children: "チーム定義はありません"
+          })
+        })
+      ]
+    });
+  const head = /* @__PURE__ */ u("div", {
+    class: "head",
+    children: [
+      /* @__PURE__ */ u("span", {}),
+      /* @__PURE__ */ u("span", {
+        children: "チーム定義名"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: "使命"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: HQ ? "プロジェクト" : "置き場所"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: "メンバー"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: "ワーカー"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: "ルール"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: "大きさ"
+      }),
+      HQ ? /* @__PURE__ */ u("span", {
+        class: "hq-runh",
+        children: "動き"
+      }) : null
+    ]
+  });
   if (!GROUPED) {
-    return html`${toolbar}<div class="list">${head}${recs.map((r) => html`<${Row} key=${r.key.value} r=${r} />`)}</div>`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        toolbar,
+        /* @__PURE__ */ u("div", {
+          class: "list",
+          children: [
+            head,
+            recs.map((r) => /* @__PURE__ */ u(Row, {
+              r
+            }, r.key.value))
+          ]
+        })
+      ]
+    });
   }
   let any = false;
-  const body = GROUPS.map((g) => {
+  const body = (GROUPS || []).map((g) => {
     const rows = rowsOfGroup(groupKeyOf(g));
     if (rows.length)
       any = true;
-    return html`<${GroupHead} g=${g} />${rows.map((r) => html`<${Row} key=${r.key.value} r=${r} />`)}`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(GroupHead, {
+          g
+        }, "g" + groupKeyOf(g)),
+        rows.map((r) => /* @__PURE__ */ u(Row, {
+          r
+        }, r.key.value))
+      ]
+    });
   });
-  return html`${toolbar}<div class="list hq-grouped">${head}${body}${any ? "" : html`<p class="none">チーム定義はありません</p>`}</div>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      toolbar,
+      /* @__PURE__ */ u("div", {
+        class: "list hq-grouped",
+        children: [
+          head,
+          body,
+          any ? null : /* @__PURE__ */ u("p", {
+            class: "none",
+            children: "チーム定義はありません"
+          })
+        ]
+      })
+    ]
+  });
 }
 function GroupHead({ g }) {
   const key = groupKeyOf(g);
   if (g.global) {
-    return html`<div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">${g.display || ""}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
+    return /* @__PURE__ */ u("div", {
+      class: "hq-gh global",
+      "data-group": "global",
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "hq-gn",
+          children: "グローバル"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gp",
+          children: g.display || ""
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gc",
+          children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        })
+      ]
+    });
   }
   const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === key).length;
-  return html`<div class="hq-gh" data-group=${key}><span class="hq-gn">${groupNameOf(g)}</span><span class="hq-gp">${g.project ? g.project.display : ""}</span><span class="hq-gc">チーム定義 <b>${rowsIn(g).length}</b> · 動いているチーム <b>${live}</b></span></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-gh",
+    "data-group": key,
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "hq-gn",
+        children: groupNameOf(g)
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gp",
+        children: g.project ? g.project.display : ""
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gc",
+        children: [
+          "チーム定義 ",
+          /* @__PURE__ */ u("b", {
+            children: rowsIn(g).length
+          }),
+          " · 動いているチーム ",
+          /* @__PURE__ */ u("b", {
+            children: live
+          })
+        ]
+      })
+    ]
+  });
 }
 function Row({ r }) {
   const open = isOpen(r.dom);
@@ -2570,42 +2728,107 @@ function Row({ r }) {
     if (!one)
       return;
     one.focus({ preventScroll: true });
-    if (one.select)
+    if (one instanceof HTMLInputElement)
       one.select();
   }, [focusAsk.value]);
-  return html`<div class=${"tdef" + (open ? " open" : "") + (dirtyDef(r) ? " unsaved" : "")} data-name=${r.dom} data-key=${dkey(r)} ref=${el}>
-    <div class="sum" role="button" tabindex="0" aria-expanded=${open} data-act="toggle" onClick=${(e) => pressSum(r, e)} onKeyDown=${(e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      pressToggle(r);
-    }
-  }}>${html`<${Sum} r=${r} open=${open} />`}</div>
-    ${open ? html`<${Detail} r=${r} />` : ""}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "tdef" + (open ? " open" : "") + (dirtyDef(r) ? " unsaved" : ""),
+    "data-name": r.dom,
+    "data-key": dkey(r),
+    ref: el,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "sum",
+        role: "button",
+        tabindex: 0,
+        "aria-expanded": open,
+        "data-act": "toggle",
+        onClick: (e) => pressSum(r, e),
+        onKeyDown: (e) => {
+          if (keyOf(e) === "Enter" || keyOf(e) === " ") {
+            e.preventDefault();
+            pressToggle(r);
+          }
+        },
+        children: /* @__PURE__ */ u(Sum, {
+          r,
+          open
+        })
+      }),
+      open ? /* @__PURE__ */ u(Detail, {
+        r
+      }) : null
+    ]
+  });
 }
 function pressSum(r, e) {
-  if (e.target.closest("[data-hq], .in-mission, .in-name"))
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target)
     return;
-  const own = e.target.closest("button, a, input, select, [data-act]");
+  if (target.closest("[data-hq], .in-mission, .in-name"))
+    return;
+  const own = target.closest("button, a, input, select, [data-act]");
   if (own && own !== e.currentTarget)
     return;
   pressToggle(r);
 }
 function NameCell({ r, open }) {
-  const tag = r.draftRow ? html`<span class="tag">新規</span>` : "";
+  const tag = r.draftRow ? /* @__PURE__ */ u("span", {
+    class: "tag",
+    children: "新規"
+  }) : null;
   const name = r.name.value;
   if (!r.draftRow)
-    return html`<span class="nm">${name}</span>${tag}`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "nm",
+          children: name
+        }),
+        tag
+      ]
+    });
   if (r.how === "copy" || !open)
-    return html`<span class="nm">${name || html`<span class="none">—</span>`}</span>${tag}`;
-  return html`<input id=${"nm-" + r.dom} class=${"in-name" + ((r.nameIssues.value || []).length ? " bad" : "")} data-f="name" value=${name} placeholder="チーム定義名" spellcheck="false" autocomplete="off" aria-label="チーム定義名" onInput=${(e) => pressName(r, e.target.value)} onKeyDown=${(e) => {
-    if (e.key === "Enter")
-      e.preventDefault();
-  }} />${tag}`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "nm",
+          children: name || /* @__PURE__ */ u("span", {
+            class: "none",
+            children: "—"
+          })
+        }),
+        tag
+      ]
+    });
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("input", {
+        id: "nm-" + r.dom,
+        class: "in-name" + ((r.nameIssues.value || []).length ? " bad" : ""),
+        "data-f": "name",
+        value: name,
+        placeholder: "チーム定義名",
+        spellcheck: false,
+        autocomplete: "off",
+        "aria-label": "チーム定義名",
+        onInput: (e) => pressName(r, inputValue(e)),
+        onKeyDown: (e) => {
+          if (keyOf(e) === "Enter")
+            e.preventDefault();
+        }
+      }),
+      tag
+    ]
+  });
 }
 function placePills(r) {
   const place = r.place.value;
   if (!GROUPED) {
-    return (r.places || []).map((p) => html`<span class=${"pill " + (p === place ? "on" : "shadow")}>${p === "global" ? "グローバル" : currentProjectName()}</span>`);
+    return (r.places || []).map((p) => /* @__PURE__ */ u("span", {
+      class: "pill " + (p === place ? "on" : "shadow"),
+      children: p === "global" ? "グローバル" : currentProjectName()
+    }));
   }
   const label = r.project === "global" ? "グローバル" : projectName2(r.project);
   const globalGroup = (GROUPS || []).find((g) => g.global);
@@ -2613,7 +2836,25 @@ function placePills(r) {
   const name = r.name.value;
   const shadow = r.project && r.project !== "global" && (over[name] || []).includes(r.project);
   const overriding = r.project === "global" ? over[name] || [] : [];
-  return html`<span class="pill on">${label}</span>${shadow ? html`<span class="pill shadow">グローバル</span>` : ""}${overriding.map((p) => html`<span class="pill hq-ov">${projectName2(p)} で上書き</span>`)}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "pill on",
+        children: label
+      }),
+      shadow ? /* @__PURE__ */ u("span", {
+        class: "pill shadow",
+        children: "グローバル"
+      }) : null,
+      overriding.map((p) => /* @__PURE__ */ u("span", {
+        class: "pill hq-ov",
+        children: [
+          projectName2(p),
+          " で上書き"
+        ]
+      }))
+    ]
+  });
 }
 var runProject = (r) => r.place.value === "global" ? "" : r.project || CURRENT;
 function Sum({ r, open }) {
@@ -2621,33 +2862,162 @@ function Sum({ r, open }) {
   const broken = r.broken.value;
   let pills;
   if (r.draftRow && r.how === "copy")
-    pills = html`<span class="pill pending">${PLACE[r.place.value]}</span>`;
-  else if (r.draftRow)
-    pills = html`<span class="seg" role="group" aria-label="置き場所">${PLACES.map((p) => html`<button class=${p === r.place.value ? "on" : ""} data-act="pick-place" data-x=${p} aria-pressed=${p === r.place.value} onClick=${() => pressPlace(r, p)}>${PLACE[p]}</button>`)}</span>`;
-  else
+    pills = /* @__PURE__ */ u("span", {
+      class: "pill pending",
+      children: PLACE[r.place.value]
+    });
+  else if (r.draftRow) {
+    pills = /* @__PURE__ */ u("span", {
+      class: "seg",
+      role: "group",
+      "aria-label": "置き場所",
+      children: PLACES.map((p) => /* @__PURE__ */ u("button", {
+        class: p === r.place.value ? "on" : "",
+        "data-act": "pick-place",
+        "data-x": p,
+        "aria-pressed": p === r.place.value,
+        onClick: () => pressPlace(r, p),
+        children: PLACE[p]
+      }))
+    });
+  } else
     pills = placePills(r);
-  const cell = broken ? "—" : open ? html`<input id=${"m-" + r.dom} class=${"in-mission" + (t.mission !== saved.mission ? " changed" : "")} data-f="mission" value=${t.mission} autocomplete="off" aria-label=${`${teamLabel(r)} の使命`} onInput=${(e) => pressMission(r, e.target.value)} onKeyDown=${(e) => {
-    if (e.key === "Enter")
-      e.preventDefault();
-  }} />` : t.mission ? t.mission : "—";
-  return html`<span class="chev"></span>
-    <span class="c-name"><${NameCell} r=${r} open=${open} /><span class="vcount"><${Counts2} list=${rowIssues(r)} /></span></span>
-    <span class=${"c-mission" + (broken || !(t.mission || open) ? " none" : "")}>${cell}</span>
-    <span class="c-place">${pills}</span>
-    <span class="c-members c-num">${broken ? "—" : t.members.length}</span>
-    <span class="c-turns c-num">${broken ? "—" : t.workers.length}</span>
-    <span class="c-agree c-num">${rules.length}<${OutNote2} n=${outCount2(rules)} /></span>
-    <span class="c-size">${broken || !r.limit.value ? html`<span class="none">—</span>` : html`<${Measure} chars=${r.size.value} limit=${r.limit.value} />`}</span>
-    ${HQ && !r.draftRow ? html`<span class="hq-runc"><${RunCell2} definition=${r.name.value} place=${r.place.value} project=${runProject(r)} /></span>` : ""}`;
+  const cell = broken ? "—" : open ? /* @__PURE__ */ u("input", {
+    id: "m-" + r.dom,
+    class: "in-mission" + (t.mission !== saved.mission ? " changed" : ""),
+    "data-f": "mission",
+    value: t.mission,
+    autocomplete: "off",
+    "aria-label": `${teamLabel(r)} の使命`,
+    onInput: (e) => pressMission(r, inputValue(e)),
+    onKeyDown: (e) => {
+      if (keyOf(e) === "Enter")
+        e.preventDefault();
+    }
+  }) : t.mission ? t.mission : "—";
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "chev"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-name",
+        children: [
+          /* @__PURE__ */ u(NameCell, {
+            r,
+            open
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "vcount",
+            children: /* @__PURE__ */ u(Counts2, {
+              list: messagesOf(rowIssues(r))
+            })
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-mission" + (broken || !(t.mission || open) ? " none" : ""),
+        children: cell
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-place",
+        children: pills
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-members c-num",
+        children: broken ? "—" : t.members.length
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-turns c-num",
+        children: broken ? "—" : t.workers.length
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-agree c-num",
+        children: [
+          rules.length,
+          /* @__PURE__ */ u(OutNote2, {
+            n: outCount2(rules)
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-size",
+        children: broken || !r.limit.value ? /* @__PURE__ */ u("span", {
+          class: "none",
+          children: "—"
+        }) : /* @__PURE__ */ u(Measure, {
+          chars: r.size.value,
+          limit: r.limit.value
+        })
+      }),
+      HQ && !r.draftRow ? /* @__PURE__ */ u("span", {
+        class: "hq-runc",
+        children: /* @__PURE__ */ u(RunCell2, {
+          definition: r.name.value,
+          place: r.place.value,
+          project: runProject(r)
+        })
+      }) : null
+    ]
+  });
 }
 function Detail({ r }) {
   const hidden = r.hidden.value || [];
-  return html`<div class="detail">
-    <ul class="vm mvm"><${Vm2} list=${[...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "mission")].map((m) => ({ sev: m.sev, msg: m.text }))} /></ul>
-    <nav class="dtabs"><${DtabsNav} r=${r} /></nav>
-    ${dtabOf(r) === "shape" ? html`<${TeamPanel} r=${r} />` : html`<${AgreePanel} r=${r} />`}
-    ${hidden.map((h) => html`<section class="panel shadowed"><header class="ph"><span class="ln">${PLACE[h.place]}</span><code class="path">${(DIR[h.place] || "") + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key=${`${r.name.value}.${h.place}.team`} onClick=${() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>`)}
-  </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "detail",
+    children: [
+      /* @__PURE__ */ u("ul", {
+        class: "vm mvm",
+        children: /* @__PURE__ */ u(Vm2, {
+          list: [...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "mission")].map((m) => ({ sev: m.sev, msg: m.text }))
+        })
+      }),
+      /* @__PURE__ */ u("nav", {
+        class: "dtabs",
+        children: /* @__PURE__ */ u(DtabsNav, {
+          r
+        })
+      }),
+      dtabOf(r) === "shape" ? /* @__PURE__ */ u(TeamPanel, {
+        r
+      }) : /* @__PURE__ */ u(AgreePanel, {
+        r
+      }),
+      hidden.map((h) => /* @__PURE__ */ u("section", {
+        class: "panel shadowed",
+        children: /* @__PURE__ */ u("header", {
+          class: "ph",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "ln",
+              children: PLACE[h.place]
+            }),
+            /* @__PURE__ */ u("code", {
+              class: "path",
+              children: [
+                (DIR[h.place] || "") + r.name.value,
+                "/"
+              ]
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "state off",
+              children: "隠れている"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "phr",
+              children: /* @__PURE__ */ u("button", {
+                class: "btn sm",
+                "data-act": "to-yaml",
+                "data-key": `${r.name.value}.${h.place}.team`,
+                onClick: () => pressToYaml(`${r.name.value}.${h.place}.team`),
+                children: "YAML"
+              })
+            })
+          ]
+        })
+      }))
+    ]
+  });
 }
 function DtabsNav({ r }) {
   const cur = dtabOf(r);
@@ -2655,71 +3025,363 @@ function DtabsNav({ r }) {
     ["shape", "トポロジー", "", changeCount(r) > 0],
     ["agree", "ルール", String(rulesOf2(r.agreeDraft.value).length), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
   ];
-  return html`<span class="dtl">${tabs.map(([t, label, n, ch]) => html`<button class=${"dtab" + (cur === t ? " on" : "")} data-act="dtab" data-t=${t} aria-pressed=${cur === t} onClick=${() => pressDtab(r, t)}>${label}${n !== "" ? html`<span class="n">${n}</span>` : ""}${ch ? html`<i class="dot"></i>` : ""}</button>`)}</span><span class="dacts"><${Dacts} r=${r} /></span>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "dtl",
+        children: tabs.map(([t, label, n, ch]) => /* @__PURE__ */ u("button", {
+          class: "dtab" + (cur === t ? " on" : ""),
+          "data-act": "dtab",
+          "data-t": t,
+          "aria-pressed": cur === t,
+          onClick: () => pressDtab(r, t),
+          children: [
+            label,
+            n !== "" ? /* @__PURE__ */ u("span", {
+              class: "n",
+              children: n
+            }) : null,
+            ch ? /* @__PURE__ */ u("i", {
+              class: "dot"
+            }) : null
+          ]
+        }))
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "dacts",
+        children: /* @__PURE__ */ u(Dacts, {
+          r
+        })
+      })
+    ]
+  });
 }
 function Dacts({ r }) {
   if (r.draftRow)
-    return html`<button class="btn danger" data-act="discard" onClick=${() => pressDiscard(r)}>取り消し</button>`;
+    return /* @__PURE__ */ u("button", {
+      class: "btn danger",
+      "data-act": "discard",
+      onClick: () => pressDiscard(r),
+      children: "取り消し"
+    });
   const o = other2(r.place.value);
   const copying = allRecs().some((x) => x.draftRow && x.how === "copy" && x.name.value === r.name.value && x.place.value === o);
   const ck = "del" + dkey(r);
-  return html`<button class="btn" data-act="dup" onClick=${() => pressDup(r)}>複製</button>
-    ${!(r.places || []).includes(o) && !copying ? html`<button class="btn" data-act="copy" onClick=${() => pressCopy(r)}>${PLACE[o]}にコピー</button>` : ""}
-    ${state.value.confirm[ck] ? html`<button class="btn danger solid" data-act="del-yes" onClick=${() => pressDelYes(r)}>削除する（team.yaml と agreement.yaml）</button><button class="btn" data-act="del-no" onClick=${() => pressDelNo(r)}>やめる</button>` : html`<button class="btn danger" data-act="del" onClick=${() => pressDel(r)}>削除</button>`}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("button", {
+        class: "btn",
+        "data-act": "dup",
+        onClick: () => pressDup(r),
+        children: "複製"
+      }),
+      !(r.places || []).includes(o) && !copying ? /* @__PURE__ */ u("button", {
+        class: "btn",
+        "data-act": "copy",
+        onClick: () => pressCopy(r),
+        children: [
+          PLACE[o],
+          "にコピー"
+        ]
+      }) : null,
+      state.value.confirm[ck] ? /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn danger solid",
+            "data-act": "del-yes",
+            onClick: () => pressDelYes(r),
+            children: "削除する（team.yaml と agreement.yaml）"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            "data-act": "del-no",
+            onClick: () => pressDelNo(r),
+            children: "やめる"
+          })
+        ]
+      }) : /* @__PURE__ */ u("button", {
+        class: "btn danger",
+        "data-act": "del",
+        onClick: () => pressDel(r),
+        children: "削除"
+      })
+    ]
+  });
 }
 function TeamPanel({ r }) {
   const k = dkey(r);
   const both = (r.places || []).length > 1;
-  const head = html`<header class="ph"><code class="path">${r.teamPath.value}</code>
-      <span class="phr">${both ? html`<span class=${"state " + (r.place.value === "global" ? "off" : "on")}>${r.place.value === "global" ? "隠れている" : "効いている"}</span>` : ""}</span></header>`;
+  const head = /* @__PURE__ */ u("header", {
+    class: "ph",
+    children: [
+      /* @__PURE__ */ u("code", {
+        class: "path",
+        children: r.teamPath.value
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "phr",
+        children: both ? /* @__PURE__ */ u("span", {
+          class: "state " + (r.place.value === "global" ? "off" : "on"),
+          children: r.place.value === "global" ? "隠れている" : "効いている"
+        }) : null
+      })
+    ]
+  });
   if (r.broken.value) {
-    return html`<section class="panel team-p" data-key=${k}>
-    ${head}
-    <div class="gbody"><div class="vlist"><${VList} r=${r} /></div></div>
-  </section>`;
+    return /* @__PURE__ */ u("section", {
+      class: "panel team-p",
+      "data-key": k,
+      children: [
+        head,
+        /* @__PURE__ */ u("div", {
+          class: "gbody",
+          children: /* @__PURE__ */ u("div", {
+            class: "vlist",
+            children: /* @__PURE__ */ u(VList, {
+              r
+            })
+          })
+        })
+      ]
+    });
   }
-  return html`<section class="panel team-p" data-key=${k}>
-    ${head}
-    <${Canvas} r=${r} vlist=${html`<${VList} r=${r} />`} />
-    <${Foot} r=${r} />
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "panel team-p",
+    "data-key": k,
+    children: [
+      head,
+      /* @__PURE__ */ u(Canvas, {
+        r,
+        vlist: /* @__PURE__ */ u(VList, {
+          r
+        })
+      }),
+      /* @__PURE__ */ u(Foot, {
+        r
+      })
+    ]
+  });
 }
 function VList({ r }) {
   const { issues, own, teamOut, out, where, file, roleHref, ruleID } = vlistParts(r);
-  return html`<div class="vhead"><span class="vt">validate</span>${issues.length ? html`<span class="vcount"><${Counts2} list=${issues} /></span>` : html`<span class="vclean">✓ 問題なし</span>`}</div>
-  ${own.map((m) => html`<button class="vitem" data-act="vpick" data-node=${m.node || null} data-worker=${m.worker != null && m.worker >= 0 ? m.worker : null} data-name-field=${m.field === "name" ? 1 : null} onClick=${() => pressVpick(r, { node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === "name" })}><${Sev2} sev=${m.sev} /><span class="lno">${where(m)}</span><span class="msg">${m.text}</span></button>`)}
-  ${teamOut.length ? html`<div class="vsub">チームのルール</div>${teamOut.map((m) => html`<button class="vitem" data-act="vrule" data-name=${r.dom} data-id=${ruleID(m)} onClick=${() => pressVrule(r, ruleID(m))}><${Sev2} sev=${m.sev} /><span class="lno">${file(m)}</span><span class="msg">${m.text}</span></button>`)}` : ""}
-  ${out.length ? html`<div class="vsub">ロールの文書</div>${out.map((m) => html`<a class="vitem" href=${roleHref(m)}><${Sev2} sev=${m.sev} /><span class="lno">${file(m)}</span><span class="msg">${m.text}</span></a>`)}` : ""}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "vhead",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "vt",
+            children: "validate"
+          }),
+          issues.length ? /* @__PURE__ */ u("span", {
+            class: "vcount",
+            children: /* @__PURE__ */ u(Counts2, {
+              list: messagesOf(issues)
+            })
+          }) : /* @__PURE__ */ u("span", {
+            class: "vclean",
+            children: "✓ 問題なし"
+          })
+        ]
+      }),
+      own.map((m) => /* @__PURE__ */ u("button", {
+        class: "vitem",
+        "data-act": "vpick",
+        "data-node": m.node || null,
+        "data-worker": m.worker != null && m.worker >= 0 ? m.worker : null,
+        "data-name-field": m.field === "name" ? 1 : null,
+        onClick: () => pressVpick(r, { ...m, node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === "name" }),
+        children: [
+          /* @__PURE__ */ u(Sev2, {
+            sev: m.sev
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "lno",
+            children: where(m)
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "msg",
+            children: m.text
+          })
+        ]
+      })),
+      teamOut.length ? /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "vsub",
+            children: "チームのルール"
+          }),
+          teamOut.map((m) => /* @__PURE__ */ u("button", {
+            class: "vitem",
+            "data-act": "vrule",
+            "data-name": r.dom,
+            "data-id": ruleID(m),
+            onClick: () => pressVrule(r, ruleID(m)),
+            children: [
+              /* @__PURE__ */ u(Sev2, {
+                sev: m.sev
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "lno",
+                children: file(m)
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "msg",
+                children: m.text
+              })
+            ]
+          }))
+        ]
+      }) : null,
+      out.length ? /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "vsub",
+            children: "ロールの文書"
+          }),
+          out.map((m) => /* @__PURE__ */ u("a", {
+            class: "vitem",
+            href: roleHref(m),
+            children: [
+              /* @__PURE__ */ u(Sev2, {
+                sev: m.sev
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "lno",
+                children: file(m)
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "msg",
+                children: m.text
+              })
+            ]
+          }))
+        ]
+      }) : null
+    ]
+  });
 }
 function Foot({ r, agree }) {
   const n = changeCount(r), k = dkey(r);
   const okKey = (agree ? "a" : "t") + k, saveAct = agree ? "save" : "t-save";
-  const ok = okOf(okKey) ? html`<span class="ok">保存しました</span>` : "";
+  const ok = okOf(okKey) ? /* @__PURE__ */ u("span", {
+    class: "ok",
+    children: "保存しました"
+  }) : null;
   const issues = teamIssues(r);
   const before = new Set((r.baseFindings.value || []).filter((m) => m.sev === "err").map((m) => m.text));
   const grew = issues.some((m) => m.sev === "err" && m.field !== "node" && !before.has(m.text));
   const refusal = refusalOf(r, agree ? "a" : "t");
   if (r.draftRow) {
     const named = r.seeded.value && !(r.nameIssues.value || []).length;
-    return html`<footer class="pf">
-      <button class="btn primary" data-act=${saveAct} disabled=${grew || !named} onClick=${() => agree ? pressSave(r) : pressTSave(r)}>保存</button><span class="dirty">新規</span>${ok}
-      <span class="also">${(r.writes.value || []).map((p, i) => html`${i ? "・" : ""}<code>${String(p).split("/").pop()}</code>`)}</span>${refusal ? html`<span class="sev err refusal">${refusal}</span>` : ""}
-    </footer>`;
+    return /* @__PURE__ */ u("footer", {
+      class: "pf",
+      children: [
+        /* @__PURE__ */ u("button", {
+          class: "btn primary",
+          "data-act": saveAct,
+          disabled: grew || !named,
+          onClick: () => agree ? pressSave(r) : pressTSave(r),
+          children: "保存"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "dirty",
+          children: "新規"
+        }),
+        ok,
+        /* @__PURE__ */ u("span", {
+          class: "also",
+          children: (r.writes.value || []).map((p, i) => /* @__PURE__ */ u(S, {
+            children: [
+              i ? "・" : null,
+              /* @__PURE__ */ u("code", {
+                children: String(p).split("/").pop()
+              })
+            ]
+          }))
+        }),
+        refusal ? /* @__PURE__ */ u("span", {
+          class: "sev err refusal",
+          children: refusal
+        }) : null
+      ]
+    });
   }
   if (agree) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.msg));
     const blocked = !s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.msg)) || d === 0;
-    return html`<footer class="pf">
-      <button class="btn primary" data-act="save" disabled=${blocked} onClick=${() => pressSave(r)}>保存</button><span class="errline doc" hidden=${!refusal}>${refusal}</span><span class="dirty">${s && d ? `${d} か所` : ""}</span><span class="vcount"><${Counts2} list=${errs} /></span>${ok}
-      <span class="acts"><button class="btn" data-act="revert" hidden=${!(d > 0)} onClick=${() => pressRevert(r)}>元に戻す</button></span>
-    </footer>`;
+    return /* @__PURE__ */ u("footer", {
+      class: "pf",
+      children: [
+        /* @__PURE__ */ u("button", {
+          class: "btn primary",
+          "data-act": "save",
+          disabled: blocked,
+          onClick: () => pressSave(r),
+          children: "保存"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "errline doc",
+          hidden: !refusal,
+          children: refusal
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "dirty",
+          children: s && d ? `${d} か所` : ""
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "vcount",
+          children: /* @__PURE__ */ u(Counts2, {
+            list: messagesOf(errs)
+          })
+        }),
+        ok,
+        /* @__PURE__ */ u("span", {
+          class: "acts",
+          children: /* @__PURE__ */ u("button", {
+            class: "btn",
+            "data-act": "revert",
+            hidden: !(d > 0),
+            onClick: () => pressRevert(r),
+            children: "元に戻す"
+          })
+        })
+      ]
+    });
   }
-  return html`<footer class="pf">
-      <button class="btn primary" data-act="t-save" disabled=${!n || grew} onClick=${() => pressTSave(r)}>保存</button><span class="dirty">${n ? `${n} か所` : ""}</span>${ok}
-      <span class="acts"><button class="btn" data-act="t-revert" hidden=${!n} onClick=${() => pressTRevert(r)}>元に戻す</button></span>${refusal ? html`<span class="sev err refusal">${refusal}</span>` : ""}
-    </footer>`;
+  return /* @__PURE__ */ u("footer", {
+    class: "pf",
+    children: [
+      /* @__PURE__ */ u("button", {
+        class: "btn primary",
+        "data-act": "t-save",
+        disabled: !n || grew,
+        onClick: () => pressTSave(r),
+        children: "保存"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "dirty",
+        children: n ? `${n} か所` : ""
+      }),
+      ok,
+      /* @__PURE__ */ u("span", {
+        class: "acts",
+        children: /* @__PURE__ */ u("button", {
+          class: "btn",
+          "data-act": "t-revert",
+          hidden: !n,
+          onClick: () => pressTRevert(r),
+          children: "元に戻す"
+        })
+      }),
+      refusal ? /* @__PURE__ */ u("span", {
+        class: "sev err refusal",
+        children: refusal
+      }) : null
+    ]
+  });
 }
 function onChangeDraft(r) {
   r.agreeDraft.value = clone2(r.agreeDraft.value);
@@ -2728,72 +3390,213 @@ function onChangeDraft(r) {
 function AgreePanel({ r }) {
   const both = (r.places || []).length > 1, shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
-  return html`<section class=${"panel agree-p" + (shadowed ? " shadowed" : "")} data-uid=${r.uid} data-l=${r.place.value} data-key=${dkey(r)} data-mode=${mode}>
-    <header class="ph"><code class="path">${r.agreePath.value}</code>
-      <span class="phr">
-        ${both ? html`<span class=${"state " + (shadowed ? "off" : "on")}>${shadowed ? "隠れている" : "効いている"}</span>` : ""}
-        <span class="seg pview">${[["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => html`<button class=${mode === v ? "on" : ""} data-act="pmode" data-v=${v} aria-pressed=${mode === v} onClick=${() => pressPmode(r, v)}>${label}</button>`)}</span>
-      </span></header>
-    <div class="pmain"><${RuleDoc2} row=${rowOfPanel(r)} issues=${agreeIssues(r)} hasName=${false}
-      onChange=${() => onChangeDraft(r)}
-      onMode=${(v) => pressPmode(r, v)}
-      onURL=${() => syncURL()} /></div>
-    <${Foot} r=${r} agree=${true} />
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "panel agree-p" + (shadowed ? " shadowed" : ""),
+    "data-uid": r.uid,
+    "data-l": r.place.value,
+    "data-key": dkey(r),
+    "data-mode": mode,
+    children: [
+      /* @__PURE__ */ u("header", {
+        class: "ph",
+        children: [
+          /* @__PURE__ */ u("code", {
+            class: "path",
+            children: r.agreePath.value
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "phr",
+            children: [
+              both ? /* @__PURE__ */ u("span", {
+                class: "state " + (shadowed ? "off" : "on"),
+                children: shadowed ? "隠れている" : "効いている"
+              }) : null,
+              /* @__PURE__ */ u("span", {
+                class: "seg pview",
+                children: [["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => /* @__PURE__ */ u("button", {
+                  class: mode === v ? "on" : "",
+                  "data-act": "pmode",
+                  "data-v": v,
+                  "aria-pressed": mode === v,
+                  onClick: () => pressPmode(r, v),
+                  children: label
+                }))
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "pmain",
+        children: /* @__PURE__ */ u(RuleDoc2, {
+          row: rowOfPanel(r),
+          issues: agreeIssues(r),
+          hasName: false,
+          onChange: () => onChangeDraft(r),
+          onMode: (v) => pressPmode(r, v),
+          onURL: () => syncURL()
+        })
+      }),
+      /* @__PURE__ */ u(Foot, {
+        r,
+        agree: true
+      })
+    ]
+  });
 }
 var keyOfFile = (f) => f.file;
 function YamlEmpty() {
-  return html`<section class="yed yempty">
-    <p>チーム定義はまだありません。</p>
-    <p>一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.yaml が並びます。</p>
-    <span><button class="btn" data-act="tab" data-t="list" onClick=${() => pressTab("list")}>一覧へ</button></span></section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "yed yempty",
+    children: [
+      /* @__PURE__ */ u("p", {
+        children: "チーム定義はまだありません。"
+      }),
+      /* @__PURE__ */ u("p", {
+        children: "一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.yaml が並びます。"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: /* @__PURE__ */ u("button", {
+          class: "btn",
+          "data-act": "tab",
+          "data-t": "list",
+          onClick: () => pressTab("list"),
+          children: "一覧へ"
+        })
+      })
+    ]
+  });
 }
 function YamlPage() {
   const files = yfiles.value;
   if (!files.length)
-    return html`<${YamlEmpty} />`;
+    return /* @__PURE__ */ u(YamlEmpty, {});
   const chosen = chosenFile();
-  const one = fileOf(chosen);
-  return html`<div class="ylay"><nav class="files">${PLACES.map((p) => {
-    const fs = files.filter((f) => f.place === p);
-    if (!fs.length)
-      return "";
-    return html`<div class="fgroup"><div class="gh"><b>${PLACE[p]}</b><code>${DIR[p] || ""}</code></div>${fs.map((f) => {
-      const r = recForFile(f);
-      const n = f.kind === "agreement" && r ? rulesOf2(r.agreeSaved.value || r.agreeDraft.value).length : "";
-      const on = chosen === f.file;
-      return html`<button class=${["file", on ? "on" : "", f.hidden ? "hid" : ""].filter(Boolean).join(" ")} data-act="yfile" data-file=${f.file} aria-pressed=${on} onClick=${() => pressYfile(f.file)}><code>${f.name}/${f.kind === "agreement" ? "agreement.yaml" : "team.yaml"}</code><span class="fs">${fileDirty(f.file) ? html`<span class="dirty">●</span>` : ""}${(yIssues(f.file) || []).length ? html`<${Counts2} list=${yIssues(f.file)} />` : n || ""}</span><span class="ft">${f.hidden ? "隠れている" : f.path}</span></button>`;
-    })}</div>`;
-  })}</nav>
-      ${one ? html`<${YamlFile} key=${chosen} f=${one} />` : html`<div class="none">ファイルを選んでください</div>`}</div>`;
+  const one = chosen ? fileOf(chosen) : null;
+  return /* @__PURE__ */ u("div", {
+    class: "ylay",
+    children: [
+      /* @__PURE__ */ u("nav", {
+        class: "files",
+        children: PLACES.map((p) => {
+          const fs = files.filter((f) => f.place === p);
+          if (!fs.length)
+            return null;
+          return /* @__PURE__ */ u("div", {
+            class: "fgroup",
+            children: [
+              /* @__PURE__ */ u("div", {
+                class: "gh",
+                children: [
+                  /* @__PURE__ */ u("b", {
+                    children: PLACE[p]
+                  }),
+                  /* @__PURE__ */ u("code", {
+                    children: DIR[p] || ""
+                  })
+                ]
+              }),
+              fs.map((f) => {
+                const r = recForFile(f);
+                const n = f.kind === "agreement" && r ? rulesOf2(r.agreeSaved.value || r.agreeDraft.value).length : "";
+                const on = chosen === f.file;
+                return /* @__PURE__ */ u("button", {
+                  class: ["file", on ? "on" : "", f.hidden ? "hid" : ""].filter(Boolean).join(" "),
+                  "data-act": "yfile",
+                  "data-file": f.file,
+                  "aria-pressed": on,
+                  onClick: () => pressYfile(f.file),
+                  children: [
+                    /* @__PURE__ */ u("code", {
+                      children: [
+                        f.name,
+                        "/",
+                        f.kind === "agreement" ? "agreement.yaml" : "team.yaml"
+                      ]
+                    }),
+                    /* @__PURE__ */ u("span", {
+                      class: "fs",
+                      children: [
+                        fileDirty(f.file) ? /* @__PURE__ */ u("span", {
+                          class: "dirty",
+                          children: "●"
+                        }) : null,
+                        (yIssues(f.file) || []).length ? /* @__PURE__ */ u(Counts2, {
+                          list: messagesOf(yIssues(f.file))
+                        }) : n || ""
+                      ]
+                    }),
+                    /* @__PURE__ */ u("span", {
+                      class: "ft",
+                      children: f.hidden ? "隠れている" : f.path
+                    })
+                  ]
+                });
+              })
+            ]
+          });
+        })
+      }),
+      one ? /* @__PURE__ */ u(YamlFile, {
+        f: one
+      }, chosen) : /* @__PURE__ */ u("div", {
+        class: "none",
+        children: "ファイルを選んでください"
+      })
+    ]
+  });
 }
 function YamlFile({ f }) {
   const r = recForFile(f);
   const both = r ? (r.places || []).length > 1 : false;
-  return html`<section class="yed" data-key=${keyOfFile(f)} data-hash=${f.hash}>
-    <${YamlTab2} label=${f.label} path=${f.path}
-      badge=${both ? { cls: "state " + (f.hidden ? "off" : "on"), text: f.hidden ? "隠れている" : "効いている" } : null}
-      text=${f.text} hash=${f.hash} kind="team" place=${f.place} name=${f.name} extra=${{ part: f.kind }}
-      problems=${yIssues(f.file)}
-      onProblems=${(probs) => yamlProblems(f.file, probs)}
-      onRevert=${() => yamlRevert(f.file)}
-      onState=${({ text }) => yamlState(f.file, { text })}
-      onSaved=${(answer) => yamlSaved(f.file, answer)} />
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "yed",
+    "data-key": keyOfFile(f),
+    "data-hash": f.hash,
+    children: /* @__PURE__ */ u(YamlTab2, {
+      label: f.label,
+      path: f.path,
+      badge: both ? { cls: "state " + (f.hidden ? "off" : "on"), text: f.hidden ? "隠れている" : "効いている" } : null,
+      text: f.text,
+      hash: f.hash,
+      kind: "team",
+      place: f.place,
+      name: f.name,
+      extra: { part: f.kind },
+      problems: yIssues(f.file),
+      onProblems: (probs) => yamlProblems(f.file, probs),
+      onRevert: () => yamlRevert(f.file),
+      onState: ({ text }) => yamlState(f.file, { text }),
+      onSaved: (answer) => yamlSaved(f.file, answer)
+    })
+  });
 }
 function CanvasToast() {
   const t = state.value.toast;
   if (!t)
     return null;
-  return html`<div class="cv-toast"><span>${t.msg}</span>${t.undo ? html`<button type="button" data-act="cv-undo" onClick=${() => pressToastUndo()}>取り消す</button>` : ""}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "cv-toast",
+    children: [
+      /* @__PURE__ */ u("span", {
+        children: t.msg
+      }),
+      t.undo ? /* @__PURE__ */ u("button", {
+        type: "button",
+        "data-act": "cv-undo",
+        onClick: () => pressToastUndo(),
+        children: "取り消す"
+      }) : null
+    ]
+  });
 }
 
-// teams/main.js
+// teams/main.tsx
 if (view) {
   const page = { screen: "teams", dirty, settled: false, take, tellDirty };
-  window.hergyPage = page;
-  R(html`<${Tabs} />`, tabsEl);
-  R(html`<${App} />`, view);
+  Object.assign(window, { hergyPage: page });
+  R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
+  R(/* @__PURE__ */ u(App, {}), view);
   mountCanvas(view);
   x(() => {
     setCount2("teams", savedCount());
@@ -2802,7 +3605,7 @@ if (view) {
     setDirty2(dirty());
   });
   let wasNarrow = narrow();
-  let rt = null;
+  let rt;
   window.addEventListener("resize", () => {
     clearTimeout(rt);
     rt = setTimeout(() => {

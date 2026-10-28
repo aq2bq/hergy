@@ -68,6 +68,7 @@ var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DEL
 var delivery2 = (opts) => read2("/api/delivery", opts);
 var deliveryCount2 = (opts) => read2("/api/delivery/count", opts);
 var deliver2 = (members, opts) => call2("POST", "/api/delivery", { members }, opts);
+var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));
 var problemText2 = (refusal, fallback) => {
   const one = refusal;
@@ -203,4 +204,4 @@ function checkAnswer2(a) {
   };
 }
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, delivery2, deliveryCount2, deliver2, saved2, problemText2, profileModel2, roleModel2, teamModel2, checkAnswer2 };
+export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, delivery2, deliveryCount2, deliver2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2, checkAnswer2 };

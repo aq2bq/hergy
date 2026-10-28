@@ -21,13 +21,14 @@ import {
   delivery2,
   deliveryCount2,
   deliver2,
+  hqList2,
   saved2,
   problemText2,
   profileModel2,
   roleModel2,
   teamModel2,
   checkAnswer2
-} from "../chunk/nav-xz225p52.js";
+} from "../chunk/nav-5wv4wf6d.js";
 export {
   Refusal2 as Refusal,
   call2 as call,
@@ -38,6 +39,7 @@ export {
   delivery2 as delivery,
   deliveryCount2 as deliveryCount,
   get2 as get,
+  hqList2 as hqList,
   list2 as list,
   problemText2 as problemText,
   profileModel2 as profileModel,

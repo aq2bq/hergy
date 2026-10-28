@@ -17,7 +17,7 @@ import {
   deliveryCount2,
   deliver2,
   problemText2
-} from "./nav-xz225p52.js";
+} from "./nav-5wv4wf6d.js";
 
 // lib/deliver/state.ts
 var POLL = 15000;

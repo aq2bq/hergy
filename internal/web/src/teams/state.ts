@@ -12,16 +12,17 @@
 // 作らない（spec-boundary 3）。
 import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
-import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
-import type { Answer, ApiAnswer, Schemas } from '../lib/api';
+import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave, del as apiDel, hqList, problemText as apiProblemText } from '../lib/api';
+import type { Answer, ApiAnswer, Request, Schemas } from '../lib/api';
 
 // CheckAnswer is what POST /api/team/check answers with, read from the operation
 // (the saved definition's answer, or the one for a definition not there yet).
 export type CheckAnswer = ApiAnswer<'checkTeam'>;
-// TeamSavedAnswer and TeamDeletedAnswer are what a save and a delete answer:
-// the saved document and the list it leaves behind.
-type TeamSavedAnswer = Answer<'team', 'save'>;
-type TeamDeletedAnswer = Answer<'team', 'del'>;
+
+// TeamSaveBody and TeamCheckBody are what a save and a check take, read from
+// the operations: the screen builds one and the port names its type.
+type TeamSaveBody = Request<'team', 'save'>;
+type TeamCheckBody = Request<'team', 'check'>;
 import {
   fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
 } from '../lib/ruledoc.js';
@@ -198,12 +199,16 @@ export type Issue = { sev: string; k: number; f: string; msg: string; definition
 export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string };
 export type CheckDiff = { added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean };
 export type CheckTurn = { from?: string; to?: string };
-export type PreviewLine = { text?: string; at?: string; part?: string; held?: string };
-export type Preview = { lines?: PreviewLine[] | null; diff?: CheckDiff | null; chars?: number };
-export type Check = { issues: Issue[]; markdown: Preview; diff: CheckDiff; turns: CheckTurn[]; readers: unknown[] };
+// TeamPreview and RuleMarkdown are the check's two previews, as checkTeam answers
+// them: the team.yaml's lines and the diff (TeamPreview), and the agreement's
+// Markdown with the section and rule each line stands for (TeamRuleMarkdown).
+// They are read from the operation, not written here (n-e3de).
+export type TeamPreview = Schemas['TeamPreview'];
+export type RuleMarkdown = Schemas['TeamRuleMarkdown'];
+export type Check = { issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; turns: CheckTurn[]; readers: unknown[] };
 // Pick is what the canvas has picked: a point of the figure, a worker, or a
 // line between two points.
-export type Pick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
+export type CanvasPick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
 export type WorkerPrompt = { segments: PromptSegment[]; name: string; task: string; err?: string };
 export type PromptSegment = Schemas['TeamPromptSegment'];
 export type MemberPrompt = { name: string; segments?: PromptSegment[] | null };
@@ -234,9 +239,9 @@ export type Rec = {
   size: Sig<number>; limit: Sig<number>;
   drawMark: Sig<number>; seeded: Sig<boolean>;
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
-  preview: Sig<Preview>; baseFindings: Sig<Finding[]>;
+  preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
   prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
-  sel: Sig<Pick | null>; side: Sig<string>; menu: Sig<unknown>; typed: Sig<unknown>; flash: Sig<string | null>;
+  sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<unknown>; typed: Sig<unknown>; flash: Sig<string | null>;
   lastAct: Sig<number>;
   wprompts: Sig<Record<string, WorkerPrompt>>; wpromptReq: Record<string, boolean>;
   placed: Sig<Positions>; layout: Sig<Positions>;
@@ -260,8 +265,8 @@ const draftIn = (r: Rec): { new?: boolean; base?: TeamBase | null } => (!r.draft
 // for the global layer (which the server writes without being told) or for this
 // serve's own project.
 const projectIn = (project: string): { project?: string } => (project && project !== 'global' ? { project } : {});
-const teamIn = (r: Rec, extra?: Record<string, unknown>): Record<string, unknown> => Object.assign({ place: r.place.value, name: r.name.value, part: 'team' }, projectIn(r.project), draftIn(r), extra || {});
-const agreeIn = (r: Rec, extra?: Record<string, unknown>): Record<string, unknown> => Object.assign({ place: r.place.value, name: r.name.value, part: 'agreement' }, projectIn(r.project), draftIn(r), extra || {});
+const teamIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'team', ...projectIn(r.project), ...draftIn(r), ...extra });
+const agreeIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'agreement', ...projectIn(r.project), ...draftIn(r), ...extra });
 
 // ---- 下書き（姿） ------------------------------------------------------
 // TeamLike is a definition as either entrance answers it: a saved document
@@ -336,9 +341,9 @@ type RecInit = {
   findings: Finding[]; problems: Schemas['TeamCounts']; check: Check | null;
   size: number; limit: number; drawMark: number; seeded: boolean;
   writes: string[]; nameIssues: Schemas['Problem'][];
-  preview: Preview; baseFindings: Finding[];
+  preview: TeamPreview; baseFindings: Finding[];
   prompts: MemberPrompt[]; promptsReady?: boolean;
-  sel: Pick | null; side: string; menu: unknown; typed: unknown; flash: string | null;
+  sel: CanvasPick | null; side: string; menu: unknown; typed: unknown; flash: string | null;
   lastAct: number;
 };
 function recOf(init: RecInit): Rec {
@@ -424,7 +429,7 @@ function defOf(item: DefItem, project?: string): Rec {
     size: sum.size || 0, limit: sum.limit || 0,
     problems: item.problems || { err: 0, warn: 0 }, check: null, drawMark: 0,
     draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
-    preview: { lines: [], diff: {} }, baseFindings: [], prompts: [], promptsReady: undefined,
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
     // member name being typed, and the line that just lit up.
@@ -481,7 +486,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     findings: [], problems: { err: 0, warn: 0 }, check: null,
     size: 0, limit: 0,
     drawMark: 0, seeded: false, writes: [], nameIssues: [],
-    preview: { lines: [], diff: {} }, baseFindings: [], prompts: [], promptsReady: undefined,
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     sel: null, side: 'attr', menu: null, typed: null, flash: null,
     lastAct: 0,
   });
@@ -574,7 +579,9 @@ const buildCheck = (doc: RuleDoc, json: CheckAnswer): Check => {
   const effect = (saved.effect || {}) as { diff?: CheckDiff | null; turns?: CheckTurn[] | null };
   return {
     issues: convProblems(doc, json.problems || []),
-    markdown: (json.preview || { lines: [], chars: 0 }) as Preview,
+    // The agreement's check answers the rule Markdown; the team part answers the
+    // team.yaml preview instead, which is not this panel's.
+    markdown: json.preview && !('diff' in json.preview) ? json.preview : { lines: [], chars: 0 },
     diff: (effect.diff || { added: [], removedBefore: [], removedAtEnd: false }) as CheckDiff,
     turns: (effect.turns || []) as CheckTurn[], readers: saved.readers || [],
   };
@@ -700,20 +707,24 @@ export const vlistParts = (r: Rec) => {
 // reading is a request of its own, so a person who starts typing before it comes
 // back still gets the file's own problems as the baseline.
 type Checkers = {
-  draft: Reading<CheckAnswer | null, [unknown]>;
-  base: Reading<CheckAnswer | null, [unknown]>;
-  agree: Reading<CheckAnswer | null, [unknown]>;
+  draft: Reading<CheckAnswer | null, [TeamCheckBody]>;
+  base: Reading<CheckAnswer | null, [TeamCheckBody]>;
+  agree: Reading<CheckAnswer | null, [TeamCheckBody]>;
 };
 const teamChecks = new Map<string, Checkers>();
 function checkersFor(r: Rec): Checkers {
   const k = dkey(r);
   const had = teamChecks.get(k);
   if (had) return had;
-  const load = async (signal: AbortSignal, payload: unknown): Promise<CheckAnswer | null> => {
-    const res = await apiCall('POST', '/api/team/check', payload, { signal });
-    // A refused draft answers nothing here: the screen draws no findings of its
-    // own, and the refusal itself is the rules tab's to show (spec-teams X1).
-    return res.ok ? ((res.json || {}) as CheckAnswer) : null;
+  const load = async (signal: AbortSignal, payload: TeamCheckBody): Promise<CheckAnswer | null> => {
+    try {
+      const res = await apiCheck('team', payload, { signal });
+      return (res.json || {}) as CheckAnswer;
+    } catch {
+      // A refused draft answers nothing here: the screen draws no findings of its
+      // own, and the refusal itself is the rules tab's to show (spec-teams X1).
+      return null;
+    }
   };
   const one: Checkers = { draft: resource(load), base: resource(load), agree: resource(load) };
   teamChecks.set(k, one);
@@ -733,7 +744,9 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
   r.promptsReady.value = !!(answered.members && answered.members.length);
   // Both a saved definition and one that is not there yet get the topology
   // tab's own preview from the check (spec-teams B7).
-  const pv = json.preview || r.preview.value;
+  // The topology tab draws the team part's preview: the team.yaml's lines and the
+  // diff. The agreement's answer carries the rule Markdown instead (n-e3de).
+  const pv = json.preview && 'diff' in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
   if (r.draftRow) {
     const draft = json as Schemas['TeamDraftCheckAnswer'];
@@ -814,9 +827,8 @@ export function setOps(r: Rec, ops: Op[]) {
 // screen's own state: the panel's foot draws it (5 章 2).
 export async function saveTeam(r: Rec) {
   if (r.draftRow) return saveFolder(r);
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } }));
-  if (!res.ok) return refuse(r, 't', apiProblemText(res, '保存できませんでした'));
-  const json = (res.json || {}) as TeamSavedAnswer;
+  const json = await answered(r, 't', apiSave('team', r.name.value, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } })), '保存できませんでした');
+  if (!json) return;
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -830,9 +842,8 @@ export async function saveTeam(r: Rec) {
 export async function saveAgree(r: Rec) {
   if (r.draftRow) return saveFolder(r);
   const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } }));
-  if (!res.ok) return refuse(r, 'a', apiProblemText(res, '保存できませんでした'));
-  const json = (res.json || {}) as TeamSavedAnswer;
+  const json = await answered(r, 'a', apiSave('team', r.name.value, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } })), '保存できませんでした');
+  if (!json) return;
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON(json.doc) as RuleDoc;
@@ -858,9 +869,8 @@ async function saveFolder(r: Rec) {
   const body = Object.assign(teamIn(r), {
     hash: r.hash.value, agreement_hash: r.agreeHash.value, part: 'folder', doc: { ops: r.ops.value, doc },
   });
-  const res = await apiCall('PUT', `/api/team/${encodeURIComponent(r.name.value)}`, body);
-  if (!res.ok) return refuse(r, 't', apiProblemText(res, '保存できませんでした'));
-  const json = (res.json || {}) as TeamSavedAnswer;
+  const json = await answered(r, 't', apiSave('team', r.name.value, body), '保存できませんでした');
+  if (!json) return;
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
   // The row stands where the row a person was looking at stood: the first
   // reading of this name keeps its place, and a copy's save joins into it
@@ -893,9 +903,8 @@ async function saveFolder(r: Rec) {
 // were all it held. Every record of that name is read again from the answer,
 // because the other place's reading may be the one in effect now.
 export async function doDelete(r: Rec) {
-  const res = await apiCall('DELETE', delURL(r));
-  if (!res.ok) return refuse(r, 't', apiProblemText(res, '削除できませんでした'));
-  const json = (res.json || {}) as TeamDeletedAnswer;
+  const json = await answered(r, 't', apiDel('team', r.name.value, r.place.value, r.hash.value, r.agreeHash.value, r.project && r.project !== 'global' ? r.project : undefined), '削除できませんでした');
+  if (!json) return;
   const name = r.name.value;
   // The row keeps its place in the list: taking one place's folder away leaves
   // the definition where a person was looking at it (spec-teams B6, N7).
@@ -912,12 +921,18 @@ export async function doDelete(r: Rec) {
   }
   syncURL();
 }
-const delURL = (r: Rec) => {
-  const qs = [`place=${encodeURIComponent(r.place.value)}`, `hash=${encodeURIComponent(r.hash.value)}`];
-  if (r.agreeHash.value) qs.push(`agreement_hash=${encodeURIComponent(r.agreeHash.value)}`);
-  if (r.project && r.project !== 'global') qs.push(`project=${encodeURIComponent(r.project)}`);
-  return `/api/team/${encodeURIComponent(r.name.value)}?${qs.join('&')}`;
-};
+// answered waits for a save's or a delete's answer and answers its document, or,
+// when the server refused it, puts the server's sentence on the row's foot and
+// answers null (spec-boundary 3): a screen builds no sentence of its own.
+async function answered<T>(r: Rec, which: string, one: Promise<{ json: T | null }>, fallback: string): Promise<T | null> {
+  try {
+    const res = await one;
+    return res.json;
+  } catch (e) {
+    refuse(r, which, apiProblemText(e, fallback));
+    return null;
+  }
+}
 // refuse holds the server's sentence on the row's foot (the shape tab's, or the
 // rules tab's) and draws it; a screen builds no sentence of its own.
 export function refuse(r: Rec, which: string, text: string) {
@@ -1048,16 +1063,20 @@ export function workerPrompt(r: Rec, i: number) {
   // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCall('POST', '/api/team/check', { place: r.place.value, name: r.name.value, part: 'worker', project: r.project && r.project !== 'global' ? r.project : undefined, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...(r.project && r.project !== 'global' ? { project: r.project } : {}), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
-    const ans = res.ok ? ((res.json || {}) as Schemas['TeamCheckAnswer']) : null;
+    const ans = (res.json || {}) as Schemas['TeamCheckAnswer'];
     r.wprompts.value = {
       ...r.wprompts.value,
-      [k]: res.ok
-        ? { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK }
-        : { segments: [], name: WRK_NAME, task: WRK_TASK, err: apiProblemText(res, 'プロンプトを読めませんでした') },
+      [k]: { segments: ans.prompt || [], name: WRK_NAME, task: WRK_TASK },
     };
-  }).catch(() => { delete r.wpromptReq[k]; });
+  }).catch((e) => {
+    delete r.wpromptReq[k];
+    r.wprompts.value = {
+      ...r.wprompts.value,
+      [k]: { segments: [], name: WRK_NAME, task: WRK_TASK, err: apiProblemText(e, 'プロンプトを読めませんでした') },
+    };
+  });
   return null;
 }
 // rolesFor and profilesFor are the documents one row's member 属性 offers: the
@@ -1136,8 +1155,8 @@ export function yamlProblems(file: string, list: Schemas['Problem'][]) {
 export function yamlRevert(file: string) {
   withKey('ytext', file, undefined);
 }
-export function yamlSaved(file: string, answer: { json?: { text?: string; hash?: string } } | null) {
-  const json = (answer && answer.json) || {};
+export function yamlSaved(file: string, answer: { json?: unknown } | null): void {
+  const json = ((answer && answer.json) || {}) as { text?: string; hash?: string };
   const typed = state.value.ytext[file];
   const f = fileOf(file);
   if (!f) return;
@@ -1408,7 +1427,7 @@ export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {
 // pressLine is a press on one line of the topology tab's YAML preview: it picks
 // what the line stands for, the way a press on the canvas's own point does
 // (spec-teams B7). A mission line puts the cursor in the mission field.
-export function pressLine(r: Rec, p: PreviewLine & { f?: string; node?: string; worker?: number; a?: string; b?: string }) {
+export function pressLine(r: Rec, p: Schemas['TeamYAMLLine'] & { f?: string; node?: string; worker?: number; a?: string; b?: string }) {
   if (p.f === 'mission') {
     selectPick(r, null, 'attr');
     focusAsk.value = { dom: r.dom, sel: '[data-cv-f="mission"]' };
@@ -1421,7 +1440,7 @@ export function pressLine(r: Rec, p: PreviewLine & { f?: string; node?: string; 
 }
 // selectPick is the canvas's own pick, for a part that picks without a press on
 // the figure (canvas.js keeps the drawing of it).
-export function selectPick(r: Rec, sel: Pick | null, side?: string) {
+export function selectPick(r: Rec, sel: CanvasPick | null, side?: string) {
   r.typed.value = null;
   r.sel.value = sel;
   if (side) r.side.value = side;
@@ -1455,9 +1474,7 @@ export function boot() {
   // page itself carries only the definitions, so a row opens without waiting
   // for every project's roles and profiles (r-5b96, Enter lag).
   if (HQ) {
-    const fill = <T>(kind: string, map: Record<string, T[]>, toEntry: (item: Schemas['HQListItem']) => T | null) => apiCall('GET', '/api/hq/' + kind).then((res) => {
-      if (!res.ok || !res.json) return;
-      const answer = res.json as Schemas['HQGroups'];
+    const fill = <T>(kind: 'roles' | 'profiles', map: Record<string, T[]>, toEntry: (item: Schemas['HQListItem']) => T | null) => hqList(kind).then((answer) => {
       (answer.groups || []).forEach((g) => {
         map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter((x): x is T => x !== null);
       });

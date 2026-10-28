@@ -1,10 +1,10 @@
-// teams/main.js — チーム定義の画面の入口（webui-preact-design 4 章）。
+// teams/main.tsx — チーム定義の画面の入口（webui-preact-design 4 章）。
 //
-// mount と、住所・帯への受け渡しだけを持つ。描くのは view.js（一覧・パネル・YAML）と
-// canvas.js（トポロジー）、状態は state.js の signal、押し込みは部品が自分の
-// onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（依頼書 2）。
+// mount と、住所・帯への受け渡しだけを持つ。描くのは view.tsx（一覧・パネル・
+// YAML）と canvas.tsx（トポロジー）、状態は state.ts の signal、押し込みは部品が
+// 自分の onClick / onInput / onKeyDown から state.ts の関数を直接呼ぶ（依頼書 2）。
 // ここも DOM を書かない（5 章 1）。
-import { html, effect, render as draw } from '../lib/preact.js';
+import { effect, render as draw } from '../lib/preact.js';
 import { setCount, setDirty } from '../lib/nav.js';
 import {
   view, tabsEl, state, boot, take, dirty, tellDirty, savedCount, setStick, readAddress,
@@ -18,12 +18,12 @@ if (view) {
   // settled turns true once the reads that follow the first frame have answered
   // (the roles, the HQ's roles and profiles, the first checks).
   const page = { screen: 'teams', dirty, settled: false, take, tellDirty };
-  window.hergyPage = page;
+  Object.assign(window, { hergyPage: page });
 
   // The two trees the page holds stand where the server drew them, and stay
   // where they are: a signal they read draws them again (5 章 2).
-  draw(html`<${Tabs} />`, tabsEl);
-  draw(html`<${App} />`, view);
+  draw(<Tabs />, tabsEl as HTMLElement);
+  draw(<App />, view);
 
   mountCanvas(view);
 
@@ -34,7 +34,7 @@ if (view) {
   effect(() => { setDirty(dirty()); });
 
   let wasNarrow = narrow();
-  let rt = null;
+  let rt: ReturnType<typeof setTimeout> | undefined;
   window.addEventListener('resize', () => {
     clearTimeout(rt);
     rt = setTimeout(() => {

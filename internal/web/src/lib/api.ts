@@ -152,6 +152,12 @@ export const deliveryCount = (opts?: CallOptions): Promise<ApiAnswer<'countDeliv
 // members. A refusal comes back 422 with the one sentence in text.
 export const deliver = (members: string[], opts?: CallOptions): Promise<RawAnswer<ApiAnswer<'deliver'>>> =>
   call<ApiAnswer<'deliver'>>('POST', '/api/delivery', { members } satisfies ApiBody<'deliver'>, opts);
+// hqList is one headquarters reading: the groups of teams, roles or profiles a
+// screen draws beside its own (d-73fc). The answer is the operation's own.
+const HQ_LISTS = { teams: 'listHQTeams', roles: 'listHQRoles', profiles: 'listHQProfiles' } as const;
+export type HQKind = keyof typeof HQ_LISTS;
+export const hqList = <K extends HQKind>(kind: K, opts?: CallOptions): Promise<ApiAnswer<(typeof HQ_LISTS)[K]>> => read(`/api/hq/${kind}`, opts);
+
 // saved says one save wrote. Every screen's successful save says it, and the
 // band reads its number again (deliver.js).
 export const saved = (): boolean => document.dispatchEvent(new CustomEvent('hergy:saved'));

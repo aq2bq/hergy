@@ -19,7 +19,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-xz225p52.js";
+} from "./nav-5wv4wf6d.js";
 
 // lib/yamltab.tsx
 async function checkText2(kind, place, name, text, extra) {
