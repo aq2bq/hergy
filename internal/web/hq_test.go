@@ -44,12 +44,9 @@ func (f fakeHQ) LaunchOptions(string, string, string) (HQLaunchOptions, error) {
 	return HQLaunchOptions{}, nil
 }
 func (f fakeHQ) StartLaunch(HQLaunchIn) (HQLaunch, error) { return HQLaunch{}, nil }
-func (f fakeHQ) RefreshMembers(in HQRefreshIn) (HQLaunch, error) {
-	return HQLaunch{ID: "l-9", Action: ActionRefresh, Team: in.Team, Members: in.Members, Phase: "starting"}, nil
-}
-func (f fakeHQ) LaunchState(string) (HQLaunch, bool)  { return HQLaunch{}, false }
-func (f fakeHQ) CancelLaunch(string) (HQLaunch, bool) { return HQLaunch{}, false }
-func (f fakeHQ) Stop(string) (HQStopped, error)       { return HQStopped{}, nil }
+func (f fakeHQ) LaunchState(string) (HQLaunch, bool)      { return HQLaunch{}, false }
+func (f fakeHQ) CancelLaunch(string) (HQLaunch, bool)     { return HQLaunch{}, false }
+func (f fakeHQ) Stop(string) (HQStopped, error)           { return HQStopped{}, nil }
 
 type launchHQ struct {
 	fakeHQ
@@ -226,42 +223,6 @@ func TestAScreenReadsOneProjectWithProject(t *testing.T) {
 	if !strings.Contains(body, `"ledger"`) {
 		t.Fatalf("the other project's definition is not in the answer: %s", body)
 	}
-}
-
-// TestHQRefreshRaisesTheNamedMembers: POST /api/hq/refresh takes the team and the
-// members to raise, and answers 202 with a start's own state, so the sheet reads
-// its progress and its startup question at /api/hq/launches/{id} (r-5d1a).
-func TestHQRefreshRaisesTheNamedMembers(t *testing.T) {
-	f := newFixture(t)
-	server := f.hqServer(t)
-	recorder := &raiseHQ{fakeHQ: server.hq.(fakeHQ)}
-	server.hq = recorder
-	resp, answer := f.apiJSON(t, server, http.MethodPost, "/api/hq/refresh",
-		map[string]any{"team": "core", "members": []string{"builder"}})
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("POST /api/hq/refresh answers %d, want 202: %+v", resp.StatusCode, answer)
-	}
-	if recorder.in.Team != "core" || len(recorder.in.Members) != 1 || recorder.in.Members[0] != "builder" {
-		t.Errorf("the raise read %+v, want core's builder", recorder.in)
-	}
-	launch, ok := answer["launch"].(map[string]any)
-	if !ok {
-		t.Fatalf("the answer carries no launch: %+v", answer)
-	}
-	if launch["action"] != ActionRefresh || launch["id"] != "l-9" || launch["phase"] != "starting" {
-		t.Errorf("the launch = %+v, want a refresh's own start state", launch)
-	}
-}
-
-// raiseHQ records what a raise names.
-type raiseHQ struct {
-	fakeHQ
-	in HQRefreshIn
-}
-
-func (r *raiseHQ) RefreshMembers(in HQRefreshIn) (HQLaunch, error) {
-	r.in = in
-	return r.fakeHQ.RefreshMembers(in)
 }
 
 // TestAHQWriteNeedsTheToken: the headquarters' writes keep the boundary's

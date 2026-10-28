@@ -218,10 +218,28 @@ var glossary = []term{
 		meaning:  "the first prompt hergy hands a member or a worker",
 	},
 	{
+		id:       "apply",
+		english:  "apply",
+		japanese: "反映",
+		meaning:  "put a saved definition's drift into the teams running from it: hergy apply, the screens' 反映, POST /api/apply. hergy decides the way for each member: 送り直す (resend), 起動する (start), 起動し直す (restart), or 反映できない (cannot), where the reason and down・up are named",
+		banned: []ban{
+			// 変更を伝える and 伝えていない were the screens' and the prose's
+			// words for 反映, and 伝える is tell's (d-3d30, n-f894).
+			{lang: "ja", word: "変更を伝え", instead: "反映し"},
+			{lang: "ja", word: "伝えていない", instead: "反映していない"},
+		},
+	},
+	{
+		id:       "tell",
+		english:  "tell",
+		japanese: "伝える",
+		meaning:  "send one member a message from a person or another member: hergy tell. It is not the word for 反映",
+	},
+	{
 		id:       "start",
 		english:  "start",
 		japanese: "起動",
-		meaning:  "begin a team, or a member of one: hergy up starts a team, and the screens start a member the definition has and no agent is live for; 起動し直し (refresh) is starting a member again",
+		meaning:  "begin a team, or a member of one: hergy up starts a team, and hergy apply starts a member the definition has and no agent is live for; 起動し直し (refresh) is starting a member again",
 		banned: []ban{
 			// 起こす was the screens' own word for starting a member, and the
 			// glossary and the command line had called it 起動 all along
@@ -235,13 +253,17 @@ var glossary = []term{
 		id:       "refresh",
 		english:  "refresh",
 		japanese: "起動し直し",
-		meaning:  "end a member's agent and start it again in the same pane, so its conversation starts empty",
+		meaning:  "end a member's agent and start it again in the same pane, so its conversation starts empty; adding a member to a running team is apply",
 	},
 	{
 		id:       "reprompt",
 		english:  "reprompt",
-		japanese: "再投入",
-		meaning:  "send the bootstrap prompt to a member again, keeping its conversation",
+		japanese: "送り直し",
+		meaning:  "send the bootstrap prompt to a member again, keeping its conversation, with a preamble saying what changed when the definition moved",
+		banned: []ban{
+			// 再投入 was the old Japanese name for this (d-3d30).
+			{lang: "ja", word: "再投入", instead: "送り直し"},
+		},
 	},
 	{
 		id:       "status",

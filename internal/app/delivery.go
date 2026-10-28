@@ -1,11 +1,7 @@
 package app
 
 import (
-	"errors"
-	"fmt"
-	"io"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/activity"
@@ -16,16 +12,13 @@ import (
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
-// deliveryPlan is one reading of the running members: the answer a screen gets,
-// every live member with the state and changes a send needs, and the drift the
-// apply sheet reads. A member that is not stale is in the map too, so the API can
-// tell "nothing to send" from "not running".
+// deliveryPlan is one reading of the running members: the drift the apply sheet
+// reads, and every live member the request may name, whether it changed or not,
+// so the API can tell "nothing to apply" from "not running".
 type deliveryPlan struct {
-	answer  deliver.Answer
 	apply   web.ApplyList
 	members map[string]plannedMember
 }
@@ -34,7 +27,6 @@ type plannedMember struct {
 	team    runningTeam
 	start   definition.Start
 	state   string
-	stale   bool
 	changed bool
 	changes []deliver.Change
 	how     string
@@ -54,14 +46,6 @@ func (m plannedMember) canApply() bool {
 		return sendable(m.state)
 	}
 }
-
-// Delivery is GET /api/delivery: the running members whose prompt is not the one
-// hergy last handed them, by running team, and the band's count. It is held for
-// five seconds like herdr, and Deliver clears it.
-func (a *activityRead) Delivery() deliver.Answer { return a.plan(a.clock()).answer }
-
-// DeliveryCount is the light answer the band reads on every page.
-func (a *activityRead) DeliveryCount() int { return a.Delivery().Count }
 
 // Apply is GET /api/apply: the drift between the saved definitions and the teams
 // running from them, and how hergy would put each member right (d-36ef). It is
@@ -94,13 +78,11 @@ func (a *activityRead) plan(now time.Time) deliveryPlan {
 // between the prompt in the record and the prompt the current definition builds.
 func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 	one := deliveryPlan{
-		answer:  deliver.Answer{Teams: []deliver.Team{}, Herdr: deliver.Note{OK: true}},
 		apply:   web.ApplyList{Teams: []web.ApplyTeam{}, Herdr: web.ActivityNote{OK: true}},
 		members: map[string]plannedMember{},
 	}
 	read := a.readHerdr(now)
 	if read.err != nil {
-		one.answer.Herdr = deliver.Note{OK: false, Text: read.err.Error()}
 		one.apply.Herdr = web.ActivityNote{OK: false, Text: read.err.Error()}
 		return one
 	}
@@ -146,7 +128,6 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		return
 	}
 	recorded := teamsRecorded(records, running.Project)[running.Name]
-	deliveryRow := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
 	oldRecord := false
 	for i := range running.Built.starts {
 		start := running.Built.starts[i]
@@ -170,7 +151,7 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		drift := a.memberDrift(running.Catalog, log, logErr, running, start, record, hasRecord)
 		state := node.State.Slug()
 		planned := plannedMember{
-			team: running, start: start, state: state, stale: drift.prompt,
+			team: running, start: start, state: state,
 			changed: drift.any(), changes: drift.changes, how: drift.how(state),
 		}
 		if !planned.canApply() {
@@ -179,12 +160,6 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		one.members[start.Name] = planned
 		if !drift.any() {
 			continue
-		}
-		if drift.prompt {
-			deliveryRow.Members = append(deliveryRow.Members, deliver.Member{
-				Name: start.Name, Short: start.Short, Role: start.Role,
-				State: state, CanSend: sendable(state), Changes: drift.changes,
-			})
 		}
 		applied := web.ApplyMember{
 			Name: start.Name, Short: start.Short, Role: start.Role,
@@ -216,10 +191,6 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 			How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
 			WhyNot: i18n.Tf("apply.refused_removed", short),
 		})
-	}
-	if len(deliveryRow.Members) > 0 {
-		one.answer.Teams = append(one.answer.Teams, deliveryRow)
-		one.answer.Count += len(deliveryRow.Members)
 	}
 	if len(row.Members) > 0 {
 		one.apply.Teams = append(one.apply.Teams, row)
@@ -456,90 +427,10 @@ func currentDocs(cat *catalog.Catalog, built *prompt.Built) []deliver.Doc {
 // (r-a8fa, d-1c07). A working or blocked member is not.
 func sendable(state string) bool { return state == "idle" || state == "handed" }
 
-// Deliver is POST /api/delivery: hand the current prompt to the selected
-// members, one team at a time. It refuses the whole request if any selected
-// member is not a running, stale, waiting member; nothing is sent then.
-func (a *activityRead) Deliver(names []string) (deliver.Answer, error) {
-	if len(names) == 0 {
-		return deliver.Answer{}, errors.New(i18n.T("delivery.none_selected"))
-	}
-	now := a.clock()
-	one := a.plan(now)
-	if !one.answer.Herdr.OK {
-		return deliver.Answer{}, errors.New(one.answer.Herdr.Text)
-	}
-	var refusals []deliver.Refusal
-	groups := map[string][]plannedMember{}
-	order := []string{}
-	for _, name := range names {
-		member, ok := one.members[name]
-		if !ok {
-			refusals = append(refusals, deliver.Refusal{Name: name, Text: i18n.Tf("delivery.refused_unknown", name)})
-			continue
-		}
-		switch {
-		case !member.stale:
-			refusals = append(refusals, deliver.Refusal{Name: name, Text: i18n.Tf("delivery.no_change", name)})
-		case !sendable(member.state):
-			refusals = append(refusals, deliver.Refusal{Name: name, Text: i18n.Tf("delivery.refused_state", name)})
-		default:
-			if _, ok := groups[member.team.Name]; !ok {
-				order = append(order, member.team.Name)
-			}
-			groups[member.team.Name] = append(groups[member.team.Name], member)
-		}
-	}
-	if len(refusals) > 0 {
-		return deliver.Answer{Refused: refusals}, refusalError(refusals)
-	}
-	for _, name := range order {
-		group := groups[name]
-		projectEnv := a.env
-		if scoped, err := a.env.AtProject(group[0].team.Project); err == nil {
-			projectEnv = scoped
-		}
-		r, err := buildRunning(projectEnv.Catalog(source.Disk{}), projectEnv.ProjectRoot, team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition})
-		if err != nil {
-			return deliver.Answer{}, err
-		}
-		selected := make([]definition.Start, 0, len(group))
-		for _, member := range group {
-			found, err := r.member(member.start.Name)
-			if err != nil {
-				return deliver.Answer{}, err
-			}
-			selected = append(selected, *found)
-		}
-		if err := newLauncher(r, 30000, io.Discard).Reprompt(selected); err != nil {
-			return deliver.Answer{}, err
-		}
-		log, err := launchlog.Open()
-		if err != nil {
-			return deliver.Answer{}, err
-		}
-		if err := writeLaunch(log, projectEnv, r, launchlog.CommandReprompt, selected, launchlog.Workspace{}); err != nil {
-			return deliver.Answer{}, err
-		}
-	}
-	a.InvalidateDelivery()
-	answer := a.plan(a.clock()).answer
-	answer.Sent = append([]string(nil), names...)
-	return answer, nil
-}
-
 // InvalidateDelivery drops the delivery answer held for the band and the sheet.
 // A save calls it from the one place every write passes.
 func (a *activityRead) InvalidateDelivery() {
 	a.deliveryMu.Lock()
 	a.deliveryAt = time.Time{}
 	a.deliveryMu.Unlock()
-}
-
-// refusalError is one sentence for the API: every refused member and why.
-func refusalError(refusals []deliver.Refusal) error {
-	lines := make([]string, 0, len(refusals))
-	for _, refusal := range refusals {
-		lines = append(lines, refusal.Text)
-	}
-	return fmt.Errorf("%s", strings.Join(lines, "\n"))
 }

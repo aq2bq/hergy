@@ -237,44 +237,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/delivery": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 変更を伝えていない人の一覧 */
-        get: operations["listDelivery"];
-        put?: never;
-        /** 選んだメンバーに送り直す */
-        post: operations["deliver"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/delivery/count": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 変更を伝えていない人の数
-         * @description 帯の「変更を伝える」が出す数。動いているメンバーのうち、定義の変更をまだ伝えていない人の数。
-         */
-        get: operations["countDelivery"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/apply": {
         parameters: {
             query?: never;
@@ -288,7 +250,11 @@ export interface paths {
          */
         get: operations["listApply"];
         put?: never;
-        post?: never;
+        /**
+         * ずれを反映する
+         * @description 名指したメンバーのずれを反映する。反映は答えのあとに進み、その進み具合と起動の途中の問いは GET /api/hq/launches/{id} で読む。
+         */
+        post: operations["applyMembers"];
         delete?: never;
         options?: never;
         head?: never;
@@ -482,23 +448,6 @@ export interface paths {
         put?: never;
         /** チームを止める */
         post: operations["stopHQTeam"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/hq/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 起動していないメンバーを起動する */
-        post: operations["refreshHQMembers"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1192,6 +1141,11 @@ export interface components {
             /** @description 画面に表示する末尾の行数 */
             shown: number;
         };
+        /** @description ずれを反映するメンバー */
+        ApplyRequest: {
+            /** @description 反映するメンバーの herdr 名 */
+            members: string[];
+        };
         /** @description 動いているチームの、保存した定義とのずれ */
         ApplyList: {
             /** @description herdr を読めたかと、読めない理由 */
@@ -1241,62 +1195,6 @@ export interface components {
             why_not?: string;
             /** @description 反映すると会話が消えるか */
             conversation_lost: boolean;
-        };
-        /** @description 初期プロンプトを送り直すメンバー */
-        DeliveryRequest: {
-            /** @description 初期プロンプトを受け取るメンバーの herdr 名 */
-            members: string[];
-        };
-        /** @description 初期プロンプトが現在の定義と異なるメンバーと送信結果 */
-        DeliveryAnswer: {
-            /** @description 変更を伝えていないメンバーの数 */
-            count: number;
-            /** @description 変更を伝えていないメンバーがいるチーム */
-            teams: components["schemas"]["DeliveryTeam"][];
-            /** @description 初期プロンプトを受け取ったメンバーの herdr 名 */
-            sent?: string[];
-            /** @description 初期プロンプトを受け取らなかったメンバー */
-            refused?: components["schemas"]["DeliveryRefusal"][];
-            /** @description herdr を読めたかと、読めない理由 */
-            herdr: components["schemas"]["DeliveryNote"];
-        };
-        /** @description 変更を伝えていないメンバーがいるチーム */
-        DeliveryTeam: {
-            /** @description チーム名 */
-            name: string;
-            /** @description チームの起動元になったチーム定義名 */
-            definition: string;
-            /** @description 変更を伝えていないメンバー */
-            members: components["schemas"]["DeliveryMember"][];
-        };
-        /** @description 初期プロンプトが現在の定義と異なるメンバー */
-        DeliveryMember: {
-            /** @description メンバーの herdr 名 */
-            name: string;
-            /** @description メンバー名 */
-            short: string;
-            /** @description メンバーのロール名 */
-            role: string;
-            /** @description メンバーの活動状態 */
-            state: string;
-            /** @description メンバーが人間を待っていて送信できるか */
-            can_send: boolean;
-            /** @description 初期プロンプトの変更 */
-            changes: components["schemas"]["ApplyChange"][];
-        };
-        /** @description 初期プロンプトを受け取らなかったメンバーと理由 */
-        DeliveryRefusal: {
-            /** @description メンバーの herdr 名 */
-            name: string;
-            /** @description 送信できなかった理由 */
-            text: string;
-        };
-        /** @description herdr を読めたかと、読めない理由 */
-        DeliveryNote: {
-            /** @description herdr を読めたか */
-            ok: boolean;
-            /** @description herdr を読めない理由。読めたときは空 */
-            text: string;
         };
         /** @description メンバーの初期プロンプトで変わった 1 項目 */
         ApplyChange: {
@@ -1568,13 +1466,6 @@ export interface components {
         } | {
             /** @description 新しく作るワークスペース名 */
             new: string;
-        };
-        /** @description 起動していないメンバーを起動し直す要求 */
-        HQRefreshRequest: {
-            /** @description メンバーを起動し直すチーム名 */
-            team: string;
-            /** @description 起動し直すメンバー名 */
-            members: string[];
         };
         /** @description 本部に並べるプロジェクト */
         HQAddProjectRequest: {
@@ -3352,101 +3243,6 @@ export interface operations {
             };
         };
     };
-    listDelivery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 変更を伝えていないメンバー */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeliveryAnswer"];
-                };
-            };
-        };
-    };
-    deliver: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeliveryRequest"];
-            };
-        };
-        responses: {
-            /** @description 送ったメンバーと更新後の一覧 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeliveryAnswer"];
-                };
-            };
-            /** @description 書き込みを許可できない */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description 変更を伝える読み取りがない */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description 要求を読めないか、選んだメンバーに送れない */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Refusal"];
-                    "text/plain": string;
-                };
-            };
-        };
-    };
-    countDelivery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 数 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description 変更を伝えていない人の数 */
-                        count: number;
-                    };
-                };
-            };
-        };
-    };
     listApply: {
         parameters: {
             query?: never;
@@ -3463,6 +3259,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyList"];
+                };
+            };
+        };
+    };
+    applyMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description 反映の進み具合 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        launch: components["schemas"]["HQLaunch"];
+                    };
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 反映の読み取りがない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 同じチームの反映が進んでいる */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 要求を読めないか、名指したメンバーに反映できない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
@@ -3997,75 +3856,6 @@ export interface operations {
             };
             /** @description 動いているチームが見つからない */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Refusal"];
-                };
-            };
-            /** @description 本部または herdr を読めない */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Refusal"];
-                };
-            };
-        };
-    };
-    refreshHQMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HQRefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description 起動を受け付けた */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HQLaunchEnvelope"];
-                };
-            };
-            /** @description 書き込みを許可できない */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description 動いているチームが見つからない */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Refusal"];
-                };
-            };
-            /** @description チームまたはメンバーが起動中 */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Refusal"];
-                };
-            };
-            /** @description メンバーを起動できない */
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };

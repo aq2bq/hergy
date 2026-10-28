@@ -32,6 +32,10 @@ type Spec struct {
 	Args    []Arg
 	Flags   []Use // the flags of this command, in the order --help shows them; never --lang or --help
 	Bare    bool  // version: answers before any flag is read, has no help page of its own
+	// Variadic says the last argument may be repeated (apply: any number of
+	// members), so the synopsis writes [<member>...] and the parser takes more
+	// than the table lists.
+	Variadic bool
 }
 
 // common is what every command but version accepts. It is written once, so a
@@ -121,10 +125,10 @@ var specs = []Spec{
 	},
 	{
 		Kind: Refresh, Name: "refresh",
-		Summary: text("Restart a member; add one the definition has", "メンバーを起動し直す。定義にあれば足す"),
+		Summary: text("Restart a member", "メンバーを起動し直す"),
 		Detail: text(
-			"End each selected member's agent and start it again in the same pane.\nA member the definition has and hergy made no pane for is given one in the\nteam's tab and started there; the last line then names hergy reprompt --all.\nGive a member or --all.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n定義にあって hergy が作ったペインが無いメンバーには、チームのタブに\nペインを作って起動する。そのあと最後の行で hergy reprompt --all を示す。\nメンバーか --all のどちらかを指定する。"),
+			"End each selected member's agent and start it again in the same pane.\nA member with no live agent is refused: adding a member to a running team\nis hergy apply. Give a member or --all.",
+			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n動いていないメンバーは断り、hergy apply を示す。\nメンバーか --all のどちらかを指定する。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
@@ -133,8 +137,8 @@ var specs = []Spec{
 		}},
 		Flags: []Use{
 			use(flagAll, text(
-				"Restart every member, and add the ones with no pane\n(not with a member)",
-				"全メンバーを起動し直す。ペインの無いメンバーは足す\n（メンバーとは同時に指定できない）")),
+				"Restart every member (not with a member)",
+				"全メンバーを起動し直す（メンバーとは同時に指定できない）")),
 			use(flagTeam, descTeam),
 			use(flagDry, text(
 				"Print what would restart or be added, and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
@@ -163,6 +167,28 @@ var specs = []Spec{
 				"Print what would be sent and send nothing\nIt never reads herdr",
 				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
 			use(flagJSON, descJSON),
+			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Apply, Name: "apply", Variadic: true,
+		Summary: text("Apply a changed definition to a running team", "動いているチームに定義の変更を反映する"),
+		Detail: text(
+			"Compare the saved definition with the running teams and apply each\nmember's drift: send its prompt again, start it, or restart it.\nName no member to apply every member with drift.",
+			"保存した定義と動いているチームを比べ、メンバーごとのずれを反映する。\n送り直す・起動する・起動し直すのどれかを hergy が決める。\nメンバーを名指さなければ、ずれのあるメンバー全員を反映する。"),
+		Args: []Arg{{
+			Name: text("member", "メンバー"), Optional: true,
+			Desc: text(
+				"The members to apply, by short member name or herdr name\n(left out: every member with drift)",
+				"反映するメンバー（短いメンバー名か herdr 名）\n（省くと、ずれのあるメンバー全員）"),
+		}},
+		Flags: []Use{
+			use(flagTeam, descTeam),
+			use(flagDry, text(
+				"Print each member's way of applying and what changed, and change nothing\nIt reads herdr's live agents and tabs",
+				"メンバーごとの反映の仕方と変わったことを表示し、何も変えない\nherdr の今の状態を読む")),
+			use(flagJSON, descJSON),
+			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),
 		},
 	},

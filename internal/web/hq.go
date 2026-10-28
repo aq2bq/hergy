@@ -30,7 +30,6 @@ type HQ interface {
 	Workspaces() HQWorkspaces
 	LaunchOptions(project, definition, place string) (HQLaunchOptions, error)
 	StartLaunch(in HQLaunchIn) (HQLaunch, error)
-	RefreshMembers(in HQRefreshIn) (HQLaunch, error)
 	LaunchState(id string) (HQLaunch, bool)
 	CancelLaunch(id string) (HQLaunch, bool)
 	Stop(team string) (HQStopped, error)
@@ -231,13 +230,6 @@ type HQLaunchIn struct {
 	Place      string        `json:"place"`
 	Name       string        `json:"name"`
 	Workspace  HQWorkspaceIn `json:"workspace"`
-}
-
-// HQRefreshIn is POST /api/hq/refresh's body: the team, and the members of its
-// definition to start (r-5d1a).
-type HQRefreshIn struct {
-	Team    string   `json:"team"`
-	Members []string `json:"members"`
 }
 
 // The actions a launch answer is about: a team starting, or the members of a
@@ -666,25 +658,6 @@ func (s *Server) hqLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	launch, err := s.hq.StartLaunch(in)
-	if err != nil {
-		answerHQ(w, nil, err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"launch": launch})
-}
-
-// hqRefresh is POST /api/hq/refresh: hergy refresh, from the screens. The start
-// goes on after the answer, and its progress and startup question are read from
-// GET /api/hq/launches/{id}, the way a start's are.
-func (s *Server) hqRefresh(w http.ResponseWriter, r *http.Request) {
-	if !s.hqOrFail(w) || !s.apiGuard(w, r) {
-		return
-	}
-	in, ok := readHQIn[HQRefreshIn](w, r)
-	if !ok {
-		return
-	}
-	launch, err := s.hq.RefreshMembers(in)
 	if err != nil {
 		answerHQ(w, nil, err)
 		return

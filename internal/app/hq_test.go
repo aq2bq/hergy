@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -585,5 +586,32 @@ func TestServeNamesTheConfigFileOnABrokenProjectPath(t *testing.T) {
 	path := filepath.Join(f.cfg, "hergy", "config.yaml")
 	if !strings.Contains(stderr, path) || !strings.Contains(stderr, "rel/x") {
 		t.Errorf("the refusal does not name the file and the entry:\n%s", stderr)
+	}
+}
+
+// teamNamed is one team of a running reading, by name.
+func teamNamed(running web.HQRunning, name string) web.HQRunningTeam {
+	for _, one := range running.Teams {
+		if one.Team == name {
+			return one
+		}
+	}
+	return web.HQRunningTeam{}
+}
+
+// TestRunningNamesTheMembersNoAgentIsLiveFor: GET /api/hq/running names, for each
+// running team, the members its definition has that no agent is live for: the
+// ones hergy apply starts (r-5d1a, d-36ef).
+func TestRunningNamesTheMembersNoAgentIsLiveFor(t *testing.T) {
+	_, env, _ := hqFixture(t)
+	read := newActivityRead(env)
+	read.now = func() time.Time { return activityNow }
+
+	core := teamNamed(read.Running(), "core")
+	if len(core.Members) != 2 {
+		t.Fatalf("core's members = %+v, want the definition's two", core.Members)
+	}
+	if !slices.Equal(core.NotUp, []string{"builder"}) {
+		t.Fatalf("core's not_up = %v, want only builder (the lead is live)", core.NotUp)
 	}
 }

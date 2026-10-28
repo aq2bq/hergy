@@ -45,6 +45,9 @@ func argWords(s *Spec, lang string) []string {
 		if a.Or != nil {
 			word += "|--" + a.Or.Name
 		}
+		if s.Variadic && a.Optional {
+			word += "..."
+		}
 		words = append(words, word)
 	}
 	return words

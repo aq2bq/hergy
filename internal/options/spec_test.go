@@ -100,8 +100,10 @@ func TestPositionalsMatchTable(t *testing.T) {
 		if _, err := Parse(argvOf(s, len(s.Args), nil)); err != nil {
 			t.Errorf("hergy %s with all %d positional argument(s) of the table: %v", s.Name, len(s.Args), err)
 		}
-		if _, err := Parse(argvOf(s, len(s.Args)+1, nil)); err == nil {
-			t.Errorf("hergy %s has %d positional argument(s) in the table, but Parse accepts one more", s.Name, len(s.Args))
+		if !s.Variadic {
+			if _, err := Parse(argvOf(s, len(s.Args)+1, nil)); err == nil {
+				t.Errorf("hergy %s has %d positional argument(s) in the table, but Parse accepts one more", s.Name, len(s.Args))
+			}
 		}
 		if required > 0 {
 			if _, err := Parse(argvOf(s, required-1, nil)); err == nil {

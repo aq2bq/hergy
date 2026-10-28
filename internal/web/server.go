@@ -36,9 +36,6 @@ type Server struct {
 	// act is how the activity screen reads the running teams, or nil when the
 	// server was built without one (spec-activity 6 A1).
 	act Activity
-	// deliver is the band's count and the changed-definition sheet, or nil when
-	// the activity reading cannot say what is stale.
-	deliver Deliverer
 	// apply is the drift between the saved definitions and the running teams,
 	// or nil when the activity reading cannot say what differs.
 	apply Applier
@@ -81,9 +78,6 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
-	if deliverer, ok := act.(Deliverer); ok {
-		s.deliver = deliverer
-	}
 	if applier, ok := act.(Applier); ok {
 		s.apply = applier
 	}
@@ -209,14 +203,12 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	// The band and the sheet a person opens after a change (r-a8fa). They are
 	// own paths, not a kind: the count is read on every page and the send is one
 	// write over several running teams.
-	mux.HandleFunc("GET /api/delivery", s.apiDeliveryList)
-	mux.HandleFunc("GET /api/delivery/count", s.apiDeliveryCount)
-	mux.HandleFunc("POST /api/delivery", s.apiDeliver)
 	// 反映 (d-36ef): the drift of every running team against its saved
 	// definition, the way hergy would put each member right, and the band's
 	// count. The sheet reads the drift and the apply does the work.
 	mux.HandleFunc("GET /api/apply", s.apiApplyList)
 	mux.HandleFunc("GET /api/apply/count", s.apiApplyCount)
+	mux.HandleFunc("POST /api/apply", s.apiApply)
 
 	// 本部 (d-73fc, r-b7e1): the projects a person lists, the lists of every
 	// project and the global layer, the workspaces, and starting and stopping a
@@ -234,7 +226,6 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/hq/launches/{id}", s.hqLaunchState)
 	mux.HandleFunc("DELETE /api/hq/launches/{id}", s.hqLaunchCancel)
 	mux.HandleFunc("POST /api/hq/stop", s.hqStop)
-	mux.HandleFunc("POST /api/hq/refresh", s.hqRefresh)
 
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)

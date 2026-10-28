@@ -33,6 +33,17 @@ type Applier interface {
 	Apply() ApplyList
 	// ApplyCount is the band's number alone.
 	ApplyCount() int
+	// ApplyMembers applies the drift to the named members, by herdr name, and
+	// answers the start whose progress the sheet reads.
+	ApplyMembers(members []string) (HQLaunch, error)
+	// InvalidateDelivery drops the held drift after a save, so the band reads
+	// the number the save made.
+	InvalidateDelivery()
+}
+
+// ApplyIn is POST /api/apply's body: the members to apply, by herdr name.
+type ApplyIn struct {
+	Members []string `json:"members"`
 }
 
 // ApplyList is GET /api/apply: the running teams that differ from their saved
@@ -73,6 +84,29 @@ type ApplyMember struct {
 	CanApply         bool             `json:"can_apply"`
 	WhyNot           string           `json:"why_not,omitempty"`
 	ConversationLost bool             `json:"conversation_lost"`
+}
+
+// apiApply is POST /api/apply: the drift is applied to the selected members. The
+// work goes on after the answer, and its progress and startup question are read
+// from GET /api/hq/launches/{id}, the way a start's are.
+func (s *Server) apiApply(w http.ResponseWriter, r *http.Request) {
+	if s.apply == nil {
+		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
+		return
+	}
+	if !s.apiGuard(w, r) {
+		return
+	}
+	in, ok := readHQIn[ApplyIn](w, r)
+	if !ok {
+		return
+	}
+	launch, err := s.apply.ApplyMembers(in.Members)
+	if err != nil {
+		answerHQ(w, nil, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"launch": launch})
 }
 
 // emptyApply is what a server with no applier answers: nothing to apply, and a

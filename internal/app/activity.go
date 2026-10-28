@@ -741,7 +741,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	}
 
 	stale := map[string]bool{}
-	for _, team := range a.Delivery().Teams {
+	for _, team := range a.plan(a.clock()).apply.Teams {
 		for _, member := range team.Members {
 			stale[member.Name] = true
 		}

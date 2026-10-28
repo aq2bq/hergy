@@ -69,9 +69,6 @@ func (a *activityRead) LaunchOptions(project, definition, place string) (web.HQL
 func (a *activityRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	return a.hq.StartLaunch(in)
 }
-func (a *activityRead) RefreshMembers(in web.HQRefreshIn) (web.HQLaunch, error) {
-	return a.hq.RefreshMembers(in)
-}
 func (a *activityRead) LaunchState(id string) (web.HQLaunch, bool) { return a.hq.LaunchState(id) }
 func (a *activityRead) CancelLaunch(id string) (web.HQLaunch, bool) {
 	return a.hq.CancelLaunch(id)

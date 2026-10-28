@@ -683,76 +683,6 @@ paths:
               schema:
                 type: string
                 description: 読み取り専用のため断った理由
-  /api/delivery:
-    get:
-      operationId: listDelivery
-      summary: 変更を伝えていない人の一覧
-      responses:
-        "200":
-          description: 変更を伝えていないメンバー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeliveryAnswer'
-    post:
-      operationId: deliver
-      summary: 選んだメンバーに送り直す
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeliveryRequest'
-      responses:
-        "200":
-          description: 送ったメンバーと更新後の一覧
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeliveryAnswer'
-        "403":
-          description: 書き込みを許可できない
-          content:
-            text/plain:
-              schema:
-                type: string
-                description: 断った理由
-        "404":
-          description: 変更を伝える読み取りがない
-          content:
-            text/plain:
-              schema:
-                type: string
-                description: 読み取りがない理由
-        "422":
-          description: 要求を読めないか、選んだメンバーに送れない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Refusal'
-            text/plain:
-              schema:
-                type: string
-                description: 要求本文を読めない理由
-  /api/delivery/count:
-    get:
-      operationId: countDelivery
-      summary: 変更を伝えていない人の数
-      description: 帯の「変更を伝える」が出す数。動いているメンバーのうち、定義の変更をまだ伝えていない人の数。
-      responses:
-        "200":
-          description: 数
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [count]
-                properties:
-                  count:
-                    type: integer
-                    minimum: 0
-                    description: 変更を伝えていない人の数
   /api/apply:
     get:
       operationId: listApply
@@ -765,6 +695,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApplyList'
+    post:
+      operationId: applyMembers
+      summary: ずれを反映する
+      description: 名指したメンバーのずれを反映する。反映は答えのあとに進み、その進み具合と起動の途中の問いは GET /api/hq/launches/{id} で読む。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyRequest'
+      responses:
+        "202":
+          description: 反映の進み具合
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [launch]
+                properties:
+                  launch:
+                    $ref: '#/components/schemas/HQLaunch'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 反映の読み取りがない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 読み取りがない理由
+        "409":
+          description: 同じチームの反映が進んでいる
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "422":
+          description: 要求を読めないか、名指したメンバーに反映できない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 要求本文を読めない理由
   /api/apply/count:
     get:
       operationId: countApply
@@ -1139,54 +1121,6 @@ paths:
                 description: 断った理由
         "404":
           description: 動いているチームが見つからない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Refusal'
-        "503":
-          description: 本部または herdr を読めない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Refusal'
-  /api/hq/refresh:
-    post:
-      operationId: refreshHQMembers
-      summary: 起動していないメンバーを起動する
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/HQRefreshRequest'
-      responses:
-        "202":
-          description: 起動を受け付けた
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HQLaunchEnvelope'
-        "403":
-          description: 書き込みを許可できない
-          content:
-            text/plain:
-              schema:
-                type: string
-                description: 断った理由
-        "404":
-          description: 動いているチームが見つからない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Refusal'
-        "409":
-          description: チームまたはメンバーが起動中
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Refusal'
-        "422":
-          description: メンバーを起動できない
           content:
             application/json:
               schema:
@@ -2428,6 +2362,17 @@ components:
         shown:
           type: integer
           description: 画面に表示する末尾の行数
+    ApplyRequest:
+      description: ずれを反映するメンバー
+      type: object
+      additionalProperties: false
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            type: string
+          description: 反映するメンバーの herdr 名
     ApplyList:
       description: 動いているチームの、保存した定義とのずれ
       type: object
@@ -2514,113 +2459,6 @@ components:
         conversation_lost:
           type: boolean
           description: 反映すると会話が消えるか
-    DeliveryRequest:
-      description: 初期プロンプトを送り直すメンバー
-      type: object
-      additionalProperties: false
-      required: [members]
-      properties:
-        members:
-          type: array
-          items:
-            type: string
-          description: 初期プロンプトを受け取るメンバーの herdr 名
-    DeliveryAnswer:
-      description: 初期プロンプトが現在の定義と異なるメンバーと送信結果
-      type: object
-      additionalProperties: false
-      required: [count, teams, herdr]
-      properties:
-        count:
-          type: integer
-          minimum: 0
-          description: 変更を伝えていないメンバーの数
-        teams:
-          type: array
-          items:
-            $ref: '#/components/schemas/DeliveryTeam'
-          description: 変更を伝えていないメンバーがいるチーム
-        sent:
-          type: array
-          items:
-            type: string
-          description: 初期プロンプトを受け取ったメンバーの herdr 名
-        refused:
-          type: array
-          items:
-            $ref: '#/components/schemas/DeliveryRefusal'
-          description: 初期プロンプトを受け取らなかったメンバー
-        herdr:
-          allOf:
-            - $ref: '#/components/schemas/DeliveryNote'
-          description: herdr を読めたかと、読めない理由
-    DeliveryTeam:
-      description: 変更を伝えていないメンバーがいるチーム
-      type: object
-      additionalProperties: false
-      required: [name, definition, members]
-      properties:
-        name:
-          type: string
-          description: チーム名
-        definition:
-          type: string
-          description: チームの起動元になったチーム定義名
-        members:
-          type: array
-          items:
-            $ref: '#/components/schemas/DeliveryMember'
-          description: 変更を伝えていないメンバー
-    DeliveryMember:
-      description: 初期プロンプトが現在の定義と異なるメンバー
-      type: object
-      additionalProperties: false
-      required: [name, short, role, state, can_send, changes]
-      properties:
-        name:
-          type: string
-          description: メンバーの herdr 名
-        short:
-          type: string
-          description: メンバー名
-        role:
-          type: string
-          description: メンバーのロール名
-        state:
-          type: string
-          description: メンバーの活動状態
-        can_send:
-          type: boolean
-          description: メンバーが人間を待っていて送信できるか
-        changes:
-          type: array
-          items:
-            $ref: '#/components/schemas/ApplyChange'
-          description: 初期プロンプトの変更
-    DeliveryRefusal:
-      description: 初期プロンプトを受け取らなかったメンバーと理由
-      type: object
-      additionalProperties: false
-      required: [name, text]
-      properties:
-        name:
-          type: string
-          description: メンバーの herdr 名
-        text:
-          type: string
-          description: 送信できなかった理由
-    DeliveryNote:
-      description: herdr を読めたかと、読めない理由
-      type: object
-      additionalProperties: false
-      required: [ok, text]
-      properties:
-        ok:
-          type: boolean
-          description: herdr を読めたか
-        text:
-          type: string
-          description: herdr を読めない理由。読めたときは空
     ApplyChange:
       description: メンバーの初期プロンプトで変わった 1 項目
       type: object
@@ -3101,20 +2939,6 @@ components:
             new:
               type: string
               description: 新しく作るワークスペース名
-    HQRefreshRequest:
-      description: 起動していないメンバーを起動し直す要求
-      type: object
-      additionalProperties: false
-      required: [team, members]
-      properties:
-        team:
-          type: string
-          description: メンバーを起動し直すチーム名
-        members:
-          type: array
-          items:
-            type: string
-          description: 起動し直すメンバー名
     HQAddProjectRequest:
       description: 本部に並べるプロジェクト
       type: object

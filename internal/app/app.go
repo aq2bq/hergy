@@ -161,6 +161,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runRefresh(ctx, env, opts, stdout, stderr)
 	case options.Reprompt:
 		return runReprompt(ctx, env, opts, stdout, stderr)
+	case options.Apply:
+		return runApply(ctx, env, opts, stdout, stderr)
 	case options.Focus:
 		return runFocus(env, opts, stdout)
 	case options.Nudge:
@@ -1793,14 +1795,25 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	if err != nil {
 		return err
 	}
+	// A member the team has no pane for is added by apply now (d-8fcf): refresh
+	// restarts a member that is already running, or one whose pane is still
+	// there at its shell. The check reads herdr the same way the real refresh
+	// does, so --dry refuses what a real run would.
+	newPanes, err := newLauncher(r, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID"))
+	if err != nil {
+		return err
+	}
+	if len(newPanes.Members) > 0 {
+		shorts := make([]string, 0, len(newPanes.Members))
+		for _, name := range newPanes.Members {
+			shorts = append(shorts, shortMember(name, r.team.Name))
+		}
+		return i18n.Errorf("refresh.use_apply", strings.Join(shorts, i18n.T("list.separator")))
+	}
 	if opts.Dry {
 		// --dry stops and makes nothing, but it shows the same refusal the real
-		// refresh would, and the panes a refresh would make, so it reads the
-		// live agents, tabs and panes too (like down --dry).
-		newPanes, err := newLauncher(r, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID"))
-		if err != nil {
-			return err
-		}
+		// refresh would, so it reads the live agents, tabs and panes too (like
+		// down --dry).
 		next := "refresh " + memberName
 		if opts.All {
 			next = "refresh --all"

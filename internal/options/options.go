@@ -23,6 +23,8 @@ const (
 	Refresh
 	// Reprompt re-submits a bootstrap prompt, keeping the conversation.
 	Reprompt
+	// Apply puts the saved definition's drift into a running team.
+	Apply
 	// Focus moves a person's focus to a member's pane.
 	Focus
 	// Nudge pushes a member that has stopped to carry on.
@@ -60,10 +62,13 @@ type Options struct {
 
 	Team   string // up/show/new: a team definition name; down/status/refresh/reprompt/hire/focus/nudge/stop/tell: a team name
 	Member string // refresh/reprompt/focus/nudge/stop positional, and tell's target
-	Body   string // nudge/tell positional: the message text
-	All    bool   // refresh/reprompt --all
-	Name   string // hire positional
-	As     string // up only: the team name to boot under (defaults to the team definition name)
+	// Members are the members apply acts on, by short member name or herdr
+	// name; none means every member with drift.
+	Members []string
+	Body    string // nudge/tell positional: the message text
+	All     bool   // refresh/reprompt --all
+	Name    string // hire positional
+	As      string // up only: the team name to boot under (defaults to the team definition name)
 
 	Purpose string
 	Task    string
@@ -220,6 +225,8 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) == 1 {
 			o.Member = positionals[0]
 		}
+	case Apply:
+		o.Members = append([]string(nil), positionals...)
 	case Focus, Nudge, Stop, Tell:
 		return assignMemberPositionals(o, positionals)
 	case Hire:

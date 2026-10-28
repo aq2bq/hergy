@@ -342,8 +342,8 @@ func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
 // change what a running member is handed. One place here keeps a new save road
 // from forgetting it (r-a8fa audit 1 B).
 func (s *Server) deliveryChanged(refusal *apiErr) {
-	if refusal == nil && s.deliver != nil {
-		s.deliver.InvalidateDelivery()
+	if refusal == nil && s.apply != nil {
+		s.apply.InvalidateDelivery()
 	}
 }
 
