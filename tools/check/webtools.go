@@ -79,5 +79,8 @@ func (r *runner) unitGate() error {
 	}
 	// The preload is named from where it was installed, so it finds happy-dom
 	// there; the tests themselves import only bun:test and the modules.
-	return r.execIn(filepath.Join(r.root, webTests), env, bun, "test", "--preload", filepath.Join(dir, "setup.js"), ".")
+	// --isolate gives each file a fresh global and module registry: a screen's
+	// module is imported once (its state stands per page), so two files that
+	// each import one would otherwise read the first file's page.
+	return r.execIn(filepath.Join(r.root, webTests), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), ".")
 }
