@@ -1,6 +1,6 @@
-// TEAMS-R1, 起きていないメンバーを起こす (r-5d1a, ac-d090): the 動き column of a
+// TEAMS-R1, a member that is not up is started from 動き (r-5d1a, ac-d090): the column of a
 // definition whose team is running names the members the definition has that no
-// agent is live for, each with 起こす; the press calls POST /api/hq/refresh for
+// agent is live for, each with 起動; the press calls POST /api/hq/refresh for
 // that member, and the start's own sheet says how far it got — and, when the agent
 // asks a question while it starts, the pane to answer in. The answers are the
 // test's, so what the column and the sheet make of them is what is read. The
@@ -98,7 +98,7 @@ test('the 動き column names the member that is not up, and the start sheet say
 
   const cell = () => document.querySelector('.tdef[data-name="core|/work/alpha"] .hq-runc');
   const raise = () => cell().querySelector('[data-hq=raise]');
-  // The member that is not up stands by its name, with 起こす. The agents that
+  // The member that is not up stands by its name, with 起動. The agents that
   // are live are not offered, so there is one button.
   expect(raise()).not.toBe(null);
   expect(raise().dataset.member).toBe('spec2');
@@ -116,10 +116,10 @@ test('the 動き column names the member that is not up, and the start sheet say
   // The start's own sheet says how far it got, in the raise's words.
   const sheet = () => document.querySelector('.hq-sheet');
   expect(sheet()).not.toBe(null);
-  expect(sheet().querySelector('[data-role=title]').textContent).toBe('起こしています');
+  expect(sheet().querySelector('[data-role=title]').textContent).toBe('起動しています');
   const steps = [...sheet().querySelectorAll('[data-role=steps] li')].map((li) => li.textContent);
   expect(steps.join('\n')).toContain('core-spec2 を起動し、初期プロンプトを送りました');
-  expect(sheet().querySelector('[data-hq=abort]').textContent).toBe('起こすのをやめる');
+  expect(sheet().querySelector('[data-hq=abort]').textContent).toBe('起動をやめる');
 
   // A member that asks a question while it starts is answered in its pane, and
   // the same sheet names it (d-d589, r-5d1a).

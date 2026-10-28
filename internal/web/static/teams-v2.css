@@ -1,4 +1,4 @@
-/* teams-v2.css — the team-definition screen's own look (mock-teams.html, 版 6.1).
+/* teams-v2.css — the team-definition screen's own look (mock-teams.html, バージョン 6.1).
    The rule-document part's look is in ruledoc.css; this file carries the
    outside (the list, the figure, the cards, the YAML tab) and the tokens. */
 :root {
@@ -67,7 +67,7 @@ a { color: inherit; text-decoration: none; }
   padding-block: 0 72px;
 }
 
-/* 画面を選ぶ帯（mock-nav 版 2 のまま） */
+/* 画面を選ぶ帯（mock-nav バージョン 2 のまま） */
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6;
   background: var(--bg);
@@ -185,7 +185,7 @@ a { color: inherit; text-decoration: none; }
 .c-members { grid-area: members; } .c-turns { grid-area: turns; } .c-agree { grid-area: agree; }
 .c-size { grid-area: size; display: flex; align-items: center; }
 
-/* 一覧の上の追加と、開いた行の中の定義の操作（版 7 B1-B5） */
+/* 一覧の上の追加と、開いた行の中の定義の操作（バージョン 7 B1-B5） */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
 /* 開いたチーム定義: トポロジーとルールのタブ */
 .detail { background: var(--sunk); padding: 6px 10px 20px 40px; display: grid; gap: 12px; }
@@ -195,7 +195,7 @@ a { color: inherit; text-decoration: none; }
 .pill.pending { border: 1px dashed var(--changed); color: var(--changed); }
 .c-place .seg { padding: 0; }
 .c-place .seg button { padding: 1px 7px; font-size: 11.5px; }
-/* まだ無い定義の名前の欄（版 7 B2） */
+/* まだ無い定義の名前の欄（バージョン 7 B2） */
 .in-name {
   width: 100%; min-width: 0; border: 1px solid var(--changed); border-style: dashed; background: var(--changed-soft); color: var(--ink);
   border-radius: 4px; padding: 3px 8px; margin-block: -4px; font-family: var(--f-mono); font-weight: 600; font-size: 14px; cursor: text;
@@ -401,14 +401,14 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .yl.cur .yt { box-shadow: inset 2px 0 0 var(--accent); }
 .yl.err .lno { background: var(--danger); color: var(--danger-ink); }
 .yl.warn .lno { background: var(--warn); color: var(--on-warn); }
-/* トポロジーのタブの右の team.yaml（版 7 B7。ルールのタブの Markdown と同じ部品） */
+/* トポロジーのタブの右の team.yaml（バージョン 7 B7。ルールのタブの Markdown と同じ部品） */
 .tprev .yt { font-family: var(--f-mono); font-size: 12.5px; white-space: pre-wrap; padding-left: 10px; text-indent: 0; }
 .tprev .yt .k { color: var(--muted); }
 .tprev .yt .ar { color: var(--faint); }
 .tprev .yl.step .yt { animation: step 1.8s ease; }
 .tprev .yl.step.del .lno, .tprev .yl.step.dele .lno { animation: step 1.8s ease; }
 @keyframes step { 0%, 45% { background: var(--accent-soft); } 100% { background: transparent; } }
-/* 札が点を隠すしかないときは、図のすぐ下に置く（版 7 B8） */
+/* 札が点を隠すしかないときは、図のすぐ下に置く（バージョン 7 B8） */
 .arrow { font-family: var(--f-mono); font-size: 12px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); white-space: nowrap; }
 
 .sec { display: grid; gap: 0; }
@@ -609,7 +609,7 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
   .in-mission { margin-block: 0; }
   .c-size { justify-self: end; }
   .c-members, .c-turns, .c-agree { display: none; }
-  /* 幅の狭い所では、定義の操作はタブの下に 1 行（版 7 B5） */
+  /* 幅の狭い所では、定義の操作はタブの下に 1 行（バージョン 7 B5） */
   .dacts { margin-left: 0; width: 100%; padding-bottom: 8px; }
   .detail { padding-left: 10px; }
   .panel { padding-inline: 12px; }

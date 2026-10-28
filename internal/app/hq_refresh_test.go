@@ -49,7 +49,7 @@ func teamNamed(running web.HQRunning, name string) web.HQRunningTeam {
 
 // TestRunningNamesTheMembersNoAgentIsLiveFor: GET /api/hq/running names, for each
 // running team, the members its definition has that no agent is live for: the
-// ones a screen offers 起こす for (r-5d1a). The members that are running are not
+// ones a screen offers 起動 for (r-5d1a). The members that are running are not
 // in that list, and both are still in members.
 func TestRunningNamesTheMembersNoAgentIsLiveFor(t *testing.T) {
 	_, env, _ := hqFixture(t)

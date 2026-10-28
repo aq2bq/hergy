@@ -1,6 +1,6 @@
 // teams/main.js — チーム定義の画面の入口（webui-preact-design 4 章）。
 //
-// mount と、住所・帯への約束だけを持つ。描くのは view.js（一覧・パネル・YAML）と
+// mount と、住所・帯への受け渡しだけを持つ。描くのは view.js（一覧・パネル・YAML）と
 // canvas.js（トポロジー）、状態は state.js の signal、押し込みは部品が自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（依頼書 2）。
 // ここも DOM を書かない（5 章 1）。

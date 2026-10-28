@@ -18,7 +18,7 @@ import (
 	"github.com/aq2bq/hergy/internal/web"
 )
 
-// This file raises a member of a running team from the screens: the same result
+// This file starts a member of a running team from the screens: the same result
 // as hergy refresh <member>, in the project the team belongs to (r-5d1a). The
 // member written in the definition that no agent of the team is live for is
 // given a pane in the team's tab and started there, the way hergy up starts one;
@@ -41,7 +41,7 @@ func (h *hqRead) RefreshMembers(in web.HQRefreshIn) (web.HQLaunch, error) {
 	if one.Built == nil {
 		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, i18n.Tf("web.hq.raise_broken", name))
 	}
-	// One operation at a time on a team: a start or a raise already out is making
+	// One operation at a time on a team: a start already out is making
 	// panes in the same tab, and a second one would make them over it.
 	if _, busy := h.activeLaunch(name); busy {
 		return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.Tf("web.hq.raise_busy", name))
@@ -51,13 +51,13 @@ func (h *hqRead) RefreshMembers(in web.HQRefreshIn) (web.HQLaunch, error) {
 		return web.HQLaunch{}, hqError(err)
 	}
 	// The definition is read as it is now: the member was written into it after
-	// the team was booted, and the raise is what hands it the current rules.
+	// the team was booted, and this start is what hands it the current rules.
 	r, err := buildRunningIn(env.Catalog(source.Disk{}), env.ProjectRoot,
 		team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
 	if err != nil {
 		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, i18n.Tf("web.hq.raise_broken", name))
 	}
-	selected, err := h.raiseTargets(one, read, r, in.Members, now)
+	selected, err := h.startTargets(one, read, r, in.Members, now)
 	if err != nil {
 		return web.HQLaunch{}, err
 	}
@@ -72,18 +72,18 @@ func (h *hqRead) RefreshMembers(in web.HQRefreshIn) (web.HQLaunch, error) {
 	op.mu.Lock()
 	op.cancel = cancel
 	op.mu.Unlock()
-	// A read held before this raise would hide the pane it makes, and the member
+	// A read held before this start would hide the pane it makes, and the member
 	// it starts: the next read sees herdr as it is now.
 	h.act.forgetHerdr()
 	go h.runRefresh(ctx, op, env, r, selected)
 	return op.snapshot(), nil
 }
 
-// raiseTargets is the members a raise starts: the ones the screen named, each of
+// startTargets is the members a start starts: the ones the screen named, each of
 // them a member the definition has and no agent of the team is live for. A member
 // that is already running is refused, because starting it again would end the
 // conversation it holds and nobody asked for that.
-func (h *hqRead) raiseTargets(one runningTeam, read herdrNow, r *resolved, names []string, now time.Time) ([]definition.Start, error) {
+func (h *hqRead) startTargets(one runningTeam, read herdrNow, r *resolved, names []string, now time.Time) ([]definition.Start, error) {
 	if len(names) == 0 {
 		return nil, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.hq.raise_none"))
 	}
@@ -107,7 +107,7 @@ func (h *hqRead) raiseTargets(one runningTeam, read herdrNow, r *resolved, names
 	return selected, nil
 }
 
-// runRefresh raises the selected members in the background and keeps the
+// runRefresh starts the selected members in the background and keeps the
 // progress. It is hergy refresh <member>, the same launcher call the command line
 // makes, so a member with no pane is given one in the team's tab and a member
 // whose agent ended is started again in the pane hergy named after it.
@@ -124,7 +124,7 @@ func (h *hqRead) runRefresh(ctx context.Context, op *launchOp, env team.Env, r *
 		return
 	}
 	recordLaunch(io.Discard, env, r, launchlog.CommandRefresh, selected)
-	// The raised member's prompt is the current one now, and the others' may have
+	// The member started is on its current prompt now, and the others' may have
 	// moved with the definition: the band's count is read again (r-a8fa).
 	h.act.InvalidateDelivery()
 	h.finish(op, "done", "")

@@ -1,4 +1,4 @@
-// lib/hq/raise.js — 起きていないメンバーを起こす（r-5d1a）。
+// lib/hq/raise.js — 起きていないメンバーを起動する（r-5d1a）。
 //
 // 押すと POST /api/hq/refresh を呼ぶ。答えた起動（action が refresh）は、起動の
 // ときと同じ欄（lib/hq/sheets.js の runStart）に渡す: 進み具合と、起動の途中の
@@ -16,6 +16,6 @@ export async function raiseMember(team, name) {
     if (launch) runStart(launch);
     return '';
   } catch (e) {
-    return problemText(e, '起こせませんでした');
+    return problemText(e, '起動できませんでした');
   }
 }

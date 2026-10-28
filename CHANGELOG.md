@@ -26,9 +26,9 @@
 
 ### Added
 
-- **The screens raise a member the team definition has and no agent is live
+- **The screens start a member the team definition has and no agent is live
   for**: the 動き column of the teams screen and the opened team on the activity
-  screen name those members and offer 起こす, and the press starts the member in
+  screen name those members and offer 起動, and the press starts the member in
   the team's tab — the same launcher refresh the command line runs, so it reads
   the rules it would get from `hergy up` and the start's own sheet shows the
   progress and any question it asks while it starts (ac-d090, r-5d1a).

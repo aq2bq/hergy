@@ -58,8 +58,8 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 			Name: node.Name, Herdr: node.Herdr, Live: node.Herdr != "",
 			State: node.State.Slug(),
 		})
-		// A member no agent is live for is one hergy has not raised, or one whose
-		// agent ended: a screen offers to raise it (r-5d1a).
+		// A member no agent is live for is one hergy has not started, or one whose
+		// agent ended: a screen offers to start it (r-5d1a).
 		if node.Herdr == "" {
 			out.NotUp = append(out.NotUp, node.Name)
 		}

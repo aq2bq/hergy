@@ -218,6 +218,20 @@ var glossary = []term{
 		meaning:  "the first prompt hergy hands a member or a worker",
 	},
 	{
+		id:       "start",
+		english:  "start",
+		japanese: "起動",
+		meaning:  "begin a team, or a member of one: hergy up starts a team, and the screens start a member the definition has and no agent is live for; 起動し直し (refresh) is starting a member again",
+		banned: []ban{
+			// 起こす was the screens' own word for starting a member, and the
+			// glossary and the command line had called it 起動 all along
+			// (r-5d1a's follow-up). 起こる is another word and is left alone.
+			{lang: "ja", word: "起こす", instead: "起動する"},
+			{lang: "ja", word: "起こし", instead: "起動し"},
+			{lang: "ja", word: "起こせ", instead: "起動でき"},
+		},
+	},
+	{
 		id:       "refresh",
 		english:  "refresh",
 		japanese: "起動し直し",
@@ -526,6 +540,39 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	// The agent cheatsheet is a Go constant, so it comes from the package.
 	for i, line := range strings.Split(cheat.Machine, "\n") {
 		check(fmt.Sprintf("internal/cheat/cheat.go:Machine:%d", i+1), "", "en", line)
+	}
+
+	// The screens' own words: their modules, styles and templates write Japanese
+	// too, and a word that stays out of the locales must stay out of them
+	// (r-5d1a's follow-up). The vendored libraries are not the screens' words.
+	for _, dir := range []string{"internal/web/static", "internal/web/templates"} {
+		err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				if entry.Name() == "vendor" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".js", ".html", ".css":
+			default:
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for i, line := range strings.Split(string(raw), "\n") {
+				check(fmt.Sprintf("%s:%d", path, i+1), "", "ja", line)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("read %s: %v", dir, err)
+		}
 	}
 
 	if len(hits) == 0 {

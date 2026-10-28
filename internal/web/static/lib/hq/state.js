@@ -1,11 +1,11 @@
-// lib/hq/state.js — 本部の読みと、画面をまたぐ小さな約束（n-7f3c、モデルは d-73fc）。
+// lib/hq/state.js — 本部の読みと、画面をまたぐ小さな状態（n-7f3c、モデルは d-73fc）。
 //
 // ここが持つのは、本部の API（/api/hq/…）から読んだ状態と、その読み方だけ:
-// 並べたプロジェクト、動いているチーム、ワークスペース、検索が読む一覧
+// 並べたプロジェクト、動いているチーム、ワークスペース、探す欄が読む一覧
 // （チーム定義・ロール・プロファイル）、そして 10 秒ごとの読み。帯の数
 // （プロジェクト N・活動 N・待ち N）もここが書く（spec 2 章）。
 //
-// 描くのは lib/hq/figure.js（図）、lib/hq/sheets.js（欄と検索）、
+// 描くのは lib/hq/figure.js（図）、lib/hq/sheets.js（欄と探す欄）、
 // lib/hq/run.js（チーム定義の一覧の「動き」の欄）。入口は lib/hq.js で、
 // 画面は lib/hq.js から import して読む。
 import { signal } from '../../vendor/preact.js';

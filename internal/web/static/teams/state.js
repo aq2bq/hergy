@@ -1050,7 +1050,7 @@ export const rowOfPanel = (r) => {
   };
 };
 
-// ---- 帯と、ページの外への約束 ------------------------------------------
+// ---- 帯と、ページの外への受け渡し ------------------------------------------
 // savedCount is the number the band shows: the definitions, which are the rows
 // that are saved — a row that is not there yet is not one (spec-nav 1.1,
 // 監査 R7). main.js keeps the band's number on it.

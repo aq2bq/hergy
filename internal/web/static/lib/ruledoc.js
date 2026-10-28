@@ -393,7 +393,7 @@ function ruleEditHTML(row, x, mine) {
       ${inP(x) ? '' : html`<div class="offinfo">${`この規則はオフ（プロンプトに入れていない）。${sinceText(row, x)}。`}</div>`}
       <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">${id ? id : html`<span class="none">—</span>`}</span><ul class="vm" data-for="id"><${Vm} list=${field('id')} /></ul></div></div>
       <div class="field"><label for=${'tx' + key}>本文</label><div><${Field} as="textarea" id=${'tx' + key} class=${['ta', changed('text') ? 'changed' : '', bad('text', true) ? 'bad' : ''].filter(Boolean).join(' ')} data-f="text" rows="2" value=${x.text} /><ul class="vm" data-for="text"><${Vm} list=${field('text')} /></ul></div></div>
-      <div class="field"><label for=${'nt' + key}>メモ</label><div><${Field} as="textarea" id=${'nt' + key} class=${['ta', changed('note') ? 'changed' : '', bad('note') ? 'bad' : ''].filter(Boolean).join(' ')} data-f="note" rows="2" value=${x.note} /><div class="notehint">なぜ書いたか・何を見て書いたかを残す。AI には渡さない。消すか迷ったときに読む。</div><ul class="vm" data-for="note"><${Vm} list=${field('note')} /></ul></div></div>
+      <div class="field"><label for=${'nt' + key}>メモ</label><div><${Field} as="textarea" id=${'nt' + key} class=${['ta', changed('note') ? 'changed' : '', bad('note') ? 'bad' : ''].filter(Boolean).join(' ')} data-f="note" rows="2" value=${x.note} /><div class="notehint">なぜ書いたか・何を見て書いたかを残す。AI には送らない。消すか迷ったときに読む。</div><ul class="vm" data-for="note"><${Vm} list=${field('note')} /></ul></div></div>
       <footer class="rf">
         <button class="btn sm" data-act="rule-up" aria-label="上へ">↑</button><button class="btn sm" data-act="rule-down" aria-label="下へ">↓</button>
         <span class="acts">

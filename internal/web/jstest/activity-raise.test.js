@@ -1,6 +1,6 @@
-// ACTIVITY-R1, 起きていないメンバーを起こす (r-5d1a, ac-d090): the opened team on the
+// ACTIVITY-R1, a member that is not up is started from its row (r-5d1a, ac-d090): the opened team on the
 // activity screen names the member its definition has that no agent is live for,
-// and offers 起こす on that member's row. The press calls POST /api/hq/refresh for
+// and offers 起動 on that member's row. The press calls POST /api/hq/refresh for
 // that member, and the start's own sheet says how far the raise got. The answers
 // are the test's, so what the screen makes of them is what is read.
 import { expect, test } from 'bun:test';
@@ -45,7 +45,7 @@ const launch = {
   steps: [{ at: '', kind: 'member', text: 'core-spec2 を起動し、初期プロンプトを送りました' }],
 };
 
-test('the opened team offers 起こす on the member that is not up, and the raise shows its progress', async () => {
+test('the opened team offers 起動 on the member that is not up, and the start shows its progress', async () => {
   history.replaceState({}, '', '/activity');
   layout();
   const running = {
@@ -78,7 +78,7 @@ test('the opened team offers 起こす on the member that is not up, and the rai
   await import('../static/activity/main.js');
   await settle();
 
-  // The member with no agent is on its own row, by name, with 起こす; the one that
+  // The member with no agent is on its own row, by name, with 起動; the one that
   // is live is not offered.
   const detail = () => document.querySelector('.hq-detail');
   const row = () => detail().querySelector('li.absent');
@@ -100,6 +100,6 @@ test('the opened team offers 起こす on the member that is not up, and the rai
   // The start's own sheet says how far the raise got.
   const opened = document.querySelector('.hq-sheet');
   expect(opened).not.toBe(null);
-  expect(opened.querySelector('[data-role=title]').textContent).toBe('起こしています');
+  expect(opened.querySelector('[data-role=title]').textContent).toBe('起動しています');
   expect(opened.querySelector('[data-role=steps]').textContent).toContain('core-spec2 を起動し、初期プロンプトを送りました');
 });

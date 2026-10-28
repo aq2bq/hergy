@@ -1,4 +1,4 @@
-/* 本部の帯と欄（n-7f3c、d-73fc、d-8a45）。プロジェクトの切り替え、横断の検索、
+/* 本部の帯と欄（n-7f3c、d-73fc、d-8a45）。プロジェクトの切り替え、帯の探す欄、
    起動と停止のシート、一覧の組、動きの列、活動の 3 段。
    色と字は各画面の :root のトークンだけを使う。ここに色は書かない。 */
 
@@ -141,7 +141,7 @@
 .hq-on.wait { background: var(--warn); color: var(--on-warn); }
 .hq-wsn { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .hq-last { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
-/* A member of a running team that is not up yet, and 起こす (r-5d1a). */
+/* A member of a running team that is not up yet, and 起動 (r-5d1a). */
 .hq-up { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .hq-upm { display: inline-flex; align-items: center; gap: 4px; }
 .hq-upm code { font-size: 12px; }
@@ -256,7 +256,7 @@
   .hq-svg .hq-call, .hq-svg .active .ring { animation: none; }
 }
 
-/* ---- 横断の検索 ---------------------------------------------------------- */
+/* ---- 帯の探す欄 ---------------------------------------------------------- */
 .hq-search {
   display: inline-flex; align-items: center; gap: 8px; min-height: 34px;
   border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 0 8px 0 10px;

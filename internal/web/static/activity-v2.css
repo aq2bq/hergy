@@ -1,4 +1,4 @@
-/* activity-v2.css — 活動の画面の見た目（mock-activity.html 版 1 をそのまま写した
+/* activity-v2.css — 活動の画面の見た目（mock-activity.html バージョン 1 をそのまま写した
    もの。r-8a67）。モックとの違いは 2 つだけ:
    - 帯の規則（.bar、.crumb、.screens、.scr*）は nav.css にある（帯はどの画面にも
      あるので、ここには写さない）。モックの字と余白は nav.css のほうが同じ値。

@@ -1,6 +1,6 @@
 // roles/main.js — ロールの画面の入口（webui-preact-design 4 章）。
 //
-// mount と、住所・帯への約束だけを持つ。描くのは view.js / assign.js / yaml.js、
+// mount と、住所・帯への受け渡しだけを持つ。描くのは view.js / assign.js / yaml.js、
 // 状態は state.js の signal、押し込みは部品が自分の onClick / onInput から
 // state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
 import { html, effect, render } from '../vendor/preact.js';

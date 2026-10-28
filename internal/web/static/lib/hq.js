@@ -13,7 +13,7 @@
 //
 // 中身は 4 つに分かれている: lib/hq/state.js（読みと状態）、lib/hq/figure.js
 // （チームの図の部品）、lib/hq/run.js（一覧の「動き」の欄）、lib/hq/sheets.js
-// （欄と検索）。画面はここから import して読む。
+// （欄と探す欄）。画面はここから import して読む。
 import {
   st, setRunning, token, parseOpen, projectName, runningTeam, definitionOf,
   readAll, readCore, readGroups, readRunning, startReads,

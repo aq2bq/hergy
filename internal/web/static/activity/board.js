@@ -70,7 +70,7 @@ function Tile({ team: t }) {
 
 // Detail is the third tier: the opened team's last screen, where to answer, and
 // every member and worker with its state (spec 6 章). A member the definition has
-// and no agent is live for carries 起こす (r-5d1a): the member is started in the
+// and no agent is live for carries 起動 (r-5d1a): the member is started in the
 // team's tab, and the progress stands in the start's own sheet.
 function Detail({ team: t }) {
   const [error, setError] = useState('');
@@ -84,7 +84,7 @@ function Detail({ team: t }) {
   const screenBox = hasTail ? html`<div class="hq-dq"><div class="th">画面の最後（<code>${t.wait ? (t.wait.herdr || (t.name + '-' + t.wait.name)) : t.last ? (t.name + '-' + t.last) : t.name}</code>）</div>
     <pre class="term">${t.tail.join('\n')}</pre>${answerBox}</div>`
     : (answerBox ? html`<div class="hq-dq">${answerBox}</div>` : '');
-  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}${m.state === 'absent' && !t.starting ? html`<button type="button" class="hq-btn sm" data-hq="raise" data-team=${t.name} data-member=${m.name} aria-label=${`${m.name} を起こす`} onClick=${() => press(m.name)}>起こす</button>` : ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ''}</li>`);
+  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}${m.state === 'absent' && !t.starting ? html`<button type="button" class="hq-btn sm" data-hq="raise" data-team=${t.name} data-member=${m.name} aria-label=${`${m.name} を起動`} onClick=${() => press(m.name)}>起動</button>` : ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ''}</li>`);
   const wk = t.workers.length ? [html`<li class="sub">ワーカー</li>`, t.workers.map((w) => html`<li class=${w.state}><i class=${'dot ' + w.state}></i><span class="nm wk">${w.name}</span><span class="sw">${NS[w.state] || ''}</span><span class="t">${w.from ? w.from + ' が追加' : ''}</span>${w.doing ? html`<span class="hq-doing">${w.doing}</span>` : ''}</li>`)] : '';
   const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
   return html`<section class="hq-detail" aria-label="${t.name} の中">

@@ -417,7 +417,7 @@ function TPrev({ r }) {
 }
 
 // yamlHL is the YAML a preview line shows, with the keys and the arrows marked
-// (モック 版 7 から逐語).
+// (モックのバージョン 7 から逐語).
 function YamlLine({ text }) {
   let m = text.match(/^(\s*)(- )?([A-Za-z_]+):( .*)?$/);
   if (m) return html`${m[1]}${m[2] ? html`<span class="ar">- </span>` : ''}<span class="k">${m[3]}:</span>${m[4] || ''}`;

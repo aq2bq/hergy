@@ -139,7 +139,7 @@ type HQRunningTeam struct {
 	Workers     []HQWorker  `json:"workers"`
 	Waiting     []string    `json:"waiting"`
 	// NotUp is the members the definition has that no agent of the team is live
-	// for, by short name: the ones a screen offers 起こす for (r-5d1a).
+	// for, by short name: the ones a screen offers 起動 for (r-5d1a).
 	NotUp []string `json:"not_up"`
 }
 
@@ -230,14 +230,14 @@ type HQLaunchIn struct {
 }
 
 // HQRefreshIn is POST /api/hq/refresh's body: the team, and the members of its
-// definition to raise (r-5d1a).
+// definition to start (r-5d1a).
 type HQRefreshIn struct {
 	Team    string   `json:"team"`
 	Members []string `json:"members"`
 }
 
 // The actions a launch answer is about: a team starting, or the members of a
-// running team being raised. A screen words its progress from this.
+// running team being started. A screen words its progress from this.
 const (
 	ActionLaunch  = "launch"
 	ActionRefresh = "refresh"
@@ -265,7 +265,7 @@ type HQLaunch struct {
 	Steps       []HQLaunchStep `json:"steps"`
 	Waiting     *HQWaiting     `json:"waiting"`
 	Error       string         `json:"error"`
-	// Members are the members a raise starts, by short name: empty for a start,
+	// Members are the members a refresh starts, by short name: empty for a start,
 	// whose members the start sheet reads from the definition.
 	Members []string `json:"members,omitempty"`
 }
@@ -666,7 +666,7 @@ func (s *Server) hqLaunch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"launch": launch})
 }
 
-// hqRefresh is POST /api/hq/refresh: hergy refresh, from the screens. The raise
+// hqRefresh is POST /api/hq/refresh: hergy refresh, from the screens. The start
 // goes on after the answer, and its progress and startup question are read from
 // GET /api/hq/launches/{id}, the way a start's are.
 func (s *Server) hqRefresh(w http.ResponseWriter, r *http.Request) {

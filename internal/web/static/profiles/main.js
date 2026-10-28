@@ -1,6 +1,6 @@
 // profiles/main.js — プロファイルの画面の入口（webui-preact-design 4 章）。
 //
-// mount と、住所・帯への約束だけを持つ。描くのは view.js / assign.js / yaml.js、
+// mount と、住所・帯への受け渡しだけを持つ。描くのは view.js / assign.js / yaml.js、
 // 状態は state.js、押し込みは部品が自分の onClick / onInput から actions.js の
 // 関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
 import { html, render } from '../vendor/preact.js';

@@ -9,7 +9,7 @@
   </nav>
   {{if .HQ}}<label class="hq-search"><span class="hq-sk">探す</span><input id="hq-q" type="search" placeholder="チーム・ワークスペース・ロール・規則" autocomplete="off" aria-label="並べたプロジェクトを横断して探す"><kbd>/</kbd></label>{{end}}
 </div>
-{{if .HQ}}{{if and (eq .HQ.Mode "listed") (not .HQ.CurrentListed)}}<div class="hq-banner"><span>この hergy serve を起こした <code>{{.HQ.Current}}</code>（<code>{{.HQ.CurrentPath}}</code>）は、本部に並んでいません。並べていないプロジェクトのチームは出しません。</span><button type="button" class="hq-btn sm" data-hq="projects">並べる…</button></div>{{end}}{{end}}
+{{if .HQ}}{{if and (eq .HQ.Mode "listed") (not .HQ.CurrentListed)}}<div class="hq-banner"><span>この hergy serve を起動した <code>{{.HQ.Current}}</code>（<code>{{.HQ.CurrentPath}}</code>）は、本部に並んでいません。並べていないプロジェクトのチームは出しません。</span><button type="button" class="hq-btn sm" data-hq="projects">並べる…</button></div>{{end}}{{end}}
 {{end}}
 
 {{define "nav_page"}}<!doctype html>

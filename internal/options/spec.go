@@ -124,7 +124,7 @@ var specs = []Spec{
 		Summary: text("Restart a member; add one the definition has", "メンバーを起動し直す。定義にあれば足す"),
 		Detail: text(
 			"End each selected member's agent and start it again in the same pane.\nA member the definition has and hergy made no pane for is given one in the\nteam's tab and started there; the last line then names hergy reprompt --all.\nGive a member or --all.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n定義にあって hergy が作ったペインが無いメンバーには、チームのタブに\nペインを作って起こす。そのあと最後の行で hergy reprompt --all を示す。\nメンバーか --all のどちらかを指定する。"),
+			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n定義にあって hergy が作ったペインが無いメンバーには、チームのタブに\nペインを作って起動する。そのあと最後の行で hergy reprompt --all を示す。\nメンバーか --all のどちらかを指定する。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(

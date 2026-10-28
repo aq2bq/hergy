@@ -533,8 +533,17 @@ func startCommand(definition, name string) string {
 	return command
 }
 
+// subject is what a launch's last line is about: the team a start booted, or the
+// members a refresh started (r-5d1a). Both read 起動しました, as hergy calls it.
+func (op *launchOp) subject() string {
+	if op.launch.Action == web.ActionRefresh {
+		return strings.Join(op.launch.Members, i18n.T("list.separator"))
+	}
+	return op.launch.Team
+}
+
 // wayOn is the command that goes on after a startup question, as the answer names
-// it: the start of the team, or the raise of the member that was being started
+// it: the start of the team, or the start of the member that was being started
 // (r-5d1a).
 func (op *launchOp) wayOn(member string) string {
 	if op.launch.Action == web.ActionRefresh {
@@ -609,11 +618,7 @@ func (h *hqRead) finish(op *launchOp, phase, reason string) {
 	op.launch.Waiting = nil
 	op.finished = time.Now()
 	if phase == "done" {
-		if op.launch.Action == web.ActionRefresh {
-			op.stepLocked("done", i18n.Tf("web.hq.raised", strings.Join(op.launch.Members, i18n.T("list.separator"))))
-		} else {
-			op.stepLocked("done", i18n.Tf("web.hq.started", op.launch.Team))
-		}
+		op.stepLocked("done", i18n.Tf("web.hq.started", op.subject()))
 	}
 	op.mu.Unlock()
 	h.act.forgetHerdr()
