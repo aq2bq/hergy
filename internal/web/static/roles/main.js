@@ -51,10 +51,10 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-63tsagqe.js";
+} from "../chunk/nav-4rbjgrmk.js";
 import {
   YamlTab2
-} from "../chunk/nav-0gag4ard.js";
+} from "../chunk/nav-faptd0c2.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
@@ -80,7 +80,7 @@ var DIR = Object.assign({ project: ".hergy/roles/", global: "~/.config/hergy/rol
 var TEXT = ISLAND.texts || {};
 var fill = (s, ...a) => String(s || "").replace(/%[sd]/g, () => a.length ? a.shift() || "" : "");
 var LNAME = { project: "プロジェクト", global: "グローバル" };
-var clone = (o) => JSON.parse(JSON.stringify(o));
+var clone = (o) => structuredClone(o);
 var other = (l) => l === "project" ? "global" : "project";
 var uid = 0;
 var refusalAt = (err) => {
@@ -235,6 +235,43 @@ function touch() {
   tellDirty();
   setCount2("roles", savedRoles().length);
 }
+function record(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isProblem(value) {
+  if (!record(value))
+    return false;
+  return (value.sev === "err" || value.sev === "warn") && typeof value.at === "string" && typeof value.text === "string" && typeof value.section === "number" && typeof value.rule === "number" && (value.field === undefined || typeof value.field === "string") && (value.line === undefined || typeof value.line === "number") && (value.definition === undefined || typeof value.definition === "string") && (value.role === undefined || typeof value.role === "string") && (value.rule_id === undefined || typeof value.rule_id === "string");
+}
+function isProblemList(value) {
+  return Array.isArray(value) && value.every(isProblem);
+}
+function isRolePreviewLine(value) {
+  return record(value) && typeof value.text === "string" && typeof value.part === "string" && typeof value.section === "number" && typeof value.rule === "number";
+}
+function isRolePreview(value) {
+  return record(value) && typeof value.chars === "number" && (value.lines === null || Array.isArray(value.lines) && value.lines.every(isRolePreviewLine));
+}
+function isRoleDiff(value) {
+  return record(value) && (value.added === null || Array.isArray(value.added) && value.added.every((line) => typeof line === "number")) && (value.removedBefore === null || Array.isArray(value.removedBefore) && value.removedBefore.every((line) => typeof line === "number")) && typeof value.removedAtEnd === "boolean";
+}
+function isRoleTurn(value) {
+  return record(value) && typeof value.section === "number" && typeof value.rule === "number" && typeof value.arrow === "string" && typeof value.definition === "string" && typeof value.ok === "boolean";
+}
+function isRoleReader(value) {
+  return record(value) && typeof value.definition === "string" && typeof value.member === "string";
+}
+function isRoleEffect(value) {
+  return record(value) && isRoleDiff(value.diff) && Array.isArray(value.turns) && value.turns.every(isRoleTurn);
+}
+function isRoleCheckData(value) {
+  if (!record(value))
+    return false;
+  return (value.problems === undefined || isProblemList(value.problems)) && (value.preview === undefined || isRolePreview(value.preview)) && (value.effect === undefined || isRoleEffect(value.effect)) && (value.readers === undefined || Array.isArray(value.readers) && value.readers.every(isRoleReader)) && (value.size === undefined || typeof value.size === "number") && (value.limit === undefined || typeof value.limit === "number");
+}
+function roleCheckData(value) {
+  return isRoleCheckData(value) ? value : {};
+}
 var checkers = new Map;
 function checkerFor(k) {
   let one = checkers.get(k);
@@ -245,7 +282,7 @@ function checkerFor(k) {
       return await check2("role", payload, { signal });
     } catch (err) {
       if (err instanceof Refusal2) {
-        return { ok: false, status: err.status, text: err.text, json: err.json };
+        return { ok: false, status: err.status, text: err.text, json: roleCheckData(err.json) };
       }
       throw err;
     }
@@ -388,9 +425,11 @@ function parseURL() {
         openNewPanel(r);
     });
     next.open = open;
+    const isPlace = (value) => value === "project" || value === "global";
     (qs.get("rule") || "").split(",").filter(Boolean).forEach((spec) => {
       const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-      const wanted = m ? [{ name: m[1], place: m[2], id: m[3] }] : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
+      const place = m && isPlace(m[2]) ? m[2] : null;
+      const wanted = m && place ? [{ name: m[1], place, id: m[3] }] : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
       wanted.forEach(({ name, place, id }) => {
         const r = roleByName(name);
         if (!r)
@@ -950,7 +989,10 @@ function ARow({ t, m, i }) {
               "data-t": t.id,
               "data-i": i,
               "aria-label": `${m.name} のロール`,
-              onChange: (e) => pickRole(t.id, i, e.currentTarget.value),
+              onChange: (e) => {
+                if (e.currentTarget instanceof HTMLSelectElement)
+                  pickRole(t.id, i, e.currentTarget.value);
+              },
               children: roleOptions(m.draft)
             })
           })
@@ -1327,7 +1369,10 @@ function List() {
             placeholder: "規則を探す",
             value: s.q,
             autocomplete: "off",
-            onInput: (e) => pressSearch(e.currentTarget.value)
+            onInput: (e) => {
+              if (e.currentTarget instanceof HTMLInputElement)
+                pressSearch(e.currentTarget.value);
+            }
           })
         ]
       }),

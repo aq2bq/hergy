@@ -22,6 +22,15 @@ import {
 } from "./nav-cve7m3v6.js";
 
 // lib/yamltab.tsx
+function isProblem(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const problem = Object.fromEntries(Object.entries(value));
+  return (problem.sev === "err" || problem.sev === "warn") && typeof problem.at === "string" && typeof problem.text === "string" && typeof problem.section === "number" && typeof problem.rule === "number" && (problem.field === undefined || typeof problem.field === "string") && (problem.line === undefined || typeof problem.line === "number") && (problem.definition === undefined || typeof problem.definition === "string") && (problem.role === undefined || typeof problem.role === "string") && (problem.rule_id === undefined || typeof problem.rule_id === "string");
+}
+function isProblemList(value) {
+  return Array.isArray(value) && value.every(isProblem);
+}
 async function checkText2(kind, place, name, text, extra) {
   try {
     const request = { place, ...kind === "profile" ? {} : { name }, text, ...extra };
@@ -34,7 +43,7 @@ async function checkText2(kind, place, name, text, extra) {
     if (typeof json !== "object" || json === null || !("problems" in json))
       return [];
     const problems = json.problems;
-    return Array.isArray(problems) ? problems : [];
+    return isProblemList(problems) ? problems : [];
   }
 }
 function saveText2(kind, name, place, text, hash, extra) {
@@ -168,10 +177,11 @@ function YamlTab2(props) {
       return;
     const lines = el.value.split(`
 `);
-    const start = lines.slice(0, line - 1).reduce((n, s) => n + s.length + 1, 0);
+    const targetLine = line ?? Number.NaN;
+    const start = lines.slice(0, targetLine - 1).reduce((n, s) => n + s.length + 1, 0);
     el.focus({ preventScroll: true });
-    el.setSelectionRange(start, start + (lines[line - 1] || "").length);
-    el.scrollTop = Math.max(0, (line - 4) * 20);
+    el.setSelectionRange(start, start + (lines[targetLine - 1] || "").length);
+    el.scrollTop = Math.max(0, (targetLine - 4) * 20);
     el.scrollLeft = 0;
   }
   h(() => {

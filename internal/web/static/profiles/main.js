@@ -34,7 +34,7 @@ import {
 import"../chunk/nav-fgwjqsd9.js";
 import {
   YamlTab2
-} from "../chunk/nav-0gag4ard.js";
+} from "../chunk/nav-faptd0c2.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";

@@ -95,7 +95,10 @@ export const tabsEl = document.getElementById('tabs');
 const ISLAND: RoleIsland = (() => {
   const el = document.getElementById('roles-data');
   if (!el) return {};
-  try { return JSON.parse(el.textContent || '{}') as RoleIsland; } catch { return {}; }
+  try {
+    // This is the browser boundary for the server-rendered roles JSON island.
+    return JSON.parse(el.textContent || '{}') as RoleIsland;
+  } catch { return {}; }
 })();
 
 export const PLACES: Place[] = ['project', 'global'];
@@ -105,13 +108,13 @@ export const TEXT: Record<string, string> = ISLAND.texts || {};
 // the server's (the same ones hergy validate prints).
 export const fill = (s: string | undefined, ...a: string[]): string => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() || '' : ''));
 export const LNAME: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
-export const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
+export const clone = <T,>(o: T): T => structuredClone(o);
 const other = (l: Place): Place => (l === 'project' ? 'global' : 'project');
 let uid = 0;
 
 const refusalAt = (err: unknown): unknown => {
   if (typeof err !== 'object' || err === null || !('json' in err)) return undefined;
-  const json = (err as { json?: unknown }).json;
+  const json = err.json;
   return typeof json === 'object' && json !== null && 'at' in json ? json.at : undefined;
 };
 
@@ -277,6 +280,84 @@ export function touch(): void {
 // before it is dropped (5 章 3). The screen keeps no numbering of its own.
 type RoleCheckData = Partial<Answer<'role', 'check'>>;
 type RoleCheckReading = RawAnswer<RoleCheckData>;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isProblem(value: unknown): value is components['schemas']['Problem'] {
+  if (!record(value)) return false;
+  return (value.sev === 'err' || value.sev === 'warn')
+    && typeof value.at === 'string'
+    && typeof value.text === 'string'
+    && typeof value.section === 'number'
+    && typeof value.rule === 'number'
+    && (value.field === undefined || typeof value.field === 'string')
+    && (value.line === undefined || typeof value.line === 'number')
+    && (value.definition === undefined || typeof value.definition === 'string')
+    && (value.role === undefined || typeof value.role === 'string')
+    && (value.rule_id === undefined || typeof value.rule_id === 'string');
+}
+
+function isProblemList(value: unknown): value is components['schemas']['Problem'][] {
+  return Array.isArray(value) && value.every(isProblem);
+}
+
+function isRolePreviewLine(value: unknown): value is components['schemas']['RolePreviewLine'] {
+  return record(value)
+    && typeof value.text === 'string'
+    && typeof value.part === 'string'
+    && typeof value.section === 'number'
+    && typeof value.rule === 'number';
+}
+
+function isRolePreview(value: unknown): value is components['schemas']['RolePreview'] {
+  return record(value)
+    && typeof value.chars === 'number'
+    && (value.lines === null || (Array.isArray(value.lines) && value.lines.every(isRolePreviewLine)));
+}
+
+function isRoleDiff(value: unknown): value is components['schemas']['RoleDiff'] {
+  return record(value)
+    && (value.added === null || (Array.isArray(value.added) && value.added.every((line) => typeof line === 'number')))
+    && (value.removedBefore === null || (Array.isArray(value.removedBefore) && value.removedBefore.every((line) => typeof line === 'number')))
+    && typeof value.removedAtEnd === 'boolean';
+}
+
+function isRoleTurn(value: unknown): value is components['schemas']['RoleTurn'] {
+  return record(value)
+    && typeof value.section === 'number'
+    && typeof value.rule === 'number'
+    && typeof value.arrow === 'string'
+    && typeof value.definition === 'string'
+    && typeof value.ok === 'boolean';
+}
+
+function isRoleReader(value: unknown): value is components['schemas']['RoleReader'] {
+  return record(value) && typeof value.definition === 'string' && typeof value.member === 'string';
+}
+
+function isRoleEffect(value: unknown): value is components['schemas']['RoleEffect'] {
+  return record(value)
+    && isRoleDiff(value.diff)
+    && Array.isArray(value.turns)
+    && value.turns.every(isRoleTurn);
+}
+
+function isRoleCheckData(value: unknown): value is RoleCheckData {
+  if (!record(value)) return false;
+  return (value.problems === undefined || isProblemList(value.problems))
+    && (value.preview === undefined || isRolePreview(value.preview))
+    && (value.effect === undefined || isRoleEffect(value.effect))
+    && (value.readers === undefined || (Array.isArray(value.readers) && value.readers.every(isRoleReader)))
+    && (value.size === undefined || typeof value.size === 'number')
+    && (value.limit === undefined || typeof value.limit === 'number');
+}
+
+function roleCheckData(value: unknown): RoleCheckData {
+  return isRoleCheckData(value) ? value : {};
+}
+
 const checkers = new Map<string, ReturnType<typeof resource<RoleCheckReading, [RoleCheckRequest]>>>();
 function checkerFor(k: string): ReturnType<typeof resource<RoleCheckReading, [RoleCheckRequest]>> {
   let one = checkers.get(k);
@@ -287,7 +368,7 @@ function checkerFor(k: string): ReturnType<typeof resource<RoleCheckReading, [Ro
     } catch (err) {
       // A refusal about the text still carries what is wrong with it.
       if (err instanceof Refusal) {
-        return { ok: false, status: err.status, text: err.text, json: err.json as RoleCheckData };
+        return { ok: false, status: err.status, text: err.text, json: roleCheckData(err.json) };
       }
       throw err;
     }
@@ -420,10 +501,12 @@ export function parseURL(): void {
     next.open = open;
     // A rule is given as <role>.<place>.<id>, or as its id alone when the
     // opening names the role (the team screen links so, d-8bbf).
+    const isPlace = (value: string | undefined): value is Place => value === 'project' || value === 'global';
     (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
       const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-      const wanted: Array<{ name: string; place: Place | null; id: string }> = m
-        ? [{ name: m[1], place: m[2] as Place, id: m[3] }]
+      const place = m && isPlace(m[2]) ? m[2] : null;
+      const wanted: Array<{ name: string; place: Place | null; id: string }> = m && place
+        ? [{ name: m[1], place, id: m[3] }]
         : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
       wanted.forEach(({ name, place, id }) => {
         const r = roleByName(name);

@@ -46,7 +46,7 @@ export function List() {
   return <><div class="toolbar">
       <button class="btn primary" data-act="new" onClick={pressNew}>＋ ロールを追加</button>
       <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)}</span></button>)}</div>
-      <input id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => pressSearch((e.currentTarget as HTMLInputElement).value)} />
+      <input id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     <div class="list">
       <div class="head"><span></span><span>ロール名</span><span>{HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>

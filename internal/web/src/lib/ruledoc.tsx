@@ -95,11 +95,17 @@ export type RulePanel = {
   saved: EditableDocument | null;
   draft: EditableDocument;
   name?: string;
-  markdown: components['schemas']['RolePreview'] | components['schemas']['TeamRuleMarkdown'];
-  diff: components['schemas']['RoleDiff'] | components['schemas']['TeamDiff'];
+  markdown: components['schemas']['RolePreview'] | components['schemas']['TeamRuleMarkdown'] | {
+    lines?: { text?: string; at?: string; part?: string; held?: string; section?: number; rule?: number }[] | null;
+    diff?: { added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean } | null;
+    chars?: number;
+  };
+  diff: components['schemas']['RoleDiff'] | components['schemas']['TeamDiff'] | {
+    added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean;
+  };
   issues?: RuleIssue[];
-  savedIssues?: RuleIssue[];
-  turns?: components['schemas']['RoleTurn'][] | components['schemas']['TeamRuleTurn'][] | null;
+  savedIssues?: RuleIssue[] | null;
+  turns?: components['schemas']['RoleTurn'][] | components['schemas']['TeamRuleTurn'][] | { from?: string; to?: string }[] | null;
 };
 
 export type RulePanelInput = Omit<RulePanel, 'e' | 'saved' | 'draft' | 'markdown' | 'diff' | 'turns' | 'savedIssues'> & {
@@ -147,7 +153,7 @@ type FieldProps = { as?: 'input' | 'textarea'; value?: string | number | null; [
 type DragTarget = { si: number; k: number | null; before?: boolean };
 type DragState = { row: RulePanel; key: string; k: number; to: DragTarget | null };
 
-const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
+const clone = <T,>(o: T): T => structuredClone(o);
 const reEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const num = (n: number): string => Number(n || 0).toLocaleString('ja-JP');
 const $$ = (sel: string, root: ParentNode = document): Element[] => Array.from(root.querySelectorAll(sel));
@@ -166,7 +172,7 @@ function fromJSON(source: unknown): EditableDocument {
   // page. Decode only the fields this editor owns; missing members get the same
   // empty values the former JavaScript reader used.
   const object = (value: unknown): Record<string, unknown> =>
-    value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
   const d = object(source);
   const sections = Array.isArray(d.sections) ? d.sections : [];
   return {
@@ -197,10 +203,29 @@ function fromJSON(source: unknown): EditableDocument {
   };
 }
 
+function isEditableDocument(d: RulePanelDocument | EditableDocument): d is EditableDocument {
+  return typeof d.name === 'string'
+    && typeof d.title === 'string'
+    && (typeof d.revision === 'number' || d.revision === null)
+    && d.sections.every((section) =>
+      (typeof section._s === 'number' || section._s === null)
+      && typeof section.heading === 'string'
+      && typeof section.level === 'number'
+      && typeof section.intro === 'string'
+      && section.rules.every((rule) =>
+        typeof rule._k === 'number'
+        && typeof rule.id === 'string'
+        && typeof rule.text === 'string'
+        && typeof rule.note === 'string'
+        && typeof rule.in_prompt === 'boolean'
+        && typeof rule.off_since === 'string'));
+}
+
 function toEditableDocument(d: RulePanelDocument | EditableDocument): EditableDocument {
-  // Every row enters through fromJSON; the team screen's wider declaration
-  // reflects optional members, not a different runtime document.
-  return d as EditableDocument;
+  // Role and team rows are normalized by fromJSON. Keep their shared draft
+  // object, while checking that invariant before the editor reads required fields.
+  if (!isEditableDocument(d)) throw new TypeError('RuleDoc received a document that was not normalized by fromJSON');
+  return d;
 }
 
 // toDoc is the draft as the server reads it. Each rule and each section carries
@@ -608,7 +633,8 @@ function Preview({ row, issues }: PreviewProps) {
   const added = new Set(df.added || []), removedBefore = new Set(df.removedBefore || []);
   let ri = -1;
   const rows = lines.map((z) => {
-    const k = z.section >= 0 ? ruleKeyAt(row.draft, z.section, z.rule) : 0;
+    const section = z.section ?? -1;
+    const k = section >= 0 ? ruleKeyAt(row.draft, section, z.rule ?? -1) : 0;
     if (z.part === 'excluded') {
       return <div class={['yl ghost go', fc && fc.k && k === fc.k ? 'cur' : ''].filter(Boolean).join(' ')} data-act="yline" data-k={k} data-part="rule"><span class="lno"></span><span class="yt" data-h="0" style={{ '--h': '0' }}><span class="mk out">オフ</span><s>{z.text || ''}</s></span></div>;
     }
@@ -620,7 +646,7 @@ function Preview({ row, issues }: PreviewProps) {
     const ms = issues.filter((m) => m.f !== 'name' && (k ? m.k === k : m.k === 0 && ri === 0));
     const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
     const { h, node } = mdHL(String(z.text || ''));
-    const go = k || z.section >= 0 || z.part === 'title';
+    const go = k || section >= 0 || z.part === 'title';
     const here = fc && fc.k && k === fc.k;
     const around = here && fc.f === 'text';
     const near = fc && !fc.k && (z.part === 'title' || z.part === 'heading' || z.part === 'intro')
@@ -628,12 +654,16 @@ function Preview({ row, issues }: PreviewProps) {
     const cls = ['yl', sev, added.has(ri) ? 'ins' : '', removedBefore.has(ri) ? 'del' : '', here ? 'cur' : '', around || near ? 'curf' : '', go ? 'go' : ''].filter(Boolean).join(' ');
     // Only a line a person can go to carries the act and the place it goes to;
     // some lines carry the problems that stand on them as their title.
-    const props: Record<string, string | number> = go ? { 'data-act': 'yline', 'data-k': k, 'data-si': z.section, 'data-part': z.part } : {};
+    const props: Record<string, string | number> = go ? {
+      'data-act': 'yline', 'data-k': k,
+      ...(z.section === undefined ? {} : { 'data-si': z.section }),
+      ...(z.part === undefined ? {} : { 'data-part': z.part }),
+    } : {};
     if (ms.length) props.title = ms.map((m) => m.text).join('\n');
     return <div class={cls} {...props}><span class="lno">{ri + 1}</span><span class="yt" data-h={h} style={{ '--h': String(h) }}>{node && node.length ? node : ' '}</span></div>;
   });
   const nadd = added.size, ndel = removedBefore.size;
-  return <><div class="yph"><span class="pkl">Markdown</span><span class="yinfo"><span class="vt">{`${ri + 1} 行 · ${num(md.chars)} 文字`}</span>{nadd || ndel ? <span class="dirty">{`+${nadd} −${ndel}`}</span> : ''}<span class="yr">{issues.length ? <span class="vcount"><Counts list={issues} /></span> : <span class="vclean">✓ 問題なし</span>}</span></span></div>
+  return <><div class="yph"><span class="pkl">Markdown</span><span class="yinfo"><span class="vt">{`${ri + 1} 行 · ${num(md.chars ?? 0)} 文字`}</span>{nadd || ndel ? <span class="dirty">{`+${nadd} −${ndel}`}</span> : ''}<span class="yr">{issues.length ? <span class="vcount"><Counts list={issues} /></span> : <span class="vclean">✓ 問題なし</span>}</span></span></div>
     <div class="ybox" ref={box} onScroll={() => { if (box.current && row) scrolled[key] = box.current.scrollTop; }}>{rows}</div></>;
 }
 
@@ -736,12 +766,19 @@ function mode(h: InternalRuleDocProps, v: 'edit' | 'md'): void { if (h.onMode) h
 // the body ready to be typed in. A rule the document does not hold leaves the
 // panel as it is.
 export function openRule(input: RulePanelInput, k: number): void {
-  // A teams panel row is the same normalized row with a wider declared type.
-  const row = input as unknown as RulePanel;
-  if (!row || !k) return;
-  ropen.value = new Set(ropen.value).add(rkey(row, { _k: k }));
-  focusAt(row.uid + row.l, { k, f: 'text' });
+  if (!k) return;
+  ropen.value = new Set(ropen.value).add(`${input.uid}${input.l}:${k}`);
+  focusAt(input.uid + input.l, { k, f: 'text' });
   ask(`.rule[data-k="${k}"] [data-f=text]`, 'center');
+}
+
+function panelRow(input: RulePanelInput): RulePanel {
+  return {
+    ...input,
+    e: input.e ? { ...input.e, saved: input.e.saved ? toEditableDocument(input.e.saved) : null } : undefined,
+    saved: input.saved ? toEditableDocument(input.saved) : null,
+    draft: toEditableDocument(input.draft),
+  };
 }
 
 function handleClick(h: InternalRuleDocProps, b: HTMLElement): boolean {
@@ -866,9 +903,9 @@ function handleInput(h: InternalRuleDocProps, t: HTMLInputElement | HTMLTextArea
 export function RuleDoc(props: RuleDocProps) {
   const edit = useRef<HTMLDivElement | null>(null);
   const lastAsk = useRef(0), lastFlash = useRef(0);
-  // The team screen's declared RuleDoc is wider than the normalized object
-  // created by fromJSON; keep its row unchanged at the component boundary.
-  const h: InternalRuleDocProps = { ...props, row: props.row as unknown as RulePanel };
+  // The screens use different declarations for the same normalized document;
+  // panelRow checks them and keeps the draft object the screens already hold.
+  const h: InternalRuleDocProps = { ...props, row: panelRow(props.row) };
   // The caret and the flash a press asked for are this component's to put in
   // place after the draw, so it reads them itself: a press that asks for either
   // draws this component even when the screen drew nothing.

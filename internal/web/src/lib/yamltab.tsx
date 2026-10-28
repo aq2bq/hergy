@@ -16,6 +16,7 @@
 // things as props (依頼書 4).
 import { useEffect, useRef, useState } from './preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
+import type { RawAnswer } from './api.js';
 import type { components, operations } from '../../../apicontract/api-types';
 
 type Place = operations['getTeam']['parameters']['query']['place'];
@@ -27,13 +28,10 @@ type CheckRequest = components['schemas']['RoleCheckRequest']
 type SaveRequest = components['schemas']['RoleSaveRequest']
   | components['schemas']['TeamSaveRequest']
   | components['schemas']['ProfileSaveRequest'];
-type CheckJson = components['schemas']['RoleCheck']
-  | components['schemas']['TeamCheckResponse']
-  | components['schemas']['ProfileCheck'];
 type SavedJson = components['schemas']['RoleSaved']
   | components['schemas']['TeamSaved']
   | components['schemas']['ProfileSaved'];
-type ApiAnswer<T> = { ok: boolean; status: number; json: T | null; text: string };
+type ApiAnswer<T> = RawAnswer<T>;
 type YamlState = { base: string; text: string; hash: string };
 type YamlWorkingState = { text: string; problems: Problem[]; baseProblems: Problem[] };
 
@@ -56,6 +54,25 @@ export type YamlTabProps = {
   onSaved?: (answer: ApiAnswer<SavedJson>) => void;
 };
 
+function isProblem(value: unknown): value is Problem {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const problem = Object.fromEntries(Object.entries(value));
+  return (problem.sev === 'err' || problem.sev === 'warn')
+    && typeof problem.at === 'string'
+    && typeof problem.text === 'string'
+    && typeof problem.section === 'number'
+    && typeof problem.rule === 'number'
+    && (problem.field === undefined || typeof problem.field === 'string')
+    && (problem.line === undefined || typeof problem.line === 'number')
+    && (problem.definition === undefined || typeof problem.definition === 'string')
+    && (problem.role === undefined || typeof problem.role === 'string')
+    && (problem.rule_id === undefined || typeof problem.rule_id === 'string');
+}
+
+function isProblemList(value: unknown): value is Problem[] {
+  return Array.isArray(value) && value.every(isProblem);
+}
+
 
 // checkText asks the server what is wrong with one file's text. The kind says
 // which files these are, and extra carries the kind's own word for which one
@@ -72,7 +89,7 @@ export async function checkText(
     // A profile's file is known from its place; only a role's file and a team
     // definition's read a name from the body (n-3f6c).
     const request: CheckRequest = { place, ...(kind === 'profile' ? {} : { name }), text, ...extra };
-    const answer = await apiCheck(kind, request) as ApiAnswer<CheckJson>;
+    const answer = await apiCheck(kind, request);
     return (answer.json && answer.json.problems) || [];
   } catch (e) {
     // A refusal still carries what the server said about the text; a reading
@@ -81,7 +98,7 @@ export async function checkText(
     const json: unknown = e.json;
     if (typeof json !== 'object' || json === null || !('problems' in json)) return [];
     const problems = json.problems;
-    return Array.isArray(problems) ? problems as Problem[] : [];
+    return isProblemList(problems) ? problems : [];
   }
 }
 
@@ -98,7 +115,7 @@ export function saveText(
   extra?: YamlTabProps['extra'],
 ): Promise<ApiAnswer<SavedJson>> {
   const request: SaveRequest = { place, ...(kind === 'profile' ? {} : { name }), text, hash: hash || '', ...extra };
-  return apiSave(kind, name, request) as Promise<ApiAnswer<SavedJson>>;
+  return apiSave(kind, name, request);
 }
 
 // tellDirty lets the page mark itself as carrying unsaved work, the same way the
@@ -252,10 +269,11 @@ export function YamlTab(props: YamlTabProps) {
     const el = ta.current;
     if (!el) return;
     const lines = el.value.split('\n');
-    const start = lines.slice(0, (line as number) - 1).reduce((n: number, s: string) => n + s.length + 1, 0);
+    const targetLine = line ?? Number.NaN;
+    const start = lines.slice(0, targetLine - 1).reduce((n: number, s: string) => n + s.length + 1, 0);
     el.focus({ preventScroll: true });
-    el.setSelectionRange(start, start + (lines[(line as number) - 1] || '').length);
-    el.scrollTop = Math.max(0, ((line as number) - 4) * 20);
+    el.setSelectionRange(start, start + (lines[targetLine - 1] || '').length);
+    el.scrollTop = Math.max(0, (targetLine - 4) * 20);
     el.scrollLeft = 0;
   }
 

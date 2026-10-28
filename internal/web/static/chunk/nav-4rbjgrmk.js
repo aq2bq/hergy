@@ -16,13 +16,13 @@ import {
 } from "./nav-fa78a466.js";
 
 // lib/ruledoc.tsx
-var clone2 = (o) => JSON.parse(JSON.stringify(o));
+var clone2 = (o) => structuredClone(o);
 var reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
 var $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 var kseq = 0;
 function fromJSON2(source) {
-  const object = (value) => value !== null && typeof value === "object" ? value : {};
+  const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
   const d = object(source);
   const sections = Array.isArray(d.sections) ? d.sections : [];
   return {
@@ -52,7 +52,12 @@ function fromJSON2(source) {
     })
   };
 }
+function isEditableDocument(d) {
+  return typeof d.name === "string" && typeof d.title === "string" && (typeof d.revision === "number" || d.revision === null) && d.sections.every((section) => (typeof section._s === "number" || section._s === null) && typeof section.heading === "string" && typeof section.level === "number" && typeof section.intro === "string" && section.rules.every((rule) => typeof rule._k === "number" && typeof rule.id === "string" && typeof rule.text === "string" && typeof rule.note === "string" && typeof rule.in_prompt === "boolean" && typeof rule.off_since === "string"));
+}
 function toEditableDocument(d) {
+  if (!isEditableDocument(d))
+    throw new TypeError("RuleDoc received a document that was not normalized by fromJSON");
   return d;
 }
 function toDoc2(draft, saved) {
@@ -866,7 +871,8 @@ function Preview({ row, issues }) {
   const added = new Set(df.added || []), removedBefore = new Set(df.removedBefore || []);
   let ri = -1;
   const rows = lines.map((z) => {
-    const k = z.section >= 0 ? ruleKeyAt(row.draft, z.section, z.rule) : 0;
+    const section = z.section ?? -1;
+    const k = section >= 0 ? ruleKeyAt(row.draft, section, z.rule ?? -1) : 0;
     if (z.part === "excluded") {
       return /* @__PURE__ */ u("div", {
         class: ["yl ghost go", fc && fc.k && k === fc.k ? "cur" : ""].filter(Boolean).join(" "),
@@ -898,12 +904,17 @@ function Preview({ row, issues }) {
     const ms = issues.filter((m) => m.f !== "name" && (k ? m.k === k : m.k === 0 && ri === 0));
     const sev = ms.some((m) => m.sev === "err") ? "err" : ms.length ? "warn" : "";
     const { h, node } = mdHL(String(z.text || ""));
-    const go = k || z.section >= 0 || z.part === "title";
+    const go = k || section >= 0 || z.part === "title";
     const here = fc && fc.k && k === fc.k;
     const around = here && fc.f === "text";
     const near = fc && !fc.k && (z.part === "title" || z.part === "heading" || z.part === "intro") && (z.part === "title" && fc.f === "title" || z.part !== "title" && (fc.f || "").startsWith("sec."));
     const cls = ["yl", sev, added.has(ri) ? "ins" : "", removedBefore.has(ri) ? "del" : "", here ? "cur" : "", around || near ? "curf" : "", go ? "go" : ""].filter(Boolean).join(" ");
-    const props = go ? { "data-act": "yline", "data-k": k, "data-si": z.section, "data-part": z.part } : {};
+    const props = go ? {
+      "data-act": "yline",
+      "data-k": k,
+      ...z.section === undefined ? {} : { "data-si": z.section },
+      ...z.part === undefined ? {} : { "data-part": z.part }
+    } : {};
     if (ms.length)
       props.title = ms.map((m) => m.text).join(`
 `);
@@ -939,7 +950,7 @@ function Preview({ row, issues }) {
             children: [
               /* @__PURE__ */ u("span", {
                 class: "vt",
-                children: `${ri + 1} 行 · ${num(md.chars)} 文字`
+                children: `${ri + 1} 行 · ${num(md.chars ?? 0)} 文字`
               }),
               nadd || ndel ? /* @__PURE__ */ u("span", {
                 class: "dirty",
@@ -1080,12 +1091,19 @@ function mode(h, v) {
     h.onMode(v);
 }
 function openRule2(input, k) {
-  const row = input;
-  if (!row || !k)
+  if (!k)
     return;
-  ropen.value = new Set(ropen.value).add(rkey(row, { _k: k }));
-  focusAt(row.uid + row.l, { k, f: "text" });
+  ropen.value = new Set(ropen.value).add(`${input.uid}${input.l}:${k}`);
+  focusAt(input.uid + input.l, { k, f: "text" });
   ask(`.rule[data-k="${k}"] [data-f=text]`, "center");
+}
+function panelRow(input) {
+  return {
+    ...input,
+    e: input.e ? { ...input.e, saved: input.e.saved ? toEditableDocument(input.e.saved) : null } : undefined,
+    saved: input.saved ? toEditableDocument(input.saved) : null,
+    draft: toEditableDocument(input.draft)
+  };
 }
 function handleClick(h, b) {
   const act = b.dataset.act, c = ctx(h.row, b), row = c.row;
@@ -1285,7 +1303,7 @@ function handleInput(h, t) {
 function RuleDoc2(props) {
   const edit = A(null);
   const lastAsk = A(0), lastFlash = A(0);
-  const h = { ...props, row: props.row };
+  const h = { ...props, row: panelRow(props.row) };
   askAt.value;
   flashAt.value;
   _(() => {
