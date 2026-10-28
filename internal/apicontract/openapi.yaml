@@ -453,11 +453,12 @@ paths:
       operationId: listActivity
       summary: 動いているチームの一覧
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 活動の一覧と数
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ActivityList'
   /api/activity/{name}:
     get:
       operationId: getActivity
@@ -469,11 +470,18 @@ paths:
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 開いたチームの活動
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ActivityOpened'
+        "404":
+          description: 動いているチームが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
     put:
       operationId: saveActivity
       summary: 活動は読むだけなので断る
@@ -483,16 +491,14 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        content:
-          application/json:
-            schema: {}
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "405":
+          description: 活動は読むだけ
           content:
-            application/json:
-              schema: {}
+            text/plain:
+              schema:
+                type: string
+                description: 読み取り専用のため断った理由
     delete:
       operationId: deleteActivity
       summary: 活動は読むだけなので断る
@@ -503,48 +509,76 @@ paths:
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "405":
+          description: 活動は読むだけ
           content:
-            application/json:
-              schema: {}
+            text/plain:
+              schema:
+                type: string
+                description: 読み取り専用のため断った理由
   /api/activity/check:
     post:
       operationId: checkActivity
       summary: 活動は読むだけなので断る
-      requestBody:
-        content:
-          application/json:
-            schema: {}
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "405":
+          description: 活動は読むだけ
           content:
-            application/json:
-              schema: {}
+            text/plain:
+              schema:
+                type: string
+                description: 読み取り専用のため断った理由
   /api/delivery:
     get:
       operationId: listDelivery
       summary: 変更を伝えていない人の一覧
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 変更を伝えていないメンバー
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/DeliveryAnswer'
     post:
       operationId: deliver
       summary: 選んだメンバーに送り直す
       requestBody:
+        required: true
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 送ったメンバーと更新後の一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/DeliveryAnswer'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 変更を伝える読み取りがない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 読み取りがない理由
+        "422":
+          description: 要求を読めないか、選んだメンバーに送れない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 要求本文を読めない理由
   /api/delivery/count:
     get:
       operationId: countDelivery
@@ -569,107 +603,266 @@ paths:
       operationId: listHQProjects
       summary: 並べたプロジェクト
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 本部が読むプロジェクト
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQProjects'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
     post:
       operationId: addHQProject
       summary: プロジェクトを並べる
       requestBody:
+        required: true
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/HQAddProjectRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 追加後のプロジェクト一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQProjects'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "422":
+          description: 要求を読めないか、プロジェクトを並べられない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
     delete:
       operationId: removeHQProject
       summary: プロジェクトを並びから外す
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema:
+            type: string
+            description: 並びから外すプロジェクトの場所
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 削除後のプロジェクト一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQProjects'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 並びから外すプロジェクトがない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "422":
+          description: プロジェクトを並びから外せない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/teams:
     get:
       operationId: listHQTeams
       summary: 並べたプロジェクトのチーム定義
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: プロジェクトごとのチーム定義
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQGroups'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/roles:
     get:
       operationId: listHQRoles
       summary: 並べたプロジェクトのロール
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: プロジェクトごとのロール
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQGroups'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/profiles:
     get:
       operationId: listHQProfiles
       summary: 並べたプロジェクトのプロファイル
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: プロジェクトごとのプロファイル
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQGroups'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/running:
     get:
       operationId: listHQRunning
       summary: 動いているチーム
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 動いているチームと herdr の状態
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQRunning'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/workspaces:
     get:
       operationId: listHQWorkspaces
       summary: herdr のワークスペース
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: herdr のワークスペース
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQWorkspaces'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/launch/options:
     get:
       operationId: getHQLaunchOptions
       summary: 起動の欄の選択肢
+      parameters:
+        - name: project
+          in: query
+          required: false
+          schema:
+            type: string
+            description: 起動するチーム定義が属するプロジェクト
+        - name: definition
+          in: query
+          required: false
+          schema:
+            type: string
+            description: 起動するチーム定義名
+        - name: place
+          in: query
+          required: false
+          schema:
+            type: string
+            description: チーム定義を読む場所
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 起動の選択肢
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQLaunchOptions'
+        "422":
+          description: 起動の選択肢を作れない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/launch:
     post:
       operationId: startHQLaunch
       summary: チームを起動する
       requestBody:
+        required: true
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/HQLaunchRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "202":
+          description: 起動を受け付けた
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQLaunchEnvelope'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "409":
+          description: 名前が重なったか、ワークスペースが使えない（workspace_taken・workspace_busy）
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Refusal'
+                  - $ref: '#/components/schemas/HQLaunchNameTaken'
+        "422":
+          description: チームを起動できない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部または herdr を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/launches/{id}:
     get:
       operationId: getHQLaunch
@@ -681,11 +874,24 @@ paths:
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 起動の進み具合
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQLaunchEnvelope'
+        "404":
+          description: 起動記録が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
     delete:
       operationId: cancelHQLaunch
       summary: 起動の待ちをやめる
@@ -696,39 +902,115 @@ paths:
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 待ちをやめた起動の状態
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQLaunchEnvelope'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 起動記録が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/stop:
     post:
       operationId: stopHQTeam
       summary: チームを止める
       requestBody:
+        required: true
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/HQStopRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 止めたチームと閉じた数
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQStopped'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 動いているチームが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部または herdr を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/hq/refresh:
     post:
       operationId: refreshHQMembers
       summary: 起動していないメンバーを起動する
       requestBody:
+        required: true
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/HQRefreshRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "202":
+          description: 起動を受け付けた
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HQLaunchEnvelope'
+        "403":
+          description: 書き込みを許可できない
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 断った理由
+        "404":
+          description: 動いているチームが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "409":
+          description: チームまたはメンバーが起動中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "422":
+          description: メンバーを起動できない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        "503":
+          description: 本部または herdr を読めない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
 components:
   schemas:
     Problem:
@@ -1680,3 +1962,1594 @@ components:
         rename_users:
           type: boolean
           description: 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか
+    ActivityList:
+      description: 動いているチームの活動と数
+      type: object
+      additionalProperties: false
+      required: [items, running, waiting, herdr]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityItem'
+          description: 活動を表示するチームの一覧
+        running:
+          type: integer
+          description: 動いているチームの数
+        waiting:
+          type: integer
+          description: 人間を待っているメンバーの数
+        herdr:
+          allOf:
+            - $ref: '#/components/schemas/ActivityNote'
+          description: herdr を読めたかと、読めない理由
+    ActivityItem:
+      description: 活動の一覧にあるチーム 1 件
+      type: object
+      additionalProperties: false
+      required: [name, summary, problems, error, project, project_name, workspace]
+      properties:
+        name:
+          type: string
+          description: チーム名
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/ActivitySummary'
+          description: チームの状態と直近のメンバー
+        problems:
+          allOf:
+            - $ref: '#/components/schemas/ActivityProblems'
+          description: 活動の問題の数
+        error:
+          type: string
+          description: チーム定義を読めない理由。読めるときは空
+        project:
+          type: string
+          description: チームが属するプロジェクトの場所
+        project_name:
+          type: string
+          description: プロジェクト名
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/ActivitySpace'
+          description: チームが動いているワークスペース
+    ActivitySummary:
+      description: 活動一覧に出すチームの状態
+      type: object
+      additionalProperties: false
+      required: [definition, state, last]
+      properties:
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        state:
+          type: string
+          description: チームの活動状態
+        last:
+          type: string
+          description: 人間を待っている、または最後に動いたメンバー名
+        since:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ActivitySince'
+          description: 活動状態が続いている長さと開始時刻。ないときは省略
+        working:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ActivityWork'
+          description: 動いているメンバーとワーカーの数。ないときは省略
+    ActivitySince:
+      description: 活動状態が続いている長さと開始時刻
+      type: object
+      additionalProperties: false
+      required: [len, at, lower]
+      properties:
+        len:
+          type: string
+          description: 活動状態が続いている長さ
+        at:
+          type: string
+          description: 活動状態が始まった時刻
+        lower:
+          type: boolean
+          description: 時刻が監視を始める前を示すか
+    ActivityWork:
+      description: 動いているメンバーとワーカーの数
+      type: object
+      additionalProperties: false
+      required: [members, workers]
+      properties:
+        members:
+          type: array
+          items:
+            type: string
+          description: 動いているメンバー名
+        workers:
+          type: integer
+          description: 動いているワーカーの数
+    ActivityProblems:
+      description: 活動一覧で数える問題
+      type: object
+      additionalProperties: false
+      required: [err, warn]
+      properties:
+        err:
+          type: integer
+          description: エラーの数
+        warn:
+          type: integer
+          description: 警告の数
+    ActivityNote:
+      description: 読み取り元を読めたかと、読めない理由
+      type: object
+      additionalProperties: false
+      required: [ok, text]
+      properties:
+        ok:
+          type: boolean
+          description: 読み取り元を読めたか
+        text:
+          type: string
+          description: 読み取り元を読めない理由。読めたときは空
+    ActivitySpace:
+      description: 活動のチームが動いているワークスペース
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          description: ワークスペースの ID
+        label:
+          type: string
+          description: ワークスペース名
+    ActivityOpened:
+      description: 開いたチームの活動
+      type: object
+      additionalProperties: false
+      required: [doc]
+      properties:
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/ActivityDocument'
+          description: チームの活動の詳細
+    ActivityDocument:
+      description: 開いたチームの活動の詳細
+      type: object
+      additionalProperties: false
+      required: [name, definition, project, project_name, workspace, state, last, herdr, role, nodes, hired, questions, tail, gy, error]
+      properties:
+        name:
+          type: string
+          description: チーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        project:
+          type: string
+          description: チームが属するプロジェクトの場所
+        project_name:
+          type: string
+          description: プロジェクト名
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/ActivitySpace'
+          description: チームが動いているワークスペース
+        state:
+          type: string
+          description: チームの活動状態
+        last:
+          type: string
+          description: 人間を待っている、または最後に動いたメンバー名
+        herdr:
+          type: string
+          description: チームの主なメンバーの herdr 名
+        role:
+          type: string
+          description: 主なメンバーのロール名
+        since:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ActivitySince'
+          description: 活動状態が続いている長さと開始時刻。ないときは省略
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityNode'
+          description: チーム定義のメンバーとそれぞれの状態
+        hired:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityNode'
+          description: チームのワーカーとそれぞれの状態
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityQuestion'
+          description: 主なメンバーが出した未決の質問
+        tail:
+          allOf:
+            - $ref: '#/components/schemas/ActivityTail'
+          description: 主なメンバーの pane の末尾
+        gy:
+          allOf:
+            - $ref: '#/components/schemas/ActivityNote'
+          description: gy を読めたかと、読めない理由
+        error:
+          type: string
+          description: チーム定義を読めない理由。読めるときは空
+    ActivityNode:
+      description: 活動の詳細にあるメンバーまたはワーカー
+      type: object
+      additionalProperties: false
+      required: [name, herdr, state, at]
+      properties:
+        name:
+          type: string
+          description: メンバー名、またはワーカー名
+        herdr:
+          type: string
+          description: メンバーまたはワーカーの herdr 名
+        state:
+          type: string
+          description: メンバーまたはワーカーの状態
+        at:
+          type: string
+          description: 状態が始まった時刻。動いているか pane がないときは空
+        since_at:
+          type: string
+          description: 状態が始まった時刻を表示する文
+        doing:
+          type: string
+          description: herdr が示す作業名
+        from:
+          type: string
+          description: このワーカーを雇ったメンバー名
+        stale:
+          type: boolean
+          description: メンバーに渡した初期プロンプトが現在のものと異なるか
+    ActivityQuestion:
+      description: メンバーが出した未決の質問
+      type: object
+      additionalProperties: false
+      required: [id, title, ago, options]
+      properties:
+        id:
+          type: string
+          description: 質問の ID
+        title:
+          type: string
+          description: 質問の題名
+        ago:
+          type: string
+          description: 質問が出てからの長さ
+        options:
+          type: array
+          items:
+            type: string
+          description: 質問への選択肢
+    ActivityTail:
+      description: 主なメンバーの pane の末尾
+      type: object
+      additionalProperties: false
+      required: [lines, shown]
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+          description: pane の末尾の行
+        shown:
+          type: integer
+          description: 画面に表示する末尾の行数
+    DeliveryRequest:
+      description: 初期プロンプトを送り直すメンバー
+      type: object
+      additionalProperties: false
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            type: string
+          description: 初期プロンプトを受け取るメンバーの herdr 名
+    DeliveryAnswer:
+      description: 初期プロンプトが現在の定義と異なるメンバーと送信結果
+      type: object
+      additionalProperties: false
+      required: [count, teams, herdr]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: 変更を伝えていないメンバーの数
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryTeam'
+          description: 変更を伝えていないメンバーがいるチーム
+        sent:
+          type: array
+          items:
+            type: string
+          description: 初期プロンプトを受け取ったメンバーの herdr 名
+        refused:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryRefusal'
+          description: 初期プロンプトを受け取らなかったメンバー
+        herdr:
+          allOf:
+            - $ref: '#/components/schemas/DeliveryNote'
+          description: herdr を読めたかと、読めない理由
+    DeliveryTeam:
+      description: 変更を伝えていないメンバーがいるチーム
+      type: object
+      additionalProperties: false
+      required: [name, definition, members]
+      properties:
+        name:
+          type: string
+          description: チーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryMember'
+          description: 変更を伝えていないメンバー
+    DeliveryMember:
+      description: 初期プロンプトが現在の定義と異なるメンバー
+      type: object
+      additionalProperties: false
+      required: [name, short, role, state, can_send, changes]
+      properties:
+        name:
+          type: string
+          description: メンバーの herdr 名
+        short:
+          type: string
+          description: メンバー名
+        role:
+          type: string
+          description: メンバーのロール名
+        state:
+          type: string
+          description: メンバーの活動状態
+        can_send:
+          type: boolean
+          description: メンバーが人間を待っていて送信できるか
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryChange'
+          description: 初期プロンプトの変更
+    DeliveryRefusal:
+      description: 初期プロンプトを受け取らなかったメンバーと理由
+      type: object
+      additionalProperties: false
+      required: [name, text]
+      properties:
+        name:
+          type: string
+          description: メンバーの herdr 名
+        text:
+          type: string
+          description: 送信できなかった理由
+    DeliveryNote:
+      description: herdr を読めたかと、読めない理由
+      type: object
+      additionalProperties: false
+      required: [ok, text]
+      properties:
+        ok:
+          type: boolean
+          description: herdr を読めたか
+        text:
+          type: string
+          description: herdr を読めない理由。読めたときは空
+    DeliveryChange:
+      description: メンバーの初期プロンプトで変わった 1 項目
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          description: 変更の種類
+        document:
+          type: string
+          description: 変更があった文書
+        rule:
+          type: string
+          description: 変更があった規則の ID
+        turn:
+          type: string
+          description: 変更があったターン
+        worker:
+          type: string
+          description: 変更があったワーカー
+        text:
+          type: string
+          description: 変更内容を伝える文
+    HQProjects:
+      description: 本部が読む現在のプロジェクト、並べたプロジェクト、共通の数
+      type: object
+      additionalProperties: false
+      required: [config, mode, current, projects, global]
+      properties:
+        config:
+          type: string
+          description: プロジェクト一覧を持つ設定ファイルの場所
+        mode:
+          type: string
+          description: プロジェクトを並べた設定か、現在のプロジェクトだけを使うか
+        current:
+          allOf:
+            - $ref: '#/components/schemas/HQProject'
+          description: serve を起動したプロジェクト
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQProject'
+          description: 本部に表示するプロジェクト
+        global:
+          allOf:
+            - $ref: '#/components/schemas/HQGlobal'
+          description: 共通のチーム定義、ロール、プロファイルの数
+    HQProject:
+      description: 本部に表示するプロジェクト
+      type: object
+      additionalProperties: false
+      required: [path, name, display, listed, current, exists, has_hergy, definitions, roles, profiles, running]
+      properties:
+        path:
+          type: string
+          description: プロジェクトの場所
+        name:
+          type: string
+          description: プロジェクト名
+        display:
+          type: string
+          description: 画面に表示するプロジェクトの場所
+        listed:
+          type: boolean
+          description: 本部に並んでいるか
+        current:
+          type: boolean
+          description: serve を起動したプロジェクトか
+        exists:
+          type: boolean
+          description: プロジェクトの場所が存在するか
+        has_hergy:
+          type: boolean
+          description: プロジェクトに hergy の設定があるか
+        definitions:
+          type: integer
+          description: チーム定義の数
+        roles:
+          type: integer
+          description: ロールの数
+        profiles:
+          type: integer
+          description: プロファイルの数
+        running:
+          type: integer
+          description: 動いているチームの数
+        last_launch:
+          type: string
+          description: 最後にチームを起動した時刻
+        last_workspace:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspace'
+          description: チーム定義を最後に起動したワークスペース
+        source:
+          type: string
+          description: 並んでいないプロジェクトを候補に出す理由
+    HQGlobal:
+      description: 共通の設定が持つチーム定義、ロール、プロファイルの数
+      type: object
+      additionalProperties: false
+      required: [path, display, definitions, roles, profiles]
+      properties:
+        path:
+          type: string
+          description: 共通の設定の場所
+        display:
+          type: string
+          description: 画面に表示する共通の設定の場所
+        definitions:
+          type: integer
+          description: 共通のチーム定義の数
+        roles:
+          type: integer
+          description: 共通のロールの数
+        profiles:
+          type: integer
+          description: 共通のプロファイルの数
+    HQGroups:
+      description: プロジェクトと共通設定ごとの一覧
+      type: object
+      additionalProperties: false
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQGroup'
+          description: 本部に表示する一覧のまとまり
+    HQGroup:
+      description: 1 つのプロジェクトまたは共通設定の一覧
+      type: object
+      additionalProperties: false
+      required: [list]
+      properties:
+        project:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQRef'
+          description: この一覧が属するプロジェクト
+        global:
+          type: boolean
+          description: 共通設定の一覧か
+        name:
+          type: string
+          description: 画面に表示するプロジェクト名または共通設定名
+        path:
+          type: string
+          description: プロジェクトまたは共通設定の場所
+        display:
+          type: string
+          description: 画面に表示する場所
+        list:
+          allOf:
+            - $ref: '#/components/schemas/HQList'
+          description: この場所にあるチーム定義、ロール、またはプロファイル
+        overridden_by:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: 共通設定の名前を上書きするプロジェクト
+    HQRef:
+      description: 本部の一覧が示すプロジェクト
+      type: object
+      additionalProperties: false
+      required: [path, name, display]
+      properties:
+        path:
+          type: string
+          description: プロジェクトの場所
+        name:
+          type: string
+          description: プロジェクト名
+        display:
+          type: string
+          description: 画面に表示するプロジェクトの場所
+    HQRunning:
+      description: 本部が読む動いているチーム
+      type: object
+      additionalProperties: false
+      required: [herdr, teams]
+      properties:
+        herdr:
+          allOf:
+            - $ref: '#/components/schemas/ActivityNote'
+          description: herdr を読めたかと、読めない理由
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQRunningTeam'
+          description: 動いているチームの一覧
+    HQRunningTeam:
+      description: 本部の一覧にある動いているチーム
+      type: object
+      additionalProperties: false
+      required: [team, definition, place, project, project_name, workspace, tab, starting, members, workers, waiting, not_up]
+      properties:
+        team:
+          type: string
+          description: チーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        place:
+          type: string
+          description: チーム定義を読んだ場所
+        project:
+          type: string
+          description: チームが属するプロジェクトの場所
+        project_name:
+          type: string
+          description: プロジェクト名
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspace'
+          description: チームが動いているワークスペース
+        tab:
+          allOf:
+            - $ref: '#/components/schemas/HQTab'
+          description: チームが使っている tab
+        starting:
+          type: boolean
+          description: チームが起動中か
+        launch:
+          type: string
+          description: 起動中の操作 ID
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQMember'
+          description: チーム定義のメンバー
+        workers:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQWorker'
+          description: チームが雇ったワーカー
+        waiting:
+          type: array
+          items:
+            type: string
+          description: 人間を待っているメンバー名
+        not_up:
+          type: array
+          items:
+            type: string
+          description: チーム定義にいて agent が動いていないメンバー名
+        error:
+          type: string
+          description: チーム定義を組み立てられない理由。組み立てられるときは省略
+    HQWorkspace:
+      description: herdr のワークスペース
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          description: ワークスペースの ID
+        label:
+          type: string
+          description: ワークスペース名
+        focused:
+          type: boolean
+          description: herdr で選択中か
+        team:
+          type: string
+          description: ワークスペースで動いているチーム名
+        team_project:
+          type: string
+          description: 動いているチームが属するプロジェクトの場所
+        last_team:
+          type: string
+          description: このワークスペースで最後に動いたチーム名
+    HQTab:
+      description: チームが使っている tab
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          description: tab の ID
+        label:
+          type: string
+          description: tab の名前
+    HQMember:
+      description: 動いているチームのメンバー
+      type: object
+      additionalProperties: false
+      required: [name, herdr, live, state]
+      properties:
+        name:
+          type: string
+          description: メンバー名
+        herdr:
+          type: string
+          description: メンバーの herdr 名
+        live:
+          type: boolean
+          description: メンバーの agent が動いているか
+        state:
+          type: string
+          description: メンバーの活動状態
+    HQWorker:
+      description: チームが雇ったワーカー
+      type: object
+      additionalProperties: false
+      required: [name, tab, live]
+      properties:
+        name:
+          type: string
+          description: ワーカー名
+        tab:
+          type: string
+          description: ワーカーが使っている tab
+        live:
+          type: boolean
+          description: ワーカーの agent が動いているか
+    HQWorkspaces:
+      description: herdr のワークスペース一覧
+      type: object
+      additionalProperties: false
+      required: [workspaces]
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQWorkspace'
+          description: herdr が読むワークスペース
+    HQLaunchOptions:
+      description: チーム定義を起動する欄の選択肢
+      type: object
+      additionalProperties: false
+      required: [definition, place, members, clash, suggested_name, new_workspace_name, workspaces]
+      properties:
+        definition:
+          type: string
+          description: 起動するチーム定義名
+        place:
+          type: string
+          description: チーム定義を読む場所
+        project:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQRef'
+          description: チーム定義が属するプロジェクト
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQMember'
+          description: 起動するチーム定義のメンバー
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQLaunchProject'
+          description: 共通のチーム定義を起動できるプロジェクト
+        clash:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQClash'
+          description: 同じ名前で動いているチーム
+        suggested_name:
+          type: string
+          description: チーム名が重なるときに提案する名前
+        last_workspace:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspace'
+          description: チーム定義を最後に起動したワークスペース
+        new_workspace_name:
+          type: string
+          description: 新しく作るワークスペース名
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQWorkspaceChoice'
+          description: 起動先に選べるワークスペース
+    HQLaunchProject:
+      description: 共通のチーム定義を起動できるプロジェクト
+      type: object
+      additionalProperties: false
+      required: [path, name, available, reason]
+      properties:
+        path:
+          type: string
+          description: プロジェクトの場所
+        name:
+          type: string
+          description: プロジェクト名
+        available:
+          type: boolean
+          description: チーム定義をこのプロジェクトで起動できるか
+        reason:
+          type: string
+          description: 起動できない理由。起動できるときは空
+    HQClash:
+      description: 同じ名前で動いているチーム
+      type: object
+      additionalProperties: false
+      required: [team, project]
+      properties:
+        team:
+          type: string
+          description: 動いているチーム名
+        project:
+          type: string
+          description: チームが属するプロジェクトの場所
+    HQWorkspaceChoice:
+      description: 起動先の候補となるワークスペース
+      type: object
+      additionalProperties: false
+      required: [id, label, selectable, why]
+      properties:
+        id:
+          type: string
+          description: ワークスペースの ID
+        label:
+          type: string
+          description: ワークスペース名
+        focused:
+          type: boolean
+          description: herdr で選択中か
+        team:
+          type: string
+          description: ワークスペースで動いているチーム名
+        team_project:
+          type: string
+          description: 動いているチームが属するプロジェクトの場所
+        last_team:
+          type: string
+          description: このワークスペースで最後に動いたチーム名
+        selectable:
+          type: boolean
+          description: 起動先として選べるか
+        why:
+          type: string
+          description: 起動先候補の並び順の理由
+    HQLaunchRequest:
+      description: 起動するチーム定義、チーム名、ワークスペース
+      type: object
+      additionalProperties: false
+      required: [project, definition, place, name, workspace]
+      properties:
+        project:
+          type: string
+          description: チーム定義が属するプロジェクトの場所
+        definition:
+          type: string
+          description: 起動するチーム定義名
+        place:
+          type: string
+          description: チーム定義を読む場所
+        name:
+          type: string
+          description: チーム名
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspaceRequest'
+          description: 起動先にするワークスペース
+    HQWorkspaceRequest:
+      description: 既存または新しいワークスペース
+      type: object
+      additionalProperties: false
+      required: [id, new]
+      properties:
+        id:
+          type: string
+          description: 使う既存ワークスペースの ID
+        new:
+          type: string
+          description: 新しく作るワークスペース名
+    HQRefreshRequest:
+      description: 起動していないメンバーを起動し直す要求
+      type: object
+      additionalProperties: false
+      required: [team, members]
+      properties:
+        team:
+          type: string
+          description: メンバーを起動し直すチーム名
+        members:
+          type: array
+          items:
+            type: string
+          description: 起動し直すメンバー名
+    HQAddProjectRequest:
+      description: 本部に並べるプロジェクト
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: 本部に並べるプロジェクトの場所
+    HQStopRequest:
+      description: 止めるチーム
+      type: object
+      additionalProperties: false
+      required: [team]
+      properties:
+        team:
+          type: string
+          description: 止めるチーム名
+    HQLaunchEnvelope:
+      description: 起動操作の現在の状態
+      type: object
+      additionalProperties: false
+      required: [launch]
+      properties:
+        launch:
+          allOf:
+            - $ref: '#/components/schemas/HQLaunch'
+          description: 起動操作の状態
+    HQLaunch:
+      description: チームまたはメンバーの起動操作
+      type: object
+      additionalProperties: false
+      required: [id, action, team, definition, place, project, project_name, workspace, tab, phase, steps, waiting, error]
+      properties:
+        id:
+          type: string
+          description: 起動操作の ID
+        action:
+          type: string
+          description: チームの起動かメンバーの起動し直しか
+        team:
+          type: string
+          description: チーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        place:
+          type: string
+          description: チーム定義を読んだ場所
+        project:
+          type: string
+          description: チームが属するプロジェクトの場所
+        project_name:
+          type: string
+          description: プロジェクト名
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspace'
+          description: チームが使うワークスペース
+        tab:
+          allOf:
+            - $ref: '#/components/schemas/HQTab'
+          description: チームが使う tab
+        phase:
+          type: string
+          description: 起動操作の状態
+        steps:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQLaunchStep'
+          description: 起動操作の進行状況
+        waiting:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQWaiting'
+          description: 起動中に人間の答えを待っている質問
+        error:
+          type: string
+          description: 起動操作が失敗した理由。失敗していないときは空
+        members:
+          type: array
+          items:
+            type: string
+          description: 起動し直すメンバー名
+    HQLaunchStep:
+      description: 起動操作の進行状況にある 1 行
+      type: object
+      additionalProperties: false
+      required: [at, kind, text]
+      properties:
+        at:
+          type: string
+          description: 進行状況を記録した時刻
+        kind:
+          type: string
+          description: 進行状況の種類
+        text:
+          type: string
+          description: 進行状況を伝える文
+    HQWaiting:
+      description: 起動中に人間の答えを待っている質問
+      type: object
+      additionalProperties: false
+      required: [member, herdr, workspace, tab, pane, command]
+      properties:
+        member:
+          type: string
+          description: 質問を出したメンバー名
+        herdr:
+          type: string
+          description: 質問を出したメンバーの herdr 名
+        workspace:
+          type: string
+          description: 質問があるワークスペース名
+        tab:
+          type: string
+          description: 質問がある tab 名
+        pane:
+          type: string
+          description: 質問がある pane ID
+        command:
+          type: string
+          description: 起動時に実行した command
+    HQLaunchNameTaken:
+      description: チーム名がすでに使われているときの断り
+      type: object
+      additionalProperties: false
+      required: [text, suggested_name]
+      properties:
+        text:
+          type: string
+          description: チーム名が重なった理由
+        suggested_name:
+          type: string
+          description: 重ならない名前の案
+    HQStopped:
+      description: 止めたチームと閉じた数
+      type: object
+      additionalProperties: false
+      required: [team, project, workspace, closed, stopped_at]
+      properties:
+        team:
+          type: string
+          description: 止めたチーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        project:
+          type: string
+          description: チームが属していたプロジェクトの場所
+        workspace:
+          allOf:
+            - $ref: '#/components/schemas/HQWorkspace'
+          description: チームが使っていたワークスペース
+        closed:
+          allOf:
+            - $ref: '#/components/schemas/HQClosed'
+          description: 閉じたメンバーとワーカーの数
+        stopped_at:
+          type: string
+          description: チームを止めた時刻
+    HQClosed:
+      description: 閉じたメンバーとワーカーの数
+      type: object
+      additionalProperties: false
+      required: [members, workers]
+      properties:
+        members:
+          type: integer
+          description: 閉じたメンバーの数
+        workers:
+          type: integer
+          description: 閉じたワーカーの数
+    HQList:
+      description: 1 つの場所にあるチーム定義、ロール、またはプロファイルの一覧
+      type: object
+      additionalProperties: false
+      required: [items, hashes]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQListItem'
+          description: この場所にある名前ごとの一覧
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+          description: この場所にある文書のハッシュ
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQFile'
+          description: チーム定義またはプロファイルの文書
+    HQListItem:
+      description: チーム定義、ロール、またはプロファイルの一覧項目
+      type: object
+      additionalProperties: false
+      required: [name, places, effective, hidden, summary, problems]
+      properties:
+        name:
+          type: string
+          description: チーム定義名、ロール名、またはプロファイル名
+        places:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HQPlace'
+          description: 文書がある場所ごとの内容
+        effective:
+          type: string
+          description: 有効な文書がある場所
+        hidden:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 同じ名前のため隠れている場所
+        summary:
+          oneOf:
+            - $ref: '#/components/schemas/HQTeamSummary'
+            - $ref: '#/components/schemas/HQRoleSummary'
+            - $ref: '#/components/schemas/HQProfileSummary'
+          description: 一覧に表示するチーム定義、ロール、またはプロファイルの情報
+        problems:
+          allOf:
+            - $ref: '#/components/schemas/HQCounts'
+          description: この項目にある問題の数
+    HQPlace:
+      description: 1 つの場所にある文書
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, problems]
+      properties:
+        doc:
+          oneOf:
+            - $ref: '#/components/schemas/HQTeamDocument'
+            - $ref: '#/components/schemas/HQRoleDocument'
+            - $ref: '#/components/schemas/HQProfileDocument'
+          description: 文書の内容
+        text:
+          type: string
+          description: 文書のテキスト
+        hash:
+          type: string
+          description: 文書のハッシュ
+        path:
+          type: string
+          description: 文書の場所
+        readers:
+          type: integer
+          description: 文書を読むメンバーとワーカーの数
+        savedLine:
+          type: boolean
+          description: 文書の行を保存したか
+        problems:
+          allOf:
+            - $ref: '#/components/schemas/HQCounts'
+          description: 文書にある問題の数
+    HQFile:
+      description: 一覧に含まれる文書ファイル
+      type: object
+      additionalProperties: false
+      required: [place, label, path, text, hash, problems]
+      properties:
+        place:
+          type: string
+          description: 文書がある場所
+        label:
+          type: string
+          description: 文書の表示名
+        path:
+          type: string
+          description: 文書の場所
+        text:
+          type: string
+          description: 文書のテキスト
+        hash:
+          type: string
+          description: 文書のハッシュ
+        name:
+          type: string
+          description: 文書が属するチーム定義名
+        kind:
+          type: string
+          description: 文書の種類
+        hidden:
+          type: boolean
+          description: 同じ名前の文書に隠れているか
+        problems:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Problem'
+          description: 文書にある問題
+    HQCounts:
+      description: 一覧項目または文書にある問題の数
+      type: object
+      additionalProperties: false
+      required: [err, warn]
+      properties:
+        err:
+          type: integer
+          description: エラーの数
+        warn:
+          type: integer
+          description: 警告の数
+    HQTeamSummary:
+      description: チーム定義の一覧に表示する情報
+      type: object
+      additionalProperties: false
+      required: [mission, members, workers, rules, size, limit]
+      properties:
+        mission:
+          type: string
+          description: チーム定義の使命
+        members:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQTeamMember'
+          description: チーム定義のメンバー
+        workers:
+          type: integer
+          description: チーム定義が雇うワーカーの数
+        rules:
+          type: integer
+          description: チーム定義が持つ規則の数
+        excluded:
+          type: integer
+          description: プロンプトに含めない規則の数
+        broken:
+          type: boolean
+          description: チーム定義を読み取れないか
+        size:
+          type: integer
+          description: 初期プロンプトに含める文の文字数
+        limit:
+          type: integer
+          description: 初期プロンプトに含める文の上限
+    HQTeamMember:
+      description: チーム定義のメンバー
+      type: object
+      additionalProperties: false
+      required: [name, role, profile]
+      properties:
+        name:
+          type: string
+          description: メンバー名
+        role:
+          type: string
+          description: メンバーのロール名
+        profile:
+          type: string
+          description: メンバーが使うプロファイル名
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQPromptSegment'
+          description: メンバーの初期プロンプトを作る部分
+    HQPromptSegment:
+      description: 初期プロンプトを作る部分
+      type: object
+      additionalProperties: false
+      required: [kind, text, origin]
+      properties:
+        kind:
+          type: string
+          description: 初期プロンプトの部分の種類
+        text:
+          type: string
+          description: 初期プロンプトに含める文
+        origin:
+          allOf:
+            - $ref: '#/components/schemas/HQPromptOrigin'
+          description: 初期プロンプトの部分の由来
+    HQPromptOrigin:
+      description: 初期プロンプトの部分の由来
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          description: 初期プロンプトの部分の由来の種類
+        name:
+          type: string
+          description: 由来となる名前
+        path:
+          type: string
+          description: 由来となる文書の場所
+        place:
+          type: string
+          description: 由来となる文書がある場所
+    HQTeamWorker:
+      description: チーム定義が雇うワーカー
+      type: object
+      additionalProperties: false
+      required: [from, purpose, profile]
+      properties:
+        from:
+          type: string
+          description: ワーカーを雇うメンバー名
+        purpose:
+          type: string
+          description: ワーカーを雇う目的
+        profile:
+          type: string
+          description: ワーカーが使うプロファイル名
+    HQTeamDocument:
+      description: チーム定義の文書
+      type: object
+      additionalProperties: false
+      required: [mission, members, workers, turns, prompt]
+      properties:
+        mission:
+          type: string
+          description: チーム定義の使命
+        members:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQTeamMember'
+          description: チーム定義のメンバー
+        workers:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQTeamWorker'
+          description: チーム定義が雇うワーカー
+        turns:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQTurn'
+          description: メンバーがターンを渡す順
+        prompt:
+          allOf:
+            - $ref: '#/components/schemas/HQPromptLines'
+          description: 初期プロンプトの行
+        agreement:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQTeamAgreement'
+          description: チーム定義が持つルール
+        broken:
+          type: boolean
+          description: チーム定義を読み取れないか
+    HQTurn:
+      description: ターンを渡すノードの組
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          description: ターンを渡すノード名
+        to:
+          type: string
+          description: ターンを受け取るノード名
+    HQPromptLines:
+      description: 初期プロンプトに含めるターンとワーカーの行
+      type: object
+      additionalProperties: false
+      required: [turns, workers]
+      properties:
+        turns:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: ノードごとのターンの行
+        workers:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: メンバーごとのワーカーの行
+    HQTeamAgreement:
+      description: チーム定義が持つルール
+      type: object
+      additionalProperties: false
+      required: [path, hash, has, rules]
+      properties:
+        path:
+          type: string
+          description: ルール文書の場所
+        hash:
+          type: string
+          description: ルール文書のハッシュ
+        has:
+          type: boolean
+          description: ルール文書があるか
+        rules:
+          type: integer
+          description: ルール文書が持つ規則の数
+        excluded:
+          type: integer
+          description: プロンプトに含めない規則の数
+        doc:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQRoleDocument'
+          description: ルール文書の内容
+    HQRoleSummary:
+      description: ロールの一覧に表示する情報
+      type: object
+      additionalProperties: false
+      required: [rules, chars]
+      properties:
+        rules:
+          type: integer
+          description: ロールの規則の数
+        chars:
+          type: integer
+          description: ロールの文書の文字数
+        markdown:
+          type: string
+          description: ロール文書の代わりに残っている Markdown
+        noDoc:
+          type: boolean
+          description: ロール文書がないか
+        isNew:
+          type: boolean
+          description: ロール文書を新しく作るか
+    HQRoleDocument:
+      description: ロールの文書
+      type: object
+      additionalProperties: false
+      required: [name, title, revision, sections]
+      properties:
+        name:
+          type: string
+          description: ロール名
+        title:
+          type: string
+          description: ロール文書の題名
+        revision:
+          type: integer
+          nullable: true
+          description: ロール文書の版
+        sections:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQRoleSection'
+          description: ロール文書の節
+        hash:
+          type: string
+          description: ロール文書のハッシュ
+        text:
+          type: string
+          description: ロール文書のテキスト
+    HQRoleSection:
+      description: ロール文書の節
+      type: object
+      additionalProperties: false
+      required: [heading, level, intro, rules]
+      properties:
+        from:
+          type: integer
+          nullable: true
+          description: 元の文書での節番号
+        heading:
+          type: string
+          description: 節の見出し
+        level:
+          type: integer
+          description: 見出しの段
+        intro:
+          type: string
+          description: 節の導入文
+        rules:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQRoleRule'
+          description: 節にある規則
+    HQRoleRule:
+      description: ロール文書の規則
+      type: object
+      additionalProperties: false
+      required: [id, text, in_prompt, note]
+      properties:
+        from:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/HQRoleFrom'
+          description: 元の文書での規則の場所
+        id:
+          type: string
+          description: 規則の ID
+        text:
+          type: string
+          description: 規則の文
+        in_prompt:
+          type: boolean
+          description: 規則を初期プロンプトに含めるか
+        off_since:
+          type: string
+          description: 規則を初期プロンプトから外した日
+        note:
+          type: string
+          description: 規則について人が残したメモ
+    HQRoleFrom:
+      description: 元のロール文書での規則の場所
+      type: object
+      additionalProperties: false
+      required: [section, rule]
+      properties:
+        section:
+          type: integer
+          description: 元の文書での節番号
+        rule:
+          type: integer
+          description: 元の文書での規則番号
+    HQProfileSummary:
+      description: プロファイルの一覧に表示する情報
+      type: object
+      additionalProperties: false
+      required: [kind, kindClass, args, env, more, users, roles, chips]
+      properties:
+        kind:
+          type: string
+          description: エージェントの種類
+        kindClass:
+          type: string
+          description: 画面が使うエージェント種類の分類
+        args:
+          type: string
+          description: エージェントに渡す引数
+        env:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: エージェントに渡す環境変数
+        more:
+          type: integer
+          description: 一覧に表示しない追加の値の数
+        users:
+          type: integer
+          description: プロファイルを使うメンバーとワーカーの数
+        roles:
+          type: string
+          description: プロファイルを使うロール名
+        chips:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HQProfileChip'
+          description: プロファイルを使うメンバーとワーカー
+    HQProfileChip:
+      description: プロファイルを使うメンバーまたはワーカー
+      type: object
+      additionalProperties: false
+      required: [def, id, who, role, worker, local]
+      properties:
+        def:
+          type: string
+          description: メンバーまたはワーカーが属するチーム定義名
+        id:
+          type: string
+          description: チーム定義内のメンバーまたはワーカーの ID
+        who:
+          type: string
+          description: プロファイルを使うメンバー名またはワーカー名
+        role:
+          type: string
+          description: メンバーのロール名
+        worker:
+          type: boolean
+          description: プロファイルを使うのがワーカーか
+        local:
+          type: boolean
+          description: チーム定義がプロジェクトにあるか
+    HQProfileDocument:
+      description: プロファイルの内容
+      type: object
+      additionalProperties: false
+      required: [name, kind, args, env]
+      properties:
+        name:
+          type: string
+          description: プロファイル名
+        kind:
+          type: string
+          description: エージェントの種類
+        args:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: エージェントに渡す引数
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQProfileEnv'
+          description: エージェントに渡す環境変数
+    HQProfileEnv:
+      description: プロファイルが指定する環境変数
+      type: object
+      additionalProperties: false
+      required: [key, value]
+      properties:
+        key:
+          type: string
+          description: 環境変数名
+        value:
+          type: string
+          description: 環境変数の値

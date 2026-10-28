@@ -982,6 +982,890 @@ export interface components {
             /** @description 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか */
             rename_users?: boolean;
         };
+        /** @description 動いているチームの活動と数 */
+        ActivityList: {
+            /** @description 活動を表示するチームの一覧 */
+            items: components["schemas"]["ActivityItem"][];
+            /** @description 動いているチームの数 */
+            running: number;
+            /** @description 人間を待っているメンバーの数 */
+            waiting: number;
+            /** @description herdr を読めたかと、読めない理由 */
+            herdr: components["schemas"]["ActivityNote"];
+        };
+        /** @description 活動の一覧にあるチーム 1 件 */
+        ActivityItem: {
+            /** @description チーム名 */
+            name: string;
+            /** @description チームの状態と直近のメンバー */
+            summary: components["schemas"]["ActivitySummary"];
+            /** @description 活動の問題の数 */
+            problems: components["schemas"]["ActivityProblems"];
+            /** @description チーム定義を読めない理由。読めるときは空 */
+            error: string;
+            /** @description チームが属するプロジェクトの場所 */
+            project: string;
+            /** @description プロジェクト名 */
+            project_name: string;
+            /** @description チームが動いているワークスペース */
+            workspace: components["schemas"]["ActivitySpace"];
+        };
+        /** @description 活動一覧に出すチームの状態 */
+        ActivitySummary: {
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description チームの活動状態 */
+            state: string;
+            /** @description 人間を待っている、または最後に動いたメンバー名 */
+            last: string;
+            /** @description 活動状態が続いている長さと開始時刻。ないときは省略 */
+            since?: components["schemas"]["ActivitySince"] | null;
+            /** @description 動いているメンバーとワーカーの数。ないときは省略 */
+            working?: components["schemas"]["ActivityWork"] | null;
+        };
+        /** @description 活動状態が続いている長さと開始時刻 */
+        ActivitySince: {
+            /** @description 活動状態が続いている長さ */
+            len: string;
+            /** @description 活動状態が始まった時刻 */
+            at: string;
+            /** @description 時刻が監視を始める前を示すか */
+            lower: boolean;
+        };
+        /** @description 動いているメンバーとワーカーの数 */
+        ActivityWork: {
+            /** @description 動いているメンバー名 */
+            members: string[];
+            /** @description 動いているワーカーの数 */
+            workers: number;
+        };
+        /** @description 活動一覧で数える問題 */
+        ActivityProblems: {
+            /** @description エラーの数 */
+            err: number;
+            /** @description 警告の数 */
+            warn: number;
+        };
+        /** @description 読み取り元を読めたかと、読めない理由 */
+        ActivityNote: {
+            /** @description 読み取り元を読めたか */
+            ok: boolean;
+            /** @description 読み取り元を読めない理由。読めたときは空 */
+            text: string;
+        };
+        /** @description 活動のチームが動いているワークスペース */
+        ActivitySpace: {
+            /** @description ワークスペースの ID */
+            id: string;
+            /** @description ワークスペース名 */
+            label: string;
+        };
+        /** @description 開いたチームの活動 */
+        ActivityOpened: {
+            /** @description チームの活動の詳細 */
+            doc: components["schemas"]["ActivityDocument"];
+        };
+        /** @description 開いたチームの活動の詳細 */
+        ActivityDocument: {
+            /** @description チーム名 */
+            name: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description チームが属するプロジェクトの場所 */
+            project: string;
+            /** @description プロジェクト名 */
+            project_name: string;
+            /** @description チームが動いているワークスペース */
+            workspace: components["schemas"]["ActivitySpace"];
+            /** @description チームの活動状態 */
+            state: string;
+            /** @description 人間を待っている、または最後に動いたメンバー名 */
+            last: string;
+            /** @description チームの主なメンバーの herdr 名 */
+            herdr: string;
+            /** @description 主なメンバーのロール名 */
+            role: string;
+            /** @description 活動状態が続いている長さと開始時刻。ないときは省略 */
+            since?: components["schemas"]["ActivitySince"] | null;
+            /** @description チーム定義のメンバーとそれぞれの状態 */
+            nodes: components["schemas"]["ActivityNode"][];
+            /** @description チームのワーカーとそれぞれの状態 */
+            hired: components["schemas"]["ActivityNode"][];
+            /** @description 主なメンバーが出した未決の質問 */
+            questions: components["schemas"]["ActivityQuestion"][];
+            /** @description 主なメンバーの pane の末尾 */
+            tail: components["schemas"]["ActivityTail"];
+            /** @description gy を読めたかと、読めない理由 */
+            gy: components["schemas"]["ActivityNote"];
+            /** @description チーム定義を読めない理由。読めるときは空 */
+            error: string;
+        };
+        /** @description 活動の詳細にあるメンバーまたはワーカー */
+        ActivityNode: {
+            /** @description メンバー名、またはワーカー名 */
+            name: string;
+            /** @description メンバーまたはワーカーの herdr 名 */
+            herdr: string;
+            /** @description メンバーまたはワーカーの状態 */
+            state: string;
+            /** @description 状態が始まった時刻。動いているか pane がないときは空 */
+            at: string;
+            /** @description 状態が始まった時刻を表示する文 */
+            since_at?: string;
+            /** @description herdr が示す作業名 */
+            doing?: string;
+            /** @description このワーカーを雇ったメンバー名 */
+            from?: string;
+            /** @description メンバーに渡した初期プロンプトが現在のものと異なるか */
+            stale?: boolean;
+        };
+        /** @description メンバーが出した未決の質問 */
+        ActivityQuestion: {
+            /** @description 質問の ID */
+            id: string;
+            /** @description 質問の題名 */
+            title: string;
+            /** @description 質問が出てからの長さ */
+            ago: string;
+            /** @description 質問への選択肢 */
+            options: string[];
+        };
+        /** @description 主なメンバーの pane の末尾 */
+        ActivityTail: {
+            /** @description pane の末尾の行 */
+            lines: string[];
+            /** @description 画面に表示する末尾の行数 */
+            shown: number;
+        };
+        /** @description 初期プロンプトを送り直すメンバー */
+        DeliveryRequest: {
+            /** @description 初期プロンプトを受け取るメンバーの herdr 名 */
+            members: string[];
+        };
+        /** @description 初期プロンプトが現在の定義と異なるメンバーと送信結果 */
+        DeliveryAnswer: {
+            /** @description 変更を伝えていないメンバーの数 */
+            count: number;
+            /** @description 変更を伝えていないメンバーがいるチーム */
+            teams: components["schemas"]["DeliveryTeam"][];
+            /** @description 初期プロンプトを受け取ったメンバーの herdr 名 */
+            sent?: string[];
+            /** @description 初期プロンプトを受け取らなかったメンバー */
+            refused?: components["schemas"]["DeliveryRefusal"][];
+            /** @description herdr を読めたかと、読めない理由 */
+            herdr: components["schemas"]["DeliveryNote"];
+        };
+        /** @description 変更を伝えていないメンバーがいるチーム */
+        DeliveryTeam: {
+            /** @description チーム名 */
+            name: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description 変更を伝えていないメンバー */
+            members: components["schemas"]["DeliveryMember"][];
+        };
+        /** @description 初期プロンプトが現在の定義と異なるメンバー */
+        DeliveryMember: {
+            /** @description メンバーの herdr 名 */
+            name: string;
+            /** @description メンバー名 */
+            short: string;
+            /** @description メンバーのロール名 */
+            role: string;
+            /** @description メンバーの活動状態 */
+            state: string;
+            /** @description メンバーが人間を待っていて送信できるか */
+            can_send: boolean;
+            /** @description 初期プロンプトの変更 */
+            changes: components["schemas"]["DeliveryChange"][];
+        };
+        /** @description 初期プロンプトを受け取らなかったメンバーと理由 */
+        DeliveryRefusal: {
+            /** @description メンバーの herdr 名 */
+            name: string;
+            /** @description 送信できなかった理由 */
+            text: string;
+        };
+        /** @description herdr を読めたかと、読めない理由 */
+        DeliveryNote: {
+            /** @description herdr を読めたか */
+            ok: boolean;
+            /** @description herdr を読めない理由。読めたときは空 */
+            text: string;
+        };
+        /** @description メンバーの初期プロンプトで変わった 1 項目 */
+        DeliveryChange: {
+            /** @description 変更の種類 */
+            kind: string;
+            /** @description 変更があった文書 */
+            document?: string;
+            /** @description 変更があった規則の ID */
+            rule?: string;
+            /** @description 変更があったターン */
+            turn?: string;
+            /** @description 変更があったワーカー */
+            worker?: string;
+            /** @description 変更内容を伝える文 */
+            text: string;
+        };
+        /** @description 本部が読む現在のプロジェクト、並べたプロジェクト、共通の数 */
+        HQProjects: {
+            /** @description プロジェクト一覧を持つ設定ファイルの場所 */
+            config: string;
+            /** @description プロジェクトを並べた設定か、現在のプロジェクトだけを使うか */
+            mode: string;
+            /** @description serve を起動したプロジェクト */
+            current: components["schemas"]["HQProject"];
+            /** @description 本部に表示するプロジェクト */
+            projects: components["schemas"]["HQProject"][];
+            /** @description 共通のチーム定義、ロール、プロファイルの数 */
+            global: components["schemas"]["HQGlobal"];
+        };
+        /** @description 本部に表示するプロジェクト */
+        HQProject: {
+            /** @description プロジェクトの場所 */
+            path: string;
+            /** @description プロジェクト名 */
+            name: string;
+            /** @description 画面に表示するプロジェクトの場所 */
+            display: string;
+            /** @description 本部に並んでいるか */
+            listed: boolean;
+            /** @description serve を起動したプロジェクトか */
+            current: boolean;
+            /** @description プロジェクトの場所が存在するか */
+            exists: boolean;
+            /** @description プロジェクトに hergy の設定があるか */
+            has_hergy: boolean;
+            /** @description チーム定義の数 */
+            definitions: number;
+            /** @description ロールの数 */
+            roles: number;
+            /** @description プロファイルの数 */
+            profiles: number;
+            /** @description 動いているチームの数 */
+            running: number;
+            /** @description 最後にチームを起動した時刻 */
+            last_launch?: string;
+            /** @description チーム定義を最後に起動したワークスペース */
+            last_workspace?: components["schemas"]["HQWorkspace"] | null;
+            /** @description 並んでいないプロジェクトを候補に出す理由 */
+            source?: string;
+        };
+        /** @description 共通の設定が持つチーム定義、ロール、プロファイルの数 */
+        HQGlobal: {
+            /** @description 共通の設定の場所 */
+            path: string;
+            /** @description 画面に表示する共通の設定の場所 */
+            display: string;
+            /** @description 共通のチーム定義の数 */
+            definitions: number;
+            /** @description 共通のロールの数 */
+            roles: number;
+            /** @description 共通のプロファイルの数 */
+            profiles: number;
+        };
+        /** @description プロジェクトと共通設定ごとの一覧 */
+        HQGroups: {
+            /** @description 本部に表示する一覧のまとまり */
+            groups: components["schemas"]["HQGroup"][];
+        };
+        /** @description 1 つのプロジェクトまたは共通設定の一覧 */
+        HQGroup: {
+            /** @description この一覧が属するプロジェクト */
+            project?: components["schemas"]["HQRef"] | null;
+            /** @description 共通設定の一覧か */
+            global?: boolean;
+            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            name?: string;
+            /** @description プロジェクトまたは共通設定の場所 */
+            path?: string;
+            /** @description 画面に表示する場所 */
+            display?: string;
+            /** @description この場所にあるチーム定義、ロール、またはプロファイル */
+            list: components["schemas"]["HQList"];
+            /** @description 共通設定の名前を上書きするプロジェクト */
+            overridden_by?: {
+                [key: string]: string[];
+            };
+        };
+        /** @description 本部の一覧が示すプロジェクト */
+        HQRef: {
+            /** @description プロジェクトの場所 */
+            path: string;
+            /** @description プロジェクト名 */
+            name: string;
+            /** @description 画面に表示するプロジェクトの場所 */
+            display: string;
+        };
+        /** @description 本部が読む動いているチーム */
+        HQRunning: {
+            /** @description herdr を読めたかと、読めない理由 */
+            herdr: components["schemas"]["ActivityNote"];
+            /** @description 動いているチームの一覧 */
+            teams: components["schemas"]["HQRunningTeam"][];
+        };
+        /** @description 本部の一覧にある動いているチーム */
+        HQRunningTeam: {
+            /** @description チーム名 */
+            team: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description チーム定義を読んだ場所 */
+            place: string;
+            /** @description チームが属するプロジェクトの場所 */
+            project: string;
+            /** @description プロジェクト名 */
+            project_name: string;
+            /** @description チームが動いているワークスペース */
+            workspace: components["schemas"]["HQWorkspace"];
+            /** @description チームが使っている tab */
+            tab: components["schemas"]["HQTab"];
+            /** @description チームが起動中か */
+            starting: boolean;
+            /** @description 起動中の操作 ID */
+            launch?: string;
+            /** @description チーム定義のメンバー */
+            members: components["schemas"]["HQMember"][];
+            /** @description チームが雇ったワーカー */
+            workers: components["schemas"]["HQWorker"][];
+            /** @description 人間を待っているメンバー名 */
+            waiting: string[];
+            /** @description チーム定義にいて agent が動いていないメンバー名 */
+            not_up: string[];
+            /** @description チーム定義を組み立てられない理由。組み立てられるときは省略 */
+            error?: string;
+        };
+        /** @description herdr のワークスペース */
+        HQWorkspace: {
+            /** @description ワークスペースの ID */
+            id: string;
+            /** @description ワークスペース名 */
+            label: string;
+            /** @description herdr で選択中か */
+            focused?: boolean;
+            /** @description ワークスペースで動いているチーム名 */
+            team?: string;
+            /** @description 動いているチームが属するプロジェクトの場所 */
+            team_project?: string;
+            /** @description このワークスペースで最後に動いたチーム名 */
+            last_team?: string;
+        };
+        /** @description チームが使っている tab */
+        HQTab: {
+            /** @description tab の ID */
+            id: string;
+            /** @description tab の名前 */
+            label: string;
+        };
+        /** @description 動いているチームのメンバー */
+        HQMember: {
+            /** @description メンバー名 */
+            name: string;
+            /** @description メンバーの herdr 名 */
+            herdr: string;
+            /** @description メンバーの agent が動いているか */
+            live: boolean;
+            /** @description メンバーの活動状態 */
+            state: string;
+        };
+        /** @description チームが雇ったワーカー */
+        HQWorker: {
+            /** @description ワーカー名 */
+            name: string;
+            /** @description ワーカーが使っている tab */
+            tab: string;
+            /** @description ワーカーの agent が動いているか */
+            live: boolean;
+        };
+        /** @description herdr のワークスペース一覧 */
+        HQWorkspaces: {
+            /** @description herdr が読むワークスペース */
+            workspaces: components["schemas"]["HQWorkspace"][];
+        };
+        /** @description チーム定義を起動する欄の選択肢 */
+        HQLaunchOptions: {
+            /** @description 起動するチーム定義名 */
+            definition: string;
+            /** @description チーム定義を読む場所 */
+            place: string;
+            /** @description チーム定義が属するプロジェクト */
+            project?: components["schemas"]["HQRef"] | null;
+            /** @description 起動するチーム定義のメンバー */
+            members: components["schemas"]["HQMember"][];
+            /** @description 共通のチーム定義を起動できるプロジェクト */
+            projects?: components["schemas"]["HQLaunchProject"][];
+            /** @description 同じ名前で動いているチーム */
+            clash: components["schemas"]["HQClash"][];
+            /** @description チーム名が重なるときに提案する名前 */
+            suggested_name: string;
+            /** @description チーム定義を最後に起動したワークスペース */
+            last_workspace?: components["schemas"]["HQWorkspace"] | null;
+            /** @description 新しく作るワークスペース名 */
+            new_workspace_name: string;
+            /** @description 起動先に選べるワークスペース */
+            workspaces: components["schemas"]["HQWorkspaceChoice"][];
+        };
+        /** @description 共通のチーム定義を起動できるプロジェクト */
+        HQLaunchProject: {
+            /** @description プロジェクトの場所 */
+            path: string;
+            /** @description プロジェクト名 */
+            name: string;
+            /** @description チーム定義をこのプロジェクトで起動できるか */
+            available: boolean;
+            /** @description 起動できない理由。起動できるときは空 */
+            reason: string;
+        };
+        /** @description 同じ名前で動いているチーム */
+        HQClash: {
+            /** @description 動いているチーム名 */
+            team: string;
+            /** @description チームが属するプロジェクトの場所 */
+            project: string;
+        };
+        /** @description 起動先の候補となるワークスペース */
+        HQWorkspaceChoice: {
+            /** @description ワークスペースの ID */
+            id: string;
+            /** @description ワークスペース名 */
+            label: string;
+            /** @description herdr で選択中か */
+            focused?: boolean;
+            /** @description ワークスペースで動いているチーム名 */
+            team?: string;
+            /** @description 動いているチームが属するプロジェクトの場所 */
+            team_project?: string;
+            /** @description このワークスペースで最後に動いたチーム名 */
+            last_team?: string;
+            /** @description 起動先として選べるか */
+            selectable: boolean;
+            /** @description 起動先候補の並び順の理由 */
+            why: string;
+        };
+        /** @description 起動するチーム定義、チーム名、ワークスペース */
+        HQLaunchRequest: {
+            /** @description チーム定義が属するプロジェクトの場所 */
+            project: string;
+            /** @description 起動するチーム定義名 */
+            definition: string;
+            /** @description チーム定義を読む場所 */
+            place: string;
+            /** @description チーム名 */
+            name: string;
+            /** @description 起動先にするワークスペース */
+            workspace: components["schemas"]["HQWorkspaceRequest"];
+        };
+        /** @description 既存または新しいワークスペース */
+        HQWorkspaceRequest: {
+            /** @description 使う既存ワークスペースの ID */
+            id: string;
+            /** @description 新しく作るワークスペース名 */
+            new: string;
+        };
+        /** @description 起動していないメンバーを起動し直す要求 */
+        HQRefreshRequest: {
+            /** @description メンバーを起動し直すチーム名 */
+            team: string;
+            /** @description 起動し直すメンバー名 */
+            members: string[];
+        };
+        /** @description 本部に並べるプロジェクト */
+        HQAddProjectRequest: {
+            /** @description 本部に並べるプロジェクトの場所 */
+            path: string;
+        };
+        /** @description 止めるチーム */
+        HQStopRequest: {
+            /** @description 止めるチーム名 */
+            team: string;
+        };
+        /** @description 起動操作の現在の状態 */
+        HQLaunchEnvelope: {
+            /** @description 起動操作の状態 */
+            launch: components["schemas"]["HQLaunch"];
+        };
+        /** @description チームまたはメンバーの起動操作 */
+        HQLaunch: {
+            /** @description 起動操作の ID */
+            id: string;
+            /** @description チームの起動かメンバーの起動し直しか */
+            action: string;
+            /** @description チーム名 */
+            team: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description チーム定義を読んだ場所 */
+            place: string;
+            /** @description チームが属するプロジェクトの場所 */
+            project: string;
+            /** @description プロジェクト名 */
+            project_name: string;
+            /** @description チームが使うワークスペース */
+            workspace: components["schemas"]["HQWorkspace"];
+            /** @description チームが使う tab */
+            tab: components["schemas"]["HQTab"];
+            /** @description 起動操作の状態 */
+            phase: string;
+            /** @description 起動操作の進行状況 */
+            steps: components["schemas"]["HQLaunchStep"][] | null;
+            /** @description 起動中に人間の答えを待っている質問 */
+            waiting: components["schemas"]["HQWaiting"] | null;
+            /** @description 起動操作が失敗した理由。失敗していないときは空 */
+            error: string;
+            /** @description 起動し直すメンバー名 */
+            members?: string[];
+        };
+        /** @description 起動操作の進行状況にある 1 行 */
+        HQLaunchStep: {
+            /** @description 進行状況を記録した時刻 */
+            at: string;
+            /** @description 進行状況の種類 */
+            kind: string;
+            /** @description 進行状況を伝える文 */
+            text: string;
+        };
+        /** @description 起動中に人間の答えを待っている質問 */
+        HQWaiting: {
+            /** @description 質問を出したメンバー名 */
+            member: string;
+            /** @description 質問を出したメンバーの herdr 名 */
+            herdr: string;
+            /** @description 質問があるワークスペース名 */
+            workspace: string;
+            /** @description 質問がある tab 名 */
+            tab: string;
+            /** @description 質問がある pane ID */
+            pane: string;
+            /** @description 起動時に実行した command */
+            command: string;
+        };
+        /** @description チーム名がすでに使われているときの断り */
+        HQLaunchNameTaken: {
+            /** @description チーム名が重なった理由 */
+            text: string;
+            /** @description 重ならない名前の案 */
+            suggested_name: string;
+        };
+        /** @description 止めたチームと閉じた数 */
+        HQStopped: {
+            /** @description 止めたチーム名 */
+            team: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition?: string;
+            /** @description チームが属していたプロジェクトの場所 */
+            project: string;
+            /** @description チームが使っていたワークスペース */
+            workspace: components["schemas"]["HQWorkspace"];
+            /** @description 閉じたメンバーとワーカーの数 */
+            closed: components["schemas"]["HQClosed"];
+            /** @description チームを止めた時刻 */
+            stopped_at: string;
+        };
+        /** @description 閉じたメンバーとワーカーの数 */
+        HQClosed: {
+            /** @description 閉じたメンバーの数 */
+            members: number;
+            /** @description 閉じたワーカーの数 */
+            workers: number;
+        };
+        /** @description 1 つの場所にあるチーム定義、ロール、またはプロファイルの一覧 */
+        HQList: {
+            /** @description この場所にある名前ごとの一覧 */
+            items: components["schemas"]["HQListItem"][];
+            /** @description この場所にある文書のハッシュ */
+            hashes: {
+                [key: string]: string;
+            };
+            /** @description チーム定義またはプロファイルの文書 */
+            files?: components["schemas"]["HQFile"][];
+        };
+        /** @description チーム定義、ロール、またはプロファイルの一覧項目 */
+        HQListItem: {
+            /** @description チーム定義名、ロール名、またはプロファイル名 */
+            name: string;
+            /** @description 文書がある場所ごとの内容 */
+            places: {
+                [key: string]: components["schemas"]["HQPlace"];
+            };
+            /** @description 有効な文書がある場所 */
+            effective: string;
+            /** @description 同じ名前のため隠れている場所 */
+            hidden: string[] | null;
+            /** @description 一覧に表示するチーム定義、ロール、またはプロファイルの情報 */
+            summary: components["schemas"]["HQTeamSummary"] | components["schemas"]["HQRoleSummary"] | components["schemas"]["HQProfileSummary"];
+            /** @description この項目にある問題の数 */
+            problems: components["schemas"]["HQCounts"];
+        };
+        /** @description 1 つの場所にある文書 */
+        HQPlace: {
+            /** @description 文書の内容 */
+            doc: components["schemas"]["HQTeamDocument"] | components["schemas"]["HQRoleDocument"] | components["schemas"]["HQProfileDocument"];
+            /** @description 文書のテキスト */
+            text: string;
+            /** @description 文書のハッシュ */
+            hash: string;
+            /** @description 文書の場所 */
+            path: string;
+            /** @description 文書を読むメンバーとワーカーの数 */
+            readers?: number;
+            /** @description 文書の行を保存したか */
+            savedLine?: boolean;
+            /** @description 文書にある問題の数 */
+            problems: components["schemas"]["HQCounts"];
+        };
+        /** @description 一覧に含まれる文書ファイル */
+        HQFile: {
+            /** @description 文書がある場所 */
+            place: string;
+            /** @description 文書の表示名 */
+            label: string;
+            /** @description 文書の場所 */
+            path: string;
+            /** @description 文書のテキスト */
+            text: string;
+            /** @description 文書のハッシュ */
+            hash: string;
+            /** @description 文書が属するチーム定義名 */
+            name?: string;
+            /** @description 文書の種類 */
+            kind?: string;
+            /** @description 同じ名前の文書に隠れているか */
+            hidden?: boolean;
+            /** @description 文書にある問題 */
+            problems: components["schemas"]["Problem"][] | null;
+        };
+        /** @description 一覧項目または文書にある問題の数 */
+        HQCounts: {
+            /** @description エラーの数 */
+            err: number;
+            /** @description 警告の数 */
+            warn: number;
+        };
+        /** @description チーム定義の一覧に表示する情報 */
+        HQTeamSummary: {
+            /** @description チーム定義の使命 */
+            mission: string;
+            /** @description チーム定義のメンバー */
+            members: components["schemas"]["HQTeamMember"][] | null;
+            /** @description チーム定義が雇うワーカーの数 */
+            workers: number;
+            /** @description チーム定義が持つ規則の数 */
+            rules: number;
+            /** @description プロンプトに含めない規則の数 */
+            excluded?: number;
+            /** @description チーム定義を読み取れないか */
+            broken?: boolean;
+            /** @description 初期プロンプトに含める文の文字数 */
+            size: number;
+            /** @description 初期プロンプトに含める文の上限 */
+            limit: number;
+        };
+        /** @description チーム定義のメンバー */
+        HQTeamMember: {
+            /** @description メンバー名 */
+            name: string;
+            /** @description メンバーのロール名 */
+            role: string;
+            /** @description メンバーが使うプロファイル名 */
+            profile: string;
+            /** @description メンバーの初期プロンプトを作る部分 */
+            segments?: components["schemas"]["HQPromptSegment"][];
+        };
+        /** @description 初期プロンプトを作る部分 */
+        HQPromptSegment: {
+            /** @description 初期プロンプトの部分の種類 */
+            kind: string;
+            /** @description 初期プロンプトに含める文 */
+            text: string;
+            /** @description 初期プロンプトの部分の由来 */
+            origin: components["schemas"]["HQPromptOrigin"];
+        };
+        /** @description 初期プロンプトの部分の由来 */
+        HQPromptOrigin: {
+            /** @description 初期プロンプトの部分の由来の種類 */
+            kind: string;
+            /** @description 由来となる名前 */
+            name?: string;
+            /** @description 由来となる文書の場所 */
+            path?: string;
+            /** @description 由来となる文書がある場所 */
+            place?: string;
+        };
+        /** @description チーム定義が雇うワーカー */
+        HQTeamWorker: {
+            /** @description ワーカーを雇うメンバー名 */
+            from: string;
+            /** @description ワーカーを雇う目的 */
+            purpose: string;
+            /** @description ワーカーが使うプロファイル名 */
+            profile: string;
+        };
+        /** @description チーム定義の文書 */
+        HQTeamDocument: {
+            /** @description チーム定義の使命 */
+            mission: string;
+            /** @description チーム定義のメンバー */
+            members: components["schemas"]["HQTeamMember"][] | null;
+            /** @description チーム定義が雇うワーカー */
+            workers: components["schemas"]["HQTeamWorker"][] | null;
+            /** @description メンバーがターンを渡す順 */
+            turns: components["schemas"]["HQTurn"][] | null;
+            /** @description 初期プロンプトの行 */
+            prompt: components["schemas"]["HQPromptLines"];
+            /** @description チーム定義が持つルール */
+            agreement?: components["schemas"]["HQTeamAgreement"] | null;
+            /** @description チーム定義を読み取れないか */
+            broken?: boolean;
+        };
+        /** @description ターンを渡すノードの組 */
+        HQTurn: {
+            /** @description ターンを渡すノード名 */
+            from: string;
+            /** @description ターンを受け取るノード名 */
+            to: string;
+        };
+        /** @description 初期プロンプトに含めるターンとワーカーの行 */
+        HQPromptLines: {
+            /** @description ノードごとのターンの行 */
+            turns: {
+                [key: string]: string[];
+            } | null;
+            /** @description メンバーごとのワーカーの行 */
+            workers: {
+                [key: string]: string[];
+            } | null;
+        };
+        /** @description チーム定義が持つルール */
+        HQTeamAgreement: {
+            /** @description ルール文書の場所 */
+            path: string;
+            /** @description ルール文書のハッシュ */
+            hash: string;
+            /** @description ルール文書があるか */
+            has: boolean;
+            /** @description ルール文書が持つ規則の数 */
+            rules: number;
+            /** @description プロンプトに含めない規則の数 */
+            excluded?: number;
+            /** @description ルール文書の内容 */
+            doc?: components["schemas"]["HQRoleDocument"] | null;
+        };
+        /** @description ロールの一覧に表示する情報 */
+        HQRoleSummary: {
+            /** @description ロールの規則の数 */
+            rules: number;
+            /** @description ロールの文書の文字数 */
+            chars: number;
+            /** @description ロール文書の代わりに残っている Markdown */
+            markdown?: string;
+            /** @description ロール文書がないか */
+            noDoc?: boolean;
+            /** @description ロール文書を新しく作るか */
+            isNew?: boolean;
+        };
+        /** @description ロールの文書 */
+        HQRoleDocument: {
+            /** @description ロール名 */
+            name: string;
+            /** @description ロール文書の題名 */
+            title: string;
+            /** @description ロール文書の版 */
+            revision: number | null;
+            /** @description ロール文書の節 */
+            sections: components["schemas"]["HQRoleSection"][] | null;
+            /** @description ロール文書のハッシュ */
+            hash?: string;
+            /** @description ロール文書のテキスト */
+            text?: string;
+        };
+        /** @description ロール文書の節 */
+        HQRoleSection: {
+            /** @description 元の文書での節番号 */
+            from?: number | null;
+            /** @description 節の見出し */
+            heading: string;
+            /** @description 見出しの段 */
+            level: number;
+            /** @description 節の導入文 */
+            intro: string;
+            /** @description 節にある規則 */
+            rules: components["schemas"]["HQRoleRule"][] | null;
+        };
+        /** @description ロール文書の規則 */
+        HQRoleRule: {
+            /** @description 元の文書での規則の場所 */
+            from?: components["schemas"]["HQRoleFrom"] | null;
+            /** @description 規則の ID */
+            id: string;
+            /** @description 規則の文 */
+            text: string;
+            /** @description 規則を初期プロンプトに含めるか */
+            in_prompt: boolean;
+            /** @description 規則を初期プロンプトから外した日 */
+            off_since?: string;
+            /** @description 規則について人が残したメモ */
+            note: string;
+        };
+        /** @description 元のロール文書での規則の場所 */
+        HQRoleFrom: {
+            /** @description 元の文書での節番号 */
+            section: number;
+            /** @description 元の文書での規則番号 */
+            rule: number;
+        };
+        /** @description プロファイルの一覧に表示する情報 */
+        HQProfileSummary: {
+            /** @description エージェントの種類 */
+            kind: string;
+            /** @description 画面が使うエージェント種類の分類 */
+            kindClass: string;
+            /** @description エージェントに渡す引数 */
+            args: string;
+            /** @description エージェントに渡す環境変数 */
+            env: string[] | null;
+            /** @description 一覧に表示しない追加の値の数 */
+            more: number;
+            /** @description プロファイルを使うメンバーとワーカーの数 */
+            users: number;
+            /** @description プロファイルを使うロール名 */
+            roles: string;
+            /** @description プロファイルを使うメンバーとワーカー */
+            chips: components["schemas"]["HQProfileChip"][] | null;
+        };
+        /** @description プロファイルを使うメンバーまたはワーカー */
+        HQProfileChip: {
+            /** @description メンバーまたはワーカーが属するチーム定義名 */
+            def: string;
+            /** @description チーム定義内のメンバーまたはワーカーの ID */
+            id: string;
+            /** @description プロファイルを使うメンバー名またはワーカー名 */
+            who: string;
+            /** @description メンバーのロール名 */
+            role: string;
+            /** @description プロファイルを使うのがワーカーか */
+            worker: boolean;
+            /** @description チーム定義がプロジェクトにあるか */
+            local: boolean;
+        };
+        /** @description プロファイルの内容 */
+        HQProfileDocument: {
+            /** @description プロファイル名 */
+            name: string;
+            /** @description エージェントの種類 */
+            kind: string;
+            /** @description エージェントに渡す引数 */
+            args: string[] | null;
+            /** @description エージェントに渡す環境変数 */
+            env: components["schemas"]["HQProfileEnv"][];
+        };
+        /** @description プロファイルが指定する環境変数 */
+        HQProfileEnv: {
+            /** @description 環境変数名 */
+            key: string;
+            /** @description 環境変数の値 */
+            value: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1562,13 +2446,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 活動の一覧と数 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ActivityList"];
                 };
             };
         };
@@ -1584,13 +2468,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 開いたチームの活動 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ActivityOpened"];
+                };
+            };
+            /** @description 動いているチームが見つからない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1604,19 +2497,15 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": unknown;
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 活動は読むだけ */
+            405: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/plain": string;
                 };
             };
         };
@@ -1632,13 +2521,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 活動は読むだけ */
+            405: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/plain": string;
                 };
             };
         };
@@ -1650,19 +2539,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": unknown;
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 活動は読むだけ */
+            405: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/plain": string;
                 };
             };
         };
@@ -1676,13 +2561,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 変更を伝えていないメンバー */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DeliveryAnswer"];
                 };
             };
         };
@@ -1694,19 +2579,47 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["DeliveryRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 送ったメンバーと更新後の一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DeliveryAnswer"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 変更を伝える読み取りがない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 要求を読めないか、選んだメンバーに送れない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
@@ -1743,13 +2656,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 本部が読むプロジェクト */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQProjects"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1761,39 +2683,104 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["HQAddProjectRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 追加後のプロジェクト一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQProjects"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 要求を読めないか、プロジェクトを並べられない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
     };
     removeHQProject: {
         parameters: {
-            query?: never;
+            query?: {
+                path?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 削除後のプロジェクト一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQProjects"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 並びから外すプロジェクトがない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description プロジェクトを並びから外せない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1807,13 +2794,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description プロジェクトごとのチーム定義 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQGroups"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1827,13 +2823,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description プロジェクトごとのロール */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQGroups"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1847,13 +2852,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description プロジェクトごとのプロファイル */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQGroups"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1867,13 +2881,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 動いているチームと herdr の状態 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQRunning"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1887,33 +2910,64 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description herdr のワークスペース */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQWorkspaces"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
     };
     getHQLaunchOptions: {
         parameters: {
-            query?: never;
+            query?: {
+                project?: string;
+                definition?: string;
+                place?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 起動の選択肢 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQLaunchOptions"];
+                };
+            };
+            /** @description 起動の選択肢を作れない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1925,19 +2979,55 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["HQLaunchRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 起動を受け付けた */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQLaunchEnvelope"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 名前が重なったか、ワークスペースが使えない（workspace_taken・workspace_busy） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"] | components["schemas"]["HQLaunchNameTaken"];
+                };
+            };
+            /** @description チームを起動できない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部または herdr を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1953,13 +3043,31 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 起動の進み具合 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQLaunchEnvelope"];
+                };
+            };
+            /** @description 起動記録が見つからない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1975,13 +3083,40 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 待ちをやめた起動の状態 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQLaunchEnvelope"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 起動記録が見つからない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -1993,19 +3128,46 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["HQStopRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 止めたチームと閉じた数 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQStopped"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 動いているチームが見つからない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部または herdr を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -2017,19 +3179,64 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["HQRefreshRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 起動を受け付けた */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HQLaunchEnvelope"];
+                };
+            };
+            /** @description 書き込みを許可できない */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 動いているチームが見つからない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description チームまたはメンバーが起動中 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description メンバーを起動できない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 本部または herdr を読めない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
