@@ -6,11 +6,8 @@
 // The screens are written in internal/web/src and built from the entries the
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
-//
-//   preact 10.29.8 — MIT
 
 import {
-  l,
   S,
   R,
   h,
@@ -21,7 +18,7 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-d0em3q8r.js";
+} from "../chunk/nav-vyr0f22b.js";
 import {
   check2,
   save2,
@@ -32,13 +29,16 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-8w00s4h3.js";
+} from "../chunk/nav-e6ranb7w.js";
 import {
   YamlTab2
 } from "../chunk/nav-bgmvn086.js";
 import {
   resource
 } from "../chunk/nav-mdymvqv4.js";
+import {
+  u
+} from "../chunk/nav-bpr8kyt6.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -914,20 +914,6 @@ function scheduleCheck(key) {
 }
 function initPanel(key) {
   checkPanel(key);
-}
-// ../../../tools/webvendor/node_modules/preact/jsx-runtime/dist/jsxRuntime.module.js
-var f = 0;
-function u(e, t, n, o, i, u) {
-  t || (t = {});
-  var a, c, p = t;
-  if ("ref" in p)
-    for (c in p = {}, t)
-      c == "ref" ? a = t[c] : p[c] = t[c];
-  var l2 = { type: e, props: p, key: n, ref: a, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: undefined, __v: --f, __i: -1, __u: 0, __source: i, __self: u };
-  if (typeof e == "function" && (a = e.defaultProps))
-    for (c in a)
-      p[c] === undefined && (p[c] = a[c]);
-  return l.vnode && l.vnode(l2), l2;
 }
 
 // profiles/view.tsx
@@ -2198,29 +2184,3 @@ var carried = takeDraft2("profiles");
 if (carried)
   restore(carried);
 tellDirty();
-
-// ---- licences ---------------------------------------------------------
-//
-// preact 10.29.8 — MIT
-//
-// The MIT License (MIT)
-//
-// Copyright (c) 2015-present Jason Miller
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.

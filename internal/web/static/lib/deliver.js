@@ -8,10 +8,10 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  S,
   R,
   h,
-  A,
-  html
+  A
 } from "../chunk/nav-wqvgfs4g.js";
 import"../chunk/nav-xz225p52.js";
 import {
@@ -30,9 +30,12 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-bpxtqb2k.js";
+} from "../chunk/nav-qyt0ykjb.js";
+import {
+  u
+} from "../chunk/nav-bpr8kyt6.js";
 
-// lib/deliver/view.js
+// lib/deliver/view.tsx
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
 var INTRO = "チェックした人に、初期プロンプトを送り直します（それまでの会話は残ります）。仕事中と許可待ちの人には送れません。";
 var press = (fn) => (e) => {
@@ -41,18 +44,24 @@ var press = (fn) => (e) => {
 };
 function BandButton() {
   const n = count.value;
-  return html`<button
-    type="button"
-    class="dlv-bandbtn"
-    data-dlv="open"
-    aria-haspopup="dialog"
-    title="定義を直したあと、まだ伝えていない人"
-    aria-label=${`変更を伝えていない人 ${n}`}
-    hidden=${n <= 0}
-    onClick=${press(openSheet)}
-  >変更を伝えていない人 <b>${n}</b></button>`;
+  return /* @__PURE__ */ u("button", {
+    type: "button",
+    class: "dlv-bandbtn",
+    "data-dlv": "open",
+    "aria-haspopup": "dialog",
+    title: "定義を直したあと、まだ伝えていない人",
+    "aria-label": `変更を伝えていない人 ${n}`,
+    hidden: n <= 0,
+    onClick: press(openSheet),
+    children: [
+      "変更を伝えていない人 ",
+      /* @__PURE__ */ u("b", {
+        children: n
+      })
+    ]
+  });
 }
-var baseName = (p) => String(p == null ? "" : p).replace(/\\/g, "/").split("/").pop();
+var baseName = (p) => String(p == null ? "" : p).replace(/\\/g, "/").split("/").pop() || "";
 function roleOf(path) {
   const m = /(^|\/)roles\/([^/]+)$/.exec(String(path == null ? "" : path).replace(/\\/g, "/"));
   return m ? m[2].replace(/\.(ya?ml|md)$/, "") : "";
@@ -87,41 +96,161 @@ function Sheet() {
   const a = answer.value;
   if (!a)
     return null;
-  return html`<section class="dlv-sheet" role="dialog" aria-label="変更を伝える" tabindex="-1" ref=${box}>
-    <div class="dlv-h"><b>変更を伝える</b><button class="dlv-x" type="button" data-dlv="close" aria-label="閉じる" onClick=${press(close)}>×</button></div>
-    <div class="dlv-sub2">${INTRO}</div>
-    <p class="dlv-note err" data-dlv-note hidden=${!note.value}>${note.value}</p>
-    ${(a.teams || []).map((g) => html`<${Team} group=${g} />`)}
-    <div class="dlv-acts"><button class="dlv-btn dlv-primary" type="button" data-dlv="send" disabled=${!canSend.value} onClick=${press(send)}>${sendLabel.value}</button><button class="dlv-btn" type="button" data-dlv="close" onClick=${press(close)}>やめる</button></div>
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "dlv-sheet",
+    role: "dialog",
+    "aria-label": "変更を伝える",
+    tabIndex: -1,
+    ref: box,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "dlv-h",
+        children: [
+          /* @__PURE__ */ u("b", {
+            children: "変更を伝える"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "dlv-x",
+            type: "button",
+            "data-dlv": "close",
+            "aria-label": "閉じる",
+            onClick: press(close),
+            children: "×"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "dlv-sub2",
+        children: INTRO
+      }),
+      /* @__PURE__ */ u("p", {
+        class: "dlv-note err",
+        "data-dlv-note": true,
+        hidden: !note.value,
+        children: note.value
+      }),
+      (a.teams || []).map((g) => /* @__PURE__ */ u(Team, {
+        group: g
+      })),
+      /* @__PURE__ */ u("div", {
+        class: "dlv-acts",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "dlv-btn dlv-primary",
+            type: "button",
+            "data-dlv": "send",
+            disabled: !canSend.value,
+            onClick: press(send),
+            children: sendLabel.value
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "dlv-btn",
+            type: "button",
+            "data-dlv": "close",
+            onClick: press(close),
+            children: "やめる"
+          })
+        ]
+      })
+    ]
+  });
 }
 function Team({ group }) {
-  const def = group.definition && group.definition !== group.name ? html`（定義 <code>${group.definition}</code>）` : "";
-  return html`<div class="dlv-team">
-    <div class="dlv-th">チーム <code>${group.name}</code>${def}</div>
-    <div class="dlv-ms">${(group.members || []).map((m) => html`<${Member} m=${m} group=${group} />`)}</div>
-  </div>`;
+  const def = group.definition && group.definition !== group.name ? /* @__PURE__ */ u(S, {
+    children: [
+      "（定義 ",
+      /* @__PURE__ */ u("code", {
+        children: group.definition
+      }),
+      "）"
+    ]
+  }) : "";
+  return /* @__PURE__ */ u("div", {
+    class: "dlv-team",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "dlv-th",
+        children: [
+          "チーム ",
+          /* @__PURE__ */ u("code", {
+            children: group.name
+          }),
+          def
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "dlv-ms",
+        children: (group.members || []).map((m) => /* @__PURE__ */ u(Member, {
+          m,
+          group
+        }))
+      })
+    ]
+  });
 }
 function Member({ m, group }) {
   const can = !!m.can_send;
-  return html`<label class=${can ? "dlv-mm" : "dlv-mm no"}>
-    <input type="checkbox" data-dlv-name=${m.name} checked=${can && chosen.value.has(m.name)} disabled=${!can} onChange=${() => toggle(m.name)} />
-    <span class="dlv-who"><code>${m.name}</code><span class="dlv-st">${STATE[m.state] || m.state}</span>${can ? null : html`<span class="dlv-wait">仕事が終わると伝えられます</span>`}</span>
-    <span class="dlv-what">${(m.changes || []).map((c) => {
-    const href = linkFor(c, group);
-    const text = c.text || "";
-    return html`<span>${href ? html`<a class="dlv-chg" href=${href}>${text}</a>` : text}</span>`;
-  })}</span>
-  </label>`;
+  return /* @__PURE__ */ u("label", {
+    class: can ? "dlv-mm" : "dlv-mm no",
+    children: [
+      /* @__PURE__ */ u("input", {
+        type: "checkbox",
+        "data-dlv-name": m.name,
+        checked: can && chosen.value.has(m.name),
+        disabled: !can,
+        onChange: () => toggle(m.name)
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "dlv-who",
+        children: [
+          /* @__PURE__ */ u("code", {
+            children: m.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "dlv-st",
+            children: STATE[m.state] || m.state
+          }),
+          can ? null : /* @__PURE__ */ u("span", {
+            class: "dlv-wait",
+            children: "仕事が終わると伝えられます"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "dlv-what",
+        children: (m.changes || []).map((c) => {
+          const href = linkFor(c, group);
+          const text = c.text || "";
+          return /* @__PURE__ */ u("span", {
+            children: href ? /* @__PURE__ */ u("a", {
+              class: "dlv-chg",
+              href,
+              children: text
+            }) : text
+          });
+        })
+      })
+    ]
+  });
 }
 function Toast() {
-  return html`<div class="dlv-toast" role="status" hidden=${!toastOn.value}>${toast.value}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "dlv-toast",
+    role: "status",
+    hidden: !toastOn.value,
+    children: toast.value
+  });
 }
 function Layer() {
-  return html`${opened.value && answer.value ? html`<${Sheet} />` : null}<${Toast} />`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      opened.value && answer.value ? /* @__PURE__ */ u(Sheet, {}) : null,
+      /* @__PURE__ */ u(Toast, {})
+    ]
+  });
 }
 
-// lib/deliver.js
+// lib/deliver.tsx
 function mountBand() {
   const after = document.querySelector(".bar .hq-search") || document.querySelector(".bar .screens");
   if (!after)
@@ -130,14 +259,14 @@ function mountBand() {
   host.className = "dlv-band";
   host.style.display = "contents";
   after.insertAdjacentElement("afterend", host);
-  R(html`<${BandButton} />`, host);
+  R(/* @__PURE__ */ u(BandButton, {}), host);
   return host;
 }
 function mountLayer() {
   const host = document.createElement("div");
   host.className = "dlv-layer";
   document.body.appendChild(host);
-  R(html`<${Layer} />`, host);
+  R(/* @__PURE__ */ u(Layer, {}), host);
   return host;
 }
 document.addEventListener("keydown", (e) => {

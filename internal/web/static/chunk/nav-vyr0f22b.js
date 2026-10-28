@@ -7,9 +7,9 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
-// lib/nav.js
+// lib/nav.ts
 var band = document.querySelector(".screens");
-var key = band && band.dataset.key || "";
+var key = band?.dataset.key || "";
 var page = () => window.hergyPage || null;
 var mine = () => {
   const p = page();
@@ -19,21 +19,21 @@ var at = (what, screen) => "hergy." + key + "." + what + "." + screen;
 var read = (k) => {
   try {
     return window.sessionStorage.getItem(k);
-  } catch (e) {
+  } catch {
     return null;
   }
 };
 var write = (k, v) => {
   try {
     window.sessionStorage.setItem(k, v);
-  } catch (e) {}
+  } catch {}
 };
 var drop = (k) => {
   try {
     window.sessionStorage.removeItem(k);
-  } catch (e) {}
+  } catch {}
 };
-var scr = (name) => band ? band.querySelector('.scr[data-screen="' + name + '"]') : null;
+var scr = (name) => band?.querySelector('.scr[data-screen="' + name + '"]') || null;
 var setDot = (el, on) => {
   if (!el)
     return;
@@ -72,7 +72,7 @@ function takeDraft2(screen) {
     return null;
   try {
     return JSON.parse(raw);
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -83,7 +83,7 @@ function setDirty2(on) {
 }
 function setCount2(screen, n) {
   const el = scr(screen);
-  const num = el && el.querySelector(".n");
+  const num = el?.querySelector(".n");
   if (num)
     num.textContent = String(n);
 }
@@ -122,12 +122,12 @@ function setActivity2(running, waiting, counts) {
 if (band) {
   const pushState = history.pushState.bind(history);
   const replaceState = history.replaceState.bind(history);
-  history.pushState = function(...args) {
-    pushState(...args);
+  history.pushState = function(data, unused, url) {
+    pushState(data, unused, url);
     remember();
   };
-  history.replaceState = function(...args) {
-    replaceState(...args);
+  history.replaceState = function(data, unused, url) {
+    replaceState(data, unused, url);
     remember();
   };
   band.querySelectorAll("a.scr").forEach((a) => {
@@ -138,7 +138,7 @@ if (band) {
         return;
       const p = page();
       if (p && p.dirty && p.dirty())
-        write(at("draft", screen), JSON.stringify(p.take()));
+        write(at("draft", screen), String(JSON.stringify(p.take())));
       else
         drop(at("draft", screen));
     });

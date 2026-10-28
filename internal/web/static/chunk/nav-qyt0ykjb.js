@@ -12,12 +12,14 @@ import {
   O
 } from "./nav-wqvgfs4g.js";
 import {
-  read2,
+  Refusal2,
+  delivery2,
+  deliveryCount2,
   deliver2,
   problemText2
 } from "./nav-xz225p52.js";
 
-// lib/deliver/state.js
+// lib/deliver/state.ts
 var POLL = 15000;
 var count = y(0);
 var opened = y(false);
@@ -50,7 +52,7 @@ function toggle(name) {
 }
 async function readCount() {
   try {
-    const a = await read2("/api/delivery/count");
+    const a = await deliveryCount2();
     count.value = Number(a && a.count) || 0;
   } catch (e) {}
 }
@@ -61,8 +63,9 @@ async function openSheet() {
     return;
   opening = true;
   try {
-    const a = await read2("/api/delivery");
-    opener = document.activeElement;
+    const a = await delivery2();
+    const active = document.activeElement;
+    opener = active && typeof active.focus === "function" ? active : null;
     answer.value = a;
     note.value = a && a.herdr && a.herdr.ok === false ? a.herdr.text || "" : "";
     chosen.value = new Set(pickable.value);
@@ -96,9 +99,9 @@ async function send() {
     showToast(`${names.join("・")} に伝えました`);
     readCount();
   } catch (e) {
-    if (e && e.status === 422) {
+    if (e instanceof Refusal2 && e.status === 422) {
       note.value = `誰にも送っていません。${problemText2(e, "")}`;
-    } else if (e && e.status) {
+    } else if (e instanceof Refusal2 && e.status) {
       note.value = `誰にも送っていません。${problemText2(e, e.text || "")}`;
     } else {
       note.value = "送れませんでした。";

@@ -21,7 +21,7 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-d0em3q8r.js";
+} from "../chunk/nav-vyr0f22b.js";
 import {
   call2,
   list2,
@@ -50,7 +50,7 @@ import {
   parseOpen2,
   projectName2,
   RunCell2
-} from "../chunk/nav-8w00s4h3.js";
+} from "../chunk/nav-e6ranb7w.js";
 import {
   YamlTab2
 } from "../chunk/nav-bgmvn086.js";
@@ -60,6 +60,7 @@ import {
 import {
   resource
 } from "../chunk/nav-mdymvqv4.js";
+import"../chunk/nav-bpr8kyt6.js";
 
 // teams/place.js
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);

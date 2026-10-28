@@ -8,18 +8,18 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  S,
   R,
   d,
   y,
-  O,
-  html
+  O
 } from "../chunk/nav-wqvgfs4g.js";
 import {
   read2
 } from "../chunk/nav-xz225p52.js";
 import {
   setActivity2
-} from "../chunk/nav-d0em3q8r.js";
+} from "../chunk/nav-vyr0f22b.js";
 import {
   setRunning2,
   token2,
@@ -32,15 +32,18 @@ import {
   raiseMember2,
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-8w00s4h3.js";
+} from "../chunk/nav-e6ranb7w.js";
 import {
   openSheet
-} from "../chunk/nav-bpxtqb2k.js";
+} from "../chunk/nav-qyt0ykjb.js";
 import {
   resource
 } from "../chunk/nav-mdymvqv4.js";
+import {
+  u
+} from "../chunk/nav-bpr8kyt6.js";
 
-// activity/state.js
+// activity/state.ts
 var POLL = 1e4;
 var ST = { answer: "許可待ち", turn: "人間の番", stalled: "止まっている", working: "仕事中" };
 var NS = { blocked: "許可待ち", handed: "人間に渡した", active: "仕事中", idle: "止まっている", absent: "動いていない" };
@@ -56,7 +59,7 @@ function openTeam() {
   return one || { name: "", group: "" };
 }
 function turnsOf(def) {
-  return (def && def.turns || []).map((t) => Array.isArray(t) ? [t[0], t[1]] : [t.from, t.to]);
+  return (def && def.turns || []).map((t) => [t.from, t.to]);
 }
 function memberOrderOf(def, nodes) {
   const named = (def && def.members || []).map((m) => m.name);
@@ -84,10 +87,15 @@ function sheetOf(item, docs) {
     return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "", stale: !!n.stale };
   });
   const hired = doc ? doc.hired || [] : (run && run.workers || []).map((w) => ({ name: w.name, state: w.live ? "active" : "idle" }));
-  const workers = hired.map((w) => ({ name: w.name, state: w.state || "idle", doing: w.doing || "", from: w.from || "" }));
+  const workers = hired.map((w) => ({
+    name: w.name,
+    state: w.state || "idle",
+    doing: "doing" in w && typeof w.doing === "string" && w.doing || "",
+    from: "from" in w && typeof w.from === "string" && w.from || ""
+  }));
   const lines = doc && doc.tail && doc.tail.lines || [];
   const state = item.summary.state || "idle";
-  const waitNode = crew.find((m) => m.state === "blocked") || crew.find((m) => m.state === "handed");
+  const wait = crew.find((m) => m.state === "blocked") || crew.find((m) => m.state === "handed") || null;
   return {
     item,
     name: item.name,
@@ -103,7 +111,7 @@ function sheetOf(item, docs) {
     workers,
     turns: turnsOf(def),
     lines,
-    wait: waitNode || null,
+    wait,
     starting: !!(run && run.starting),
     launch: run && run.launch || "",
     error: item.error || doc && doc.error || "",
@@ -167,12 +175,18 @@ function pick(name) {
   }
 }
 
-// activity/figure.js
+// activity/figure.tsx
 function Figure({ team }) {
-  return html`<div class="hq-fig"><${TeamFigure2} team=${team} turns=${team.turns} /></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-fig",
+    children: /* @__PURE__ */ u(TeamFigure2, {
+      team,
+      turns: team.turns
+    })
+  });
 }
 
-// activity/board.js
+// activity/board.tsx
 var whereText = (t, node) => [
   t.workspace ? `ワークスペース ${t.workspace}` : "",
   `タブ ${t.name}`,
@@ -186,77 +200,464 @@ function Attention({ rows }) {
       if (m.state !== "blocked" && m.state !== "handed")
         continue;
       const q = t.question || (t.starting ? "起動の途中で、このフォルダを信頼するかを聞いています" : "");
-      waiting.push(html`<button type="button" class="hq-at" data-pick=${t.name} onClick=${() => pick(t.name)}><span class=${"st " + (m.state === "blocked" ? "answer" : "turn")}>${m.state === "blocked" ? "許可待ち" : "人間の番"}</span>
-        <span class="hq-aw"><code>${m.herdr || t.name + "-" + m.name}</code><span class="hq-pw">${t.projectName}</span></span>
-        <span class="hq-aq">${q}</span>
-        <span class="hq-where">${whereText(t, m)}</span>
-        <span class="hq-tl">${m.since ? m.since : ""}</span></button>`);
+      waiting.push(/* @__PURE__ */ u("button", {
+        type: "button",
+        class: "hq-at",
+        "data-pick": t.name,
+        onClick: () => pick(t.name),
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "st " + (m.state === "blocked" ? "answer" : "turn"),
+            children: m.state === "blocked" ? "許可待ち" : "人間の番"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-aw",
+            children: [
+              /* @__PURE__ */ u("code", {
+                children: m.herdr || t.name + "-" + m.name
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "hq-pw",
+                children: t.projectName
+              })
+            ]
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-aq",
+            children: q
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-where",
+            children: whereText(t, m)
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-tl",
+            children: m.since ? m.since : ""
+          })
+        ]
+      }));
     }
   }
-  const stalled = rows.filter((t) => t.state === "stalled").map((t) => html`<button type="button" class="hq-at stall" data-pick=${t.name} onClick=${() => pick(t.name)}><span class="st stalled">止まっている</span>
-    <span class="hq-aw"><code>${t.name}</code><span class="hq-pw">${t.projectName}</span></span>
-    <span class="hq-aq">誰もターンを持っていない</span>
-    <span class="hq-where">${tabWhere(t)}</span>
-    <span class="hq-tl">${t.since && t.since.len || ""}</span></button>`);
+  const stalled = rows.filter((t) => t.state === "stalled").map((t) => /* @__PURE__ */ u("button", {
+    type: "button",
+    class: "hq-at stall",
+    "data-pick": t.name,
+    onClick: () => pick(t.name),
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "st stalled",
+        children: "止まっている"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-aw",
+        children: [
+          /* @__PURE__ */ u("code", {
+            children: t.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-pw",
+            children: t.projectName
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-aq",
+        children: "誰もターンを持っていない"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-where",
+        children: tabWhere(t)
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-tl",
+        children: t.since && t.since.len || ""
+      })
+    ]
+  }));
   if (!waiting.length && !stalled.length)
-    return html`<section class="hq-att calm"><p>人間を待っているチームも、止まっているチームもありません。</p></section>`;
-  return html`<section class="hq-att"><div class="hq-ah"><b>人間を待っている</b><span class="n">${waiting.length}</span>${stalled.length ? html`<b class="sp">止まっている</b><span class="n">${stalled.length}</span>` : ""}</div><div class="hq-al">${waiting}${stalled}</div></section>`;
+    return /* @__PURE__ */ u("section", {
+      class: "hq-att calm",
+      children: /* @__PURE__ */ u("p", {
+        children: "人間を待っているチームも、止まっているチームもありません。"
+      })
+    });
+  return /* @__PURE__ */ u("section", {
+    class: "hq-att",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "hq-ah",
+        children: [
+          /* @__PURE__ */ u("b", {
+            children: "人間を待っている"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "n",
+            children: waiting.length
+          }),
+          stalled.length ? /* @__PURE__ */ u(S, {
+            children: [
+              /* @__PURE__ */ u("b", {
+                class: "sp",
+                children: "止まっている"
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "n",
+                children: stalled.length
+              })
+            ]
+          }) : ""
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "hq-al",
+        children: [
+          waiting,
+          stalled
+        ]
+      })
+    ]
+  });
 }
 function countsLine(t) {
   const n = (k) => t.crew.filter((m) => m.state === k).length;
-  return html`<div class="hq-tc"><span><i class="dot active"></i>仕事中 ${n("active")}</span><span><i class="dot idle"></i>止まっている ${n("idle")}</span>${n("blocked") ? html`<span><i class="dot blocked"></i>許可待ち ${n("blocked")}</span>` : ""}${n("absent") ? html`<span><i class="dot absent"></i>動いていない ${n("absent")}</span>` : ""}${t.workers.length ? html`<span class="wk">ワーカー ${t.workers.length}</span>` : ""}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-tc",
+    children: [
+      /* @__PURE__ */ u("span", {
+        children: [
+          /* @__PURE__ */ u("i", {
+            class: "dot active"
+          }),
+          "仕事中 ",
+          n("active")
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        children: [
+          /* @__PURE__ */ u("i", {
+            class: "dot idle"
+          }),
+          "止まっている ",
+          n("idle")
+        ]
+      }),
+      n("blocked") ? /* @__PURE__ */ u("span", {
+        children: [
+          /* @__PURE__ */ u("i", {
+            class: "dot blocked"
+          }),
+          "許可待ち ",
+          n("blocked")
+        ]
+      }) : "",
+      n("absent") ? /* @__PURE__ */ u("span", {
+        children: [
+          /* @__PURE__ */ u("i", {
+            class: "dot absent"
+          }),
+          "動いていない ",
+          n("absent")
+        ]
+      }) : "",
+      t.workers.length ? /* @__PURE__ */ u("span", {
+        class: "wk",
+        children: [
+          "ワーカー ",
+          t.workers.length
+        ]
+      }) : ""
+    ]
+  });
 }
 function Tile({ team: t }) {
-  const sel = t.name === current.value.name;
-  const stall = t.state === "stalled" ? html`<p class="hq-why">誰もターンを持っていません（人間の番でもない）。最後に動いたのは ${lastMoment(t) || t.since && t.since.at || ""}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>` : "";
-  const broken = t.error ? html`<p class="hq-why" data-role="definition-error">${t.error}</p>` : "";
-  return html`<article class=${"hq-tile " + t.state + (sel ? " sel" : "")} data-team=${t.name}>
-    <button type="button" class="hq-th" data-pick=${t.name} aria-pressed=${sel ? "true" : "false"} onClick=${() => pick(t.name)}>
-      <span class="hq-tn">${t.name}</span><span class="hq-pw">${t.projectName} · ${t.workspace}</span>
-      <span class=${"st " + t.state}>${ST[t.state] || ""}</span>
-      <span class="hq-tl">${t.since ? html`<b>${t.since.len}</b> ${t.since.at}` : ""}</span>
-    </button>
-    <${Figure} team=${t} />
-    ${broken}
-    ${stall}
-    ${countsLine(t)}
-  </article>`;
+  const sel = t.name === current.value?.name;
+  const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
+    class: "hq-why",
+    children: [
+      "誰もターンを持っていません（人間の番でもない）。最後に動いたのは ",
+      lastMoment(t) || t.since && t.since.at || "",
+      "。lead に続きを渡すか、",
+      /* @__PURE__ */ u("code", {
+        children: "hergy nudge"
+      }),
+      " でうながす"
+    ]
+  }) : "";
+  const broken = t.error ? /* @__PURE__ */ u("p", {
+    class: "hq-why",
+    "data-role": "definition-error",
+    children: t.error
+  }) : "";
+  return /* @__PURE__ */ u("article", {
+    class: "hq-tile " + t.state + (sel ? " sel" : ""),
+    "data-team": t.name,
+    children: [
+      /* @__PURE__ */ u("button", {
+        type: "button",
+        class: "hq-th",
+        "data-pick": t.name,
+        "aria-pressed": sel ? "true" : "false",
+        onClick: () => pick(t.name),
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "hq-tn",
+            children: t.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-pw",
+            children: [
+              t.projectName,
+              " · ",
+              t.workspace
+            ]
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "st " + t.state,
+            children: ST[t.state] || ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-tl",
+            children: t.since ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("b", {
+                  children: t.since.len
+                }),
+                " ",
+                t.since.at
+              ]
+            }) : ""
+          })
+        ]
+      }),
+      /* @__PURE__ */ u(Figure, {
+        team: t
+      }),
+      broken,
+      stall,
+      countsLine(t)
+    ]
+  });
 }
 function Detail({ team: t }) {
   const [error, setError] = d("");
   const press = async (name) => {
     setError(await raiseMember2(t.name, name));
   };
-  const answerBox = t.wait ? html`<div class="hq-ans"><span>答える場所</span><span class="hq-where">${whereText(t, t.wait)}</span></div>` : "";
+  const answerBox = t.wait ? /* @__PURE__ */ u("div", {
+    class: "hq-ans",
+    children: [
+      /* @__PURE__ */ u("span", {
+        children: "答える場所"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-where",
+        children: whereText(t, t.wait)
+      })
+    ]
+  }) : "";
   const hasTail = t.tail.length > 0;
-  const screenBox = hasTail ? html`<div class="hq-dq"><div class="th">画面の最後（<code>${t.wait ? t.wait.herdr || t.name + "-" + t.wait.name : t.last ? t.name + "-" + t.last : t.name}</code>）</div>
-    <pre class="term">${t.tail.join(`
-`)}</pre>${answerBox}</div>` : answerBox ? html`<div class="hq-dq">${answerBox}</div>` : "";
-  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${"dot " + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ""}${m.state === "absent" && !t.starting ? html`<button type="button" class="hq-btn sm" data-hq="raise" data-team=${t.name} data-member=${m.name} aria-label=${`${m.name} を起動`} onClick=${() => press(m.name)}>起動</button>` : ""}</span><span class="t">${m.at || ""}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ""}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ""}</li>`);
-  const wk = t.workers.length ? [html`<li class="sub">ワーカー</li>`, t.workers.map((w) => html`<li class=${w.state}><i class=${"dot " + w.state}></i><span class="nm wk">${w.name}</span><span class="sw">${NS[w.state] || ""}</span><span class="t">${w.from ? w.from + " が追加" : ""}</span>${w.doing ? html`<span class="hq-doing">${w.doing}</span>` : ""}</li>`)] : "";
+  const screenBox = hasTail ? /* @__PURE__ */ u("div", {
+    class: "hq-dq",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "th",
+        children: [
+          "画面の最後（",
+          /* @__PURE__ */ u("code", {
+            children: t.wait ? t.wait.herdr || t.name + "-" + t.wait.name : t.last ? t.name + "-" + t.last : t.name
+          }),
+          "）"
+        ]
+      }),
+      /* @__PURE__ */ u("pre", {
+        class: "term",
+        children: t.tail.join(`
+`)
+      }),
+      answerBox
+    ]
+  }) : answerBox ? /* @__PURE__ */ u("div", {
+    class: "hq-dq",
+    children: answerBox
+  }) : "";
+  const rows = t.crew.map((m) => /* @__PURE__ */ u("li", {
+    class: m.state,
+    children: [
+      /* @__PURE__ */ u("i", {
+        class: "dot " + m.state
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "nm",
+        children: m.name
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "sw",
+        children: [
+          NS[m.state] || "",
+          m.state === "absent" && !t.starting ? /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "hq-btn sm",
+            "data-hq": "raise",
+            "data-team": t.name,
+            "data-member": m.name,
+            "aria-label": `${m.name} を起動`,
+            onClick: () => press(m.name),
+            children: "起動"
+          }) : ""
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "t",
+        children: m.at || ""
+      }),
+      m.doing ? /* @__PURE__ */ u("span", {
+        class: "hq-doing",
+        children: m.doing
+      }) : "",
+      m.stale ? /* @__PURE__ */ u("span", {
+        class: "dlv-sub",
+        children: /* @__PURE__ */ u("button", {
+          class: "dlv-badge",
+          type: "button",
+          "data-deliver-open": true,
+          title: "伝えていない変更があります",
+          onClick: () => openSheet(),
+          children: "定義が変わった"
+        })
+      }) : ""
+    ]
+  }));
+  const workers = t.workers.length ? /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("li", {
+        class: "sub",
+        children: "ワーカー"
+      }),
+      t.workers.map((w) => /* @__PURE__ */ u("li", {
+        class: w.state,
+        children: [
+          /* @__PURE__ */ u("i", {
+            class: "dot " + w.state
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "nm wk",
+            children: w.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "sw",
+            children: NS[w.state] || ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "t",
+            children: w.from ? w.from + " が追加" : ""
+          }),
+          w.doing ? /* @__PURE__ */ u("span", {
+            class: "hq-doing",
+            children: w.doing
+          }) : ""
+        ]
+      }))
+    ]
+  }) : "";
   const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
-  return html`<section class="hq-detail" aria-label="${t.name} の中">
-    <div class="hq-dh"><b>${t.name}</b><span class="hq-pw">${[t.projectName, t.workspace ? "ワークスペース " + t.workspace : ""].filter(Boolean).join(" · ")}</span><span class=${"st " + t.state}>${ST[t.state] || ""}</span>
-      <span class="hq-dacts"><a class="hq-btn sm" href=${defHref}>チーム定義を開く</a><button type="button" class="hq-btn sm danger" data-hq="stop" data-team=${t.name} onClick=${() => stopSheet2(t.name)}>チームを止める…</button></span></div>
-    <div class="hq-db">${screenBox}<ul class="nodes">${rows}${wk}</ul>${error ? html`<p class="hq-err" data-role="raise-error">${error}</p>` : ""}</div></section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "hq-detail",
+    "aria-label": `${t.name} の中`,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "hq-dh",
+        children: [
+          /* @__PURE__ */ u("b", {
+            children: t.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-pw",
+            children: [t.projectName, t.workspace ? "ワークスペース " + t.workspace : ""].filter(Boolean).join(" · ")
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "st " + t.state,
+            children: ST[t.state] || ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "hq-dacts",
+            children: [
+              /* @__PURE__ */ u("a", {
+                class: "hq-btn sm",
+                href: defHref,
+                children: "チーム定義を開く"
+              }),
+              /* @__PURE__ */ u("button", {
+                type: "button",
+                class: "hq-btn sm danger",
+                "data-hq": "stop",
+                "data-team": t.name,
+                onClick: () => stopSheet2(t.name),
+                children: "チームを止める…"
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "hq-db",
+        children: [
+          screenBox,
+          /* @__PURE__ */ u("ul", {
+            class: "nodes",
+            children: [
+              rows,
+              workers
+            ]
+          }),
+          error ? /* @__PURE__ */ u("p", {
+            class: "hq-err",
+            "data-role": "raise-error",
+            children: error
+          }) : ""
+        ]
+      })
+    ]
+  });
 }
 function Board() {
   const rows = teams.value;
   const n = note.value;
   if (!rows.length)
-    return html`<p class="gone">${n.ok ? noneText : n.text}</p>`;
+    return /* @__PURE__ */ u("p", {
+      class: "gone",
+      children: n.ok ? noneText : n.text
+    });
   if (!n.ok)
-    return html`<p class="gone">${n.text}</p>`;
+    return /* @__PURE__ */ u("p", {
+      class: "gone",
+      children: n.text
+    });
   const sel = current.value;
-  return html`<div class="hq-board"><${Attention} rows=${rows} /><div class="hq-tiles">${rows.map((t) => html`<${Tile} key=${t.name} team=${t} />`)}</div>${sel ? html`<${Detail} team=${sel} />` : ""}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-board",
+    children: [
+      /* @__PURE__ */ u(Attention, {
+        rows
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "hq-tiles",
+        children: rows.map((t) => /* @__PURE__ */ u(Tile, {
+          team: t
+        }, t.name))
+      }),
+      sel ? /* @__PURE__ */ u(Detail, {
+        team: sel
+      }) : ""
+    ]
+  });
 }
 
-// activity/main.js
+// activity/main.tsx
 var list = document.getElementById("list");
 var page = { screen: "activity", settled: false };
 window.hergyPage = page;
 if (list) {
-  R(html`<${Board} />`, list);
+  R(/* @__PURE__ */ u(Board, {}), list);
   document.addEventListener("hergy:hq", () => {
     refresh();
   });
