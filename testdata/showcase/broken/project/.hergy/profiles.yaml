@@ -1,8 +1,0 @@
-version: 1
-profiles:
-  sonnet-fast:
-    kind: claude
-    args: ["--model", "claude-sonnet-5-5", "--effort", "medium"]
-  codex-high:
-    kind: codex
-    args: ["-m", "gpt-5.5-codex", "-c", "model_reasoning_effort=high"]

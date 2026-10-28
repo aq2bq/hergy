@@ -48,17 +48,16 @@ linters:
       rules:
         exec:
           # 子プロセスを起動してよいのは、herdr を呼ぶ herdrcli、gy を呼ぶ gycli、
-          # ブラウザを開く browser、ゲートの道具を呼ぶ tools/check、見本の画面を
-          # 起こす tools/showcase だけ（d-b28a 4、d-fb89、段 6）。
+          # ブラウザを開く browser、ゲートの道具を呼ぶ tools/check だけ
+          # （d-b28a 4、d-fb89、段 6）。
           files:
             - "!**/internal/herdrcli/**"
             - "!**/internal/gycli/**"
             - "!**/internal/browser/**"
             - "!**/tools/check/**"
-            - "!**/tools/showcase/**"
           deny:
             - pkg: os/exec
-              desc: os/exec is for internal/herdrcli (herdr), internal/gycli (gy), internal/browser (the person's browser), tools/check (the gates) and tools/showcase (the sample screens) only
+              desc: os/exec is for internal/herdrcli (herdr), internal/gycli (gy), internal/browser (the person's browser) and tools/check (the gates) only
     # 複雑さは Ratchet。しきい値は導入時（2026-10-15）のテスト以外の最大値
     # （gocognit 33 の runLs、cyclop 25 の validate）。下げる向きにだけ動かしてよい。
     gocognit:
@@ -78,18 +77,3 @@ linters:
       - path: _test\.go
         linters:
           - depguard
-      # tools/showcase は人が打ったパス（--work、--bin、出力先）と、この道具が
-      # 作る作業用ディレクトリをそのまま hergy に渡す道具なので、パスが利用者
-      # 由来という G703 の指摘は当てない。作業用ディレクトリはこの道具だけが
-      # 作り、消す前に自分の印（.showcase）を確かめる。
-      - path: ^tools/showcase/
-        linters:
-          - gosec
-        text: "G703:"
-      # tools/fakeherdr writes and reads the scene's own files under the state
-      # directory the showcase made; the directory comes from its own
-      # environment, and the names it appends are fixed or a herdr agent name.
-      - path: ^tools/fakeherdr/
-        linters:
-          - gosec
-        text: "G703:"

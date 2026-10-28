@@ -13,14 +13,16 @@
 // prototype branch, run this command inside that branch's worktree; to put two
 // versions side by side, give them different --port.
 //
-// The e2e binary is the one the walks drive (built with -tags e2e, so the
-// sample's clock is the fixture's, d-f978). It is built here when it is not
-// there yet, from the tree this command stands in.
+// The serve is built here on every run, from the tree this command stands in:
+// the screens are embedded in the binary, so a binary built before a screen was
+// changed would show the change nowhere. Go's build cache makes an unchanged
+// tree quick. It is built under a name of its own, not the walks' hergy, so a
+// run of the e2e gate is never overwritten under its feet.
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hergyBin, lay, repo } from './fixture.mjs';
+import { lay, repo } from './fixture.mjs';
 
 const samples = ['activity', 'hq', 'nav', 'profiles', 'roles', 'teams'];
 
@@ -47,10 +49,14 @@ function argumentsOf(argv) {
   return { sample, port };
 }
 
-// build makes the e2e serve the walks drive, from this tree.
+// lookBin is this command's own serve: the walks' binary keeps its own name, so
+// the two runs cannot replace each other.
+const lookBin = path.join(repo, 'e2e', '.bin', 'hergy-look');
+
+// build makes this command's serve from this tree, every time.
 function build() {
-  mkdirSync(path.dirname(hergyBin), { recursive: true });
-  execFileSync('go', ['build', '-tags', 'e2e', '-o', hergyBin, '.'], { cwd: repo, stdio: 'inherit' });
+  mkdirSync(path.dirname(lookBin), { recursive: true });
+  execFileSync('go', ['build', '-tags', 'e2e', '-o', lookBin, '.'], { cwd: repo, stdio: 'inherit' });
 }
 
 let main;
@@ -66,7 +72,7 @@ if (main.help) {
   process.exit(0);
 }
 
-if (!existsSync(hergyBin)) build();
+build();
 
 // fixture is this run's own work directory: the sample laid out, and the
 // settings the serve reads.
@@ -90,7 +96,7 @@ process.on('SIGINT', () => stop(0));
 process.on('SIGTERM', () => stop(0));
 process.on('exit', () => { if (!stopping) rmSync(fixture.root, { recursive: true, force: true }); });
 
-child = spawn(hergyBin, ['serve', '--no-open', '--port', String(main.port)], {
+child = spawn(lookBin, ['serve', '--no-open', '--port', String(main.port)], {
   cwd: fixture.proj,
   env: { ...process.env, ...fixture.env },
   stdio: ['ignore', 'pipe', 'pipe'],

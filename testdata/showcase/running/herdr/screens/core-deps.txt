@@ -1,4 +1,0 @@
-● 依存を上げています
-  go get go.yaml.in/yaml/v3@v3.0.6
-  go mod tidy
-  差分: go.mod 1 行、go.sum 2 行。テストは通っています。

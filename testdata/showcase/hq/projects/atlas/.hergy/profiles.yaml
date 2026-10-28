@@ -1,8 +1,0 @@
-version: 1
-profiles:
-  sonnet-fast:
-    kind: claude
-    args: ["--model", "claude-sonnet-5-5"]
-  opencode-mini:
-    kind: opencode
-    args: ["--model", "gpt-5-mini"]

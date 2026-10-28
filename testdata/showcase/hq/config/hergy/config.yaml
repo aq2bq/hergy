@@ -1,6 +1,0 @@
-version: 1
-lang: ja
-projects:
-  - ~/src/shop
-  - ~/src/ledger
-  - ~/src/atlas
