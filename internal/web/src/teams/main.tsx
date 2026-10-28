@@ -22,7 +22,7 @@ if (view) {
 
   // The two trees the page holds stand where the server drew them, and stay
   // where they are: a signal they read draws them again (5 章 2).
-  draw(<Tabs />, tabsEl as HTMLElement);
+  if (tabsEl) draw(<Tabs />, tabsEl);
   draw(<App />, view);
 
   mountCanvas(view);

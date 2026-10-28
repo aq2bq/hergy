@@ -65,9 +65,10 @@ type Island = {
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
 
+// Boundary: the page's embedded JSON is read here and nowhere else.
 const DATA: Island = JSON.parse((document.getElementById('teams-data') || {}).textContent || '{}') as Island;
-export const PLACES = ['project', 'global'] as const;
-export type Place = (typeof PLACES)[number];
+export type Place = 'project' | 'global';
+export const PLACES: readonly Place[] = ['project', 'global'];
 export const PLACE: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
 export const DIR = DATA.dirs || { project: '', global: '' };
 export const PROFILES: string[] = DATA.profiles || [];
@@ -101,7 +102,7 @@ if (HQ) {
   (HQ.roles || []).forEach((g) => {
     ROLES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item): RoleName => {
       const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
-      const doc = (places[eff] || {}).doc as { title?: string } | undefined;
+      const doc = places[eff]?.doc;
       return { name: item.name || '', title: (doc && doc.title) || '' };
     }).filter((x) => !!x.name);
   });
@@ -165,16 +166,28 @@ export const state = signal<State>({
 // (5 章 5): a member just added, a rule just opened. The row it names puts the
 // cursor there itself.
 export const focusAsk = signal<{ dom: string; sel: string } | null>(null);
-// withKey puts one entry of a map the screen keeps (a text, a check, a notice).
-// The maps hold different values, so one helper writes them all: it copies the
-// map it is about and puts the entry in, and the value is the map's own.
-type KeyedMap = 'ok' | 'refusal' | 'ytext' | 'yc';
-const withKey = (name: KeyedMap, key: string, value: State[KeyedMap][string] | undefined): void => {
-  const m: Record<string, unknown> = { ...state.value[name] };
-  if (value === undefined) delete m[key];
-  else m[key] = value;
-  put({ [name]: m } as Partial<State>);
-};
+// The screen's maps are written by the setter of the map they belong to: each
+// copies the map it is about, puts the entry in, and keeps the entry's own type.
+function setOk(key: string, on: boolean): void {
+  const m = { ...state.value.ok };
+  if (on) m[key] = 1; else delete m[key];
+  put({ ok: m });
+}
+function setRefusal(key: string, text: string): void {
+  const m = { ...state.value.refusal };
+  if (text) m[key] = text; else delete m[key];
+  put({ refusal: m });
+}
+function setYtext(key: string, text: string | undefined): void {
+  const m = { ...state.value.ytext };
+  if (text === undefined) delete m[key]; else m[key] = text;
+  put({ ytext: m });
+}
+function setYc(key: string, list: Schemas['Problem'][] | undefined): void {
+  const m = { ...state.value.yc };
+  if (list === undefined) delete m[key]; else m[key] = list;
+  put({ yc: m });
+}
 const withOpen = (dom: string, on: boolean) => {
   const s = new Set(state.value.open);
   if (on) s.add(dom); else s.delete(dom);
@@ -198,15 +211,15 @@ export type Issue = { sev: string; k: number; f: string; text: string; definitio
 // Finding is the figure's problem: the node, the worker or the field it stands
 // beside, and the server's sentence (the role and rule it names, when it does).
 export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string };
-export type CheckDiff = { added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean };
-export type CheckTurn = { from?: string; to?: string };
+export type CheckDiff = Schemas['TeamDiff'];
+export type CheckTurn = Schemas['TeamRuleTurn'];
 // TeamPreview and RuleMarkdown are the check's two previews, as checkTeam answers
 // them: the team.yaml's lines and the diff (TeamPreview), and the agreement's
 // Markdown with the section and rule each line stands for (TeamRuleMarkdown).
 // They are read from the operation, not written here (n-e3de).
 export type TeamPreview = Schemas['TeamPreview'];
 export type RuleMarkdown = Schemas['TeamRuleMarkdown'];
-export type Check = { issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; turns: CheckTurn[]; readers: unknown[] };
+export type Check = { issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; turns: CheckTurn[]; readers: Schemas['TeamRuleReader'][] };
 // Pick is what the canvas has picked: a point of the figure, a worker, or a
 // line between two points.
 export type CanvasPick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
@@ -320,17 +333,12 @@ export function applyOps(saved: Team, ops: Op[]): Team {
 export function emptyAgreement(name: string): RuleDoc {
   return fromJSON({
     name: '', title: name ? `${name} チームのルール` : 'チームのルール', revision: 1, sections: [],
-  }) as RuleDoc;
+  });
 }
 
 // ---- 記録（1 定義ごと） ------------------------------------------------
-// Still are the fields a record is made with and never changes: they are read
-// as they are. Every other field is a signal of its own, so a change draws the
-// parts that read that field and nothing else (依頼書 1). ops and saved make
-// draft, a computed: no one keeps the two in step by hand any more.
-const STILL = ['uid', 'dom', 'project', 'places', 'draftRow', 'how', 'base'];
-// RecInit is a record as it is made: every field a value, the still ones and
-// the ones recOf turns into signals of their own.
+// RecInit is a record as it is made: every field a value, the fields that never
+// change and the ones recOf turns into signals of their own.
 type RecInit = {
   uid?: number; dom: string; project: string; places?: Place[];
   draftRow: boolean; how: string; base: TeamBase | null;
@@ -347,24 +355,40 @@ type RecInit = {
   sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
   lastAct: number;
 };
+// recOf puts one record together: every field is written where it stands, so a
+// field the type gains is one the compiler asks for here (依頼書 1). draft and
+// key are computed from the record itself, so they are made last.
 function recOf(init: RecInit): Rec {
-  const r = {} as Rec;
-  const fields = r as unknown as Record<string, unknown>;
-  (Object.keys(init) as (keyof RecInit)[]).forEach((k) => {
-    fields[k] = STILL.includes(k) ? init[k] : signal(init[k]);
-  });
-  r.draft = computed(() => applyOps(r.saved.value, r.ops.value));
-  r.key = computed(() => dkey(r));
-  // wprompts is the worker prompts the server answered, per worker; the request
-  // that is out is the drawing's own bookkeeping and is not a signal.
-  r.wprompts = signal<Record<string, WorkerPrompt>>({});
-  r.wpromptReq = {};
-  // placed is where a person put a point down (a double press's menu, or a drag
-  // that was let go), and layout is where the figure draws every point: the
-  // places above and an automatic place for the rest. The drawing reads layout
-  // and writes nothing (webui-components 1 章).
-  r.placed = signal<Positions>({});
-  r.layout = computed(() => place(r.draft.value, r.placed.value, thin.value));
+  const r: Rec = {
+    // the fields a record is made with, read as they are
+    uid: init.uid || 0, dom: init.dom, project: init.project, places: init.places || [],
+    draftRow: init.draftRow, how: init.how, base: init.base,
+    // the fields a change moves: one signal apiece
+    name: signal(init.name), place: signal(init.place),
+    teamPath: signal(init.teamPath), agreePath: signal(init.agreePath),
+    hash: signal(init.hash), agreeHash: signal(init.agreeHash), broken: signal(init.broken),
+    hidden: signal(init.hidden),
+    ops: signal(init.ops), saved: signal(init.saved),
+    agreeSaved: signal(init.agreeSaved), agreeDraft: signal(init.agreeDraft), agreeSavedIssues: signal(init.agreeSavedIssues),
+    findings: signal(init.findings), problems: signal(init.problems), check: signal(init.check),
+    size: signal(init.size), limit: signal(init.limit), drawMark: signal(init.drawMark), seeded: signal(init.seeded),
+    writes: signal(init.writes), nameIssues: signal(init.nameIssues),
+    preview: signal(init.preview), baseFindings: signal(init.baseFindings),
+    prompts: signal(init.prompts), promptsReady: signal(init.promptsReady),
+    sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
+    lastAct: signal(init.lastAct),
+    // wprompts is the worker prompts the server answered, per worker; the request
+    // that is out is the drawing's own bookkeeping and is not a signal.
+    wprompts: signal<Record<string, WorkerPrompt>>({}), wpromptReq: {},
+    // placed is where a person put a point down (a double press's menu, or a drag
+    // that was let go), and layout is where the figure draws every point: the
+    // places above and an automatic place for the rest. The drawing reads layout
+    // and writes nothing (webui-components 1 章).
+    placed: signal<Positions>({}),
+    draft: computed(() => applyOps(r.saved.value, r.ops.value)),
+    key: computed(() => dkey(r)),
+    layout: computed(() => place(r.draft.value, r.placed.value, thin.value)),
+  };
   return r;
 }
 // seedPlaces puts every point of the draft into the record's places, once: when
@@ -388,35 +412,37 @@ let uids = 0;
 // one group of the headquarters' (GET /api/hq/teams).
 export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number];
 
+// NO_AGREEMENT is the agreement a definition without one is read as: no file,
+// no hash, no document, and no rule (n-e3de).
+const NO_AGREEMENT: Schemas['TeamAgreement'] = { path: '', hash: '', has: false, rules: 0 };
+
 function defOf(item: DefItem, project?: string): Rec {
   const group = project || '';
   const places = item.places || {};
-  const eff = (item.effective || (places.project ? 'project' : 'global')) as Place;
-  const place = places[eff] || {};
-  const doc = (place.doc || {}) as Schemas['TeamDocument'];
-  const agree = doc.agreement || ({ path: '', hash: '', has: false, doc: null } as unknown as NonNullable<Schemas['TeamDocument']['agreement']>);
-  const sum = (item.summary || {}) as Schemas['TeamSummary'];
+  const eff: Place = item.effective || (places.project ? 'project' : 'global');
+  const place = places[eff];
+  const doc = place?.doc;
+  const agree = doc?.agreement || NO_AGREEMENT;
+  const sum = item.summary;
   const dom = domOf(item.name || '', group);
   const had = byKey(dom + '.' + eff);
   if (had) return had;
   let saved: RuleDoc | null = null;
   if (agree.doc) {
-    // lib/ruledoc is still JavaScript: its own answer is narrower than the
-    // document the panel keeps, which carries the path it came from.
-    saved = fromJSON(agree.doc) as RuleDoc;
+    saved = fromJSON(agree.doc);
     saved.__path = agree.path;
   }
   const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
-    place: p, path: (places[p] || {}).path, hash: (places[p] || {}).hash,
+    place: p, path: places[p]?.path, hash: places[p]?.hash,
   }));
   const r = recOf({
     name: item.name || '', dom, project: group, place: eff, places: PLACES.filter((p) => places[p]),
-    teamPath: place.path || '', agreePath: agree.path || '',
-    hash: place.hash || '', agreeHash: agree.hash || '', broken: !!doc.broken,
+    teamPath: place?.path || '', agreePath: agree.path || '',
+    hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken,
     hidden, ops: [],
     saved: cloneTeam(doc),
     agreeSaved: saved,
-    agreeDraft: saved ? (clone(saved) as RuleDoc) : emptyAgreement(item.name || ''),
+    agreeDraft: saved ? clone(saved) : emptyAgreement(item.name || ''),
     // The saved document's own problems are the agreement save's baseline:
     // a save stops only when an error the saved text did not hold has
     // appeared (spec-teams X3).
@@ -425,7 +451,7 @@ function defOf(item: DefItem, project?: string): Rec {
     // The list's own size and budget, the same pair the figure's check
     // answers (d-00a9, r-2f83). A file that does not read has no size and
     // draws 大きさ —.
-    size: sum.size || 0, limit: sum.limit || 0,
+    size: (sum && sum.size) || 0, limit: (sum && sum.limit) || 0,
     problems: item.problems || { err: 0, warn: 0 }, check: null, drawMark: 0,
     draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
@@ -502,7 +528,7 @@ function seedDraft(r: Rec, json: CheckAnswer): void {
   // row it would make, in draft.
   const draft = json.draft, doc = json.doc;
   if (!draft || !doc) return;
-  const agree = (doc.agreement || {}) as NonNullable<Schemas['TeamDocument']['agreement']>;
+  const agree = doc.agreement || NO_AGREEMENT;
   r.seeded.value = true;
   // The base the row stands on is a draft of its own: its points are laid out
   // afresh, not kept from the empty one the row was made with.
@@ -514,11 +540,11 @@ function seedDraft(r: Rec, json: CheckAnswer): void {
   r.hash.value = draft.hash || '';
   r.agreeHash.value = agree.hash || '';
   if (agree.doc) {
-    const d = fromJSON(agree.doc) as RuleDoc;
+    const d = fromJSON(agree.doc);
     observeKeys(rulesOf(d));
     d.__path = agree.path;
     r.agreeSaved.value = d;
-    r.agreeDraft.value = clone(d) as RuleDoc;
+    r.agreeDraft.value = clone(d);
   }
   seedPlaces(r);
 }
@@ -574,16 +600,16 @@ const convProblems = (doc: RuleDoc, list: Schemas['Problem'][] | null | undefine
 }));
 const buildCheck = (doc: RuleDoc, json: CheckAnswer): Check => {
   // The saved definition's answer carries the effect and the readers; the answer
-  // for one that is not there yet carries its document instead (api-types).
-  const saved = json as Schemas['TeamCheckAnswer'];
-  const effect = (saved.effect || {}) as { diff?: CheckDiff | null; turns?: CheckTurn[] | null };
+  // for one that is not there yet carries its document instead (api-types). The
+  // agreement's effect is the one this panel draws: its diff and its turns.
+  const effect = json.effect && 'turns' in json.effect ? json.effect : null;
   return {
     issues: convProblems(doc, json.problems || []),
     // The agreement's check answers the rule Markdown; the team part answers the
     // team.yaml preview instead, which is not this panel's.
     markdown: json.preview && !('diff' in json.preview) ? json.preview : { lines: [], chars: 0 },
-    diff: (effect.diff || { added: [], removedBefore: [], removedAtEnd: false }) as CheckDiff,
-    turns: (effect.turns || []) as CheckTurn[], readers: saved.readers || [],
+    diff: (effect && effect.diff) || { added: [], removedBefore: [], removedAtEnd: false },
+    turns: (effect && effect.turns) || [], readers: json.readers || [],
   };
 };
 
@@ -685,7 +711,17 @@ export const vlistParts = (r: Rec) => {
   const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
   const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
   const own = issues.filter((m) => !at(m));
-  const where = (m: Finding): string => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.draft.value.workers[m.worker] || ({} as Worker)).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? 'チーム定義名' : '');
+  const purposeOf = (i: number): string => {
+    const w = r.draft.value.workers[i];
+    return (w && w.purpose) || 'ワーカー';
+  };
+  const where = (m: Finding): string => {
+    if (m.node) return nodeName(m.node);
+    if (m.worker != null && m.worker >= 0) return purposeOf(m.worker);
+    if (m.field === 'mission') return '使命';
+    if (m.field === 'name') return 'チーム定義名';
+    return '';
+  };
   const file = (m: Finding): string | undefined => (m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop();
   // A finding about a role's own rule opens that role at the rule: the name
   // the server put on the finding (d-8bbf). A finding that names no role
@@ -719,7 +755,7 @@ function checkersFor(r: Rec): Checkers {
   const load = async (signal: AbortSignal, payload: TeamCheckBody): Promise<CheckAnswer | null> => {
     try {
       const res = await apiCheck('team', payload, { signal });
-      return (res.json || {}) as CheckAnswer;
+      return res.json;
     } catch {
       // A refused draft answers nothing here: the screen draws no findings of its
       // own, and the refusal itself is the rules tab's to show (spec-teams X1).
@@ -739,9 +775,8 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
   // follows the ops the check was sent with: the 属性 column shows it without
   // building a line of its own. A definition with a problem is not given any,
   // and the column says why (d-20ac).
-  const answered = json as Schemas['TeamCheckAnswer'];
-  r.prompts.value = Array.isArray(answered.members) ? answered.members : [];
-  r.promptsReady.value = !!(answered.members && answered.members.length);
+  r.prompts.value = Array.isArray(json.members) ? json.members : [];
+  r.promptsReady.value = !!(json.members && json.members.length);
   // Both a saved definition and one that is not there yet get the topology
   // tab's own preview from the check (spec-teams B7).
   // The topology tab draws the team part's preview: the team.yaml's lines and the
@@ -756,7 +791,7 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
     // with the name a person is typing: both panels' heads follow the check
     // (spec-teams B2, 監査 R5).
     if (draft.path) r.teamPath.value = draft.path;
-    const ag = ((json.doc && json.doc.agreement) || {}) as NonNullable<Schemas['TeamDocument']['agreement']>;
+    const ag = (json.doc && json.doc.agreement) || NO_AGREEMENT;
     if (ag.path) {
       r.agreePath.value = ag.path;
       const saved = r.agreeSaved.value;
@@ -834,7 +869,7 @@ export async function saveTeam(r: Rec) {
   r.ops.value = [];
   r.baseFindings.value = r.findings.value;
   setProblems(json.items, r.project);
-  withKey('ok', 't' + dkey(r), 1);
+  setOk('t' + dkey(r), true);
   resetCanvas(r);
   cundo.delete(dkey(r));
   apiSaved();
@@ -846,14 +881,14 @@ export async function saveAgree(r: Rec) {
   if (!json) return;
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
-    const d2 = fromJSON(json.doc) as RuleDoc;
+    const d2 = fromJSON(json.doc);
     observeKeys(rulesOf(d2));
     d2.__path = r.agreePath.value;
     r.agreeSaved.value = d2;
-    r.agreeDraft.value = clone(d2) as RuleDoc;
+    r.agreeDraft.value = clone(d2);
   }
   setProblems(json.items, r.project);
-  withKey('ok', 'a' + dkey(r), 1);
+  setOk('a' + dkey(r), true);
   apiSaved();
   // The saved text's own problems are the new baseline, and the check the
   // panel shows is the one it now holds.
@@ -894,7 +929,7 @@ async function saveFolder(r: Rec) {
   // check's own draw does not take it away (1.4.6, 監査 R7).
   await checkTeam(nr);
   if (nr.agreeSaved.value) await checkAgree(nr);
-  withKey('ok', (dtabOf(nr) === 'agree' ? 'a' : 't') + dkey(nr), 1);
+  setOk((dtabOf(nr) === 'agree' ? 'a' : 't') + dkey(nr), true);
   syncURL();
   apiSaved();
 }
@@ -936,7 +971,7 @@ async function answered<T>(r: Rec, which: string, one: Promise<{ json: T | null 
 // refuse holds the server's sentence on the row's foot (the shape tab's, or the
 // rules tab's) and draws it; a screen builds no sentence of its own.
 export function refuse(r: Rec, which: string, text: string) {
-  withKey('refusal', which + dkey(r), text || '保存できませんでした');
+  setRefusal(which + dkey(r), text || '保存できませんでした');
 }
 // clearOk takes the notice away when the words it stood for change: a save's
 // 保存しました stays until the next change writes over it (1.4.6).
@@ -971,7 +1006,7 @@ const cundo = new Map<string, UndoPoint[]>();
 let actSeq = 0;
 let ctyping: { key: string | null; field: string | null } = { key: null, field: null };
 let toastRow: Rec | null = null, toastTimer: ReturnType<typeof setTimeout> | undefined;
-const cloneOps = (ops: Op[] | null | undefined): Op[] => JSON.parse(JSON.stringify(ops || [])) as Op[];
+const cloneOps = (ops: Op[] | null | undefined): Op[] => clone(ops || []);
 function canvasUndoPoint(r: Rec, label: string) {
   const k = dkey(r), st = cundo.get(k) || [];
   st.push({ ops: cloneOps(r.ops.value), label });
@@ -1065,10 +1100,10 @@ export function workerPrompt(r: Rec, i: number) {
   r.wpromptReq[k] = true;
   apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...(r.project && r.project !== 'global' ? { project: r.project } : {}), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
-    const ans = (res.json || {}) as Schemas['TeamCheckAnswer'];
+    const ans = res.json;
     r.wprompts.value = {
       ...r.wprompts.value,
-      [k]: { segments: ans.prompt || [], name: WRK_NAME, task: WRK_TASK },
+      [k]: { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK },
     };
   }).catch((e) => {
     delete r.wpromptReq[k];
@@ -1116,9 +1151,9 @@ export type YFile = {
   file: string; place: Place; name: string; kind: string; label: string;
   path: string; hash: string; text: string; hidden: boolean; problems: Schemas['Problem'][];
 };
-export const yfiles = signal<YFile[]>(((LIST.files || []) as Schemas['TeamFile'][]).map((f): YFile => ({
-  file: `${f.name}.${f.place}.${f.kind}`, place: f.place as Place, name: f.name || '', kind: f.kind || '',
-  label: PLACE[f.place as Place] || '', path: f.path || '', hash: f.hash || '',
+export const yfiles = signal<YFile[]>((LIST.files || []).map((f): YFile => ({
+  file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '',
+  label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
   text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
 })));
 export const fileOf = (file: string): YFile | null => yfiles.value.find((f) => f.file === file) || null;
@@ -1147,23 +1182,23 @@ export function pressYfile(file: string) {
 // problems the part's check answered.
 export function yamlState(file: string, st: { text: string }) {
   const f = fileOf(file);
-  withKey('ytext', file, f && st.text === f.text ? undefined : st.text);
+  setYtext(file, f && st.text === f.text ? undefined : st.text);
 }
 export function yamlProblems(file: string, list: Schemas['Problem'][]) {
-  withKey('yc', file, list);
+  setYc(file, list);
 }
 export function yamlRevert(file: string) {
-  withKey('ytext', file, undefined);
+  setYtext(file, undefined);
 }
-export function yamlSaved(file: string, answer: { json?: unknown } | null): void {
-  const json = ((answer && answer.json) || {}) as { text?: string; hash?: string };
+export function yamlSaved(file: string, answer: { json?: { text?: string; hash?: string } | null } | null): void {
+  const json: { text?: string; hash?: string } = (answer && answer.json) || {};
   const typed = state.value.ytext[file];
   const f = fileOf(file);
   if (!f) return;
   const text = typeof json.text === 'string' ? json.text : (typed !== undefined ? typed : f.text);
   yfiles.value = yfiles.value.map((x) => (x.file === file ? { ...x, hash: json.hash || x.hash, text } : x));
-  withKey('ytext', file, undefined);
-  withKey('yc', file, undefined);
+  setYtext(file, undefined);
+  setYc(file, undefined);
 }
 
 // promptsOf is each member's prompt, cut into the pieces it was built from
@@ -1196,7 +1231,7 @@ export function syncURL() {
       openRules().forEach((kk) => {
         const head = `${r.uid}${r.place.value}:`;
         if (!kk.startsWith(head)) return;
-        const hit = (rulesOf(r.agreeDraft.value) as Rule[]).find((x) => x._k === Number(kk.slice(head.length)));
+        const hit = rulesOf(r.agreeDraft.value).find((x) => x._k === Number(kk.slice(head.length)));
         if (hit && hit.id) rules.push(`${r.name.value}.${hit.id}`);
       });
     });
@@ -1226,7 +1261,7 @@ export function readURL() {
     if (i < 0) return;
     const r = byRealName(spec.slice(0, i));
     if (!r) return;
-    const hit = (rulesOf(r.agreeDraft.value) as Rule[]).find((x) => x.id === spec.slice(i + 1));
+    const hit = rulesOf(r.agreeDraft.value).find((x) => x.id === spec.slice(i + 1));
     if (hit) {
       withOpen(r.dom, true);
       setDtab(r.dom, 'agree');
@@ -1297,7 +1332,7 @@ export function restore(carried: Carried) {
   (carried.agrees || []).forEach((c) => {
     const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
     if (!r || !r.agreeSaved.value || (c.hash && r.agreeHash.value !== c.hash)) return;
-    const d = fromJSON(c.doc) as RuleDoc;
+    const d = fromJSON(c.doc);
     d.__path = r.agreePath.value;
     r.agreeDraft.value = d;
     checkAgree(r);
@@ -1305,7 +1340,7 @@ export function restore(carried: Carried) {
   (carried.files || []).forEach((c) => {
     const f = fileOf(c.file);
     if (!f || (c.hash && f.hash !== c.hash)) return;
-    withKey('ytext', c.file, c.text);
+    setYtext(c.file, c.text);
   });
 }
 
@@ -1402,7 +1437,7 @@ export function pressRevert(r: Rec): void {
   // agreement, or, for a team that has none, the empty document it started from
   // (n-e3de).
   const saved = r.agreeSaved.value;
-  r.agreeDraft.value = saved ? (clone(saved) as RuleDoc) : emptyAgreement(r.name.value);
+  r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
@@ -1412,7 +1447,7 @@ export function pressVrule(r: Rec, id: string) {
   if (!r) return;
   withOpen(r.dom, true);
   setDtab(r.dom, 'agree');
-  const hit = (rulesOf(r.agreeDraft.value) as Rule[]).find((x) => String(x.id) === id);
+  const hit = rulesOf(r.agreeDraft.value).find((x) => String(x.id) === id);
   checkAgree(r);
   syncURL();
   if (hit) jumpToRule(r, hit._k);
@@ -1480,7 +1515,7 @@ export function boot() {
         ROLES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item) => {
           const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
           const name = item.name || '';
-          const doc = (places[eff] || {}).doc as { title?: string } | undefined;
+          const doc = places[eff]?.doc;
           return name ? { name, title: (doc && doc.title) || '' } : null;
         }).filter((x): x is RoleName => x !== null);
       });

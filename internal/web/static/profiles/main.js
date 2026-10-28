@@ -57,6 +57,16 @@ function stringList(raw) {
     return [];
   }
 }
+function envList(raw) {
+  if (!raw)
+    return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((one) => typeof one === "object" && one !== null && ("key" in one) && ("value" in one) && typeof one.key === "string" && typeof one.value === "string") : [];
+  } catch (e) {
+    return [];
+  }
+}
 var ISLAND = (() => {
   const el = document.getElementById("profiles-data");
   if (!el)
@@ -71,6 +81,7 @@ var TAB = view.dataset.tab || "";
 var BASE_KINDS = ["claude", "codex", "opencode", "gemini"];
 var otherKinds = () => stringList(view.dataset.otherKinds);
 var classOf = (kind) => BASE_KINDS.includes(kind) ? "k-" + kind : "";
+var PLACES = ["project", "global"];
 var placeOf = (file) => file === "global" ? "global" : "project";
 var labelOf = (file) => file === "global" ? "グローバル" : "プロジェクト";
 var otherOf = (file) => file === "global" ? "project" : "global";
@@ -133,7 +144,7 @@ function panelOf(p, group, rowKey) {
     otherLabel: p.otherLabel,
     both: !!p.both,
     shadowed: !!p.shadowed,
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || "[]"), env: JSON.parse(p.savedEnv || "[]") } : null,
+    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     hash: p.hash || "",
     users: p.users || 0,
     rename_targets: p.rename_targets || 0,
@@ -615,10 +626,10 @@ function assignTeams() {
 var pickChanged = (row) => row.profile !== (row.saved || "");
 var assignKind = y(params().get("kind"));
 function initAssign() {
-  const card = ISLAND.assign || {};
+  const card = ISLAND.assign;
   assign.value = {
-    empty: !!card.empty,
-    teams: (card.teams || []).map((team) => ({
+    empty: !!card && !!card.empty,
+    teams: (card && card.teams || []).map((team) => ({
       name: team.name,
       place: placeOf(team.place || "project"),
       hash: team.hash,
@@ -1290,7 +1301,7 @@ function Panel({ panel }) {
         children: [
           panel.layerSwitch ? /* @__PURE__ */ u("div", {
             class: "seg small",
-            children: ["project", "global"].map((x) => /* @__PURE__ */ u("button", {
+            children: PLACES.map((x) => /* @__PURE__ */ u("button", {
               class: panel.file === x ? "on" : "",
               "data-act": "pick-layer",
               "data-x": x,

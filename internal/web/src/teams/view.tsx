@@ -45,11 +45,18 @@ function keyOf(e: Event): string {
 }
 
 const other = (p: 'project' | 'global'): 'project' | 'global' => (p === 'project' ? 'global' : 'project');
+// placeName is the word a place is drawn by; anything else is this project's.
+const placeName = (p: string): string => (p === 'global' ? PLACE.global : PLACE.project);
+
+// TABS are the screen's two tabs: 一覧 and YAML.
+const TABS: ['list' | 'yaml', string][] = [['list', '一覧'], ['yaml', 'YAML']];
+// MODES are the rules tab's two views: the editor and its Markdown.
+const MODES: [string, string][] = [['edit', '編集'], ['md', 'Markdown']];
 
 // Tabs is the screen's two tabs: 一覧 and YAML.
 export function Tabs() {
   const tab = state.value.tab;
-  return ([['list', '一覧'], ['yaml', 'YAML']] as const).map(([t, label]) => (
+  return TABS.map(([t, label]) => (
     <button class={'tab' + (tab === t ? ' on' : '')} data-act="tab" data-t={t} aria-pressed={tab === t} onClick={() => pressTab(t)}>{label}</button>
   ));
 }
@@ -212,7 +219,7 @@ function Detail({ r }: { r: Rec }) {
       <nav class="dtabs"><DtabsNav r={r} /></nav>
       {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       {hidden.map((h) => (
-        <section class="panel shadowed"><header class="ph"><span class="ln">{PLACE[h.place as 'project' | 'global']}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>
+        <section class="panel shadowed"><header class="ph"><span class="ln">{placeName(h.place)}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>
       ))}
     </div>
   );
@@ -367,7 +374,7 @@ function AgreePanel({ r }: { r: Rec }) {
       <header class="ph"><code class="path">{r.agreePath.value}</code>
         <span class="phr">
           {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : null}
-          <span class="seg pview">{([['edit', '編集'], ['md', 'Markdown']] as const).map(([v, label]) => <button class={mode === v ? 'on' : ''} data-act="pmode" data-v={v} aria-pressed={mode === v} onClick={() => pressPmode(r, v)}>{label}</button>)}</span>
+          <span class="seg pview">{MODES.map(([v, label]) => <button class={mode === v ? 'on' : ''} data-act="pmode" data-v={v} aria-pressed={mode === v} onClick={() => pressPmode(r, v)}>{label}</button>)}</span>
         </span></header>
       <div class="pmain">
         <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false}

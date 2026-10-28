@@ -12,7 +12,6 @@ import { initPanel } from './actions.js';
 import { List } from './view.js';
 import { AssignPage } from './assign.js';
 import { YamlPage } from './yaml.js';
-import type { Carried } from './types.js';
 
 function App() {
   if (TAB === 'assign') return <AssignPage />;
@@ -64,6 +63,6 @@ function flashFromHash(): void {
 // The band's promise: what one screen left unsaved is handed to this one, and
 // dropped whether or not it could be put back (spec-nav 1.5). It is put back
 // after the tab is set up, so what was typed is not read as the file's own text.
-const carried = takeDraft('profiles') as Carried | null;
+const carried = takeDraft('profiles');
 if (carried) restore(carried);
 tellDirty();

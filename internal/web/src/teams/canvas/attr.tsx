@@ -49,8 +49,8 @@ function diffList(r: Rec): Change[] {
 // turnRows is the turns that leave ('out') or reach ('in') one point.
 function turnRows(t: Team, s: Team, id: string, dir: 'out' | 'in'): JSX.Element | JSX.Element[] {
   const list: [string, string][] = dir === 'out'
-    ? t.turns.filter(([a]) => a === id).map(([, b]) => [id, b] as [string, string])
-    : t.turns.filter(([, b]) => b === id).map(([a]) => [a, id] as [string, string]);
+    ? t.turns.filter(([a]) => a === id).map(([, b]): [string, string] => [id, b])
+    : t.turns.filter(([, b]) => b === id).map(([a]): [string, string] => [a, id]);
   if (!list.length) return <span class="cv-empty">なし</span>;
   return list.map(([a, b]) => (
     <div class={'cv-li' + (hasTurn(s, a, b) ? '' : ' new')}>

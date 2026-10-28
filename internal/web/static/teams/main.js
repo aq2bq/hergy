@@ -179,7 +179,7 @@ if (HQ) {
   (HQ.roles || []).forEach((g) => {
     ROLES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
-      const doc = (places[eff] || {}).doc;
+      const doc = places[eff]?.doc;
       return { name: item.name || "", title: doc && doc.title || "" };
     }).filter((x) => !!x.name);
   });
@@ -219,14 +219,38 @@ var state = y({
   toast: null
 });
 var focusAsk = y(null);
-var withKey = (name, key, value) => {
-  const m = { ...state.value[name] };
-  if (value === undefined)
+function setOk(key, on) {
+  const m = { ...state.value.ok };
+  if (on)
+    m[key] = 1;
+  else
+    delete m[key];
+  put({ ok: m });
+}
+function setRefusal(key, text) {
+  const m = { ...state.value.refusal };
+  if (text)
+    m[key] = text;
+  else
+    delete m[key];
+  put({ refusal: m });
+}
+function setYtext(key, text) {
+  const m = { ...state.value.ytext };
+  if (text === undefined)
     delete m[key];
   else
-    m[key] = value;
-  put({ [name]: m });
-};
+    m[key] = text;
+  put({ ytext: m });
+}
+function setYc(key, list) {
+  const m = { ...state.value.yc };
+  if (list === undefined)
+    delete m[key];
+  else
+    m[key] = list;
+  put({ yc: m });
+}
 var withOpen = (dom, on) => {
   const s = new Set(state.value.open);
   if (on)
@@ -357,19 +381,54 @@ function emptyAgreement(name) {
     sections: []
   });
 }
-var STILL = ["uid", "dom", "project", "places", "draftRow", "how", "base"];
 function recOf(init) {
-  const r = {};
-  const fields = r;
-  Object.keys(init).forEach((k) => {
-    fields[k] = STILL.includes(k) ? init[k] : y(init[k]);
-  });
-  r.draft = O(() => applyOps(r.saved.value, r.ops.value));
-  r.key = O(() => dkey(r));
-  r.wprompts = y({});
-  r.wpromptReq = {};
-  r.placed = y({});
-  r.layout = O(() => place(r.draft.value, r.placed.value, thin.value));
+  const r = {
+    uid: init.uid || 0,
+    dom: init.dom,
+    project: init.project,
+    places: init.places || [],
+    draftRow: init.draftRow,
+    how: init.how,
+    base: init.base,
+    name: y(init.name),
+    place: y(init.place),
+    teamPath: y(init.teamPath),
+    agreePath: y(init.agreePath),
+    hash: y(init.hash),
+    agreeHash: y(init.agreeHash),
+    broken: y(init.broken),
+    hidden: y(init.hidden),
+    ops: y(init.ops),
+    saved: y(init.saved),
+    agreeSaved: y(init.agreeSaved),
+    agreeDraft: y(init.agreeDraft),
+    agreeSavedIssues: y(init.agreeSavedIssues),
+    findings: y(init.findings),
+    problems: y(init.problems),
+    check: y(init.check),
+    size: y(init.size),
+    limit: y(init.limit),
+    drawMark: y(init.drawMark),
+    seeded: y(init.seeded),
+    writes: y(init.writes),
+    nameIssues: y(init.nameIssues),
+    preview: y(init.preview),
+    baseFindings: y(init.baseFindings),
+    prompts: y(init.prompts),
+    promptsReady: y(init.promptsReady),
+    sel: y(init.sel),
+    side: y(init.side),
+    menu: y(init.menu),
+    typed: y(init.typed),
+    flash: y(init.flash),
+    lastAct: y(init.lastAct),
+    wprompts: y({}),
+    wpromptReq: {},
+    placed: y({}),
+    draft: O(() => applyOps(r.saved.value, r.ops.value)),
+    key: O(() => dkey(r)),
+    layout: O(() => place(r.draft.value, r.placed.value, thin.value))
+  };
   return r;
 }
 function seedPlaces(r) {
@@ -377,14 +436,15 @@ function seedPlaces(r) {
 }
 var recs = y([]);
 var uids = 0;
+var NO_AGREEMENT = { path: "", hash: "", has: false, rules: 0 };
 function defOf(item, project) {
   const group = project || "";
   const places = item.places || {};
   const eff = item.effective || (places.project ? "project" : "global");
-  const place = places[eff] || {};
-  const doc = place.doc || {};
-  const agree = doc.agreement || { path: "", hash: "", has: false, doc: null };
-  const sum = item.summary || {};
+  const place = places[eff];
+  const doc = place?.doc;
+  const agree = doc?.agreement || NO_AGREEMENT;
+  const sum = item.summary;
   const dom = domOf(item.name || "", group);
   const had = byKey(dom + "." + eff);
   if (had)
@@ -396,8 +456,8 @@ function defOf(item, project) {
   }
   const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
     place: p,
-    path: (places[p] || {}).path,
-    hash: (places[p] || {}).hash
+    path: places[p]?.path,
+    hash: places[p]?.hash
   }));
   const r = recOf({
     name: item.name || "",
@@ -405,11 +465,11 @@ function defOf(item, project) {
     project: group,
     place: eff,
     places: PLACES.filter((p) => places[p]),
-    teamPath: place.path || "",
+    teamPath: place?.path || "",
     agreePath: agree.path || "",
-    hash: place.hash || "",
+    hash: place?.hash || "",
     agreeHash: agree.hash || "",
-    broken: !!doc.broken,
+    broken: !!doc?.broken,
     hidden,
     ops: [],
     saved: cloneTeam(doc),
@@ -417,8 +477,8 @@ function defOf(item, project) {
     agreeDraft: saved ? clone2(saved) : emptyAgreement(item.name || ""),
     agreeSavedIssues: null,
     findings: [],
-    size: sum.size || 0,
-    limit: sum.limit || 0,
+    size: sum && sum.size || 0,
+    limit: sum && sum.limit || 0,
     problems: item.problems || { err: 0, warn: 0 },
     check: null,
     drawMark: 0,
@@ -506,7 +566,7 @@ function seedDraft(r, json) {
   const { draft, doc } = json;
   if (!draft || !doc)
     return;
-  const agree = doc.agreement || {};
+  const agree = doc.agreement || NO_AGREEMENT;
   r.seeded.value = true;
   r.placed.value = {};
   r.saved.value = cloneTeam(doc);
@@ -569,14 +629,13 @@ var convProblems = (doc, list) => (list || []).map((p) => ({
   definition: p.definition || ""
 }));
 var buildCheck = (doc, json) => {
-  const saved = json;
-  const effect = saved.effect || {};
+  const effect = json.effect && "turns" in json.effect ? json.effect : null;
   return {
     issues: convProblems(doc, json.problems || []),
     markdown: json.preview && !("diff" in json.preview) ? json.preview : { lines: [], chars: 0 },
-    diff: effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
-    turns: effect.turns || [],
-    readers: saved.readers || []
+    diff: effect && effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
+    turns: effect && effect.turns || [],
+    readers: json.readers || []
   };
 };
 function figFindings(r, problems) {
@@ -689,7 +748,21 @@ var vlistParts = (r) => {
   const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
   const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
   const own = issues.filter((m) => !at(m));
-  const where = (m) => m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? (r.draft.value.workers[m.worker] || {}).purpose || "ワーカー" : m.field === "mission" ? "使命" : m.field === "name" ? "チーム定義名" : "";
+  const purposeOf = (i) => {
+    const w = r.draft.value.workers[i];
+    return w && w.purpose || "ワーカー";
+  };
+  const where = (m) => {
+    if (m.node)
+      return nodeName(m.node);
+    if (m.worker != null && m.worker >= 0)
+      return purposeOf(m.worker);
+    if (m.field === "mission")
+      return "使命";
+    if (m.field === "name")
+      return "チーム定義名";
+    return "";
+  };
   const file = (m) => (m.field.split("#")[0] || "").replace(/^rule:/, "").split("/").pop();
   const roleHref = (m) => {
     if (!m.role)
@@ -708,7 +781,7 @@ function checkersFor(r) {
   const load = async (signal, payload) => {
     try {
       const res = await check2("team", payload, { signal });
-      return res.json || {};
+      return res.json;
     } catch {
       return null;
     }
@@ -719,9 +792,8 @@ function checkersFor(r) {
 }
 function applyTeamAnswer(r, json, findings) {
   r.findings.value = findings;
-  const answered = json;
-  r.prompts.value = Array.isArray(answered.members) ? answered.members : [];
-  r.promptsReady.value = !!(answered.members && answered.members.length);
+  r.prompts.value = Array.isArray(json.members) ? json.members : [];
+  r.promptsReady.value = !!(json.members && json.members.length);
   const pv = json.preview && "diff" in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
   const draft = json.draft;
@@ -730,7 +802,7 @@ function applyTeamAnswer(r, json, findings) {
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === "name" || p.field === "name");
     if (draft.path)
       r.teamPath.value = draft.path;
-    const ag = json.doc && json.doc.agreement || {};
+    const ag = json.doc && json.doc.agreement || NO_AGREEMENT;
     if (ag.path) {
       r.agreePath.value = ag.path;
       const saved = r.agreeSaved.value;
@@ -801,7 +873,7 @@ async function saveTeam(r) {
   r.ops.value = [];
   r.baseFindings.value = r.findings.value;
   setProblems(json.items, r.project);
-  withKey("ok", "t" + dkey(r), 1);
+  setOk("t" + dkey(r), true);
   resetCanvas(r);
   cundo.delete(dkey(r));
   saved2();
@@ -822,7 +894,7 @@ async function saveAgree(r) {
     r.agreeDraft.value = clone2(d2);
   }
   setProblems(json.items, r.project);
-  withKey("ok", "a" + dkey(r), 1);
+  setOk("a" + dkey(r), true);
   saved2();
   checkAgree(r);
 }
@@ -860,7 +932,7 @@ async function saveFolder(r) {
   await checkTeam(nr);
   if (nr.agreeSaved.value)
     await checkAgree(nr);
-  withKey("ok", (dtabOf(nr) === "agree" ? "a" : "t") + dkey(nr), 1);
+  setOk((dtabOf(nr) === "agree" ? "a" : "t") + dkey(nr), true);
   syncURL();
   saved2();
 }
@@ -896,7 +968,7 @@ async function answered(r, which, one, fallback) {
   }
 }
 function refuse(r, which, text) {
-  withKey("refusal", which + dkey(r), text || "保存できませんでした");
+  setRefusal(which + dkey(r), text || "保存できませんでした");
 }
 function clearOk(r) {
   if (state.value.ok["t" + dkey(r)] || state.value.ok["a" + dkey(r)]) {
@@ -920,7 +992,7 @@ var actSeq = 0;
 var ctyping = { key: null, field: null };
 var toastRow = null;
 var toastTimer;
-var cloneOps = (ops) => JSON.parse(JSON.stringify(ops || []));
+var cloneOps = (ops) => clone2(ops || []);
 function canvasUndoPoint(r, label) {
   const k = dkey(r), st = cundo.get(k) || [];
   st.push({ ops: cloneOps(r.ops.value), label });
@@ -1022,10 +1094,10 @@ function workerPrompt(r, i) {
   r.wpromptReq[k] = true;
   check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...r.project && r.project !== "global" ? { project: r.project } : {}, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
-    const ans = res.json || {};
+    const ans = res.json;
     r.wprompts.value = {
       ...r.wprompts.value,
-      [k]: { segments: ans.prompt || [], name: WRK_NAME, task: WRK_TASK }
+      [k]: { segments: ans && ans.prompt || [], name: WRK_NAME, task: WRK_TASK }
     };
   }).catch((e) => {
     delete r.wpromptReq[k];
@@ -1091,13 +1163,13 @@ function pressYfile(file) {
 }
 function yamlState(file, st) {
   const f = fileOf(file);
-  withKey("ytext", file, f && st.text === f.text ? undefined : st.text);
+  setYtext(file, f && st.text === f.text ? undefined : st.text);
 }
 function yamlProblems(file, list) {
-  withKey("yc", file, list);
+  setYc(file, list);
 }
 function yamlRevert(file) {
-  withKey("ytext", file, undefined);
+  setYtext(file, undefined);
 }
 function yamlSaved(file, answer) {
   const json = answer && answer.json || {};
@@ -1107,8 +1179,8 @@ function yamlSaved(file, answer) {
     return;
   const text = typeof json.text === "string" ? json.text : typed !== undefined ? typed : f.text;
   yfiles.value = yfiles.value.map((x) => x.file === file ? { ...x, hash: json.hash || x.hash, text } : x);
-  withKey("ytext", file, undefined);
-  withKey("yc", file, undefined);
+  setYtext(file, undefined);
+  setYc(file, undefined);
 }
 var promptsOf = (r) => r.prompts.value;
 var promptBlockedOf = (r) => r.promptsReady.value === false;
@@ -1252,7 +1324,7 @@ function restore(carried) {
     const f = fileOf(c.file);
     if (!f || c.hash && f.hash !== c.hash)
       return;
-    withKey("ytext", c.file, c.text);
+    setYtext(c.file, c.text);
   });
 }
 function take() {
@@ -1432,7 +1504,7 @@ function boot() {
         ROLES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => {
           const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
           const name = item.name || "";
-          const doc = (places[eff] || {}).doc;
+          const doc = places[eff]?.doc;
           return name ? { name, title: doc && doc.title || "" } : null;
         }).filter((x) => x !== null);
       });
@@ -3856,9 +3928,12 @@ function keyOf(e) {
   return e instanceof KeyboardEvent ? e.key : "";
 }
 var other2 = (p) => p === "project" ? "global" : "project";
+var placeName = (p) => p === "global" ? PLACE.global : PLACE.project;
+var TABS = [["list", "一覧"], ["yaml", "YAML"]];
+var MODES = [["edit", "編集"], ["md", "Markdown"]];
 function Tabs() {
   const tab = state.value.tab;
-  return [["list", "一覧"], ["yaml", "YAML"]].map(([t, label]) => /* @__PURE__ */ u("button", {
+  return TABS.map(([t, label]) => /* @__PURE__ */ u("button", {
     class: "tab" + (tab === t ? " on" : ""),
     "data-act": "tab",
     "data-t": t,
@@ -4303,7 +4378,7 @@ function Detail({ r }) {
           children: [
             /* @__PURE__ */ u("span", {
               class: "ln",
-              children: PLACE[h.place]
+              children: placeName(h.place)
             }),
             /* @__PURE__ */ u("code", {
               class: "path",
@@ -4726,7 +4801,7 @@ function AgreePanel({ r }) {
               }) : null,
               /* @__PURE__ */ u("span", {
                 class: "seg pview",
-                children: [["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => /* @__PURE__ */ u("button", {
+                children: MODES.map(([v, label]) => /* @__PURE__ */ u("button", {
                   class: mode === v ? "on" : "",
                   "data-act": "pmode",
                   "data-v": v,
@@ -4908,7 +4983,8 @@ function CanvasToast() {
 if (view) {
   const page = { screen: "teams", dirty, settled: false, take, tellDirty };
   Object.assign(window, { hergyPage: page });
-  R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
+  if (tabsEl)
+    R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);
   mountCanvas(view);
   x(() => {

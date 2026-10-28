@@ -9,7 +9,7 @@ import { useEffect, useRef } from '../lib/preact.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED, panelByKey,
+  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES,
 } from './state.js';
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
@@ -17,7 +17,6 @@ import {
   pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, pressLayer, inputField,
   reorderArgs,
 } from './actions.js';
-import type { Place } from '../lib/api.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
@@ -189,7 +188,7 @@ function Panel({ panel }: { panel: PanelState }) {
     <section class={'panel' + (panel.shadowed ? ' shadowed' : '')} data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.rename_targets} data-hash={panel.hash}>
       <header class="ph">
         {panel.layerSwitch
-          ? <div class="seg small">{(['project', 'global'] as Place[]).map((x) => <button class={panel.file === x ? 'on' : ''} data-act="pick-layer" data-x={x} onClick={() => pressLayer(panel.key, x)}>{labelOf(x)}</button>)}</div>
+          ? <div class="seg small">{PLACES.map((x) => <button class={panel.file === x ? 'on' : ''} data-act="pick-layer" data-x={x} onClick={() => pressLayer(panel.key, x)}>{labelOf(x)}</button>)}</div>
           : <span class="ln">{GROUPED && panel.group && panel.group !== 'global' ? groupName(panel.group) : panel.label}</span>}
         <code class="path">{panel.path}</code>
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}

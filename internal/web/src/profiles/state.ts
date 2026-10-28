@@ -6,12 +6,12 @@
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
-import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
+import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, EnvPair, FocusAsk, Island,
-  IslandHQ, HQProfileGroup, IslandRow, IslandTeam, OpenTarget, Panel, ProfileCheck,
+  IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel, ProfileCheck,
   ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
 } from './types.js';
 
@@ -36,6 +36,18 @@ function stringList(raw: string | undefined): string[] {
   } catch (e) { return []; }
 }
 
+// envList is a JSON array of key/value pairs, read the way stringList reads
+// names: a value that is not one reads as no pair.
+function envList(raw: string | undefined): EnvPair[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((one): one is EnvPair => typeof one === 'object' && one !== null && 'key' in one && 'value' in one && typeof one.key === 'string' && typeof one.value === 'string')
+      : [];
+  } catch (e) { return []; }
+}
+
 // The page carries the kind answers in the boundary's shape (spec-boundary 1,
 // 2, 5): the profile list and, on the 割り当て tab, the assignment cards. The
 // rows, the panels and the YAML sections are drawn from them here, and the Go
@@ -43,6 +55,7 @@ function stringList(raw: string | undefined): string[] {
 export const ISLAND: Island = (() => {
   const el = document.getElementById('profiles-data');
   if (!el) return {};
+  // Boundary: the page's embedded JSON is read here and nowhere else.
   try { return JSON.parse(el.textContent || '{}') as Island; } catch (e) { return {}; }
 })();
 
@@ -50,6 +63,9 @@ export const TAB = view.dataset.tab || '';
 export const BASE_KINDS = ['claude', 'codex', 'opencode', 'gemini'];
 export const otherKinds = (): string[] => stringList(view.dataset.otherKinds);
 export const classOf = (kind: string): string => (BASE_KINDS.includes(kind) ? 'k-' + kind : '');
+// PLACES are the two layers a document can stand in, in the order the screen
+// draws them.
+export const PLACES: readonly Place[] = ['project', 'global'];
 // placeOf is a place a string names: the address and the band carry words, and
 // anything that is not the global one is this project's (the two the screen has).
 export const placeOf = (file: string): Place => (file === 'global' ? 'global' : 'project');
@@ -133,7 +149,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     otherLabel: p.otherLabel,
     both: !!p.both,
     shadowed: !!p.shadowed,
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || '[]') as string[], env: JSON.parse(p.savedEnv || '[]') as EnvPair[] } : null,
+    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     hash: p.hash || '',
     users: p.users || 0,
     rename_targets: p.rename_targets || 0,
@@ -388,7 +404,7 @@ function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
   if (one) return one;
   one = resource<CheckAnswer, [CheckRequest]>(async (signal, payload) => {
     const answer = await apiCheck('profile', payload, { signal });
-    return { json: answer.json as ProfileCheck | null };
+    return { json: answer.json };
   });
   checkers.set(key, one);
   return one;
@@ -457,19 +473,14 @@ export async function deletePanel(key: string): Promise<void> {
   }
 }
 
-// SavedList is what a save or a delete answered with, read for the one thing
-// the screen takes from it: the rows that stand again and the files' hashes. A
-// save answers the document and the list under it; a delete answers the list.
-type SavedList = {
-  items?: Schemas['ProfileItem'][] | null;
-  hashes?: Record<string, string> | null;
-  files?: Schemas['File'][] | null;
-};
+// SavedAnswer is what a save and a delete answer with: the document they wrote
+// and the list under it (a delete writes no document).
+type SavedAnswer = Answer<'profile', 'save'> | Answer<'profile', 'del'>;
 
 // applySaved puts the list a save (or a delete) answered with in place of the
 // rows, keeping open the rows a person had open and opening the one just
 // written by its new name.
-function applySaved(panel: Panel, answer: SavedList | null): void {
+function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   const list: ProfileList = {
     items: (answer && answer.items) || null,
     hashes: (answer && answer.hashes) || {},
@@ -585,10 +596,10 @@ export const pickChanged = (row: AssignRow): boolean => row.profile !== (row.sav
 export const assignKind = signal<string | null>(params().get('kind'));
 
 export function initAssign(): void {
-  const card = (ISLAND.assign || {}) as Partial<{ empty: boolean; teams: IslandTeam[] }>;
+  const card = ISLAND.assign;
   assign.value = {
-    empty: !!card.empty,
-    teams: (card.teams || []).map((team): Team => ({
+    empty: !!card && !!card.empty,
+    teams: ((card && card.teams) || []).map((team): Team => ({
       name: team.name,
       // The place the card's save writes: a global definition is saved in the
       // global file, and every project reading it changes (d-0f32, r-f8b9).
