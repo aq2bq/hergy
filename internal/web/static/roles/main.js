@@ -33,7 +33,7 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-e6ranb7w.js";
+} from "../chunk/nav-v3s5cy6h.js";
 import {
   fromJSON2,
   toDoc2,

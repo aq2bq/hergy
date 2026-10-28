@@ -112,6 +112,12 @@ function runningFor(definition, place, project) {
   return (st.running.value.teams || []).filter((t) => t.definition === definition && (t.place || "project") === (place || "project") && (place === "global" || !project || t.project === project));
 }
 var runningTeam2 = (name) => st.running.value.teams.find((t) => t.team === name) || null;
+function teamDocumentAt(item, place) {
+  const row = item.places[place];
+  if (!row)
+    return null;
+  return row.doc;
+}
 function lastWorkspaceOf(definition) {
   const ws = (st.workspaces.value || []).find((w) => w.last_team === definition);
   return ws ? ws.label : "";
@@ -126,7 +132,7 @@ function definitionOf2(project, definition) {
       continue;
     const places = item.places || {};
     const eff = item.effective || (places.project ? "project" : "global");
-    return (places[eff] || {}).doc || null;
+    return teamDocumentAt(item, eff);
   }
   return null;
 }
@@ -137,8 +143,7 @@ function globalDefinition(definition) {
   const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
   if (!item)
     return null;
-  const places = item.places || {};
-  return (places.global || places[item.effective] || {}).doc || null;
+  return teamDocumentAt(item, "global") || teamDocumentAt(item, item.effective);
 }
 function definitionDoc(definition, project) {
   if (project) {
