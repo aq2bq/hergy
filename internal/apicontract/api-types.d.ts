@@ -1466,8 +1466,8 @@ export interface components {
             definition: string;
             /** @description チーム定義を読む場所 */
             place: string;
-            /** @description チーム名 */
-            name: string;
+            /** @description 省くか空なら、チーム定義名をチーム名にする（空白だけの場合も含む） */
+            name?: string;
             /** @description 起動先にするワークスペース */
             workspace: components["schemas"]["HQWorkspaceRequest"];
         };
@@ -1475,6 +1475,7 @@ export interface components {
         HQWorkspaceRequest: {
             /** @description 使う既存ワークスペースの ID */
             id: string;
+        } | {
             /** @description 新しく作るワークスペース名 */
             new: string;
         };

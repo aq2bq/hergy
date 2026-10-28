@@ -6,12 +6,17 @@
 // 返す（文はサーバのもの、画面は作らない）。
 import { call, problemText } from '../api.js';
 import { runStart } from './sheets.js';
+import type { components } from '../../../../apicontract/api-types';
+
+type HQLaunchEnvelope = components['schemas']['HQLaunchEnvelope'];
+type HQRefreshRequest = components['schemas']['HQRefreshRequest'];
 
 // raiseMember raises one member of a running team. The answer is the sentence a
 // person reads when the server says no, and '' when the raise went out.
-export async function raiseMember(team, name) {
+export async function raiseMember(team: string, name: string): Promise<string> {
   try {
-    const answer = await call('POST', '/api/hq/refresh', { team, members: [name] });
+    const request = { team, members: [name] } satisfies HQRefreshRequest;
+    const answer = await call<HQLaunchEnvelope>('POST', '/api/hq/refresh', request);
     const launch = (answer.json || {}).launch;
     if (launch) runStart(launch);
     return '';

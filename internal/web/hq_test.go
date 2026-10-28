@@ -51,6 +51,21 @@ func (f fakeHQ) LaunchState(string) (HQLaunch, bool)  { return HQLaunch{}, false
 func (f fakeHQ) CancelLaunch(string) (HQLaunch, bool) { return HQLaunch{}, false }
 func (f fakeHQ) Stop(string) (HQStopped, error)       { return HQStopped{}, nil }
 
+type launchHQ struct {
+	fakeHQ
+	started []HQLaunchIn
+}
+
+func (f *launchHQ) StartLaunch(in HQLaunchIn) (HQLaunch, error) {
+	f.started = append(f.started, in)
+	return HQLaunch{
+		ID: "l-1", Action: ActionLaunch, Team: in.Definition, Definition: in.Definition,
+		Place: in.Place, Project: in.Project, ProjectName: "proj",
+		Workspace: HQWorkspace{ID: "w-1", Label: "workspace"}, Tab: HQTab{ID: "t-1", Label: in.Definition},
+		Phase: "starting", Steps: []HQLaunchStep{}, Error: "",
+	}, nil
+}
+
 func (f fakeHQ) ProjectCatalog(path string) (*catalog.Catalog, error) {
 	if cat, ok := f.cats[path]; ok {
 		return cat, nil
@@ -105,6 +120,48 @@ func TestHQWithoutAReadingAnswers503(t *testing.T) {
 	resp, _ := f.get(t, f.server(t), "/api/hq/projects")
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Errorf("GET /api/hq/projects without a reading answers %d, want 503", resp.StatusCode)
+	}
+}
+
+// TestHQLaunchAcceptsOmittedNameAndOneWorkspaceChoice: the server derives an
+// omitted name from the definition, and a launch chooses either an existing or
+// a new workspace (n-e3de).
+func TestHQLaunchAcceptsOmittedNameAndOneWorkspaceChoice(t *testing.T) {
+	f := newFixture(t)
+	server := f.hqServer(t)
+	hq := &launchHQ{fakeHQ: server.hq.(fakeHQ)}
+	server.hq = hq
+
+	for _, tc := range []struct {
+		name      string
+		workspace map[string]string
+	}{
+		{name: "existing workspace", workspace: map[string]string{"id": "w-1"}},
+		{name: "new workspace", workspace: map[string]string{"new": "fresh"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := map[string]any{
+				"project": f.proj, "definition": "demo", "place": "project", "workspace": tc.workspace,
+			}
+			resp, body := f.api(t, server, http.MethodPost, "/api/hq/launch", payload)
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("POST /api/hq/launch answers %d: %s", resp.StatusCode, body)
+			}
+		})
+	}
+	if len(hq.started) != 2 {
+		t.Fatalf("the headquarters received %d starts, want 2", len(hq.started))
+	}
+	for _, in := range hq.started {
+		if in.Name != "" {
+			t.Errorf("omitted name decoded as %q, want empty for the default", in.Name)
+		}
+	}
+	if got := hq.started[0].Workspace; got.ID != "w-1" || got.New != "" {
+		t.Errorf("existing workspace request = %+v", got)
+	}
+	if got := hq.started[1].Workspace; got.New != "fresh" || got.ID != "" {
+		t.Errorf("new workspace request = %+v", got)
 	}
 }
 

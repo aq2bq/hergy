@@ -26,6 +26,12 @@ import {
 import { TeamFigure } from './hq/figure.js';
 import { raiseMember } from './hq/raise.js';
 
+declare global {
+  interface Window {
+    hergyHQSearch?: unknown;
+  }
+}
+
 // ---- 押す（画面から出るもの） -------------------------------------------
 // The lists' 起動… and 止める are the parts' own presses now (lib/hq/run.js,
 // activity/board.js). The band's プロジェクト N is the server's markup, written
@@ -37,6 +43,7 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 // The sheet closes when a person presses outside it; the search's box closes the
 // same way (spec 3 章).
 document.addEventListener('click', (e) => {
+  if (!(e.target instanceof Element)) return;
   if (sheetOpen() && !e.target.closest('.hq-sheet') && !e.target.closest('[data-hq]')) closeSheet();
   if (searchBoxOpen() && !e.target.closest('.hq-sr, .hq-search')) closeBox();
 });
@@ -44,6 +51,7 @@ document.addEventListener('click', (e) => {
 // The search's keys (spec 3 章): "/" from anywhere outside a field, Esc closes,
 // the arrows walk the rows, Enter goes to the chosen one.
 document.addEventListener('keydown', (e) => {
+  if (!(e.target instanceof Element)) return;
   if (e.key === 'Escape' && sheetOpen()) { closeSheet(); return; }
   if (e.key === 'Escape' && searchBoxOpen()) { resetSearch(); return; }
   if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable]')) {
@@ -81,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 window.addEventListener('resize', stickBar);
 function stickBar() {
-  const bar = document.querySelector('.bar');
+  const bar = document.querySelector<HTMLElement>('.bar');
   if (bar) document.documentElement.style.setProperty('--stick', bar.offsetHeight + 'px');
 }
 

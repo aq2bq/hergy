@@ -2949,7 +2949,7 @@ components:
       description: 起動するチーム定義、チーム名、ワークスペース
       type: object
       additionalProperties: false
-      required: [project, definition, place, name, workspace]
+      required: [project, definition, place, workspace]
       properties:
         project:
           type: string
@@ -2962,23 +2962,28 @@ components:
           description: チーム定義を読む場所
         name:
           type: string
-          description: チーム名
+          description: 省くか空なら、チーム定義名をチーム名にする（空白だけの場合も含む）
         workspace:
           allOf:
             - $ref: '#/components/schemas/HQWorkspaceRequest'
           description: 起動先にするワークスペース
     HQWorkspaceRequest:
       description: 既存または新しいワークスペース
-      type: object
-      additionalProperties: false
-      required: [id, new]
-      properties:
-        id:
-          type: string
-          description: 使う既存ワークスペースの ID
-        new:
-          type: string
-          description: 新しく作るワークスペース名
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:
+              type: string
+              description: 使う既存ワークスペースの ID
+        - type: object
+          additionalProperties: false
+          required: [new]
+          properties:
+            new:
+              type: string
+              description: 新しく作るワークスペース名
     HQRefreshRequest:
       description: 起動していないメンバーを起動し直す要求
       type: object
