@@ -344,6 +344,14 @@ function applyOps(saved, ops) {
   }
   return t;
 }
+function emptyAgreement(name) {
+  return fromJSON2({
+    name: "",
+    title: name ? `${name} チームのルール` : "チームのルール",
+    revision: 1,
+    sections: []
+  });
+}
 var STILL = ["uid", "dom", "project", "places", "draftRow", "how", "base"];
 function recOf(init) {
   const r = {};
@@ -401,7 +409,7 @@ function defOf(item, project) {
     ops: [],
     saved: cloneTeam(doc),
     agreeSaved: saved,
-    agreeDraft: saved ? clone2(saved) : fromJSON2({ name: "", title: (item.name || "") + " チームのルール", revision: 1, sections: [] }),
+    agreeDraft: saved ? clone2(saved) : emptyAgreement(item.name || ""),
     agreeSavedIssues: null,
     findings: [],
     size: sum.size || 0,
@@ -463,7 +471,7 @@ function draftRecord(how, place, name, base, project) {
     ops: [],
     saved: cloneTeam(null),
     agreeSaved: null,
-    agreeDraft: fromJSON2({ name: "", title: "チームのルール", revision: 1, sections: [] }),
+    agreeDraft: emptyAgreement(""),
     agreeSavedIssues: null,
     findings: [],
     problems: { err: 0, warn: 0 },
@@ -1333,7 +1341,8 @@ function pressSave(r) {
   saveAgree(r);
 }
 function pressRevert(r) {
-  r.agreeDraft.value = clone2(r.agreeSaved.value);
+  const saved = r.agreeSaved.value;
+  r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
 }
 function pressToastUndo() {

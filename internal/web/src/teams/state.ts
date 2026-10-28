@@ -307,6 +307,16 @@ export function applyOps(saved: Team, ops: Op[]): Team {
   return t;
 }
 
+// emptyAgreement is the rules document a team without one opens with: no
+// sections, and the title its first save would write. A row with no
+// agreement.yaml keeps this as its draft, so 元に戻す has a document to go back
+// to and does not put null where a document belongs (n-e3de).
+export function emptyAgreement(name: string): RuleDoc {
+  return fromJSON({
+    name: '', title: name ? `${name} チームのルール` : 'チームのルール', revision: 1, sections: [],
+  }) as RuleDoc;
+}
+
 // ---- 記録（1 定義ごと） ------------------------------------------------
 // Still are the fields a record is made with and never changes: they are read
 // as they are. Every other field is a signal of its own, so a change draws the
@@ -402,7 +412,7 @@ function defOf(item: DefItem, project?: string): Rec {
     hidden, ops: [],
     saved: cloneTeam(doc),
     agreeSaved: saved,
-    agreeDraft: saved ? clone(saved) : fromJSON({ name: '', title: (item.name || '') + ' チームのルール', revision: 1, sections: [] }),
+    agreeDraft: saved ? (clone(saved) as RuleDoc) : emptyAgreement(item.name || ''),
     // The saved document's own problems are the agreement save's baseline:
     // a save stops only when an error the saved text did not hold has
     // appeared (spec-teams X3).
@@ -466,7 +476,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     hidden: [], ops: [],
     saved: cloneTeam(null),
     agreeSaved: null,
-    agreeDraft: fromJSON({ name: '', title: 'チームのルール', revision: 1, sections: [] }),
+    agreeDraft: emptyAgreement(''),
     agreeSavedIssues: null,
     findings: [], problems: { err: 0, warn: 0 }, check: null,
     size: 0, limit: 0,
@@ -1368,8 +1378,12 @@ export function pressTRevert(r: Rec) {
   syncTeam(r);
 }
 export function pressSave(r: Rec) { saveAgree(r); }
-export function pressRevert(r: Rec) {
-  r.agreeDraft.value = clone(r.agreeSaved.value);
+export function pressRevert(r: Rec): void {
+  // 元に戻す puts the document back to the one the row opened with: the saved
+  // agreement, or, for a team that has none, the empty document it started from
+  // (n-e3de).
+  const saved = r.agreeSaved.value;
+  r.agreeDraft.value = saved ? (clone(saved) as RuleDoc) : emptyAgreement(r.name.value);
   checkAgree(r);
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
