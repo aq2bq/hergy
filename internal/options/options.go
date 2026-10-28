@@ -299,7 +299,7 @@ func validateValues(o *Options) error {
 	// happened rather than "unknown option".
 	for _, flag := range []string{"global", "local"} {
 		if o.seen[flag] {
-			msg := i18n.Tf("error.layer_flag_gone", flag)
+			msg := i18n.Tf("error.layer_flag_gone", flag, flag)
 			if o.Kind == New {
 				// new is told where it writes, on a second line (段 7, H6).
 				msg += "\n" + i18n.T("error.new_writes")

@@ -251,11 +251,19 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 
 		// --global and --local are refused everywhere with the one sentence
 		// (段 3 の設計), whatever command they are typed on; --profile with the
-		// sentence that says where the profile comes from now (段 6b).
+		// sentence that says where the profile comes from now (段 6b). The
+		// sentence names the flag twice, so both places must be filled: a
+		// missing one shows as %!s(MISSING) and the reader cannot tell what to
+		// take out (n-60fd).
 		for _, f := range []*Flag{flagGlobal, flagLocal} {
 			_, err := Parse(append(argvOf(&specs[0], len(specs[0].Args), nil), "--"+f.Name))
-			if err == nil || !strings.Contains(err.Error(), "--"+f.Name) || !strings.Contains(err.Error(), i18n.Tf("error.layer_flag_gone", f.Name)) {
+			want := i18n.Tf("error.layer_flag_gone", f.Name, f.Name)
+			if err == nil || !strings.Contains(err.Error(), want) {
 				t.Errorf("[%s] hergy %s --%s: the error is %v, want the sentence that says the flag is gone", lang, specs[0].Name, f.Name, err)
+				continue
+			}
+			if strings.Contains(err.Error(), "%!") {
+				t.Errorf("[%s] hergy %s --%s: the error is %v, want no unfilled placeholder", lang, specs[0].Name, f.Name, err)
 			}
 		}
 		if _, err := Parse([]string{"hire", "w", "--profile", "dev"}); err == nil || !strings.Contains(err.Error(), i18n.T("error.profile_flag_gone")) {
