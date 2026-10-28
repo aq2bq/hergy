@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- **A role renamed in the role screen rewrites the teams that name it**: the
+  screen sent the mark that carries a rename under the name `renameUsers`, where
+  the API reads `rename_users`, so the mark arrived off every time and a renamed
+  role's old name stayed in the team definitions — `validate` and `up` then
+  stopped on them until a person rewrote them by hand (n-b06c, r-b0bc, ac-2abf).
+  The mark travels under the field the API reads now, the same one the profile
+  screen sends, and a test holds both the screen's body and the server's rewrite.
 - **`hergy down` closes what hergy made for a team, even with no agent running**:
   a boot that stopped at a startup question (Ctrl-C, or an agent told not to trust
   the folder) left hergy's tab and panes behind, and no live agent made the team a

@@ -916,3 +916,31 @@ func TestROLES_F8_ALayerWithoutRolesGetsOne(t *testing.T) {
 		}
 	})
 }
+
+// TestROLES_F4b_ARenameWithTheMarkOffLeavesTheTeamsAlone: the same save with the
+// rename's mark off renames the role document and nothing else — the definitions
+// that name the old role keep it, and are listed as broken until the person
+// rewrites them (r-b0bc, ac-2abf).
+func TestROLES_F4b_ARenameWithTheMarkOffLeavesTheTeamsAlone(t *testing.T) {
+	f := ruFixtureRoles(t)
+	server := f.server(t)
+	old := ruRolePath(f, catalog.PlaceProject, "scout")
+	research := filepath.Join(f.proj, ".hergy", "teams", "research", "team.yaml")
+	before := readFile(t, research)
+
+	draft, text := ruLoadDraft(t, old)
+	draft.Name = "scout-3"
+	resp, body := f.apiJSON(t, server, http.MethodPut, "/api/role/scout", map[string]any{
+		"place": catalog.PlaceProject, "original": "scout", "hash": source.Hash(text),
+		"rename_users": false, "doc": draft,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save answered %d: %v", resp.StatusCode, body)
+	}
+	if _, err := os.Stat(ruRolePath(f, catalog.PlaceProject, "scout-3")); err != nil {
+		t.Errorf("the renamed role document was not written: %v", err)
+	}
+	if got := readFile(t, research); got != before {
+		t.Errorf("a save with the mark off changed the team that names the role:\n%s\nwant\n%s", got, before)
+	}
+}

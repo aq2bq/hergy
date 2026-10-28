@@ -625,7 +625,7 @@ export async function doSave(id, l) {
   // Whether the rename carries into the teams that read the role is the rule
   // document's state, not a box the screen reads back (5 章 2).
   const keepRename = renameCarries(key);
-  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
+  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), rename_users: keepRename, hash: e.hash || '' };
   if (r.group && r.group !== 'global') payload.project = r.group;
   if (e.basePlace) payload.base = e.basePlace;
   let res;
