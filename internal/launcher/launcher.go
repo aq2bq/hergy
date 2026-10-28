@@ -684,7 +684,7 @@ func (l *Launcher) waitGone(name string) error {
 			return err
 		}
 		if !time.Now().Before(deadline) {
-			return i18n.Errorf("error.agent_not_gone", name, l.timeout)
+			return i18n.Errorf("error.agent_not_gone", name, l.timeout, name)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}

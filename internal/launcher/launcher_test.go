@@ -1191,3 +1191,32 @@ func TestDownByNameHoldsTheOwnPaneBack(t *testing.T) {
 		t.Errorf("down by name does not say which pane went last:\n%s", out.String())
 	}
 }
+
+// TestWaitGoneSaysWhichMemberToRefresh: an agent herdr still knows after the
+// timeout is named whole — the agent, the wait, and the member a person refreshes
+// — rather than with an unfilled placeholder in the command to run (r-bac8).
+func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
+	agent := protocol.Agent{Name: "core-lead", Kind: "claude", Status: "idle", PaneID: "p1"}
+	port := &fakePort{
+		live:   []protocol.Agent{agent},
+		agents: map[string]protocol.Agent{"core-lead": agent},
+	}
+	l, _ := downLauncher(t, port, "core-lead")
+	l.timeout = 1
+
+	err := l.waitGone("core-lead")
+	if err == nil {
+		t.Fatal("waitGone answered no error while herdr still knew the agent")
+	}
+	text := err.Error()
+	if strings.Contains(text, "%!") {
+		t.Errorf("the sentence has an unfilled placeholder: %q", text)
+	}
+	want := i18n.Errorf("error.agent_not_gone", "core-lead", 1, "core-lead").Error()
+	if text != want {
+		t.Errorf("the sentence is %q, want %q", text, want)
+	}
+	if !strings.Contains(text, "hergy refresh core-lead") {
+		t.Errorf("the sentence does not say which member to refresh: %q", text)
+	}
+}
