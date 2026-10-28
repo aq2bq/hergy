@@ -7,24 +7,40 @@
 // 帯そのもの（`.screens` の span / a、数、`.wait`）はサーバーが描いたままで、
 // ここはその上の印と数だけを書く（要素は作り直さない。webui-preact-design 5 章）。
 // 画面は setCount / setActivity / takeDraft を import で読む。
-const band = document.querySelector('.screens');
-const key = (band && band.dataset.key) || '';
+
+type HergyPageBase = { screen?: string; tellDirty?: () => void; settled?: boolean };
+type HergyPage = HergyPageBase & (
+  | { dirty?: undefined; take?: undefined }
+  | { dirty: () => boolean; take: () => unknown }
+);
+
+declare global {
+  interface Window {
+    hergyPage?: HergyPage;
+  }
+}
+
+const band = document.querySelector<HTMLElement>('.screens');
+const key = band?.dataset.key || '';
 
 // The page's own script runs after this one (both are deferred, and the page
 // is read second), so what the page is is read when it is needed, not here.
-const page = () => window.hergyPage || null;
-const mine = () => { const p = page(); return p && p.screen ? p.screen : ''; };
+const page = (): HergyPage | null => window.hergyPage || null;
+const mine = (): string => {
+  const p = page();
+  return p && p.screen ? p.screen : '';
+};
 
 // sessionStorage holds one place and one draft per screen, under this
 // project's own key, so two projects on one machine do not mix. A browser
 // that refuses to hold them still walks the links.
-const at = (what, screen) => 'hergy.' + key + '.' + what + '.' + screen;
-const read = (k) => { try { return window.sessionStorage.getItem(k); } catch (e) { return null; } };
-const write = (k, v) => { try { window.sessionStorage.setItem(k, v); } catch (e) { /* the band still links */ } };
-const drop = (k) => { try { window.sessionStorage.removeItem(k); } catch (e) { /* as above */ } };
+const at = (what: string, screen: string | undefined): string => 'hergy.' + key + '.' + what + '.' + screen;
+const read = (k: string): string | null => { try { return window.sessionStorage.getItem(k); } catch { return null; } };
+const write = (k: string, v: string): void => { try { window.sessionStorage.setItem(k, v); } catch { /* the band still links */ } };
+const drop = (k: string): void => { try { window.sessionStorage.removeItem(k); } catch { /* as above */ } };
 
-const scr = (name) => (band ? band.querySelector('.scr[data-screen="' + name + '"]') : null);
-const setDot = (el, on) => {
+const scr = (name: string): HTMLElement | null => band?.querySelector<HTMLElement>('.scr[data-screen="' + name + '"]') || null;
+const setDot = (el: Element | null, on: boolean): void => {
   if (!el) return;
   const dot = el.querySelector('.dot');
   if (on && !dot) {
@@ -36,7 +52,7 @@ const setDot = (el, on) => {
 };
 
 // ---- 居た所 (1.4) ----------------------------------------------------
-function remember() {
+function remember(): void {
   const screen = mine();
   if (!screen) return;
   write(at('at', screen), location.pathname + location.search);
@@ -45,9 +61,9 @@ function remember() {
 // decorate points the band's links at the place each screen was left, and
 // shows the dot of a screen whose changes were carried over. The screen the
 // person is on is a span, not a link, so it is not among these.
-function decorate() {
+function decorate(): void {
   if (!band) return;
-  band.querySelectorAll('a.scr[data-screen]').forEach((a) => {
+  band.querySelectorAll<HTMLAnchorElement>('a.scr[data-screen]').forEach((a) => {
     const name = a.dataset.screen;
     const was = read(at('at', name));
     if (was && was.startsWith('/' + name)) a.setAttribute('href', was);
@@ -60,29 +76,29 @@ function decorate() {
 // here, once, and forgets them. It answers null when the band did not walk
 // here, or when the screen held nothing. The draft is dropped either way:
 // one this page did not take is one nobody may put back (R2).
-export function takeDraft(screen) {
+export function takeDraft(screen: string): unknown | null {
   const raw = read(at('draft', screen));
   const carried = !!read(at('carry', screen));
   drop(at('carry', screen));
   drop(at('draft', screen));
   if (!raw || !carried) return null;
-  try { return JSON.parse(raw); } catch (e) { return null; }
+  try { return JSON.parse(raw) as unknown; } catch { return null; }
 }
 
 // setDirty marks the band's dot of the screen this page is: a page says it
 // again whenever what it holds changes, and the dot follows at once (1.5). No
 // event stands between the two: the screen calls this, the way it calls
 // setCount (webui-components 2 章).
-export function setDirty(on) {
+export function setDirty(on: boolean): void {
   if (!band) return;
   setDot(scr(mine()), !!on);
 }
 
 // setCount is how a page keeps the band's number the same as its own when a
 // profile or a role is added or removed (1.1).
-export function setCount(screen, n) {
+export function setCount(screen: string, n: number): void {
   const el = scr(screen);
-  const num = el && el.querySelector('.n');
+  const num = el?.querySelector('.n');
   if (num) num.textContent = String(n);
 }
 
@@ -92,7 +108,7 @@ export function setCount(screen, n) {
 // herdr cannot be read or none is running, and then 活動 stands alone (2.7).
 // The screen calls this on every re-reading, so the band's two numbers are
 // the reading's own and not the page's first ones.
-export function setActivity(running, waiting, counts) {
+export function setActivity(running: number, waiting: number, counts: boolean): void {
   const el = scr('activity');
   if (!el) return;
   let num = el.querySelector('.n');
@@ -124,8 +140,8 @@ if (band) {
   // without the pages doing anything for it.
   const pushState = history.pushState.bind(history);
   const replaceState = history.replaceState.bind(history);
-  history.pushState = function (...args) { pushState(...args); remember(); };
-  history.replaceState = function (...args) { replaceState(...args); remember(); };
+  history.pushState = function (data: unknown, unused: string, url?: string | URL | null): void { pushState(data, unused, url); remember(); };
+  history.replaceState = function (data: unknown, unused: string, url?: string | URL | null): void { replaceState(data, unused, url); remember(); };
 
   // ---- 保存前の変更 (1.5) ----------------------------------------------
   // Only the band's own walk carries the changes: pressing a link here writes
@@ -135,13 +151,13 @@ if (band) {
   // cannot come back later (R2). The mark is written even from a page that is
   // no screen (a 404), so a draft waiting for the screen it points at comes
   // back the same way from there.
-  band.querySelectorAll('a.scr').forEach((a) => {
+  band.querySelectorAll<HTMLAnchorElement>('a.scr').forEach((a) => {
     a.addEventListener('click', () => {
       write(at('carry', a.dataset.screen), '1');
       const screen = mine();
       if (!screen) return;
       const p = page();
-      if (p && p.dirty && p.dirty()) write(at('draft', screen), JSON.stringify(p.take()));
+      if (p && p.dirty && p.dirty()) write(at('draft', screen), String(JSON.stringify(p.take())));
       else drop(at('draft', screen));
     });
   });
