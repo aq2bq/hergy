@@ -1,12 +1,13 @@
 // profiles/actions.js — 一覧のタブの押し込み（spec 4 章、r-c683）。
 //
-// 押し込みはここに集める: 部品（view.js）は描くだけ、main.js は押し込みを
-// ここへ渡す。だから同じ押し込みが 2 回走ることも、部品が自分の DOM を書き換える
-// こともない（webui-preact-design 5 章 1）。
+// 押し込みはここに集める: 部品（view.js / assign.js）は描き、自分の onClick /
+// onInput からここの関数を直接呼ぶ。だから同じ押し込みが 2 回走ることも、部品が
+// 自分の DOM を書き換えることもない（webui-preact-design 5 章 1）。
 import {
-  rows, filterKind, query, CURRENT, pathFor, labelOf, classOf, BASE_KINDS,
+  rows, filterKind, query, CURRENT, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
-  patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL, tellDirty,
+  patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL,
+  syncAssignURL, saveTeam, tellDirty,
 } from './state.js';
 
 // ---- the toolbar --------------------------------------------------------
@@ -14,6 +15,7 @@ export function pressNew() {
   clearFilter();
   const row = addRow('project', CURRENT);
   if (row && row.panels[0]) askFocus(row.panels[0].key, 'name', 0, false);
+  tellDirty();
   return row;
 }
 
@@ -102,6 +104,7 @@ export function pressDup(key) {
     initPanel(row.panels[0].key);
     askFocus(row.panels[0].key, 'name', 0, true);
   }
+  tellDirty();
 }
 
 export function pressCopy(key) {
@@ -112,6 +115,7 @@ export function pressCopy(key) {
     initPanel(fresh.key);
     askFocus(fresh.key, 'name', 0, true);
   }
+  tellDirty();
 }
 
 export function pressDiscard(key) {
@@ -145,6 +149,29 @@ export function pressDelYes(key) {
 
 export function pressRename(key, on) {
   patchPanel(key, { rename: !!on });
+}
+
+// ---- the layer, the assign tab's kind and its save ----------------------
+// pressLayer moves a row being added between the project's file and the
+// global one: the path, the segment and the pending pill follow.
+export function pressLayer(key, file) {
+  const panel = panelByKey(key);
+  if (!panel || panel.file === file) return;
+  patchPanel(key, { file, path: pathFor(file, panel.group) });
+  scheduleCheck(key);
+  tellDirty();
+}
+
+// pressKind is the assign tab's kind: the other kinds and people go thin, the
+// chosen one stays plain, and the address keeps it (R6).
+export function pressKind(kind) {
+  assignKind.value = assignKind.value === kind ? null : kind;
+  syncAssignURL();
+  tellDirty();
+}
+
+export function pressTeamSave(name) {
+  return saveTeam(name).then((ok) => { tellDirty(); return ok; });
 }
 
 // ---- the fields ---------------------------------------------------------

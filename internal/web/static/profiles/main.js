@@ -1,17 +1,14 @@
 // profiles/main.js — プロファイルの画面の入口（webui-preact-design 4 章）。
 //
-// mount と、押し込み・住所・帯への約束だけを持つ。描くのは view.js / assign.js /
-// yaml.js、状態は state.js、押し込みの中身は actions.js。ここも DOM を書かない
-// （5 章 1）。
+// mount と、住所・帯への約束だけを持つ。描くのは view.js / assign.js / yaml.js、
+// 状態は state.js、押し込みは部品が自分の onClick / onInput から actions.js の
+// 関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
 import { html, render } from '../vendor/preact.js';
-import { insertTab, jump as yamlJump, revert as yamlRevert, save as yamlSave } from '../lib/yamltab.js';
 import { takeDraft } from '../lib/nav.js';
 import {
-  view, TAB, rows, assignKind, dirty, take, tellDirty, restore,
-  syncAssignURL, initAssign, initYaml, setPick, panelByKey, saveTeam, patchPanel, pathFor,
+  view, TAB, rows, dirty, take, tellDirty, restore, syncAssignURL, initAssign, initYaml,
 } from './state.js';
-import { initPanel, scheduleCheck } from './actions.js';
-import * as actions from './actions.js';
+import { initPanel } from './actions.js';
 import { List } from './view.js';
 import { AssignPage } from './assign.js';
 import { YamlPage } from './yaml.js';
@@ -27,154 +24,6 @@ function App() {
 // with the page, so it is true at once and stays true.
 const page = { screen: 'profiles', dirty, take, tellDirty, settled: true };
 window.hergyPage = page;
-
-// The presses on the page land here, once: the same delegation the screen always
-// had, with the work handed to actions.js (so no part writes another part's DOM).
-view.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-act]');
-  if (!button) return;
-  const act = button.dataset.act;
-  if (act === 'goto') return; // the link itself moves the page
-  const panel = button.closest('.panel');
-  const key = panel ? panel.dataset.key : '';
-  const row = button.closest('.row');
-  const team = button.closest('.team');
-  const section = button.closest('.yed');
-  event.preventDefault();
-
-  if (act === 'toggle' && row && button.classList.contains('sum')) { actions.pressToggle(row.dataset.key); return; }
-  if (act === 'kind-filter') { actions.pressFilter(button.closest('.fchip').dataset.k || ''); return; }
-  if (act === 'new') { actions.pressNew(); return; }
-  if (act === 'set-kind' && panel) { actions.pressSetKind(key, button.dataset.k); return; }
-  if (act === 'arg-add' && panel) { actions.pressArgAdd(key); return; }
-  if (act === 'arg-del' && panel) { actions.pressArgDel(key, Number(button.dataset.i)); return; }
-  if (act === 'env-add' && panel) { actions.pressEnvAdd(key); return; }
-  if (act === 'env-del' && panel) { actions.pressEnvDel(key, Number(button.dataset.i)); return; }
-  if (act === 'save' && panel) { actions.pressSave(key); return; }
-  if (act === 'dup' && panel) { actions.pressDup(key); return; }
-  if (act === 'copy' && panel) { actions.pressCopy(key); return; }
-  if (act === 'discard' && panel) { actions.pressDiscard(key); return; }
-  if (act === 'del' && panel) { actions.pressDel(key); return; }
-  if (act === 'del-no' && panel) { actions.pressDelNo(key); return; }
-  if (act === 'del-yes' && panel) { actions.pressDelYes(key); return; }
-  if (act === 'pick-layer' && panel) { pressLayer(key, button.dataset.x); return; }
-  if (act === 'kind-hi') { pressKind(button.dataset.k); return; }
-  if (act === 'g-save' && team) { pressTeamSave(team.dataset.g); return; }
-  if (act === 'yaml-jump' && section) { yamlJump(section, Number(button.dataset.line)); return; }
-  if (act === 'yaml-revert' && section) { yamlRevert(section); return; }
-  if (act === 'yaml-save' && section) { yamlSave(section); return; }
-});
-
-// pressLayer moves a row being added between the project's file and the
-// global one: the path, the segment and the pending pill follow.
-function pressLayer(key, file) {
-  const panel = panelByKey(key);
-  if (!panel || panel.file === file) return;
-  patchPanel(key, { file, path: pathFor(file, panel.group) });
-  scheduleCheck(key);
-  tellDirty();
-}
-
-// pressKind is the assign tab's kind: the other kinds and people go thin, the
-// chosen one stays plain, and the address keeps it (R6).
-function pressKind(kind) {
-  assignKind.value = assignKind.value === kind ? null : kind;
-  syncAssignURL();
-}
-
-function pressTeamSave(name) {
-  return saveTeam(name);
-}
-
-view.addEventListener('input', (event) => {
-  const target = event.target;
-  if (target.id === 'q') { actions.pressQuery(target.value); return; }
-  if (!target.dataset.f) return;
-  const panel = target.closest('.panel');
-  if (!panel) return;
-  if (target.dataset.f === 'rename') return;
-  actions.inputField(panel.dataset.key, target.dataset.f, Number(target.dataset.i || 0), target.value);
-});
-
-view.addEventListener('change', (event) => {
-  const target = event.target;
-  if (target.dataset.f === 'kind-other') {
-    const panel = target.closest('.panel');
-    if (panel) actions.pressKindOther(panel.dataset.key, target.value);
-    return;
-  }
-  if (target.dataset.f === 'rename') {
-    const panel = target.closest('.panel');
-    if (panel) actions.pressRename(panel.dataset.key, target.checked);
-    return;
-  }
-  if (target.matches('.arow select')) {
-    const row = target.closest('.arow');
-    const team = target.closest('.team');
-    if (row && team) setPick(team.dataset.g, row.dataset.k, target.value);
-  }
-});
-
-view.addEventListener('keydown', (event) => {
-  const target = event.target;
-  if (target.classList && target.classList.contains('sum') && (event.key === 'Enter' || event.key === ' ')) {
-    event.preventDefault();
-    actions.pressToggle(target.closest('.row').dataset.key);
-    return;
-  }
-  if (target.classList && target.classList.contains('ytext') && event.key === 'Tab' && !event.shiftKey) {
-    event.preventDefault();
-    insertTab(target);
-  }
-});
-
-// A dragged argument's grip moves the whole chip; the chips' order is the order
-// the save writes (spec 4 章).
-view.addEventListener('pointerdown', (event) => {
-  const grip = event.target.closest('.grip');
-  if (grip) grip.closest('.arg').setAttribute('draggable', 'true');
-});
-view.addEventListener('dragstart', (event) => {
-  const arg = event.target.closest('.arg');
-  if (arg) arg.classList.add('dragging');
-});
-view.addEventListener('dragover', (event) => {
-  if (!event.target.closest('.arg')) return;
-  event.preventDefault();
-});
-view.addEventListener('drop', (event) => {
-  // The order the drop makes is worked out from the state the chips show, not
-  // from where the elements stand (5 章 2): the chip carries its index, and the
-  // row's own arguments are the list the save writes.
-  const target = event.target.closest('.arg');
-  const source = view.querySelector('.dragging');
-  if (!target || !source || target === source) return;
-  event.preventDefault();
-  const panel = target.closest('.panel');
-  if (!panel) return;
-  const from = Number(source.dataset.i), to = Number(target.dataset.i);
-  const rect = target.getBoundingClientRect();
-  const order = (panelByKey(panel.dataset.key) || { draft: { args: [] } }).draft.args.slice();
-  if (!(from in order) || !(to in order)) return;
-  const [moved] = order.splice(from, 1);
-  const at = event.clientX < rect.left + rect.width / 2 ? (to > from ? to - 1 : to) : (to >= from ? to : to + 1);
-  order.splice(at, 0, moved);
-  source.classList.remove('dragging');
-  source.removeAttribute('draggable');
-  actions.reorderArgs(panel.dataset.key, order);
-});
-view.addEventListener('dragend', (event) => {
-  const arg = event.target.closest('.arg');
-  if (arg) { arg.classList.remove('dragging'); arg.removeAttribute('draggable'); }
-});
-
-view.addEventListener('scroll', (event) => {
-  if (event.target.classList && event.target.classList.contains('ytext')) {
-    const section = event.target.closest('.yed');
-    const gutter = section && section.querySelector('.gutter');
-    if (gutter) gutter.scrollTop = event.target.scrollTop;
-  }
-}, true);
 
 // ---- mounting -----------------------------------------------------------
 // The server draws the page as it always did; the screen draws it again from
@@ -217,8 +66,3 @@ function flashFromHash() {
 const carried = takeDraft('profiles');
 if (carried) restore(carried);
 tellDirty();
-
-// A change a person makes, and a save's answer, both move the dot.
-document.addEventListener('input', tellDirty);
-document.addEventListener('change', tellDirty);
-document.addEventListener('click', tellDirty);

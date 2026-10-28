@@ -2,14 +2,21 @@
 //
 // 行と、行の中の面（プロジェクト / グローバル）を描く。class と data-* は CSS
 // と e2e が読むので、移す前のマークアップから 1 つも変えない（webui-preact-design
-// 5 章 6）。ここは state.js の signal を読んで描くだけで、DOM を自分では書かず、
-// 押し込みも持たない（5 章 1。押し込みは main.js が actions.js へ渡す）。
+// 5 章 6）。ここは state.js の signal を読んで描き、押し込みは自分の onClick /
+// onInput から actions.js の関数を直接呼ぶ（5 章 1）。DOM は自分では書かない
+// （ドラッグの途中の class だけは、動かしている間の印として付ける）。
 import { html, useEffect, useRef } from '../vendor/preact.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED,
+  focusAsk, scrollAsk, GROUPED, panelByKey,
 } from './state.js';
+import {
+  pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
+  pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
+  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, pressLayer, inputField,
+  reorderArgs,
+} from './actions.js';
 
 // chipsURL is where a filter's link points: the same kind and search the state
 // holds, so a middle press and a copied address mean the same list.
@@ -26,11 +33,11 @@ function chipsURL(kind) {
 // moves the chip with it.
 export function Toolbar() {
   return html`<div class="toolbar">
-    <button class="btn primary" data-act="new">＋ プロファイルを追加</button>
+    <button class="btn primary" data-act="new" onClick=${pressNew}>＋ プロファイルを追加</button>
     <div class="filters">
-      ${chips.value.map((chip) => html`<a class=${'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k=${chip.name} href=${chipsURL(chip.name)} aria-pressed=${chip.name === filterKind.value ? 'true' : 'false'}>${chip.name ? html`<i class=${'sw ' + chip.kindClass}></i>${chip.name}` : 'すべて'}<span class="n">${chip.count}</span></a>`)}
+      ${chips.value.map((chip) => html`<a class=${'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k=${chip.name} href=${chipsURL(chip.name)} aria-pressed=${chip.name === filterKind.value ? 'true' : 'false'} onClick=${(e) => { e.preventDefault(); pressFilter(chip.name); }}>${chip.name ? html`<i class=${'sw ' + chip.kindClass}></i>${chip.name}` : 'すべて'}<span class="n">${chip.count}</span></a>`)}
     </div>
-    <input id="q" class="search" type="search" placeholder="プロファイル名" value=${query.value} autocomplete="off" />
+    <input id="q" class="search" type="search" placeholder="プロファイル名" value=${query.value} autocomplete="off" onInput=${(e) => pressQuery(e.target.value)} />
   </div>`;
 }
 
@@ -76,7 +83,7 @@ export function Row({ row }) {
   const kind = row.isNew && first ? first.draft.kind : row.kind;
   const kindClass = row.isNew && first ? classOf(first.draft.kind) : row.kindClass;
   return html`<div class=${'row' + (row.open ? ' open' : '') + (rowUnsaved(row) ? ' unsaved' : '')} data-key=${row.key} data-name=${row.name} data-group=${row.group || ''} data-kind=${row.isNew ? 'claude' : kind}>
-    <div class="sum" role="button" tabindex="0" aria-expanded=${row.open ? 'true' : 'false'} data-act="toggle" ref=${sum}>
+    <div class="sum" role="button" tabindex="0" aria-expanded=${row.open ? 'true' : 'false'} data-act="toggle" ref=${sum} onClick=${() => pressToggle(row.key)} onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(row.key); } }}>
       <span class="chev"></span>
       <span class="c-name"><span class="nm">${name ? name : html`<span class="none">—</span>`}</span>${row.isNew ? html`<span class="tag">新規</span>` : ''}${row.err > 0 ? html`<span class="sev err">問題 ${row.err}</span>` : row.warn > 0 ? html`<span class="sev warn">警告 ${row.warn}</span>` : ''}</span>
       <span class="c-kind">${kind ? html`<i class=${'sw ' + kindClass}></i>${kind}` : ''}</span>
@@ -133,35 +140,59 @@ function Panel({ panel }) {
   }, [focusAsk.value]);
 
   const saved = panel.saved;
-  const acts = html`${saved ? html`<button class="btn" data-act="dup">複製</button>` : ''}${saved && !panel.both ? html`<button class="btn" data-act="copy">${panel.otherLabel}にコピー</button>` : ''}${saved ? html`<button class="btn danger" data-act="del">削除</button>` : html`<button class="btn danger" data-act="discard">取り消し</button>`}`;
+  const acts = html`${saved ? html`<button class="btn" data-act="dup" onClick=${() => pressDup(panel.key)}>複製</button>` : ''}${saved && !panel.both ? html`<button class="btn" data-act="copy" onClick=${() => pressCopy(panel.key)}>${panel.otherLabel}にコピー</button>` : ''}${saved ? html`<button class="btn danger" data-act="del" onClick=${() => pressDel(panel.key)}>削除</button>` : html`<button class="btn danger" data-act="discard" onClick=${() => pressDiscard(panel.key)}>取り消し</button>`}`;
   return html`<section class=${'panel' + (panel.shadowed ? ' shadowed' : '')} data-key=${panel.key} data-file=${panel.file} data-group=${panel.group || ''} data-saved=${saved ? '1' : undefined} data-users=${panel.users} data-rename-users=${panel.renameUsers} data-hash=${panel.hash}>
     <header class="ph">${panel.layerSwitch
-      ? html`<div class="seg small">${['project', 'global'].map((x) => html`<button class=${panel.file === x ? 'on' : ''} data-act="pick-layer" data-x=${x}>${labelOf(x)}</button>`)}</div>`
+      ? html`<div class="seg small">${['project', 'global'].map((x) => html`<button class=${panel.file === x ? 'on' : ''} data-act="pick-layer" data-x=${x} onClick=${() => pressLayer(panel.key, x)}>${labelOf(x)}</button>`)}</div>`
       : html`<span class="ln">${GROUPED && panel.group && panel.group !== 'global' ? groupName(panel.group) : panel.label}</span>`}<code class="path">${panel.path}</code>${panel.both ? html`<span class=${'state ' + (panel.shadowed ? 'off' : 'on')}>${panel.shadowed ? '隠れている' : '効いている'}</span>` : ''}</header>
     <div class="field"><label>プロファイル名</label><div>
-      <input class=${'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value=${panel.draft.name} spellcheck="false" autocomplete="off" ref=${nameInput} />
-      <label class="rename" hidden=${!hints}><input type="checkbox" data-f="rename" checked=${panel.rename} /><span>${hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
+      <input class=${'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value=${panel.draft.name} spellcheck="false" autocomplete="off" ref=${nameInput} onInput=${(e) => inputField(panel.key, 'name', 0, e.target.value)} />
+      <label class="rename" hidden=${!hints}><input type="checkbox" data-f="rename" checked=${panel.rename} onChange=${(e) => pressRename(panel.key, e.target.checked)} /><span>${hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
       <ul class="vm" data-for="name">${problemsOf(panel, 'name')}</ul>
     </div></div>
     <div class="field"><label>kind</label><div>
-      <div class=${'seg' + (changed.kind ? ' changed' : '') + (bad.kind ? ' bad' : '')} data-f="kind">${BASE_KINDS.map((k) => html`<button class=${panel.draft.kind === k ? 'on' : ''} data-act="set-kind" data-k=${k} aria-pressed=${panel.draft.kind === k ? 'true' : 'false'}><i class=${'sw ' + classOf(k)}></i>${k}</button>`)}${kindSelect(panel)}</div>
+      <div class=${'seg' + (changed.kind ? ' changed' : '') + (bad.kind ? ' bad' : '')} data-f="kind">${BASE_KINDS.map((k) => html`<button class=${panel.draft.kind === k ? 'on' : ''} data-act="set-kind" data-k=${k} aria-pressed=${panel.draft.kind === k ? 'true' : 'false'} onClick=${() => pressSetKind(panel.key, k)}><i class=${'sw ' + classOf(k)}></i>${k}</button>`)}${kindSelect(panel)}</div>
       <ul class="vm" data-for="kind">${problemsOf(panel, 'kind')}</ul>
     </div></div>
     <div class="field"><label>引数</label><div>
-      <div class="args"><span class="bin">${panel.draft.kind}</span>${panel.draft.args.map((arg, i) => html`<${ArgChip} key=${'arg' + i} index=${i} arg=${arg} changed=${changed.args[i]} bad=${bad.args.has(i)} panelKey=${panel.key} />`)}<button class="add" data-act="arg-add" aria-label="引数を足す">＋</button></div>
+      <${Args} panel=${panel} changed=${changed} bad=${bad} />
       <ul class="vm" data-for="args">${problemsOf(panel, 'args')}</ul>
     </div></div>
     <div class="field"><label>環境変数</label><div>
-      <div class="env">${panel.draft.env.map((pair, i) => html`<${EnvRow} key=${'env' + i} index=${i} pair=${pair} changed=${changed.env[i] || {}} bad=${bad.env.get(i) || {}} panelKey=${panel.key} />`)}<button class="add" data-act="env-add" aria-label="環境変数を足す">＋</button></div>
+      <div class="env">${panel.draft.env.map((pair, i) => html`<${EnvRow} key=${'env' + i} index=${i} pair=${pair} changed=${changed.env[i] || {}} bad=${bad.env.get(i) || {}} panelKey=${panel.key} />`)}<button class="add" data-act="env-add" aria-label="環境変数を足す" onClick=${() => pressEnvAdd(panel.key)}>＋</button></div>
       <ul class="vm" data-for="env">${problemsOf(panel, 'env')}</ul>
     </div></div>
     <footer class="pf">
-      <button class="btn primary" data-act="save" disabled=${saveBlocked(panel)}>保存</button><span class="dirty">${saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">${counts(panel)}</span>${panel.savedLine ? html`<span class="ok">保存しました</span>` : ''}${panel.refusal ? html`<span class="sev err refusal">${panel.refusal}</span>` : ''}
+      <button class="btn primary" data-act="save" disabled=${saveBlocked(panel)} onClick=${() => pressSave(panel.key)}>保存</button><span class="dirty">${saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">${counts(panel)}</span>${panel.savedLine ? html`<span class="ok">保存しました</span>` : ''}${panel.refusal ? html`<span class="sev err refusal">${panel.refusal}</span>` : ''}
       <span class="acts">${panel.confirming
-        ? html`<button class="btn danger solid" data-act="del-yes" ref=${confirmButton}>削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}</button><button class="btn" data-act="del-no">やめる</button>`
+        ? html`<button class="btn danger solid" data-act="del-yes" ref=${confirmButton} onClick=${() => pressDelYes(panel.key)}>削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}</button><button class="btn" data-act="del-no" onClick=${() => pressDelNo(panel.key)}>やめる</button>`
         : acts}</span>
     </footer>
   </section>`;
+}
+
+// Args is the argument chips and the press that adds one. A dragged chip's order
+// is the order the save writes (spec 4 章): the drop works it out from the
+// panel's own draft, not from where the elements stand (5 章 2).
+function Args({ panel, changed, bad }) {
+  const drop = (event) => {
+    const target = event.target.closest('.arg');
+    const source = event.currentTarget.querySelector('.dragging');
+    if (!target || !source || target === source) return;
+    event.preventDefault();
+    const draft = (panelByKey(panel.key) || { draft: { args: [] } }).draft;
+    const order = draft.args.slice();
+    const from = Number(source.dataset.i), to = Number(target.dataset.i);
+    const rect = target.getBoundingClientRect();
+    if (!(from in order) || !(to in order)) return;
+    const [moved] = order.splice(from, 1);
+    const at = event.clientX < rect.left + rect.width / 2 ? (to > from ? to - 1 : to) : (to >= from ? to : to + 1);
+    order.splice(at, 0, moved);
+    source.classList.remove('dragging');
+    source.removeAttribute('draggable');
+    reorderArgs(panel.key, order);
+  };
+  return html`<div class="args" onDragOver=${(e) => { if (e.target.closest('.arg')) e.preventDefault(); }} onDrop=${drop}><span class="bin">${panel.draft.kind}</span>${panel.draft.args.map((arg, i) => html`<${ArgChip} key=${'arg' + i} index=${i} arg=${arg} changed=${changed.args[i]} bad=${bad.args.has(i)} panelKey=${panel.key} />`)}<button class="add" data-act="arg-add" aria-label="引数を足す" onClick=${() => pressArgAdd(panel.key)}>＋</button></div>`;
 }
 
 function problemsOf(panel, field) {
@@ -180,7 +211,7 @@ function kindSelect(panel) {
   const kind = panel.draft.kind;
   if (kind && !BASE_KINDS.includes(kind) && !rest.includes(kind)) rest.push(kind);
   const chosen = BASE_KINDS.includes(kind) ? '' : kind;
-  return html`<span class="sel"><select data-f="kind-other" aria-label="ほかの kind" value=${chosen}><option value="">ほか</option>${rest.map((k) => html`<option value=${k}>${k}</option>`)}</select></span>`;
+  return html`<span class="sel"><select data-f="kind-other" aria-label="ほかの kind" value=${chosen} onChange=${(e) => pressKindOther(panel.key, e.target.value)}><option value="">ほか</option>${rest.map((k) => html`<option value=${k}>${k}</option>`)}</select></span>`;
 }
 
 // ArgChip is one argument: the grip that moves it, the field, and the × that
@@ -192,7 +223,7 @@ function ArgChip({ index, arg, changed, bad, panelKey }) {
     if (ask && ask.key === panelKey && ask.field === 'arg' && ask.index === index && input.current) input.current.focus();
   }, [focusAsk.value]);
   const size = Math.max(String(arg).length, 3);
-  return html`<span class=${'arg' + (String(arg).startsWith('-') ? ' flag' : '') + (changed ? ' changed' : '') + (bad ? ' bad' : '')} data-i=${index} onPointerDown=${(e) => { if (e.target.closest('.grip')) e.currentTarget.setAttribute('draggable', 'true'); }} onDragStart=${(e) => { e.currentTarget.classList.add('dragging'); }} onDragEnd=${(e) => { e.currentTarget.classList.remove('dragging'); e.currentTarget.removeAttribute('draggable'); }}><span class="grip" aria-hidden="true">⋮</span><input data-f="arg" data-i=${index} value=${arg} size=${size} spellcheck="false" autocomplete="off" ref=${input} /><button class="x" data-act="arg-del" data-i=${index} aria-label="${arg} を消す">×</button></span>`;
+  return html`<span class=${'arg' + (String(arg).startsWith('-') ? ' flag' : '') + (changed ? ' changed' : '') + (bad ? ' bad' : '')} data-i=${index} onPointerDown=${(e) => { if (e.target.closest('.grip')) e.currentTarget.setAttribute('draggable', 'true'); }} onDragStart=${(e) => { e.currentTarget.classList.add('dragging'); }} onDragEnd=${(e) => { e.currentTarget.classList.remove('dragging'); e.currentTarget.removeAttribute('draggable'); }}><span class="grip" aria-hidden="true">⋮</span><input data-f="arg" data-i=${index} value=${arg} size=${size} spellcheck="false" autocomplete="off" ref=${input} onInput=${(e) => inputField(panelKey, 'arg', index, e.target.value)} /><button class="x" data-act="arg-del" data-i=${index} aria-label="${arg} を消す" onClick=${() => pressArgDel(panelKey, index)}>×</button></span>`;
 }
 
 // EnvRow is one environment variable: the key, the value and the ×.
@@ -208,7 +239,7 @@ function EnvRow({ index, pair, changed, bad, panelKey }) {
     val.current.style.height = 'auto';
     val.current.style.height = `${val.current.scrollHeight + 2}px`;
   }, [pair.value]);
-  return html`<div class="envrow" data-i=${index}><input class=${(changed.key ? 'changed' : '') + (bad.key ? ' bad' : '')} data-f="ek" data-i=${index} value=${pair.key} spellcheck="false" autocomplete="off" ref=${key} /><span class="eq">=</span><textarea class=${(changed.value ? 'changed' : '') + (bad.value ? ' bad' : '')} data-f="ev" data-i=${index} rows="1" spellcheck="false" value=${pair.value} ref=${val}></textarea><button class="x" data-act="env-del" data-i=${index} aria-label="${pair.key} を消す">×</button></div>`;
+  return html`<div class="envrow" data-i=${index}><input class=${(changed.key ? 'changed' : '') + (bad.key ? ' bad' : '')} data-f="ek" data-i=${index} value=${pair.key} spellcheck="false" autocomplete="off" ref=${key} onInput=${(e) => inputField(panelKey, 'ek', index, e.target.value)} /><span class="eq">=</span><textarea class=${(changed.value ? 'changed' : '') + (bad.value ? ' bad' : '')} data-f="ev" data-i=${index} rows="1" spellcheck="false" value=${pair.value} ref=${val} onInput=${(e) => inputField(panelKey, 'ev', index, e.target.value)}></textarea><button class="x" data-act="env-del" data-i=${index} aria-label="${pair.key} を消す" onClick=${() => pressEnvDel(panelKey, index)}>×</button></div>`;
 }
 
 // List is the tab: the toolbar, the column line, the rows in their groups, and
