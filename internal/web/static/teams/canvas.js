@@ -11,23 +11,22 @@
 // 点や線の要素が入れ替わらない（Tab で当てたカーソルが外れない、9 章）。
 import { html, useLayoutEffect, useRef } from '../vendor/preact.js';
 import { Counts } from '../lib/ruledoc.js';
+import { boxOf } from './place.js';
 import {
-  recs, byKey, dkey, memberOf, nodeName, thin, teamIssues, rolesFor, profilesFor, rolesIn,
+  recs, byKey, dkey, memberOf, nodeName, teamIssues, rolesFor, profilesFor, rolesIn,
   promptsOf, promptBlockedOf, workerPrompt, canvasAct, canvasTyping, canvasEndTyping,
   canvasUndo, canvasToast, undoRow, openAgree, selectPick, pressLine,
 } from './state.js';
 
 const NAME = /^[a-z][a-z0-9_-]{0,31}$/;
-const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 
 // ---- the part's own state ---------------------------------------------
 // The picks stand on the record of the definition they belong to (state.js
 // keeps them, and drops them when the row is saved, deleted or takes another
-// place, d-a575). The places the figure lays the points out in are its own
-// memory, kept while it draws (r.pos): a point that was laid out once does not
-// move when another is added. A drag writes the element's transform as the
-// pointer moves, so nothing is drawn again until the person lets go; the place
-// it was let go at is already in r.pos by then.
+// place, d-a575). Where the points stand is the record's too (r.placed, and the
+// layout built from it, teams/place.js): a drag writes the element's transform
+// as the pointer moves and puts the place in the record, so the figure drawn
+// after it stands where the pointer left the point.
 let root = null;
 // GLOW is the preview's own bookkeeping: the lines drawn last, the lines one
 // edit just moved, and when they lit up (spec-teams B7).
@@ -45,90 +44,22 @@ function livePick(r, sel) {
 }
 export const selOf = (r) => livePick(r, r.sel.value);
 const sideOf = (r) => r.side.value || 'attr';
-const posOf = (r) => { if (!r.pos) r.pos = {}; return r.pos; };
+// layoutOf is every point's place as this row's drawing has it: the places a
+// person put points down at, and an automatic place for the rest. It is a
+// computed on the record, so a change to the draft or to a place draws the
+// figure again (webui-components 1 章).
+const layoutOf = (r) => r.layout.value;
+// putPlace puts one point down where a person put it (a double press's menu, or
+// a drag that was let go).
+function putPlace(r, id, at) {
+  r.placed.value = { ...r.placed.value, [id]: [at[0], at[1]] };
+}
+// renamePlace carries the place of a member the person renamed.
+function renamePlace(r, from, to) {
+  const { [from]: was, ...rest } = r.placed.value;
+  r.placed.value = was ? { ...rest, [to]: was } : rest;
+}
 
-// ---- 形 --------------------------------------------------------------
-function boxOf(id, t) {
-  if (id === 'human') return { w: 76, h: 36 };
-  const w = (t.workers || []).find((x, i) => 'w' + i === id);
-  if (w) return { w: Math.max(108, textW(w.purpose || '（目的）') + 26), h: 40 };
-  return { w: Math.max(96, textW(id, true) + 30), h: 46 };
-}
-// autoPos is where the figure lays a row out the first time: the human, the
-// members round it, and each member's workers in the nearest room that no
-// other point holds. A point never stands on another (監査 1-4).
-const GAP = 10;
-function hits(t, p, id, c) {
-  const b = boxOf(id, t);
-  return Object.keys(p).some((oid) => {
-    if (oid === id || !p[oid]) return false;
-    const q = p[oid], ob = boxOf(oid, t);
-    return Math.abs(c[0] - q[0]) < (b.w + ob.w) / 2 + GAP && Math.abs(c[1] - q[1]) < (b.h + ob.h) / 2 + GAP;
-  });
-}
-// freeNear keeps the wanted place when it is free, and otherwise walks round
-// it in rings until it finds room.
-function freeNear(t, p, id, want, startR) {
-  if (!hits(t, p, id, want)) return want;
-  for (let r = startR || 54; r <= 560; r += 26) {
-    for (let k = 0; k < 20; k++) {
-      const a = (-100 + k * 18) * Math.PI / 180;
-      const c = [want[0] + r * Math.cos(a), want[1] + r * Math.sin(a)];
-      if (!hits(t, p, id, c)) return c;
-    }
-  }
-  return [want[0], want[1] + 160];
-}
-function workerWant(t, p, from, wbox) {
-  const from0 = p[from] || [0, 0], hbox = boxOf(from, t);
-  const side = from0[0] >= 0 ? 1 : -1;
-  return [from0[0] + side * (hbox.w / 2 + wbox.w / 2 + 30), from0[1]];
-}
-function autoPos(t) {
-  const ids = ['human', ...t.members.map((m) => m.name)];
-  const n = Math.max(ids.length, 2), narrowPage = thin.value;
-  const R = n <= 3 ? 140 : 112 + n * 14;
-  const rx = narrowPage ? (n <= 3 ? 95 : 105) : R, ry = narrowPage ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
-  const out = {};
-  ids.forEach((id, i) => {
-    const a = (-90 + i * 360 / n) * Math.PI / 180;
-    out[id] = [rx * Math.cos(a), ry * Math.sin(a)];
-  });
-  t.workers.forEach((w, i) => {
-    const id = 'w' + i, b = boxOf(id, t);
-    out[id] = freeNear(t, out, id, workerWant(t, out, w.from, b), 58);
-  });
-  return out;
-}
-export function ensurePos(r) {
-  const t = r.draft.value, p = posOf(r), ids = ['human', ...t.members.map((m) => m.name), ...t.workers.map((w, i) => 'w' + i)];
-  Object.keys(p).forEach((k) => { if (!ids.includes(k)) delete p[k]; });
-  if (!Object.keys(p).length) Object.assign(p, autoPos(t));
-  const missing = ids.filter((id) => !p[id]);
-  if (missing.length) {
-    const known = Object.values(p);
-    let bx = known.length ? Math.min(...known.map((q) => q[0])) : 0, by = known.length ? Math.max(...known.map((q) => q[1])) + 100 : 0;
-    missing.forEach((id) => {
-      const wi = /^w(\d+)$/.exec(id);
-      if (wi) {
-        const w = t.workers[Number(wi[1])], b = boxOf(id, t);
-        p[id] = freeNear(t, p, id, workerWant(t, p, w.from, b), 58);
-      } else {
-        const b = boxOf(id, t);
-        p[id] = freeNear(t, p, id, [bx, by], 54);
-        bx += b.w + 30;
-      }
-    });
-  }
-  // A point that a change of purpose made wider, or one put down on another
-  // by a double press, is moved to the nearest room: workers only, so a
-  // member a person picked stays where it stands.
-  t.workers.forEach((w, i) => {
-    const id = 'w' + i;
-    if (hits(t, p, id, p[id])) p[id] = freeNear(t, p, id, p[id], 40);
-  });
-  return p;
-}
 const edgePt = (a, box, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1];
   if (!dx && !dy) return a;
@@ -146,7 +77,7 @@ function Bdg({ m, b }) {
 
 // ---- 図 --------------------------------------------------------------
 function Figure({ r }) {
-  const t = r.draft.value, s = r.saved.value, p = ensurePos(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
   const ids = ['human', ...t.members.map((m) => m.name)];
   const all = ids.concat(t.workers.map((w, i) => 'w' + i));
   const boxes = {};
@@ -683,7 +614,7 @@ function addMember(r, at) {
   let n = 1; const base = role || 'member';
   while (t.members.some((m) => m.name === `${base}-${n}`)) n++;
   const name = `${base}-${n}`;
-  if (at) posOf(r)[name] = at;
+  if (at) putPlace(r, name, at);
   selectPick(r, { type: 'node', id: name }, 'attr');
   canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
     message: `メンバー ${name} を足した。メンバー名・ロール・プロファイルを右で決める`,
@@ -693,7 +624,7 @@ function addMember(r, at) {
 function addWorker(r, from, at) {
   const t = r.draft.value, idx = t.workers.length, profile = firstProfile(true, r);
   const ops = [{ kind: 'addWorker', from, purpose: '', profile }];
-  if (at) posOf(r)['w' + idx] = at;
+  if (at) putPlace(r, 'w' + idx, at);
   selectPick(r, { type: 'worker', i: idx }, 'attr');
   canvasAct(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを足したのを取り消した', focus: '[data-cv-f="w-purpose"]' });
 }
@@ -734,7 +665,7 @@ function onPointerDown(r, e) {
   const n = e.target.closest('[data-cv-n], [data-cv-w]');
   if (n) {
     const id = n.dataset.cvN || ('w' + n.dataset.cvW);
-    DRAG = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [...ensurePos(r)[id]], moved: false };
+    DRAG = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [...layoutOf(r)[id]], moved: false };
     svg.setPointerCapture(e.pointerId); return;
   }
   const ed = e.target.closest('[data-cv-e]');
@@ -755,9 +686,13 @@ function onPointerMove(e) {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) < 4) return;
     d.moved = true;
-    ensurePos(r)[d.id] = [d.orig[0] + dx, d.orig[1] + dy];
+    // The place goes into the record as the pointer moves, and the element is
+    // moved by hand meanwhile: a drawing that comes while the drag is out draws
+    // the point where the pointer has it (5 章 1).
+    const at = [d.orig[0] + dx, d.orig[1] + dy];
+    putPlace(r, d.id, at);
     const g = svg.querySelector(d.wi != null ? `[data-cv-w="${d.wi}"]` : `[data-cv-n="${CSS.escape(d.id)}"]`);
-    if (g) g.setAttribute('transform', `translate(${ensurePos(r)[d.id][0]},${ensurePos(r)[d.id][1]})`);
+    if (g) g.setAttribute('transform', `translate(${at[0]},${at[1]})`);
     return;
   }
   // A point is being joined: the line and the words follow the pointer until
@@ -774,7 +709,7 @@ function onPointerMove(e) {
   // The words stand to the right of the point's own box and below it, so they
   // never cover the name the person is aiming at (監査 1-6).
   if (to) {
-    const c = ensurePos(r)[to], b = boxOf(to, t);
+    const c = layoutOf(r)[to], b = boxOf(to, t);
     label.setAttribute('x', c[0] + b.w / 2 + 12); label.setAttribute('y', c[1] + b.h / 2 + 18);
   } else {
     label.setAttribute('x', p.x + 24); label.setAttribute('y', p.y + 34);
@@ -880,7 +815,7 @@ function onInput(r, e) {
     if (!m) return;
     const ok = NAME.test(v) && v !== m.name;
     if (ok) {
-      const p = posOf(r); if (p[m.name]) { p[v] = p[m.name]; delete p[m.name]; }
+      renamePlace(r, m.name, v);
       r.typed.value = null;
       canvasTyping(r, { kind: 'renameMember', member: m.name, new: v }, 'm-name');
       selectPick(r, { type: 'node', id: v }, 'attr');

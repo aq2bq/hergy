@@ -18,6 +18,7 @@ import {
 } from '../lib/ruledoc.js';
 import { parseOpen } from '../lib/hq.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
+import { place } from './place.js';
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
@@ -195,9 +196,12 @@ function recOf(init) {
   // that is out is the drawing's own bookkeeping and is not a signal.
   r.wprompts = signal({});
   r.wpromptReq = {};
-  // pos is where the figure lays the points out: the drawing's own memory, kept
-  // as it is by ensurePos (canvas.js) while the figure is drawn.
-  r.pos = {};
+  // placed is where a person put a point down (a double press's menu, or a drag
+  // that was let go), and layout is where the figure draws every point: the
+  // places above and an automatic place for the rest. The drawing reads layout
+  // and writes nothing (webui-components 1 章).
+  r.placed = signal({});
+  r.layout = computed(() => place(r.draft.value, r.placed.value, thin.value));
   return r;
 }
 export const recs = signal([]);
@@ -822,7 +826,7 @@ export function resetCanvas(r) {
   r.menu.value = null;
   r.typed.value = null;
   r.flash.value = null;
-  r.pos = {};
+  r.placed.value = {};
 }
 
 // The worker's prompt is the one hire --dry builds (r-4cf9). Its name and task
