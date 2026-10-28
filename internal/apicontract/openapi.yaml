@@ -2503,7 +2503,7 @@ components:
         changes:
           type: array
           items:
-            $ref: '#/components/schemas/DeliveryChange'
+            $ref: '#/components/schemas/ApplyChange'
           description: 変わったこと
         can_apply:
           type: boolean
@@ -2595,7 +2595,7 @@ components:
         changes:
           type: array
           items:
-            $ref: '#/components/schemas/DeliveryChange'
+            $ref: '#/components/schemas/ApplyChange'
           description: 初期プロンプトの変更
     DeliveryRefusal:
       description: 初期プロンプトを受け取らなかったメンバーと理由
@@ -2621,7 +2621,7 @@ components:
         text:
           type: string
           description: herdr を読めない理由。読めたときは空
-    DeliveryChange:
+    ApplyChange:
       description: メンバーの初期プロンプトで変わった 1 項目
       type: object
       additionalProperties: false
