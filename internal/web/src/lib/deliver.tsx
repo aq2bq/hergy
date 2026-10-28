@@ -1,4 +1,4 @@
-// lib/deliver.js — 変更を伝える (r-a8fa)。module の入口。
+// lib/deliver.tsx — 変更を伝える (r-a8fa)。module の入口。
 //
 // Every screen carries this part, because the band is on every screen. The band
 // counts the running members whose prompt is not the one hergy last handed them
@@ -13,29 +13,29 @@
 // 直後に置き、`display: contents`（CSSOM。style 属性は CSP が拒む）で並びに
 // 関わらせない。button そのものには付けない（支援技術から button と見えなく
 // なるブラウザがある）。
-import { html, render } from './preact.js';
+import { render } from './preact.js';
 import { BandButton, Layer } from './deliver/view.js';
 import { close, opened, readCount, POLL } from './deliver/state.js';
 
 // ---- 器 -----------------------------------------------------------------
 // The search field of a headquarters stands right of the screens (spec 2 章),
 // and the delivery button right of it: the two are one band's little row.
-function mountBand() {
+function mountBand(): HTMLDivElement | null {
   const after = document.querySelector('.bar .hq-search') || document.querySelector('.bar .screens');
   if (!after) return null;
   const host = document.createElement('div');
   host.className = 'dlv-band';
   host.style.display = 'contents';
   after.insertAdjacentElement('afterend', host);
-  render(html`<${BandButton} />`, host);
+  render(<BandButton />, host);
   return host;
 }
 
-function mountLayer() {
+function mountLayer(): HTMLDivElement {
   const host = document.createElement('div');
   host.className = 'dlv-layer';
   document.body.appendChild(host);
-  render(html`<${Layer} />`, host);
+  render(<Layer />, host);
   return host;
 }
 
