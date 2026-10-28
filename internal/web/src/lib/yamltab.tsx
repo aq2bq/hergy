@@ -37,18 +37,6 @@ type ApiAnswer<T> = { ok: boolean; status: number; json: T | null; text: string 
 type YamlState = { base: string; text: string; hash: string };
 type YamlWorkingState = { text: string; problems: Problem[]; baseProblems: Problem[] };
 
-declare global {
-  interface Window {
-    hergyPage?: {
-      screen?: string;
-      dirty?: () => boolean;
-      take?: () => unknown;
-      settled?: boolean;
-      tellDirty?: () => void;
-    };
-  }
-}
-
 export type YamlTabProps = {
   label: string;
   path: string;
