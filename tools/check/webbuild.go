@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -44,19 +45,33 @@ func (r *runner) webbuildGate() error {
 	return compareWebTree(r.root, built)
 }
 
+// webPackages installs the packages the WebUI is built from, exactly as
+// tools/webvendor/package.json and bun.lock pin them, and answers the bun that
+// installed them and the environment to run the WebUI's tools in. Both the build
+// and the types gate need them: tsc reads preact's types through
+// internal/web/tsconfig.json's paths, into this node_modules, so a gate that
+// runs on its own (types, without webbuild before it) has to install them too.
+//
+// bun's own install cache stands in .bin/ (which CI caches) and nowhere in the
+// user's home, so a run leaves nothing behind outside the repository.
+func (r *runner) webPackages() (bun string, env []string, err error) {
+	bun, err = r.bun()
+	if err != nil {
+		return "", nil, err
+	}
+	env = append(os.Environ(), "BUN_INSTALL_CACHE_DIR="+filepath.Join(r.bin, "bun-cache"))
+	if err := r.execIn(filepath.Join(r.root, webBuildDir), env, bun, "install", "--frozen-lockfile"); err != nil {
+		return "", nil, fmt.Errorf("bun install --frozen-lockfile in %s: %w", webBuildDir, err)
+	}
+	return bun, env, nil
+}
+
 // buildWeb builds the WebUI into a directory of its own and answers the files
 // it made, by the path static/ serves them at.
 func (r *runner) buildWeb() (map[string][]byte, error) {
-	bun, err := r.bun()
+	bun, env, err := r.webPackages()
 	if err != nil {
 		return nil, err
-	}
-	dir := filepath.Join(r.root, webBuildDir)
-	// bun's own install cache stands in .bin/ (which CI caches) and nowhere in
-	// the user's home, so a run leaves nothing behind outside the repository.
-	env := append(os.Environ(), "BUN_INSTALL_CACHE_DIR="+filepath.Join(r.bin, "bun-cache"))
-	if err := r.execIn(dir, env, bun, "install", "--frozen-lockfile"); err != nil {
-		return nil, fmt.Errorf("bun install --frozen-lockfile in %s: %w", webBuildDir, err)
 	}
 
 	out, err := os.MkdirTemp("", "hergy-webbuild")
@@ -71,7 +86,7 @@ func (r *runner) buildWeb() (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	buildEnv := append(os.Environ(), "BUN_INSTALL_CACHE_DIR="+filepath.Join(r.bin, "bun-cache"), "HERGY_WEB_OUT="+out)
+	buildEnv := append(slices.Clip(env), "HERGY_WEB_OUT="+out)
 	if err := r.execIn(filepath.Join(r.root, webSrc), buildEnv, bun, script); err != nil {
 		return nil, fmt.Errorf("bun %s: %w", webBuildJS, err)
 	}

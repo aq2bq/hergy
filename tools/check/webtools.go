@@ -67,6 +67,13 @@ func (r *runner) webtools() (bun, dir string, env []string, err error) {
 }
 
 func (r *runner) typesGate() error {
+	// The answers and bodies come from the API's promise, and the packages
+	// (preact's types through internal/web/tsconfig.json's paths) from
+	// tools/webvendor: the gate installs them itself, so it works on a fresh
+	// tree and when the diff run picks it alone.
+	if _, _, err := r.webPackages(); err != nil {
+		return err
+	}
 	_, dir, env, err := r.webtools()
 	if err != nil {
 		return err
