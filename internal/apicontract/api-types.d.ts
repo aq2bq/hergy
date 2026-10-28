@@ -1234,7 +1234,7 @@ export interface components {
              */
             how: "resend" | "start" | "restart" | "cannot";
             /** @description 変わったこと */
-            changes: components["schemas"]["ApplyChange"][];
+            changes: components["schemas"]["DeliveryChange"][];
             /** @description 今このメンバーを反映できるか */
             can_apply: boolean;
             /** @description 反映できない理由 */
@@ -1282,7 +1282,7 @@ export interface components {
             /** @description メンバーが人間を待っていて送信できるか */
             can_send: boolean;
             /** @description 初期プロンプトの変更 */
-            changes: components["schemas"]["ApplyChange"][];
+            changes: components["schemas"]["DeliveryChange"][];
         };
         /** @description 初期プロンプトを受け取らなかったメンバーと理由 */
         DeliveryRefusal: {
@@ -1299,7 +1299,7 @@ export interface components {
             text: string;
         };
         /** @description メンバーの初期プロンプトで変わった 1 項目 */
-        ApplyChange: {
+        DeliveryChange: {
             /** @description 変更の種類 */
             kind: string;
             /** @description 変更があった文書 */

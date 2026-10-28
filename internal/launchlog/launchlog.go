@@ -55,11 +55,15 @@ type Hire struct {
 }
 
 // Member is one member as it was handed a prompt. Prompt is the hash of the
-// prompt text, which is in blobs/.
+// prompt text, which is in blobs/. Start and Env are the fingerprints of how the
+// member was started: what the comparison needs to tell a changed profile from a
+// changed prompt (d-36ef). A record written before they were kept has neither.
 type Member struct {
-	Name   string `json:"name"`   // the name herdr sees ("<team>-<member>")
-	Short  string `json:"short"`  // the short name team.yaml writes
-	Prompt string `json:"prompt"` // sha256 of the prompt text
+	Name   string `json:"name"`            // the name herdr sees ("<team>-<member>")
+	Short  string `json:"short"`           // the short name team.yaml writes
+	Prompt string `json:"prompt"`          // sha256 of the prompt text
+	Start  string `json:"start,omitempty"` // sha256 of the command the member is started by
+	Env    string `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
 }
 
 // Doc is one rule file a member read. Revision is the document's own revision,
@@ -165,6 +169,41 @@ func Hash(m Material) string {
 			field(&b, "env value", member.Env[key])
 		}
 		field(&b, "prompt", member.Prompt)
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
+// StartFingerprint is the hash of how a member is started: the kind and the
+// profile's args, which are the command hergy starts the agent with. The env is
+// not part of it: env is fixed when the pane is made, so a change to it is a
+// different question (EnvFingerprint). A person reads this fingerprint only as
+// "changed", never as a command.
+func StartFingerprint(kind string, args []string) string {
+	var b strings.Builder
+	field(&b, "kind", kind)
+	field(&b, "args", strconv.Itoa(len(args)))
+	for _, arg := range args {
+		field(&b, "arg", arg)
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
+// EnvFingerprint is the hash of one member's environment: the keys, in order, and
+// their values. The values are folded in here and written nowhere else, so a
+// change to one can be seen without the record holding a secret.
+func EnvFingerprint(env map[string]string) string {
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	field(&b, "env", strconv.Itoa(len(keys)))
+	for _, key := range keys {
+		field(&b, "env key", key)
+		field(&b, "env value", env[key])
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])

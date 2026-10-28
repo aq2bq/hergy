@@ -92,92 +92,197 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 	log, logErr := launchlog.Open()
 	for _, running := range a.teamsOf(read) {
 		judged := judgeOf(running, read, now)
-		byHerdr := map[string]activity.Node{}
-		for _, node := range judged.Nodes {
-			if node.Herdr != "" {
-				byHerdr[node.Herdr] = node
-			}
-		}
-		row := web.ApplyTeam{
-			Team: running.Name, Definition: running.Definition,
-			Project: running.Project, ProjectName: running.ProjectName,
-			Notes: []string{}, Members: []web.ApplyMember{},
-		}
-		if running.Built == nil {
-			// A definition that does not build has no member to apply: the row
-			// says why in the words hergy status uses (2.2). The row is here
-			// only when an agent of the team is live, because otherwise there
-			// is no drift a person can act on.
-			if len(judged.Nodes) > 0 || len(judged.Hired) > 0 {
-				row.Error = running.Broken
-				one.apply.Teams = append(one.apply.Teams, row)
-			}
-			continue
-		}
-		recorded := teamsRecorded(records, running.Project)[running.Name]
-		deliveryRow := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
-		for i := range running.Built.starts {
-			start := running.Built.starts[i]
-			node, live := byHerdr[start.Name]
-			if !live {
-				// The definition has the member and no agent of the team is
-				// live for it: hergy starts it (d-36ef).
-				row.Members = append(row.Members, web.ApplyMember{
-					Name: start.Name, Short: start.Short, Role: start.Role,
-					State: "absent", How: web.ApplyStart, Changes: []deliver.Change{}, CanApply: true,
-				})
-				continue
-			}
-			record, hasRecord := recorded[start.Name]
-			stale, changes := a.memberChanges(running.Catalog, log, logErr, running, start, record, hasRecord)
-			state := node.State.Slug()
-			member := plannedMember{
-				team: running, start: start, state: state, stale: stale, changes: changes, how: web.ApplyResend,
-			}
-			one.members[start.Name] = member
-			if !stale {
-				continue
-			}
-			deliveryRow.Members = append(deliveryRow.Members, deliver.Member{
-				Name: start.Name, Short: start.Short, Role: start.Role,
-				State: state, CanSend: sendable(state), Changes: changes,
-			})
-			applied := web.ApplyMember{
-				Name: start.Name, Short: start.Short, Role: start.Role,
-				State: state, How: web.ApplyResend, Changes: changes, CanApply: sendable(state),
-			}
-			if !applied.CanApply {
-				applied.How = web.ApplyCannot
-				applied.WhyNot = i18n.Tf("apply.refused_state", start.Short)
-			}
-			row.Members = append(row.Members, applied)
-		}
-		// A member the definition no longer has is still live: hergy cannot put
-		// it right without stopping and starting the team (d-36ef). Only an
-		// agent the launch record holds as this team's member is that; the
-		// others are hired workers, which a stop leaves alone too but which are
-		// outside the apply.
-		for _, hired := range judged.Hired {
-			if _, was := recorded[hired.Herdr]; !was {
-				continue
-			}
-			short := shortMember(hired.Herdr, running.Name)
-			row.Members = append(row.Members, web.ApplyMember{
-				Name: hired.Herdr, Short: short, State: hired.State.Slug(),
-				How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
-				WhyNot: i18n.Tf("apply.refused_removed", short),
-			})
-		}
-		if len(deliveryRow.Members) > 0 {
-			one.answer.Teams = append(one.answer.Teams, deliveryRow)
-			one.answer.Count += len(deliveryRow.Members)
-		}
-		if len(row.Members) > 0 {
-			one.apply.Teams = append(one.apply.Teams, row)
-			one.apply.Count += len(row.Members)
-		}
+		a.planTeam(&one, running, judged, byHerdrOf(judged), records, log, logErr)
 	}
 	return one
+}
+
+// byHerdrOf is the judged members by the name herdr knows them by: the members
+// an agent is live for.
+func byHerdrOf(judged activity.Team) map[string]activity.Node {
+	out := map[string]activity.Node{}
+	for _, node := range judged.Nodes {
+		if node.Herdr != "" {
+			out[node.Herdr] = node
+		}
+	}
+	return out
+}
+
+// planTeam adds one running team's drift to the plan: the members whose prompt,
+// start or env differs, the members the definition has and no agent is live for,
+// and the members the definition no longer has.
+func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged activity.Team, byHerdr map[string]activity.Node, records map[string]map[string]map[string]launchlog.Record, log launchlog.Log, logErr error) {
+	row := web.ApplyTeam{
+		Team: running.Name, Definition: running.Definition,
+		Project: running.Project, ProjectName: running.ProjectName,
+		Notes: []string{}, Members: []web.ApplyMember{},
+	}
+	if running.Built == nil {
+		// A definition that does not build has no member to apply: the row says
+		// why in the words hergy status uses (2.2). The row is here only when
+		// an agent of the team is live, because otherwise there is no drift a
+		// person can act on.
+		if len(judged.Nodes) > 0 || len(judged.Hired) > 0 {
+			row.Error = running.Broken
+			one.apply.Teams = append(one.apply.Teams, row)
+		}
+		return
+	}
+	recorded := teamsRecorded(records, running.Project)[running.Name]
+	deliveryRow := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
+	oldRecord := false
+	for i := range running.Built.starts {
+		start := running.Built.starts[i]
+		node, live := byHerdr[start.Name]
+		if !live {
+			// The definition has the member and no agent of the team is live
+			// for it: hergy starts it (d-36ef).
+			row.Members = append(row.Members, web.ApplyMember{
+				Name: start.Name, Short: start.Short, Role: start.Role,
+				State: "absent", How: web.ApplyStart, Changes: []deliver.Change{}, CanApply: true,
+			})
+			continue
+		}
+		record, hasRecord := recorded[start.Name]
+		if hasRecord && !fingerprinted(record, start) {
+			oldRecord = true
+		}
+		drift := a.memberDrift(running.Catalog, log, logErr, running, start, record, hasRecord)
+		state := node.State.Slug()
+		one.members[start.Name] = plannedMember{
+			team: running, start: start, state: state, stale: drift.prompt,
+			changes: drift.changes, how: drift.how(state),
+		}
+		if !drift.any() {
+			continue
+		}
+		if drift.prompt {
+			deliveryRow.Members = append(deliveryRow.Members, deliver.Member{
+				Name: start.Name, Short: start.Short, Role: start.Role,
+				State: state, CanSend: sendable(state), Changes: drift.changes,
+			})
+		}
+		applied := web.ApplyMember{
+			Name: start.Name, Short: start.Short, Role: start.Role,
+			State: state, How: drift.how(state), Changes: drift.changes,
+			CanApply: drift.canApply(state), ConversationLost: drift.how(state) == web.ApplyRestart,
+		}
+		if !applied.CanApply {
+			applied.WhyNot = drift.whyNot(start.Short)
+		}
+		row.Members = append(row.Members, applied)
+	}
+	if oldRecord {
+		// The record was written before hergy kept the fingerprint: a profile
+		// that changed since then cannot be told from one that did not, so the
+		// sheet says so rather than claiming the member is current.
+		row.Notes = append(row.Notes, i18n.T("apply.note_old_record"))
+	}
+	// A member the definition no longer has is still live: hergy cannot put it
+	// right without stopping and starting the team (d-36ef). Only an agent the
+	// launch record holds as this team's member is that; the others are hired
+	// workers, which a stop leaves alone too but which are outside the apply.
+	for _, hired := range judged.Hired {
+		if _, was := recorded[hired.Herdr]; !was {
+			continue
+		}
+		short := shortMember(hired.Herdr, running.Name)
+		row.Members = append(row.Members, web.ApplyMember{
+			Name: hired.Herdr, Short: short, State: hired.State.Slug(),
+			How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
+			WhyNot: i18n.Tf("apply.refused_removed", short),
+		})
+	}
+	if len(deliveryRow.Members) > 0 {
+		one.answer.Teams = append(one.answer.Teams, deliveryRow)
+		one.answer.Count += len(deliveryRow.Members)
+	}
+	if len(row.Members) > 0 {
+		one.apply.Teams = append(one.apply.Teams, row)
+		one.apply.Count += len(row.Members)
+	}
+}
+
+// memberDrift is what one live member differs in: its prompt, how it is started,
+// and its environment. The start and the env come from the fingerprints the
+// launch record keeps, so a changed profile is told from a changed prompt; a
+// record written before the fingerprints were kept leaves both false.
+type memberDrift struct {
+	prompt  bool
+	start   bool
+	env     bool
+	changes []deliver.Change
+}
+
+// any says whether hergy has anything to apply to the member.
+func (d memberDrift) any() bool { return d.prompt || d.start || d.env }
+
+// how is the way hergy would put the member right (d-3d30): an env change needs
+// the pane to be made again, a changed start restarts the agent, and a changed
+// prompt is sent again. A member that is working is not touched now, whatever
+// the drift is (d-aacf).
+func (d memberDrift) how(state string) string {
+	switch {
+	case d.env:
+		return web.ApplyCannot
+	case !sendable(state):
+		return web.ApplyCannot
+	case d.start:
+		return web.ApplyRestart
+	default:
+		return web.ApplyResend
+	}
+}
+
+// canApply says whether hergy may apply the member now.
+func (d memberDrift) canApply(state string) bool { return d.how(state) != web.ApplyCannot }
+
+// whyNot is the sentence the sheet writes beside a member it cannot apply.
+func (d memberDrift) whyNot(short string) string {
+	if d.env {
+		return i18n.Tf("apply.refused_env", short)
+	}
+	return i18n.Tf("apply.refused_state", short)
+}
+
+// memberDrift reads one live member's drift: the prompt comparison, and the
+// fingerprints the launch record keeps of the start and the env.
+func (a *activityRead) memberDrift(cat *catalog.Catalog, log launchlog.Log, logErr error, running runningTeam, start definition.Start, record launchlog.Record, hasRecord bool) memberDrift {
+	var drift memberDrift
+	drift.prompt, drift.changes = a.memberChanges(cat, log, logErr, running, start, record, hasRecord)
+	if recorded, ok := recordedMemberOf(record, start); ok && hasRecord {
+		if recorded.Start != "" {
+			drift.start = recorded.Start != launchlog.StartFingerprint(start.Kind, start.Args)
+		}
+		if recorded.Env != "" {
+			drift.env = recorded.Env != launchlog.EnvFingerprint(start.Env)
+		}
+	}
+	if drift.start {
+		drift.changes = append(drift.changes, deliver.Change{Kind: "start", Text: i18n.T("apply.start_changed")})
+	}
+	if drift.env {
+		drift.changes = append(drift.changes, deliver.Change{Kind: "env", Text: i18n.T("apply.env_changed")})
+	}
+	return drift
+}
+
+// recordedMemberOf is one member in the launch record, by herdr name first and
+// then by short name.
+func recordedMemberOf(record launchlog.Record, start definition.Start) (launchlog.Member, bool) {
+	for i := range record.Members {
+		if record.Members[i].Name == start.Name || record.Members[i].Short == start.Short {
+			return record.Members[i], true
+		}
+	}
+	return launchlog.Member{}, false
+}
+
+// fingerprinted says the record holds the fingerprints the drift needs.
+func fingerprinted(record launchlog.Record, start definition.Start) bool {
+	member, ok := recordedMemberOf(record, start)
+	return ok && member.Start != "" && member.Env != ""
 }
 
 // memberChanges says whether the prompt this member last read differs from the
@@ -189,14 +294,8 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	if !hasRecord || logErr != nil {
 		return false, nil
 	}
-	var recorded *launchlog.Member
-	for i := range record.Members {
-		if record.Members[i].Name == start.Name || record.Members[i].Short == start.Short {
-			recorded = &record.Members[i]
-			break
-		}
-	}
-	if recorded == nil {
+	recorded, ok := recordedMemberOf(record, start)
+	if !ok {
 		return false, nil
 	}
 	old, err := log.Text(recorded.Prompt)

@@ -64,3 +64,23 @@ func TestCompareIsEmptyForTheSamePrompt(t *testing.T) {
 		t.Errorf("no record = %+v, want the no_record change", changes)
 	}
 }
+
+// TestPreambleSaysWhatChangedAndWhatToDo: a send with changes is headed with the
+// reason, each change, and the words that make the text the new bootstrap prompt
+// without restarting the work. A send with no change gets no preamble.
+func TestPreambleSaysWhatChangedAndWhatToDo(t *testing.T) {
+	if got := Preamble(nil); got != "" {
+		t.Errorf("a send with no change is headed with %q, want nothing", got)
+	}
+	got := Preamble([]Change{{Kind: "rule", Text: "L1 を直した"}, {Kind: "roster", Text: "名簿が変わった"}})
+	for _, want := range []string{
+		i18n.T("apply.preamble_lead"),
+		"- L1 を直した",
+		"- 名簿が変わった",
+		i18n.T("apply.preamble_close"),
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("preamble = %q, want %q", got, want)
+		}
+	}
+}

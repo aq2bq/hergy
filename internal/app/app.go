@@ -1854,7 +1854,8 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, func() error { return l.Reprompt(selected) }); err != nil {
+	sent := promptsToResend(cat, env.ProjectRoot, r, selected)
+	if err := runLaunch(ctx, stderr, l, func() error { return l.Reprompt(sent) }); err != nil {
 		return err
 	}
 	recordLaunch(stderr, env, r, launchlog.CommandReprompt, selected)

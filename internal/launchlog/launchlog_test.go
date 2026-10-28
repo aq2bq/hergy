@@ -241,6 +241,29 @@ func TestHashIsStableAndSeparates(t *testing.T) {
 	}
 }
 
+// TestFingerprintsTellAStartAndAnEnv: the start fingerprint follows the kind and
+// args and nothing else, and the env fingerprint follows the keys and values in
+// any order, so a profile change is seen and an env change is a different
+// question (d-36ef).
+func TestFingerprintsTellAStartAndAnEnv(t *testing.T) {
+	if StartFingerprint("claude", []string{"--model", "opus"}) == StartFingerprint("claude", []string{"--model", "sonnet"}) {
+		t.Error("two starts hashed alike")
+	}
+	if StartFingerprint("claude", nil) == StartFingerprint("codex", nil) {
+		t.Error("two kinds hashed alike")
+	}
+	one := EnvFingerprint(map[string]string{"A": "1", "B": "2"})
+	if one != EnvFingerprint(map[string]string{"B": "2", "A": "1"}) {
+		t.Error("the same environment hashed two ways")
+	}
+	if one == EnvFingerprint(map[string]string{"A": "1", "B": "3"}) {
+		t.Error("a changed value hashed like the value it changed from")
+	}
+	if one == StartFingerprint("claude", nil) {
+		t.Error("an environment hashed like a start")
+	}
+}
+
 // TestHashSeparatesFields: a field cannot slide into the next one, so two
 // launches whose members carry the same bytes split differently do not hash
 // alike.

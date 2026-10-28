@@ -106,6 +106,8 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 			Name:   member.Name,
 			Short:  member.Short,
 			Prompt: hash,
+			Start:  launchlog.StartFingerprint(member.Kind, member.Args),
+			Env:    launchlog.EnvFingerprint(member.Env),
 		})
 		for _, doc := range docsReadBy(member) {
 			if seen[doc.Path] {
