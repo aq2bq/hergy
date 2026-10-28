@@ -8,6 +8,7 @@ import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
+import { setDirty } from '../lib/nav.js';
 
 export const view = document.getElementById('view');
 
@@ -488,7 +489,7 @@ export function dirty() {
   return panels || ytexts || picks;
 }
 export function tellDirty() {
-  document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+  setDirty(dirty());
 }
 
 // take is the draft the band puts aside: every panel that is not what the file

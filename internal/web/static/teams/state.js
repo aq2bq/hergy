@@ -17,7 +17,7 @@ import {
   fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, openRule,
 } from '../lib/ruledoc.js';
 import { parseOpen } from '../lib/hq.js';
-import { takeDraft } from '../lib/nav.js';
+import { takeDraft, setDirty } from '../lib/nav.js';
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
@@ -1042,7 +1042,7 @@ export function dirty() {
 // tellDirty says it again now, for a part that changed something without a
 // value the screen can watch (lib/yamltab.js asks for it).
 export function tellDirty() {
-  document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+  setDirty(dirty());
 }
 // restore puts back what the band carried from this screen (spec-nav 1.5): the
 // ops of a row that was not saved, the rules draft, and the YAML text. A file

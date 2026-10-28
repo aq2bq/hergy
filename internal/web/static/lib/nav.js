@@ -69,6 +69,15 @@ export function takeDraft(screen) {
   try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
+// setDirty marks the band's dot of the screen this page is: a page says it
+// again whenever what it holds changes, and the dot follows at once (1.5). No
+// event stands between the two: the screen calls this, the way it calls
+// setCount (webui-components 2 章).
+export function setDirty(on) {
+  if (!band) return;
+  setDot(scr(mine()), !!on);
+}
+
 // setCount is how a page keeps the band's number the same as its own when a
 // profile or a role is added or removed (1.1).
 export function setCount(screen, n) {
@@ -136,8 +145,6 @@ if (band) {
       else drop(at('draft', screen));
     });
   });
-
-  document.addEventListener('hergy:dirty', (e) => setDot(scr(mine()), !!e.detail));
 
   // Both scripts have run by the time the document is parsed, so the page
   // knows what it is: remember the place, and point the links.

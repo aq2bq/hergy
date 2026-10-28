@@ -8,7 +8,7 @@
 // signal に入れる。
 import { signal } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
-import { takeDraft, setCount } from '../lib/nav.js';
+import { takeDraft, setCount, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
@@ -756,7 +756,7 @@ export function dirty() {
 }
 
 export function tellDirty() {
-  document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() }));
+  setDirty(dirty());
 }
 
 // take is the draft the band puts aside: every row's draft that is not what the

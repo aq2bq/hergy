@@ -5,7 +5,7 @@
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（依頼書 2）。
 // ここも DOM を書かない（5 章 1）。
 import { html, effect, render as draw } from '../vendor/preact.js';
-import { setCount } from '../lib/nav.js';
+import { setCount, setDirty } from '../lib/nav.js';
 import {
   view, tabsEl, state, boot, take, dirty, tellDirty, savedCount, setStick, readAddress,
   narrow, thin,
@@ -31,7 +31,7 @@ if (view) {
   // saved (spec-nav 1.1) — and its dot follows whether the files differ from
   // what the screen holds (nav.js 1.5).
   effect(() => { setCount('teams', savedCount()); });
-  effect(() => { document.dispatchEvent(new CustomEvent('hergy:dirty', { detail: dirty() })); });
+  effect(() => { setDirty(dirty()); });
 
   let wasNarrow = narrow();
   let rt = null;
