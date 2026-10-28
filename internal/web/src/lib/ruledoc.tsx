@@ -31,8 +31,6 @@
 import type { components, operations } from '../../../apicontract/api-types';
 import { signal, useLayoutEffect, useRef } from './preact.js';
 
-type ApiRuleDocument = components['schemas']['RoleDoc'] | components['schemas']['HQRoleDocument'] | components['schemas']['TeamRuleDocument'];
-
 export type EditableRule = {
   _k: number;
   id: string;
@@ -58,8 +56,32 @@ export type EditableDocument = {
   __path?: string;
 };
 
+// The teams state keeps the same normalized document returned by fromJSON,
+// but its screen type leaves these fields optional and omits the keys this
+// panel adds while reading the file. The panel receives that row unchanged.
+export type RulePanelDocument = {
+  name?: string;
+  title?: string;
+  revision?: number | null;
+  sections: {
+    _s?: number | null;
+    heading?: string;
+    level?: number;
+    intro?: string;
+    rules: {
+      _k: number;
+      id?: string;
+      text?: string;
+      note?: string;
+      in_prompt?: boolean;
+      off_since?: string;
+    }[];
+  }[];
+  __path?: string;
+};
+
 export type RuleIssue = {
-  sev: components['schemas']['Problem']['sev'];
+  sev: string;
   k: number;
   f: string;
   msg: string;
@@ -80,8 +102,25 @@ export type RulePanel = {
   turns?: components['schemas']['RoleTurn'][] | components['schemas']['TeamRuleTurn'][] | null;
 };
 
+export type RulePanelInput = Omit<RulePanel, 'e' | 'saved' | 'draft' | 'markdown' | 'diff' | 'turns' | 'savedIssues'> & {
+  e?: { saved: RulePanelDocument | null; draft?: RulePanelDocument; savedIssues?: RuleIssue[] | null };
+  saved: RulePanelDocument | null;
+  draft: RulePanelDocument;
+  markdown: components['schemas']['RolePreview'] | components['schemas']['TeamRuleMarkdown'] | {
+    lines?: { text?: string; at?: string; part?: string; held?: string }[] | null;
+    diff?: { added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean } | null;
+    chars?: number;
+  };
+  diff: components['schemas']['RoleDiff'] | components['schemas']['TeamDiff'] | {
+    added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean;
+  };
+  turns?: components['schemas']['RoleTurn'][] | components['schemas']['TeamRuleTurn'][] | { from?: string; to?: string }[] | null;
+  savedIssues?: RuleIssue[] | null;
+  newRow?: boolean;
+};
+
 export type RuleDocProps = {
-  row: RulePanel;
+  row: RulePanelInput;
   issues: RuleIssue[];
   nameError?: string;
   hasName?: boolean;
@@ -94,13 +133,15 @@ export type RuleDocProps = {
   onURL?: () => void;
 };
 
+type InternalRuleDocProps = Omit<RuleDocProps, 'row'> & { row: RulePanel };
+
 type RuleLocation = { si: number; ri: number; x: EditableRule };
 type FocusPosition = { k: number; f: string };
 type AskPosition = { sel: string; how: 'focus' | 'center' | 'nearest'; seq: number };
 type FlashPosition = { k: number; seq: number };
 type Message = Pick<RuleIssue, 'sev' | 'msg'>;
 type Piece = { text?: string; node?: unknown };
-type EditProps = { row: RulePanel; issues: RuleIssue[]; nameError?: string; h: RuleDocProps };
+type EditProps = { row: RulePanel; issues: RuleIssue[]; nameError?: string; h: InternalRuleDocProps };
 type PreviewProps = { row: RulePanel; issues: RuleIssue[] };
 type FieldProps = { as?: 'input' | 'textarea'; value?: string | number | null; [key: string]: unknown };
 type DragTarget = { si: number; k: number | null; before?: boolean };
@@ -120,27 +161,56 @@ let kseq = 0;
 // spec-teams C7). The numbering is the screen's too: it names an open rule in
 // the address (`rule=lead.project.LEAD-1` is read back through _k), so the keys
 // are handed out the same way they always were (nextKey, observeKeys).
-function fromJSON(d: ApiRuleDocument): EditableDocument {
+function fromJSON(source: unknown): EditableDocument {
+  // The caller reads both operation answers and the saved copy carried by the
+  // page. Decode only the fields this editor owns; missing members get the same
+  // empty values the former JavaScript reader used.
+  const object = (value: unknown): Record<string, unknown> =>
+    value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const d = object(source);
+  const sections = Array.isArray(d.sections) ? d.sections : [];
   return {
-    name: d.name || '', title: d.title || '',
-    revision: d.revision === null || d.revision === undefined ? null : d.revision,
-    sections: (d.sections || []).map((s, si) => ({
-      _s: si, heading: s.heading || '', level: s.level || 0, intro: s.intro || '',
-      rules: (s.rules || []).map((x) => ({
-        _k: ++kseq, id: x.id || '', text: x.text || '', note: x.note || '',
-        in_prompt: x.in_prompt !== false, off_since: x.off_since || '',
-      })),
-    })),
+    name: typeof d.name === 'string' ? d.name : '',
+    title: typeof d.title === 'string' ? d.title : '',
+    revision: typeof d.revision === 'number' ? d.revision : null,
+    sections: sections.map((section, si) => {
+      const s = object(section);
+      const rules = Array.isArray(s.rules) ? s.rules : [];
+      return {
+        _s: si,
+        heading: typeof s.heading === 'string' ? s.heading : '',
+        level: typeof s.level === 'number' ? s.level : 0,
+        intro: typeof s.intro === 'string' ? s.intro : '',
+        rules: rules.map((rule) => {
+          const x = object(rule);
+          return {
+            _k: ++kseq,
+            id: typeof x.id === 'string' ? x.id : '',
+            text: typeof x.text === 'string' ? x.text : '',
+            note: typeof x.note === 'string' ? x.note : '',
+            in_prompt: x.in_prompt !== false,
+            off_since: typeof x.off_since === 'string' ? x.off_since : '',
+          };
+        }),
+      };
+    }),
   };
 }
 
+function toEditableDocument(d: RulePanelDocument | EditableDocument): EditableDocument {
+  // Every row enters through fromJSON; the team screen's wider declaration
+  // reflects optional members, not a different runtime document.
+  return d as EditableDocument;
+}
+
 // toDoc is the draft as the server reads it. Each rule and each section carries
-// where it stood in the saved document (its from), so the server can write the
-// changed lines and carry a moved rule or section whole.
-function toDoc(d: EditableDocument, saved: EditableDocument | null): components['schemas']['RoleDraft'] {
+// where it stood in the saved document, so the server can write the changed
+// lines and carry a moved rule or section whole.
+function toDoc(draft: RulePanelDocument, saved: RulePanelDocument | null): components['schemas']['RoleDraft'] {
+  const d = toEditableDocument(draft), sdoc = saved ? toEditableDocument(saved) : null;
   const at = new Map<number, [number, number]>(), secAt = new Map<number, number>();
-  if (saved) {
-    saved.sections.forEach((s, si) => { if (s._s !== null) secAt.set(s._s, si); s.rules.forEach((x, ri) => at.set(x._k, [si, ri])); });
+  if (sdoc) {
+    sdoc.sections.forEach((s, si) => { if (s._s !== null) secAt.set(s._s, si); s.rules.forEach((x, ri) => at.set(x._k, [si, ri])); });
   }
   return {
     name: d.name, title: d.title, revision: d.revision,
@@ -158,7 +228,15 @@ function toDoc(d: EditableDocument, saved: EditableDocument | null): components[
   };
 }
 
-const rulesOf = (d: EditableDocument): EditableRule[] => d.sections.flatMap((s) => s.rules);
+const rulesOf = (document: RulePanelDocument | EditableDocument): EditableRule[] =>
+  toEditableDocument(document).sections.flatMap((section) => section.rules);
+
+/*
+ * The following editor code works with the normalized model. RulePanelInput
+ * keeps the teams screen's declared row shape at the public boundary; its row
+ * has the same runtime object because it is produced by fromJSON.
+ */
+
 // nextID is the ID a rule the person just added carries (n-ec32). Its prefix is
 // the one the document's own IDs use most — LEAD for a lead.yaml — or, in a
 // document that has no such ID yet, the document's name in capital letters with
@@ -413,7 +491,7 @@ function Edit({ row, issues, nameError, h }: EditProps) {
     <button class="add secadd" data-act="sec-add">＋ 節</button></>;
 }
 
-function secHTML(row: RulePanel, si: number, issues: RuleIssue[], h: RuleDocProps) {
+function secHTML(row: RulePanel, si: number, issues: RuleIssue[], h: InternalRuleDocProps) {
   const d = row.draft, sec = d.sections[si], key = secKey(row, si), ck = `${row.uid}${row.l}s${si}`;
   const filtering = !!h.filtering;
   const rules = sec.rules.filter((x) => !filtering || !h.shown || h.shown(x, issues));
@@ -450,7 +528,7 @@ function secEnd(sec: EditableSection, ck: string) {
   return <>{adding}{confirming}</>;
 }
 
-function ruleHTML(row: RulePanel, x: EditableRule, issues: RuleIssue[], h: RuleDocProps) {
+function ruleHTML(row: RulePanel, x: EditableRule, issues: RuleIssue[], h: InternalRuleDocProps) {
   const open = ropen.value.has(rkey(row, x));
   const mine = issues.filter((m) => m.k === x._k);
   const cls = ['rule', open ? 'open' : '', ruleChanged(row, x) ? 'unsaved' : '', inP(x) ? '' : 'out'].filter(Boolean).join(' ');
@@ -460,7 +538,7 @@ function ruleHTML(row: RulePanel, x: EditableRule, issues: RuleIssue[], h: RuleD
     </div>;
 }
 
-function rsumInner(row: RulePanel, x: EditableRule, mine: RuleIssue[], h: RuleDocProps) {
+function rsumInner(row: RulePanel, x: EditableRule, mine: RuleIssue[], h: InternalRuleDocProps) {
   const id = String(x.id || '');
   return <><span class="grip" aria-hidden="true">⋮</span>
       <span class="rid"><b>{id ? deco(id, h.query || '') : <span class="none">—</span>}</b><Badge list={mine} /></span>
@@ -584,8 +662,8 @@ function focusField(t: Element): string {
 // left the section it stood in, a section whose own keys changed — and one for
 // an order that only moved, whether one rule or one section (spec-roles I4, I5:
 // 並びだけが替わったら 1).
-function diffCount(e: Pick<RulePanel, 'saved' | 'draft'>): number {
-  const s = e.saved, d = e.draft;
+function diffCount(e: { saved: RulePanelDocument | null; draft: RulePanelDocument }): number {
+  const s = e.saved ? toEditableDocument(e.saved) : null, d = toEditableDocument(e.draft);
   if (!s) return 1;
   // A rule counts when its values changed, or when it left the section it stood
   // in. Section identity travels with a section (_s), so rules that travel with
@@ -647,9 +725,9 @@ function ctx(row: RulePanel, el: Element): RuleContext {
 
 // edited says the draft changed: the screen draws its head and foot again and
 // asks the server what is wrong with the document.
-function edited(h: RuleDocProps, row: RulePanel): void { if (h.onChange) h.onChange(row); }
-function url(h: RuleDocProps): void { if (h.onURL) h.onURL(); }
-function mode(h: RuleDocProps, v: 'edit' | 'md'): void { if (h.onMode) h.onMode(v); }
+function edited(h: InternalRuleDocProps, row: RulePanel): void { if (h.onChange) h.onChange(row); }
+function url(h: InternalRuleDocProps): void { if (h.onURL) h.onURL(); }
+function mode(h: InternalRuleDocProps, v: 'edit' | 'md'): void { if (h.onMode) h.onMode(v); }
 
 // openRule opens one rule of a document and puts the cursor in its body
 // (spec-roles 1.2.4, 1.2.7, P15, 監査 R12): a screen that jumps to a rule from a
@@ -657,14 +735,16 @@ function mode(h: RuleDocProps, v: 'edit' | 'md'): void { if (h.onMode) h.onMode(
 // the editor shows, brought into the window — never under the save's band — with
 // the body ready to be typed in. A rule the document does not hold leaves the
 // panel as it is.
-export function openRule(row: RulePanel, k: number): void {
+export function openRule(input: RulePanelInput, k: number): void {
+  // A teams panel row is the same normalized row with a wider declared type.
+  const row = input as unknown as RulePanel;
   if (!row || !k) return;
   ropen.value = new Set(ropen.value).add(rkey(row, { _k: k }));
   focusAt(row.uid + row.l, { k, f: 'text' });
   ask(`.rule[data-k="${k}"] [data-f=text]`, 'center');
 }
 
-function handleClick(h: RuleDocProps, b: HTMLElement): boolean {
+function handleClick(h: InternalRuleDocProps, b: HTMLElement): boolean {
   const act = b.dataset.act, c = ctx(h.row, b), row = c.row;
   if (!row) return false;
   const pkey = row.uid + row.l, ck = c.x ? 'r' + c.key : '';
@@ -756,7 +836,7 @@ function handleClick(h: RuleDocProps, b: HTMLElement): boolean {
   return true;
 }
 
-function handleInput(h: RuleDocProps, t: HTMLInputElement | HTMLTextAreaElement): boolean {
+function handleInput(h: InternalRuleDocProps, t: HTMLInputElement | HTMLTextAreaElement): boolean {
   const row = h.row;
   if (!row) return false;
   const c = ctx(row, t);
@@ -786,7 +866,9 @@ function handleInput(h: RuleDocProps, t: HTMLInputElement | HTMLTextAreaElement)
 export function RuleDoc(props: RuleDocProps) {
   const edit = useRef<HTMLDivElement | null>(null);
   const lastAsk = useRef(0), lastFlash = useRef(0);
-  const h = props;
+  // The team screen's declared RuleDoc is wider than the normalized object
+  // created by fromJSON; keep its row unchanged at the component boundary.
+  const h: InternalRuleDocProps = { ...props, row: props.row as unknown as RulePanel };
   // The caret and the flash a press asked for are this component's to put in
   // place after the draw, so it reads them itself: a press that asks for either
   // draws this component even when the screen drew nothing.
