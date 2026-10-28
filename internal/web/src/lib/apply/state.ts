@@ -105,6 +105,8 @@ export async function readTeams() {
 let opening = false;
 let opener: Focusable | null = null;
 type Focusable = Element & { focus: (options?: FocusOptions) => void };
+const isFocusable = (element: Element | null): element is Focusable =>
+  element !== null && 'focus' in element && typeof element.focus === 'function';
 
 // openSheet opens the sheet, narrowed to one team when a screen named it.
 export async function openSheet(team?: string) {
@@ -114,7 +116,7 @@ export async function openSheet(team?: string) {
     const a = await applyList();
     // The person pressed something; that is the element to come back to.
     const active = document.activeElement;
-    opener = active && typeof (active as Focusable).focus === 'function' ? active as Focusable : null;
+    opener = isFocusable(active) ? active : null;
     scope.value = team || '';
     answer.value = a;
     all.value = a;

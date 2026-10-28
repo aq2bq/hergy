@@ -82,7 +82,7 @@ export function takeDraft(screen: string): unknown | null {
   drop(at('carry', screen));
   drop(at('draft', screen));
   if (!raw || !carried) return null;
-  try { return JSON.parse(raw) as unknown; } catch { return null; }
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 // setDirty marks the band's dot of the screen this page is: a page says it

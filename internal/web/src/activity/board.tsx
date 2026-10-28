@@ -46,10 +46,10 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
 }
 
 function countsLine(t: ActivityTeam): JSX.Element {
-  const states = [
+  const states: [string, string, boolean][] = [
     ['active', NS.active, true], ['idle', NS.idle, true], ['blocked', NS.blocked, false],
     ['handed', NS.handed, false], ['absent', NS.absent, false],
-  ] as const;
+  ];
   const group = (label: string, entries: { state: string }[]): JSX.Element => <div class="hq-tgroup">
     <b>{label} {entries.length}人</b>
     {states.map(([key, word, always]) => {

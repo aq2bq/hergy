@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-ss8zp2nt.js";
+} from "./nav-bn3yber6.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -381,13 +381,16 @@ function placeRows(rows, W, gap, y, rowStep) {
   });
   return slots;
 }
-var nodeState = (state) => ({
-  active: "仕事中",
-  idle: "止まっている",
-  blocked: "許可待ち",
-  handed: "人間に渡した",
-  absent: "動いていない"
-})[state] || state || "状態不明";
+var nodeState = (state) => {
+  const labels = {
+    active: "仕事中",
+    idle: "止まっている",
+    blocked: "許可待ち",
+    handed: "人間に渡した",
+    absent: "動いていない"
+  };
+  return labels[state] || state || "状態不明";
+};
 function PackedFigure({ team, turns, W }) {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
   const memberRows = rowsOf(crew, (m) => Math.max(38, labelWidth(m.name, 11.5) + 20), W - 32, 12);

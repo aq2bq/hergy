@@ -71,7 +71,7 @@ const ST: Record<string, string> = { answer: '許可待ち', turn: '人間の番
 const NS: Record<string, string> = { blocked: '許可待ち', handed: '人間に渡した', active: '仕事中', idle: '止まっている', absent: '動いていない' };
 const RANK: Record<string, number> = { answer: 0, turn: 1, stalled: 2, working: 3 };
 
-const words = JSON.parse((document.getElementById('activity-words') || {}).textContent || '{}') as ActivityWords;
+const words = JSON.parse((document.getElementById('activity-words') || {}).textContent || '{}') as ActivityWords; // Embedded JSON is typed here at its screen boundary.
 const enc = (s: unknown): string => encodeURIComponent(String(s == null ? '' : s));
 
 // selected is the team a person picked, by name. It survives the ten-second
@@ -81,7 +81,7 @@ export const selected = signal<string | null>(null);
 function openTeam(): { name: string; group: string } {
   if (!A) return { name: '', group: '' };
   const raw = (new URLSearchParams(location.search).get('open') || '');
-  const one = A.parseOpen(raw)[0] as { name: string; group: string } | undefined;
+  const one = A.parseOpen(raw)[0];
   return one || { name: '', group: '' };
 }
 

@@ -121,9 +121,12 @@ function placeRows<T>(rows: RowItem<T>[][], W: number, gap: number, y: number, r
   return slots;
 }
 
-const nodeState = (state: string): string => ({
-  active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間に渡した', absent: '動いていない',
-} as Record<string, string>)[state] || state || '状態不明';
+const nodeState = (state: string): string => {
+  const labels: Record<string, string> = {
+    active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間に渡した', absent: '動いていない',
+  };
+  return labels[state] || state || '状態不明';
+};
 
 function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, string][]; W: number }): JSX.Element {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];

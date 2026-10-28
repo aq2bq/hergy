@@ -354,7 +354,7 @@ function ProjectsSheet() {
     });
   const listed = (p.projects || []).filter((x) => x.listed);
   const candidates = (p.projects || []).filter((x) => !x.listed && x.source === "launch");
-  const current = p.current || {};
+  const current = p.current;
   const currentOnly = p.mode !== "listed";
   const rewrite = (fn, arg) => async () => {
     const no = await fn(arg);
@@ -1336,17 +1336,20 @@ var indexTeams = null;
 var teamDoc = (item) => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? "project" : "global");
-  return (places[eff] || {}).doc || {};
+  const place = places[eff];
+  return place && place.doc || {};
 };
 var roleDoc = (item) => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? "project" : "global");
-  return (places[eff] || {}).doc || {};
+  const place = places[eff];
+  return place && place.doc || {};
 };
 var profileDoc = (item) => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? "project" : "global");
-  return (places[eff] || {}).doc || {};
+  const place = places[eff];
+  return place && place.doc || {};
 };
 function buildIndex() {
   const out = [];
@@ -1359,8 +1362,8 @@ function buildIndex() {
       for (const m of doc.members || []) {
         out.push({ kind: "member", group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ""} · プロファイル ${m.profile || ""}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ""} ${m.profile || ""}`, href });
       }
-      const agree = doc.agreement && doc.agreement.doc || {};
-      for (const sec of agree.sections || []) {
+      const agree = doc.agreement && doc.agreement.doc;
+      for (const sec of agree && agree.sections || []) {
         for (const rule of sec.rules || []) {
           out.push({ kind: "rule", group, project: label, label: rule.id, sub: `${item.name} のルール`, text: `${rule.id} ${rule.text}`, body: rule.text, href });
         }
@@ -1669,6 +1672,7 @@ async function readTeams() {
 }
 var opening = false;
 var opener = null;
+var isFocusable = (element) => element !== null && ("focus" in element) && typeof element.focus === "function";
 async function openSheet(team) {
   if (opening)
     return;
@@ -1676,7 +1680,7 @@ async function openSheet(team) {
   try {
     const a = await applyList2();
     const active = document.activeElement;
-    opener = active && typeof active.focus === "function" ? active : null;
+    opener = isFocusable(active) ? active : null;
     scope.value = team || "";
     answer.value = a;
     all.value = a;

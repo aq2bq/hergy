@@ -119,7 +119,7 @@ function ProjectsSheet(): JSX.Element {
   if (!p) return <><Head title="本部に並べるプロジェクト" /><p class="hq-sub">読み込んでいます…</p></>;
   const listed = (p.projects || []).filter((x) => x.listed);
   const candidates = (p.projects || []).filter((x) => !x.listed && x.source === 'launch');
-  const current: HQProject = p.current || {} as HQProject;
+  const current: HQProject = p.current;
   const currentOnly = p.mode !== 'listed';
   const rewrite = (fn: (path: string) => Promise<string | null>, arg: string) => async (): Promise<void> => {
     const no = await fn(arg);
@@ -442,10 +442,10 @@ export function projectsSheet(): void {
 // ---- 横断して探す（spec 3 章） -------------------------------------------
 // KINDS is the order the result groups stand in. A rule's group shows six rows
 // and the rest as ほか N 件; every other group shows five.
-const KINDS = [
+const KINDS: [SearchKind, string][] = [
   ['live', '動いているチーム'], ['def', 'チーム定義'], ['ws', 'ワークスペース'], ['member', 'メンバー'],
   ['role', 'ロール'], ['rule', '規則'], ['profile', 'プロファイル'],
-] as const;
+];
 const CAP = (kind: SearchKind): number => (kind === 'rule' ? 6 : 5);
 
 let index: SearchEntry[] | null = null;
@@ -454,17 +454,20 @@ let indexTeams: typeof st.groups.value.teams | null = null;
 const teamDoc = (item: TeamItem): Partial<TeamDocument> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as TeamDocument | undefined) || {};
+  const place = places[eff];
+  return (place && place.doc) || {};
 };
 const roleDoc = (item: RoleItem): Partial<RoleDoc> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as RoleDoc | undefined) || {};
+  const place = places[eff];
+  return (place && place.doc) || {};
 };
 const profileDoc = (item: ProfileItem): Partial<ProfileDoc> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as ProfileDoc | undefined) || {};
+  const place = places[eff];
+  return (place && place.doc) || {};
 };
 
 // index builds the rows the search reads: names, missions, rules' ids and texts,
@@ -480,8 +483,8 @@ function buildIndex(): SearchEntry[] {
       for (const m of doc.members || []) {
         out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ''} · プロファイル ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
       }
-      const agree = ((doc.agreement && doc.agreement.doc) || {}) as Partial<RoleDoc>;
-      for (const sec of agree.sections || []) {
+      const agree = doc.agreement && doc.agreement.doc;
+      for (const sec of (agree && agree.sections) || []) {
         for (const rule of sec.rules || []) {
           out.push({ kind: 'rule', group, project: label, label: rule.id, sub: `${item.name} のルール`, text: `${rule.id} ${rule.text}`, body: rule.text, href });
         }
