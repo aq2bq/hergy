@@ -53,7 +53,15 @@ const screens = {
   roles: ['roles-v2'],
   teams: ['teams-v2'],
   activity: ['teams-v2'],
+  // hq is the headquarters: three projects listed in the settings, each a
+  // project of its own under ~/src, and the global layer (testdata/hq). Its
+  // config.yaml is the fixture's own, so it is not overwritten below.
+  hq: ['hq'],
 };
+
+// hqHome is where the headquarters sample's projects stand: the work directory's
+// home, which is what ~/src reads as on the screens.
+const hqProjects = ['alpha', 'beta', 'gamma'];
 
 // The fake herdr a screen with no team running answers with: the calls a status
 // or a down needs, no tabs and no agents (internal/app/app_test.go runningHerdr
@@ -79,7 +87,7 @@ esac
 // its parts stand and the environment the serve reads.
 export function lay(screen) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'hergy-e2e-'));
-  const proj = path.join(root, 'proj');
+  let proj = path.join(root, 'proj');
   const cfg = path.join(root, 'cfg');
   const state = path.join(root, 'state');
   const home = path.join(root, 'home');
@@ -96,7 +104,20 @@ export function lay(screen) {
     }
   }
   mkdirSync(path.join(cfg, 'hergy'), { recursive: true });
-  writeFileSync(path.join(cfg, 'hergy', 'config.yaml'), 'version: 1\nlang: ja\n');
+  if (screen === 'hq') {
+    // The sample's config.yaml names the three projects; each stands where a
+    // person's project does, under the work directory's home.
+    for (const name of hqProjects) {
+      const dir = path.join(home, 'src', name);
+      copy(path.join(repo, 'testdata', 'hq', 'projects', name, '.hergy'), path.join(dir, '.hergy'));
+      execFileSync('git', ['init', '-q'], { cwd: dir });
+    }
+    // The serve starts in the first listed project, so the sheet's current
+    // project is one of the three.
+    proj = path.join(home, 'src', hqProjects[0]);
+  } else {
+    writeFileSync(path.join(cfg, 'hergy', 'config.yaml'), 'version: 1\nlang: ja\n');
+  }
 
   // The activity screen's own places: a made-up herdr and gy, the project's
   // ledger, and the launch record, with the fixture's moments filled in.
