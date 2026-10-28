@@ -239,10 +239,12 @@ function Edit({ row, issues, nameError }) {
   rev.value;
   if (!row) return null;
   const d = row.draft, s = savedOf(row), key = row.uid + row.l;
-  const doc = issues.filter((m) => m.k === 0);
+  // The name's own problem stands under the name field, not in this list a
+  // second time (d-841e).
+  const doc = issues.filter((m) => m.k === 0 && m.f !== 'name');
   const nread = s && d.name && d.name !== s.name && host.readerCount ? host.readerCount(s.name) : 0;
   return html`<div class="dh">
-      ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>名前</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
+      ${host.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>ロール名</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
       <div class="dhf"><label for=${'t' + key}>タイトル</label><${Field} id=${'t' + key} class=${'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value=${d.title} /></div>
       <div class="dhf"><label for=${'v' + key}>revision</label><${Field} id=${'v' + key} class=${'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value=${d.revision} /></div>
       <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} checked=${S.rename[key] !== false} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
@@ -378,7 +380,7 @@ function Preview({ row, issues }) {
     // the first line alone; a problem about a rule is marked on the lines that
     // rule stands on (spec-roles 1.2.6). A heading or a blank line has no rule of
     // its own, so it is not one of a rule's lines.
-    const ms = issues.filter((m) => (k ? m.k === k : m.k === 0 && ri === 0));
+    const ms = issues.filter((m) => m.f !== 'name' && (k ? m.k === k : m.k === 0 && ri === 0));
     const sev = ms.some((m) => m.sev === 'err') ? 'err' : ms.length ? 'warn' : '';
     const { h, node } = mdHL(String(z.text || ''));
     const go = k || z.section >= 0 || z.part === 'title';

@@ -239,6 +239,12 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
+		// A member's role is a name, and a name that is not a role identifier
+		// is a broken document: the same sentence validate prints stops the run
+		// before a prompt is built (d-841e, r-7ea6).
+		if err := catalog.RoleNameProblem(node.Role); err != nil {
+			return nil, err
+		}
 		// herdr sees the member as "<team>-<member>"; the name is checked where
 		// the same name is written into the prompt, so the projection and the
 		// check refuse it in one place.

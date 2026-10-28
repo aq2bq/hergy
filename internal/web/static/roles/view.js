@@ -40,7 +40,7 @@ export function List() {
       <input id="q" class="search" type="search" placeholder="規則を探す" value=${state.q} autocomplete="off" />
     </div>
     <div class="list">
-      <div class="head"><span></span><span>名前</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
+      <div class="head"><span></span><span>ロール名</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
       <div id="rows">${rowsHTML()}</div>
     </div>`;
 }
@@ -177,11 +177,15 @@ function Panel({ r, l }) {
   const mode = state.pmode[key] || 'edit';
   const placeLabel = GROUPED && r.group && r.group !== 'global' ? projectNameOf(r.group) : LNAME[l];
   const refusal = refusalOf(key);
-  const nameError = refusal && refusal.at === 'name' ? refusal.text : '';
+  // The name field's problem is the check's own (d-841e): the sentence stands
+  // under ロール名, and while it is there the save is held. A save's refusal is the
+  // same answer until the next check speaks.
+  const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
+  const nameError = nameIssue ? nameIssue.msg : (refusal && refusal.at === 'name' ? refusal.text : '');
   const docError = refusal && refusal.at === 'doc' ? refusal.text : '';
   const n = diffCount(e);
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.msg));
-  const blocked = !e.saved ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.msg)) || n === 0);
+  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.msg)) || n === 0));
   return html`<section class=${'panel' + (shadowed ? ' shadowed' : '')} data-uid=${r.uid} data-l=${l} data-mode=${mode}>
       <header class="ph">
         ${r.isNew

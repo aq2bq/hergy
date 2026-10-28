@@ -79,7 +79,7 @@
   "error.prompt_empty_team": "prompt must not be empty; write the prompt text",
   "error.name_pattern": "%s.name must be a short name matching [a-z][a-z0-9_-]{0,31} (the team name is added automatically)",
   "error.profile_name_pattern": "%s: profile names must match [a-z][a-z0-9_-]{0,31}",
-  "error.role_name_pattern": "%s: role names must match [a-z][a-z0-9_-]{0,31}",
+  "error.role_name_pattern": "the role name \"%s\" cannot be used. A role name starts with a lowercase letter and goes on with lowercase letters, digits, - and _, up to 32 characters. The name people read goes in the title. Renaming it on the roles screen and saving also changes the team definitions that read it",
   "error.role_name_taken": "a document for the role %s is already there: %s (nothing was written); pass another role name",
   "error.role_empty": "%s.role must not be empty; write the role name",
   "error.member_writes_engine": "member %s writes %s directly. Write %s in a profile, and give the member profile: <name> (profiles live in profiles.yaml)",

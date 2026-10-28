@@ -150,6 +150,12 @@ var glossary = []term{
 		},
 	},
 	{
+		id:       "role-name",
+		english:  "role name",
+		japanese: "ロール名",
+		meaning:  "the file name under roles/ without .yaml; what team.yaml's role: names",
+	},
+	{
 		id:       "team-agreement",
 		english:  "team agreement",
 		japanese: "チームのルール",

@@ -176,6 +176,15 @@ func Role(in RoleInput) DocReport {
 		Diff:     roleDiff(saved, doc),
 		Limit:    RoleCharLimit,
 	}
+	// The name is part of what a role is, not a field the save alone reads
+	// (d-841e): a name that is not an identifier is a problem of the document,
+	// standing on the name field, so the check, validate and up answer it the
+	// way the save does.
+	if err := catalog.RoleNameProblem(in.Name); err != nil {
+		report.Problems = append(report.Problems, RoleProblem{
+			Sev: rules.SevError, Section: -1, Rule: -1, Field: "name", Text: err.Error(),
+		})
+	}
 	for _, p := range problems {
 		report.Problems = append(report.Problems, RoleProblem{
 			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,

@@ -216,7 +216,7 @@ Team, definition and member names:
   The pattern [a-z][a-z0-9_-]{0,24} is checked by new and --as only; what always holds is that <team>-<member> matches [a-z][a-z0-9_-]{0,31}.
 
 Settings files and their keys:
-  Unknown keys are an error in every settings file. kind matches [a-z][a-z0-9_-]*; a profile name matches [a-z][a-z0-9_-]{0,31}.
+  Unknown keys are an error in every settings file. kind matches [a-z][a-z0-9_-]*; a profile name matches [a-z][a-z0-9_-]{0,31}; a role name matches [a-z][a-z0-9_-]{0,31} too, and the name people read is the role document's title. A role document whose name is not a role name is broken: validate says so, and up of a team that reads it stops.
   env values must be strings (quote numbers); an env name matches [A-Za-z_][A-Za-z0-9_]*.
   members[].name must not contain %{team}. A missing prompt uses the built-in template; a whitespace-only prompt is an error; an unknown %{x} is an error.
   Global config.yaml, at <global>/config.yaml:
@@ -231,7 +231,7 @@ Settings files and their keys:
     prompt: "<text>"  string, optional; the bootstrap prompt template for every member. It must keep %{role_doc} and %{docs}.
     members:          required, nonempty list.
       name: <member>     required, string; short member name matching [a-z][a-z0-9_-]{0,31}.
-      role: <role>       required, string; reads roles/<role>.yaml (the project's first, then ~/.config/hergy/).
+      role: <role>       required, string; a role name matching [a-z][a-z0-9_-]{0,31}; the name people read is the document's title. Reads roles/<role>.yaml (the project's first, then ~/.config/hergy/).
       profile: <name>    required, string; a named engine from profiles.yaml. kind, args and env are the profile's: writing one of them on a member is an error that says where it goes.
       cwd: <dir>         string; overrides the team cwd.
       prompt: "<text>"   string; overrides the team prompt. It must keep %{role_doc} and %{docs}.

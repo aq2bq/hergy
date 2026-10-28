@@ -239,7 +239,11 @@ func r2Problems(problems []check.RoleProblem, fromText bool) []apiProblem {
 	out := make([]apiProblem, 0, len(problems))
 	for _, problem := range problems {
 		at := "line"
-		if !fromText && problem.Section >= 0 && problem.Rule >= 0 {
+		if problem.Field == "name" {
+			// The name stands in the panel's own field, not on a line of the
+			// document: the screen draws the sentence under 名前 (d-841e).
+			at = "name"
+		} else if !fromText && problem.Section >= 0 && problem.Rule >= 0 {
 			at = fmt.Sprintf("sections.%d.rules.%d", problem.Section, problem.Rule)
 			if problem.Field != "" {
 				at += "." + problem.Field
@@ -281,8 +285,8 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 		savedName = doc.Name
 	}
 	old := s.cat.RolePath(in.Place, savedName)
-	if !catalog.RoleNamePattern.MatchString(doc.Name) {
-		return nil, refuseAt(http.StatusUnprocessableEntity, "name", tf("error.role_name_pattern", s.cat.Display(target)))
+	if err := catalog.RoleNameProblem(doc.Name); err != nil {
+		return nil, refuseAt(http.StatusUnprocessableEntity, "name", err.Error())
 	}
 	// The text the draft stands on: the file being replaced, or the file a
 	// duplicate or a copy is based on. A row with neither stands on nothing and

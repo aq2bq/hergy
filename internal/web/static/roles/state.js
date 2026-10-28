@@ -221,6 +221,10 @@ export async function askCheck(r, l, cb) {
     diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
     turns: c.turns || [], readers: c.readers, size: c.size, limit: c.limit,
   };
+  // A save's refusal under ロール名 is the same answer, older: the check speaks
+  // for the name field now, so a refusal it no longer holds goes (d-841e).
+  const shown = state.refusals[k];
+  if (shown && shown.at === 'name' && !checks[k].issues.some((m) => m.f === 'name')) delete state.refusals[k];
   if (cb) cb();
 }
 

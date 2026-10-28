@@ -79,7 +79,7 @@
   "error.prompt_empty_team": "prompt を空にはできません。prompt: に文を書いてください",
   "error.name_pattern": "%s.name は [a-z][a-z0-9_-]{0,31} の形の短い名前にしてください（チーム名は自動で付きます）",
   "error.profile_name_pattern": "%s: プロファイル名は [a-z][a-z0-9_-]{0,31} の形にしてください",
-  "error.role_name_pattern": "%s: ロール名は [a-z][a-z0-9_-]{0,31} の形にしてください",
+  "error.role_name_pattern": "ロール名「%s」は使えません。ロール名は英小文字で始め、英小文字・数字・-・_ で 32 文字までにします。日本語の呼び名はタイトルに書きます。ロールの画面でロール名を変えて保存すると、そのロールを使うチーム定義も書き換わります",
   "error.role_name_taken": "ロール %s の文書はもうあります: %s（何も書き込んでいません）。別のロール名を指定してください",
   "error.role_empty": "%s.role を空にはできません。role: にロール名を書いてください",
   "error.member_writes_engine": "メンバー %s に %s が直接書かれています。%s はプロファイルに書き、メンバーには profile: <プロファイル名> を書いてください（プロファイルは profiles.yaml）",
