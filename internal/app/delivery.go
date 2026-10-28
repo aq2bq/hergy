@@ -17,14 +17,16 @@ import (
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 // deliveryPlan is one reading of the running members: the answer a screen gets,
-// and every live member with the state and changes a send needs. A member that
-// is not stale is in the map too, so the API can tell "nothing to send" from
-// "not running".
+// every live member with the state and changes a send needs, and the drift the
+// apply sheet reads. A member that is not stale is in the map too, so the API can
+// tell "nothing to send" from "not running".
 type deliveryPlan struct {
 	answer  deliver.Answer
+	apply   web.ApplyList
 	members map[string]plannedMember
 }
 
@@ -34,6 +36,7 @@ type plannedMember struct {
 	state   string
 	stale   bool
 	changes []deliver.Change
+	how     string
 }
 
 // Delivery is GET /api/delivery: the running members whose prompt is not the one
@@ -43,6 +46,15 @@ func (a *activityRead) Delivery() deliver.Answer { return a.plan(a.clock()).answ
 
 // DeliveryCount is the light answer the band reads on every page.
 func (a *activityRead) DeliveryCount() int { return a.Delivery().Count }
+
+// Apply is GET /api/apply: the drift between the saved definitions and the teams
+// running from them, and how hergy would put each member right (d-36ef). It is
+// read from the same plan as the delivery answer, so the band and the sheet
+// cannot disagree about what changed.
+func (a *activityRead) Apply() web.ApplyList { return a.plan(a.clock()).apply }
+
+// ApplyCount is the light answer the band reads on every page.
+func (a *activityRead) ApplyCount() int { return a.Apply().Count }
 
 // plan is the delivery answer for one moment, or the one read less than five
 // seconds ago.
@@ -67,19 +79,18 @@ func (a *activityRead) plan(now time.Time) deliveryPlan {
 func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 	one := deliveryPlan{
 		answer:  deliver.Answer{Teams: []deliver.Team{}, Herdr: deliver.Note{OK: true}},
+		apply:   web.ApplyList{Teams: []web.ApplyTeam{}, Herdr: web.ActivityNote{OK: true}},
 		members: map[string]plannedMember{},
 	}
 	read := a.readHerdr(now)
 	if read.err != nil {
 		one.answer.Herdr = deliver.Note{OK: false, Text: read.err.Error()}
+		one.apply.Herdr = web.ActivityNote{OK: false, Text: read.err.Error()}
 		return one
 	}
 	records := latestMemberRecords()
 	log, logErr := launchlog.Open()
 	for _, running := range a.teamsOf(read) {
-		if running.Built == nil {
-			continue
-		}
 		judged := judgeOf(running, read, now)
 		byHerdr := map[string]activity.Node{}
 		for _, node := range judged.Nodes {
@@ -87,31 +98,83 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 				byHerdr[node.Herdr] = node
 			}
 		}
+		row := web.ApplyTeam{
+			Team: running.Name, Definition: running.Definition,
+			Project: running.Project, ProjectName: running.ProjectName,
+			Notes: []string{}, Members: []web.ApplyMember{},
+		}
+		if running.Built == nil {
+			// A definition that does not build has no member to apply: the row
+			// says why in the words hergy status uses (2.2). The row is here
+			// only when an agent of the team is live, because otherwise there
+			// is no drift a person can act on.
+			if len(judged.Nodes) > 0 || len(judged.Hired) > 0 {
+				row.Error = running.Broken
+				one.apply.Teams = append(one.apply.Teams, row)
+			}
+			continue
+		}
 		recorded := teamsRecorded(records, running.Project)[running.Name]
-		row := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
+		deliveryRow := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
 		for i := range running.Built.starts {
 			start := running.Built.starts[i]
 			node, live := byHerdr[start.Name]
 			if !live {
+				// The definition has the member and no agent of the team is
+				// live for it: hergy starts it (d-36ef).
+				row.Members = append(row.Members, web.ApplyMember{
+					Name: start.Name, Short: start.Short, Role: start.Role,
+					State: "absent", How: web.ApplyStart, Changes: []deliver.Change{}, CanApply: true,
+				})
 				continue
 			}
 			record, hasRecord := recorded[start.Name]
 			stale, changes := a.memberChanges(running.Catalog, log, logErr, running, start, record, hasRecord)
 			state := node.State.Slug()
-			one.members[start.Name] = plannedMember{
-				team: running, start: start, state: state, stale: stale, changes: changes,
+			member := plannedMember{
+				team: running, start: start, state: state, stale: stale, changes: changes, how: web.ApplyResend,
 			}
+			one.members[start.Name] = member
 			if !stale {
 				continue
 			}
-			row.Members = append(row.Members, deliver.Member{
+			deliveryRow.Members = append(deliveryRow.Members, deliver.Member{
 				Name: start.Name, Short: start.Short, Role: start.Role,
 				State: state, CanSend: sendable(state), Changes: changes,
 			})
+			applied := web.ApplyMember{
+				Name: start.Name, Short: start.Short, Role: start.Role,
+				State: state, How: web.ApplyResend, Changes: changes, CanApply: sendable(state),
+			}
+			if !applied.CanApply {
+				applied.How = web.ApplyCannot
+				applied.WhyNot = i18n.Tf("apply.refused_state", start.Short)
+			}
+			row.Members = append(row.Members, applied)
+		}
+		// A member the definition no longer has is still live: hergy cannot put
+		// it right without stopping and starting the team (d-36ef). Only an
+		// agent the launch record holds as this team's member is that; the
+		// others are hired workers, which a stop leaves alone too but which are
+		// outside the apply.
+		for _, hired := range judged.Hired {
+			if _, was := recorded[hired.Herdr]; !was {
+				continue
+			}
+			short := shortMember(hired.Herdr, running.Name)
+			row.Members = append(row.Members, web.ApplyMember{
+				Name: hired.Herdr, Short: short, State: hired.State.Slug(),
+				How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
+				WhyNot: i18n.Tf("apply.refused_removed", short),
+			})
+		}
+		if len(deliveryRow.Members) > 0 {
+			one.answer.Teams = append(one.answer.Teams, deliveryRow)
+			one.answer.Count += len(deliveryRow.Members)
 		}
 		if len(row.Members) > 0 {
-			one.answer.Teams = append(one.answer.Teams, row)
-			one.answer.Count += len(row.Members)
+			one.apply.Teams = append(one.apply.Teams, row)
+			one.apply.Count += len(row.Members)
 		}
 	}
 	return one

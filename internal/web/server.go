@@ -39,6 +39,9 @@ type Server struct {
 	// deliver is the band's count and the changed-definition sheet, or nil when
 	// the activity reading cannot say what is stale.
 	deliver Deliverer
+	// apply is the drift between the saved definitions and the running teams,
+	// or nil when the activity reading cannot say what differs.
+	apply Applier
 	// hq is the headquarters reading (d-73fc), or nil when the server was built
 	// without one: the routes answer 503 rather than showing a made-up list.
 	hq HQ
@@ -80,6 +83,9 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
 	if deliverer, ok := act.(Deliverer); ok {
 		s.deliver = deliverer
+	}
+	if applier, ok := act.(Applier); ok {
+		s.apply = applier
 	}
 	if hq, ok := act.(HQ); ok {
 		s.hq = hq
@@ -206,6 +212,11 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/delivery", s.apiDeliveryList)
 	mux.HandleFunc("GET /api/delivery/count", s.apiDeliveryCount)
 	mux.HandleFunc("POST /api/delivery", s.apiDeliver)
+	// 反映 (d-36ef): the drift of every running team against its saved
+	// definition, the way hergy would put each member right, and the band's
+	// count. The sheet reads the drift and the apply does the work.
+	mux.HandleFunc("GET /api/apply", s.apiApplyList)
+	mux.HandleFunc("GET /api/apply/count", s.apiApplyCount)
 
 	// 本部 (d-73fc, r-b7e1): the projects a person lists, the lists of every
 	// project and the global layer, the workspaces, and starting and stopping a

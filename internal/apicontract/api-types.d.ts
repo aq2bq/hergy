@@ -275,6 +275,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 反映していない変更の一覧
+         * @description 動いているチームを保存した定義と比べ、メンバーごとにずれと反映の仕方を返す。ずれのあるチームとメンバーだけを返す。
+         */
+        get: operations["listApply"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apply/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 反映していない変更の数
+         * @description 帯の「反映していない変更」が出す数。反映できるかどうかに関わらず、ずれのあるメンバーの数。
+         */
+        get: operations["countApply"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/hq/projects": {
         parameters: {
             query?: never;
@@ -1152,6 +1192,56 @@ export interface components {
             /** @description 画面に表示する末尾の行数 */
             shown: number;
         };
+        /** @description 動いているチームの、保存した定義とのずれ */
+        ApplyList: {
+            /** @description herdr を読めたかと、読めない理由 */
+            herdr: components["schemas"]["ActivityNote"];
+            /** @description 反映していない変更の数 */
+            count: number;
+            /** @description ずれのあるチーム */
+            teams: components["schemas"]["ApplyTeam"][];
+        };
+        /** @description 保存した定義とずれている動いているチーム */
+        ApplyTeam: {
+            /** @description チーム名 */
+            team: string;
+            /** @description チームの起動元になったチーム定義名 */
+            definition: string;
+            /** @description チームが属するプロジェクトのパス */
+            project: string;
+            /** @description チームが属するプロジェクト名 */
+            project_name: string;
+            /** @description チーム定義を組み立てられない理由。組み立てられないチームには反映するメンバーがいない */
+            error?: string;
+            /** @description メンバーごとではなくチームの知らせ（ワーカーのプロファイルの変更など） */
+            notes: string[];
+            /** @description ずれのあるメンバー */
+            members: components["schemas"]["ApplyMember"][];
+        };
+        /** @description 保存した定義とずれているメンバーと、反映の仕方 */
+        ApplyMember: {
+            /** @description メンバーの herdr 名 */
+            name: string;
+            /** @description メンバー名 */
+            short: string;
+            /** @description メンバーのロール名 */
+            role: string;
+            /** @description エージェントの状態。動いていないメンバーは absent */
+            state: string;
+            /**
+             * @description 反映の仕方。送り直す（resend）、起動する（start）、起動し直す（restart）、反映できない（cannot）
+             * @enum {string}
+             */
+            how: "resend" | "start" | "restart" | "cannot";
+            /** @description 変わったこと */
+            changes: components["schemas"]["ApplyChange"][];
+            /** @description 今このメンバーを反映できるか */
+            can_apply: boolean;
+            /** @description 反映できない理由 */
+            why_not?: string;
+            /** @description 反映すると会話が消えるか */
+            conversation_lost: boolean;
+        };
         /** @description 初期プロンプトを送り直すメンバー */
         DeliveryRequest: {
             /** @description 初期プロンプトを受け取るメンバーの herdr 名 */
@@ -1192,7 +1282,7 @@ export interface components {
             /** @description メンバーが人間を待っていて送信できるか */
             can_send: boolean;
             /** @description 初期プロンプトの変更 */
-            changes: components["schemas"]["DeliveryChange"][];
+            changes: components["schemas"]["ApplyChange"][];
         };
         /** @description 初期プロンプトを受け取らなかったメンバーと理由 */
         DeliveryRefusal: {
@@ -1209,7 +1299,7 @@ export interface components {
             text: string;
         };
         /** @description メンバーの初期プロンプトで変わった 1 項目 */
-        DeliveryChange: {
+        ApplyChange: {
             /** @description 変更の種類 */
             kind: string;
             /** @description 変更があった文書 */
@@ -3351,6 +3441,49 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description 変更を伝えていない人の数 */
+                        count: number;
+                    };
+                };
+            };
+        };
+    };
+    listApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 反映していない変更 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyList"];
+                };
+            };
+        };
+    };
+    countApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 数 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 反映していない変更の数 */
                         count: number;
                     };
                 };

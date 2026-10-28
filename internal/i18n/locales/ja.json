@@ -237,6 +237,8 @@
   "delivery.no_change": "%s に伝える変更はありません",
   "delivery.refused_unknown": "%s は動いているメンバーではありません",
   "delivery.none_selected": "送る人を選んでください",
+  "apply.refused_state": "%s は仕事中か許可待ちなので、今は反映できません",
+  "apply.refused_removed": "%s はチーム定義にありません。反映するには、チームを止めて起動し直してください（hergy down、hergy up）",
   "prompt.actor": "gy に書くときの書き手の名前は GY_ACTOR=%s として渡してある。変えない。",
   "prompt.member": "あなたは %{team} チームの %{name} です。ロールは %{role} です。\n\n%{actor}\n\n%{role_doc}\n%{docs}\n## 名簿\n%{roster}\n\n## 連絡\n%{herdr}\n%{turns}%{workers}",
   "prompt.worker": "あなたは %{team} チームの %{name} です。%{lead} が追加した%{purpose}ワーカーです。\n\n%{actor}\n\n## 依頼\n%{task}\n\n## 連絡\n%{herdr}\n\n終わったら、%{lead} に結果を報告する。\n",

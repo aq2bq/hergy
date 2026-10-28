@@ -237,6 +237,8 @@
   "delivery.no_change": "there is no change to tell %s",
   "delivery.refused_unknown": "%s is not a running member",
   "delivery.none_selected": "choose at least one person to tell",
+  "apply.refused_state": "%s is working or waiting for permission, so hergy cannot apply it now",
+  "apply.refused_removed": "%s is no longer in the team definition. Stop the team and start it again to apply this (hergy down, then hergy up)",
   "prompt.actor": "gy's writer name is passed as GY_ACTOR=%s; do not change it when you write to gy.",
   "prompt.member": "You are %{name} (%{role}) on team %{team}.\n\n%{actor}\n\n%{role_doc}\n%{docs}\n## Roster\n%{roster}\n\n## Contact\n%{herdr}\n%{turns}%{workers}",
   "prompt.worker": "You are %{name} on team %{team}, a %{purpose} worker hired by %{lead}.\n\n%{actor}\n\n## Task\n%{task}\n\n## Contact\n%{herdr}\n\nWhen you are done, report the result to %{lead}.\n",

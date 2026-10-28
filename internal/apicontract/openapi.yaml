@@ -753,6 +753,37 @@ paths:
                     type: integer
                     minimum: 0
                     description: 変更を伝えていない人の数
+  /api/apply:
+    get:
+      operationId: listApply
+      summary: 反映していない変更の一覧
+      description: 動いているチームを保存した定義と比べ、メンバーごとにずれと反映の仕方を返す。ずれのあるチームとメンバーだけを返す。
+      responses:
+        "200":
+          description: 反映していない変更
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyList'
+  /api/apply/count:
+    get:
+      operationId: countApply
+      summary: 反映していない変更の数
+      description: 帯の「反映していない変更」が出す数。反映できるかどうかに関わらず、ずれのあるメンバーの数。
+      responses:
+        "200":
+          description: 数
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+                    minimum: 0
+                    description: 反映していない変更の数
   /api/hq/projects:
     get:
       operationId: listHQProjects
@@ -2397,6 +2428,92 @@ components:
         shown:
           type: integer
           description: 画面に表示する末尾の行数
+    ApplyList:
+      description: 動いているチームの、保存した定義とのずれ
+      type: object
+      additionalProperties: false
+      required: [herdr, count, teams]
+      properties:
+        herdr:
+          allOf:
+            - $ref: '#/components/schemas/ActivityNote'
+          description: herdr を読めたかと、読めない理由
+        count:
+          type: integer
+          minimum: 0
+          description: 反映していない変更の数
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplyTeam'
+          description: ずれのあるチーム
+    ApplyTeam:
+      description: 保存した定義とずれている動いているチーム
+      type: object
+      additionalProperties: false
+      required: [team, definition, project, project_name, notes, members]
+      properties:
+        team:
+          type: string
+          description: チーム名
+        definition:
+          type: string
+          description: チームの起動元になったチーム定義名
+        project:
+          type: string
+          description: チームが属するプロジェクトのパス
+        project_name:
+          type: string
+          description: チームが属するプロジェクト名
+        error:
+          type: string
+          description: チーム定義を組み立てられない理由。組み立てられないチームには反映するメンバーがいない
+        notes:
+          type: array
+          items:
+            type: string
+          description: メンバーごとではなくチームの知らせ（ワーカーのプロファイルの変更など）
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplyMember'
+          description: ずれのあるメンバー
+    ApplyMember:
+      description: 保存した定義とずれているメンバーと、反映の仕方
+      type: object
+      additionalProperties: false
+      required: [name, short, role, state, how, changes, can_apply, conversation_lost]
+      properties:
+        name:
+          type: string
+          description: メンバーの herdr 名
+        short:
+          type: string
+          description: メンバー名
+        role:
+          type: string
+          description: メンバーのロール名
+        state:
+          type: string
+          description: エージェントの状態。動いていないメンバーは absent
+        how:
+          type: string
+          enum: [resend, start, restart, cannot]
+          description: 反映の仕方。送り直す（resend）、起動する（start）、起動し直す（restart）、反映できない（cannot）
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplyChange'
+          description: 変わったこと
+        can_apply:
+          type: boolean
+          description: 今このメンバーを反映できるか
+        why_not:
+          type: string
+          description: 反映できない理由
+        conversation_lost:
+          type: boolean
+          description: 反映すると会話が消えるか
     DeliveryRequest:
       description: 初期プロンプトを送り直すメンバー
       type: object
@@ -2478,7 +2595,7 @@ components:
         changes:
           type: array
           items:
-            $ref: '#/components/schemas/DeliveryChange'
+            $ref: '#/components/schemas/ApplyChange'
           description: 初期プロンプトの変更
     DeliveryRefusal:
       description: 初期プロンプトを受け取らなかったメンバーと理由
@@ -2504,7 +2621,7 @@ components:
         text:
           type: string
           description: herdr を読めない理由。読めたときは空
-    DeliveryChange:
+    ApplyChange:
       description: メンバーの初期プロンプトで変わった 1 項目
       type: object
       additionalProperties: false
