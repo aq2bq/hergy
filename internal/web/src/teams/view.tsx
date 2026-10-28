@@ -85,7 +85,7 @@ export function List() {
 // groupHeader is one project's group's head (spec 4 章): its name, where it
 // is, and how many definitions and running teams it holds. The global layer
 // comes last, with the one sentence about being used from every project.
-function GroupHead({ g }: { g: Schemas['HQGroup'] }) {
+function GroupHead({ g }: { g: Schemas['HQTeamGroup'] }) {
   const key = groupKeyOf(g);
   if (g.global) {
     return <div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">{g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>;

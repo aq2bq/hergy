@@ -24,19 +24,21 @@ type LaunchOptionsState = Partial<HQLaunchOptions> & { broken?: boolean };
 type HQLaunchProject = components['schemas']['HQLaunchProject'];
 type HQWorkspaceChoice = components['schemas']['HQWorkspaceChoice'];
 type HQMember = components['schemas']['HQMember'];
-type HQTeamMember = components['schemas']['HQTeamMember'];
-type MemberChoice = HQMember | HQTeamMember;
+type TeamMember = components['schemas']['TeamMember'];
+type MemberChoice = HQMember | TeamMember;
 type HQLaunchRequest = operations['startHQLaunch']['requestBody']['content']['application/json'];
 type HQLaunchEnvelope = components['schemas']['HQLaunchEnvelope'];
 type HQLaunch = components['schemas']['HQLaunch'];
 type HQLaunchStep = components['schemas']['HQLaunchStep'];
 type HQStopped = components['schemas']['HQStopped'];
 type HQStopRequest = components['schemas']['HQStopRequest'];
-type HQListItem = components['schemas']['HQListItem'];
-type HQTeamDocument = components['schemas']['HQTeamDocument'];
-type HQRoleDocument = components['schemas']['HQRoleDocument'];
-type HQProfileDocument = components['schemas']['HQProfileDocument'];
-type HQProfileSummary = components['schemas']['HQProfileSummary'];
+type TeamItem = components['schemas']['TeamItem'];
+type RoleItem = components['schemas']['RoleItem'];
+type ProfileItem = components['schemas']['ProfileItem'];
+type TeamDocument = components['schemas']['TeamDocument'];
+type RoleDoc = components['schemas']['RoleDoc'];
+type ProfileDoc = components['schemas']['ProfileDoc'];
+type ProfileSummary = components['schemas']['ProfileSummary'];
 type SearchKind = 'live' | 'def' | 'ws' | 'member' | 'role' | 'rule' | 'profile';
 type SearchEntry = {
   kind: SearchKind;
@@ -449,20 +451,20 @@ const CAP = (kind: SearchKind): number => (kind === 'rule' ? 6 : 5);
 let index: SearchEntry[] | null = null;
 let indexTeams: typeof st.groups.value.teams | null = null;
 
-const teamDoc = (item: HQListItem): Partial<HQTeamDocument> => {
+const teamDoc = (item: TeamItem): Partial<TeamDocument> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as HQTeamDocument | undefined) || {};
+  return ((places[eff] || {}).doc as TeamDocument | undefined) || {};
 };
-const roleDoc = (item: HQListItem): Partial<HQRoleDocument> => {
+const roleDoc = (item: RoleItem): Partial<RoleDoc> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as HQRoleDocument | undefined) || {};
+  return ((places[eff] || {}).doc as RoleDoc | undefined) || {};
 };
-const profileDoc = (item: HQListItem): Partial<HQProfileDocument> => {
+const profileDoc = (item: ProfileItem): Partial<ProfileDoc> => {
   const places = item.places || {};
   const eff = item.effective || (places.project ? 'project' : 'global');
-  return ((places[eff] || {}).doc as HQProfileDocument | undefined) || {};
+  return ((places[eff] || {}).doc as ProfileDoc | undefined) || {};
 };
 
 // index builds the rows the search reads: names, missions, rules' ids and texts,
@@ -471,14 +473,14 @@ function buildIndex(): SearchEntry[] {
   const out: SearchEntry[] = [];
   for (const g of groupOf('teams')) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of (g.list ? g.list.items : [])) {
+    for (const item of ((g.list && g.list.items) || [])) {
       const doc = teamDoc(item);
       const href = `/teams?open=${encodeURIComponent(token(item.name, group))}`;
       out.push({ kind: 'def', group, project: label, label: item.name, sub: doc.mission || '', text: `${item.name} ${doc.mission || ''}`, href });
       for (const m of doc.members || []) {
         out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ''} · プロファイル ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
       }
-      const agree: Partial<HQRoleDocument> = (doc.agreement && doc.agreement.doc) || {};
+      const agree = ((doc.agreement && doc.agreement.doc) || {}) as Partial<RoleDoc>;
       for (const sec of agree.sections || []) {
         for (const rule of sec.rules || []) {
           out.push({ kind: 'rule', group, project: label, label: rule.id, sub: `${item.name} のルール`, text: `${rule.id} ${rule.text}`, body: rule.text, href });
@@ -488,7 +490,7 @@ function buildIndex(): SearchEntry[] {
   }
   for (const g of groupOf('roles')) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of (g.list ? g.list.items : [])) {
+    for (const item of ((g.list && g.list.items) || [])) {
       const doc = roleDoc(item);
       const href = `/roles?open=${encodeURIComponent(token(item.name, group))}`;
       out.push({ kind: 'role', group, project: label, label: `${item.name} ${doc.title || ''}`.trim(), sub: '', text: `${item.name} ${doc.title || ''}`, href });
@@ -501,9 +503,9 @@ function buildIndex(): SearchEntry[] {
   }
   for (const g of groupOf('profiles')) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of (g.list ? g.list.items : [])) {
+    for (const item of ((g.list && g.list.items) || [])) {
       const doc = profileDoc(item);
-      const sum: Partial<HQProfileSummary> = (item.summary as HQProfileSummary | undefined) || {};
+      const sum: Partial<ProfileSummary> = item.summary || {};
       const kind = doc.kind || sum.kind || '';
       const args = (doc.args || []).join(' ') || sum.args || '';
       out.push({ kind: 'profile', group, project: label, label: item.name, sub: `${kind} ${args}`.trim(), text: `${item.name} ${kind} ${args}`, href: `/profiles?open=${encodeURIComponent(token(item.name, group))}` });

@@ -263,14 +263,13 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
 export type HQRoleList = NonNullable<ApiAnswer<'listHQRoles'>['groups']>[number]['list'];
 
 // RoleListLike is a role list as either entrance answers it: the project's own
-// list (GET /api/role) and one group of the headquarters' reading. The two answer
-// different documents (RoleDoc and HQRoleDocument) for the same rows, so the model
-// reads the fields both hold.
-export type RoleListLike = Answer<'role', 'list'> | HQRoleList;
+// list (GET /api/role) and one group of the headquarters' reading are the same
+// list (n-3f6c).
+export type RoleListLike = Answer<'role', 'list'>;
 
 // RolePlaceDoc is one place's role document as the screen holds it: the document
 // the server answered and the file it came from.
-export type RolePlaceDoc = (Schemas['RoleDoc'] | Schemas['HQRoleDocument']) & { hash: string; text: string; path: string };
+export type RolePlaceDoc = Schemas['RoleDoc'] & { hash: string; text: string; path: string };
 
 // RoleRow is one role of the list: its two places, one of them the effective
 // one, or the Markdown a role with no document is drawn from.
@@ -290,16 +289,12 @@ export function roleModel(list: RoleListLike | null): { roles: RoleRow[] } {
   return { roles: ((list && list.items) || []).map(roleRow) };
 }
 
-// RoleListRow is one row of either role list. The headquarters' list is one
-// schema for three kinds, so its document is named as the union the promise
-// writes; a role group's row holds a role document (see the cast below).
-type RoleListRow = ListItem<'role'> | HQRoleList['items'][number];
+// RoleListRow is one row of either role list.
+type RoleListRow = ListItem<'role'>;
 
 function roleRow(item: RoleListRow, i: number): RoleRow {
   const places = item.places || {};
-  // The headquarters answers one list shape for three kinds, so its row's
-  // summary is the union of theirs; a roles group's row holds a role's.
-  const s = item.summary as Schemas['RoleSummary'] | Schemas['HQRoleSummary'];
+  const s = item.summary;
   const row: RoleRow = { uid: i + 1, project: null, global: null };
   if (s.markdown) {
     row.markdown = s.markdown;
@@ -307,9 +302,9 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
     return row;
   }
   PLACES.forEach((l) => {
-    const place = (places as Record<string, Schemas['RolePlace'] | Schemas['HQPlace'] | undefined>)[l];
+    const place = (places as Record<string, Schemas['RolePlace'] | undefined>)[l];
     row[l] = (place && place.doc)
-      ? Object.assign({}, place.doc as Schemas['RoleDoc'] | Schemas['HQRoleDocument'], { hash: place.hash || '', text: place.text || '', path: place.path || '' })
+      ? Object.assign({}, place.doc as Schemas['RoleDoc'], { hash: place.hash || '', text: place.text || '', path: place.path || '' })
       : null;
   });
   if (s.noDoc) row.noDoc = true;

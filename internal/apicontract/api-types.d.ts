@@ -1263,13 +1263,13 @@ export interface components {
             /** @description 共通のプロファイルの数 */
             profiles: number;
         };
-        /** @description プロジェクトと共通設定ごとの一覧 */
-        HQGroups: {
-            /** @description 本部に表示する一覧のまとまり */
-            groups: components["schemas"]["HQGroup"][];
+        /** @description プロジェクトと共通設定ごとの、チーム定義の一覧 */
+        HQTeamGroups: {
+            /** @description 本部に表示するチーム定義のまとまり */
+            groups: components["schemas"]["HQTeamGroup"][];
         };
-        /** @description 1 つのプロジェクトまたは共通設定の一覧 */
-        HQGroup: {
+        /** @description 1 つのプロジェクトまたは共通設定の、チーム定義の一覧 */
+        HQTeamGroup: {
             /** @description この一覧が属するプロジェクト */
             project?: components["schemas"]["HQRef"] | null;
             /** @description 共通設定の一覧か */
@@ -1280,8 +1280,56 @@ export interface components {
             path?: string;
             /** @description 画面に表示する場所 */
             display?: string;
-            /** @description この場所にあるチーム定義、ロール、またはプロファイル */
-            list: components["schemas"]["HQList"];
+            /** @description この場所にあるチーム定義 */
+            list: components["schemas"]["TeamList"];
+            /** @description 共通設定の名前を上書きするプロジェクト */
+            overridden_by?: {
+                [key: string]: string[];
+            };
+        };
+        /** @description プロジェクトと共通設定ごとの、ロールの一覧 */
+        HQRoleGroups: {
+            /** @description 本部に表示するロールのまとまり */
+            groups: components["schemas"]["HQRoleGroup"][];
+        };
+        /** @description 1 つのプロジェクトまたは共通設定の、ロールの一覧 */
+        HQRoleGroup: {
+            /** @description この一覧が属するプロジェクト */
+            project?: components["schemas"]["HQRef"] | null;
+            /** @description 共通設定の一覧か */
+            global?: boolean;
+            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            name?: string;
+            /** @description プロジェクトまたは共通設定の場所 */
+            path?: string;
+            /** @description 画面に表示する場所 */
+            display?: string;
+            /** @description この場所にあるロール */
+            list: components["schemas"]["RoleList"];
+            /** @description 共通設定の名前を上書きするプロジェクト */
+            overridden_by?: {
+                [key: string]: string[];
+            };
+        };
+        /** @description プロジェクトと共通設定ごとの、プロファイルの一覧 */
+        HQProfileGroups: {
+            /** @description 本部に表示するプロファイルのまとまり */
+            groups: components["schemas"]["HQProfileGroup"][];
+        };
+        /** @description 1 つのプロジェクトまたは共通設定の、プロファイルの一覧 */
+        HQProfileGroup: {
+            /** @description この一覧が属するプロジェクト */
+            project?: components["schemas"]["HQRef"] | null;
+            /** @description 共通設定の一覧か */
+            global?: boolean;
+            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            name?: string;
+            /** @description プロジェクトまたは共通設定の場所 */
+            path?: string;
+            /** @description 画面に表示する場所 */
+            display?: string;
+            /** @description この場所にあるプロファイル */
+            list: components["schemas"]["ProfileList"];
             /** @description 共通設定の名前を上書きするプロジェクト */
             overridden_by?: {
                 [key: string]: string[];
@@ -1560,305 +1608,6 @@ export interface components {
             members: number;
             /** @description 閉じたワーカーの数 */
             workers: number;
-        };
-        /** @description 1 つの場所にあるチーム定義、ロール、またはプロファイルの一覧 */
-        HQList: {
-            /** @description この場所にある名前ごとの一覧 */
-            items: components["schemas"]["HQListItem"][];
-            /** @description この場所にある文書のハッシュ */
-            hashes: {
-                [key: string]: string;
-            };
-            /** @description チーム定義またはプロファイルの文書 */
-            files?: components["schemas"]["HQFile"][];
-        };
-        /** @description チーム定義、ロール、またはプロファイルの一覧項目 */
-        HQListItem: {
-            /** @description チーム定義名、ロール名、またはプロファイル名 */
-            name: string;
-            /** @description 文書がある場所ごとの内容 */
-            places: {
-                [key: string]: components["schemas"]["HQPlace"];
-            };
-            /** @description 有効な文書がある場所 */
-            effective: string;
-            /** @description 同じ名前のため隠れている場所 */
-            hidden: string[] | null;
-            /** @description 一覧に表示するチーム定義、ロール、またはプロファイルの情報 */
-            summary: components["schemas"]["HQTeamSummary"] | components["schemas"]["HQRoleSummary"] | components["schemas"]["HQProfileSummary"];
-            /** @description この項目にある問題の数 */
-            problems: components["schemas"]["HQCounts"];
-        };
-        /** @description 1 つの場所にある文書 */
-        HQPlace: {
-            /** @description 文書の内容 */
-            doc: components["schemas"]["HQTeamDocument"] | components["schemas"]["HQRoleDocument"] | components["schemas"]["HQProfileDocument"];
-            /** @description 文書のテキスト */
-            text: string;
-            /** @description 文書のハッシュ */
-            hash: string;
-            /** @description 文書の場所 */
-            path: string;
-            /** @description 文書を読むメンバーとワーカーの数 */
-            readers?: number;
-            /** @description このプロファイル名を変えたときに書き換える人の数。プロファイル以外は送らない */
-            rename_targets?: number;
-            /** @description 文書の行を保存したか */
-            savedLine?: boolean;
-            /** @description 文書にある問題の数 */
-            problems: components["schemas"]["HQCounts"];
-        };
-        /** @description 一覧に含まれる文書ファイル */
-        HQFile: {
-            /** @description 文書がある場所 */
-            place: string;
-            /** @description 文書の表示名 */
-            label: string;
-            /** @description 文書の場所 */
-            path: string;
-            /** @description 文書のテキスト */
-            text: string;
-            /** @description 文書のハッシュ */
-            hash: string;
-            /** @description 文書が属するチーム定義名 */
-            name?: string;
-            /** @description 文書の種類 */
-            kind?: string;
-            /** @description 同じ名前の文書に隠れているか */
-            hidden?: boolean;
-            /** @description 文書にある問題 */
-            problems: components["schemas"]["Problem"][] | null;
-        };
-        /** @description 一覧項目または文書にある問題の数 */
-        HQCounts: {
-            /** @description エラーの数 */
-            err: number;
-            /** @description 警告の数 */
-            warn: number;
-        };
-        /** @description チーム定義の一覧に表示する情報 */
-        HQTeamSummary: {
-            /** @description チーム定義の使命 */
-            mission: string;
-            /** @description チーム定義のメンバー */
-            members: components["schemas"]["HQTeamMember"][] | null;
-            /** @description チーム定義が雇うワーカーの数 */
-            workers: number;
-            /** @description チーム定義が持つ規則の数 */
-            rules: number;
-            /** @description プロンプトに含めない規則の数 */
-            excluded?: number;
-            /** @description チーム定義を読み取れないか */
-            broken?: boolean;
-            /** @description 初期プロンプトに含める文の文字数 */
-            size: number;
-            /** @description 初期プロンプトに含める文の上限 */
-            limit: number;
-        };
-        /** @description チーム定義のメンバー */
-        HQTeamMember: {
-            /** @description メンバー名 */
-            name: string;
-            /** @description メンバーのロール名 */
-            role: string;
-            /** @description メンバーが使うプロファイル名 */
-            profile: string;
-            /** @description メンバーの初期プロンプトを作る部分 */
-            segments?: components["schemas"]["HQPromptSegment"][];
-        };
-        /** @description 初期プロンプトを作る部分 */
-        HQPromptSegment: {
-            /** @description 初期プロンプトの部分の種類 */
-            kind: string;
-            /** @description 初期プロンプトに含める文 */
-            text: string;
-            /** @description 初期プロンプトの部分の由来 */
-            origin: components["schemas"]["HQPromptOrigin"];
-        };
-        /** @description 初期プロンプトの部分の由来 */
-        HQPromptOrigin: {
-            /** @description 初期プロンプトの部分の由来の種類 */
-            kind: string;
-            /** @description 由来となる名前 */
-            name?: string;
-            /** @description 由来となる文書の場所 */
-            path?: string;
-            /** @description 由来となる文書がある場所 */
-            place?: string;
-        };
-        /** @description チーム定義が雇うワーカー */
-        HQTeamWorker: {
-            /** @description ワーカーを雇うメンバー名 */
-            from: string;
-            /** @description ワーカーを雇う目的 */
-            purpose: string;
-            /** @description ワーカーが使うプロファイル名 */
-            profile: string;
-        };
-        /** @description チーム定義の文書 */
-        HQTeamDocument: {
-            /** @description チーム定義の使命 */
-            mission: string;
-            /** @description チーム定義のメンバー */
-            members: components["schemas"]["HQTeamMember"][] | null;
-            /** @description チーム定義が雇うワーカー */
-            workers: components["schemas"]["HQTeamWorker"][] | null;
-            /** @description メンバーがターンを渡す順 */
-            turns: components["schemas"]["HQTurn"][] | null;
-            /** @description 初期プロンプトの行 */
-            prompt: components["schemas"]["HQPromptLines"];
-            /** @description チーム定義が持つルール */
-            agreement?: components["schemas"]["HQTeamAgreement"] | null;
-            /** @description チーム定義を読み取れないか */
-            broken?: boolean;
-        };
-        /** @description ターンを渡すノードの組 */
-        HQTurn: {
-            /** @description ターンを渡すノード名 */
-            from: string;
-            /** @description ターンを受け取るノード名 */
-            to: string;
-        };
-        /** @description 初期プロンプトに含めるターンとワーカーの行 */
-        HQPromptLines: {
-            /** @description ノードごとのターンの行 */
-            turns: {
-                [key: string]: string[];
-            } | null;
-            /** @description メンバーごとのワーカーの行 */
-            workers: {
-                [key: string]: string[];
-            } | null;
-        };
-        /** @description チーム定義が持つルール */
-        HQTeamAgreement: {
-            /** @description ルール文書の場所 */
-            path: string;
-            /** @description ルール文書のハッシュ */
-            hash: string;
-            /** @description ルール文書があるか */
-            has: boolean;
-            /** @description ルール文書が持つ規則の数 */
-            rules: number;
-            /** @description プロンプトに含めない規則の数 */
-            excluded?: number;
-            /** @description ルール文書の内容 */
-            doc?: components["schemas"]["HQRoleDocument"] | null;
-        };
-        /** @description ロールの一覧に表示する情報 */
-        HQRoleSummary: {
-            /** @description ロールの規則の数 */
-            rules: number;
-            /** @description ロールの文書の文字数 */
-            chars: number;
-            /** @description ロール文書の代わりに残っている Markdown */
-            markdown?: string;
-            /** @description ロール文書がないか */
-            noDoc?: boolean;
-            /** @description ロール文書を新しく作るか */
-            isNew?: boolean;
-        };
-        /** @description ロールの文書 */
-        HQRoleDocument: {
-            /** @description ロール名 */
-            name: string;
-            /** @description ロール文書の題名 */
-            title: string;
-            /** @description ロール文書の版 */
-            revision: number | null;
-            /** @description ロール文書の節 */
-            sections: components["schemas"]["HQRoleSection"][] | null;
-            /** @description ロール文書のハッシュ */
-            hash?: string;
-            /** @description ロール文書のテキスト */
-            text?: string;
-        };
-        /** @description ロール文書の節 */
-        HQRoleSection: {
-            /** @description 元の文書での節番号 */
-            from?: number | null;
-            /** @description 節の見出し */
-            heading: string;
-            /** @description 見出しの段 */
-            level: number;
-            /** @description 節の導入文 */
-            intro: string;
-            /** @description 節にある規則 */
-            rules: components["schemas"]["HQRoleRule"][] | null;
-        };
-        /** @description ロール文書の規則 */
-        HQRoleRule: {
-            /** @description 元の文書での規則の場所 */
-            from?: components["schemas"]["HQRoleFrom"] | null;
-            /** @description 規則の ID */
-            id: string;
-            /** @description 規則の文 */
-            text: string;
-            /** @description 規則を初期プロンプトに含めるか */
-            in_prompt: boolean;
-            /** @description 規則を初期プロンプトから外した日 */
-            off_since?: string;
-            /** @description 規則について人が残したメモ */
-            note: string;
-        };
-        /** @description 元のロール文書での規則の場所 */
-        HQRoleFrom: {
-            /** @description 元の文書での節番号 */
-            section: number;
-            /** @description 元の文書での規則番号 */
-            rule: number;
-        };
-        /** @description プロファイルの一覧に表示する情報 */
-        HQProfileSummary: {
-            /** @description エージェントの種類 */
-            kind: string;
-            /** @description 画面が使うエージェント種類の分類 */
-            kindClass: string;
-            /** @description エージェントに渡す引数 */
-            args: string;
-            /** @description エージェントに渡す環境変数 */
-            env: string[] | null;
-            /** @description 一覧に表示しない追加の値の数 */
-            more: number;
-            /** @description プロファイルを使うメンバーとワーカーの数 */
-            users: number;
-            /** @description プロファイルを使うロール名 */
-            roles: string;
-            /** @description プロファイルを使うメンバーとワーカー */
-            chips: components["schemas"]["HQProfileChip"][] | null;
-        };
-        /** @description プロファイルを使うメンバーまたはワーカー */
-        HQProfileChip: {
-            /** @description メンバーまたはワーカーが属するチーム定義名 */
-            def: string;
-            /** @description チーム定義内のメンバーまたはワーカーの ID */
-            id: string;
-            /** @description プロファイルを使うメンバー名またはワーカー名 */
-            who: string;
-            /** @description メンバーのロール名 */
-            role: string;
-            /** @description プロファイルを使うのがワーカーか */
-            worker: boolean;
-            /** @description チーム定義がプロジェクトにあるか */
-            local: boolean;
-        };
-        /** @description プロファイルの内容 */
-        HQProfileDocument: {
-            /** @description プロファイル名 */
-            name: string;
-            /** @description エージェントの種類 */
-            kind: string;
-            /** @description エージェントに渡す引数 */
-            args: string[] | null;
-            /** @description エージェントに渡す環境変数 */
-            env: components["schemas"]["HQProfileEnv"][];
-        };
-        /** @description プロファイルが指定する環境変数 */
-        HQProfileEnv: {
-            /** @description 環境変数名 */
-            key: string;
-            /** @description 環境変数の値 */
-            value: string;
         };
         /** @description GET /api/team と DELETE /api/team/{name} が返すチーム定義の一覧。 */
         TeamList: {
@@ -3493,7 +3242,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HQGroups"];
+                    "application/json": components["schemas"]["HQTeamGroups"];
                 };
             };
             /** @description 本部を読めない */
@@ -3522,7 +3271,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HQGroups"];
+                    "application/json": components["schemas"]["HQRoleGroups"];
                 };
             };
             /** @description 本部を読めない */
@@ -3551,7 +3300,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HQGroups"];
+                    "application/json": components["schemas"]["HQProfileGroups"];
                 };
             };
             /** @description 本部を読めない */

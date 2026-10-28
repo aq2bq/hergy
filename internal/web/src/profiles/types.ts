@@ -14,7 +14,7 @@ export type ProfileCheck = Schemas['ProfileCheck'];
 export type Problem = Schemas['Problem'];
 export type ProfileChip = Schemas['ProfileChip'];
 export type EnvPair = Schemas['ProfileEnvPair'];
-export type HQGroup = Schemas['HQGroup'];
+export type HQProfileGroup = Schemas['HQProfileGroup'];
 export type HQProjects = Schemas['HQProjects'];
 
 // ---- the page's island -------------------------------------------------
@@ -59,16 +59,9 @@ export type IslandTeam = {
 
 export type IslandAssign = { kinds: KindBar[]; teams: IslandTeam[]; empty: boolean };
 
-// IslandGroup is one place's group as the page carries it. Its list is the
-// kind's own list (a profile list on this screen): the page's JSON is p2Island,
-// not GET /api/hq/profiles' answer, and the two name the same list differently.
-export type IslandGroup = Omit<HQGroup, 'list'> & { list: ProfileList };
-
 export type IslandHQ = {
   projects: HQProjects;
-  teams?: IslandGroup[];
-  roles?: IslandGroup[];
-  profiles?: IslandGroup[];
+  profiles?: HQProfileGroup[];
 };
 
 export type Island = { profile?: ProfileList; assign?: IslandAssign; hq?: IslandHQ };

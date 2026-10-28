@@ -73,16 +73,16 @@ async function readJSONOr(url) {
     return null;
   }
 }
-var groupOf = (kind) => st.groups.value[kind] || [];
+function groupOf(kind) {
+  return st.groups.value[kind] || [];
+}
 function runningFor(definition, place, project) {
   return (st.running.value.teams || []).filter((t) => t.definition === definition && (t.place || "project") === (place || "project") && (place === "global" || !project || t.project === project));
 }
 var runningTeam2 = (name) => st.running.value.teams.find((t) => t.team === name) || null;
 function teamDocumentAt(item, place) {
   const row = item.places[place];
-  if (!row)
-    return null;
-  return row.doc;
+  return row ? row.doc : null;
 }
 function lastWorkspaceOf(definition) {
   const ws = (st.workspaces.value || []).find((w) => w.last_team === definition);
@@ -93,7 +93,7 @@ function definitionOf2(project, definition) {
   for (const g of groups) {
     if (project && projectOfGroup(g) !== project && !g.global)
       continue;
-    const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
+    const item = (g.list && g.list.items || []).find((x) => x.name === definition);
     if (!item)
       continue;
     const places = item.places || {};
@@ -106,7 +106,7 @@ function globalDefinition(definition) {
   const g = groupOf("teams").find((x) => x.global);
   if (!g)
     return null;
-  const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
+  const item = (g.list && g.list.items || []).find((x) => x.name === definition);
   if (!item)
     return null;
   return teamDocumentAt(item, "global") || teamDocumentAt(item, item.effective);
@@ -1352,7 +1352,7 @@ function buildIndex() {
   const out = [];
   for (const g of groupOf("teams")) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of g.list ? g.list.items : []) {
+    for (const item of g.list && g.list.items || []) {
       const doc = teamDoc(item);
       const href = `/teams?open=${encodeURIComponent(token2(item.name, group))}`;
       out.push({ kind: "def", group, project: label, label: item.name, sub: doc.mission || "", text: `${item.name} ${doc.mission || ""}`, href });
@@ -1369,7 +1369,7 @@ function buildIndex() {
   }
   for (const g of groupOf("roles")) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of g.list ? g.list.items : []) {
+    for (const item of g.list && g.list.items || []) {
       const doc = roleDoc(item);
       const href = `/roles?open=${encodeURIComponent(token2(item.name, group))}`;
       out.push({ kind: "role", group, project: label, label: `${item.name} ${doc.title || ""}`.trim(), sub: "", text: `${item.name} ${doc.title || ""}`, href });
@@ -1382,7 +1382,7 @@ function buildIndex() {
   }
   for (const g of groupOf("profiles")) {
     const group = projectOfGroup(g), label = groupLabel(g);
-    for (const item of g.list ? g.list.items : []) {
+    for (const item of g.list && g.list.items || []) {
       const doc = profileDoc(item);
       const sum = item.summary || {};
       const kind = doc.kind || sum.kind || "";

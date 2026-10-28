@@ -69,7 +69,7 @@ function rowsHTML() {
 // groupHeader is one project's group's head (spec 4 章): its name, where it is,
 // and how many roles it holds. The global layer comes last with the one sentence
 // about being used from every project.
-function groupHeader(g: components['schemas']['HQGroup']) {
+function groupHeader(g: components['schemas']['HQRoleGroup']) {
   const rows = (g.list && g.list.items) || [];
   if (g.global) return <div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">{g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>;
   return <div class="hq-gh"><span class="hq-gn">{groupNameOf(g)}</span><span class="hq-gp">{g.project ? g.project.display : ''}</span><span class="hq-gc">ロール <b>{rows.length}</b></span></div>;

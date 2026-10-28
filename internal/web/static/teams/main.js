@@ -53,10 +53,10 @@ import {
   st,
   parseOpen2,
   projectName2
-} from "../chunk/nav-46q9vsgk.js";
+} from "../chunk/nav-q5cnqy1n.js";
 import {
   RunCell2
-} from "../chunk/nav-ezrd8mp4.js";
+} from "../chunk/nav-waaxpf2c.js";
 import {
   YamlTab2
 } from "../chunk/nav-p9f1rwcs.js";
@@ -177,14 +177,14 @@ var PROFILES_BY = {};
 var ROLES_REV = y(0);
 if (HQ) {
   (HQ.roles || []).forEach((g) => {
-    ROLES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => {
+    ROLES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
       const doc = (places[eff] || {}).doc;
       return { name: item.name || "", title: doc && doc.title || "" };
     }).filter((x) => !!x.name);
   });
   (HQ.profiles || []).forEach((g) => {
-    PROFILES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => item.name).filter(Boolean);
+    PROFILES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => item.name).filter(Boolean);
   });
 }
 var ROLES = y([]);
@@ -1427,21 +1427,24 @@ function boot() {
       rolesCame();
   }));
   if (HQ) {
-    const fill = (kind, map, toEntry) => hqList2(kind).then((answer) => {
+    later.push(hqList2("roles").then((answer) => {
       (answer.groups || []).forEach((g) => {
-        map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter((x) => x !== null);
+        ROLES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => {
+          const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
+          const name = item.name || "";
+          const doc = (places[eff] || {}).doc;
+          return name ? { name, title: doc && doc.title || "" } : null;
+        }).filter((x) => x !== null);
       });
-      if (map === ROLES_BY)
-        ROLES_IN.value = true;
+      ROLES_IN.value = true;
       bumpRoles();
-    }).catch(() => {});
-    later.push(fill("roles", ROLES_BY, (item) => {
-      const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
-      const name = item.name || "";
-      const doc = (places[eff] || {}).doc;
-      return name ? { name, title: doc && doc.title || "" } : null;
-    }).finally(rolesCame));
-    later.push(fill("profiles", PROFILES_BY, (item) => item.name || null));
+    }).catch(() => {}).finally(rolesCame));
+    later.push(hqList2("profiles").then((answer) => {
+      (answer.groups || []).forEach((g) => {
+        PROFILES_BY[groupKeyOf(g)] = (g.list && g.list.items || []).map((item) => item.name || null).filter((x) => x !== null);
+      });
+      bumpRoles();
+    }).catch(() => {}));
   }
   const first = recs.value.slice();
   const checks = first.flatMap((r) => [checkTeam(r), checkAgree(r)]);

@@ -21,8 +21,7 @@ type ActivityNode = components['schemas']['ActivityNode'];
 type HQRunning = components['schemas']['HQRunning'];
 type HQMember = components['schemas']['HQMember'];
 type HQWorker = components['schemas']['HQWorker'];
-type HQTeamDocument = components['schemas']['HQTeamDocument'];
-type ActivityDefinition = HQTeamDocument;
+type ActivityDefinition = components['schemas']['TeamDocument'];
 
 export type CrewMember = {
   name: string;

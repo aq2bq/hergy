@@ -22,11 +22,10 @@ import type { Answer, RawAnswer, Request, RoleRow as ApiRoleRow, TeamCard as Api
 import type { components, operations } from '../../../apicontract/api-types';
 
 export type Place = operations['getTeam']['parameters']['query']['place'];
-type HQGroup = components['schemas']['HQGroup'];
 type HQIsland = {
   projects: components['schemas']['HQProjects'];
-  roles?: HQGroup[];
-  teams?: HQGroup[];
+  roles?: components['schemas']['HQRoleGroup'][];
+  teams?: components['schemas']['HQTeamGroup'][];
 };
 type RoleIsland = {
   role?: components['schemas']['RoleList'];
@@ -125,8 +124,8 @@ export const HQ = ISLAND.hq || null;
 // the way it always was (d-73fc).
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
 export const CURRENT = GROUPED && HQ ? ((HQ.projects.current && HQ.projects.current.path) || '') : '';
-export const groupKeyOf = (g: HQGroup): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupNameOf = (g: HQGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const groupKeyOf = (g: components['schemas']['HQRoleGroup'] | components['schemas']['HQTeamGroup']): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
+export const groupNameOf = (g: components['schemas']['HQRoleGroup'] | components['schemas']['HQTeamGroup']): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
 export const currentGroup = () => (GROUPED ? CURRENT : '');
 // currentProjectName is the name the プロジェクト column gives this serve's
 // project, whether or not it is listed (d-8a45, r-5b96 audit 5).

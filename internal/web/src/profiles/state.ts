@@ -11,7 +11,7 @@ import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, EnvPair, FocusAsk, Island,
-  IslandHQ, IslandGroup, IslandRow, IslandTeam, OpenTarget, Panel, ProfileCheck,
+  IslandHQ, HQProfileGroup, IslandRow, IslandTeam, OpenTarget, Panel, ProfileCheck,
   ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
 } from './types.js';
 
@@ -64,9 +64,9 @@ export const HQ: IslandHQ | null = ISLAND.hq || null;
 // carry their project. Without projects: the screen is the one project's.
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
 export const CURRENT = GROUPED ? ((HQ && HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
-export const groupKeyOf = (g: IslandGroup): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-const groupNameOf = (g: IslandGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
-export const GROUPS: IslandGroup[] | null = GROUPED ? (HQ && HQ.profiles) || [] : null;
+export const groupKeyOf = (g: HQProfileGroup): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
+const groupNameOf = (g: HQProfileGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const GROUPS: HQProfileGroup[] | null = GROUPED ? (HQ && HQ.profiles) || [] : null;
 const groupOrder = (): string[] => (GROUPS || []).map(groupKeyOf);
 export const groupName = (key: string): string => {
   if (key === 'global') return 'グローバル';

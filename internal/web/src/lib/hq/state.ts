@@ -17,14 +17,19 @@ type HQProjects = components['schemas']['HQProjects'];
 type HQRunning = components['schemas']['HQRunning'];
 type HQRunningTeam = components['schemas']['HQRunningTeam'];
 type HQWorkspace = components['schemas']['HQWorkspace'];
-type HQGroups = components['schemas']['HQGroups'];
-type HQGroup = components['schemas']['HQGroup'];
-type HQListItem = components['schemas']['HQListItem'];
-type HQTeamDocument = components['schemas']['HQTeamDocument'];
+type HQTeamGroups = components['schemas']['HQTeamGroups'];
+type HQRoleGroups = components['schemas']['HQRoleGroups'];
+type HQProfileGroups = components['schemas']['HQProfileGroups'];
+type HQTeamGroup = components['schemas']['HQTeamGroup'];
+type HQRoleGroup = components['schemas']['HQRoleGroup'];
+type HQProfileGroup = components['schemas']['HQProfileGroup'];
+type TeamItem = components['schemas']['TeamItem'];
+type TeamDocument = components['schemas']['TeamDocument'];
+type AnyGroup = HQTeamGroup | HQRoleGroup | HQProfileGroup;
 type HQLaunch = components['schemas']['HQLaunch'];
 type HQAddProjectRequest = components['schemas']['HQAddProjectRequest'];
 type GroupKind = 'teams' | 'roles' | 'profiles';
-type GroupSets = Record<GroupKind, HQGroup[]>;
+type GroupSets = { teams: HQTeamGroup[]; roles: HQRoleGroup[]; profiles: HQProfileGroup[] };
 export type RunningTeam = Omit<HQRunningTeam, 'not_up'> & { not_up?: string[]; provisional?: boolean };
 type RunningState = Omit<HQRunning, 'teams'> & { teams: RunningTeam[] };
 
@@ -53,12 +58,12 @@ export function setRunning(running: HQRunning): void {
   st.running.value = running;
 }
 
-export const groupKey = (g: HQGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupLabel = (g: HQGroup): string | undefined => (g && g.global ? 'グローバル' : (g.project ? g.project.name : ''));
-export const groupDisplay = (g: HQGroup): string | undefined => (g && g.global ? g.display : (g.project ? g.project.display : ''));
+export const groupKey = (g: AnyGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
+export const groupLabel = (g: AnyGroup): string | undefined => (g && g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const groupDisplay = (g: AnyGroup): string | undefined => (g && g.global ? g.display : (g.project ? g.project.display : ''));
 // projectOfGroup is the key a row of one group carries in the URL and in the API:
 // the project's path, or "global".
-export const projectOfGroup = (g: HQGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
+export const projectOfGroup = (g: AnyGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
 
 // token joins a row's name and its group for the address: a name alone is the one
 // the screen was opened at (the old way), and a name with a group says which
@@ -87,8 +92,14 @@ export async function readJSONOr<T>(url: string): Promise<T | null> {
   try { return await read<T>(url); } catch { return null; }
 }
 
-export const groupOf = (kind: GroupKind): HQGroup[] => st.groups.value[kind] || [];
-export const itemGroup = (_kind: GroupKind, _name: string, group: string): HQGroup | null => groupOf(_kind).find((g) => groupKey(g) === group) || null;
+export function groupOf(kind: 'teams'): HQTeamGroup[];
+export function groupOf(kind: 'roles'): HQRoleGroup[];
+export function groupOf(kind: 'profiles'): HQProfileGroup[];
+export function groupOf(kind: GroupKind): AnyGroup[];
+export function groupOf(kind: GroupKind): AnyGroup[] {
+  return st.groups.value[kind] || [];
+}
+export const itemGroup = (_kind: GroupKind, _name: string, group: string): AnyGroup | null => groupOf(_kind).find((g) => groupKey(g) === group) || null;
 
 // runningFor is the running teams a team definition has: its own, of its place
 // and its project (spec 5 章).
@@ -99,13 +110,9 @@ export function runningFor(definition: string, place: string, project: string): 
 }
 export const runningTeam = (name: string): RunningTeam | null => st.running.value.teams.find((t) => t.team === name) || null;
 
-function teamDocumentAt(item: HQListItem, place: string): HQTeamDocument | null {
+function teamDocumentAt(item: TeamItem, place: string): TeamDocument | null {
   const row = item.places[place];
-  if (!row) return null;
-  // HQListItem shares document types across teams, roles and profiles. This
-  // helper is only called for rows from groupOf('teams'), which the schema does
-  // not discriminate by kind.
-  return row.doc as HQTeamDocument;
+  return row ? row.doc : null;
 }
 
 // lastWorkspaceOf is where a team definition ran last, as the launch record wrote
@@ -118,11 +125,11 @@ export function lastWorkspaceOf(definition: string): string {
 
 // definitionOf is one team definition's document, from the groups the search
 // reads: the activity's figure uses its turns (spec 6 章).
-export function definitionOf(project: string, definition: string): HQTeamDocument | null {
+export function definitionOf(project: string, definition: string): TeamDocument | null {
   const groups = groupOf('teams');
   for (const g of groups) {
     if (project && projectOfGroup(g) !== project && !g.global) continue;
-    const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
+    const item = ((g.list && g.list.items) || []).find((x) => x.name === definition);
     if (!item) continue;
     const places = item.places || {};
     const eff = item.effective || (places.project ? 'project' : 'global');
@@ -133,17 +140,17 @@ export function definitionOf(project: string, definition: string): HQTeamDocumen
 
 // globalDefinition is one global team definition's own document, for the start
 // sheet of a global definition (its members do not depend on the project).
-export function globalDefinition(definition: string): HQTeamDocument | null {
+export function globalDefinition(definition: string): TeamDocument | null {
   const g = groupOf('teams').find((x) => x.global);
   if (!g) return null;
-  const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
+  const item = ((g.list && g.list.items) || []).find((x) => x.name === definition);
   if (!item) return null;
   return teamDocumentAt(item, 'global') || teamDocumentAt(item, item.effective);
 }
 
 // definitionDoc is the definition's own reading for a start sheet: the project's
 // own for a project's definition, the global one otherwise.
-export function definitionDoc(definition: string, project: string): HQTeamDocument | null {
+export function definitionDoc(definition: string, project: string): TeamDocument | null {
   if (project) {
     const own = definitionOf(project, definition);
     if (own) return own;
@@ -212,9 +219,9 @@ export async function readCore() {
 export async function readGroups() {
   if (st.groupsLoaded.value) return;
   const [teams, roles, profiles] = await Promise.all([
-    readJSONOr<HQGroups>('/api/hq/teams'),
-    readJSONOr<HQGroups>('/api/hq/roles'),
-    readJSONOr<HQGroups>('/api/hq/profiles'),
+    readJSONOr<HQTeamGroups>('/api/hq/teams'),
+    readJSONOr<HQRoleGroups>('/api/hq/roles'),
+    readJSONOr<HQProfileGroups>('/api/hq/profiles'),
   ]);
   st.groups.value = {
     teams: (teams && teams.groups) || [],

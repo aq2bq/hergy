@@ -49,9 +49,9 @@ export type Op = { kind: string } & Record<string, string>;
 // groups of definitions, roles and profiles (d-73fc).
 export type HQIsland = {
   projects?: Schemas['HQProjects'] | null;
-  teams?: Schemas['HQGroup'][] | null;
-  roles?: Schemas['HQGroup'][] | null;
-  profiles?: Schemas['HQGroup'][] | null;
+  teams?: Schemas['HQTeamGroup'][] | null;
+  roles?: Schemas['HQRoleGroup'][] | null;
+  profiles?: Schemas['HQProfileGroup'][] | null;
 };
 
 // Island is the JSON the page carries (teams_v2.go's t2Island).
@@ -79,13 +79,13 @@ export const HQ: HQIsland | null = DATA.hq || null;
 // and carry their project. Without projects: the screen is the one project
 // the way it always was (d-73fc: the old use is not broken).
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
-export const GROUPS: Schemas['HQGroup'][] | null = GROUPED && HQ ? (HQ.teams || []) : null;
+export const GROUPS: Schemas['HQTeamGroup'][] | null = GROUPED && HQ ? (HQ.teams || []) : null;
 // currentGroup is the key of the project this serve was started in: a row the
 // screen adds goes there, and a row without a group is its own.
 export const CURRENT = HQ && HQ.projects && HQ.projects.current ? (HQ.projects.current.path || '') : '';
-export const rowsIn = (g: Schemas['HQGroup']): Schemas['HQListItem'][] => (g.list && g.list.items) || [];
-export const groupKeyOf = (g: Schemas['HQGroup']): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupNameOf = (g: Schemas['HQGroup']): string => (g.global ? 'グローバル' : (g.project ? (g.project.name || '') : ''));
+export const rowsIn = (g: Schemas['HQTeamGroup']): Schemas['TeamItem'][] => (g.list && g.list.items) || [];
+export const groupKeyOf = (g: Schemas['HQTeamGroup'] | Schemas['HQRoleGroup'] | Schemas['HQProfileGroup']): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
+export const groupNameOf = (g: Schemas['HQTeamGroup'] | Schemas['HQRoleGroup'] | Schemas['HQProfileGroup']): string => (g.global ? 'グローバル' : (g.project ? (g.project.name || '') : ''));
 if (HQ) document.body.classList.add('hq-teams');
 
 // ROLES_BY and PROFILES_BY are the names each project's member 属性 offers:
@@ -99,13 +99,13 @@ const PROFILES_BY: Record<string, string[]> = {};
 const ROLES_REV = signal(0);
 if (HQ) {
   (HQ.roles || []).forEach((g) => {
-    ROLES_BY[groupKeyOf(g)] = rowsIn(g).map((item): RoleName => {
+    ROLES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item): RoleName => {
       const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
       const doc = (places[eff] || {}).doc as { title?: string } | undefined;
       return { name: item.name || '', title: (doc && doc.title) || '' };
     }).filter((x) => !!x.name);
   });
-  (HQ.profiles || []).forEach((g) => { PROFILES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => item.name).filter(Boolean); });
+  (HQ.profiles || []).forEach((g) => { PROFILES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item) => item.name).filter(Boolean); });
 }
 // ROLES is the role documents the member's 属性 offers: the same list the
 // role screen shows, with the title each document carries. It is read once
@@ -386,18 +386,16 @@ let uids = 0;
 // project's path, "global", or empty for the one this serve was started in.
 // DefItem is one row of either team list: the project's own (GET /api/team) or
 // one group of the headquarters' (GET /api/hq/teams).
-export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number] | Schemas['HQListItem'];
+export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number];
 
 function defOf(item: DefItem, project?: string): Rec {
   const group = project || '';
   const places = item.places || {};
   const eff = (item.effective || (places.project ? 'project' : 'global')) as Place;
   const place = places[eff] || {};
-  const doc = (place.doc || {}) as Schemas['TeamDocument'] | Schemas['HQTeamDocument'];
+  const doc = (place.doc || {}) as Schemas['TeamDocument'];
   const agree = doc.agreement || ({ path: '', hash: '', has: false, doc: null } as unknown as NonNullable<Schemas['TeamDocument']['agreement']>);
-  // The headquarters answers one list shape for three kinds, so its summary is
-  // the union of theirs; a team row's summary is a team's (n-e3de).
-  const sum = (item.summary || {}) as Schemas['TeamSummary'] | Schemas['HQTeamSummary'];
+  const sum = (item.summary || {}) as Schemas['TeamSummary'];
   const dom = domOf(item.name || '', group);
   const had = byKey(dom + '.' + eff);
   if (had) return had;
@@ -613,7 +611,7 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
 export const agreeIssues = (r: Rec): Issue[] => (r.check.value ? r.check.value.issues : []);
 export const agreeDiff = (r: Rec): number => diffCount({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 export const teamIssues = (r: Rec): Finding[] => r.findings.value;
-const pcountList = (c: Schemas['TeamCounts'] | Schemas['HQCounts'] | null | undefined): { sev: string }[] => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
+const pcountList = (c: Schemas['TeamCounts'] | null | undefined): { sev: string }[] => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
 // rowIssues is the problems a row's own chip shows: the server's count for a
 // saved definition, and the findings the server answered for a definition that
 // is not there yet (spec-teams B2).
@@ -1477,20 +1475,24 @@ export function boot() {
   // page itself carries only the definitions, so a row opens without waiting
   // for every project's roles and profiles (r-5b96, Enter lag).
   if (HQ) {
-    const fill = <T>(kind: 'roles' | 'profiles', map: Record<string, T[]>, toEntry: (item: Schemas['HQListItem']) => T | null) => hqList(kind).then((answer) => {
+    later.push(hqList('roles').then((answer) => {
       (answer.groups || []).forEach((g) => {
-        map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter((x): x is T => x !== null);
+        ROLES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item) => {
+          const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
+          const name = item.name || '';
+          const doc = (places[eff] || {}).doc as { title?: string } | undefined;
+          return name ? { name, title: (doc && doc.title) || '' } : null;
+        }).filter((x): x is RoleName => x !== null);
       });
-      if (map === ROLES_BY) ROLES_IN.value = true;
+      ROLES_IN.value = true;
       bumpRoles();
-    }).catch(() => {});
-    later.push(fill<RoleName>('roles', ROLES_BY, (item) => {
-      const places = item.places || {}, eff = item.effective || (places.project ? 'project' : 'global');
-      const name = item.name || '';
-      const doc = (places[eff] || {}).doc as { title?: string } | undefined;
-      return name ? { name, title: (doc && doc.title) || '' } : null;
-    }).finally(rolesCame));
-    later.push(fill<string>('profiles', PROFILES_BY, (item) => item.name || null));
+    }).catch(() => {}).finally(rolesCame));
+    later.push(hqList('profiles').then((answer) => {
+      (answer.groups || []).forEach((g) => {
+        PROFILES_BY[groupKeyOf(g)] = ((g.list && g.list.items) || []).map((item) => item.name || null).filter((x): x is string => x !== null);
+      });
+      bumpRoles();
+    }).catch(() => {}));
   }
   // Every definition is checked once at open, so the figure's problems and the
   // node badges are the server's own reading of the saved file, and the

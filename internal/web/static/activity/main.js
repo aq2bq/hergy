@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-46q9vsgk.js";
+} from "../chunk/nav-q5cnqy1n.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-ezrd8mp4.js";
+} from "../chunk/nav-waaxpf2c.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
