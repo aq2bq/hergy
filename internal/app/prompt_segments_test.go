@@ -342,3 +342,95 @@ func TestCANVAS_PROMPT_TheCheckSegmentsAreThePlans(t *testing.T) {
 		t.Errorf("the task segment reads %+v", task)
 	}
 }
+
+// TestPROMPT_SEGMENTS: every member's prompt is its segments joined, character
+// for character, over the real-scale sample's three teams (r-4cf9); a team's own
+// template and a member's own template are the origins they say they are; and a
+// worker's prompt has the same shape, its task one segment of its own. Moved from
+// the browser walks PROMPT-SEGMENTS-standard and -running, which read only the
+// JSON plans (the scenes differed in herdr alone).
+func TestPROMPT_SEGMENTS(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	useJapanese(t)
+	f := newFixture(t)
+	src := filepath.Join(cwd, "..", "..", "testdata", "teams-v2")
+	copyDir(t, filepath.Join(src, "project", ".hergy"), filepath.Join(f.proj, ".hergy"))
+	copyDir(t, filepath.Join(src, "config", "hergy"), filepath.Join(f.cfg, "hergy"))
+	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
+
+	// The sample's own two templates, written the way a person writes them: the
+	// team's for research (every member reads it), and writer's own in docs.
+	research := filepath.Join(f.proj, ".hergy", "teams", "research", "team.yaml")
+	writeFile(t, research, strings.Replace(readFile(t, research),
+		"mission: \"検索の改善案を調べる\"\n",
+		"mission: \"検索の改善案を調べる\"\nprompt: |\n  あなたは %{team} チームの %{name} です。調べ始める前に、問いを 1 文で書き、答えが出たら何が決まるかも書いてください。\n\n  %{actor}\n\n  %{role_doc}\n  %{docs}\n  ## 名簿\n  %{roster}\n\n  ## 連絡\n  %{herdr}\n  %{turns}%{workers}\n", 1))
+	docs := filepath.Join(f.proj, ".hergy", "teams", "docs", "team.yaml")
+	writeFile(t, docs, strings.Replace(readFile(t, docs),
+		"  - name: writer\n    role: writer\n    profile: opus-deep\n",
+		"  - name: writer\n    role: writer\n    profile: opus-deep\n    prompt: |\n      あなたは %{team} チームの %{name} です。書き始める前に、読み手を 1 人決め、その人が読み終えたあとにできるようになることを 1 文で書いてください。\n\n      %{actor}\n\n      %{role_doc}\n      %{docs}\n      ## 名簿\n      %{roster}\n\n      ## 連絡\n      %{herdr}\n      %{turns}%{workers}\n", 1))
+
+	for _, team := range []string{"core", "docs", "research"} {
+		plan := promptPlan(t, mustRun(t, "up", team, "--dry", "--json"))
+		if len(plan) == 0 {
+			t.Fatalf("%s has no members", team)
+		}
+		for _, member := range plan {
+			if joined := canvasJoin(member.Segments); joined != member.Prompt {
+				t.Errorf("%s: the segments do not join to the prompt:\n%s", member.Name, joined)
+			}
+			segmentOf(t, member.Name, member.Segments, "role_doc")
+			segmentOf(t, member.Name, member.Segments, "team_rules")
+		}
+	}
+	// The two custom templates reach every member they are written for.
+	for _, member := range promptPlan(t, mustRun(t, "up", "research", "--dry", "--json")) {
+		template := segmentOf(t, member.Name, member.Segments, "template")
+		if template.Origin.Kind != "team" || template.Origin.Name != "research" {
+			t.Errorf("%s's template comes from %+v, want the team's", member.Name, template.Origin)
+		}
+		if !strings.Contains(member.Prompt, "調べ始める前に、問いを 1 文で書き") {
+			t.Errorf("%s's team template does not reach its prompt", member.Name)
+		}
+	}
+	var writer struct {
+		found    bool
+		segments []definition.PromptSegment
+		prompt   string
+	}
+	for _, member := range promptPlan(t, mustRun(t, "up", "docs", "--dry", "--json")) {
+		if member.Name == "docs-writer" {
+			writer.found, writer.segments, writer.prompt = true, member.Segments, member.Prompt
+		}
+	}
+	if !writer.found {
+		t.Fatal("the docs team has no writer")
+	}
+	template := segmentOf(t, "docs-writer", writer.segments, "template")
+	if template.Origin.Kind != "member" || template.Origin.Name != "writer" {
+		t.Errorf("docs-writer's template comes from %+v, want its own", template.Origin)
+	}
+	if !strings.Contains(writer.prompt, "書き始める前に、読み手を 1 人決め") {
+		t.Error("docs-writer's member template does not reach its prompt")
+	}
+
+	// The worker's prompt: its task is its own segment, and its contact guide is
+	// hergy's.
+	hire := promptPlan(t, mustRun(t, "hire", "helper", "--purpose", "依存の更新", "--task", "read the thing", "--team", "core", "--dry", "--json"))
+	if len(hire) != 1 {
+		t.Fatalf("the hire plan holds %d members, want the worker", len(hire))
+	}
+	worker := hire[0]
+	if joined := canvasJoin(worker.Segments); joined != worker.Prompt {
+		t.Errorf("the worker's segments do not join to its prompt:\n%s", joined)
+	}
+	task := segmentOf(t, worker.Name, worker.Segments, "task")
+	if task.Text != "read the thing" || task.Origin.Kind != "hire" {
+		t.Errorf("the task segment reads %+v", task)
+	}
+	if herdr := segmentOf(t, worker.Name, worker.Segments, "herdr"); herdr.Origin.Kind != "hergy" {
+		t.Errorf("the contact segment reads %+v", herdr)
+	}
+}
