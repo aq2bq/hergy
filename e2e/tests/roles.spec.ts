@@ -1,10 +1,11 @@
-// ROLES-P5 and ROLES-P14 — walked in a browser. Only
-// what the browser alone can see is compared here (d-3e43): the document-wide
-// warning the screen's own script puts on the preview's first line (R4), the
-// text a person types being the one line a save writes, and the role a person
-// picks being the one line a save writes.
+// ROLES-P14 and ROLES-R1 — walked in a browser. Only
+// what the browser alone can see is compared here (d-3e43): the role a person
+// picks being the one line a save writes, and the switch whose day a save
+// writes. The warning a document as a whole puts on the preview's first line
+// (R4) and the text a rule's save carries are the module's
+// (internal/web/jstest/roles-warning.test.js).
 import { test, expect } from './fixtures';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { changedLines, choose, press, q, readTo, set, there, wait } from './helpers';
 
@@ -13,51 +14,6 @@ test.use({ reads: 'roles' });
 // rule is one rule of the open role's panel, found by its id.
 const rule = (id: string) =>
   `[...document.querySelectorAll('#rows .role.open .panel .rule')].find(function(r){return r.querySelector('.rid b').textContent.trim()===${JSON.stringify(id)}})`;
-
-test('ROLES-P5 the rule a person edits', async ({ page, app }) => {
-  const builder = path.join(app.proj, '.hergy', 'roles', 'builder.yaml');
-
-  // R4: a sentence about the document as a whole marks the first line of the
-  // preview alone, not every heading and blank line. The screen's own script
-  // puts the mark on a line, so the browser is the only place it is seen. The
-  // document-wide sentence is the size warning now (d-00a9): a role document
-  // over the provisional budget gets one, on the document as a whole.
-  const analyst = path.join(app.proj, '.hergy', 'roles', 'analyst.yaml');
-  writeFileSync(
-    analyst,
-    readFileSync(analyst, 'utf8') +
-      '\n  - heading: 長さ\n    rules:\n      - id: LONG-1\n        text: ' +
-      'あ'.repeat(3100) +
-      '\n',
-  );
-  await page.goto(`${app.base}/roles?open=analyst`);
-  await wait(page, there('#rows .role.open .panel'));
-  await readTo<number>(
-    page,
-    `document.querySelectorAll('#rows .role.open .yprev .yl.warn').length`,
-    "analyst's preview marks lines as a warning, want the first line alone",
-  ).toBe(1);
-
-  // P4・C4: the text a person types is what the save writes, and the save
-  // changes the rule's text line alone.
-  const before = readFileSync(builder, 'utf8');
-  const want = 'E2E が書き換えた本文。';
-  await page.goto(`${app.base}/roles?open=builder`);
-  await wait(page, there('#rows .role.open .panel .rule'));
-  await press(page, `${rule('BUILD-5')}.querySelector('.rsum')`);
-  await wait(page, there('#rows .role.open .rule.open .redit [data-f=text]'));
-  await set(page, q('#rows .role.open .rule.open .redit [data-f=text]'), want);
-  await press(page, q('#rows .role.open .pf [data-act=save]'));
-  await wait(page, there('#rows .role.open .ok'));
-  const changed = changedLines(before, readFileSync(builder, 'utf8'));
-  expect(
-    changed.size,
-    `the save changed lines, want the rule's text line alone: ${JSON.stringify([...changed])}`,
-  ).toBe(1);
-  for (const [line, text] of changed) {
-    expect(text, `line ${line} became, want the rule's new text`).toBe(`        text: ${want}`);
-  }
-});
 
 test('ROLES-P14 the person whose role is swapped', async ({ page, app }) => {
   // P14・P6: one person's role is picked in its card, and the save writes that
