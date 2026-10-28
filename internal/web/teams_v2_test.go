@@ -1215,3 +1215,65 @@ func TestTEAMS_YamlSaveStillRefusesANewGraphError(t *testing.T) {
 		t.Errorf("the refusal does not name the missing node: %s", body)
 	}
 }
+
+// TestTEAMS_CopyMemberThroughTheAPI: the copy the figure makes is the operations a
+// person would make by hand — the member, the turns both ways and the workers'
+// purposes — written in the order that reads: the member first, so the turns and
+// the workers that name it are valid (r-c21b, d-48a9). The check takes them, and a
+// save writes the copy into team.yaml and leaves the member it came from alone.
+func TestTEAMS_CopyMemberThroughTheAPI(t *testing.T) {
+	f := newFixture(t)
+	f.writeTeam(t, "core", "注文 API を作り直す")
+	server := f.server(t)
+	ops := []map[string]any{
+		{"kind": "addMember", "member": "lead-2", "role": "lead", "profile": "coder"},
+		{"kind": "addTurn", "from": "human", "to": "lead-2"},
+		{"kind": "addTurn", "from": "lead-2", "to": "builder"},
+		{"kind": "addWorker", "from": "lead-2", "purpose": "実装", "profile": "coder"},
+		{"kind": "addWorker", "from": "lead-2", "purpose": "試作", "profile": "coder"},
+		{"kind": "addWorker", "from": "lead-2", "purpose": "調査", "profile": "planner"},
+	}
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "core", "part": "team",
+		"doc": map[string]any{"ops": ops},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the copy's check answers %d: %s", resp.StatusCode, body)
+	}
+	for _, problem := range teamsCheck(t, body).Problems {
+		if problem.Sev == "err" {
+			t.Errorf("the copy is checked as broken: %s", problem.Text)
+		}
+	}
+
+	path := filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml")
+	before := readFile(t, path)
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/core", map[string]any{
+		"place": "project", "part": "team", "hash": source.Hash(before),
+		"doc": map[string]any{"ops": ops},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the copy's save answers %d: %s", resp.StatusCode, body)
+	}
+	after := readFile(t, path)
+	for _, want := range []string{
+		"- name: lead-2",
+		"- human -> lead-2",
+		"- lead-2 -> builder",
+		"- from: lead-2",
+		"purpose: 実装",
+		"purpose: 試作",
+		"purpose: 調査",
+	} {
+		if !strings.Contains(after, want) {
+			t.Errorf("the saved copy does not hold %q:\n%s", want, after)
+		}
+	}
+	// The member it was copied from is as it was: its name, its turns and its
+	// workers are all still there.
+	for _, want := range []string{"- name: lead\n", "- human -> lead\n", "- lead -> builder\n", "purpose: 実装"} {
+		if !strings.Contains(after, want) {
+			t.Errorf("the save changed the member it copied: %q is gone:\n%s", want, after)
+		}
+	}
+}

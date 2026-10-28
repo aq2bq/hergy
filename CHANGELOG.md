@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- **A member's name typed in the figure does not take another member's name**:
+  while the typed name is one another member already holds, the figure's name
+  field no longer puts a rename into the draft — the letters stay in the field
+  and このチームにもういます stands beside it. Before, typing `spec-2` beside a
+  `spec` renamed the new member to `spec` at the fifth letter, and the next
+  keystroke's rename found the original `spec` by name and rewrote that member's
+  name, its turns and its workers in the unsaved draft (ac-5edb, r-4fd7, n-4b24).
 - **A role renamed in the role screen rewrites the teams that name it**: the
   screen sent the mark that carries a rename under the name `renameUsers`, where
   the API reads `rename_users`, so the mark arrived off every time and a renamed
@@ -33,6 +40,12 @@
 
 ### Added
 
+- **A member can be copied in the figure**: the member's card carries 複製, and
+  the press adds the same member again — its role, profile, turns in both
+  directions and its worker purposes — under the next free name (`<name>-2`, then
+  `-3`, `-4`, … that fits the herdr name). The copy stands picked with its name
+  field waiting, nothing is written until the save, and one undo takes the whole
+  copy back (ac-ef85, d-48a9, r-c21b).
 - **The screens start a member the team definition has and no agent is live
   for**: the 動き column of the teams screen and the opened team on the activity
   screen name those members and offer 起動, and the press starts the member in

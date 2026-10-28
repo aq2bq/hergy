@@ -238,6 +238,7 @@ function SideAttr({ r }) {
       <div class="cv-sec"><span class="cv-sl">ワーカー</span>${ws.length ? ws.map(({ w, i }) => html`<div class=${'cv-li' + (s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? '' : ' new')}><span>${`${w.purpose || '（目的）'} · ${w.profile}`}</span><span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i=${i}>選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" data-i=${i} title="外す" aria-label="外す">×</button></span></div>`) : html`<span class="cv-empty">なし</span>`}
         <button class="btn sm cv-danger" type="button" data-cv-act="w-add">＋ ワーカー</button></div>
       <${MemberPrompt} r=${r} m=${m} />
+      <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す</span></div>
       <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del">メンバーを外す</button><span class="cv-note">ターン ${nt} 本とワーカー ${ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>`;
 }
 
@@ -621,6 +622,48 @@ function addMember(r, at) {
     undo: `メンバー ${name} を足したのを取り消した`, focus: '[data-cv-f="m-name"]',
   });
 }
+// copyName is the free name a copy of one member takes: the member's own name with
+// -2, then -3, -4, …, until the draft holds no such name and the herdr name still
+// fits its pattern (d-48a9). Empty when no number fits: a copy needs a name hergy
+// can start.
+function copyName(r, t, m) {
+  for (let n = 2; ; n++) {
+    const name = `${m.name}-${n}`;
+    if (!NAME.test(name) || `${r.name.value}-${name}`.length > 32) return '';
+    if (!t.members.some((x) => x.name === name)) return name;
+  }
+}
+// copyMember adds one member that is a copy of the one picked: the same role and
+// profile, the same turns out of it and into it, and its workers' purposes
+// (d-48a9). It is one operation for the undo — the same edits a person would make
+// by hand, so no new kind of op — and the copy stands picked, its name field
+// waiting.
+function copyMember(r) {
+  const t = r.draft.value, sel = selOf(r);
+  const m = sel && sel.type === 'node' ? memberOf(t, sel.id) : null;
+  if (!m) return;
+  const name = copyName(r, t, m);
+  if (!name) {
+    canvasToast(r, `メンバー ${m.name} の複製に使える名前がありません（herdr 名が 32 文字を超えます）`, false);
+    return;
+  }
+  const ops = [{ kind: 'addMember', member: name, role: m.role, profile: m.profile }];
+  t.turns.forEach(([a, b]) => {
+    // A member that hands the turn to itself is one turn, not two.
+    if (a === m.name) ops.push({ kind: 'addTurn', from: name, to: b });
+    else if (b === m.name) ops.push({ kind: 'addTurn', from: a, to: name });
+  });
+  t.workers.forEach((w) => {
+    if (w.from === m.name) ops.push({ kind: 'addWorker', from: name, purpose: w.purpose, profile: w.profile });
+  });
+  selectPick(r, { type: 'node', id: name }, 'attr');
+  canvasAct(r, ops, {
+    message: `メンバー ${m.name} を複製した（${name}）`,
+    undo: `メンバー ${m.name} の複製を取り消した`,
+    focus: '[data-cv-f="m-name"]',
+  });
+}
+
 function addWorker(r, from, at) {
   const t = r.draft.value, idx = t.workers.length, profile = firstProfile(true, r);
   const ops = [{ kind: 'addWorker', from, purpose: '', profile }];
@@ -777,6 +820,7 @@ function onClick(r, e) {
   if (a === 'to-yaml') { r.side.value = 'yaml'; return; }
   if (a === 'to-agree') { openAgree(r); return; }
   if (a === 'del') { del(r); return; }
+  if (a === 'm-copy') { copyMember(r); return; }
   if (a === 'edge-del') {
     const [p, q] = (b.dataset.k || '').split('|'), ops = [];
     if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
