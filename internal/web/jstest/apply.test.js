@@ -29,6 +29,11 @@ const answer = () => ({
       { name: 'core-lead', role: 'lead', state: 'idle', how: 'restart', can_apply: true, conversation_lost: true, changes: [change('prompt', '.hergy/teams/core/team.yaml', '', 'プロファイルを変えた')] },
       { name: 'core-busy', role: 'builder', state: 'active', how: 'cannot', can_apply: false, why_not: '仕事中なので、今は反映できません', changes: [] },
     ],
+  }, {
+    // A definition that cannot be built has no member to apply: the team's
+    // reason stands on its own.
+    team: 'ops', definition: 'ops', project_name: '注文 API', notes: [], members: [],
+    error: 'チーム定義を組み立てられません',
   }],
 });
 
@@ -73,8 +78,10 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   const hows = [...document.querySelectorAll('.apl-sheet .apl-how')].map((el) => el.textContent);
   expect(hows).toEqual(['送り直す', '起動する', '起動し直す', '反映できない']);
   expect(document.querySelector('.apl-sheet .apl-lost').textContent).toBe('会話が消えます');
-  // The team's own note stands under the team's heading (a worker's profile).
+  // The team's own note stands under the team's heading (a worker's profile),
+  // and a team whose definition does not build says why.
   expect(document.querySelector('.apl-sheet .apl-tnote').textContent).toContain('ワーカー w-1 のプロファイル');
+  expect(document.querySelector('.apl-sheet [data-role=definition-error]').textContent).toBe('チーム定義を組み立てられません');
   // The changed rule opens its own place.
   expect(document.querySelector('.apl-sheet .apl-chg').getAttribute('href')).toBe('/roles?open=builder&rule=BUILD-5');
   // Opening the sheet sent nothing.

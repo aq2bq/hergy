@@ -183,6 +183,11 @@ function Team({ group }) {
     class: "apl-tnote",
     children: t
   }));
+  const broken = group.error ? /* @__PURE__ */ u("p", {
+    class: "apl-err",
+    "data-role": "definition-error",
+    children: group.error
+  }) : "";
   return /* @__PURE__ */ u("div", {
     class: "apl-team",
     children: [
@@ -197,6 +202,7 @@ function Team({ group }) {
           where
         ]
       }),
+      broken,
       notes,
       /* @__PURE__ */ u("div", {
         class: "apl-ms",

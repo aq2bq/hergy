@@ -102,8 +102,12 @@ function Team({ group }: { group: ApplyTeam }): JSX.Element {
     : '';
   const where = group.project_name ? <span class="apl-where">{group.project_name}</span> : '';
   const notes = (group.notes || []).map((t) => <p class="apl-tnote">{t}</p>);
+  // A definition that cannot be built has no member to apply: the team's reason
+  // stands in the same words hergy status uses (the row of 動き says the same).
+  const broken = group.error ? <p class="apl-err" data-role="definition-error">{group.error}</p> : '';
   return <div class="apl-team">
     <div class="apl-th">チーム <code>{group.team}</code>{def}{where}</div>
+    {broken}
     {notes}
     <div class="apl-ms">{(group.members || []).map((m) => <Member m={m} group={group} />)}</div>
   </div>;
