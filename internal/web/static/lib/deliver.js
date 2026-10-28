@@ -15,7 +15,7 @@
 // なるブラウザがある）。
 import { html, render } from '../vendor/preact.js';
 import { BandButton, Layer } from './deliver/view.js';
-import { close, openSheet, opened, readCount, POLL } from './deliver/state.js';
+import { close, opened, readCount, POLL } from './deliver/state.js';
 
 // ---- 器 -----------------------------------------------------------------
 // The search field of a headquarters stands right of the screens (spec 2 章),
@@ -40,17 +40,10 @@ function mountLayer() {
 }
 
 // ---- 押す ----------------------------------------------------------------
-// The mark on the activity screen's member row (and the headquarters' detail) is
-// the screens' own markup; it opens the same sheet. It is answered in the
-// capture phase, as it always was, so the screen under it does not take the
-// press first.
-document.addEventListener('click', (e) => {
-  const mark = e.target.closest('[data-deliver-open]');
-  if (!mark) return;
-  e.preventDefault();
-  openSheet();
-}, true);
-
+// The mark on the activity screen's member row is the screen's own markup, and
+// the screen answers it: activity/board.js calls openSheet (webui-components
+// 2 章). What stands on this part is its own: the band's button, the sheet, and
+// the one key that closes it.
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && opened.value) {
     e.preventDefault();

@@ -7,6 +7,7 @@
 // 移す前のマークアップから 1 つも変えない（5 章 6）。
 import { html } from '../vendor/preact.js';
 import * as A from '../lib/hq.js';
+import { openSheet } from '../lib/deliver/state.js';
 import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
 import { Figure } from './figure.js';
 
@@ -79,7 +80,7 @@ function Detail({ team: t }) {
   const screenBox = hasTail ? html`<div class="hq-dq"><div class="th">画面の最後（<code>${t.wait ? (t.wait.herdr || (t.name + '-' + t.wait.name)) : t.last ? (t.name + '-' + t.last) : t.name}</code>）</div>
     <pre class="term">${t.tail.join('\n')}</pre>${answerBox}</div>`
     : (answerBox ? html`<div class="hq-dq">${answerBox}</div>` : '');
-  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります">定義が変わった</button></span>` : ''}</li>`);
+  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ''}</li>`);
   const wk = t.workers.length ? [html`<li class="sub">ワーカー</li>`, t.workers.map((w) => html`<li class=${w.state}><i class=${'dot ' + w.state}></i><span class="nm wk">${w.name}</span><span class="sw">${NS[w.state] || ''}</span><span class="t">${w.from ? w.from + ' が追加' : ''}</span>${w.doing ? html`<span class="hq-doing">${w.doing}</span>` : ''}</li>`)] : '';
   const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
   return html`<section class="hq-detail" aria-label="${t.name} の中">

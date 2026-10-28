@@ -4,13 +4,16 @@
 // a permission cannot be picked; a save only reads the number again, and sends
 // nothing; a send hands the picked members' prompts and takes them off the band.
 // The answers are the test's, so what the part makes of them is what is read.
+// The mark on the activity screen's member row is that screen's own press
+// (activity/board.js), so the walk that opens the sheet from it stands with the
+// screen's test (activity-stale.test.js).
 import { expect, test } from 'bun:test';
 import { serve, settle } from './page.js';
 
 // layout writes the band the part mounts its button in, and a place for the
 // sheet and the notice.
 function layout() {
-  document.body.innerHTML = '<div class="wrap"><div class="bar"><nav class="screens"></nav></div><div id="view"><div class="hq-detail"><ul class="nodes"><li><span class="nm">impl-b</span><button class="dlv-badge" type="button" data-deliver-open>定義が変わった</button></li></ul></div></div></div>';
+  document.body.innerHTML = '<div class="wrap"><div class="bar"><nav class="screens"></nav></div><div id="view"></div></div>';
 }
 
 const change = (document, rule, text) => ({ kind: 'rule', document, rule, text });
@@ -76,11 +79,8 @@ test('the band, the sheet and the send hold the members a change was not told to
   expect(bandCount()).toBe(4);
   expect(asked.filter((one) => one.method === 'POST')).toEqual([]);
 
-  // The mark the screen draws on a stale member opens the same sheet (the
-  // activity screen's badge, lib/deliver.js's own press).
-  const mark = document.querySelector('[data-deliver-open]');
-  expect(mark).not.toBe(null);
-  mark.dispatchEvent(new Event('click', { bubbles: true }));
+  // The band's button opens the sheet again, with the answer's own picks.
+  document.querySelector('.bar .dlv-bandbtn').click();
   await settle();
   expect(document.querySelector('.dlv-sheet')).not.toBe(null);
 
