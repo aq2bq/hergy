@@ -85,7 +85,7 @@ function RunCell2({ definition, place, project }) {
         const label = t.starting ? "起動の途中 · 許可待ち" : (t.waiting || []).length ? "動いている · 許可待ち" : "動いている";
         const where = (place === "global" ? `${t.project_name || projectName2(t.project)} · ` : "") + (t.workspace.label || t.workspace.id);
         const notUp = t.not_up || [];
-        const stale = teamCount(t.team);
+        const changed = teamCount(t.team);
         return /* @__PURE__ */ u(S, {
           children: [
             /* @__PURE__ */ u("span", {
@@ -109,7 +109,7 @@ function RunCell2({ definition, place, project }) {
               "data-role": "running-error",
               children: t.error
             }) : "",
-            stale ? /* @__PURE__ */ u("button", {
+            changed ? /* @__PURE__ */ u("button", {
               type: "button",
               class: "hq-btn sm",
               "data-hq": "apply",
@@ -118,7 +118,7 @@ function RunCell2({ definition, place, project }) {
               children: [
                 "反映していない変更 ",
                 /* @__PURE__ */ u("b", {
-                  children: stale
+                  children: changed
                 })
               ]
             }) : "",

@@ -31,7 +31,6 @@ export type CrewMember = {
   at: string;
   since: string;
   doing: string;
-  stale: boolean;
 };
 type Worker = { name: string; state: string; doing: string; from: string };
 export type ActivityTeam = {
@@ -117,7 +116,7 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
   const byName = new Map(nodes.map((n): [string, ActivityNode] => [n.name, n]));
   const crew = order.filter((n) => byName.has(n)).map((name): CrewMember => {
     const n = byName.get(name)!;
-    return { name, herdr: n.herdr || (item.name + '-' + name), state: n.state || 'idle', at: n.at || '', since: n.since_at || n.at || '', doing: n.doing || '', stale: !!n.stale };
+    return { name, herdr: n.herdr || (item.name + '-' + name), state: n.state || 'idle', at: n.at || '', since: n.since_at || n.at || '', doing: n.doing || '' };
   });
   const hired: Pick<ActivityNode, 'name' | 'state'>[] = doc ? (doc.hired || []) : ((run && run.workers) || []).map((w: HQWorker) => ({ name: w.name, state: w.live ? 'active' : 'idle' }));
   const workers = hired.map((w): Worker => ({

@@ -35,7 +35,7 @@ import {
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-tpxr9z5m.js";
+} from "../chunk/nav-4t8adasr.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -81,7 +81,7 @@ function sheetOf(item, docs) {
   const byName = new Map(nodes.map((n) => [n.name, n]));
   const crew = order.filter((n) => byName.has(n)).map((name) => {
     const n = byName.get(name);
-    return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "", stale: !!n.stale };
+    return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "" };
   });
   const hired = doc ? doc.hired || [] : (run && run.workers || []).map((w) => ({ name: w.name, state: w.live ? "active" : "idle" }));
   const workers = hired.map((w) => ({
@@ -523,8 +523,8 @@ function Detail({ team: t }) {
     ]
   }) : "";
   const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
-  const stale = teamCount(t.name);
-  const apply = stale ? /* @__PURE__ */ u("button", {
+  const changed = teamCount(t.name);
+  const apply = changed ? /* @__PURE__ */ u("button", {
     type: "button",
     class: "hq-btn sm",
     "data-hq": "apply",
@@ -533,7 +533,7 @@ function Detail({ team: t }) {
     children: [
       "反映していない変更 ",
       /* @__PURE__ */ u("b", {
-        children: stale
+        children: changed
       })
     ]
   }) : "";

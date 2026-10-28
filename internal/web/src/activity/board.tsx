@@ -100,8 +100,10 @@ function Detail({ team: t }: { team: ActivityTeam }): JSX.Element {
   const rows = t.crew.map((m) => <li class={m.state}><i class={'dot ' + m.state}></i><span class="nm">{m.name}</span><span class="sw">{NS[m.state] || ''}</span><span class="t">{m.at || ''}</span>{m.doing ? <span class="hq-doing">{m.doing}</span> : ''}</li>);
   const workers = t.workers.length ? <><li class="sub">ワーカー</li>{t.workers.map((w) => <li class={w.state}><i class={'dot ' + w.state}></i><span class="nm wk">{w.name}</span><span class="sw">{NS[w.state] || ''}</span><span class="t">{w.from ? w.from + ' が追加' : ''}</span>{w.doing ? <span class="hq-doing">{w.doing}</span> : ''}</li>)}</> : '';
   const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
-  const stale = teamCount(t.name);
-  const apply = stale ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.name} onClick={() => openSheet(t.name)}>反映していない変更 <b>{stale}</b></button> : '';
+  // The team's number of members whose drift is not applied yet (lib/apply): the
+  // figure's own rows say who they are, the sheet says what each needs.
+  const changed = teamCount(t.name);
+  const apply = changed ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.name} onClick={() => openSheet(t.name)}>反映していない変更 <b>{changed}</b></button> : '';
   return <section class="hq-detail" aria-label={`${t.name} の中`}>
     <div class="hq-dh"><b>{t.name}</b><span class="hq-pw">{[t.projectName, t.workspace ? 'ワークスペース ' + t.workspace : ''].filter(Boolean).join(' · ')}</span><span class={'st ' + t.state}>{ST[t.state] || ''}</span>
       <span class="hq-dacts"><a class="hq-btn sm" href={defHref}>チーム定義を開く</a>{apply}<button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを止める…</button></span></div>
