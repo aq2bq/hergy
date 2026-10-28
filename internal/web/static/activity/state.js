@@ -164,10 +164,4 @@ export function pick(name) {
   }
 }
 
-// stopTeam is the 止める… of the opened team: the sheet that asks is hq.js's
-// (the headquarters' own sheet, imported from lib/hq.js).
-export function stopTeam(name) {
-  if (A) A.stopSheet(name);
-}
-
 export { ST, NS, lastMoment, words };

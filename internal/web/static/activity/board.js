@@ -7,7 +7,7 @@
 // 移す前のマークアップから 1 つも変えない（5 章 6）。
 import { html } from '../vendor/preact.js';
 import * as A from '../lib/hq.js';
-import { teams, note, current, noneText, ST, NS, lastMoment } from './state.js';
+import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
 import { Figure } from './figure.js';
 
 // A workspace herdr did not name is left out whole, so no separator stands
@@ -27,14 +27,14 @@ function Attention({ rows }) {
     for (const m of t.crew) {
       if (m.state !== 'blocked' && m.state !== 'handed') continue;
       const q = t.question || (t.starting ? '起動の途中で、このフォルダを信頼するかを聞いています' : '');
-      waiting.push(html`<button type="button" class="hq-at" data-pick=${t.name}><span class=${'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>${m.state === 'blocked' ? '許可待ち' : '人間の番'}</span>
+      waiting.push(html`<button type="button" class="hq-at" data-pick=${t.name} onClick=${() => pick(t.name)}><span class=${'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>${m.state === 'blocked' ? '許可待ち' : '人間の番'}</span>
         <span class="hq-aw"><code>${m.herdr || (t.name + '-' + m.name)}</code><span class="hq-pw">${t.projectName}</span></span>
         <span class="hq-aq">${q}</span>
         <span class="hq-where">${whereText(t, m)}</span>
         <span class="hq-tl">${m.since ? m.since : ''}</span></button>`);
     }
   }
-  const stalled = rows.filter((t) => t.state === 'stalled').map((t) => html`<button type="button" class="hq-at stall" data-pick=${t.name}><span class="st stalled">止まっている</span>
+  const stalled = rows.filter((t) => t.state === 'stalled').map((t) => html`<button type="button" class="hq-at stall" data-pick=${t.name} onClick=${() => pick(t.name)}><span class="st stalled">止まっている</span>
     <span class="hq-aw"><code>${t.name}</code><span class="hq-pw">${t.projectName}</span></span>
     <span class="hq-aq">誰もターンを持っていない</span>
     <span class="hq-where">${tabWhere(t)}</span>
@@ -56,7 +56,7 @@ function Tile({ team: t }) {
     ? html`<p class="hq-why">誰もターンを持っていません（人間の番でもない）。最後に動いたのは ${lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>`
     : '';
   return html`<article class=${'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team=${t.name}>
-    <button type="button" class="hq-th" data-pick=${t.name} aria-pressed=${sel ? 'true' : 'false'}>
+    <button type="button" class="hq-th" data-pick=${t.name} aria-pressed=${sel ? 'true' : 'false'} onClick=${() => pick(t.name)}>
       <span class="hq-tn">${t.name}</span><span class="hq-pw">${t.projectName} · ${t.workspace}</span>
       <span class=${'st ' + t.state}>${ST[t.state] || ''}</span>
       <span class="hq-tl">${t.since ? html`<b>${t.since.len}</b> ${t.since.at}` : ''}</span>

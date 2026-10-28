@@ -1,10 +1,11 @@
 // activity/main.js — 活動の画面の入口（webui-preact-design 4 章）。
 //
 // mount と、ページの外への約束だけを持つ。描くのは board.js、状態は
-// state.js。ここも DOM を書かない（5 章 1）。
+// state.js。押し込みは部品が持つ（board.js の onClick）。ここも DOM を書かない
+// （5 章 1）。
 import { html, render } from '../vendor/preact.js';
 import { Board } from './board.js';
-import { reading, refresh, pick, stopTeam, POLL } from './state.js';
+import { reading, refresh, POLL } from './state.js';
 
 const list = document.getElementById('list');
 
@@ -16,23 +17,6 @@ const page = { screen: 'activity', settled: false };
 window.hergyPage = page;
 
 if (list) {
-  list.addEventListener('click', (e) => {
-    const stop = e.target.closest('[data-hq="stop"]');
-    if (stop) { stopTeam(stop.dataset.team); return; }
-    const pickEl = e.target.closest('[data-pick]');
-    if (pickEl) pick(pickEl.dataset.pick);
-  });
-  // The rows are buttons, so a press with the keyboard is the button's own
-  // click; a row that is not one (the figure's tile) still answers Enter and
-  // space here, as it did before the rewrite.
-  list.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const el = e.target.closest('[data-pick]');
-    if (!el) return;
-    e.preventDefault();
-    pick(el.dataset.pick);
-  });
-
   render(html`<${Board} />`, list);
 
   // hq.js announces every reading of its own (hergy:hq); one that arrives while
