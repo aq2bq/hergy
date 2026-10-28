@@ -8,6 +8,8 @@ import type { JSX } from 'preact';
 import { TeamFigure } from '../lib/hq/figure.js';
 import type { ActivityTeam } from './state.js';
 
-export function Figure({ team }: { team: ActivityTeam }): JSX.Element {
-  return <div class="hq-fig"><TeamFigure team={team} turns={team.turns} /></div>;
+export function Figure({ team, large = false }: { team: ActivityTeam; large?: boolean }): JSX.Element {
+  return <div class={'hq-fig' + (large ? ' large' : '')}>
+    <TeamFigure team={team} turns={team.turns} W={large ? 720 : 440} layout="packed" />
+  </div>;
 }

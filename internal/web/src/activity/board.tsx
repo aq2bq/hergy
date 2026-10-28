@@ -46,10 +46,18 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
 }
 
 function countsLine(t: ActivityTeam): JSX.Element {
-  const n = (k: string): number => t.crew.filter((m) => m.state === k).length;
-  // The figure's counts add up to the crew: a member with no agent is
-  // 動いていない, as the opened list calls it (r-5b96 audit K1).
-  return <div class="hq-tc"><span><i class="dot active"></i>仕事中 {n('active')}</span><span><i class="dot idle"></i>止まっている {n('idle')}</span>{n('blocked') ? <span><i class="dot blocked"></i>許可待ち {n('blocked')}</span> : ''}{n('absent') ? <span><i class="dot absent"></i>動いていない {n('absent')}</span> : ''}{t.workers.length ? <span class="wk">ワーカー {t.workers.length}</span> : ''}</div>;
+  const states = [
+    ['active', NS.active, true], ['idle', NS.idle, true], ['blocked', NS.blocked, false],
+    ['handed', NS.handed, false], ['absent', NS.absent, false],
+  ] as const;
+  const group = (label: string, entries: { state: string }[]): JSX.Element => <div class="hq-tgroup">
+    <b>{label} {entries.length}人</b>
+    {states.map(([key, word, always]) => {
+      const count = entries.filter((entry) => entry.state === key).length;
+      return always || count ? <span><i class={'dot ' + key}></i>{word} {count}</span> : '';
+    })}
+  </div>;
+  return <div class="hq-tc">{group('メンバー', t.crew)}{group('ワーカー', t.workers)}</div>;
 }
 
 function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
@@ -97,7 +105,7 @@ function Detail({ team: t }: { team: ActivityTeam }): JSX.Element {
   return <section class="hq-detail" aria-label={`${t.name} の中`}>
     <div class="hq-dh"><b>{t.name}</b><span class="hq-pw">{[t.projectName, t.workspace ? 'ワークスペース ' + t.workspace : ''].filter(Boolean).join(' · ')}</span><span class={'st ' + t.state}>{ST[t.state] || ''}</span>
       <span class="hq-dacts"><a class="hq-btn sm" href={defHref}>チーム定義を開く</a>{apply}<button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを止める…</button></span></div>
-    <div class="hq-db">{screenBox}<ul class="nodes">{rows}{workers}</ul></div></section>;
+    <div class="hq-db"><div class="hq-dleft"><Figure team={t} large />{screenBox}</div><ul class="nodes">{rows}{workers}</ul></div></section>;
 }
 
 // Board is the whole screen: the three tiers, or the one line a board with

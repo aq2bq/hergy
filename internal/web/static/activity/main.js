@@ -35,7 +35,7 @@ import {
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-0t6jnkwt.js";
+} from "../chunk/nav-tpxr9z5m.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -173,12 +173,14 @@ function pick(name) {
 }
 
 // activity/figure.tsx
-function Figure({ team }) {
+function Figure({ team, large = false }) {
   return /* @__PURE__ */ u("div", {
-    class: "hq-fig",
+    class: "hq-fig" + (large ? " large" : ""),
     children: /* @__PURE__ */ u(TeamFigure2, {
       team,
-      turns: team.turns
+      turns: team.turns,
+      W: large ? 720 : 440,
+      layout: "packed"
     })
   });
 }
@@ -316,53 +318,44 @@ function Attention({ rows }) {
   });
 }
 function countsLine(t) {
-  const n = (k) => t.crew.filter((m) => m.state === k).length;
+  const states = [
+    ["active", NS.active, true],
+    ["idle", NS.idle, true],
+    ["blocked", NS.blocked, false],
+    ["handed", NS.handed, false],
+    ["absent", NS.absent, false]
+  ];
+  const group = (label, entries) => /* @__PURE__ */ u("div", {
+    class: "hq-tgroup",
+    children: [
+      /* @__PURE__ */ u("b", {
+        children: [
+          label,
+          " ",
+          entries.length,
+          "人"
+        ]
+      }),
+      states.map(([key, word, always]) => {
+        const count = entries.filter((entry) => entry.state === key).length;
+        return always || count ? /* @__PURE__ */ u("span", {
+          children: [
+            /* @__PURE__ */ u("i", {
+              class: "dot " + key
+            }),
+            word,
+            " ",
+            count
+          ]
+        }) : "";
+      })
+    ]
+  });
   return /* @__PURE__ */ u("div", {
     class: "hq-tc",
     children: [
-      /* @__PURE__ */ u("span", {
-        children: [
-          /* @__PURE__ */ u("i", {
-            class: "dot active"
-          }),
-          "仕事中 ",
-          n("active")
-        ]
-      }),
-      /* @__PURE__ */ u("span", {
-        children: [
-          /* @__PURE__ */ u("i", {
-            class: "dot idle"
-          }),
-          "止まっている ",
-          n("idle")
-        ]
-      }),
-      n("blocked") ? /* @__PURE__ */ u("span", {
-        children: [
-          /* @__PURE__ */ u("i", {
-            class: "dot blocked"
-          }),
-          "許可待ち ",
-          n("blocked")
-        ]
-      }) : "",
-      n("absent") ? /* @__PURE__ */ u("span", {
-        children: [
-          /* @__PURE__ */ u("i", {
-            class: "dot absent"
-          }),
-          "動いていない ",
-          n("absent")
-        ]
-      }) : "",
-      t.workers.length ? /* @__PURE__ */ u("span", {
-        class: "wk",
-        children: [
-          "ワーカー ",
-          t.workers.length
-        ]
-      }) : ""
+      group("メンバー", t.crew),
+      group("ワーカー", t.workers)
     ]
   });
 }
@@ -586,7 +579,16 @@ function Detail({ team: t }) {
       /* @__PURE__ */ u("div", {
         class: "hq-db",
         children: [
-          screenBox,
+          /* @__PURE__ */ u("div", {
+            class: "hq-dleft",
+            children: [
+              /* @__PURE__ */ u(Figure, {
+                team: t,
+                large: true
+              }),
+              screenBox
+            ]
+          }),
           /* @__PURE__ */ u("ul", {
             class: "nodes",
             children: [
