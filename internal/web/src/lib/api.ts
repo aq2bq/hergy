@@ -97,10 +97,12 @@ const urls = {
   del: (kind: string, name: string, place: string, hash: string, agreementHash: string, project: string) => `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ''}${project ? `&project=${enc(project)}` : ''}`,
 };
 
-// The two kinds of an operation: what the API answers, and what it takes.
+// What one operation answers and takes, read from the operation itself: a
+// schema picked by hand can be the wrong one (deliveryCount answered the note
+// beside the count), so every answer here comes from the operation that sends it.
 type JsonOf<T> = T extends { content: { 'application/json': infer R } } ? R : never;
-type Ok<K extends keyof operations> = operations[K] extends { responses: { 200: infer R } } ? JsonOf<R> : never;
-type Body<K extends keyof operations> = operations[K] extends { requestBody: infer B } ? JsonOf<B> : never;
+export type ApiAnswer<K extends keyof operations> = operations[K] extends { responses: { 200: infer R } } ? JsonOf<R> : never;
+export type ApiBody<K extends keyof operations> = operations[K] extends { requestBody: infer B } ? JsonOf<B> : never;
 
 // KindOps is the kind a screen names and the operations the promise writes for
 // it, so `list('team')` answers the team list's own type.
@@ -115,8 +117,12 @@ type Action = 'list' | 'get' | 'check' | 'save' | 'del';
 type Op<K extends Kind, A extends Action> = KindOps[K][A] & keyof operations;
 
 // Answer is what one kind's operation answers with; Request is what it takes.
-export type Answer<K extends Kind, A extends Action> = Ok<Op<K, A>>;
-export type Request<K extends Kind, A extends Action> = Body<Op<K, A>>;
+export type Answer<K extends Kind, A extends Action> = ApiAnswer<Op<K, A>>;
+export type Request<K extends Kind, A extends Action> = ApiBody<Op<K, A>>;
+
+// ListItem is one row of a kind's list answer, so a model reads a row by the
+// operation that sent it and not by a schema picked here.
+type ListItem<K extends Kind> = NonNullable<Answer<K, 'list'>['items']>[number];
 
 // read is a GET whose json is the answer: a list or one document.
 export async function read<T>(url: string, opts?: CallOptions): Promise<T> {
@@ -139,13 +145,13 @@ export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: s
 // ---- 変更を伝える (r-a8fa) -------------------------------------------------
 // delivery is GET /api/delivery: the running members whose prompt is not the one
 // hergy last handed them, by running team.
-export const delivery = (opts?: CallOptions): Promise<Answer<'activity', 'list'>> => read('/api/delivery', opts);
+export const delivery = (opts?: CallOptions): Promise<ApiAnswer<'listDelivery'>> => read('/api/delivery', opts);
 // deliveryCount is GET /api/delivery/count: the band's number alone.
-export const deliveryCount = (opts?: CallOptions): Promise<Schemas['DeliveryNote']> => read('/api/delivery/count', opts);
+export const deliveryCount = (opts?: CallOptions): Promise<ApiAnswer<'countDelivery'>> => read('/api/delivery/count', opts);
 // deliver is POST /api/delivery: hand the current prompt to the named herdr
 // members. A refusal comes back 422 with the one sentence in text.
-export const deliver = (members: string[], opts?: CallOptions): Promise<RawAnswer<Schemas['DeliveryAnswer']>> =>
-  call<Schemas['DeliveryAnswer']>('POST', '/api/delivery', { members } satisfies Schemas['DeliveryRequest'], opts);
+export const deliver = (members: string[], opts?: CallOptions): Promise<RawAnswer<ApiAnswer<'deliver'>>> =>
+  call<ApiAnswer<'deliver'>>('POST', '/api/delivery', { members } satisfies ApiBody<'deliver'>, opts);
 // saved says one save wrote. Every screen's successful save says it, and the
 // band reads its number again (deliver.js).
 export const saved = (): boolean => document.dispatchEvent(new CustomEvent('hergy:saved'));
@@ -163,16 +169,16 @@ export const problemText = (refusal: unknown, fallback: string): string => {
 
 const PLACES = ['project', 'global'] as const;
 const PLACE_LABEL: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
-const countOf = (c: Schemas['Counts'] | null | undefined): Schemas['Counts'] => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
+const countOf = (c: { err?: number | null; warn?: number | null } | null | undefined): { err: number; warn: number } => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
 const jsonOf = (v: unknown): string => JSON.stringify(v || []);
 
 // profileModel is GET /api/profile read as the profile screen's model: the rows
 // of the list, the two files the YAML tab draws, and the files' hashes.
-export function profileModel(list: Schemas['ProfileList'] | null, openNames?: string[]) {
+export function profileModel(list: Answer<'profile', 'list'> | null, openNames?: string[]) {
   const open = openNames || [];
   return {
-    rows: (((list && list.items) || []) as Schemas['ProfileItem'][]).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
-    files: (((list && list.files) || []) as Schemas['File'][]).map((f) => ({
+    rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
+    files: ((list && list.files) || []).map((f) => ({
       file: f.place, label: PLACE_LABEL[f.place as Place] || f.label, path: f.path, text: f.text, hash: f.hash,
       problems: f.problems || [],
     })),
@@ -205,8 +211,8 @@ export type ProfileRow = {
 
 // profileRow is one item read as the row the list draws: each place becomes a
 // panel, and the item's summary its columns.
-function profileRow(item: Schemas['ProfileItem'], isOpen: boolean): ProfileRow {
-  const places = (item.places || {}) as Record<string, Schemas['ProfilePlace']>;
+function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
+  const places = item.places || {};
   const hidden = (item.hidden || []) as string[];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
@@ -219,7 +225,7 @@ function profileRow(item: Schemas['ProfileItem'], isOpen: boolean): ProfileRow {
       file, label: PLACE_LABEL[file], path: place.path || '', saved: true,
       shadowed: hidden.indexOf(file) >= 0, both, other, otherLabel: PLACE_LABEL[other],
       name: doc.name || '', kind: doc.kind || '',
-      args: (doc.args || []) as string[], env: (doc.env || []) as Schemas['ProfileEnvPair'][],
+      args: doc.args || [], env: doc.env || [],
       argsJSON: jsonOf(doc.args), envJSON: jsonOf(doc.env),
       savedName: doc.name || '', savedKind: doc.kind || '',
       savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
@@ -233,9 +239,9 @@ function profileRow(item: Schemas['ProfileItem'], isOpen: boolean): ProfileRow {
     name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '',
     new: false, open: !!isOpen,
     places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? 'shadow' : 'on' })),
-    args: s.args || '', env: (s.env || []) as string[], more: s.more || 0,
+    args: s.args || '', env: s.env || [], more: s.more || 0,
     users: s.users || 0, roles: s.roles || '', err: c.err, warn: c.warn,
-    chips: (s.chips || []) as Schemas['ProfileChip'][], panels,
+    chips: s.chips || [], panels,
   };
 }
 
@@ -257,12 +263,12 @@ export type RoleRow = {
 
 // roleModel is GET /api/role read as the role screen's model: the rows, each
 // place holding the document behind it.
-export function roleModel(list: Schemas['RoleList'] | null): { roles: RoleRow[] } {
-  return { roles: (((list && list.items) || []) as Schemas['RoleItem'][]).map(roleRow) };
+export function roleModel(list: Answer<'role', 'list'> | null): { roles: RoleRow[] } {
+  return { roles: ((list && list.items) || []).map(roleRow) };
 }
 
-function roleRow(item: Schemas['RoleItem'], i: number): RoleRow {
-  const places = (item.places || {}) as Record<string, Schemas['RolePlace']>;
+function roleRow(item: ListItem<'role'>, i: number): RoleRow {
+  const places = item.places || {};
   const s = item.summary;
   const row: RoleRow = { uid: i + 1, project: null, global: null };
   if (s.markdown) {
@@ -295,18 +301,18 @@ export type TeamCard = {
 // per definition, with the members' roles and the place it stands in. The hash
 // a save carries is the file of that place: a global definition is saved in the
 // global file, and every project reading it changes (d-0f32, r-f8b9).
-export function teamModel(list: Schemas['TeamList'] | null): { teams: TeamCard[] } {
+export function teamModel(list: Answer<'team', 'list'> | null): { teams: TeamCard[] } {
   return {
-    teams: (((list && list.items) || []) as Schemas['TeamItem'][]).map((item) => {
-      const places = (item.places || {}) as Record<string, Schemas['TeamPlace']>;
+    teams: ((list && list.items) || []).map((item) => {
+      const places = item.places || {};
       const s = item.summary;
       const eff: Place = item.effective || (places.project ? 'project' : 'global');
       const place = places[eff] || {};
       const doc = place.doc;
       return {
         id: item.name || '', hash: place.hash || '', place: eff,
-        turns: (((doc && doc.turns) || []) as Schemas['TeamTurn'][]).map((t): [string, string] => [t.from, t.to]),
-        members: (((s && s.members) || []) as Schemas['TeamMember'][]).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
+        turns: ((doc && doc.turns) || []).map((t): [string, string] => [t.from, t.to]),
+        members: ((s && s.members) || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
       };
     }),
   };
