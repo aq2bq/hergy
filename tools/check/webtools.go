@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +17,10 @@ import (
 //     throws only when the line runs, so a road no walk opens (the
 //     headquarters' roles list, 3ec7db3) is caught here rather than in a
 //     person's browser; and the deadcode gate reads Go only.
+//   - apitypes: the TypeScript types the screens read the API through are what
+//     openapi-typescript makes from internal/apicontract/openapi.yaml, the API's
+//     one written promise (n-e3de). A promise changed without the types made
+//     again fails here (go run ./tools/check apitypes -write makes them).
 //   - unit: the modules' own tests (internal/web/jstest/*.test.js) under bun
 //     test, with a document from happy-dom and no browser. What a screen
 //     decides from its state and the server's answers is held here; the
@@ -83,4 +89,47 @@ func (r *runner) unitGate() error {
 	// module is imported once (its state stands per page), so two files that
 	// each import one would otherwise read the first file's page.
 	return r.execIn(filepath.Join(r.root, webTests), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), ".")
+}
+
+// apiSpec and apiTypes are the API's promise and the types made from it, from
+// the module root.
+var (
+	apiSpec  = filepath.Join("internal", "apicontract", "openapi.yaml")
+	apiTypes = filepath.Join("internal", "apicontract", "api-types.d.ts")
+)
+
+func (r *runner) apitypesGate() error {
+	bun, dir, env, err := r.webtools()
+	if err != nil {
+		return err
+	}
+	want := filepath.Join(r.root, apiTypes)
+	where := want
+	if !r.write {
+		tmp, err := os.MkdirTemp("", "hergy-apitypes")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(tmp) }()
+		where = filepath.Join(tmp, "api-types.d.ts")
+	}
+	cli := filepath.Join(dir, "node_modules", "openapi-typescript", "bin", "cli.js")
+	if err := r.execIn(r.root, env, bun, cli, apiSpec, "-o", where); err != nil {
+		return fmt.Errorf("openapi-typescript (tools/webtools): %w", err)
+	}
+	if r.write {
+		return nil
+	}
+	made, err := os.ReadFile(where)
+	if err != nil {
+		return err
+	}
+	have, err := os.ReadFile(want)
+	if err != nil {
+		return fmt.Errorf("%s: %w (run: go run ./tools/check apitypes -write)", apiTypes, err)
+	}
+	if !bytes.Equal(have, made) {
+		return errors.New(apiTypes + " is not what openapi-typescript makes from " + apiSpec + ": the promise moved and the types were not made again (go run ./tools/check apitypes -write)")
+	}
+	return nil
 }

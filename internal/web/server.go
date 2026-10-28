@@ -88,8 +88,17 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 		s.projects = projects
 	}
 	s.handler = s.guard(s.routes(static))
+	if WrapForTest != nil {
+		s.handler = WrapForTest(s.handler)
+	}
 	return s, nil
 }
+
+// WrapForTest wraps every Server's handler when a test sets it. The API
+// contract tests put internal/apicontract's checker there, so each request a
+// test sends to /api/ and each answer it gets is held to openapi.yaml
+// (n-e3de). hergy serve never sets it.
+var WrapForTest func(http.Handler) http.Handler
 
 // activity is the reading behind the activity screen, never nil: a server built
 // without one reads as a herdr with nothing in it.

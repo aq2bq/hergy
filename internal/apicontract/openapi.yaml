@@ -1,0 +1,528 @@
+# WebUI の API の約束（n-e3de、d-e206）。これが正で、Go の答えと TS の型がここに縛られる。
+# 書き方は internal/apicontract/doc.go。まだ形を書いていない操作は pending.txt にある。
+openapi: 3.0.3
+info:
+  title: hergy WebUI API
+  version: "1"
+  description: hergy serve が 127.0.0.1 で答える、WebUI のための API。書き込みは X-Hergy-Token が要る。
+paths:
+  /api/team:
+    get:
+      operationId: listTeams
+      summary: チーム定義の一覧
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/team/{name}:
+    get:
+      operationId: getTeam
+      summary: チーム定義を 1 件読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    put:
+      operationId: saveTeam
+      summary: チーム定義を保存する
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteTeam
+      summary: チーム定義を消す
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/team/check:
+    post:
+      operationId: checkTeam
+      summary: チーム定義の下書きを検査する
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/role:
+    get:
+      operationId: listRoles
+      summary: ロールの一覧
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/role/{name}:
+    get:
+      operationId: getRole
+      summary: ロールを 1 件読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    put:
+      operationId: saveRole
+      summary: ロールを保存する
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteRole
+      summary: ロールを消す
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/role/check:
+    post:
+      operationId: checkRole
+      summary: ロールの下書きを検査する
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/profile:
+    get:
+      operationId: listProfiles
+      summary: プロファイルの一覧
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/profile/{name}:
+    get:
+      operationId: getProfile
+      summary: プロファイルを 1 件読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    put:
+      operationId: saveProfile
+      summary: プロファイルを保存する
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteProfile
+      summary: プロファイルを消す
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/profile/check:
+    post:
+      operationId: checkProfile
+      summary: プロファイルの下書きを検査する
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/activity:
+    get:
+      operationId: listActivity
+      summary: 動いているチームの一覧
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/activity/{name}:
+    get:
+      operationId: getActivity
+      summary: 動いているチームを 1 つ開く
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    put:
+      operationId: saveActivity
+      summary: 活動は読むだけなので断る
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteActivity
+      summary: 活動は読むだけなので断る
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/activity/check:
+    post:
+      operationId: checkActivity
+      summary: 活動は読むだけなので断る
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/delivery:
+    get:
+      operationId: listDelivery
+      summary: 変更を伝えていない人の一覧
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: deliver
+      summary: 選んだメンバーに送り直す
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/delivery/count:
+    get:
+      operationId: countDelivery
+      summary: 変更を伝えていない人の数
+      description: 帯の「変更を伝える」が出す数。動いているメンバーのうち、定義の変更をまだ伝えていない人の数。
+      responses:
+        "200":
+          description: 数
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+                    minimum: 0
+                    description: 変更を伝えていない人の数
+  /api/hq/projects:
+    get:
+      operationId: listHQProjects
+      summary: 並べたプロジェクト
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addHQProject
+      summary: プロジェクトを並べる
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: removeHQProject
+      summary: プロジェクトを並びから外す
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/teams:
+    get:
+      operationId: listHQTeams
+      summary: 並べたプロジェクトのチーム定義
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/roles:
+    get:
+      operationId: listHQRoles
+      summary: 並べたプロジェクトのロール
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/profiles:
+    get:
+      operationId: listHQProfiles
+      summary: 並べたプロジェクトのプロファイル
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/running:
+    get:
+      operationId: listHQRunning
+      summary: 動いているチーム
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/workspaces:
+    get:
+      operationId: listHQWorkspaces
+      summary: herdr のワークスペース
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/launch/options:
+    get:
+      operationId: getHQLaunchOptions
+      summary: 起動の欄の選択肢
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/launch:
+    post:
+      operationId: startHQLaunch
+      summary: チームを起動する
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/launches/{id}:
+    get:
+      operationId: getHQLaunch
+      summary: 起動の進み具合
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: cancelHQLaunch
+      summary: 起動の待ちをやめる
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/stop:
+    post:
+      operationId: stopHQTeam
+      summary: チームを止める
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+  /api/hq/refresh:
+    post:
+      operationId: refreshHQMembers
+      summary: 起動していないメンバーを起動する
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+      responses:
+        default:
+          description: まだ書いていない（pending）
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    Refusal:
+      description: 断ったときの答え。text は利用者が読む文。
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: 断った理由を言う文
+        at:
+          type: string
+          description: 文が指す欄（name など）
+        hash:
+          type: string
+          description: ファイルが変わっていたときの今のハッシュ

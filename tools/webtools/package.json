@@ -2,10 +2,11 @@
   "name": "hergy-webtools",
   "private": true,
   "type": "module",
-  "comment": "The WebUI's modules' own tools, pinned to exact versions (no ^ or ~): eslint for the names gate (eslint.config.js: every name a module uses is defined or imported, and every name it defines or imports is read), and happy-dom for the unit gate (setup.js: the modules' tests run in bun with a document and no browser). go run ./tools/check names / unit copy this file, bun.lock and the two scripts into .bin/webtools and install there, since Go would read the .go files one dependency ships. To move a version, edit it here, run bun install here, keep bun.lock and delete node_modules.",
+  "comment": "The WebUI's modules' own tools, pinned to exact versions (no ^ or ~): eslint for the names gate (eslint.config.js: every name a module uses is defined or imported, and every name it defines or imports is read), happy-dom for the unit gate (setup.js: the modules' tests run in bun with a document and no browser), and openapi-typescript for the apitypes gate (the screens' API types, made from internal/apicontract/openapi.yaml). go run ./tools/check names / unit / apitypes copy this file, bun.lock and the two scripts into .bin/webtools and install there, since Go would read the .go files one dependency ships. To move a version, edit it here, run bun install here, keep bun.lock and delete node_modules.",
   "devDependencies": {
     "@happy-dom/global-registrator": "20.14.6",
     "eslint": "9.39.1",
-    "globals": "16.5.0"
+    "globals": "16.5.0",
+    "openapi-typescript": "7.13.0"
   }
 }

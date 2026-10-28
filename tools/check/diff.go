@@ -63,8 +63,12 @@ func gatesFor(paths []string) []gate {
 			// Neither a test nor the gates' own code goes into what the walks run.
 			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
 		case strings.HasPrefix(p, "tools/webtools/"):
-			// The modules' gates' tools: eslint and happy-dom.
-			add("names", "unit")
+			// The modules' gates' tools: eslint, happy-dom and openapi-typescript.
+			add("names", "unit", "apitypes")
+		case strings.HasPrefix(p, "internal/apicontract/") && !strings.HasSuffix(p, ".go"):
+			// The API's promise and the types made from it; the tests that call the
+			// API are held to it.
+			add("apitypes", "e2e")
 		case strings.HasPrefix(p, "internal/web/jstest/"):
 			// The modules' own tests.
 			add("names", "unit")

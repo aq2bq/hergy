@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/apicontract"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
@@ -17,7 +18,8 @@ import (
 )
 
 // TestMain loads the locales, so the screens render the words a person reads,
-// and then fails when a test leaves a goroutine behind (d-b28a).
+// holds every API call the tests make to openapi.yaml (n-e3de), and then fails
+// when a test leaves a goroutine behind (d-b28a).
 func TestMain(m *testing.M) {
 	if err := i18n.Init(); err != nil {
 		panic(err)
@@ -25,7 +27,12 @@ func TestMain(m *testing.M) {
 	if err := i18n.Use("ja"); err != nil {
 		panic(err)
 	}
-	goleak.VerifyTestMain(m)
+	checker, err := apicontract.NewChecker()
+	if err != nil {
+		panic(err)
+	}
+	WrapForTest = checker.Wrap
+	goleak.VerifyTestMain(m, goleak.Cleanup(checker.Report))
 }
 
 // fixture is one working directory with a project's own .hergy and an outside
