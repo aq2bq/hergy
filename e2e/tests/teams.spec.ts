@@ -1,14 +1,13 @@
-// TEAMS-N1, TEAMS-P5 and TEAMS-V1 — walked
+// TEAMS-N1 and TEAMS-P5 — walked
 // in a browser. Only what the browser alone can see is compared here (d-3e43):
-// the path the shape panel's head writes (TEAMS-V4), 元に戻す standing where
-// nothing changed (R5), a definition whose names do not resolve being drawn (R10),
 // the words the cards are built with (undefined), the cursor while a field is
 // drawn again, a rule opening inside the window (R12), the one line a save writes
 // from the screen's own assembly, the line a change would take away standing once
 // (R6), the band following a save and a delete (R7), and the files a 共通 save
-// writes and does not write. The preview's lines and the line a turn adds are
-// the module's (internal/web/jstest/teams-preview.test.js) and the check's
-// (TestTEAMS_Y6_ThePreviewIsTheSavedFile).
+// writes and does not write. What a screen reads from the check without a browser
+// is the module's: the preview and the line a turn adds
+// (internal/web/jstest/teams-preview.test.js, TestTEAMS_Y6), and a definition
+// whose names do not resolve (internal/web/jstest/teams-names.test.js).
 import { test, expect, hergyNew } from './fixtures';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,60 +28,6 @@ const draft = q('.tdef[data-name^="~new"]');
 
 // there2 is whether one element stands inside one panel expression.
 const there2 = (panel: string, find: string) => `!!${panel}.querySelector(${JSON.stringify(find)})`;
-
-// open walks what only a browser shows of a definition whose names do not
-// resolve (P1, S5, V1, P9, T1, R3〜R5, R10): the row opens in place, the shape
-// panel's head carries the file's path as a person reads it (TEAMS-V4), the
-// agreement panel offers no 元に戻す with nothing changed (R5), and docs — a
-// profile its worker names that profiles.yaml does not hold — is drawn like one
-// that reads, with its one problem on the worker it names (R10).
-async function open(page: Parameters<typeof read>[0], base: string): Promise<void> {
-  await page.goto(`${base}/teams`);
-  await wait(page, there('#view .tdef'));
-
-  // P1: pressing the row opens it right under itself.
-  await press(page, `${tRow('core')}.querySelector('.sum')`);
-  await wait(page, `${tRow('core')}.classList.contains('open')`);
-
-  // TEAMS-V4: the head is the path alone, as the project reads it — not the
-  // working directory's absolute path.
-  const panel = shape('core');
-  await readTo<string>(
-    page,
-    `${panel}.querySelector('.ph .path').textContent`,
-    "the shape panel's path reads, want the project's own form",
-  ).toBe('.hergy/teams/core/team.yaml');
-
-  // R5: nothing has changed, so 元に戻す is not offered.
-  await press(page, `${tRow('core')}.querySelector('.dtabs .dtab[data-t=agree]')`);
-  await wait(page, `!!${agree('core')}`);
-  await readTo<string>(
-    page,
-    `${agree('core')}.querySelector('.pf [data-act=revert]').hidden+''`,
-    "the agreement's foot offers 元に戻す with nothing changed",
-  ).toBe('true');
-
-  // 1.3・1.4.5・1.9・R10: a definition whose names do not resolve is drawn like
-  // one that reads, and its one problem stands on the worker it names.
-  const docs = shape('docs');
-  await press(page, `${tRow('docs')}.querySelector('.sum')`);
-  await wait(page, there2(docs, '.vlist .vitem .msg'));
-  await readTo<number>(
-    page,
-    `${docs}.querySelectorAll('.cv-canvas svg, footer.pf [data-act=t-save]').length`,
-    'the definition whose profile does not resolve draws figures and saves, want the figure and the save',
-  ).toBe(2);
-  // 1.4.1・R10: the problem stands on the worker 翻訳's own point, with 問題.
-  await readTo<string>(
-    page,
-    `[...document.querySelectorAll('.tdef[data-name="docs"] .panel.team-p .cv-n.worker.err')].map(function(g){return g.dataset.cvW}).join(',')`,
-    'the workers in problem read, want the 翻訳 worker alone',
-  ).toBe('0');
-}
-
-test('TEAMS-V1 a definition whose names do not resolve', async ({ page, app }) => {
-  await open(page, app.base);
-});
 
 // workerPurpose is e2eTeamsWorkerPurpose's browser-only part: the worker a
 // person hires takes its purpose one letter at a time without the cursor leaving
