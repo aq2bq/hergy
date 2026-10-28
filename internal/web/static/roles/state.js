@@ -15,7 +15,7 @@ import {
   roleModel, teamModel, problemText, checkAnswer,
 } from '../lib/api.js';
 import {
-  fromJSON, toDoc, rulesOf, inP, nextKey, observeKeys, state as ruleState,
+  fromJSON, toDoc, rulesOf, inP, nextKey, observeKeys, openRules, openRuleKey, renameCarries,
 } from '../lib/ruledoc.js';
 
 export const view = document.getElementById('view');
@@ -312,7 +312,7 @@ export function openNewPanel(r) {
   const l = eff(r), e = r[l];
   const first = e && e.draft.sections[0] && e.draft.sections[0].rules[0];
   if (!first) return;
-  ruleState.ropen.add(`${r.uid}${l}:${first._k}`);
+  openRuleKey(`${r.uid}${l}:${first._k}`);
   if (!checks.value[keyOf(r, l)]) askCheck(r, l, () => touch());
 }
 
@@ -350,7 +350,7 @@ export function parseURL() {
         places.forEach((l) => {
           if (!r[l] || !r[l].saved) return;
           const hit = rulesOf(r[l].saved).find((x) => x.id === id);
-          if (hit) { open.add(r.uid); ruleState.ropen.add(`${r.uid}${l}:${hit._k}`); }
+          if (hit) { open.add(r.uid); openRuleKey(`${r.uid}${l}:${hit._k}`); }
         });
       });
     });
@@ -385,7 +385,7 @@ export function syncURL(push) {
     if (s.q) q.set('q', s.q);
     const open = [...s.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
     if (open.length) q.set('open', open.join(','));
-    const rule = [...ruleState.ropen].map((kk) => {
+    const rule = [...openRules()].map((kk) => {
       const m = /^(\d+)(project|global):(\d+)$/.exec(kk);
       if (!m) return '';
       const r = byUid(m[1]);
@@ -474,7 +474,7 @@ export function pressNew() {
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: '' });
-  ruleState.ropen.add(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
+  openRuleKey(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
   touch();
   askCheck(nr, 'project', () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
@@ -624,7 +624,7 @@ export async function doSave(id, l) {
   const key = id + l;
   // Whether the rename carries into the teams that read the role is the rule
   // document's state, not a box the screen reads back (5 章 2).
-  const keepRename = ruleState.rename[key] !== false;
+  const keepRename = renameCarries(key);
   const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base), renameUsers: keepRename, hash: e.hash || '' };
   if (r.group && r.group !== 'global') payload.project = r.group;
   if (e.basePlace) payload.base = e.basePlace;

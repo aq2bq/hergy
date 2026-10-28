@@ -133,30 +133,64 @@ const lvlMark = (lv) => '#'.repeat(lv && lv > 2 ? lv : 2);
 // ---- state the part owns --------------------------------------------
 // What the part knows about itself: which rules stand open, which section's
 // heading depth is being picked, which delete is being confirmed, where the
-// caret was, how far the preview was scrolled, whether a rename carries. The
-// screens read parts of it (roles keeps the open rules in the address, and
-// reads the rename box when it saves), so it stays one object of the part's own.
-// `rev` is the number the part raises when it changes the object: the trees
-// below read it, so a change only the part knows about is drawn at once.
-const S = { ropen: new Set(), introOpen: null, secPick: {}, confirm: {}, pfocus: {}, yscroll: {}, rename: {}, ask: null, flash: null };
-const rev = signal(0);
+// caret was, whether a rename carries, and where the caret is to go next. Each
+// field is a signal of its own, and a change puts a new value in: the trees that
+// read one are drawn again, and no one raises a number to say so
+// (webui-components 1 章). The screens read two of them (roles keeps the open
+// rules in the address, and reads the rename box when it saves).
+const ropen = signal(new Set());
+const introOpen = signal(null);
+const secPick = signal({});
+const confirm = signal({});
+const pfocus = signal({});
+const renameBox = signal({});
+const askAt = signal(null);
+const flashAt = signal(null);
 let askSeq = 0;
-const touched = () => { rev.value += 1; };
+// scrolled is the preview's own memory: where the box stood when it was drawn
+// last. It is read while drawing to put the box back where a person left it, and
+// written while the person scrolls. It never says "draw again", so it is not a
+// signal — the box's own scrollTop is the same kind of thing.
+const scrolled = {};
+
+// The screens' way in: the rules that stand open, and whether a rename carries.
+export const openRules = () => ropen.value;
+export function openRuleKey(key) {
+  const next = new Set(ropen.value);
+  next.add(key);
+  ropen.value = next;
+}
+export const renameCarries = (key) => renameBox.value[key] !== false;
+
+// confirmAt and clearConfirms keep the delete's own confirmation: one key per
+// section or rule, and every key of a row when its sections move.
+const confirmAt = (key, on) => {
+  const next = { ...confirm.value };
+  if (on) next[key] = 1; else delete next[key];
+  confirm.value = next;
+};
+const clearConfirms = (head) => {
+  const next = {};
+  Object.keys(confirm.value).forEach((k) => { if (!k.startsWith(head)) next[k] = confirm.value[k]; });
+  confirm.value = next;
+};
+const focusAt = (key, one) => { pfocus.value = { ...pfocus.value, [key]: one }; };
 
 // ask says where the caret goes once the press has been drawn: the field the
 // person's press named, in the panel that press came from (5 章 5). It is put
 // there after the draw, in the part's own tree — never by looking for an element
 // the screen drew.
 function ask(sel, how) {
-  if (sel) { askSeq += 1; S.ask = { sel, how: how || 'focus', seq: askSeq }; }
-  touched();
+  if (!sel) return;
+  askSeq += 1;
+  askAt.value = { sel, how: how || 'focus', seq: askSeq };
 }
 
 // applyAsk puts the caret where the last press asked for it, once the part has
 // drawn. It runs after every draw and acts only on a new ask, so a redraw that
 // nobody asked for never moves the caret.
 function applyAsk(root, last) {
-  const one = S.ask;
+  const one = askAt.value;
   if (!one || !root || one.seq <= last.current) return;
   const el = root.querySelector(one.sel);
   if (!el) return;
@@ -178,7 +212,7 @@ function applyAsk(root, last) {
 // applyFlash marks the rule a drag just moved: the class stands on the element
 // until the part draws it again, the way it always did.
 function applyFlash(root, last) {
-  const one = S.flash;
+  const one = flashAt.value;
   if (!one || !root || one.seq <= last.current) return;
   const el = root.querySelector(`.rule[data-k="${one.k}"]`);
   if (!el) return;
@@ -274,8 +308,8 @@ function Field({ as: Tag = 'input', value, ...rest }) {
 // Edit is the document's fields and rules; Preview is the Markdown beside it.
 // Both read the row the screen hands them.
 function Edit({ row, issues, nameError, h }) {
-  // Reading the part's own change count subscribes this tree to it (see S).
-  rev.value;
+  // The part's own state is read below (the open rules, the section being
+  // picked, the confirmation, the rename box), so a change draws this tree.
   if (!row) return null;
   const d = row.draft, s = savedOf(row), key = row.uid + row.l;
   // The name's own problem stands under the name field, not in this list a
@@ -286,7 +320,7 @@ function Edit({ row, issues, nameError, h }) {
       ${h.hasName === false ? '' : html`<div class="dhf"><label for=${'n' + key}>ロール名</label><${Field} id=${'n' + key} class=${'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck=${false} autocomplete="off" value=${d.name} /><span class="errline name" hidden=${!nameError}>${nameError || ''}</span></div>`}
       <div class="dhf"><label for=${'t' + key}>タイトル</label><${Field} id=${'t' + key} class=${'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value=${d.title} /></div>
       <div class="dhf"><label for=${'v' + key}>revision</label><${Field} id=${'v' + key} class=${'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value=${d.revision} /></div>
-      <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} checked=${S.rename[key] !== false} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
+      <label class="rename" hidden=${!nread}><input type="checkbox" id=${'rn' + key} checked=${renameBox.value[key] !== false} /><span>${nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
     </div>
     <ul class="vm dhvm"><${Vm} list=${doc} /></ul>
     ${d.sections.map((sec, si) => secHTML(row, si, issues, h))}
@@ -299,7 +333,7 @@ function secHTML(row, si, issues, h) {
   const rules = sec.rules.filter((x) => !filtering || !h.shown || h.shown(x, issues));
   if (filtering && !rules.length) return null;
   const a = (savedOf(row) || { sections: [] }).sections[si];
-  const pick = S.secPick[ck];
+  const pick = secPick.value[ck];
   const opts = pick === 'lvl'
     ? [2, 3, 4].map((v) => {
       const on = lvlMark(sec.level) === lvlMark(v);
@@ -314,7 +348,7 @@ function secHTML(row, si, issues, h) {
       <span class="end"><button class="x" data-act="sec-up" disabled=${si === 0} aria-label="節を上へ">↑</button><button class="x" data-act="sec-down" disabled=${si === d.sections.length - 1} aria-label="節を下へ">↓</button>${secEnd(row, sec, si, ck)}</span>
     </div>
     ${opts ? html`<div class="pickrow">${opts}</div>` : ''}
-    ${sec.intro !== '' || S.introOpen === key ? html`<${Field} as="textarea" id=${'in' + key} class=${'intro' + (!a || a.intro !== sec.intro ? ' changed' : '')} data-f="intro" rows="1" placeholder="前置き" value=${sec.intro} />` : ''}
+    ${sec.intro !== '' || introOpen.value === key ? html`<${Field} as="textarea" id=${'in' + key} class=${'intro' + (!a || a.intro !== sec.intro ? ' changed' : '')} data-f="intro" rows="1" placeholder="前置き" value=${sec.intro} />` : ''}
     <div class="rules">${rules.map((x) => ruleHTML(row, x, issues, h))}</div>
     <button class="add secadd" data-act="rule-add">＋ 規則</button>
   </section>`;
@@ -323,15 +357,15 @@ function secHTML(row, si, issues, h) {
 // secEnd is the section's own end of the head: ＋ 前置き, and the × that asks
 // before a section with its rules is taken out.
 function secEnd(row, sec, si, ck) {
-  const adding = sec.intro === '' && !S.confirm[ck] ? html`<button class="add sm" data-act="intro-add">＋ 前置き</button>` : '';
-  const confirm = S.confirm[ck]
+  const adding = sec.intro === '' && !confirm.value[ck] ? html`<button class="add sm" data-act="intro-add">＋ 前置き</button>` : '';
+  const confirming = confirm.value[ck]
     ? html`<button class="btn danger solid sm" data-act="sec-del-yes">${`節を削除する（${sec.rules.length} 規則）`}</button><button class="btn sm" data-act="sec-del-no">やめる</button>`
     : html`<button class="x" data-act="sec-del" aria-label=${`節 ${sec.heading} を消す`}>×</button>`;
-  return html`${adding}${confirm}`;
+  return html`${adding}${confirming}`;
 }
 
 function ruleHTML(row, x, issues, h) {
-  const open = S.ropen.has(rkey(row, x));
+  const open = ropen.value.has(rkey(row, x));
   const mine = issues.filter((m) => m.k === x._k);
   const cls = ['rule', open ? 'open' : '', ruleChanged(row, x) ? 'unsaved' : '', inP(x) ? '' : 'out'].filter(Boolean).join(' ');
   return html`<div class=${cls} data-k=${x._k}>
@@ -364,7 +398,7 @@ function ruleEditHTML(row, x, mine) {
         <button class="btn sm" data-act="rule-up" aria-label="上へ">↑</button><button class="btn sm" data-act="rule-down" aria-label="下へ">↓</button>
         <span class="acts">
           <button class="btn sm" data-act="rule-revert" hidden=${!sr || !ruleChanged(row, x)}>元に戻す</button>
-          ${S.confirm[ck] ? html`<button class="btn danger solid sm" data-act="rule-del-yes">規則を削除する</button><button class="btn sm" data-act="rule-del-no">やめる</button>`
+          ${confirm.value[ck] ? html`<button class="btn danger solid sm" data-act="rule-del-yes">規則を削除する</button><button class="btn sm" data-act="rule-del-no">やめる</button>`
           : html`<button class="btn danger sm" data-act="rule-del">削除</button>`}
         </span>
       </footer>
@@ -391,7 +425,7 @@ function ruleKeyAt(d, si, ri) {
 
 function Preview({ row, issues }) {
   const box = useRef(null);
-  rev.value;
+  // The caret's own place is read below: a press that moves it draws this tree.
   const key = row ? row.uid + row.l : '';
   // The box keeps the place the person scrolled to, and the line they are in is
   // brought into it, after every draw of the preview — the same two moves the
@@ -399,13 +433,13 @@ function Preview({ row, issues }) {
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !row) return;
-    el.scrollTop = S.yscroll[key] || 0;
+    el.scrollTop = scrolled[key] || 0;
     follow(el, key);
   });
   if (!row) return null;
   const md = row.markdown || { lines: [], chars: 0 }, lines = md.lines || [];
   const df = row.diff || { added: [], removedBefore: [] };
-  const fc0 = S.pfocus[key];
+  const fc0 = pfocus.value[key];
   const fc = fc0 && { k: fc0.k, f: ['id', 'text', 'note'].includes(fc0.f) ? 'text' : fc0.k ? '' : fc0.f };
   const added = new Set(df.added || []), removedBefore = new Set(df.removedBefore || []);
   let ri = -1;
@@ -436,7 +470,7 @@ function Preview({ row, issues }) {
   });
   const nadd = added.size, ndel = removedBefore.size;
   return html`<div class="yph"><span class="pkl">Markdown</span><span class="yinfo"><span class="vt">${`${ri + 1} 行 · ${num(md.chars)} 文字`}</span>${nadd || ndel ? html`<span class="dirty">${`+${nadd} −${ndel}`}</span>` : ''}<span class="yr">${issues.length ? html`<span class="vcount"><${Counts} list=${issues} /></span>` : html`<span class="vclean">✓ 問題なし</span>`}</span></span></div>
-    <div class="ybox" ref=${box} onScroll=${() => { if (box.current && row) S.yscroll[key] = box.current.scrollTop; }}>${rows}</div>`;
+    <div class="ybox" ref=${box} onScroll=${() => { if (box.current && row) scrolled[key] = box.current.scrollTop; }}>${rows}</div>`;
 }
 
 // follow brings the line the caret is on into the box: a line taller than the
@@ -447,7 +481,7 @@ function follow(box, key) {
   const last = [...box.querySelectorAll(el.classList.contains('curf') ? '.yl.curf' : '.yl.cur')].pop();
   const top = el.offsetTop, bot = last.offsetTop + last.offsetHeight;
   if (top < box.scrollTop + 4 || bot > box.scrollTop + box.clientHeight - 4) box.scrollTop = Math.max(0, top - Math.round(box.clientHeight * 0.3));
-  S.yscroll[key] = box.scrollTop;
+  scrolled[key] = box.scrollTop;
 }
 
 function focusField(t) {
@@ -534,8 +568,8 @@ function mode(h, v) { if (h.onMode) h.onMode(v); }
 // panel as it is.
 export function openRule(row, k) {
   if (!row || !k) return;
-  S.ropen.add(rkey(row, { _k: k }));
-  S.pfocus[row.uid + row.l] = { k, f: 'text' };
+  ropen.value = new Set(ropen.value).add(rkey(row, { _k: k }));
+  focusAt(row.uid + row.l, { k, f: 'text' });
   ask(`.rule[data-k="${k}"] [data-f=text]`, 'center');
 }
 
@@ -547,42 +581,47 @@ function handleClick(h, b) {
   switch (act) {
     case 'rtoggle': {
       const k = rkey(row, c.x);
-      if (S.ropen.has(k)) S.ropen.delete(k); else S.ropen.add(k);
+      {
+        const next = new Set(ropen.value);
+        if (next.has(k)) next.delete(k); else next.add(k);
+        ropen.value = next;
+      }
       ask(`.rule[data-k="${c.x._k}"] .rsum`); url(h); break;
     }
-    case 'sec-pick': S.secPick[sk] = S.secPick[sk] === b.dataset.w ? null : b.dataset.w; ask(`.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=${b.dataset.w}]`); break;
+    case 'sec-pick': secPick.value = { ...secPick.value, [sk]: secPick.value[sk] === b.dataset.w ? null : b.dataset.w }; ask(`.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=${b.dataset.w}]`); break;
     case 'sec-level': {
       const s0 = c.d.sections[c.si], v = +b.dataset.v;
       // Choosing ## for a section the file wrote no level for leaves it unwritten
       // (0), so the save adds no level: line (A2).
       s0.level = v === 2 && !s0.level ? 0 : v;
-      S.secPick[sk] = null;
-      if (s0.rules[0]) S.pfocus[pkey] = { k: s0.rules[0]._k, f: 'text' };
+      secPick.value = { ...secPick.value, [sk]: null };
+      if (s0.rules[0]) focusAt(pkey, { k: s0.rules[0]._k, f: 'text' });
       ask(`.sec[data-si="${c.si}"] [data-act=sec-pick][data-w=lvl]`); edited(h, row); break;
     }
     case 'sec-add': c.d.sections.push({ _s: null, heading: '', level: 0, intro: '', rules: [] }); ask(`.sec[data-si="${c.d.sections.length - 1}"] [data-f=heading]`); edited(h, row); break;
-    case 'sec-del': S.confirm[sk] = 1; ask(`.sec[data-si="${c.si}"] [data-act=sec-del-yes]`); break;
-    case 'sec-del-no': delete S.confirm[sk]; ask(); break;
-    case 'sec-del-yes': delete S.confirm[sk]; c.d.sections.splice(c.si, 1); ask(); edited(h, row); break;
+    case 'sec-del': confirmAt(sk, true); ask(`.sec[data-si="${c.si}"] [data-act=sec-del-yes]`); break;
+    case 'sec-del-no': confirmAt(sk, false); ask(); break;
+    case 'sec-del-yes': confirmAt(sk, false); c.d.sections.splice(c.si, 1); ask(); edited(h, row); break;
     case 'sec-up': case 'sec-down': {
       const j = c.si + (act === 'sec-up' ? -1 : 1), ss = c.d.sections;
       if (j < 0 || j >= ss.length) break;
       const at = ss[c.si]; ss[c.si] = ss[j]; ss[j] = at;
-      S.secPick = {};
-      Object.keys(S.confirm).filter((k2) => k2.startsWith(`${row.uid}${row.l}s`)).forEach((k2) => delete S.confirm[k2]);
+      secPick.value = {};
+      clearConfirms(`${row.uid}${row.l}s`);
       ask(`.sec[data-si="${j}"] [data-act=${act}]`); edited(h, row); break;
     }
-    case 'intro-add': S.introOpen = secKey(row, c.si); ask(`.sec[data-si="${c.si}"] [data-f=intro]`); break;
+    case 'intro-add': introOpen.value = secKey(row, c.si); ask(`.sec[data-si="${c.si}"] [data-f=intro]`); break;
     case 'rule-add': {
       const x = { _k: ++kseq, id: nextID(row), text: '', note: '', in_prompt: true, off_since: '' };
-      c.d.sections[c.si].rules.push(x); S.ropen.add(rkey(row, x));
+      c.d.sections[c.si].rules.push(x);
+      ropen.value = new Set(ropen.value).add(rkey(row, x));
       ask(`.rule[data-k="${x._k}"] [data-f=text]`); edited(h, row); break;
     }
     case 'rule-up': case 'rule-down': moveRule(c.d, c.si, c.ri, act === 'rule-up' ? -1 : 1); ask(`.rule[data-k="${c.x._k}"] [data-act=${act}]`); edited(h, row); break;
     case 'rule-revert': { const sx = clone(savedRule(row, c.x._k)); if (sx) { sx._k = c.x._k; c.d.sections[c.si].rules[c.ri] = sx; } ask(`.rule[data-k="${c.x._k}"] .rsum`); edited(h, row); break; }
-    case 'rule-del': S.confirm[ck] = 1; ask(`.rule[data-k="${c.x._k}"] [data-act=rule-del-yes]`); break;
-    case 'rule-del-no': delete S.confirm[ck]; ask(); break;
-    case 'rule-del-yes': delete S.confirm[ck]; c.d.sections[c.si].rules.splice(c.ri, 1); ask(); edited(h, row); break;
+    case 'rule-del': confirmAt(ck, true); ask(`.rule[data-k="${c.x._k}"] [data-act=rule-del-yes]`); break;
+    case 'rule-del-no': confirmAt(ck, false); ask(); break;
+    case 'rule-del-yes': confirmAt(ck, false); c.d.sections[c.si].rules.splice(c.ri, 1); ask(); edited(h, row); break;
     case 'rule-toggle': {
       c.x.in_prompt = !inP(c.x);
       if (inP(c.x)) c.x.off_since = '';
@@ -591,9 +630,9 @@ function handleClick(h, b) {
     }
     case 'yline': {
       const k = +b.dataset.k, si = b.dataset.si, part = b.dataset.part;
-      if (k) S.ropen.add(`${row.uid}${row.l}:${k}`);
+      if (k) ropen.value = new Set(ropen.value).add(`${row.uid}${row.l}:${k}`);
       mode(h, 'edit');
-      S.pfocus[pkey] = k ? { k, f: 'text' } : part === 'title' ? { k: 0, f: 'title' } : part === 'intro' ? { k: 0, f: `sec.${si}.intro` } : { k: 0, f: `sec.${si}` };
+      focusAt(pkey, k ? { k, f: 'text' } : part === 'title' ? { k: 0, f: 'title' } : part === 'intro' ? { k: 0, f: `sec.${si}.intro` } : { k: 0, f: `sec.${si}` });
       // The Markdown box follows to the section's first rule: the panel is drawn
       // again first, then the caret is put in the field the press named (A2, P15).
       const target = k ? `.rule[data-k="${k}"] [data-f=text]` : part === 'title' ? '[data-f=title]' : `.sec[data-si="${si}"] [data-f=${part === 'intro' ? 'intro' : 'heading'}]`;
@@ -634,10 +673,11 @@ export function RuleDoc(props) {
   const edit = useRef(null);
   const lastAsk = useRef(0), lastFlash = useRef(0);
   const h = props;
-  // The part's own changes redraw the part: the trees inside read the count, and
-  // so does this component, so the caret the press asked for is put in place
-  // after the draw whether or not the screen drew too.
-  rev.value;
+  // The caret and the flash a press asked for are this component's to put in
+  // place after the draw, so it reads them itself: a press that asks for either
+  // draws this component even when the screen drew nothing.
+  askAt.value;
+  flashAt.value;
   useLayoutEffect(() => {
     applyAsk(edit.current, lastAsk);
     applyFlash(edit.current, lastFlash);
@@ -648,7 +688,7 @@ export function RuleDoc(props) {
       onChange=${(e) => {
         const cb = e.target.closest && e.target.closest('.rename input[type=checkbox]');
         if (!cb) return;
-        S.rename[`${h.row.uid}${h.row.l}`] = cb.checked;
+        renameBox.value = { ...renameBox.value, [`${h.row.uid}${h.row.l}`]: cb.checked };
       }}
       onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.rsum')) { e.preventDefault(); e.target.click(); } }}
       onFocusIn=${(e) => {
@@ -656,12 +696,11 @@ export function RuleDoc(props) {
         if (!t.closest('.pedit')) return;
         const c = ctx(h.row, t);
         const k = h.row.uid + h.row.l, fc = { k: c.x ? c.x._k : 0, f: focusField(t) };
-        const was = S.pfocus[k];
+        const was = pfocus.value[k];
         if (was && was.k === fc.k && was.f === fc.f) return;
-        S.pfocus[k] = fc;
-        // The preview marks the line the caret is in: the part says its own state
-        // changed, and the preview is drawn from it (S).
-        touched();
+        // The preview marks the line the caret is in: its own state changed, so
+        // the preview is drawn from it.
+        focusAt(k, fc);
       }}
       onPointerDown=${(e) => { const g = e.target.closest && e.target.closest('.grip'); if (g) g.closest('.rule').draggable = true; }}
       onDragStart=${(e) => {
@@ -702,9 +741,7 @@ export function RuleDoc(props) {
         }
         const k = drag.k;
         drag = null; clearDrop();
-        const one = { k, seq: (S.flash && S.flash.seq ? S.flash.seq : 0) + 1 };
-        S.flash = one;
-        touched();
+        flashAt.value = { k, seq: (flashAt.value ? flashAt.value.seq : 0) + 1 };
         edited(h, row);
       }}
       onDragEnd=${() => { $$('.rule.dragging, .rule[draggable=true]').forEach((el) => { el.classList.remove('dragging'); el.draggable = false; }); clearDrop(); drag = null; }}
@@ -722,6 +759,6 @@ const observeKeys = (rules) => { rules.forEach((x) => { if (x._k > kseq) kseq = 
 // A screen imports the part's names rather than reading them off a global.
 export {
   Counts, Badge, Vm, Sev, OutNote,
-  S as state, rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
+  rulesOf, findRule, fromJSON, toDoc, diffCount, inP,
   outCount, nextKey, observeKeys, clone,
 };

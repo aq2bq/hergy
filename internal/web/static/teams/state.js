@@ -14,7 +14,7 @@ import { signal, computed } from '../vendor/preact.js';
 import { resource } from '../lib/resource.js';
 import { saved as apiSaved, list as apiList, call as apiCall, problemText as apiProblemText } from '../lib/api.js';
 import {
-  fromJSON, toDoc, rulesOf, diffCount, clone, state as ruleState, observeKeys, openRule,
+  fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
 } from '../lib/ruledoc.js';
 import { parseOpen } from '../lib/hq.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -986,7 +986,7 @@ export function syncURL() {
     opens.forEach((n) => {
       const r = byName(n);
       if (!r) return;
-      ruleState.ropen.forEach((kk) => {
+      openRules().forEach((kk) => {
         const head = `${r.uid}${r.place.value}:`;
         if (!kk.startsWith(head)) return;
         const hit = rulesOf(r.agreeDraft.value).find((x) => x._k === Number(kk.slice(head.length)));
@@ -1023,7 +1023,7 @@ export function readURL() {
     if (hit) {
       withOpen(r.dom, true);
       setDtab(r.dom, 'agree');
-      ruleState.ropen.add(`${r.uid}${r.place.value}:${hit._k}`);
+      openRuleKey(`${r.uid}${r.place.value}:${hit._k}`);
       put({ wantRule: { name: r.dom, k: hit._k } });
     }
   });
