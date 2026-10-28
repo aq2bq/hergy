@@ -448,6 +448,32 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description 検査が見つけた問題 1 つ（spec-boundary 5）。どこにあり、どれだけ悪く、サーバーが作った文は何か。 */
+        Problem: {
+            /**
+             * @description err は読めない・保存を止める問題、warn は読めるが直したほうがよい問題
+             * @enum {string}
+             */
+            sev: "err" | "warn";
+            /** @description 問題が立つ場所。文書の欄の道（members[0].role など）か、文のときは line */
+            at: string;
+            /** @description 欄そのものの名前。at と同じ値を入れる検査もある */
+            field?: string;
+            /** @description 利用者が読む文 */
+            text: string;
+            /** @description 文の何行目か（1 から） */
+            line?: number;
+            /** @description 規則の文書の節の番号（0 から）。節を指さないときは -1 */
+            section: number;
+            /** @description 節の中の規則の番号（0 から）。規則を指さないときは -1 */
+            rule: number;
+            /** @description 問題が立つチーム定義名（並べたプロジェクトの検査など） */
+            definition?: string;
+            /** @description 組み合わせの問題が指すロール名 */
+            role?: string;
+            /** @description 組み合わせの問題が指す規則の ID */
+            rule_id?: string;
+        };
         /** @description 断ったときの答え。text は利用者が読む文。 */
         Refusal: {
             /** @description 断った理由を言う文 */

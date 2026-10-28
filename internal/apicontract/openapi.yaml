@@ -511,6 +511,43 @@ paths:
               schema: {}
 components:
   schemas:
+    Problem:
+      description: 検査が見つけた問題 1 つ（spec-boundary 5）。どこにあり、どれだけ悪く、サーバーが作った文は何か。
+      type: object
+      additionalProperties: false
+      required: [sev, at, text, section, rule]
+      properties:
+        sev:
+          type: string
+          enum: [err, warn]
+          description: err は読めない・保存を止める問題、warn は読めるが直したほうがよい問題
+        at:
+          type: string
+          description: 問題が立つ場所。文書の欄の道（members[0].role など）か、文のときは line
+        field:
+          type: string
+          description: 欄そのものの名前。at と同じ値を入れる検査もある
+        text:
+          type: string
+          description: 利用者が読む文
+        line:
+          type: integer
+          description: 文の何行目か（1 から）
+        section:
+          type: integer
+          description: 規則の文書の節の番号（0 から）。節を指さないときは -1
+        rule:
+          type: integer
+          description: 節の中の規則の番号（0 から）。規則を指さないときは -1
+        definition:
+          type: string
+          description: 問題が立つチーム定義名（並べたプロジェクトの検査など）
+        role:
+          type: string
+          description: 組み合わせの問題が指すロール名
+        rule_id:
+          type: string
+          description: 組み合わせの問題が指す規則の ID
     Refusal:
       description: 断ったときの答え。text は利用者が読む文。
       type: object
