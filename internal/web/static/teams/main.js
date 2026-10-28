@@ -16,7 +16,7 @@ import {
   O,
   x,
   html
-} from "../chunk/nav-wqvgfs4g.js";
+} from "../chunk/nav-hx0kbeeq.js";
 import {
   takeDraft2,
   setDirty2,
@@ -44,23 +44,22 @@ import {
   openRule2,
   RuleDoc2,
   observeKeys2
-} from "../chunk/nav-thhh9p2j.js";
+} from "../chunk/nav-1j4gs357.js";
 import {
   st,
   parseOpen2,
   projectName2,
   RunCell2
-} from "../chunk/nav-v3s5cy6h.js";
+} from "../chunk/nav-h88sd146.js";
 import {
   YamlTab2
-} from "../chunk/nav-bgmvn086.js";
+} from "../chunk/nav-9etws71j.js";
 import {
   Measure
-} from "../chunk/nav-84qpxfs5.js";
+} from "../chunk/nav-nag3kawt.js";
 import {
   resource
-} from "../chunk/nav-mdymvqv4.js";
-import"../chunk/nav-bpr8kyt6.js";
+} from "../chunk/nav-ke6vj4v1.js";
 
 // teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);

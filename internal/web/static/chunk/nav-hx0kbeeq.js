@@ -15,7 +15,7 @@
 // ../../../tools/webvendor/node_modules/preact/dist/preact.module.js
 var n;
 var l;
-var u;
+var u2;
 var t;
 var i;
 var r;
@@ -51,7 +51,7 @@ function k(l, u, t) {
   return x2(l, e, i, r, null);
 }
 function x2(n, t, i, r, o) {
-  var e = { type: n, props: t, key: i, ref: r, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: undefined, __v: o == null ? ++u : o, __i: -1, __u: 0 };
+  var e = { type: n, props: t, key: i, ref: r, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: undefined, __v: o == null ? ++u2 : o, __i: -1, __u: 0 };
   return o == null && l.vnode != null && l.vnode(e), e;
 }
 function S(n) {
@@ -315,7 +315,7 @@ n = w.slice, l = { __e: function(n, l, u, t) {
         n = l;
       }
   throw n;
-} }, u = 0, t = function(n) {
+} }, u2 = 0, t = function(n) {
   return n != null && n.constructor === undefined;
 }, C.prototype.setState = function(n, l) {
   var u;
@@ -354,7 +354,7 @@ function htm_module_default(s) {
 // ../../../tools/webvendor/node_modules/preact/hooks/dist/hooks.module.js
 var t3;
 var r2;
-var u2;
+var u3;
 var i2;
 var o2 = 0;
 var f2 = [];
@@ -442,15 +442,15 @@ c2.__b = function(n) {
 }, c2.__r = function(n) {
   a2 && a2(n), t3 = 0;
   var i = (r2 = n.__c).__H;
-  i && (u2 === r2 ? (i.__h = [], r2.__h = [], i.__.some(function(n) {
+  i && (u3 === r2 ? (i.__h = [], r2.__h = [], i.__.some(function(n) {
     n.__N && (n.__ = n.__N), n.u = n.__N = undefined;
-  })) : (i.__h.some(z2), i.__h.some(B2), i.__h = [], t3 = 0)), u2 = r2;
+  })) : (i.__h.some(z2), i.__h.some(B2), i.__h = [], t3 = 0)), u3 = r2;
 }, c2.diffed = function(n) {
   v2 && v2(n);
   var t = n.__c;
   t && t.__H && (t.__H.__h.length && (f2.push(t) !== 1 && i2 === c2.requestAnimationFrame || ((i2 = c2.requestAnimationFrame) || w2)(j2)), t.__H.__.some(function(n) {
     n.u && (n.__H = n.u, n.u = undefined);
-  })), u2 = r2 = null;
+  })), u3 = r2 = null;
 }, c2.__c = function(n, t) {
   t.some(function(n) {
     try {
@@ -545,7 +545,7 @@ function t4() {
 function r3(i) {
   if (v3 > 0)
     return i();
-  u3 = ++e3;
+  u4 = ++e3;
   v3++;
   try {
     return i();
@@ -570,7 +570,7 @@ var h3 = undefined;
 var v3 = 0;
 var s3 = 0;
 var e3 = 0;
-var u3 = 0;
+var u4 = 0;
 var c3 = undefined;
 var a3 = 0;
 function d3(i) {
@@ -685,8 +685,8 @@ Object.defineProperty(l3.prototype, "value", { get: function() {
       throw new Error("Cycle detected");
     (function(i) {
       if (v3 !== 0 && s3 === 0) {
-        if (i.l !== u3) {
-          i.l = u3;
+        if (i.l !== u4) {
+          i.l = u4;
           c3 = { S: i, v: i.v, i: i.i, o: c3 };
         }
       }
@@ -1180,8 +1180,22 @@ function M() {
 
 // lib/preact.ts
 var html = htm_module_default.bind(k);
+// ../../../tools/webvendor/node_modules/preact/jsx-runtime/dist/jsxRuntime.module.js
+var f4 = 0;
+function u(e, t, n, o, i, u) {
+  t || (t = {});
+  var a, c, p = t;
+  if ("ref" in p)
+    for (c in p = {}, t)
+      c == "ref" ? a = t[c] : p[c] = t[c];
+  var l2 = { type: e, props: p, key: n, ref: a, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: undefined, __v: --f4, __i: -1, __u: 0, __source: i, __self: u };
+  if (typeof e == "function" && (a = e.defaultProps))
+    for (c in a)
+      p[c] === undefined && (p[c] = a[c]);
+  return l.vnode && l.vnode(l2), l2;
+}
 
-export { l, S, R, d, h, _, A, y, O, x, html };
+export { S, R, d, h, _, A, y, O, x, html, u };
 
 // ---- licences ---------------------------------------------------------
 //

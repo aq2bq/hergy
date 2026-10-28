@@ -8,32 +8,33 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  S,
   R,
   h,
   A,
   y,
   x,
-  html
-} from "../chunk/nav-wqvgfs4g.js";
+  u
+} from "../chunk/nav-hx0kbeeq.js";
 import {
   takeDraft2,
   setDirty2,
   setCount2
 } from "../chunk/nav-vyr0f22b.js";
 import {
+  Refusal2,
   check2,
   save2,
   del2,
   saved2,
   problemText2,
   roleModel2,
-  teamModel2,
-  checkAnswer2
+  teamModel2
 } from "../chunk/nav-xz225p52.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-v3s5cy6h.js";
+} from "../chunk/nav-h88sd146.js";
 import {
   fromJSON2,
   toDoc2,
@@ -49,19 +50,18 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-thhh9p2j.js";
+} from "../chunk/nav-1j4gs357.js";
 import {
   YamlTab2
-} from "../chunk/nav-bgmvn086.js";
+} from "../chunk/nav-9etws71j.js";
 import {
   Measure
-} from "../chunk/nav-84qpxfs5.js";
+} from "../chunk/nav-nag3kawt.js";
 import {
   resource
-} from "../chunk/nav-mdymvqv4.js";
-import"../chunk/nav-bpr8kyt6.js";
+} from "../chunk/nav-ke6vj4v1.js";
 
-// roles/state.js
+// roles/state.ts
 var view = document.getElementById("view");
 var tabsEl = document.getElementById("tabs");
 var ISLAND = (() => {
@@ -70,21 +70,27 @@ var ISLAND = (() => {
     return {};
   try {
     return JSON.parse(el.textContent || "{}");
-  } catch (e) {
+  } catch {
     return {};
   }
 })();
 var PLACES = ["project", "global"];
 var DIR = Object.assign({ project: ".hergy/roles/", global: "~/.config/hergy/roles/" }, ISLAND.places || {});
 var TEXT = ISLAND.texts || {};
-var fill = (s, ...a) => String(s || "").replace(/%[sd]/g, () => a.length ? a.shift() : "");
+var fill = (s, ...a) => String(s || "").replace(/%[sd]/g, () => a.length ? a.shift() || "" : "");
 var LNAME = { project: "プロジェクト", global: "グローバル" };
 var clone = (o) => JSON.parse(JSON.stringify(o));
 var other = (l) => l === "project" ? "global" : "project";
 var uid = 0;
+var refusalAt = (err) => {
+  if (typeof err !== "object" || err === null || !("json" in err))
+    return;
+  const json = err.json;
+  return typeof json === "object" && json !== null && "at" in json ? json.at : undefined;
+};
 var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
-var CURRENT = GROUPED ? HQ.projects.current && HQ.projects.current.path || "" : "";
+var CURRENT = GROUPED && HQ ? HQ.projects.current && HQ.projects.current.path || "" : "";
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
 var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
 var currentGroup = () => GROUPED ? CURRENT : "";
@@ -105,7 +111,7 @@ var currentGroupName = () => {
 };
 function rowsOf(model, group) {
   return model.roles.map((r) => {
-    const row = { uid: r.uid, group };
+    const row = { uid: r.uid, group, project: null, global: null };
     if (r.markdown) {
       row.markdown = r.markdown;
       row.name = r.name || "";
@@ -133,8 +139,8 @@ function rowsOf(model, group) {
   });
 }
 function initialRoles() {
-  if (!GROUPED)
-    return rowsOf(roleModel2(ISLAND.role), "");
+  if (!GROUPED || !HQ)
+    return rowsOf(roleModel2(ISLAND.role || null), "");
   const out = [];
   (HQ.roles || []).forEach((g) => {
     rowsOf(roleModel2(g.list), groupKeyOf(g)).forEach((r) => out.push(r));
@@ -173,25 +179,18 @@ var askFocus = (id, sel) => {
 var askGoto = (team, member, i) => {
   gotoAsk.value = { team, member, i, seq: (gotoAsk.value && gotoAsk.value.seq || 0) + 1 };
 };
-var TEAMS = teamModel2(ISLAND.team).teams.map((t) => ({
-  id: t.id,
-  hash: t.hash || "",
-  place: t.place || "project",
-  turns: t.turns || [],
-  members: (t.members || []).map((m) => ({ name: m.name, saved: m.saved, draft: m.draft })),
-  group: currentGroup()
-}));
+var TEAMS = teamModel2(ISLAND.team || null).teams.map((t) => ({ ...t, group: currentGroup() }));
 var teams = y(TEAMS);
 var hqTeams = [];
-if (GROUPED) {
+if (GROUPED && HQ) {
   (HQ.teams || []).forEach((g) => {
     const key = groupKeyOf(g);
     (g.list && g.list.items || []).forEach((item) => {
-      const sum = item.summary || {};
+      const sum = item.summary;
       hqTeams.push({
         id: item.name || "",
         group: key,
-        members: (sum.members || []).map((m) => ({ name: m.name, saved: m.role || "", draft: m.role || "" }))
+        members: ("members" in sum ? sum.members || [] : []).map((m) => ({ name: m.name, saved: m.role || "", draft: m.role || "" }))
       });
     });
   });
@@ -202,7 +201,7 @@ var nextUid = () => {
   return uid;
 };
 var byUid = (id) => roles.value.find((r) => r.uid === Number(id));
-var live = (r, l) => !!(r[l] && r[l].saved);
+var live = (r, l) => !!(r && r[l] && r[l].saved);
 var eff = (r) => live(r, "project") ? "project" : live(r, "global") ? "global" : r.project ? "project" : "global";
 var cur = (r) => r[eff(r)].draft;
 var curName = (r) => r.markdown ? r.name || "" : (r[eff(r)].saved || r[eff(r)].draft).name;
@@ -244,8 +243,9 @@ function checkerFor(k) {
     try {
       return await check2("role", payload, { signal });
     } catch (err) {
-      if (err && err.json)
-        return { json: err.json };
+      if (err instanceof Refusal2) {
+        return { ok: false, status: err.status, text: err.text, json: err.json };
+      }
       throw err;
     }
   });
@@ -264,7 +264,7 @@ var ruleKeyAt = (d, si, ri) => {
 function convertProblems(d, list) {
   return (list || []).map((p) => ({
     sev: p.sev,
-    k: p.section >= 0 ? ruleKeyAt(d, p.section, p.rule) : 0,
+    k: (p.section ?? -1) >= 0 ? ruleKeyAt(d, p.section ?? -1, p.rule ?? -1) : 0,
     f: p.field || "",
     msg: p.text || "",
     definition: p.definition || ""
@@ -276,6 +276,8 @@ function issuesOf(r, l) {
 }
 function rowOfPanel(r, l) {
   const e = r[l], c = checks.value[keyOf(r, l)];
+  if (!e)
+    return null;
   return {
     uid: r.uid,
     l,
@@ -290,6 +292,8 @@ function rowOfPanel(r, l) {
   };
 }
 async function askCheck(r, l, cb) {
+  if (!r)
+    return;
   const e = r[l];
   if (!e)
     return;
@@ -298,20 +302,20 @@ async function askCheck(r, l, cb) {
     place: l,
     original: e.saved ? e.saved.name : null,
     project: r.group && r.group !== "global" ? r.group : undefined,
-    doc: toDoc2(e.draft, e.saved || e.base)
+    doc: toDoc2(e.draft, e.saved || e.base || null)
   });
-  if (!answer || !answer.json)
+  const c = answer && answer.json;
+  if (!c || !c.problems)
     return;
-  const c = checkAnswer2(answer);
   const issues = convertProblems(e.draft, c.problems);
   checks.value = {
     ...checks.value,
     [k]: {
       issues,
       markdown: c.preview || { lines: [], chars: 0 },
-      diff: c.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      turns: c.turns || [],
-      readers: c.readers,
+      diff: c.effect?.diff || { added: [], removedBefore: [], removedAtEnd: false },
+      turns: c.effect?.turns || [],
+      readers: c.readers || null,
       size: c.size,
       limit: c.limit
     }
@@ -340,11 +344,12 @@ function updateRowSummary(id) {
     return;
   const entries = {};
   PLACES.forEach((l) => {
-    if (!r[l] || !r[l].saved)
+    const entry = r[l];
+    if (!entry || !entry.saved)
       return;
     const c = checks.value[keyOf(r, l)];
     if (c)
-      entries[l] = { ...r[l], __savedIssues: c.issues };
+      entries[l] = { ...entry, __savedIssues: c.issues };
   });
   if (Object.keys(entries).length)
     withRow(id, (old) => ({ ...old, ...entries }));
@@ -391,9 +396,10 @@ function parseURL() {
           return;
         const places = place ? [place] : [eff(r)];
         places.forEach((l) => {
-          if (!r[l] || !r[l].saved)
+          const entry = r[l];
+          if (!entry || !entry.saved)
             return;
-          const hit = rulesOf2(r[l].saved).find((x) => x.id === id);
+          const hit = rulesOf2(entry.saved).find((x) => x.id === id);
           if (hit) {
             open.add(r.uid);
             openRuleKey2(`${r.uid}${l}:${hit._k}`);
@@ -410,8 +416,9 @@ function parseURL() {
       const m = /^(project|global)\.(.+)$/.exec(f);
       if (m) {
         const r = roleByName(m[2]);
-        if (r && r[m[1]] && r[m[1]].saved && eff(r) === m[1])
-          next.yfile = r.uid + m[1];
+        const place = m[1] === "project" ? "project" : "global";
+        if (r && r[place] && r[place].saved && eff(r) === place)
+          next.yfile = r.uid + place;
       }
     }
   }
@@ -431,8 +438,9 @@ function syncURL(push) {
       const m = /^(\d+)(project|global)$/.exec(s.yfile);
       if (m) {
         const r = byUid(m[1]);
+        const place = m[2] === "project" ? "project" : "global";
         if (r)
-          q.set("file", m[2] + "." + curName(r));
+          q.set("file", place + "." + curName(r));
       }
     }
   } else {
@@ -451,10 +459,12 @@ function syncURL(push) {
       if (!m)
         return "";
       const r = byUid(m[1]);
-      if (!r || !r[m[2]] || !r[m[2]].saved)
+      const place = m[2] === "project" ? "project" : "global";
+      const entry = r && r[place];
+      if (!r || !entry || !entry.saved)
         return "";
-      const hit = rulesOf2(r[m[2]].saved).find((x) => x._k === Number(m[3]));
-      return hit && hit.id ? `${curName(r)}.${m[2]}.${hit.id}` : "";
+      const hit = rulesOf2(entry.saved).find((x) => x._k === Number(m[3]));
+      return hit && hit.id ? `${curName(r)}.${place}.${hit.id}` : "";
     }).filter(Boolean);
     if (rule.length)
       q.set("rule", rule.join(","));
@@ -466,7 +476,7 @@ function syncURL(push) {
     history.replaceState(null, "", url);
 }
 var FILTERS = [[null, "すべて"], ["off", "オフがある"], ["issues", "問題・警告"]];
-var allEntries = () => roles.value.flatMap((r) => PLACES.filter((l) => r[l]).map((l) => ({ r, l, e: r[l] })));
+var allEntries = () => roles.value.flatMap((r) => PLACES.flatMap((l) => r[l] ? [{ r, l, e: r[l] }] : []));
 function ruleShown(x, issues) {
   const s = state.value;
   if (s.filter === "off" && inP2(x))
@@ -495,10 +505,10 @@ var ychecksOf = (place, name) => ychecks.value[ykey(place, name)];
 var setYchecks = (place, name, list) => {
   ychecks.value = { ...ychecks.value, [ykey(place, name)]: list };
 };
-var filesList = () => allEntries().filter(({ r, l }) => live(r, l) && (!GROUPED || r.group === CURRENT || r.group === "global"));
+var filesList = () => allEntries().filter((entry) => !!entry.e.saved && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === "global"));
 var docText = (r, l) => {
   const e = r[l];
-  return e.ytext !== undefined ? e.ytext : e.text || "";
+  return e && e.ytext !== undefined ? e.ytext : e && e.text || "";
 };
 function showRefusal(key, at, text) {
   patch({ refusals: { ...state.value.refusals, [key]: { at: at === "name" ? "name" : "doc", text: text || "保存できませんでした" } } });
@@ -565,9 +575,8 @@ function pressDup(id, l) {
     return;
   const d = clone(src);
   d.name += "-2";
-  const nr = { uid: nextUid(), isNew: true, group: r.group, [l]: { saved: null, draft: d, base: clone(src), basePlace: { place: l, name: src.name }, hash: "", text: "" } };
-  nr.project = nr.project || null;
-  nr.global = nr.global || null;
+  const nr = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
+  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: { place: l, name: src.name }, hash: "", text: "" };
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -606,8 +615,9 @@ function pressDiscard(id, l) {
   const r = byUid(id);
   if (!r)
     return;
-  if (r[l] && r[l].saved) {
-    withEntry(id, l, (e) => ({ ...e, draft: clone(e.saved) }));
+  const entry = r[l];
+  if (entry && entry.saved) {
+    withEntry(id, l, (e) => ({ ...e, draft: clone(entry.saved) }));
   } else {
     withRow(id, (old) => ({ ...old, [l]: null }));
   }
@@ -672,7 +682,7 @@ async function doSave(id, l) {
     return;
   const key = id + l;
   const keepRename = renameCarries2(key);
-  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base), rename_users: keepRename, hash: e.hash || "" };
+  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: e.hash || "" };
   if (r.group && r.group !== "global")
     payload.project = r.group;
   if (e.basePlace)
@@ -681,11 +691,13 @@ async function doSave(id, l) {
   try {
     res = await save2("role", e.draft.name || (e.saved ? e.saved.name : "_"), payload);
   } catch (err) {
-    showRefusal(key, err && err.json && err.json.at, problemText2(err, "保存できませんでした"));
+    showRefusal(key, refusalAt(err), problemText2(err, "保存できませんでした"));
     return;
   }
   clearRefusal(key);
-  const json = res.json || {};
+  const json = res.json;
+  if (!json)
+    return;
   const now = byUid(id);
   const cur0 = now && now[l];
   if (!cur0)
@@ -737,7 +749,7 @@ async function doDelete(id, l) {
   try {
     await del2("role", e.saved.name, l, e.hash || "", undefined, r.group && r.group !== "global" ? r.group : undefined);
   } catch (err) {
-    showRefusal(id + l, err && err.json && err.json.at, problemText2(err, "削除できませんでした"));
+    showRefusal(id + l, refusalAt(err), problemText2(err, "削除できませんでした"));
     return;
   }
   setYchecks(l, e.saved.name, undefined);
@@ -765,13 +777,16 @@ async function doAssignSave(id) {
     return;
   let res;
   try {
-    res = await save2("team", id, { place: t.place || "project", part: "team", hash: t.hash || "", doc: { ops: changes.map((m) => ({ kind: "memberRole", member: m.member, role: m.role })) } });
+    const request = { place: t.place || "project", part: "team", hash: t.hash || "", doc: { ops: changes.map((m) => ({ kind: "memberRole", member: m.member, role: m.role })) } };
+    res = await save2("team", id, request);
   } catch (err) {
     patch({ teamErrors: { ...state.value.teamErrors, [id]: problemText2(err, "保存できませんでした") } });
     touch();
     return;
   }
-  const json = res.json || {};
+  const json = res.json;
+  if (!json)
+    return;
   const nextErrors = { ...state.value.teamErrors };
   delete nextErrors[id];
   patch({ teamErrors: nextErrors, ok: { ...state.value.ok, ["t" + id]: 1 } });
@@ -786,12 +801,15 @@ async function doAssignSave(id) {
   saved2();
 }
 function rowDirty(r) {
-  return PLACES.some((l) => r[l] && (!r[l].saved || JSON.stringify(r[l].draft) !== JSON.stringify(r[l].saved)));
+  return PLACES.some((l) => {
+    const entry = r[l];
+    return !!entry && (!entry.saved || JSON.stringify(entry.draft) !== JSON.stringify(entry.saved));
+  });
 }
 function dirty() {
   const rows = roles.value.some(rowDirty);
   const members = teams.value.some((t) => t.members.some((m) => m.draft !== m.saved));
-  const ytexts = allEntries().some(({ r, l }) => r[l].ytext !== undefined && r[l].ytext !== (r[l].text || ""));
+  const ytexts = allEntries().some(({ e }) => e.ytext !== undefined && e.ytext !== (e.text || ""));
   return rows || members || ytexts;
 }
 function tellDirty() {
@@ -822,10 +840,15 @@ function take() {
 }
 function restore(carried) {
   (carried.rows || []).forEach((c) => {
-    const r = c.saved ? roles.value.find((x) => x[c.place] && x[c.place].saved && x[c.place].saved.name === c.saved) : roles.value.find((x) => x[c.place] && !x[c.place].saved && (x.noDoc || x.isNew || x[c.place].draft.name === c.name));
-    if (!r || !r[c.place])
+    const r = roles.value.find((x) => {
+      const entry = x[c.place];
+      return c.saved ? !!entry?.saved && entry.saved.name === c.saved : !!entry && !entry.saved && (x.noDoc || x.isNew || entry.draft.name === c.name);
+    });
+    if (!r)
       return;
     const e = r[c.place];
+    if (!e)
+      return;
     if (c.hash && e.hash !== c.hash)
       return;
     observeKeys2(rulesOf2(c.draft));
@@ -836,10 +859,15 @@ function restore(carried) {
     askCheck(byUid(r.uid), c.place, null);
   });
   (carried.ytexts || []).forEach((c) => {
-    const r = roles.value.find((x) => x[c.place] && (x[c.place].saved || x[c.place].draft).name === c.name);
+    const r = roles.value.find((x) => {
+      const entry = x[c.place];
+      return !!entry && (entry.saved || entry.draft).name === c.name;
+    });
     if (!r)
       return;
     const e = r[c.place];
+    if (!e)
+      return;
     if (c.hash && e.hash !== c.hash)
       return;
     withEntry(r.uid, c.place, (one) => ({ ...one, ytext: c.text }));
@@ -867,25 +895,74 @@ async function boot() {
   touch();
 }
 
-// roles/assign.js
+// roles/assign.tsx
 function roleOptions(curRole) {
   const rs = savedRoles();
   const missing = !rs.some((r) => curName(r) === curRole);
-  return html`${missing ? html`<option selected>${curRole}</option>` : ""}${PLACES.map((l) => {
-    const mine = rs.filter((r) => eff(r) === l);
-    return mine.length ? html`<optgroup label=${LNAME[l]}>${mine.map((r) => html`<option value=${curName(r)} selected=${curName(r) === curRole}>${`${curName(r)}　${cur(r).title}`}</option>`)}</optgroup>` : "";
-  })}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      missing ? /* @__PURE__ */ u("option", {
+        selected: true,
+        children: curRole
+      }) : "",
+      PLACES.map((l) => {
+        const mine = rs.filter((r) => eff(r) === l);
+        return mine.length ? /* @__PURE__ */ u("optgroup", {
+          label: LNAME[l],
+          children: mine.map((r) => /* @__PURE__ */ u("option", {
+            value: curName(r),
+            selected: curName(r) === curRole,
+            children: `${curName(r)}　${cur(r).title}`
+          }))
+        }) : "";
+      })
+    ]
+  });
 }
 function ARow({ t, m, i }) {
   const r = roleByName(m.draft);
   const hi = state.value.roleHi;
   const dim = hi && m.draft !== hi;
   const places = [DIR.project + m.draft + ".yaml", DIR.global + m.draft + ".yaml"].join(TEXT.separator || "、");
-  return html`<div class=${["arow", m.draft !== m.saved ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" ")} data-m=${m.name}>
-      <div class="who"><code>${m.name}</code></div>
-      <div class="pick">${m.draft !== m.saved ? html`<s class="was">${m.saved}</s>` : ""}<span class="sel"><select class="pickrole" id=${`s-${t.id}-${i}`} data-t=${t.id} data-i=${i} aria-label=${`${m.name} のロール`} onChange=${(e) => pickRole(t.id, i, e.target.value)}>${roleOptions(m.draft)}</select></span></div>
-      ${r ? "" : html`<ul class="vm"><${Vm2} list=${[{ sev: "err", msg: fill(TEXT.no_role_doc, m.name, m.draft, places) }]} /></ul>`}
-    </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: ["arow", m.draft !== m.saved ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
+    "data-m": m.name,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "who",
+        children: /* @__PURE__ */ u("code", {
+          children: m.name
+        })
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "pick",
+        children: [
+          m.draft !== m.saved ? /* @__PURE__ */ u("s", {
+            class: "was",
+            children: m.saved
+          }) : "",
+          /* @__PURE__ */ u("span", {
+            class: "sel",
+            children: /* @__PURE__ */ u("select", {
+              class: "pickrole",
+              id: `s-${t.id}-${i}`,
+              "data-t": t.id,
+              "data-i": i,
+              "aria-label": `${m.name} のロール`,
+              onChange: (e) => pickRole(t.id, i, e.currentTarget.value),
+              children: roleOptions(m.draft)
+            })
+          })
+        ]
+      }),
+      r ? "" : /* @__PURE__ */ u("ul", {
+        class: "vm",
+        children: /* @__PURE__ */ u(Vm2, {
+          list: [{ sev: "err", msg: fill(TEXT.no_role_doc, m.name, m.draft, places) }]
+        })
+      })
+    ]
+  });
 }
 function Team({ t }) {
   const el = A(null);
@@ -905,14 +982,78 @@ function Team({ t }) {
   const dirty = t.members.filter((m) => m.draft !== m.saved).length;
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
-  return html`<section class="team" data-t=${t.id} data-place=${t.place || "project"} ref=${el}>
-      <header class="th"><span class="tl">チーム定義</span><code class="tid">${t.id}</code><span class="pill on">${LNAME[t.place] || LNAME.project}</span>
-        <span class="tside">${errs ? html`<span class="sev err">問題 ${errs}</span>` : ""}${dirty ? html`<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="t-save" disabled=${errs > 0} onClick=${() => doAssignSave(t.id)}>保存</button>` : okOf("t" + t.id) ? html`<span class="ok">保存しました</span>` : ""}</span>
-        ${t.place === "global" ? html`<span class="tnote" data-role="place-note">グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります</span>` : ""}
-        ${refusal ? html`<span class="errline">${refusal}</span>` : ""}
-      </header>
-      ${t.members.map((m, i) => html`<${ARow} key=${m.name} t=${t} m=${m} i=${i} />`)}
-    </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "team",
+    "data-t": t.id,
+    "data-place": t.place || "project",
+    ref: el,
+    children: [
+      /* @__PURE__ */ u("header", {
+        class: "th",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "tl",
+            children: "チーム定義"
+          }),
+          /* @__PURE__ */ u("code", {
+            class: "tid",
+            children: t.id
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "pill on",
+            children: LNAME[t.place] || LNAME.project
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "tside",
+            children: [
+              errs ? /* @__PURE__ */ u("span", {
+                class: "sev err",
+                children: [
+                  "問題 ",
+                  errs
+                ]
+              }) : "",
+              dirty ? /* @__PURE__ */ u(S, {
+                children: [
+                  /* @__PURE__ */ u("span", {
+                    class: "dirty",
+                    children: [
+                      dirty,
+                      " 人"
+                    ]
+                  }),
+                  /* @__PURE__ */ u("button", {
+                    class: "btn primary",
+                    "data-act": "t-save",
+                    disabled: errs > 0,
+                    onClick: () => doAssignSave(t.id),
+                    children: "保存"
+                  })
+                ]
+              }) : okOf("t" + t.id) ? /* @__PURE__ */ u("span", {
+                class: "ok",
+                children: "保存しました"
+              }) : ""
+            ]
+          }),
+          t.place === "global" ? /* @__PURE__ */ u("span", {
+            class: "tnote",
+            "data-role": "place-note",
+            children: "グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります"
+          }) : "",
+          refusal ? /* @__PURE__ */ u("span", {
+            class: "errline",
+            children: refusal
+          }) : ""
+        ]
+      }),
+      t.members.map((m, i) => /* @__PURE__ */ u(ARow, {
+        t,
+        m,
+        i
+      }, m.name))
+    ]
+  });
 }
 function RoleBar() {
   const cnt = {};
@@ -920,51 +1061,99 @@ function RoleBar() {
   teams.value.forEach((t) => t.members.forEach((m) => {
     cnt[m.draft] = (cnt[m.draft] || 0) + 1;
   }));
-  return html`<div class="rolebar">${savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
-    const n = curName(r);
-    return html`<button class=${"rseg" + (hi === n ? " on" : hi ? " dim" : "")} data-act="role-hi" data-n=${n} aria-pressed=${hi === n} onClick=${() => pressRoleHi(n)}><code>${n}</code><span>${cur(r).title}</span><b>${cnt[n]}</b></button>`;
-  })}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "rolebar",
+    children: savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
+      const n = curName(r);
+      return /* @__PURE__ */ u("button", {
+        class: "rseg" + (hi === n ? " on" : hi ? " dim" : ""),
+        "data-act": "role-hi",
+        "data-n": n,
+        "aria-pressed": hi === n,
+        onClick: () => pressRoleHi(n),
+        children: [
+          /* @__PURE__ */ u("code", {
+            children: n
+          }),
+          /* @__PURE__ */ u("span", {
+            children: cur(r).title
+          }),
+          /* @__PURE__ */ u("b", {
+            children: cnt[n]
+          })
+        ]
+      });
+    })
+  });
 }
 function AssignPage() {
   const list = teams.value;
   if (!list.length)
-    return html`<p class="none">チーム定義はありません</p>`;
-  return html`<${RoleBar} /><div class="teams">${list.map((t) => html`<${Team} key=${t.id} t=${t} />`)}</div>`;
+    return /* @__PURE__ */ u("p", {
+      class: "none",
+      children: "チーム定義はありません"
+    });
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(RoleBar, {}),
+      /* @__PURE__ */ u("div", {
+        class: "teams",
+        children: list.map((t) => /* @__PURE__ */ u(Team, {
+          t
+        }, t.id))
+      })
+    ]
+  });
 }
 
-// roles/yaml.js
+// roles/yaml.tsx
 var keyOfYed = (r, l) => r.uid + l;
-function YamlFile({ r, l }) {
-  const e = r[l];
+function YamlFile({ file }) {
+  const { r, l, e } = file;
   const hid = l === "global" && live(r, "project");
   const both = live(r, "project") && live(r, "global");
   const name = e.saved.name;
-  return html`<section class="yed" data-key=${keyOfYed(r, l)} data-hash=${e.hash || ""}>
-    <${YamlTab2} key=${keyOfYed(r, l)} label=${LNAME[l]} path=${pathOf(l, e.saved)}
-      badge=${both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "隠れている" : "効いている" } : null}
-      text=${docText(r, l)} hash=${e.hash || ""} kind="role" place=${l} name=${name}
-      problems=${ychecksOf(l, name) || []}
-      onProblems=${(probs) => setYchecks(l, name, probs)}
-      onRevert=${() => pressYamlRevert(r, l)}
-      onState=${({ text }) => {
-    e.ytext = text;
-  }}
-      onSaved=${(answer) => {
-    const json = answer && answer.json || {};
-    e.hash = json.hash || e.hash;
-    if (typeof json.text === "string")
-      e.text = json.text;
-    if (json.doc) {
-      e.saved = fromJSON2(json.doc);
-      e.draft = clone(e.saved);
-    }
-    e.ytext = undefined;
-  }} />
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "yed",
+    "data-key": keyOfYed(r, l),
+    "data-hash": e.hash || "",
+    children: /* @__PURE__ */ u(YamlTab2, {
+      label: LNAME[l],
+      path: pathOf(l, e.saved),
+      badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "隠れている" : "効いている" } : null,
+      text: docText(r, l),
+      hash: e.hash || "",
+      kind: "role",
+      place: l,
+      name,
+      problems: ychecksOf(l, name) || [],
+      onProblems: (probs) => setYchecks(l, name, probs),
+      onRevert: () => pressYamlRevert(r, l),
+      onState: ({ text }) => {
+        e.ytext = text;
+      },
+      onSaved: (answer) => {
+        const json = answer.json;
+        if (!json)
+          return;
+        e.hash = json.hash || e.hash;
+        if (typeof json.text === "string")
+          e.text = json.text;
+        if (json.doc && "sections" in json.doc) {
+          e.saved = fromJSON2(json.doc);
+          e.draft = clone(e.saved);
+        }
+        e.ytext = undefined;
+      }
+    }, keyOfYed(r, l))
+  });
 }
 function ychecksText(place, name) {
   const y = ychecksOf(place, name);
-  return y && y.some((m) => m.sev === "err") ? html`<span class="dirty">●</span>` : "";
+  return y && y.some((m) => m.sev === "err") ? /* @__PURE__ */ u("span", {
+    class: "dirty",
+    children: "●"
+  }) : "";
 }
 function YamlPage() {
   const files = filesList();
@@ -975,71 +1164,289 @@ function YamlPage() {
       setYfile(chosen);
   }, [chosen]);
   if (!files.length) {
-    return html`<section class="yed yempty">
-      <p>ロールの文書はまだありません。</p>
-      <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.yaml が並びます。</p>
-      <span><button class="btn" data-act="tab" data-t="roles" onClick=${() => pressTab("roles")}>一覧へ</button></span></section>`;
+    return /* @__PURE__ */ u("section", {
+      class: "yed yempty",
+      children: [
+        /* @__PURE__ */ u("p", {
+          children: "ロールの文書はまだありません。"
+        }),
+        /* @__PURE__ */ u("p", {
+          children: "一覧の『＋ ロールを追加』で作ると、ここに roles/<ロール名>.yaml が並びます。"
+        }),
+        /* @__PURE__ */ u("span", {
+          children: /* @__PURE__ */ u("button", {
+            class: "btn",
+            "data-act": "tab",
+            "data-t": "roles",
+            onClick: () => pressTab("roles"),
+            children: "一覧へ"
+          })
+        })
+      ]
+    });
   }
   const one = files.find(({ r, l }) => keyOfYed(r, l) === chosen) || null;
-  return html`<div class="ylay">
-      <nav class="files">${PLACES.map((l) => html`<div class="fgroup"><div class="gh"><b>${LNAME[l]}</b><code>${DIR[l]}</code></div>${files.filter((f) => f.l === l).map(({ r, e }) => {
-    const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === "global" && live(r, "project");
-    return html`<button class=${["file", chosen === key ? "on" : "", hid ? "hid" : ""].filter(Boolean).join(" ")} data-act="yfile" data-key=${key} aria-pressed=${chosen === key} onClick=${() => pressYfile(key)}><code>${e.saved.name}.yaml</code><span class="fs">${ychecksText(l, e.saved.name)}${badgeOrCount(is, e.saved)}</span><span class="ft">${e.saved.title}${hid ? "・隠れている" : ""}</span></button>`;
-  })}</div>`)}</nav>
-      ${one ? html`<${YamlFile} key=${chosen} r=${one.r} l=${one.l} />` : html`<div class="none">ロールの文書はありません</div>`}
-    </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "ylay",
+    children: [
+      /* @__PURE__ */ u("nav", {
+        class: "files",
+        children: PLACES.map((l) => /* @__PURE__ */ u("div", {
+          class: "fgroup",
+          children: [
+            /* @__PURE__ */ u("div", {
+              class: "gh",
+              children: [
+                /* @__PURE__ */ u("b", {
+                  children: LNAME[l]
+                }),
+                /* @__PURE__ */ u("code", {
+                  children: DIR[l]
+                })
+              ]
+            }),
+            files.filter((f) => f.l === l).map(({ r, e }) => {
+              const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === "global" && live(r, "project");
+              return /* @__PURE__ */ u("button", {
+                class: ["file", chosen === key ? "on" : "", hid ? "hid" : ""].filter(Boolean).join(" "),
+                "data-act": "yfile",
+                "data-key": key,
+                "aria-pressed": chosen === key,
+                onClick: () => pressYfile(key),
+                children: [
+                  /* @__PURE__ */ u("code", {
+                    children: [
+                      e.saved.name,
+                      ".yaml"
+                    ]
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    class: "fs",
+                    children: [
+                      ychecksText(l, e.saved.name),
+                      badgeOrCount(is, e.saved)
+                    ]
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    class: "ft",
+                    children: [
+                      e.saved.title,
+                      hid ? "・隠れている" : ""
+                    ]
+                  })
+                ]
+              });
+            })
+          ]
+        }))
+      }),
+      one ? /* @__PURE__ */ u(YamlFile, {
+        file: one
+      }, chosen) : /* @__PURE__ */ u("div", {
+        class: "none",
+        children: "ロールの文書はありません"
+      })
+    ]
+  });
 }
 function badgeOrCount(issues, saved) {
   if ((issues || []).length)
-    return html`<${Badge2} list=${issues} />`;
+    return /* @__PURE__ */ u(Badge2, {
+      list: issues
+    });
   const n = saved ? rulesOf2(saved).length : 0;
-  return n ? html`${n}` : "";
+  return n ? /* @__PURE__ */ u(S, {
+    children: n
+  }) : "";
 }
 
-// roles/view.js
+// roles/view.tsx
 var other2 = (l) => l === "project" ? "global" : "project";
 function Tabs() {
   const s = state.value;
   const people = teams.value.reduce((n, t) => n + t.members.length, 0);
-  return [["roles", "一覧", ""], ["assign", "割り当て", people], ["yaml", "YAML", ""]].map(([t, label, n]) => html`<button class=${"tab" + (s.tab === t ? " on" : "")} data-act="tab" data-t=${t} aria-pressed=${s.tab === t} onClick=${() => pressTab(t)}>${label}${n !== "" ? html`<span class="n">${n}</span>` : ""}</button>`);
+  const tabs = [["roles", "一覧", ""], ["assign", "割り当て", people], ["yaml", "YAML", ""]];
+  return tabs.map(([t, label, n]) => /* @__PURE__ */ u("button", {
+    class: "tab" + (s.tab === t ? " on" : ""),
+    "data-act": "tab",
+    "data-t": t,
+    "aria-pressed": s.tab === t,
+    onClick: () => pressTab(t),
+    children: [
+      label,
+      n !== "" ? /* @__PURE__ */ u("span", {
+        class: "n",
+        children: n
+      }) : ""
+    ]
+  }));
 }
 function App() {
   const tab = state.value.tab;
   if (tab === "assign")
-    return html`<${AssignPage} />`;
+    return /* @__PURE__ */ u(AssignPage, {});
   if (tab === "yaml")
-    return html`<${YamlPage} />`;
-  return html`<${List} />`;
+    return /* @__PURE__ */ u(YamlPage, {});
+  return /* @__PURE__ */ u(List, {});
 }
 function List() {
   const s = state.value;
-  return html`<div class="toolbar">
-      <button class="btn primary" data-act="new" onClick=${pressNew}>＋ ロールを追加</button>
-      <div class="filters">${FILTERS.map(([f, label]) => html`<button class=${"fchip" + (s.filter === f ? " on" : "")} data-act="filter" data-f=${f || ""} aria-pressed=${s.filter === f} onClick=${() => pressFilter(f)}>${label}<span class="n">${filterCount(f)}</span></button>`)}</div>
-      <input id="q" class="search" type="search" placeholder="規則を探す" value=${s.q} autocomplete="off" onInput=${(e) => pressSearch(e.target.value)} />
-    </div>
-    <div class="list">
-      <div class="head"><span></span><span>ロール名</span><span>${HQ ? "プロジェクト" : "置き場所"}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
-      <div id="rows">${rowsHTML()}</div>
-    </div>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "toolbar",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            "data-act": "new",
+            onClick: pressNew,
+            children: "＋ ロールを追加"
+          }),
+          /* @__PURE__ */ u("div", {
+            class: "filters",
+            children: FILTERS.map(([f, label]) => /* @__PURE__ */ u("button", {
+              class: "fchip" + (s.filter === f ? " on" : ""),
+              "data-act": "filter",
+              "data-f": f || "",
+              "aria-pressed": s.filter === f,
+              onClick: () => pressFilter(f),
+              children: [
+                label,
+                /* @__PURE__ */ u("span", {
+                  class: "n",
+                  children: filterCount(f)
+                })
+              ]
+            }))
+          }),
+          /* @__PURE__ */ u("input", {
+            id: "q",
+            class: "search",
+            type: "search",
+            placeholder: "規則を探す",
+            value: s.q,
+            autocomplete: "off",
+            onInput: (e) => pressSearch(e.currentTarget.value)
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "list",
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "head",
+            children: [
+              /* @__PURE__ */ u("span", {}),
+              /* @__PURE__ */ u("span", {
+                children: "ロール名"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: HQ ? "プロジェクト" : "置き場所"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "規則"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "オン / オフ"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "大きさ"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "使っているチーム"
+              })
+            ]
+          }),
+          /* @__PURE__ */ u("div", {
+            id: "rows",
+            children: rowsHTML()
+          })
+        ]
+      })
+    ]
+  });
 }
 function rowsHTML() {
   const shown = roles.value.filter((r) => !filtering() || r.isNew || r.markdown || PLACES.some((l) => r[l] && rulesOf2(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
-  if (GROUPED) {
-    const out = (HQ.roles || []).map((g) => html`${groupHeader(g)}${shown.filter((r) => r.group === groupKeyOf(g)).map((r) => html`<${Role} key=${r.uid} r=${r} />`)}`);
+  if (GROUPED && HQ) {
+    const out = (HQ.roles || []).map((g) => /* @__PURE__ */ u(S, {
+      children: [
+        groupHeader(g),
+        shown.filter((r) => r.group === groupKeyOf(g)).map((r) => /* @__PURE__ */ u(Role, {
+          r
+        }, r.uid))
+      ]
+    }));
     if (!shown.length)
-      return html`<div class="sum"><span></span><span class="none">${roles.value.length ? "0 件" : "ロールはありません"}</span></div>`;
+      return /* @__PURE__ */ u("div", {
+        class: "sum",
+        children: [
+          /* @__PURE__ */ u("span", {}),
+          /* @__PURE__ */ u("span", {
+            class: "none",
+            children: roles.value.length ? "0 件" : "ロールはありません"
+          })
+        ]
+      });
     return out;
   }
   if (!shown.length)
-    return html`<div class="sum"><span></span><span class="none">${roles.value.length ? "0 件" : "ロールはありません"}</span></div>`;
-  return shown.map((r) => html`<${Role} key=${r.uid} r=${r} />`);
+    return /* @__PURE__ */ u("div", {
+      class: "sum",
+      children: [
+        /* @__PURE__ */ u("span", {}),
+        /* @__PURE__ */ u("span", {
+          class: "none",
+          children: roles.value.length ? "0 件" : "ロールはありません"
+        })
+      ]
+    });
+  return shown.map((r) => /* @__PURE__ */ u(Role, {
+    r
+  }, r.uid));
 }
 function groupHeader(g) {
   const rows = g.list && g.list.items || [];
   if (g.global)
-    return html`<div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">${g.display || ""}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
-  return html`<div class="hq-gh"><span class="hq-gn">${groupNameOf(g)}</span><span class="hq-gp">${g.project ? g.project.display : ""}</span><span class="hq-gc">ロール <b>${rows.length}</b></span></div>`;
+    return /* @__PURE__ */ u("div", {
+      class: "hq-gh global",
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "hq-gn",
+          children: "グローバル"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gp",
+          children: g.display || ""
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gc",
+          children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        })
+      ]
+    });
+  return /* @__PURE__ */ u("div", {
+    class: "hq-gh",
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "hq-gn",
+        children: groupNameOf(g)
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gp",
+        children: g.project ? g.project.display : ""
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gc",
+        children: [
+          "ロール ",
+          /* @__PURE__ */ u("b", {
+            children: rows.length
+          })
+        ]
+      })
+    ]
+  });
 }
 function Role({ r }) {
   const open = filtering() || state.value.open.has(r.uid);
@@ -1053,21 +1460,47 @@ function Role({ r }) {
       return;
     one.focus({ preventScroll: true });
   }, [focusAsk.value]);
-  return html`<div class=${"role" + (open ? " open" : "") + (unsaved(r) ? " unsaved" : "")} data-uid=${r.uid} ref=${el}>
-      <div class="sum" role="button" tabindex="0" aria-expanded=${open} data-act="toggle" onClick=${() => pressToggle(r.uid)} onKeyDown=${(e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      pressToggle(r.uid);
-    }
-  }}>${sumInner(r)}</div>
-      ${open ? detail(r) : ""}
-    </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "role" + (open ? " open" : "") + (unsaved(r) ? " unsaved" : ""),
+    "data-uid": r.uid,
+    ref: el,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "sum",
+        role: "button",
+        tabIndex: 0,
+        "aria-expanded": open,
+        "data-act": "toggle",
+        onClick: () => pressToggle(r.uid),
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            pressToggle(r.uid);
+          }
+        },
+        children: sumInner(r)
+      }),
+      open ? detail(r) : ""
+    ]
+  });
 }
 var unsaved = (r) => PLACES.some((l) => r[l] && (!r[l].saved || diffCount2(r[l]) > 0));
 var readersCell = (r) => {
   if (!GROUPED) {
     const ids = [...new Set(whoReads(curName(r), r.group).map((x) => x.t.id))];
-    return ids.length ? html`<b>${ids.length}</b><span>${ids.join(" · ")}</span>` : html`<span class="none">0</span>`;
+    return ids.length ? /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("b", {
+          children: ids.length
+        }),
+        /* @__PURE__ */ u("span", {
+          children: ids.join(" · ")
+        })
+      ]
+    }) : /* @__PURE__ */ u("span", {
+      class: "none",
+      children: "0"
+    });
   }
   const name = curName(r);
   const rs = whoReads(name, r.group);
@@ -1075,40 +1508,127 @@ var readersCell = (r) => {
     const byProject = new Map;
     rs.forEach(({ t }) => {
       const key = t.group;
+      const ids = byProject.get(key) || [];
       if (!byProject.has(key))
-        byProject.set(key, []);
-      if (!byProject.get(key).includes(t.id))
-        byProject.get(key).push(t.id);
+        byProject.set(key, ids);
+      if (!ids.includes(t.id))
+        ids.push(t.id);
     });
     if (!byProject.size)
-      return html`<span class="none">0</span>`;
+      return /* @__PURE__ */ u("span", {
+        class: "none",
+        children: "0"
+      });
     const total = [...byProject.values()].reduce((n, xs) => n + xs.length, 0);
     const parts = [...byProject.entries()].map(([key, ids]) => key === "global" ? ids.join(" · ") : `${projectNameOf(key)}: ${ids.join(" · ")}`);
-    return html`<b>${total}</b><span>${parts.join(" / ")}</span>`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("b", {
+          children: total
+        }),
+        /* @__PURE__ */ u("span", {
+          children: parts.join(" / ")
+        })
+      ]
+    });
   }
   const ids = [...new Set(rs.map(({ t }) => t.id))];
-  return ids.length ? html`<b>${ids.length}</b><span>${ids.join(" · ")}</span>` : html`<span class="none">0</span>`;
+  return ids.length ? /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("b", {
+        children: ids.length
+      }),
+      /* @__PURE__ */ u("span", {
+        children: ids.join(" · ")
+      })
+    ]
+  }) : /* @__PURE__ */ u("span", {
+    class: "none",
+    children: "0"
+  });
 };
 function placePills(r) {
   if (!GROUPED) {
-    return PLACES.map((l) => live(r, l) ? html`<span class=${"pill " + (l === "global" && live(r, "project") ? "shadow" : "on")}>${l === "global" ? LNAME.global : currentProjectName()}</span>` : r[l] ? html`<span class="pill pending">${l === "global" ? LNAME.global : currentProjectName()}</span>` : "");
+    return PLACES.map((l) => live(r, l) ? /* @__PURE__ */ u("span", {
+      class: "pill " + (l === "global" && live(r, "project") ? "shadow" : "on"),
+      children: l === "global" ? LNAME.global : currentProjectName()
+    }) : r[l] ? /* @__PURE__ */ u("span", {
+      class: "pill pending",
+      children: l === "global" ? LNAME.global : currentProjectName()
+    }) : "");
   }
   const label = r.group === "global" ? "グローバル" : projectNameOf(r.group);
-  const globalGroup = (HQ.roles || []).find((g) => g.global);
+  const globalGroup = (HQ && HQ.roles || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
   const shadow = r.group && r.group !== "global" && (over[curName(r)] || []).includes(r.group);
   const overriding = r.group === "global" ? over[curName(r)] || [] : [];
-  return html`<span class="pill on">${label}</span>${shadow ? html`<span class="pill shadow">グローバル</span>` : ""}${overriding.map((p) => html`<span class="pill hq-ov">${projectNameOf(p)} で上書き</span>`)}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "pill on",
+        children: label
+      }),
+      shadow ? /* @__PURE__ */ u("span", {
+        class: "pill shadow",
+        children: "グローバル"
+      }) : "",
+      overriding.map((p) => /* @__PURE__ */ u("span", {
+        class: "pill hq-ov",
+        children: [
+          projectNameOf(p),
+          " で上書き"
+        ]
+      }))
+    ]
+  });
 }
 function sumInner(r) {
   if (r.markdown) {
-    return html`<span class="chev"></span>
-        <span class="c-name"><span class="nm">${r.name}</span><span class="sev err">問題 1</span></span>
-        <span class="c-place">${placePills(r)}</span>
-        <span class="c-count"><span class="none">—</span></span>
-        <span class="c-backing"></span>
-        <span class="c-amount"><span class="none">—</span></span>
-        <span class="c-readers">${readersCell(r)}</span>`;
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "chev"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-name",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "nm",
+              children: r.name
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "sev err",
+              children: "問題 1"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-place",
+          children: placePills(r)
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-count",
+          children: /* @__PURE__ */ u("span", {
+            class: "none",
+            children: "—"
+          })
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-backing"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-amount",
+          children: /* @__PURE__ */ u("span", {
+            class: "none",
+            children: "—"
+          })
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "c-readers",
+          children: readersCell(r)
+        })
+      ]
+    });
   }
   const d = cur(r), saved = live(r, "project") || live(r, "global");
   const readers = whoReads(curName(r), r.group);
@@ -1117,32 +1637,187 @@ function sumInner(r) {
   const on = rs.filter(inP2).length, off = rs.length - on;
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
-  return html`<span class="chev"></span>
-      <span class="c-name"><span class="nm">${d.name ? d.name : html`<span class="none">—</span>`}</span><span class="ttl">${d.title}</span>${r.isNew ? html`<span class="tag">新規</span>` : ""}${saved ? html`<${Badge2} list=${issues} />` : readers.length ? html`<span class="sev err">問題 ${readers.length}</span>` : ""}</span>
-      <span class="c-place">${r.noDoc ? "" : placePills(r)}</span>
-      <span class="c-count">${saved ? rs.length : html`<span class="none">—</span>`}</span>
-      <span class="c-backing">${saved ? html`<span class="onoff">オン <b>${on}</b>${off ? html` · <span class="offn">オフ ${off}</span>` : ""}</span>` : html`<span class="none">—</span>`}</span>
-      <span class="c-amount">${size && size.limit ? html`<${Measure} chars=${size.size} limit=${size.limit} />` : html`<span class="none">—</span>`}</span>
-      <span class="c-readers">${GROUPED ? readersCell(r) : teamIds.length ? html`<b>${teamIds.length}</b><span>${teamIds.join(" · ")}</span>` : html`<span class="none">0</span>`}</span>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "chev"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-name",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "nm",
+            children: d.name ? d.name : /* @__PURE__ */ u("span", {
+              class: "none",
+              children: "—"
+            })
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "ttl",
+            children: d.title
+          }),
+          r.isNew ? /* @__PURE__ */ u("span", {
+            class: "tag",
+            children: "新規"
+          }) : "",
+          saved ? /* @__PURE__ */ u(Badge2, {
+            list: issues
+          }) : readers.length ? /* @__PURE__ */ u("span", {
+            class: "sev err",
+            children: [
+              "問題 ",
+              readers.length
+            ]
+          }) : ""
+        ]
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-place",
+        children: r.noDoc ? "" : placePills(r)
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-count",
+        children: saved ? rs.length : /* @__PURE__ */ u("span", {
+          class: "none",
+          children: "—"
+        })
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-backing",
+        children: saved ? /* @__PURE__ */ u("span", {
+          class: "onoff",
+          children: [
+            "オン ",
+            /* @__PURE__ */ u("b", {
+              children: on
+            }),
+            off ? /* @__PURE__ */ u(S, {
+              children: [
+                " · ",
+                /* @__PURE__ */ u("span", {
+                  class: "offn",
+                  children: [
+                    "オフ ",
+                    off
+                  ]
+                })
+              ]
+            }) : ""
+          ]
+        }) : /* @__PURE__ */ u("span", {
+          class: "none",
+          children: "—"
+        })
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-amount",
+        children: size && size.limit ? /* @__PURE__ */ u(Measure, {
+          chars: size.size || 0,
+          limit: size.limit
+        }) : /* @__PURE__ */ u("span", {
+          class: "none",
+          children: "—"
+        })
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "c-readers",
+        children: GROUPED ? readersCell(r) : teamIds.length ? /* @__PURE__ */ u(S, {
+          children: [
+            /* @__PURE__ */ u("b", {
+              children: teamIds.length
+            }),
+            /* @__PURE__ */ u("span", {
+              children: teamIds.join(" · ")
+            })
+          ]
+        }) : /* @__PURE__ */ u("span", {
+          class: "none",
+          children: "0"
+        })
+      })
+    ]
+  });
 }
 function detail(r) {
   if (r.markdown) {
-    return html`<div class="detail">
-      <div class="usage">${usage(r)}</div>
-      <div class="panels"><div class="dh"><ul class="vm dhvm"><li><span class="sev err">問題</span><span>${r.markdown}</span></li></ul></div></div>
-    </div>`;
+    return /* @__PURE__ */ u("div", {
+      class: "detail",
+      children: [
+        /* @__PURE__ */ u("div", {
+          class: "usage",
+          children: usage(r)
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "panels",
+          children: /* @__PURE__ */ u("div", {
+            class: "dh",
+            children: /* @__PURE__ */ u("ul", {
+              class: "vm dhvm",
+              children: /* @__PURE__ */ u("li", {
+                children: [
+                  /* @__PURE__ */ u("span", {
+                    class: "sev err",
+                    children: "問題"
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    children: r.markdown
+                  })
+                ]
+              })
+            })
+          })
+        })
+      ]
+    });
   }
   const ls = PLACES.filter((l) => r[l]);
-  return html`<div class="detail">
-      <div class="usage">${usage(r)}</div>
-      <div class="panels">${ls.map((l) => html`<${Panel} key=${l} r=${r} l=${l} />`)}</div>
-    </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "detail",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "usage",
+        children: usage(r)
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "panels",
+        children: ls.map((l) => /* @__PURE__ */ u(Panel, {
+          r,
+          l
+        }, l))
+      })
+    ]
+  });
 }
 function usage(r) {
   const readers = whoReads(curName(r), r.group);
   if (!readers.length)
     return "";
-  return html`<span class="lbl">使っているチーム</span>${readers.map(({ t, m }) => html`<button class="uchip" data-act="goto" data-t=${t.id} data-m=${m.name} data-i=${t.members.indexOf(m)} onClick=${() => pressGoto(t.id, m.name, t.members.indexOf(m))}><span class="g">${r.group === "global" ? `${projectNameOf(t.group)}: ` : ""}${t.id}</span>${m.name}</button>`)}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "lbl",
+        children: "使っているチーム"
+      }),
+      readers.map(({ t, m }) => /* @__PURE__ */ u("button", {
+        class: "uchip",
+        "data-act": "goto",
+        "data-t": t.id,
+        "data-m": m.name,
+        "data-i": t.members.indexOf(m),
+        onClick: () => pressGoto(t.id, m.name, t.members.indexOf(m)),
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "g",
+            children: [
+              r.group === "global" ? `${projectNameOf(t.group)}: ` : "",
+              t.id
+            ]
+          }),
+          m.name
+        ]
+      }))
+    ]
+  });
 }
 function onChangeDraft(r, l) {
   withEntry(r.uid, l, (e) => ({ ...e, draft: clone(e.draft) }));
@@ -1150,10 +1825,15 @@ function onChangeDraft(r, l) {
   scheduleCheck(r, l);
 }
 function Panel({ r, l }) {
-  const e = r[l], d = e.draft, key = r.uid + l, both = live(r, "project") && live(r, "global");
+  const e = r[l];
+  if (!e)
+    return "";
+  const d = e.draft, key = r.uid + l, both = live(r, "project") && live(r, "global");
   const shadowed = l === "global" && live(r, "project");
   const row = rowOfPanel(r, l);
-  const issues = row.issues;
+  if (!row)
+    return "";
+  const issues = row.issues || [];
   const nread = e.saved && !r[other2(l)] ? whoReads(e.saved.name, r.group).length : 0;
   const mode = state.value.pmode[key] || "edit";
   const placeLabel = GROUPED && r.group && r.group !== "global" ? projectNameOf(r.group) : LNAME[l];
@@ -1164,38 +1844,159 @@ function Panel({ r, l }) {
   const n = diffCount2(e);
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.msg));
   const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : issues.some((m) => m.sev === "err" && !before.has(m.msg)) || n === 0);
-  return html`<section class=${"panel" + (shadowed ? " shadowed" : "")} data-uid=${r.uid} data-l=${l} data-mode=${mode}>
-      <header class="ph">
-        ${r.isNew ? html`<div class="seg">${PLACES.map((x) => html`<button class=${l === x ? "on" : ""} data-act="pick-place" data-x=${x} onClick=${() => pressPickPlace(r.uid, l, x)}>${LNAME[x]}</button>`)}</div>` : html`<span class="ln">${placeLabel}</span>`}
-        <code class="path">${pathOfRow(r, l, d)}</code>
-        <span class="phr">
-          ${both ? html`<span class=${"state " + (shadowed ? "off" : "on")}>${shadowed ? "隠れている" : "効いている"}</span>` : ""}
-          <span class="seg pview">${[["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => html`<button class=${mode === v ? "on" : ""} data-act="pmode" data-v=${v} aria-pressed=${mode === v} onClick=${() => pressPmode(r.uid, l, v)}>${label}</button>`)}</span>
-        </span>
-      </header>
-      <div class="pmain"><${RuleDoc2} row=${row} issues=${issues} nameError=${nameError}
-        filtering=${filtering()} shown=${ruleShown} query=${state.value.q}
-        readerCount=${(name) => whoReads(name, GROUPED ? CURRENT : "").length}
-        onChange=${() => onChangeDraft(r, l)}
-        onMode=${(v) => pressPmode(r.uid, l, v)}
-        onURL=${() => syncURL(false)} /></div>
-      <footer class="pf">
-        <button class="btn primary" data-act="save" disabled=${blocked} onClick=${() => doSave(r.uid, l)}>保存</button><span class="errline doc" hidden=${!docError}>${docError}</span><span class="dirty">${e.saved && n ? `${n} か所` : ""}</span><span class="vcount"><${Counts2} list=${issues} /></span>${okOf(key) ? html`<span class="ok">保存しました</span>` : ""}
-        <span class="acts">
-          ${e.saved ? html`<button class="btn" data-act="dup" onClick=${() => pressDup(r.uid, l)}>複製</button>` : ""}
-          ${e.saved && !r[other2(l)] ? html`<button class="btn" data-act="copy" onClick=${() => pressCopy(r.uid, l)}>${LNAME[other2(l)]}にコピー</button>` : ""}
-          ${!e.saved ? html`<button class="btn danger" data-act="discard" onClick=${() => pressDiscard(r.uid, l)}>取り消し</button>` : state.value.confirm[key] ? html`<button class="btn danger solid" data-act="del-yes" onClick=${() => doDelete(r.uid, l)}>削除する${nread ? `（${nread} 人が読んでいる）` : ""}</button><button class="btn" data-act="del-no" onClick=${() => pressDelNo(r.uid, l)}>やめる</button>` : html`<button class="btn danger" data-act="del" onClick=${() => pressDel(r.uid, l)}>削除</button>`}
-        </span>
-      </footer>
-    </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "panel" + (shadowed ? " shadowed" : ""),
+    "data-uid": r.uid,
+    "data-l": l,
+    "data-mode": mode,
+    children: [
+      /* @__PURE__ */ u("header", {
+        class: "ph",
+        children: [
+          r.isNew ? /* @__PURE__ */ u("div", {
+            class: "seg",
+            children: PLACES.map((x) => /* @__PURE__ */ u("button", {
+              class: l === x ? "on" : "",
+              "data-act": "pick-place",
+              "data-x": x,
+              onClick: () => pressPickPlace(r.uid, l, x),
+              children: LNAME[x]
+            }))
+          }) : /* @__PURE__ */ u("span", {
+            class: "ln",
+            children: placeLabel
+          }),
+          /* @__PURE__ */ u("code", {
+            class: "path",
+            children: pathOfRow(r, l, d)
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "phr",
+            children: [
+              both ? /* @__PURE__ */ u("span", {
+                class: "state " + (shadowed ? "off" : "on"),
+                children: shadowed ? "隠れている" : "効いている"
+              }) : "",
+              /* @__PURE__ */ u("span", {
+                class: "seg pview",
+                children: [["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => /* @__PURE__ */ u("button", {
+                  class: mode === v ? "on" : "",
+                  "data-act": "pmode",
+                  "data-v": v,
+                  "aria-pressed": mode === v,
+                  onClick: () => pressPmode(r.uid, l, v),
+                  children: label
+                }))
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "pmain",
+        children: /* @__PURE__ */ u(RuleDoc2, {
+          row,
+          issues,
+          nameError,
+          filtering: filtering(),
+          shown: ruleShown,
+          query: state.value.q,
+          readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
+          onChange: () => onChangeDraft(r, l),
+          onMode: (v) => pressPmode(r.uid, l, v),
+          onURL: () => syncURL(false)
+        })
+      }),
+      /* @__PURE__ */ u("footer", {
+        class: "pf",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            "data-act": "save",
+            disabled: blocked,
+            onClick: () => doSave(r.uid, l),
+            children: "保存"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "errline doc",
+            hidden: !docError,
+            children: docError
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "dirty",
+            children: e.saved && n ? `${n} か所` : ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "vcount",
+            children: /* @__PURE__ */ u(Counts2, {
+              list: issues
+            })
+          }),
+          okOf(key) ? /* @__PURE__ */ u("span", {
+            class: "ok",
+            children: "保存しました"
+          }) : "",
+          /* @__PURE__ */ u("span", {
+            class: "acts",
+            children: [
+              e.saved ? /* @__PURE__ */ u("button", {
+                class: "btn",
+                "data-act": "dup",
+                onClick: () => pressDup(r.uid, l),
+                children: "複製"
+              }) : "",
+              e.saved && !r[other2(l)] ? /* @__PURE__ */ u("button", {
+                class: "btn",
+                "data-act": "copy",
+                onClick: () => pressCopy(r.uid, l),
+                children: [
+                  LNAME[other2(l)],
+                  "にコピー"
+                ]
+              }) : "",
+              !e.saved ? /* @__PURE__ */ u("button", {
+                class: "btn danger",
+                "data-act": "discard",
+                onClick: () => pressDiscard(r.uid, l),
+                children: "取り消し"
+              }) : state.value.confirm[key] ? /* @__PURE__ */ u(S, {
+                children: [
+                  /* @__PURE__ */ u("button", {
+                    class: "btn danger solid",
+                    "data-act": "del-yes",
+                    onClick: () => doDelete(r.uid, l),
+                    children: [
+                      "削除する",
+                      nread ? `（${nread} 人が読んでいる）` : ""
+                    ]
+                  }),
+                  /* @__PURE__ */ u("button", {
+                    class: "btn",
+                    "data-act": "del-no",
+                    onClick: () => pressDelNo(r.uid, l),
+                    children: "やめる"
+                  })
+                ]
+              }) : /* @__PURE__ */ u("button", {
+                class: "btn danger",
+                "data-act": "del",
+                onClick: () => pressDel(r.uid, l),
+                children: "削除"
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
 }
 
-// roles/main.js
+// roles/main.tsx
 if (view) {
   const page = { screen: "roles", dirty, take, settled: false };
   window.hergyPage = page;
-  R(html`<${Tabs} />`, tabsEl);
-  R(html`<${App} />`, view);
+  R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
+  R(/* @__PURE__ */ u(App, {}), view);
   x(() => {
     setCount2("roles", savedRoles().length);
   });

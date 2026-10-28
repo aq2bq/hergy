@@ -13,8 +13,9 @@ import {
   h,
   A,
   y,
-  O
-} from "../chunk/nav-wqvgfs4g.js";
+  O,
+  u
+} from "../chunk/nav-hx0kbeeq.js";
 import {
   takeDraft2,
   setDirty2
@@ -29,16 +30,13 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-v3s5cy6h.js";
+} from "../chunk/nav-h88sd146.js";
 import {
   YamlTab2
-} from "../chunk/nav-bgmvn086.js";
+} from "../chunk/nav-9etws71j.js";
 import {
   resource
-} from "../chunk/nav-mdymvqv4.js";
-import {
-  u
-} from "../chunk/nav-bpr8kyt6.js";
+} from "../chunk/nav-ke6vj4v1.js";
 
 // profiles/state.ts
 function mustElement(id) {

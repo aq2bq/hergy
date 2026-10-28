@@ -11,8 +11,9 @@ import {
   S,
   R,
   h,
-  A
-} from "../chunk/nav-wqvgfs4g.js";
+  A,
+  u
+} from "../chunk/nav-hx0kbeeq.js";
 import"../chunk/nav-xz225p52.js";
 import {
   POLL,
@@ -30,10 +31,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-qyt0ykjb.js";
-import {
-  u
-} from "../chunk/nav-bpr8kyt6.js";
+} from "../chunk/nav-v9smwdbz.js";
 
 // lib/deliver/view.tsx
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
