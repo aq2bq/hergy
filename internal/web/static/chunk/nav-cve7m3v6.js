@@ -46,10 +46,14 @@ async function raw2(method, url, payload, { signal: stop } = {}) {
 }
 async function call2(method, url, payload, opts) {
   const a = await raw2(method, url, payload, opts);
-  const refused = a.json;
   if (!a.ok)
-    throw new Refusal2(a.status, refused && refused.text || a.text, a.json);
+    throw new Refusal2(a.status, sentenceOf(a.json) || a.text, a.json);
   return a;
+}
+function sentenceOf(json) {
+  if (typeof json !== "object" || json === null || !("text" in json))
+    return "";
+  return typeof json.text === "string" ? json.text : "";
 }
 var urls = {
   list: (kind) => `/api/${kind}`,
@@ -57,7 +61,11 @@ var urls = {
   del: (kind, name, place, hash, agreementHash, project) => `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ""}${project ? `&project=${enc(project)}` : ""}`
 };
 async function read2(url, opts) {
-  const a = await call2("GET", url, undefined, opts);
+  return answerOf(await call2("GET", url, undefined, opts), url);
+}
+function answerOf(a, what) {
+  if (a.json === null)
+    throw new Error(`no answer from ${what}`);
   return a.json;
 }
 var list2 = (kind, opts) => read2(urls.list(kind), opts);
@@ -69,16 +77,23 @@ var applyList2 = (opts) => read2("/api/apply", opts);
 var applyCount2 = (opts) => read2("/api/apply/count", opts);
 async function applyMembers2(members, opts) {
   const a = await call2("POST", "/api/apply", { members }, opts);
-  return a.json;
+  return answerOf(a, "/api/apply");
 }
 var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));
 var problemText2 = (refusal, fallback) => {
-  const one = refusal;
-  return one && (one.text || one.json && one.json.text) || fallback;
+  if (refusal instanceof Refusal2 && refusal.text)
+    return refusal.text;
+  return sentenceOf(refusal) || nestedSentence(refusal) || fallback;
 };
+function nestedSentence(value) {
+  if (typeof value !== "object" || value === null || !("json" in value))
+    return "";
+  return sentenceOf(value.json);
+}
 var PLACES = ["project", "global"];
 var PLACE_LABEL = { project: "プロジェクト", global: "グローバル" };
+var placeLabel = (place) => place === "project" || place === "global" ? PLACE_LABEL[place] : "";
 var countOf = (c) => ({ err: c && c.err || 0, warn: c && c.warn || 0 });
 var jsonOf = (v) => JSON.stringify(v || []);
 function profileModel2(list, openNames) {
@@ -87,7 +102,7 @@ function profileModel2(list, openNames) {
     rows: (list && list.items || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
     files: (list && list.files || []).map((f) => ({
       file: f.place,
-      label: PLACE_LABEL[f.place] || f.label,
+      label: placeLabel(f.place) || f.label,
       path: f.path,
       text: f.text,
       hash: f.hash,
@@ -192,19 +207,5 @@ function teamModel2(list) {
     })
   };
 }
-function checkAnswer2(a) {
-  const json = a && a.json ? a.json : {};
-  const effect = json.effect || {};
-  return {
-    problems: json.problems || [],
-    preview: json.preview || null,
-    prompt: json.prompt || null,
-    diff: effect.diff || null,
-    turns: effect.turns || null,
-    readers: json.readers || [],
-    size: json.size || 0,
-    limit: json.limit || 0
-  };
-}
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2, checkAnswer2 };
+export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2 };

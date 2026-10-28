@@ -16,7 +16,7 @@ import {
 } from "../chunk/nav-fa78a466.js";
 import {
   read2
-} from "../chunk/nav-zejwh6na.js";
+} from "../chunk/nav-cve7m3v6.js";
 import {
   setActivity2
 } from "../chunk/nav-vyr0f22b.js";
@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-q5cnqy1n.js";
+} from "../chunk/nav-ss8zp2nt.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-waaxpf2c.js";
+} from "../chunk/nav-t90ysdj6.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";

@@ -21,7 +21,7 @@ import type { components, operations } from '../../../apicontract/api-types';
 // Schemas is the shapes the API answers and takes, by their names in the promise.
 export type Schemas = components['schemas'];
 
-export const token = (document.querySelector('[data-token]') as HTMLElement | null)?.dataset?.token || '';
+export const token = document.querySelector<HTMLElement>('[data-token]')?.dataset?.token || '';
 const enc = (s: string | number | null | undefined): string => encodeURIComponent(String(s == null ? '' : s));
 
 // Place is where a document stands: the project's own layer or the shared one.
@@ -68,6 +68,8 @@ export async function raw<T = unknown>(method: string, url: string, payload?: un
   const text = await response.text();
   let json: T | null = null;
   if ((response.headers.get('content-type') || '').includes('application/json')) {
+    // The boundary: the text the server wrote is the only place a shape is
+    // entered from outside TypeScript. Every screen reads the typed answer.
     try { json = JSON.parse(text) as T; } catch { json = null; }
   }
   return { ok: response.ok, status: response.status, json, text };
@@ -77,9 +79,15 @@ export async function raw<T = unknown>(method: string, url: string, payload?: un
 // server took it, a Refusal (with the sentence in it) when it did not.
 export async function call<T = unknown>(method: string, url: string, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> {
   const a = await raw<T>(method, url, payload, opts);
-  const refused = a.json as { text?: string } | null;
-  if (!a.ok) throw new Refusal(a.status, (refused && refused.text) || a.text, a.json);
+  if (!a.ok) throw new Refusal(a.status, sentenceOf(a.json) || a.text, a.json);
   return a;
+}
+
+// sentenceOf is the sentence a refusal's JSON carries, if it carries one: the
+// answer is read by what it holds, not by a cast to a shape it may not have.
+function sentenceOf(json: unknown): string {
+  if (typeof json !== 'object' || json === null || !('text' in json)) return '';
+  return typeof json.text === 'string' ? json.text : '';
 }
 
 // ---- 書き込みと読み込みの形（spec-boundary 5）------------------------------
@@ -129,8 +137,14 @@ type ListItem<K extends Kind> = NonNullable<Answer<K, 'list'>['items']>[number];
 
 // read is a GET whose json is the answer: a list or one document.
 export async function read<T>(url: string, opts?: CallOptions): Promise<T> {
-  const a = await call<T>('GET', url, undefined, opts);
-  return a.json as T;
+  return answerOf(await call<T>('GET', url, undefined, opts), url);
+}
+
+// answerOf is the JSON an operation answered with. A 200 that wrote none is the
+// server breaking its promise, not a shape a screen can draw.
+function answerOf<T>(a: RawAnswer<T>, what: string): T {
+  if (a.json === null) throw new Error(`no answer from ${what}`);
+  return a.json;
 }
 
 export const list = <K extends Kind>(kind: K, opts?: CallOptions): Promise<Answer<K, 'list'>> => read<Answer<K, 'list'>>(urls.list(kind), opts);
@@ -157,7 +171,7 @@ export const applyCount = (opts?: CallOptions): Promise<ApiAnswer<'countApply'>>
 // are read at /api/hq/launches/{id}); a refusal comes back as a Refusal.
 export async function applyMembers(members: string[], opts?: CallOptions): Promise<ApiAccepted<'applyMembers'>> {
   const a = await call<ApiAccepted<'applyMembers'>>('POST', '/api/apply', { members } satisfies ApiBody<'applyMembers'>, opts);
-  return a.json as ApiAccepted<'applyMembers'>;
+  return answerOf(a, '/api/apply');
 }
 // hqList is one headquarters reading: the groups of teams, roles or profiles a
 // screen draws beside its own (d-73fc). The answer is the operation's own.
@@ -172,9 +186,16 @@ export const saved = (): boolean => document.dispatchEvent(new CustomEvent('herg
 // problemText is the sentence one refusal carries, or the fallback word. The
 // refusal is what call threw, and a screen holds it as a resource's error.
 export const problemText = (refusal: unknown, fallback: string): string => {
-  const one = refusal as { text?: string; json?: { text?: string } } | null;
-  return (one && (one.text || (one.json && one.json.text))) || fallback;
+  if (refusal instanceof Refusal && refusal.text) return refusal.text;
+  return sentenceOf(refusal) || nestedSentence(refusal) || fallback;
 };
+
+// nestedSentence is the sentence a refused answer put under json.text, where a
+// thrown object carries the answer rather than a Refusal.
+function nestedSentence(value: unknown): string {
+  if (typeof value !== 'object' || value === null || !('json' in value)) return '';
+  return sentenceOf(value.json);
+}
 
 // ---- reading an answer's shape (spec-boundary 5) ---------------------
 // One place reads what the server answers; a screen asks for its kind's model
@@ -182,6 +203,7 @@ export const problemText = (refusal: unknown, fallback: string): string => {
 
 const PLACES = ['project', 'global'] as const;
 const PLACE_LABEL: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
+const placeLabel = (place: string): string => (place === 'project' || place === 'global' ? PLACE_LABEL[place] : '');
 const countOf = (c: { err?: number | null; warn?: number | null } | null | undefined): { err: number; warn: number } => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
 const jsonOf = (v: unknown): string => JSON.stringify(v || []);
 
@@ -192,7 +214,7 @@ export function profileModel(list: Answer<'profile', 'list'> | null, openNames?:
   return {
     rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
     files: ((list && list.files) || []).map((f) => ({
-      file: f.place, label: PLACE_LABEL[f.place as Place] || f.label, path: f.path, text: f.text, hash: f.hash,
+      file: f.place, label: placeLabel(f.place) || f.label, path: f.path, text: f.text, hash: f.hash,
       problems: f.problems || [],
     })),
     hashes: (list && list.hashes) || {},
@@ -226,7 +248,7 @@ export type ProfileRow = {
 // panel, and the item's summary its columns.
 function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
   const places = item.places || {};
-  const hidden = (item.hidden || []) as string[];
+  const hidden = item.hidden || [];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
   const both = names.length > 1;
@@ -302,9 +324,9 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
     return row;
   }
   PLACES.forEach((l) => {
-    const place = (places as Record<string, Schemas['RolePlace'] | undefined>)[l];
+    const place = places[l];
     row[l] = (place && place.doc)
-      ? Object.assign({}, place.doc as Schemas['RoleDoc'], { hash: place.hash || '', text: place.text || '', path: place.path || '' })
+      ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '', path: place.path || '' })
       : null;
   });
   if (s.noDoc) row.noDoc = true;
@@ -340,57 +362,5 @@ export function teamModel(list: Answer<'team', 'list'> | null): { teams: TeamCar
         members: ((s && s.members) || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
       };
     }),
-  };
-}
-
-// CheckLine is one line of a preview: the words a person reads, where the line
-// stands, and whether the change holds it.
-export type CheckLine = { text: string; at?: string; part?: string; held?: string };
-
-// CheckDiff is how a change moved the file's lines.
-export type CheckDiff = { added: number[] | null; removedBefore: number[] | null; removedAtEnd?: boolean };
-
-// CheckPreview is the preview a check answers with: the lines and the diff for
-// team.yaml, the lines and the character count for a role (the shapes differ by
-// kind — n-e3de's wobble, kept as it is).
-export type CheckPreview = { lines?: CheckLine[] | null; diff?: CheckDiff; chars?: number };
-
-// CheckEffectLine is one line of a prompt a change would move.
-export type CheckEffectLine = { member?: string; part?: string; removed?: string[] | null; added?: string[] | null };
-
-// CheckTurn is one turn a change would move.
-export type CheckTurn = { from?: string; to?: string };
-
-// CheckReader is one person a change reaches.
-export type CheckReader = { definition?: string; member?: string; rules?: number; chars?: number; over?: boolean };
-
-// CheckAnswer is a check's whole answer: the problems, the Markdown a person
-// reads, how the change moved it, and the people it named.
-export type CheckAnswer = {
-  problems: Schemas['Problem'][];
-  preview: CheckPreview | null;
-  prompt: unknown | null;
-  diff: CheckDiff | null;
-  turns: CheckTurn[] | null;
-  readers: CheckReader[];
-  size: number;
-  limit: number;
-};
-
-export function checkAnswer(a: RawAnswer<unknown> | null): CheckAnswer {
-  const json = (a && a.json ? a.json : {}) as {
-    problems?: Schemas['Problem'][];
-    preview?: unknown;
-    prompt?: unknown;
-    effect?: { diff?: unknown; turns?: unknown };
-    readers?: unknown;
-    size?: number;
-    limit?: number;
-  };
-  const effect = json.effect || {};
-  return {
-    problems: json.problems || [], preview: (json.preview as CheckPreview) || null, prompt: json.prompt || null,
-    diff: (effect.diff as CheckDiff) || null, turns: (effect.turns as CheckTurn[]) || null, readers: (json.readers as CheckReader[]) || [],
-    size: json.size || 0, limit: json.limit || 0,
   };
 }

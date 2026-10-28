@@ -26,9 +26,8 @@ import {
   problemText2,
   profileModel2,
   roleModel2,
-  teamModel2,
-  checkAnswer2
-} from "../chunk/nav-zejwh6na.js";
+  teamModel2
+} from "../chunk/nav-cve7m3v6.js";
 export {
   Refusal2 as Refusal,
   applyCount2 as applyCount,
@@ -36,7 +35,6 @@ export {
   applyMembers2 as applyMembers,
   call2 as call,
   check2 as check,
-  checkAnswer2 as checkAnswer,
   del2 as del,
   get2 as get,
   hqList2 as hqList,
