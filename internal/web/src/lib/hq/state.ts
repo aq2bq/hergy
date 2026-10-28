@@ -19,6 +19,7 @@ type HQRunningTeam = components['schemas']['HQRunningTeam'];
 type HQWorkspace = components['schemas']['HQWorkspace'];
 type HQGroups = components['schemas']['HQGroups'];
 type HQGroup = components['schemas']['HQGroup'];
+type HQListItem = components['schemas']['HQListItem'];
 type HQTeamDocument = components['schemas']['HQTeamDocument'];
 type HQLaunch = components['schemas']['HQLaunch'];
 type HQAddProjectRequest = components['schemas']['HQAddProjectRequest'];
@@ -98,6 +99,15 @@ export function runningFor(definition: string, place: string, project: string): 
 }
 export const runningTeam = (name: string): RunningTeam | null => st.running.value.teams.find((t) => t.team === name) || null;
 
+function teamDocumentAt(item: HQListItem, place: string): HQTeamDocument | null {
+  const row = item.places[place];
+  if (!row) return null;
+  // HQListItem shares document types across teams, roles and profiles. This
+  // helper is only called for rows from groupOf('teams'), which the schema does
+  // not discriminate by kind.
+  return row.doc as HQTeamDocument;
+}
+
 // lastWorkspaceOf is where a team definition ran last, as the launch record wrote
 // it (the workspace whose last_team is this definition). Empty when the record
 // has none.
@@ -116,7 +126,7 @@ export function definitionOf(project: string, definition: string): HQTeamDocumen
     if (!item) continue;
     const places = item.places || {};
     const eff = item.effective || (places.project ? 'project' : 'global');
-    return ((places[eff] || {}).doc as HQTeamDocument | undefined) || null;
+    return teamDocumentAt(item, eff);
   }
   return null;
 }
@@ -128,8 +138,7 @@ export function globalDefinition(definition: string): HQTeamDocument | null {
   if (!g) return null;
   const item = (g.list ? g.list.items : []).find((x) => x.name === definition);
   if (!item) return null;
-  const places = item.places || {};
-  return ((places.global || places[item.effective] || {}).doc as HQTeamDocument | undefined) || null;
+  return teamDocumentAt(item, 'global') || teamDocumentAt(item, item.effective);
 }
 
 // definitionDoc is the definition's own reading for a start sheet: the project's
