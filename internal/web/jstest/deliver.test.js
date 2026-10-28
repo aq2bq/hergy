@@ -47,7 +47,7 @@ test('the band, the sheet and the send hold the members a change was not told to
     if (method === 'POST' && url === '/api/delivery') return { ok: true };
     return undefined;
   });
-  await import('../static/lib/deliver.js');
+  await import('../src/lib/deliver');
   await settle();
 
   // The band's number, and the button that opens the sheet.

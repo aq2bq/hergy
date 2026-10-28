@@ -28,8 +28,8 @@ test('typing a name another member holds leaves that member, its turns and its w
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  const S = await import('../static/teams/state.js');
-  await import('../static/teams/main.js');
+  const S = await import('../src/teams/state');
+  await import('../src/teams/main');
   await settle();
 
   const row = () => document.querySelector('.tdef[data-name="core"]');

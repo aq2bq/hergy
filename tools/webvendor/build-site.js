@@ -1,0 +1,136 @@
+// build-site.js makes internal/web/static's scripts from internal/web/src.
+//
+//	go run ./tools/check webbuild           check the committed files are what src makes
+//	go run ./tools/check webbuild -write    write them again
+//
+// The entries are not a list kept here: they are the files the templates load
+// (`<script type="module" src="/static/…">`), so a screen a template names is
+// built without this file being touched, and a template that names a file src
+// does not hold stops the build rather than leaving a page that loads nothing.
+//
+// The build splits: a module two entries read (the three packages above all,
+// lib/preact.js through them) is written once, as a chunk both entries import,
+// so the screens share one copy of Preact and of the signals' state (r-893d).
+// Nothing is minified: a person reviews what the WebUI runs, and the generated
+// files are committed as they are.
+//
+// The packages are the ones pinned in tools/webvendor/package.json and
+// bun.lock, resolved through internal/web/tsconfig.json's paths, so a version
+// change is seen by `webbuild` as a change of the committed files.
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+
+const here = import.meta.dir;
+const root = join(here, '..', '..');
+const web = join(root, 'internal', 'web');
+const src = join(web, 'src');
+const templates = join(web, 'templates');
+const staticDir = join(web, 'static');
+
+// resolve is the src file a template's /static/<key> stands for. A screen moves
+// to TypeScript or TSX by its own change, so the extension the template writes
+// (.js) is the first candidate and the TypeScript ones follow it.
+function resolve(key) {
+  const base = key.replace(/\.js$/, '');
+  for (const candidate of [key, `${base}.tsx`, `${base}.ts`, `${base}.jsx`]) {
+    const path = join(src, candidate);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
+// entries are the files the templates load, by the path static/ serves them at.
+const entries = new Map();
+for (const name of readdirSync(templates).sort()) {
+  if (!name.endsWith('.html')) continue;
+  const text = readFileSync(join(templates, name), 'utf8');
+  for (const m of text.matchAll(/<script[^>]*\bsrc="\/static\/([^"]+)"/g)) {
+    const key = m[1];
+    if (entries.has(key)) continue;
+    const path = resolve(key);
+    if (!path) {
+      console.error(`build: ${name} loads /static/${key}, and internal/web/src holds no ${key} (nor a .ts or .tsx of that name)`);
+      process.exit(1);
+    }
+    entries.set(key, path);
+  }
+}
+if (entries.size === 0) {
+  console.error('build: no template names a script; the entry points are read from the templates and none was found');
+  process.exit(1);
+}
+
+const where = process.env.HERGY_WEB_OUT || staticDir;
+// The entry points are named relative to src/, so bun writes each one back to
+// the path the template loads it at: activity/main.js, lib/hq/run.js and so on.
+const entrypoints = [...entries.values()].map((path) => relative(src, path).split(sep).join('/'));
+
+const built = await Bun.build({
+  entrypoints,
+  outdir: where,
+  format: 'esm',
+  target: 'browser',
+  splitting: true,
+  minify: false,
+  // The chunks stand in static/chunk/: a name starting with "_" or "." is left
+  // out of go:embed, so the server would answer 404 for them.
+  naming: { entry: '[dir]/[name].[ext]', chunk: 'chunk/[name]-[hash].[ext]' },
+});
+if (!built.success) {
+  for (const log of built.logs) console.error(log);
+  process.exit(1);
+}
+
+// The licence of every package whose code a file carries travels with it: the
+// bundle names the file each module came from, so the packages a file holds are
+// read from the file itself (the vendor file this build replaces was written
+// the same way).
+const licences = new Map();
+function licenceOf(name) {
+  if (licences.has(name)) return licences.get(name);
+  const dir = join(here, 'node_modules', name);
+  const meta = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  let text = '';
+  try {
+    text = readFileSync(join(dir, 'LICENSE'), 'utf8').trimEnd();
+  } catch {
+    console.error(`build: ${name} ${meta.version} ships no LICENSE; refusing to write a file with no licence`);
+    process.exit(1);
+  }
+  const entry = { name, version: meta.version, license: meta.license, text };
+  licences.set(name, entry);
+  return entry;
+}
+
+const note = (s) => s.split('\n').map((l) => (l === '' ? '//' : '// ' + l)).join('\n');
+
+// Written after the build, so what was built is what is read: the files are the
+// ones bun wrote, and a comment says where they came from and what they carry.
+let written = 0;
+for (const output of built.outputs) {
+  const code = (await output.text()).trimEnd();
+  const packages = [];
+  for (const line of code.split('\n')) {
+    const m = /^\/\/ .*node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(line);
+    if (!m) continue;
+    if (!packages.some((p) => p.name === m[1])) packages.push(licenceOf(m[1]));
+  }
+  const head = [
+    '// Generated by tools/webvendor/build-site.js from internal/web/src — do not edit by hand.',
+    '//',
+    '//   go run ./tools/check webbuild           check this file is what the sources make',
+    '//   go run ./tools/check webbuild -write    write it again',
+    '//',
+    '// The screens are written in internal/web/src and built from the entries the',
+    '// templates load (webui-preact-design 3 章). The versions are pinned in',
+    '// tools/webvendor/package.json and bun.lock.',
+    ...(packages.length ? ['//', ...packages.map((p) => `//   ${p.name} ${p.version} — ${p.license}`)] : []),
+  ].join('\n');
+  const tail = packages.length
+    ? ['', '// ---- licences ---------------------------------------------------------',
+      ...packages.flatMap((p) => ['//', `// ${p.name} ${p.version} — ${p.license}`, '//', note(p.text)])].join('\n')
+    : '';
+  await Bun.write(output.path, `${head}\n\n${code}\n${tail}${tail ? '\n' : ''}`);
+  written += 1;
+}
+console.error(`build: wrote ${written} files to ${where}`);

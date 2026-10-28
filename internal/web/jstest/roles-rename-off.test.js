@@ -38,7 +38,7 @@ test('a role renamed with the rename box off sends rename_users: false', async (
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   const panel = () => document.querySelector('#rows .role.open .panel[data-l=project]');

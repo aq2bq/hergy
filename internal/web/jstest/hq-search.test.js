@@ -26,8 +26,8 @@ test('the search draws its list from its own state, and the arrows walk it', asy
     if (url === '/api/hq/profiles') return { groups: [] };
     return undefined;
   });
-  await import('../static/lib/hq.js');
-  const S = await import('../static/lib/hq/sheets.js');
+  await import('../src/lib/hq');
+  const S = await import('../src/lib/hq/sheets');
   // The page calls this itself once the document is read; a test reads the
   // module after that moment, so it mounts the part the same way.
   S.mountSearch();

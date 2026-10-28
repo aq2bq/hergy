@@ -5,8 +5,8 @@ TESTING.md
 .local
 .bin/
 
-# tools/webvendor holds the packages static/vendor/preact.js is built from: the
-# lock is committed, node_modules is not (webui-preact-design 3 章).
+# tools/webvendor holds the packages the WebUI is built from: the lock is
+# committed, node_modules is not (webui-preact-design 3 章).
 tools/webvendor/node_modules/
 .hergy/
 

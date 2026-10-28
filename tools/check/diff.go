@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -63,8 +62,9 @@ func gatesFor(paths []string) []gate {
 			// Neither a test nor the gates' own code goes into what the walks run.
 			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
 		case strings.HasPrefix(p, "tools/webtools/"):
-			// The modules' gates' tools: eslint, happy-dom and openapi-typescript.
-			add("names", "unit", "apitypes")
+			// The modules' gates' tools: eslint, typescript, happy-dom and
+			// openapi-typescript.
+			add("names", "types", "unit", "apitypes")
 		case strings.HasPrefix(p, "internal/apicontract/") && !strings.HasSuffix(p, ".go"):
 			// The API's promise and the types made from it; the tests that call the
 			// API are held to it.
@@ -73,21 +73,33 @@ func gatesFor(paths []string) []gate {
 			// The modules' own tests.
 			add("names", "unit")
 		case strings.HasPrefix(p, "tools/webvendor/"):
-			// The packages the WebUI's one module is made from.
-			add("vendor", "deadcode")
+			// The packages the WebUI is built from, and the build itself.
+			add("webbuild", "deadcode")
 		case strings.HasSuffix(p, ".go"):
 			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode", "e2e")
 		case strings.HasPrefix(p, e2eDir+"/"):
 			add("reading", "e2e")
-		case filepath.ToSlash(p) == filepath.ToSlash(vendorFile):
-			// The one module the screens import the packages through.
-			add("vendor", "e2e")
+		case strings.HasPrefix(p, "internal/web/src/"):
+			// The WebUI's sources: the modules the screens are written in. A change
+			// here is built into static/ (webbuild), checked (names, types, unit)
+			// and walked (e2e).
+			add("names", "types", "unit", "webbuild", "e2e")
+		case strings.HasPrefix(p, "internal/web/templates/"):
+			// The templates name the build's entries; the pages are embedded too.
+			add("webbuild", "e2e")
+		case strings.HasPrefix(p, "internal/web/static/"):
+			// The styles, the fonts and the built scripts are embedded into the
+			// binary. A built script is the build's to write, so a change there is
+			// held to the build.
+			add("e2e")
+			if strings.HasSuffix(p, ".js") {
+				add("webbuild")
+			}
+		case strings.HasPrefix(p, "internal/web/tsconfig.json"):
+			add("types", "webbuild", "unit")
 		case strings.HasPrefix(p, "internal/"):
 			// The WebUI's pages, scripts and styles are embedded into the binary.
 			add("e2e")
-			if strings.HasPrefix(p, "internal/web/static/") && strings.HasSuffix(p, ".js") {
-				add("names", "unit")
-			}
 		case p == ".golangci.yml":
 			add("fmt", "lint")
 		case p == ".testcoverage.yml":

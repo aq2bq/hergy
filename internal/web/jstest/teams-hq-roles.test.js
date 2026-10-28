@@ -45,7 +45,7 @@ test('＋メンバー waits for the headquarters\' roles, and takes the first on
     if (url.startsWith('/api/team/check')) return { problems: [] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   const row = document.querySelector('.tdef');

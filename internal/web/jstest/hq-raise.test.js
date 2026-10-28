@@ -93,7 +93,7 @@ test('the 動き column names the member that is not up, and the start sheet say
     if (method === 'POST' && url === '/api/hq/refresh') return { launch: launch() };
     return band(method, url);
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   const cell = () => document.querySelector('.tdef[data-name="core|/work/alpha"] .hq-runc');

@@ -544,21 +544,17 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 
 	// The screens' own words: their modules, styles and templates write Japanese
 	// too, and a word that stays out of the locales must stay out of them
-	// (r-5d1a's follow-up). The vendored libraries are not the screens' words.
-	for _, dir := range []string{"internal/web/static", "internal/web/templates"} {
+	// (r-5d1a's follow-up). The screens are written in src/ and built into
+	// static/, so their words are read there, once (r-893d).
+	for _, dir := range screensSources {
 		err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if entry.IsDir() {
-				if entry.Name() == "vendor" {
-					return filepath.SkipDir
-				}
 				return nil
 			}
-			switch filepath.Ext(path) {
-			case ".js", ".html", ".css":
-			default:
+			if !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)
@@ -593,6 +589,34 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	t.Fatal(b.String())
 }
 
+// screensSources is where the screens' own words stand: their modules under
+// src/, the styles beside them in static/ (which the build does not write), and
+// the templates. The scripts under static/ are what webbuild makes of src/, so
+// their words are read at their source and not twice here.
+var screensSources = []string{
+	"internal/web/src",
+	"internal/web/static",
+	"internal/web/templates",
+}
+
+// screenSource reports whether one file holds the screens' own words: a module
+// under src/, or a style or a template beside it. The scripts static/ holds are
+// the build's, and their words are read at their source.
+func screenSource(path string) bool {
+	switch filepath.Ext(path) {
+	case ".css", ".html":
+		return true
+	}
+	if !strings.HasPrefix(filepath.ToSlash(path), "internal/web/src/") {
+		return false
+	}
+	switch filepath.Ext(path) {
+	case ".js", ".jsx", ".ts", ".tsx":
+		return true
+	}
+	return false
+}
+
 // TestScreensNameTheirNameFields: a screen writes the name of the thing it names
 // with the glossary's word, not 「名前」 alone (ac-ae5f). A field or a column is
 // the element's own text (「ロール名」「チーム定義名」「メンバー名」「プロファイ
@@ -601,19 +625,15 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 func TestScreensNameTheirNameFields(t *testing.T) {
 	bare := regexp.MustCompile(`>名前<|placeholder="名前"|aria-label="名前"`)
 	var hits []string
-	for _, dir := range []string{"internal/web/static", "internal/web/templates"} {
+	for _, dir := range screensSources {
 		err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if entry.IsDir() {
-				// The vendored libraries are not the screens' own words.
-				if entry.Name() == "vendor" {
-					return filepath.SkipDir
-				}
 				return nil
 			}
-			if !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".html") {
+			if !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)

@@ -18,7 +18,7 @@ test('every line of a member\'s prompt is drawn once, and a folded document by i
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead', places: { project: { doc: { title: '進行' } } } }] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   const node = document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]');

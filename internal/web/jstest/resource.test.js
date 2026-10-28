@@ -2,7 +2,7 @@
 // answer is kept (webui-preact-design 5 章 3), so no screen numbers its
 // requests to tell an old answer from the one it is waiting for.
 import { expect, test } from 'bun:test';
-import { resource } from '../static/lib/resource.js';
+import { resource } from '../src/lib/resource';
 
 // later is a promise the test settles by hand, so an answer comes exactly when
 // the test says and no test waits on a clock.

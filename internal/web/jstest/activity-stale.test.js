@@ -37,7 +37,7 @@ test('a stale member carries the mark, and a current one does not', async () => 
     }
     return undefined;
   });
-  await import('../static/activity/main.js');
+  await import('../src/activity/main');
   await settle();
 
   const marked = [...document.querySelectorAll('#list .hq-detail .nodes li')]
@@ -48,7 +48,7 @@ test('a stale member carries the mark, and a current one does not', async () => 
   // The mark is the press 変更を伝える answers: the screen's own press opens the
   // part's sheet (activity/board.js, lib/deliver/state.js).
   expect(document.querySelectorAll('#list .hq-detail .dlv-badge[data-deliver-open]').length).toBe(2);
-  await import('../static/lib/deliver.js');
+  await import('../src/lib/deliver');
   await settle();
   document.querySelector('#list .hq-detail .dlv-badge').dispatchEvent(new Event('click', { bubbles: true }));
   await settle();

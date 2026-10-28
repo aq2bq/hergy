@@ -27,8 +27,8 @@ test('a member is copied with its role, profile, turns and worker purposes, and 
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  const S = await import('../static/teams/state.js');
-  await import('../static/teams/main.js');
+  const S = await import('../src/teams/state');
+  await import('../src/teams/main');
   await settle();
 
   const row = () => document.querySelector('.tdef[data-name="core"]');

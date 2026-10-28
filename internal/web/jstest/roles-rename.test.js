@@ -39,7 +39,7 @@ test('a role renamed and saved sends rename_users: true, the field the server re
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   const panel = () => document.querySelector('#rows .role.open .panel[data-l=project]');

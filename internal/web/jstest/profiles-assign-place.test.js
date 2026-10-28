@@ -40,7 +40,7 @@ test('the assign card stands in the global place, says so, and saves there', asy
     if (url.startsWith('/api/team/')) return { hash: 'hg2' };
     return undefined;
   });
-  await import('../static/profiles/main.js');
+  await import('../src/profiles/main');
   await settle();
 
   const card = document.querySelector('.team[data-g="shared"]');

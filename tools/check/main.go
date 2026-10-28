@@ -43,8 +43,9 @@ var gates = []gate{
 	{"fmt", Hard, "gofmt and goimports leave no diff (golangci-lint fmt --diff)", (*runner).fmtGate},
 	{"tidy", Hard, "go mod tidy -diff is empty", (*runner).tidyGate},
 	{"fix", Hard, "go fix -diff is empty", (*runner).fixGate},
-	{"vendor", Hard, "internal/web/static/vendor/preact.js is what tools/webvendor makes (exact versions; go run ./tools/check vendor -write)", (*runner).vendorGate},
-	{"names", Hard, "every name the WebUI's modules use is defined, imported or the browser's own, and every name they define or import is read (eslint no-undef and no-unused-vars from tools/webtools over internal/web/static, vendor/ left out)", (*runner).namesGate},
+	{"webbuild", Hard, "internal/web/static's scripts are what internal/web/src makes, from the entries the templates load and the packages pinned in tools/webvendor (go run ./tools/check webbuild -write); CSS, fonts and the other files there are not the build's", (*runner).webbuildGate},
+	{"names", Hard, "every name the WebUI's modules use is defined, imported or the browser's own, and every name they define or import is read (eslint no-undef and no-unused-vars from tools/webtools over internal/web/src)", (*runner).namesGate},
+	{"types", Hard, "tsc --noEmit (strict, noUnusedLocals, noUnusedParameters) over internal/web/src with internal/web/tsconfig.json (typescript from tools/webtools)", (*runner).typesGate},
 	{"apitypes", Hard, "internal/apicontract/api-types.d.ts is what openapi-typescript (tools/webtools) makes from internal/apicontract/openapi.yaml, the API's written promise (go run ./tools/check apitypes -write)", (*runner).apitypesGate},
 	{"unit", Hard, "the WebUI's modules' own tests (internal/web/jstest/*.test.js) under bun test, with happy-dom's document and no browser (tools/webtools)", (*runner).unitGate},
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
@@ -112,7 +113,7 @@ func gateNamed(name string) (gate, bool) {
 	return gate{}, false
 }
 
-// -write is how the gates that write (vendor, apitypes) are told to write: the rest of
+// -write is how the gates that write (webbuild, apitypes) are told to write: the rest of
 // the gates only read, so a run is the same command in CI and on a laptop.
 func splitWrite(args []string) ([]string, bool) {
 	kept := make([]string, 0, len(args))
@@ -163,7 +164,7 @@ func usage() string {
 	b.WriteString("go run ./tools/check [gate ...]   run every gate, or the named ones, in this order\n")
 	b.WriteString("go run ./tools/check diff         the gates a change can fail, picked from the files that differ from the upstream; test keeps go test's cache (tools/check/diff.go)\n")
 	b.WriteString("go run ./tools/check nightly      the daily run: gremlins mutation testing and go test -fuzz (tools/check/nightly.yml)\n")
-	b.WriteString("go run ./tools/check vendor -write  write internal/web/static/vendor/preact.js again from tools/webvendor\n")
+	b.WriteString("go run ./tools/check webbuild -write  write internal/web/static's scripts again from internal/web/src\n")
 	b.WriteString("go run ./tools/check apitypes -write  write internal/apicontract/api-types.d.ts again from openapi.yaml\n")
 	b.WriteString("\nGates:\n")
 	for _, g := range gates {

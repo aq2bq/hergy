@@ -65,7 +65,7 @@ test('a definition whose names do not resolve opens with its path, no revert, an
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead' }, { name: 'builder' }, { name: 'writer' }] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   // P1: the press opens the row, and the panel stands under its own summary —

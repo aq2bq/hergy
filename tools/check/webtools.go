@@ -17,6 +17,10 @@ import (
 //     throws only when the line runs, so a road no walk opens (the
 //     headquarters' roles list, 3ec7db3) is caught here rather than in a
 //     person's browser; and the deadcode gate reads Go only.
+//   - types: the modules that are TypeScript are held to the compiler's reading
+//     (tsc --noEmit, strict, noUnusedLocals, noUnusedParameters), with the
+//     project's tsconfig at internal/web/tsconfig.json. src/ reads the API's
+//     types and the packages pinned in tools/webvendor through it.
 //   - apitypes: the TypeScript types the screens read the API through are what
 //     openapi-typescript makes from internal/apicontract/openapi.yaml, the API's
 //     one written promise (n-e3de). A promise changed without the types made
@@ -26,12 +30,9 @@ import (
 //     decides from its state and the server's answers is held here; the
 //     browser walks keep only what a real browser alone can show.
 
-// webStatic is the WebUI's modules, from the module root; static/vendor/ is
-// left out by tools/webtools/eslint.config.js.
-var webStatic = filepath.Join("internal", "web", "static")
-
-// webTests is where the modules' tests stand: beside static/, not in it, so
-// the embedded files the server answers do not include them.
+// webTests is where the modules' tests stand: beside src/, not in it, so the
+// embedded files the server answers do not include them. They read src/ itself
+// (bun runs TypeScript as it stands), so no build comes before them.
 var webTests = filepath.Join("internal", "web", "jstest")
 
 // webtools installs tools/webtools under .bin/webtools and returns that
@@ -65,6 +66,15 @@ func (r *runner) webtools() (bun, dir string, env []string, err error) {
 	return bun, dir, env, nil
 }
 
+func (r *runner) typesGate() error {
+	_, dir, env, err := r.webtools()
+	if err != nil {
+		return err
+	}
+	return r.execIn(r.root, env, filepath.Join(dir, "node_modules", ".bin", "tsc"),
+		"-p", filepath.Join("internal", "web"), "--noEmit")
+}
+
 func (r *runner) namesGate() error {
 	_, dir, env, err := r.webtools()
 	if err != nil {
@@ -72,10 +82,11 @@ func (r *runner) namesGate() error {
 	}
 	// eslint reads the files under the directory it runs in, so it runs in
 	// internal/web, over the modules and their tests, with the config named
-	// from where it was installed.
+	// from where it was installed. The modules moved to TypeScript are tsc's
+	// (the types gate), so this reads the .js that are left.
 	return r.execIn(filepath.Join(r.root, "internal", "web"), env, filepath.Join(dir, "node_modules", ".bin", "eslint"),
 		"--no-config-lookup", "--config", filepath.Join(dir, "eslint.config.js"), "--max-warnings", "0",
-		filepath.Base(webStatic), filepath.Base(webTests))
+		filepath.Base(webSrc), filepath.Base(webTests))
 }
 
 func (r *runner) unitGate() error {

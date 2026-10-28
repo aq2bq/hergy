@@ -61,8 +61,8 @@ test('a reading that comes later draws the 動き column again, and the band hol
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/teams/main.js');
-  const A = await import('../static/lib/hq.js');
+  await import('../src/teams/main');
+  const A = await import('../src/lib/hq');
   await settle();
 
   // Nothing is running yet: the row offers 起動….

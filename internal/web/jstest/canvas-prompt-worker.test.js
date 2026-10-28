@@ -21,7 +21,7 @@ test('a worker\'s prompt shows the slots its name and task stand in', async () =
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead' }] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   click(document.querySelector('.tdef[data-name="core"] .cv-n.worker'));

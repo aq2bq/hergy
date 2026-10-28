@@ -37,7 +37,7 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   const mission = document.querySelector('.tdef.open .in-mission');

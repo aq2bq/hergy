@@ -43,7 +43,7 @@ test('the roles list stands under the three projects and the global layer', asyn
     if (url.startsWith('/api/hq/')) return undefined;
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   expect(document.querySelectorAll('#rows .hq-gh:not(.global)').length).toBe(3);

@@ -31,20 +31,20 @@ type exception struct {
 }
 
 // markupExceptions are the files that still write markup, and the reason each
-// one does. Everything else under static/ (vendor/ aside) is held to the ban,
-// so a file made from now on is covered without being added here — the list
-// only ever shrinks.
+// one does. Everything else under src/ is held to the ban, so a file made from
+// now on is covered without being added here — the list only ever shrinks.
 //
 // It stands empty: every screen and every part is drawn by Preact's render, and
 // the ban holds the whole WebUI (webui-preact-design 5 章 1). A file that wants
 // a line here is a screen that has not been moved.
 var markupExceptions = map[string]exception{}
 
-// TestTheDomIsWrittenOnlyByRender walks the WebUI's scripts and fails on a
-// markup write outside the exceptions. vendor/ is left alone: it is what the
-// three packages make (tools/webvendor), not a screen.
+// TestTheDomIsWrittenOnlyByRender walks the WebUI's sources and fails on a
+// markup write outside the exceptions: the screens are written in src/ and
+// built into static/, so the scripts a person's browser runs are held here at
+// their source (r-893d).
 func TestTheDomIsWrittenOnlyByRender(t *testing.T) {
-	root := "static"
+	root := "src"
 	seen := make(map[string]bool)
 	err := fs.WalkDir(os.DirFS(root), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -52,12 +52,9 @@ func TestTheDomIsWrittenOnlyByRender(t *testing.T) {
 		}
 		path = filepath.ToSlash(path)
 		if d.IsDir() {
-			if path == "vendor" {
-				return fs.SkipDir
-			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".js") {
+		if !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {
 			return nil
 		}
 		raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))

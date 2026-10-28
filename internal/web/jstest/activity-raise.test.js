@@ -75,7 +75,7 @@ test('the opened team offers 起動 on the member that is not up, and the start 
     if (url.startsWith('/api/hq/launches/')) return { launch: Object.assign({}, launch, { phase: 'done' }) };
     return undefined;
   });
-  await import('../static/activity/main.js');
+  await import('../src/activity/main');
   await settle();
 
   // The member with no agent is on its own row, by name, with 起動; the one that

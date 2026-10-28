@@ -33,7 +33,7 @@ test('the profiles list stands under the three projects and the global layer', a
     assign: { empty: true, teams: [] },
   });
   serve(() => undefined);
-  await import('../static/profiles/main.js');
+  await import('../src/profiles/main');
   await settle();
 
   expect(document.querySelectorAll('#rows .hq-gh:not(.global)').length).toBe(3);

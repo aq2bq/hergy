@@ -37,7 +37,7 @@ test('the row of a team whose definition cannot be built says why', async () => 
     }
     return undefined;
   });
-  await import('../static/activity/main.js');
+  await import('../src/activity/main');
   await settle();
 
   const tile = document.querySelector('.hq-tile[data-team="core"]');

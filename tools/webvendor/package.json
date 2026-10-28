@@ -2,7 +2,7 @@
   "name": "hergy-webvendor",
   "private": true,
   "type": "module",
-  "comment": "The three packages the WebUI's modules are built on, pinned to exact versions (no ^ or ~): preact, htm, @preact/signals. static/vendor/preact.js is made from these (go run ./tools/check vendor). Preact 11 is beta, so the 10 line is the one pinned here.",
+  "comment": "The three packages the WebUI is built on, pinned to exact versions (no ^ or ~): preact, htm, @preact/signals. build-site.js builds internal/web/static's scripts from internal/web/src through these (go run ./tools/check webbuild -write), and internal/web/tsconfig.json maps the packages' names to this node_modules so bun and tsc find them. Preact 11 is beta, so the 10 line is the one pinned here.",
   "dependencies": {
     "@preact/signals": "2.11.4",
     "htm": "3.1.1",

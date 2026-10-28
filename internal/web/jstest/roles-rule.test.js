@@ -47,7 +47,7 @@ test('a rule opens with the caret in it, the switch is the panel\'s, and a previ
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   const panel = () => document.querySelector('#rows .role.open .panel[data-l=project]');

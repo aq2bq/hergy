@@ -38,7 +38,7 @@ test('the first tier and the figure say whose answer a person owes', async () =>
     if (url === '/api/activity/migrate') return sheet([{ name: 'tester', herdr: 'migrate-tester', state: 'blocked', at: '' }]);
     return undefined;
   });
-  await import('../static/activity/main.js');
+  await import('../src/activity/main');
   await settle();
 
   const waiting = (name) => {

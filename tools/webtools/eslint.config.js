@@ -16,8 +16,8 @@ import globals from 'globals';
 
 export default [
   {
+    // The modules that are TypeScript are the types gate's (tsc), not this one's.
     files: ['**/*.js'],
-    ignores: ['static/vendor/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

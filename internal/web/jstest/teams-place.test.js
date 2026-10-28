@@ -6,7 +6,7 @@
 // screen's own drawing then reads that map (teams/place.js, teams/state.js's
 // layout) — nothing is worked out while the figure is drawn.
 import { expect, test } from 'bun:test';
-import { boxOf, place } from '../static/teams/place.js';
+import { boxOf, place } from '../src/teams/place';
 import { layout, serve, settle } from './page.js';
 import { click, island } from './teams-page.js';
 
@@ -75,8 +75,8 @@ test('a point added on the canvas is drawn where the record holds it', async () 
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  const S = await import('../static/teams/state.js');
-  await import('../static/teams/main.js');
+  const S = await import('../src/teams/state');
+  await import('../src/teams/main');
   await settle();
 
   click(document.querySelector('.tdef[data-name="core"] [data-cv-act=m-add]'));

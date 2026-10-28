@@ -55,7 +55,7 @@ test('a copied role named 進行役 shows the name problem and holds the save', 
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   const row = document.querySelector('#rows .role.open');

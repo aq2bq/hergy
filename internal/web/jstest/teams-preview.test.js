@@ -88,7 +88,7 @@ test('the preview draws the check\'s lines and is sent to the line a turn adds',
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead' }] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   const panel = '.tdef[data-name="core"] .panel.team-p';

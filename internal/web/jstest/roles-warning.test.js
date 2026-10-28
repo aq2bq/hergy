@@ -61,7 +61,7 @@ test('a document-wide warning marks the first line alone, and the typed text is 
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../static/roles/main.js');
+  await import('../src/roles/main');
   await settle();
 
   // R4: the warning about the document as a whole stands on the first line

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "preact": ["../../tools/webvendor/node_modules/preact"],
+      "preact/*": ["../../tools/webvendor/node_modules/preact/*"],
+      "htm": ["../../tools/webvendor/node_modules/htm"],
+      "@preact/signals": ["../../tools/webvendor/node_modules/@preact/signals"],
+      "@preact/signals/*": ["../../tools/webvendor/node_modules/@preact/signals/*"]
+    }
+  },
+  "include": ["src"]
+}

@@ -33,7 +33,7 @@ test('a definition with a problem says why, and gives the lines once it is fixed
     if (url.startsWith('/api/role')) return { items: [{ name: 'builder' }] };
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   // (a) the new member hands the turn to no one: the lead's column says why and

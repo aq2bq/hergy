@@ -43,7 +43,7 @@ test('the teams list stands under the three projects and the global layer', asyn
     if (url.startsWith('/api/hq/')) return undefined;
     return undefined;
   });
-  await import('../static/teams/main.js');
+  await import('../src/teams/main');
   await settle();
 
   expect(document.querySelectorAll('.hq-gh:not(.global)').length).toBe(3);
