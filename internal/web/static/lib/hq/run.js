@@ -5,9 +5,11 @@
 // でも起こせるので、動いていても 起動… を出す。
 //
 // チーム定義の画面は module になったので、この欄は部品（RunCell）で描く。押し込み
-// は data-hq の委譲（lib/hq.js）が受ける。
+// はこの部品が受ける（webui-components 2 章）: 起動… は起動の欄、止める は止める欄を
+// 開く。data-hq は e2e と CSS が読むので残す。
 import { html } from '../../vendor/preact.js';
 import { rev, runningFor, lastWorkspaceOf, projectName } from './state.js';
+import { startSheet, stopSheet } from './sheets.js';
 
 // RunCell is one row's 動き: the running teams, or 起動… (spec 5 章). The
 // headquarters holds the reading; the cell reads it and draws it.
@@ -17,6 +19,6 @@ export function RunCell({ definition, place, project }) {
   return html`${live.map((t) => {
     const label = t.starting ? '起動の途中 · 許可待ち' : (t.waiting || []).length ? '動いている · 許可待ち' : '動いている';
     const where = (place === 'global' ? `${t.project_name || projectName(t.project)} · ` : '') + (t.workspace.label || t.workspace.id);
-    return html`<span class=${'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>${label}</span><span class="hq-wsn">${where}</span><button type="button" class="hq-btn sm danger" data-hq="stop" data-team=${t.team}>止める</button>`;
-  })}${!live.length || place === 'global' ? html`<button type="button" class="hq-btn sm" data-hq="start" data-def=${definition} data-place=${place || 'project'} data-project=${place === 'global' ? '' : (project || '')}>起動…</button>${!live.length && lastWorkspaceOf(definition) ? html`<span class="hq-last">前は ${lastWorkspaceOf(definition)}</span>` : ''}` : ''}`;
+    return html`<span class=${'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>${label}</span><span class="hq-wsn">${where}</span><button type="button" class="hq-btn sm danger" data-hq="stop" data-team=${t.team} onClick=${() => stopSheet(t.team)}>止める</button>`;
+  })}${!live.length || place === 'global' ? html`<button type="button" class="hq-btn sm" data-hq="start" data-def=${definition} data-place=${place || 'project'} data-project=${place === 'global' ? '' : (project || '')} onClick=${() => startSheet(definition, place || 'project', place === 'global' ? '' : (project || ''))}>起動…</button>${!live.length && lastWorkspaceOf(definition) ? html`<span class="hq-last">前は ${lastWorkspaceOf(definition)}</span>` : ''}` : ''}`;
 }

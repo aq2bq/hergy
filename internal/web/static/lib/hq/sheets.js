@@ -16,29 +16,31 @@ import {
 } from './state.js';
 
 // ---- 欄の器 -----------------------------------------------------------
-let host = null;
-export const sheetOpen = () => !!host;
+// sheetHost is the one element a sheet stands in. It is the part's own: the
+// screens' documents have no host of their own any more (webui-components 1 章).
+let sheetHost = null;
+export const sheetOpen = () => !!sheetHost;
 
 export function closeSheet() {
-  if (!host) return;
-  draw(null, host);
-  host.remove();
-  host = null;
+  if (!sheetHost) return;
+  draw(null, sheetHost);
+  sheetHost.remove();
+  sheetHost = null;
 }
 
 // openSheet stands one sheet behind the page: the element the screen scrolls
 // under, and the tree inside it.
 function openSheet(vnode, side) {
   closeSheet();
-  host = document.createElement('div');
-  host.className = 'hq-sheet ' + (side || 'right');
-  host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-modal', 'false');
-  host.tabIndex = -1;
-  document.body.appendChild(host);
-  host.focus();
-  draw(vnode, host);
-  return host;
+  sheetHost = document.createElement('div');
+  sheetHost.className = 'hq-sheet ' + (side || 'right');
+  sheetHost.setAttribute('role', 'dialog');
+  sheetHost.setAttribute('aria-modal', 'false');
+  sheetHost.tabIndex = -1;
+  document.body.appendChild(sheetHost);
+  sheetHost.focus();
+  draw(vnode, sheetHost);
+  return sheetHost;
 }
 
 // Seeded is an input whose value is put in when the seed changes, and never while

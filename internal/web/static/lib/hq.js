@@ -26,17 +26,11 @@ import {
 import { TeamFigure } from './hq/figure.js';
 
 // ---- 押す（画面から出るもの） -------------------------------------------
-// The list's 起動… and 止める, and the band's プロジェクト N, are the screens'
-// own markup; the sheets' own presses are the sheets' (each one draws its own
-// buttons). The parts that stand inside a sheet are not answered here.
-document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-hq]');
-  if (!t) return;
-  const act = t.dataset.hq;
-  if (act === 'projects') { e.preventDefault(); projectsSheet(); return; }
-  if (act === 'start') { e.preventDefault(); startSheet(t.dataset.def, t.dataset.place, t.dataset.project); return; }
-  if (act === 'stop') { e.preventDefault(); stopSheet(t.dataset.team); return; }
-  if (act === 'close') { e.preventDefault(); closeSheet(); }
+// The lists' 起動… and 止める are the parts' own presses now (lib/hq/run.js,
+// activity/board.js). The band's プロジェクト N is the server's markup, written
+// once, so this part answers that one button where it stands.
+document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
+  b.addEventListener('click', (e) => { e.preventDefault(); projectsSheet(); });
 });
 
 // The sheet closes when a person presses outside it; the search's box closes the
