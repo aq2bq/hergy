@@ -1,4 +1,4 @@
-// lib/measure.js — the one size bar the role list and the team list show
+// lib/measure.ts — the one size bar the role list and the team list show
 // (d-00a9, d-b87a), as a Preact component since the rewrite
 // (webui-preact-design 段階 1-4). A document's own size in characters against
 // the provisional budget: the bar the roles list drew, the number as
@@ -9,12 +9,15 @@
 
 //
 // It is the one bar the role list and the team list draw.
-import { html } from './preact.js';
+export type MeasureProps = {
+  chars: number;
+  limit: number;
+};
 
-export const num = (n) => Number(n || 0).toLocaleString('ja-JP');
+export const num = (n: number): string => Number(n || 0).toLocaleString('ja-JP');
 
-export function Measure({ chars, limit }) {
+export function Measure({ chars, limit }: MeasureProps) {
   const over = chars > limit;
   const w = Math.min(100, (chars / (limit * 1.25)) * 100);
-  return html`<span class=${'amt' + (over ? ' over' : '')}><span class=${'meter' + (over ? ' over' : '')}><i data-w=${w} style=${{ width: w + '%' }}></i></span><span class="v">${num(chars)}<span class="lim"> / ${num(limit)} 字</span></span></span>`;
+  return <span class={'amt' + (over ? ' over' : '')}><span class={'meter' + (over ? ' over' : '')}><i data-w={w} style={{ width: w + '%' }}></i></span><span class="v">{num(chars)}<span class="lim"> / {num(limit)} 字</span></span></span>;
 }
