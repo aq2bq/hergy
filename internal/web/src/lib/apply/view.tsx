@@ -5,7 +5,11 @@
 // 出た所に立つ 1 枚なので、画面の委譲と二重にならない）。
 import { useRef, useEffect } from '../preact.js';
 import type { JSX } from 'preact';
-import type { ApplyChange, ApplyMember, ApplyTeam } from './types';
+import type { components } from '../../../../apicontract/api-types';
+
+type ApplyChange = components['schemas']['ApplyChange'];
+type ApplyMember = components['schemas']['ApplyMember'];
+type ApplyTeam = components['schemas']['ApplyTeam'];
 import {
   count, opened, answer, note, chosen, toast, toastOn, scope,
   teams, canApply, applyLabel, toggle, close, send, openSheet,

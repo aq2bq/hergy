@@ -1,7 +1,8 @@
 // lib/apply/state.ts — 反映の数と状態（n-4b22、設計は apply-design.md）。
 //
 // 帯の数は GET /api/apply/count、欄の中身は GET /api/apply、送るのは
-// POST /api/apply（202 で起動を返す）。どれも lib/api.js を通す。サーバーの答えは
+// POST /api/apply（202 で起動を返す）。どれも lib/api.js を通し、答えの形は
+// api-types の ApplyList（operations の listApply・countApply）から取る。サーバーの答えは
 // signal に置き、部品（lib/apply/view.js）がそれを描く（webui-preact-design 5 章 1・2）。
 //
 // ずれと反映の仕方はサーバーが決める（送り直す・起動する・起動し直す・反映できない）。
@@ -10,7 +11,10 @@
 import { signal, computed } from '../preact.js';
 import { applyList, applyCount, applyMembers, problemText, Refusal } from '../api.js';
 import { runStart } from '../hq/sheets.js';
-import type { ApplyList, ApplyTeam } from './types';
+import type { components } from '../../../../apicontract/api-types';
+
+type ApplyList = components['schemas']['ApplyList'];
+type ApplyTeam = components['schemas']['ApplyTeam'];
 
 // 帯の数の読み直し（画面が見えている間だけ）。
 export const POLL = 15000;

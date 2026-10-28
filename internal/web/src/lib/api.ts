@@ -17,7 +17,6 @@
 // (n-e3de, r-5a03), so a screen reads an answer's fields through the type the
 // server is held to. Nothing here writes a field's name on its own.
 import type { components, operations } from '../../../apicontract/api-types';
-import type { ApplyList, ApplyCount, ApplyEnvelope } from './apply/types';
 
 // Schemas is the shapes the API answers and takes, by their names in the promise.
 export type Schemas = components['schemas'];
@@ -147,9 +146,13 @@ export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: s
 // applyList is GET /api/apply: the members whose definition change is not in the
 // running team yet, by team, each with the way hergy would apply it (送り直す・
 // 起動する・起動し直す・反映できない).
-export const applyList = (opts?: CallOptions): Promise<ApplyList> => read('/api/apply', opts);
+export const applyList = (opts?: CallOptions): Promise<ApiAnswer<'listApply'>> => read('/api/apply', opts);
 // applyCount is GET /api/apply/count: the band's number alone.
-export const applyCount = (opts?: CallOptions): Promise<ApplyCount> => read('/api/apply/count', opts);
+export const applyCount = (opts?: CallOptions): Promise<ApiAnswer<'countApply'>> => read('/api/apply/count', opts);
+// ApplyEnvelope is what POST /api/apply answers once the promise carries it:
+// the launch to watch. Until then the design's shape is written here (the
+// operation is pico's next commit, apply-design.md).
+type ApplyEnvelope = { launch?: components['schemas']['HQLaunch'] };
 // applyMembers is POST /api/apply: apply the named herdr members' definition
 // changes. It answers 202 with the launch to watch; a refusal comes back with
 // the one sentence in text.
