@@ -141,11 +141,16 @@ func (c *Checker) Wrap(next http.Handler) http.Handler {
 			Request: check, PathParams: params, Route: route,
 			Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, MultiError: true},
 		}
-		if err := openapi3filter.ValidateRequest(r.Context(), in); err != nil {
-			c.fail("%s (%s %s) request: %v", id, r.Method, route.Path, err)
-		}
+		requestErr := openapi3filter.ValidateRequest(r.Context(), in)
 		rec := httptest.NewRecorder()
 		next.ServeHTTP(rec, r)
+		// A request is held to the promise only when the server took it. A test
+		// that checks a refusal sends a request that is wrong on purpose (no
+		// token, a missing field), and the server's refusal is what it checks:
+		// that answer's own shape is still held below.
+		if requestErr != nil && rec.Code < 400 {
+			c.fail("%s (%s %s) request: %v", id, r.Method, route.Path, requestErr)
+		}
 		for k, vs := range rec.Header() {
 			for _, v := range vs {
 				w.Header().Add(k, v)
