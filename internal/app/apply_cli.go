@@ -48,7 +48,7 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	if err := applyNow(ctx, env, selected, stdout, stderr); err != nil {
+	if err := applyNow(ctx, env, selected, opts.Timeout, stdout, stderr); err != nil {
 		return err
 	}
 	printRemaining(stdout, remaining)
@@ -117,23 +117,12 @@ func chooseApply(plan deliveryPlan, opts *options.Options) ([]plannedMember, []c
 			remaining = append(remaining, chosen{member: member, whyLeft: why})
 		}
 	}
-	if opts.Team != "" && len(selected) == 0 && len(remaining) == 0 {
-		// A team named with nothing to apply: the person asked about a team
-		// that has no drift, and saying so is clearer than silence.
-		foundTeam := false
-		for _, row := range plan.apply.Teams {
-			foundTeam = foundTeam || row.Team == opts.Team
-		}
-		if !foundTeam {
-			return nil, nil, i18n.Errorf("apply.team_nothing", opts.Team)
-		}
-	}
 	return selected, remaining, nil
 }
 
 // applyNow applies the selected members, one team at a time, with the launcher
 // the other commands use, and records what was handed to whom.
-func applyNow(ctx context.Context, env team.Env, selected []plannedMember, stdout, stderr io.Writer) error {
+func applyNow(ctx context.Context, env team.Env, selected []plannedMember, timeout int, stdout, stderr io.Writer) error {
 	for _, group := range groupByTeam(selected) {
 		projectEnv := env
 		if scoped, err := env.AtProject(group[0].team.Project); err == nil {
@@ -145,7 +134,7 @@ func applyNow(ctx context.Context, env team.Env, selected []plannedMember, stdou
 		if err != nil {
 			return err
 		}
-		l := newLauncher(r, 30000, stdout).WithContext(ctx)
+		l := newLauncher(r, timeout, stdout).WithContext(ctx)
 		var starts, resends []definition.Start
 		for _, member := range group {
 			if member.how == web.ApplyResend {

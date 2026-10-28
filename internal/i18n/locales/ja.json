@@ -250,7 +250,6 @@
   "web.apply.command": "hergy apply %s",
   "apply.plan": "反映する計画:",
   "apply.nothing": "反映する変更はありません",
-  "apply.team_nothing": "%s に反映する変更はありません",
   "apply.applied": "%s を%s",
   "apply.left": "%s は反映できません（%s）",
   "apply.left_count": "反映できずに残ったメンバーが %d 人います",

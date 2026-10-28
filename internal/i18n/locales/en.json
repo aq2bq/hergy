@@ -250,7 +250,6 @@
   "web.apply.command": "hergy apply %s",
   "apply.plan": "Plan:",
   "apply.nothing": "there is no change to apply",
-  "apply.team_nothing": "there is no change to apply to %s",
   "apply.applied": "applied %s: %s",
   "apply.left": "%s was left: %s",
   "apply.left_count": "%d member(s) could not be applied",
