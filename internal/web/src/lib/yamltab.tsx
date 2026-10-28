@@ -14,22 +14,84 @@
 // press is handled once: the screen draws the section's element, the part draws
 // what stands inside it, and the screen passes the file and the ways to tell it
 // things as props (依頼書 4).
-import { html, useEffect, useRef, useState } from './preact.js';
+import { useEffect, useRef, useState } from './preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
+import type { components, operations } from '../../../apicontract/api-types';
+
+type Place = operations['getTeam']['parameters']['query']['place'];
+type YamlKind = 'role' | 'team' | 'profile';
+type Problem = components['schemas']['Problem'];
+type CheckRequest = components['schemas']['RoleCheckRequest']
+  | components['schemas']['TeamCheckRequest']
+  | components['schemas']['ProfileCheckRequest'];
+type SaveRequest = components['schemas']['RoleSaveRequest']
+  | components['schemas']['TeamSaveRequest']
+  | components['schemas']['ProfileSaveRequest'];
+type CheckJson = components['schemas']['RoleCheck']
+  | components['schemas']['TeamCheckResponse']
+  | components['schemas']['ProfileCheck'];
+type SavedJson = components['schemas']['RoleSaved']
+  | components['schemas']['TeamSaved']
+  | components['schemas']['ProfileSaved'];
+type ApiAnswer<T> = { ok: boolean; status: number; json: T | null; text: string };
+type YamlState = { base: string; text: string; hash: string };
+type YamlWorkingState = { text: string; problems: Problem[]; baseProblems: Problem[] };
+
+declare global {
+  interface Window {
+    hergyPage?: {
+      screen?: string;
+      dirty?: () => boolean;
+      take?: () => unknown;
+      settled?: boolean;
+      tellDirty?: () => void;
+    };
+  }
+}
+
+export type YamlTabProps = {
+  label: string;
+  path: string;
+  text: string;
+  hash: string;
+  kind: YamlKind;
+  place: Place | string;
+  name: string;
+  problems?: Problem[];
+  badge?: { cls: string; text: string } | null;
+  file?: string;
+  extra?: Pick<components['schemas']['TeamCheckRequest'], 'part'>;
+  carried?: string | null;
+  onProblems?: (problems: Problem[]) => void;
+  onRevert?: () => void;
+  onState?: (state: YamlState) => void;
+  onSaved?: (answer: ApiAnswer<SavedJson>) => void;
+};
 
 
 // checkText asks the server what is wrong with one file's text. The kind says
 // which files these are, and extra carries the kind's own word for which one
 // (a team definition's team.yaml and agreement.yaml share one kind); the same
 // words answer a panel's draft.
-export async function checkText(kind, place, name, text, extra) {
+export async function checkText(
+  kind: YamlKind,
+  place: Place | string,
+  name: string,
+  text: string,
+  extra?: YamlTabProps['extra'],
+): Promise<Problem[]> {
   try {
-    const answer = await apiCheck(kind, Object.assign({ place, name, text }, extra || {}));
+    const request: CheckRequest = { place, name, text, ...extra };
+    const answer = await apiCheck(kind, request) as ApiAnswer<CheckJson>;
     return (answer.json && answer.json.problems) || [];
   } catch (e) {
     // A refusal still carries what the server said about the text; a reading
     // that never arrived leaves no problems, as it always did.
-    return (e && e.json && e.json.problems) || [];
+    if (typeof e !== 'object' || e === null || !('json' in e)) return [];
+    const json: unknown = e.json;
+    if (typeof json !== 'object' || json === null || !('problems' in json)) return [];
+    const problems = json.problems;
+    return Array.isArray(problems) ? problems as Problem[] : [];
   }
 }
 
@@ -37,8 +99,16 @@ export async function checkText(kind, place, name, text, extra) {
 // name travels in the payload as well as in the URL: a kind that reads the
 // file's name from the body rather than from the path (a role's file is the
 // row's own name) writes the file it was handed (r-8e85).
-export function saveText(kind, name, place, text, hash, extra) {
-  return apiSave(kind, name, Object.assign({ place, name, text, hash: hash || '' }, extra || {}));
+export function saveText(
+  kind: YamlKind,
+  name: string,
+  place: Place | string,
+  text: string,
+  hash: string,
+  extra?: YamlTabProps['extra'],
+): Promise<ApiAnswer<SavedJson>> {
+  const request: SaveRequest = { place, name, text, hash: hash || '', ...extra };
+  return apiSave(kind, name, request) as Promise<ApiAnswer<SavedJson>>;
 }
 
 // tellDirty lets the page mark itself as carrying unsaved work, the same way the
@@ -47,7 +117,7 @@ export function tellDirty() {
   if (window.hergyPage && window.hergyPage.tellDirty) window.hergyPage.tellDirty();
 }
 
-export function autosize(textarea) {
+export function autosize(textarea: HTMLTextAreaElement): void {
   if (CSS.supports('field-sizing', 'content')) return;
   textarea.style.height = 'auto';
   textarea.style.height = `${textarea.scrollHeight + 2}px`;
@@ -55,16 +125,18 @@ export function autosize(textarea) {
 
 // insertTab puts two spaces where the caret is and says the text changed, the
 // way typing does: the part's own check rides on that.
-export function insertTab(textarea) {
+export function insertTab(textarea: HTMLTextAreaElement): void {
   textarea.setRangeText('  ', textarea.selectionStart, textarea.selectionEnd, 'end');
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-const errTexts = (problems) => (problems || []).filter((p) => p.sev === 'err').map((p) => p.text);
-const heightOf = (lines) => Math.min(Math.max(lines, 6), 34);
-const marksOf = (problems) => {
-  const marks = {};
-  (problems || []).forEach((p) => { if (marks[p.line] !== 'err') marks[p.line] = p.sev; });
+const errTexts = (problems: Problem[] | null | undefined): string[] => (problems || []).filter((p) => p.sev === 'err').map((p) => p.text);
+const heightOf = (lines: number): number => Math.min(Math.max(lines, 6), 34);
+const marksOf = (problems: Problem[] | null | undefined): Record<number, Problem['sev']> => {
+  const marks: Record<number, Problem['sev']> = {};
+  (problems || []).forEach((p) => {
+    if (p.line !== undefined && marks[p.line] !== 'err') marks[p.line] = p.sev;
+  });
   return marks;
 };
 
@@ -82,25 +154,25 @@ const marksOf = (problems) => {
 //   onSaved(answer)       the save wrote the file: the screen keeps its hash
 //   onState({base,text,hash})  what the part holds, for the band's draft
 //   onRevert()            the person pressed 元に戻す, before the text goes back
-export function YamlTab(props) {
+export function YamlTab(props: YamlTabProps) {
   const { label, path, badge, file, text, hash, kind, place, name, extra, problems, onProblems, onSaved, onState, onRevert, carried } = props;
-  const ta = useRef(null);
-  const gutter = useRef(null);
-  const timer = useRef(0);
+  const ta = useRef<HTMLTextAreaElement | null>(null);
+  const gutter = useRef<HTMLPreElement | null>(null);
+  const timer = useRef<number>(0);
   const alive = useRef(true);
   const seq = useRef(0);
   const base = useRef(text);
   const mine = useRef(hash || '');
 
-  const [now, setNow] = useState({ text, problems: problems || [], baseProblems: problems || [] });
+  const [now, setNow] = useState<YamlWorkingState>({ text, problems: problems || [], baseProblems: problems || [] });
   const [laid, setLaid] = useState(text);
   const [saved, setSaved] = useState(false);
   const [refusal, setRefusal] = useState('');
 
   const dirty = now.text !== base.current;
-  const errs = now.problems.filter((p) => p.sev === 'err').length;
+  const errs = now.problems.filter((p: Problem) => p.sev === 'err').length;
   const warns = now.problems.length - errs;
-  const grew = now.problems.some((p) => p.sev === 'err' && errTexts(now.baseProblems).indexOf(p.text) < 0);
+  const grew = now.problems.some((p: Problem) => p.sev === 'err' && errTexts(now.baseProblems).indexOf(p.text) < 0);
 
   // foot keeps the 保存 / 元に戻す in step with the text and the problems: a text
   // that has grown an error the written file did not have cannot be saved (the
@@ -110,7 +182,7 @@ export function YamlTab(props) {
     const el = ta.current;
     if (!el) return;
     const value = el.value;
-    setNow((was) => (was.text === value ? was : { ...was, text: value }));
+    setNow((was: YamlWorkingState) => (was.text === value ? was : { ...was, text: value }));
     if (value !== base.current) setSaved(false);
     tellDirty();
     report();
@@ -126,12 +198,12 @@ export function YamlTab(props) {
   // layout draws what the server said about the text: the numbered gutter with a
   // mark on each bad line, the height the file needs, and the list of problems
   // under the text.
-  function layout(next) {
+  function layout(next: Problem[]) {
     const el = ta.current;
     if (!el) return;
     const value = el.value;
     setLaid(value);
-    setNow((was) => ({ text: value, problems: next, baseProblems: value === base.current ? next : was.baseProblems }));
+    setNow((was: YamlWorkingState) => ({ text: value, problems: next, baseProblems: value === base.current ? next : was.baseProblems }));
     if (onProblems) onProblems(next);
     foot();
   }
@@ -186,14 +258,14 @@ export function YamlTab(props) {
 
   // jump puts the caret on the line a problem names, and looks at it: a person
   // pressed the problem just now (5 章 5).
-  function jump(line) {
+  function jump(line: number | undefined) {
     const el = ta.current;
     if (!el) return;
     const lines = el.value.split('\n');
-    const start = lines.slice(0, line - 1).reduce((n, s) => n + s.length + 1, 0);
+    const start = lines.slice(0, (line as number) - 1).reduce((n: number, s: string) => n + s.length + 1, 0);
     el.focus({ preventScroll: true });
-    el.setSelectionRange(start, start + (lines[line - 1] || '').length);
-    el.scrollTop = Math.max(0, (line - 4) * 20);
+    el.setSelectionRange(start, start + (lines[(line as number) - 1] || '').length);
+    el.scrollTop = Math.max(0, ((line as number) - 4) * 20);
     el.scrollLeft = 0;
   }
 
@@ -233,16 +305,16 @@ export function YamlTab(props) {
 
   const lines = laid.split('\n');
   const marks = marksOf(now.problems);
-  return html`<header class="ph"><span class="ln">${label}</span><code class="path">${path}</code>${badge ? html`<span class=${badge.cls}>${badge.text}</span>` : ''}</header>
+  return <><header class="ph"><span class="ln">{label}</span><code class="path">{path}</code>{badge ? <span class={badge.cls}>{badge.text}</span> : ''}</header>
   <div class="ybody">
-    <div class=${'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref=${gutter}>${lines.map((_, i) => html`<span class=${marks[i + 1] || ''}>${i + 1}</span>`)}</pre><textarea class="ytext" data-file=${file || undefined} wrap="off" spellcheck="false" autocomplete="off" aria-label=${path} ref=${ta} onInput=${() => { foot(); schedule(); }} onScroll=${() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown=${(e) => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); insertTab(e.target); } }}>${text}</textarea></div>
-    <div class="vlist"><div class="vhead"><span class="vt">validate</span>${now.problems.length ? html`<span class="vcount">${errs ? html`<span class="sev err">問題 ${errs}</span>` : ''}${warns ? html`<span class="sev warn">警告 ${warns}</span>` : ''}</span>` : html`<span class="vclean">✓ 問題なし</span>`}</div>${now.problems.map((p) => html`<button class="vitem" data-act="yaml-jump" data-line=${p.line} onClick=${() => jump(p.line)}><span class=${'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>${p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">${p.line} 行</span><span class="msg">${p.text}</span></button>`)}</div>
+    <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{text}</textarea></div>
+    <div class="vlist"><div class="vhead"><span class="vt">validate</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
   </div>
   <footer class="pf">
-    <button class="btn primary" data-act="yaml-save" disabled=${!dirty || grew} onClick=${save}>保存</button><span class="dirty">${dirty ? '変更あり' : ''}</span>
-    ${refusal ? html`<span class="sev err refusal">${refusal}</span>` : ''}${saved ? html`<span class="ok">保存しました</span>` : ''}
-    <span class="acts"><button class="btn" data-act="yaml-revert" hidden=${!dirty} onClick=${revert}>元に戻す</button></span>
-  </footer>`;
+    <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew} onClick={save}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
+    {refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
+    <span class="acts"><button class="btn" data-act="yaml-revert" hidden={!dirty} onClick={revert}>元に戻す</button></span>
+  </footer></>;
 }
 
 
