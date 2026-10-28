@@ -24,8 +24,6 @@ import {
   note,
   scope,
   chosen,
-  toast,
-  toastOn,
   teams,
   canApply,
   applyLabel,
@@ -35,7 +33,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-8dykp2cd.js";
+} from "../chunk/nav-pxfwds98.js";
 
 // lib/apply/view.tsx
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
@@ -268,20 +266,9 @@ function Member({ m, group }) {
     ]
   });
 }
-function Toast() {
-  return /* @__PURE__ */ u("div", {
-    class: "apl-toast",
-    role: "status",
-    hidden: !toastOn.value,
-    children: toast.value
-  });
-}
 function Layer() {
   return /* @__PURE__ */ u(S, {
-    children: [
-      opened.value && answer.value ? /* @__PURE__ */ u(Sheet, {}) : null,
-      /* @__PURE__ */ u(Toast, {})
-    ]
+    children: opened.value && answer.value ? /* @__PURE__ */ u(Sheet, {}) : null
   });
 }
 

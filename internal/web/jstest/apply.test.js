@@ -4,8 +4,8 @@
 // members a person can apply picked, and says that 起動し直す loses the
 // conversation. A save only reads the number again, and sends nothing; the
 // send posts the picked herdr names and hands the launch to the start's own
-// sheet, which says how far it got. The answers are the test's, so what the part
-// makes of them is what is read.
+// sheet, which says how far it got (nothing is said before it does). The answers
+// are the test's, so what the part makes of them is what is read.
 import { expect, test } from 'bun:test';
 import { serve, settle } from './page.js';
 
@@ -114,7 +114,6 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   expect(sent.length).toBe(1);
   expect(sent[0].body.members).toEqual(['core-impl-a', 'core-spec2', 'core-lead']);
   expect(document.querySelector('.apl-sheet')).toBe(null);
-  expect(document.querySelector('.apl-toast').textContent).toBe('反映しました: core-impl-a・core-spec2・core-lead');
   const sheet = () => document.querySelector('.hq-sheet');
   expect(sheet()).not.toBe(null);
   expect(sheet().querySelector('[data-role=title]').textContent).toBe('反映しています');

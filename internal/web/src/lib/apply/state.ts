@@ -43,11 +43,6 @@ export const scope = signal<string>('');
 // order the answer lists the members, not in the order they were clicked.
 export const chosen = signal<Set<string>>(new Set());
 
-// toast is the words of the one notice at the bottom, and toastOn whether they
-// are on show (they stay in the tree after they hide, as they always did).
-export const toast = signal<string>('');
-export const toastOn = signal<boolean>(false);
-
 // teams is the answer's teams, narrowed to the sheet's scope.
 export const teams = computed((): ApplyTeam[] => (answer.value && answer.value.teams ? answer.value.teams : [])
   .filter((g) => !scope.value || g.team === scope.value));
@@ -153,8 +148,9 @@ export async function send(): Promise<void> {
   try {
     const env = await applyMembers(names);
     close();
-    showToast(`反映しました: ${names.join('・')}`);
-    if (env.launch) runStart(env.launch);
+    // The launch's own sheet is where the work shows: it says how far it got and
+    // names the members, so nothing is said here before the work does it.
+    runStart(env.launch);
     readCount();
     readTeams();
   } catch (e) {
@@ -167,12 +163,4 @@ export async function send(): Promise<void> {
   } finally {
     sending.value = false;
   }
-}
-
-let toastTimer = 0;
-export function showToast(text: string): void {
-  toast.value = text;
-  toastOn.value = true;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastOn.value = false; }, 4000);
 }

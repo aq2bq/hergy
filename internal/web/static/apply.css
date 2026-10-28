@@ -78,15 +78,6 @@
 .apl-btn.apl-primary:disabled { background: transparent; border-color: var(--line); color: var(--faint); cursor: default; }
 .apl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ---- 知らせ -------------------------------------------------------------- */
-.apl-toast {
-  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%); background: var(--ink); color: var(--bg);
-  padding: 8px 14px; border-radius: 5px; font-size: 13px; z-index: 31;
-  max-width: calc(100% - 32px);
-}
-.apl-toast[hidden] { display: none; }
-
 @media (max-width: 760px) {
   .apl-bandbtn { font-size: 12.5px; padding: 5px 10px; }
 }

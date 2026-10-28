@@ -1626,8 +1626,6 @@ var note = y("");
 var sending = y(false);
 var scope = y("");
 var chosen = y(new Set);
-var toast = y("");
-var toastOn = y(false);
 var teams = O(() => (answer.value && answer.value.teams ? answer.value.teams : []).filter((g) => !scope.value || g.team === scope.value));
 var pickable = O(() => {
   const out = [];
@@ -1712,9 +1710,7 @@ async function send() {
   try {
     const env = await applyMembers2(names);
     close();
-    showToast(`反映しました: ${names.join("・")}`);
-    if (env.launch)
-      runStart(env.launch);
+    runStart(env.launch);
     readCount();
     readTeams();
   } catch (e) {
@@ -1727,14 +1723,5 @@ async function send() {
     sending.value = false;
   }
 }
-var toastTimer = 0;
-function showToast(text) {
-  toast.value = text;
-  toastOn.value = true;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toastOn.value = false;
-  }, 4000);
-}
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, toast, toastOn, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

@@ -11,7 +11,7 @@ type ApplyChange = components['schemas']['ApplyChange'];
 type ApplyMember = components['schemas']['ApplyMember'];
 type ApplyTeam = components['schemas']['ApplyTeam'];
 import {
-  count, opened, answer, note, chosen, toast, toastOn, scope,
+  count, opened, answer, note, chosen, scope,
   teams, canApply, applyLabel, toggle, close, send, openSheet,
 } from './state.js';
 
@@ -131,13 +131,9 @@ function Member({ m, group }: { m: ApplyMember; group: ApplyTeam }): JSX.Element
   </label>;
 }
 
-// ---- 下の知らせ ----------------------------------------------------------
-export function Toast(): JSX.Element {
-  return <div class="apl-toast" role="status" hidden={!toastOn.value}>{toast.value}</div>;
-}
-
+// ---- 欄の置き場 ----------------------------------------------------------
 // Layer is everything the part puts on the page that is not the band's button:
-// the sheet while it stands, and the notice.
+// the sheet while it stands.
 export function Layer(): JSX.Element {
-  return <>{opened.value && answer.value ? <Sheet /> : null}<Toast /></>;
+  return <>{opened.value && answer.value ? <Sheet /> : null}</>;
 }
