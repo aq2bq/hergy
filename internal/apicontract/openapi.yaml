@@ -1,5 +1,5 @@
 # WebUI の API の約束（n-e3de、d-e206）。これが正で、Go の答えと TS の型がここに縛られる。
-# 書き方は internal/apicontract/doc.go。まだ形を書いていない操作は pending.txt にある。
+# 書き方は internal/apicontract/doc.go。API の道を足すときは、同じ変更でここに形を書く。
 openapi: 3.0.3
 info:
   title: hergy WebUI API

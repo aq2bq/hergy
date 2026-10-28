@@ -1,7 +1,6 @@
 package apicontract
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	_ "embed"
@@ -23,9 +22,6 @@ import (
 //go:embed openapi.yaml
 var specYAML []byte
 
-//go:embed pending.txt
-var pendingTxt string
-
 // Spec is the parsed promise, validated as an OpenAPI document.
 func Spec() (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
@@ -39,26 +35,12 @@ func Spec() (*openapi3.T, error) {
 	return doc, nil
 }
 
-// Pending is the operations whose shape is not written yet, by operationId.
-func Pending() map[string]bool {
-	out := map[string]bool{}
-	sc := bufio.NewScanner(strings.NewReader(pendingTxt))
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line != "" && !strings.HasPrefix(line, "#") {
-			out[line] = true
-		}
-	}
-	return out
-}
-
 // Checker is the handler wrapper the tests put in front of the server, and the
 // failures it has seen. It is safe for the concurrent requests a test makes.
 type Checker struct {
-	router  routers.Router
-	pending map[string]bool
-	mu      sync.Mutex
-	failed  []string
+	router routers.Router
+	mu     sync.Mutex
+	failed []string
 }
 
 // NewChecker reads the promise. A promise that does not read stops the tests.
@@ -71,7 +53,7 @@ func NewChecker() (*Checker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Checker{router: router, pending: Pending()}, nil
+	return &Checker{router: router}, nil
 }
 
 // Failures is what the checked requests and answers broke, sorted and without
@@ -129,10 +111,6 @@ func (c *Checker) Wrap(next http.Handler) http.Handler {
 			return
 		}
 		id := route.Operation.OperationID
-		if c.pending[id] {
-			next.ServeHTTP(w, r)
-			return
-		}
 		body, _ := io.ReadAll(r.Body)
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		check := r.Clone(r.Context())

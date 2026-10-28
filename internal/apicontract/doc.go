@@ -9,12 +9,12 @@
 // file (api-types.d.ts, made by tools/webtools and checked by the apitypes
 // gate).
 //
-// An operation listed in pending.txt has not been written yet: its schema is
-// still the empty one and Checker lets it through. Every other operation must
-// say its whole shape — each object closes with additionalProperties: false —
-// and the list only gets shorter. A field that is added to an answer without
-// being written here makes the tests fail, and so does a field a screen sends
-// under a name the server does not read.
+// Every operation says its whole shape — each object closes with
+// additionalProperties: false, and no schema is the empty one. A route added
+// to the server is written here in the same change: a field added to an answer
+// without being written makes the tests fail, and so does a field a request
+// sends under a name the server does not read. A request the server refused is
+// a test's to send on purpose, so only the answer to it is held.
 //
 // It is used by tests only; hergy serve itself never reads the file.
 package apicontract

@@ -65,27 +65,7 @@ func TestEveryRouteIsWritten(t *testing.T) {
 	}
 }
 
-// TestPendingIsOperations: every line of pending.txt names an operation.
-func TestPendingIsOperations(t *testing.T) {
-	doc, err := Spec()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ids := map[string]bool{}
-	for _, item := range doc.Paths.Map() {
-		for _, op := range item.Operations() {
-			ids[op.OperationID] = true
-		}
-	}
-	for id := range Pending() {
-		if !ids[id] {
-			t.Errorf("pending.txt names %s, which openapi.yaml does not have", id)
-		}
-	}
-}
-
-// TestWrittenOperationsAreWhole: an operation that is not pending says its
-// whole shape. Its request body and its answers have a schema, every object
+// TestWrittenOperationsAreWhole: every operation says its whole shape. Its request body and its answers have a schema, every object
 // in them closes with additionalProperties: false (a field the other side
 // does not know is an error, not a field quietly passed), and no schema is
 // the empty one that lets anything through.
@@ -94,12 +74,8 @@ func TestWrittenOperationsAreWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pending := Pending()
 	for path, item := range doc.Paths.Map() {
 		for method, op := range item.Operations() {
-			if pending[op.OperationID] {
-				continue
-			}
 			where := op.OperationID + " (" + method + " " + path + ")"
 			if op.RequestBody != nil && op.RequestBody.Value != nil {
 				for ct, media := range op.RequestBody.Value.Content {
@@ -113,9 +89,6 @@ func TestWrittenOperationsAreWhole(t *testing.T) {
 			for status, resp := range op.Responses.Map() {
 				if resp.Value == nil {
 					continue
-				}
-				if status == "default" && resp.Value.Description != nil && strings.Contains(*resp.Value.Description, "pending") {
-					t.Errorf("%s: still has the pending answer", where)
 				}
 				for ct, media := range resp.Value.Content {
 					wholeSchema(t, where+" answer "+status+" "+ct, media.Schema, map[*openapi3.Schema]bool{})

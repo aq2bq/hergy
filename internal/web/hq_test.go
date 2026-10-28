@@ -21,6 +21,9 @@ type fakeHQ struct {
 	projects HQProjects
 	cats     map[string]*catalog.Catalog
 	global   *catalog.Catalog
+	// running is what GET /api/hq/running answers; empty is herdr with nothing
+	// running.
+	running HQRunning
 }
 
 func (f fakeHQ) Projects() (HQProjects, error) { return f.projects, nil }
@@ -30,8 +33,13 @@ func (f fakeHQ) AddProject(path string) (HQProjects, error) {
 	return next, nil
 }
 func (f fakeHQ) RemoveProject(string) (HQProjects, error) { return f.projects, nil }
-func (f fakeHQ) Running() HQRunning                       { return HQRunning{Herdr: ActivityNote{OK: true}} }
-func (f fakeHQ) Workspaces() HQWorkspaces                 { return HQWorkspaces{} }
+func (f fakeHQ) Running() HQRunning {
+	if f.running.Teams != nil {
+		return f.running
+	}
+	return HQRunning{Herdr: ActivityNote{OK: true}}
+}
+func (f fakeHQ) Workspaces() HQWorkspaces { return HQWorkspaces{} }
 func (f fakeHQ) LaunchOptions(string, string, string) (HQLaunchOptions, error) {
 	return HQLaunchOptions{}, nil
 }
@@ -328,5 +336,24 @@ func TestTheBandSaysHowManyProjects(t *testing.T) {
 	}
 	if !strings.Contains(body, `id="hq-q"`) {
 		t.Errorf("the band carries no search field: %s", body)
+	}
+}
+
+// TestHQRunningCarriesWhyADefinitionCannotBeBuilt: a running team whose
+// definition does not build answers its reason in error (r-fc16), and that
+// answer goes through the API, so openapi.yaml holds the field (n-e3de).
+func TestHQRunningCarriesWhyADefinitionCannotBeBuilt(t *testing.T) {
+	f := newFixture(t)
+	hq := fakeHQ{running: HQRunning{Herdr: ActivityNote{OK: true}, Teams: []HQRunningTeam{{
+		Team: "core", Definition: "core", Place: "project", Project: f.proj, ProjectName: "proj",
+		Members: []HQMember{{Name: "lead", Herdr: "core-lead", Live: true, State: "idle"}},
+		Workers: []HQWorker{}, Waiting: []string{}, NotUp: []string{},
+		Error: "ロール名「進行管理」は使えません",
+	}}}}
+	server := f.server(t)
+	server.hq = hq
+	resp, body := f.api(t, server, http.MethodGet, "/api/hq/running", nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "進行管理") {
+		t.Fatalf("GET /api/hq/running = %d %s", resp.StatusCode, body)
 	}
 }
