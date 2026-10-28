@@ -7,10 +7,10 @@
 // 検索は帯の #hq-q から。並べたプロジェクトとグローバルのチーム定義・
 // ワークスペース・メンバー・ロール・規則・プロファイルを一度に読み、/ で開き、
 // ↑↓ で選び、Enter で行く（spec 3 章）。
-import { html, render as draw, signal, useEffect, useLayoutEffect, useRef, useState } from '../../vendor/preact.js';
+import { html, render as draw, signal, computed, useEffect, useLayoutEffect, useRef, useState } from '../../vendor/preact.js';
 import { call, problemText } from '../api.js';
 import {
-  st, token, projectName, readJSONOr, readGroups, readCore, readRunning,
+  st, rev, token, projectName, readJSONOr, readGroups, readCore, readRunning,
   noteStarting, definitionDoc, listProject, unlistProject, groupOf, projectOfGroup,
   groupLabel, runningTeam,
 } from './state.js';
@@ -389,9 +389,6 @@ const CAP = (kind) => (kind === 'rule' ? 6 : 5);
 
 let index = null;
 let indexTeams = null;
-let shown = [];
-let sel = 0;
-let q = '';
 
 // index builds the rows the search reads: names, missions, rules' ids and texts,
 // kinds and args — the fields api.md 3.5 names (spec 3 章).
@@ -491,88 +488,129 @@ function snippet(text, q) {
   return [a > 0 ? '…' : '', ...marks(s.slice(a, b), q), b < s.length ? '…' : ''];
 }
 
-// q is the text in the band's search, and box the list it opens: the part's own
-// state, so a re-reading draws the list it had without reading the field back
-// (5 章 2).
-let box = null;
+// ---- 検索の状態 --------------------------------------------------------
+// q is the text in the band's search, pick the row the arrows stand on, and open
+// whether the list stands: signals, so the list draws itself from them and no
+// one has to remember to draw it (webui-components 1 章、5 章 2).
+export const searchText = signal('');
+export const searchPick = signal(0);
+export const searchOpen = signal(false);
 
-function resultsBox() {
-  if (!box) {
-    box = document.createElement('div');
-    box.className = 'hq-sr';
-    box.setAttribute('role', 'listbox');
-    box.setAttribute('aria-label', '探した結果');
-    document.body.appendChild(box);
-  }
-  return box;
-}
-
-export const searchQuery = () => q;
-export function closeBox() {
-  if (box) { box.remove(); box = null; }
-  shown = [];
-}
-
-export function renderResults(text) {
-  q = String(text || '').trim();
-  if (!q) { closeBox(); return; }
-  const out = resultsBox();
-  if (!st.groupsLoaded) {
-    draw(html`<p class="hq-sub">読み込んでいます…</p>`, out);
-    readGroups().then(() => { if (q) renderResults(q); });
-    return;
-  }
-  const low = q.toLowerCase();
+// searchLoading and searchGroups are what the list shows. The lists a search
+// reads are read when it is opened, and a reading that comes later draws the
+// list again: both read the headquarters' revision (lib/hq/state.js's rev).
+export const searchLoading = computed(() => {
+  rev.value;
+  return !st.groupsLoaded;
+});
+export const searchGroups = computed(() => {
+  const text = searchText.value.trim();
+  if (!text) return [];
+  rev.value;
+  const low = text.toLowerCase();
   const all = liveEntries().concat(searchIndex()).filter((e) => e.text.toLowerCase().includes(low));
-  shown = [];
-  if (!all.length) {
-    draw(html`<p class="hq-sub">${`「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・規則・プロファイルです。`}</p>`, out);
-    return;
-  }
-  const groups = [];
-  for (const [kind, title] of KINDS) {
-    const items = all.filter((e) => e.kind === kind);
-    if (!items.length) continue;
-    const rows = items.slice(0, CAP(kind)).map((e) => {
-      const i = shown.length;
-      shown.push(e);
-      const inner = html`<span class="hq-rp">${e.project || '—'}</span><span class="hq-rl">${marks(e.label, q)}</span><span class="hq-rs">${e.body ? html`${snippet(e.body, q)} <span class="hq-rw">${e.sub}</span>` : marks(e.sub, q)}</span>`;
-      const cls = 'hq-ri' + (i === sel ? ' sel' : '');
-      return e.href
-        ? html`<a class=${cls} data-i=${i} href=${e.href} role="option">${inner}</a>`
-        : html`<div class=${cls} data-i=${i} role="option">${inner}</div>`;
+  return KINDS.map(([kind, title]) => ({ kind, title, items: all.filter((e) => e.kind === kind) })).filter((g) => g.items.length);
+});
+// searchShown is the rows the arrows walk, in the order they stand.
+export const searchShown = computed(() => searchGroups.value.flatMap((g) => g.items.slice(0, CAP(g.kind))));
+
+export const searchSel = () => searchPick.value;
+export const searchBoxOpen = () => searchOpen.value;
+
+// ---- 検索の一覧（部品） -------------------------------------------------
+// Results is the one place the list is drawn in: it stands in the page once
+// (mountResults) and draws the list while a search stands, or nothing at all.
+function Results() {
+  const box = useRef(null);
+  const open = searchOpen.value;
+  const text = searchText.value;
+  const groups = searchGroups.value;
+  const loading = searchLoading.value;
+  const sel = searchPick.value;
+  // The row the arrows stand on is brought into the list after the draw. The
+  // list itself is never written by hand: the drawing is the signals' own.
+  const was = useRef('');
+  useEffect(() => {
+    if (!open || !box.current) return;
+    const at = `${text}\u0000${sel}`;
+    if (was.current === at) return;
+    was.current = at;
+    const cur = box.current.querySelector('.hq-ri.sel');
+    if (cur) cur.scrollIntoView({ block: 'nearest' });
+  });
+  if (!open) return null;
+  const q = text.trim();
+  let body;
+  if (loading) body = html`<p class="hq-sub">読み込んでいます…</p>`;
+  else if (!groups.length) body = html`<p class="hq-sub">${`「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・規則・プロファイルです。`}</p>`;
+  else {
+    let i = 0;
+    body = groups.map((g) => {
+      const rows = g.items.slice(0, CAP(g.kind)).map((e) => {
+        const n = i;
+        i += 1;
+        const inner = html`<span class="hq-rp">${e.project || '—'}</span><span class="hq-rl">${marks(e.label, q)}</span><span class="hq-rs">${e.body ? html`${snippet(e.body, q)} <span class="hq-rw">${e.sub}</span>` : marks(e.sub, q)}</span>`;
+        const cls = 'hq-ri' + (n === sel ? ' sel' : '');
+        return e.href
+          ? html`<a class=${cls} data-i=${n} href=${e.href} role="option">${inner}</a>`
+          : html`<div class=${cls} data-i=${n} role="option">${inner}</div>`;
+      });
+      return html`<div class="hq-srg"><div class="hq-srh">${g.title}<span class="n">${g.items.length}</span></div>${rows}${g.items.length > CAP(g.kind) ? html`<div class="hq-srm">ほか ${g.items.length - CAP(g.kind)} 件</div>` : ''}</div>`;
     });
-    groups.push(html`<div class="hq-srg"><div class="hq-srh">${title}<span class="n">${items.length}</span></div>${rows}${items.length > CAP(kind) ? html`<div class="hq-srm">ほか ${items.length - CAP(kind)} 件</div>` : ''}</div>`);
   }
-  draw(html`${groups}`, out);
+  return html`<div class="hq-sr" role="listbox" aria-label="探した結果" ref=${box}>${body}</div>`;
 }
 
-export const searchShown = () => shown;
-export const searchSel = () => sel;
-export const searchBoxOpen = () => !!box;
+// mountResults stands the list's one place in the page, the way lib/deliver.js
+// stands its layer: display: contents, so the band's row is not made to hold it.
+function mountResults() {
+  const host = document.createElement('div');
+  host.className = 'hq-sr-host';
+  host.style.display = 'contents';
+  document.body.appendChild(host);
+  draw(html`<${Results} />`, host);
+}
 
+// ---- 押し込み ----------------------------------------------------------
+// pressSearch is the field's own press: the text is the part's state, and the
+// lists are read the first time a search is opened (spec 3 章).
+export function pressSearch(text) {
+  searchText.value = String(text == null ? '' : text);
+  searchPick.value = 0;
+  const on = !!searchText.value.trim();
+  searchOpen.value = on;
+  if (on) readGroups();
+}
+
+export function closeBox() {
+  searchOpen.value = false;
+  searchPick.value = 0;
+}
+
+// moveSel walks the rows with the arrows; the row it lands on is brought into
+// the list by the part itself.
 export function moveSel(step) {
-  if (!shown.length) return;
-  sel = Math.max(0, Math.min(shown.length - 1, sel + step));
-  renderResults(q);
-  const cur = box && box.querySelector('.hq-ri.sel');
-  if (cur) cur.scrollIntoView({ block: 'nearest' });
+  const rows = searchShown.value;
+  if (!rows.length) return;
+  searchPick.value = Math.max(0, Math.min(rows.length - 1, searchPick.value + step));
 }
 
 export function mountSearch() {
   const input = document.getElementById('hq-q');
   if (!input) return;
-  input.addEventListener('input', () => { sel = 0; renderResults(input.value); });
-  input.addEventListener('focus', () => { if (q) renderResults(q); });
+  input.addEventListener('input', () => pressSearch(input.value));
+  input.addEventListener('focus', () => { if (searchText.value.trim()) searchOpen.value = true; });
+  mountResults();
 }
 
 export function resetSearch() {
   const input = document.getElementById('hq-q');
   if (input) input.value = '';
-  sel = 0;
-  renderResults('');
+  searchText.value = '';
+  searchPick.value = 0;
+  searchOpen.value = false;
 }
 
 // A test hook, the way the other screens carry one: what the search has on show,
 // so a walk of the screens can tell a key that did not land from one that did.
-export const searchHook = () => ({ shown: shown.map((x) => x.href), sel, box: searchBoxOpen() });
+export const searchHook = () => ({ shown: searchShown.value.map((x) => x.href), sel: searchPick.value, box: searchBoxOpen() });

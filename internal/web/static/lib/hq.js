@@ -20,8 +20,8 @@ import {
 } from './hq/state.js';
 import { RunCell } from './hq/run.js';
 import {
-  closeSheet, projectsSheet, startSheet, stopSheet, mountSearch, renderResults, moveSel,
-  resetSearch, searchHook, sheetOpen, searchBoxOpen, closeBox, searchQuery,
+  closeSheet, projectsSheet, startSheet, stopSheet, mountSearch, moveSel,
+  resetSearch, searchHook, sheetOpen, searchBoxOpen, closeBox,
 } from './hq/sheets.js';
 import { TeamFigure } from './hq/figure.js';
 
@@ -68,10 +68,8 @@ window.hergyHQSearch = searchHook;
 // (the activity screen needs them for the figures' turns), and the ten-second one
 // while the page is looked at.
 readCore().then(() => {
-  // A search the person had already typed is drawn again once the groups are
-  // read: the text is the part's state, not the field's (5 章 2).
-  const typed = searchQuery();
-  if (typed) readGroups().then(() => renderResults(typed));
+  // The groups a search reads are read when a search is opened (sheets.js's
+  // pressSearch); the activity screen needs them for the figures' turns.
   if (location.pathname.indexOf('/activity') === 0) readGroups();
 });
 startReads();
