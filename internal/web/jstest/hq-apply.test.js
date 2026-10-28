@@ -137,7 +137,7 @@ test('the 動き column carries the count a change is not applied yet, and the s
   // The start's own sheet says how far it got.
   const opened = document.querySelector('.hq-sheet');
   expect(opened).not.toBe(null);
-  expect(opened.querySelector('[data-role=title]').textContent).toBe('起動しています');
+  expect(opened.querySelector('[data-role=title]').textContent).toBe('反映しています');
   expect(opened.querySelector('[data-role=steps]').textContent).toContain('core-spec2 を起動し、初期プロンプトを送りました');
 
   // A member that asks a question while it starts is answered in its pane, and

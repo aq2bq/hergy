@@ -1014,7 +1014,9 @@ function RunSheet({ id, launch: first }) {
   const launch = watched.value[id] || first;
   const over = launch.phase === "done" || launch.phase === "failed" || launch.phase === "cancelled";
   const raised = launch.action === "refresh";
-  const who = raised ? (launch.members || []).join(" · ") : launch.team;
+  const applied = launch.action === "apply";
+  const who = raised || applied ? (launch.members || []).join(" · ") : launch.team;
+  const verb = applied ? "反映" : "起動";
   const space = launch.workspace.label || launch.workspace.id;
   const all = launch.steps || [];
   const lastStage = all.map((x, i) => x.kind === "stage" ? i : -1).filter((i) => i >= 0).pop();
@@ -1023,7 +1025,7 @@ function RunSheet({ id, launch: first }) {
     if (steps.current)
       steps.current.scrollTop = steps.current.scrollHeight;
   });
-  const title = launch.phase === "done" ? "起動しました" : launch.phase === "failed" ? "起動できませんでした" : launch.phase === "cancelled" ? "起動をやめました" : "起動しています";
+  const title = launch.phase === "done" ? verb + "しました" : launch.phase === "failed" ? verb + "できませんでした" : launch.phase === "cancelled" ? verb + "をやめました" : verb + "しています";
   const where = space ? `${launch.project_name} · ワークスペース ${space}` : `${launch.project_name} · タブ ${launch.tab.label}`;
   const abort = async () => {
     try {
@@ -1052,7 +1054,7 @@ function RunSheet({ id, launch: first }) {
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
         "data-role": "where",
-        children: over ? where : `${where}。この欄を閉じても、起動は続きます。`
+        children: over ? where : `${where}。この欄を閉じても、${verb}は続きます。`
       }),
       /* @__PURE__ */ u("ul", {
         class: "hq-steps",
@@ -1124,7 +1126,7 @@ function RunSheet({ id, launch: first }) {
           children: [
             /* @__PURE__ */ u("p", {
               class: "hq-ok",
-              children: `起動しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ""}タブ ${launch.tab.label}）`
+              children: `${verb}しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ""}タブ ${launch.tab.label}）`
             }),
             /* @__PURE__ */ u("a", {
               class: "hq-btn primary",
@@ -1143,7 +1145,7 @@ function RunSheet({ id, launch: first }) {
           children: [
             /* @__PURE__ */ u("p", {
               class: "hq-err",
-              children: launch.error || "起動できませんでした"
+              children: launch.error || verb + "できませんでした"
             }),
             /* @__PURE__ */ u("button", {
               type: "button",
@@ -1157,7 +1159,10 @@ function RunSheet({ id, launch: first }) {
           children: [
             /* @__PURE__ */ u("p", {
               class: "hq-sub",
-              children: raised ? "起動をやめました。ペインは残っています（止めるのはチームを止める欄から）。" : "起動をやめました。作ったタブとペインは残っています（止めるのはチームを止める欄から）。"
+              children: [
+                `${verb}をやめました。`,
+                raised || applied ? "ペインは残っています（止めるのはチームを止める欄から）。" : "作ったタブとペインは残っています（止めるのはチームを止める欄から）。"
+              ]
             }),
             /* @__PURE__ */ u("button", {
               type: "button",
@@ -1173,7 +1178,10 @@ function RunSheet({ id, launch: first }) {
           "data-hq": "abort",
           "data-launch": id,
           onClick: abort,
-          children: "起動をやめる"
+          children: [
+            verb,
+            "をやめる"
+          ]
         })
       })
     ]

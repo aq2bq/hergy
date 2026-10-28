@@ -127,6 +127,6 @@ test('the opened team carries the count once, and the sheet applies that team', 
   // The start's own sheet says how far it got.
   const run = document.querySelector('.hq-sheet');
   expect(run).not.toBe(null);
-  expect(run.querySelector('[data-role=title]').textContent).toBe('起動しています');
+  expect(run.querySelector('[data-role=title]').textContent).toBe('反映しています');
   expect(run.querySelector('[data-role=steps]').textContent).toContain('core-spec2 を起動し、初期プロンプトを送りました');
 });

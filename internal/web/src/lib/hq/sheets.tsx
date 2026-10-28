@@ -328,8 +328,12 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   // A member starting (action: refresh, r-5d1a) goes through this same sheet: it is
   // started in the team's tab and the startup question is answered in its pane,
   // so the words are a start's own and only what the lines are about differs.
+  // An apply (action: apply, n-4b22) is the same sheet too: it may start or
+  // restart members, so the sheet names the members it touched and says 反映.
   const raised = launch.action === 'refresh';
-  const who = raised ? (launch.members || []).join(' · ') : launch.team;
+  const applied = launch.action === 'apply';
+  const who = raised || applied ? (launch.members || []).join(' · ') : launch.team;
+  const verb = applied ? '反映' : '起動';
   const space = launch.workspace.label || launch.workspace.id;
   // A stage is the step in progress, not a finished one: the last stage stands
   // with … only while the start is starting, and is dropped when the next line
@@ -340,9 +344,9 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   useLayoutEffect(() => {
     if (steps.current) steps.current.scrollTop = steps.current.scrollHeight;
   });
-  const title = launch.phase === 'done' ? '起動しました'
-    : launch.phase === 'failed' ? '起動できませんでした'
-      : launch.phase === 'cancelled' ? '起動をやめました' : '起動しています';
+  const title = launch.phase === 'done' ? verb + 'しました'
+    : launch.phase === 'failed' ? verb + 'できませんでした'
+      : launch.phase === 'cancelled' ? verb + 'をやめました' : verb + 'しています';
   const where = space
     ? `${launch.project_name} · ワークスペース ${space}`
     : `${launch.project_name} · タブ ${launch.tab.label}`;
@@ -356,7 +360,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   };
   return <>
       <div class="hq-h"><b data-role="title">{title}</b><code>{who}</code><Close /></div>
-      <p class="hq-sub" data-role="where">{over ? where : `${where}。この欄を閉じても、起動は続きます。`}</p>
+      <p class="hq-sub" data-role="where">{over ? where : `${where}。この欄を閉じても、${verb}は続きます。`}</p>
       <ul class="hq-steps" data-role="steps" ref={steps}>{shownSteps.map((step: HQLaunchStep) => {
         const now = step.kind === 'stage';
         const mark = now ? 'now' : step.kind === 'done' || step.kind === 'member' ? 'done' : '';
@@ -367,13 +371,13 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
           <p>エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
           <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code> に初期プロンプトを送って続きを進めます。</p></div> : ''}</div>
       <div class="hq-acts" data-role="endacts">{launch.phase === 'done'
-        ? <><p class="hq-ok">{`起動しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ''}タブ ${launch.tab.label}）`}</p>
+        ? <><p class="hq-ok">{`${verb}しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ''}タブ ${launch.tab.label}）`}</p>
         <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>活動で見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
-          ? <><p class="hq-err">{launch.error || '起動できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+          ? <><p class="hq-err">{launch.error || verb + 'できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
-            ? <><p class="hq-sub">{raised ? '起動をやめました。ペインは残っています（止めるのはチームを止める欄から）。' : '起動をやめました。作ったタブとペインは残っています（止めるのはチームを止める欄から）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
-            : <button type="button" class="hq-btn danger" data-hq="abort" data-launch={id} onClick={abort}>起動をやめる</button>}</div>
+            ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（止めるのはチームを止める欄から）。' : '作ったタブとペインは残っています（止めるのはチームを止める欄から）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+            : <button type="button" class="hq-btn danger" data-hq="abort" data-launch={id} onClick={abort}>{verb}をやめる</button>}</div>
     </>;
 }
 

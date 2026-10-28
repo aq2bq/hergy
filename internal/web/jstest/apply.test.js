@@ -110,6 +110,6 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   expect(document.querySelector('.apl-toast').textContent).toBe('反映しました: core-impl-a・core-spec2・core-lead');
   const sheet = () => document.querySelector('.hq-sheet');
   expect(sheet()).not.toBe(null);
-  expect(sheet().querySelector('[data-role=title]').textContent).toBe('起動しています');
+  expect(sheet().querySelector('[data-role=title]').textContent).toBe('反映しています');
   expect(sheet().querySelector('[data-role=steps]').textContent).toContain('core-impl-a に初期プロンプトを送り直しました');
 });
