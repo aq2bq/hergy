@@ -1,9 +1,9 @@
-// activity/main.js — 活動の画面の入口（webui-preact-design 4 章）。
+// activity/main.tsx — 活動の画面の入口（webui-preact-design 4 章）。
 //
 // mount と、ページの外への受け渡しだけを持つ。描くのは board.js、状態は
 // state.js。押し込みは部品が持つ（board.js の onClick）。ここも DOM を書かない
 // （5 章 1）。
-import { html, render } from '../lib/preact.js';
+import { render } from '../lib/preact.js';
 import { Board } from './board.js';
 import { reading, refresh, POLL } from './state.js';
 
@@ -17,7 +17,7 @@ const page = { screen: 'activity', settled: false };
 window.hergyPage = page;
 
 if (list) {
-  render(html`<${Board} />`, list);
+  render(<Board />, list);
 
   // hq.js announces every reading of its own (hergy:hq); one that arrives while
   // this screen is reading is left for the next tick, as before.
