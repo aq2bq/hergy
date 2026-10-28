@@ -102,10 +102,10 @@ export function setCount(screen: string, n: number): void {
   if (num) num.textContent = String(n);
 }
 
-// setActivity writes the activity's two numbers (spec-activity 2.1): 活動 N
+// setActivity writes the activity's two numbers (spec-activity 2.1): アクティビティ N
 // while this project has a team running, and 待ち N while a member waits for
 // a human or a permission, which is dropped at zero. counts is false while
-// herdr cannot be read or none is running, and then 活動 stands alone (2.7).
+// herdr cannot be read or none is running, and then アクティビティ stands alone (2.7).
 // The screen calls this on every re-reading, so the band's two numbers are
 // the reading's own and not the page's first ones.
 export function setActivity(running: number, waiting: number, counts: boolean): void {

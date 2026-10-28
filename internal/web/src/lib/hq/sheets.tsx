@@ -374,7 +374,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
           <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code> に初期プロンプトを送って続きを進めます。</p></div> : ''}</div>
       <div class="hq-acts" data-role="endacts">{launch.phase === 'done'
         ? <><p class="hq-ok">{`${verb}しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ''}タブ ${launch.tab.label}）`}</p>
-        <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>活動で見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+        <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>アクティビティで見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
           ? <><p class="hq-err">{launch.error || verb + 'できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'

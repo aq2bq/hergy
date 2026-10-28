@@ -210,10 +210,10 @@ export interface paths {
         };
         /** 動いているチームを 1 つ開く */
         get: operations["getActivity"];
-        /** 活動は読むだけなので断る */
+        /** アクティビティは読むだけなので断る */
         put: operations["saveActivity"];
         post?: never;
-        /** 活動は読むだけなので断る */
+        /** アクティビティは読むだけなので断る */
         delete: operations["deleteActivity"];
         options?: never;
         head?: never;
@@ -229,7 +229,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 活動は読むだけなので断る */
+        /** アクティビティは読むだけなので断る */
         post: operations["checkActivity"];
         delete?: never;
         options?: never;
@@ -983,9 +983,9 @@ export interface components {
             /** @description 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか */
             rename_users?: boolean;
         };
-        /** @description 動いているチームの活動と数 */
+        /** @description 動いているチームのアクティビティと数 */
         ActivityList: {
-            /** @description 活動を表示するチームの一覧 */
+            /** @description アクティビティを表示するチームの一覧 */
             items: components["schemas"]["ActivityItem"][];
             /** @description 動いているチームの数 */
             running: number;
@@ -994,13 +994,13 @@ export interface components {
             /** @description herdr を読めたかと、読めない理由 */
             herdr: components["schemas"]["ActivityNote"];
         };
-        /** @description 活動の一覧にあるチーム 1 件 */
+        /** @description アクティビティの一覧にあるチーム 1 件 */
         ActivityItem: {
             /** @description チーム名 */
             name: string;
             /** @description チームの状態と直近のメンバー */
             summary: components["schemas"]["ActivitySummary"];
-            /** @description 活動の問題の数 */
+            /** @description アクティビティの問題の数 */
             problems: components["schemas"]["ActivityProblems"];
             /** @description チーム定義を読めない理由。読めるときは空 */
             error: string;
@@ -1011,24 +1011,24 @@ export interface components {
             /** @description チームが動いているワークスペース */
             workspace: components["schemas"]["ActivitySpace"];
         };
-        /** @description 活動一覧に出すチームの状態 */
+        /** @description アクティビティ一覧に出すチームの状態 */
         ActivitySummary: {
             /** @description チームの起動元になったチーム定義名 */
             definition: string;
-            /** @description チームの活動状態 */
+            /** @description チームのアクティビティ状態 */
             state: string;
             /** @description 人間を待っている、または最後に動いたメンバー名 */
             last: string;
-            /** @description 活動状態が続いている長さと開始時刻。ないときは省略 */
+            /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
             since?: components["schemas"]["ActivitySince"] | null;
             /** @description 動いているメンバーとワーカーの数。ないときは省略 */
             working?: components["schemas"]["ActivityWork"] | null;
         };
-        /** @description 活動状態が続いている長さと開始時刻 */
+        /** @description アクティビティ状態が続いている長さと開始時刻 */
         ActivitySince: {
-            /** @description 活動状態が続いている長さ */
+            /** @description アクティビティ状態が続いている長さ */
             len: string;
-            /** @description 活動状態が始まった時刻 */
+            /** @description アクティビティ状態が始まった時刻 */
             at: string;
             /** @description 時刻が監視を始める前を示すか */
             lower: boolean;
@@ -1040,7 +1040,7 @@ export interface components {
             /** @description 動いているワーカーの数 */
             workers: number;
         };
-        /** @description 活動一覧で数える問題 */
+        /** @description アクティビティ一覧で数える問題 */
         ActivityProblems: {
             /** @description エラーの数 */
             err: number;
@@ -1054,19 +1054,19 @@ export interface components {
             /** @description 読み取り元を読めない理由。読めたときは空 */
             text: string;
         };
-        /** @description 活動のチームが動いているワークスペース */
+        /** @description アクティビティのチームが動いているワークスペース */
         ActivitySpace: {
             /** @description ワークスペースの ID */
             id: string;
             /** @description ワークスペース名 */
             label: string;
         };
-        /** @description 開いたチームの活動 */
+        /** @description 開いたチームのアクティビティ */
         ActivityOpened: {
-            /** @description チームの活動の詳細 */
+            /** @description チームのアクティビティの詳細 */
             doc: components["schemas"]["ActivityDocument"];
         };
-        /** @description 開いたチームの活動の詳細 */
+        /** @description 開いたチームのアクティビティの詳細 */
         ActivityDocument: {
             /** @description チーム名 */
             name: string;
@@ -1078,7 +1078,7 @@ export interface components {
             project_name: string;
             /** @description チームが動いているワークスペース */
             workspace: components["schemas"]["ActivitySpace"];
-            /** @description チームの活動状態 */
+            /** @description チームのアクティビティ状態 */
             state: string;
             /** @description 人間を待っている、または最後に動いたメンバー名 */
             last: string;
@@ -1086,7 +1086,7 @@ export interface components {
             herdr: string;
             /** @description 主なメンバーのロール名 */
             role: string;
-            /** @description 活動状態が続いている長さと開始時刻。ないときは省略 */
+            /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
             since?: components["schemas"]["ActivitySince"] | null;
             /** @description チーム定義のメンバーとそれぞれの状態 */
             nodes: components["schemas"]["ActivityNode"][];
@@ -1101,7 +1101,7 @@ export interface components {
             /** @description チーム定義を読めない理由。読めるときは空 */
             error: string;
         };
-        /** @description 活動の詳細にあるメンバーまたはワーカー */
+        /** @description アクティビティの詳細にあるメンバーまたはワーカー */
         ActivityNode: {
             /** @description メンバー名、またはワーカー名 */
             name: string;
@@ -1412,7 +1412,7 @@ export interface components {
             herdr: string;
             /** @description メンバーの agent が動いているか */
             live: boolean;
-            /** @description メンバーの活動状態 */
+            /** @description メンバーのアクティビティ状態 */
             state: string;
         };
         /** @description チームが雇ったワーカー */
@@ -2877,7 +2877,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 活動の一覧と数 */
+            /** @description アクティビティの一覧と数 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2899,7 +2899,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 開いたチームの活動 */
+            /** @description 開いたチームのアクティビティ */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2930,7 +2930,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 活動は読むだけ */
+            /** @description アクティビティは読むだけ */
             405: {
                 headers: {
                     [name: string]: unknown;
@@ -2952,7 +2952,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 活動は読むだけ */
+            /** @description アクティビティは読むだけ */
             405: {
                 headers: {
                     [name: string]: unknown;
@@ -2972,7 +2972,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 活動は読むだけ */
+            /** @description アクティビティは読むだけ */
             405: {
                 headers: {
                     [name: string]: unknown;

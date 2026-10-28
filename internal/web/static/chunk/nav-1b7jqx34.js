@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-bn3yber6.js";
+} from "./nav-pwqfp7qj.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -560,7 +560,7 @@ function PackedFigure({ team, turns, W }) {
     class: "hq-svg packed",
     viewBox: `0 0 ${W} ${H}`,
     role: "img",
-    "aria-label": `${t.name} の活動図。${summary}`,
+    "aria-label": `${t.name} のアクティビティ図。${summary}`,
     children: [
       edges,
       calls,

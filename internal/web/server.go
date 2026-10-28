@@ -170,7 +170,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 		http.Redirect(w, r, "/teams", http.StatusFound)
 	})
 
-	// 活動 (r-8a67): the running teams, one row each, drawn from GET
+	// アクティビティ (r-8a67): the running teams, one row each, drawn from GET
 	// /api/activity. The old /activity/<team> URLs are gone; the opened row is
 	// the page's own state (spec-activity 2.3).
 	mux.HandleFunc("GET /activity", s.a2Page)
@@ -233,7 +233,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("PUT /api/{kind}/{name}", s.apiSave)
 	mux.HandleFunc("DELETE /api/{kind}/{name}", s.apiDelete)
 
-	// 活動は読むだけ (spec-activity 3): its three writes are refused with 405
+	// アクティビティは読むだけ (spec-activity 3): its three writes are refused with 405
 	// here, in front of the write guard, because a caller that asks whether the
 	// URL takes a write should be told it does not rather than that it is
 	// missing a token. The kind's own three methods are the same answer for a

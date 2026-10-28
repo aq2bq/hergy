@@ -1,4 +1,4 @@
-// activity/state.ts — 活動の画面の state（webui-preact-design 4 章・5 章）。
+// activity/state.ts — アクティビティの画面の state（webui-preact-design 4 章・5 章）。
 //
 // サーバーの答えはここだけに入る（5 章 2）。部品（board.tsx）は signal を読んで
 // 描くだけで、捕まえておいた要素に書き込まない。読むのは /api/activity と

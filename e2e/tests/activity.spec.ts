@@ -19,7 +19,7 @@ test.use({ reads: 'activity' });
 // screen with nothing running carries.
 const drawn = `document.querySelectorAll('.hq-tile').length > 0 || !!document.querySelector('#list .gone')`;
 
-// band is the band's two numbers as the reading leaves them: the 活動 number and
+// band is the band's two numbers as the reading leaves them: the アクティビティ number and
 // the 待ち word, or none where they are not written (2.1・2.7).
 const band =
   `(function(){var s=document.querySelector('.screens .scr[data-screen="activity"]');` +
@@ -89,5 +89,5 @@ test('ACTIVITY-P4 reading again', async ({ page, app }) => {
 
   await readTo<string>(page, stands, `the re-reading moved the person, was ${before}`).toBe(before);
   // The band's waiting number follows the members: core-lead no longer waits.
-  await readTo<string>(page, band, 'after the re-reading the band stands, want 活動 4 and 待ち 1').toBe('4|待ち 1');
+  await readTo<string>(page, band, 'after the re-reading the band stands, want アクティビティ 4 and 待ち 1').toBe('4|待ち 1');
 });

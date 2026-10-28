@@ -1,6 +1,6 @@
-// lib/hq/figure.tsx — チームの図（spec 6 章）。活動の画面のタイルと詳細が同じ 1 つの
+// lib/hq/figure.tsx — チームの図（spec 6 章）。アクティビティの画面のタイルと詳細が同じ 1 つの
 // 図を描くための部品（webui-preact-design 5 章 1。前は hq.js が SVG の文字列を返し、
-// 活動の画面が dangerouslySetInnerHTML で流し込んでいた）。
+// アクティビティの画面が dangerouslySetInnerHTML で流し込んでいた）。
 //
 // 人間が上、メンバーが 1 列、ワーカーはそれを足したメンバーの下。ターンは線で、
 // 人間を待っているメンバーは人間への線で描く。図は「操作しない図」: 押せるものも
@@ -210,7 +210,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     `メンバー: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join('、') || 'なし'}`,
     `ワーカー: ${workers.map((worker) => `${worker.name}（${worker.from || '持ち主不明'}） ${nodeState(worker.state)}`).join('、') || 'なし'}`,
   ].join('。');
-  return <svg class="hq-svg packed" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.name} の活動図。${summary}`}>
+  return <svg class="hq-svg packed" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.name} のアクティビティ図。${summary}`}>
     {edges}{calls}{workerLines}{nodes}
   </svg>;
 }

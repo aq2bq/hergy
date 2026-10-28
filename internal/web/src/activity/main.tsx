@@ -1,4 +1,4 @@
-// activity/main.tsx — 活動の画面の入口（webui-preact-design 4 章）。
+// activity/main.tsx — アクティビティの画面の入口（webui-preact-design 4 章）。
 //
 // mount と、ページの外への受け渡しだけを持つ。描くのは board.js、状態は
 // state.js。押し込みは部品が持つ（board.js の onClick）。ここも DOM を書かない

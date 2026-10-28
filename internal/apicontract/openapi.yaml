@@ -609,7 +609,7 @@ paths:
       summary: 動いているチームの一覧
       responses:
         "200":
-          description: 活動の一覧と数
+          description: アクティビティの一覧と数
           content:
             application/json:
               schema:
@@ -626,7 +626,7 @@ paths:
             type: string
       responses:
         "200":
-          description: 開いたチームの活動
+          description: 開いたチームのアクティビティ
           content:
             application/json:
               schema:
@@ -639,7 +639,7 @@ paths:
                 $ref: '#/components/schemas/Refusal'
     put:
       operationId: saveActivity
-      summary: 活動は読むだけなので断る
+      summary: アクティビティは読むだけなので断る
       parameters:
         - name: name
           in: path
@@ -648,7 +648,7 @@ paths:
             type: string
       responses:
         "405":
-          description: 活動は読むだけ
+          description: アクティビティは読むだけ
           content:
             text/plain:
               schema:
@@ -656,7 +656,7 @@ paths:
                 description: 読み取り専用のため断った理由
     delete:
       operationId: deleteActivity
-      summary: 活動は読むだけなので断る
+      summary: アクティビティは読むだけなので断る
       parameters:
         - name: name
           in: path
@@ -665,7 +665,7 @@ paths:
             type: string
       responses:
         "405":
-          description: 活動は読むだけ
+          description: アクティビティは読むだけ
           content:
             text/plain:
               schema:
@@ -674,10 +674,10 @@ paths:
   /api/activity/check:
     post:
       operationId: checkActivity
-      summary: 活動は読むだけなので断る
+      summary: アクティビティは読むだけなので断る
       responses:
         "405":
-          description: 活動は読むだけ
+          description: アクティビティは読むだけ
           content:
             text/plain:
               schema:
@@ -2079,7 +2079,7 @@ components:
           type: boolean
           description: 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか
     ActivityList:
-      description: 動いているチームの活動と数
+      description: 動いているチームのアクティビティと数
       type: object
       additionalProperties: false
       required: [items, running, waiting, herdr]
@@ -2088,7 +2088,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ActivityItem'
-          description: 活動を表示するチームの一覧
+          description: アクティビティを表示するチームの一覧
         running:
           type: integer
           description: 動いているチームの数
@@ -2100,7 +2100,7 @@ components:
             - $ref: '#/components/schemas/ActivityNote'
           description: herdr を読めたかと、読めない理由
     ActivityItem:
-      description: 活動の一覧にあるチーム 1 件
+      description: アクティビティの一覧にあるチーム 1 件
       type: object
       additionalProperties: false
       required: [name, summary, problems, error, project, project_name, workspace]
@@ -2115,7 +2115,7 @@ components:
         problems:
           allOf:
             - $ref: '#/components/schemas/ActivityProblems'
-          description: 活動の問題の数
+          description: アクティビティの問題の数
         error:
           type: string
           description: チーム定義を読めない理由。読めるときは空
@@ -2130,7 +2130,7 @@ components:
             - $ref: '#/components/schemas/ActivitySpace'
           description: チームが動いているワークスペース
     ActivitySummary:
-      description: 活動一覧に出すチームの状態
+      description: アクティビティ一覧に出すチームの状態
       type: object
       additionalProperties: false
       required: [definition, state, last]
@@ -2140,7 +2140,7 @@ components:
           description: チームの起動元になったチーム定義名
         state:
           type: string
-          description: チームの活動状態
+          description: チームのアクティビティ状態
         last:
           type: string
           description: 人間を待っている、または最後に動いたメンバー名
@@ -2148,24 +2148,24 @@ components:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/ActivitySince'
-          description: 活動状態が続いている長さと開始時刻。ないときは省略
+          description: アクティビティ状態が続いている長さと開始時刻。ないときは省略
         working:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/ActivityWork'
           description: 動いているメンバーとワーカーの数。ないときは省略
     ActivitySince:
-      description: 活動状態が続いている長さと開始時刻
+      description: アクティビティ状態が続いている長さと開始時刻
       type: object
       additionalProperties: false
       required: [len, at, lower]
       properties:
         len:
           type: string
-          description: 活動状態が続いている長さ
+          description: アクティビティ状態が続いている長さ
         at:
           type: string
-          description: 活動状態が始まった時刻
+          description: アクティビティ状態が始まった時刻
         lower:
           type: boolean
           description: 時刻が監視を始める前を示すか
@@ -2184,7 +2184,7 @@ components:
           type: integer
           description: 動いているワーカーの数
     ActivityProblems:
-      description: 活動一覧で数える問題
+      description: アクティビティ一覧で数える問題
       type: object
       additionalProperties: false
       required: [err, warn]
@@ -2208,7 +2208,7 @@ components:
           type: string
           description: 読み取り元を読めない理由。読めたときは空
     ActivitySpace:
-      description: 活動のチームが動いているワークスペース
+      description: アクティビティのチームが動いているワークスペース
       type: object
       additionalProperties: false
       required: [id, label]
@@ -2220,7 +2220,7 @@ components:
           type: string
           description: ワークスペース名
     ActivityOpened:
-      description: 開いたチームの活動
+      description: 開いたチームのアクティビティ
       type: object
       additionalProperties: false
       required: [doc]
@@ -2228,9 +2228,9 @@ components:
         doc:
           allOf:
             - $ref: '#/components/schemas/ActivityDocument'
-          description: チームの活動の詳細
+          description: チームのアクティビティの詳細
     ActivityDocument:
-      description: 開いたチームの活動の詳細
+      description: 開いたチームのアクティビティの詳細
       type: object
       additionalProperties: false
       required: [name, definition, project, project_name, workspace, state, last, herdr, role, nodes, hired, questions, tail, gy, error]
@@ -2253,7 +2253,7 @@ components:
           description: チームが動いているワークスペース
         state:
           type: string
-          description: チームの活動状態
+          description: チームのアクティビティ状態
         last:
           type: string
           description: 人間を待っている、または最後に動いたメンバー名
@@ -2267,7 +2267,7 @@ components:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/ActivitySince'
-          description: 活動状態が続いている長さと開始時刻。ないときは省略
+          description: アクティビティ状態が続いている長さと開始時刻。ないときは省略
         nodes:
           type: array
           items:
@@ -2295,7 +2295,7 @@ components:
           type: string
           description: チーム定義を読めない理由。読めるときは空
     ActivityNode:
-      description: 活動の詳細にあるメンバーまたはワーカー
+      description: アクティビティの詳細にあるメンバーまたはワーカー
       type: object
       additionalProperties: false
       required: [name, herdr, state, at]
@@ -2848,7 +2848,7 @@ components:
           description: メンバーの agent が動いているか
         state:
           type: string
-          description: メンバーの活動状態
+          description: メンバーのアクティビティ状態
     HQWorker:
       description: チームが雇ったワーカー
       type: object

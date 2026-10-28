@@ -1131,7 +1131,7 @@ function RunSheet({ id, launch: first }) {
             /* @__PURE__ */ u("a", {
               class: "hq-btn primary",
               href: `/activity?open=${encodeURIComponent(token2(launch.team, launch.project))}`,
-              children: "活動で見る"
+              children: "アクティビティで見る"
             }),
             /* @__PURE__ */ u("button", {
               type: "button",

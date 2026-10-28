@@ -199,7 +199,7 @@ func TestNAV_O1_RootGoesToTheRunningScreenOrTheDefinitions(t *testing.T) {
 	}
 }
 
-// TestTheActivityCountsStandOnEveryBand: the band's 活動 and 待ち are the
+// TestTheActivityCountsStandOnEveryBand: the band's アクティビティ and 待ち are the
 // activity reading's own numbers, and the activity screen's band shows the same
 // ones, because it is one band on every screen (spec-activity 2.1).
 func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
@@ -211,12 +211,12 @@ func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, profiles := f.get(t, server, "/profiles")
-	if want := `<a class="scr" href="/activity" data-screen="activity">活動<span class="n">4</span><span class="wait">待ち 2</span></a>`; !strings.Contains(profiles, want) {
+	if want := `<a class="scr" href="/activity" data-screen="activity">アクティビティ<span class="n">4</span><span class="wait">待ち 2</span></a>`; !strings.Contains(profiles, want) {
 		t.Errorf("the profile screen's band does not hold %s:\n%s", want, profiles)
 	}
 	_, activity := f.get(t, server, "/activity")
 	for _, want := range []string{
-		`<span class="scr on" aria-current="page" data-screen="activity">活動<span class="n">4</span><span class="wait">待ち 2</span></span>`,
+		`<span class="scr on" aria-current="page" data-screen="activity">アクティビティ<span class="n">4</span><span class="wait">待ち 2</span></span>`,
 		`<span class="tab">一覧</span>`,
 		`<main class="list" id="list">`,
 		`/static/activity-v2.css`,
@@ -234,13 +234,13 @@ func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
 }
 
 // TestTheBandWritesNoActivityNumberThatIsNotThere: a project with nothing
-// running, and a herdr that could not be read, both leave 活動 without a number
+// running, and a herdr that could not be read, both leave アクティビティ without a number
 // and without 待ち, rather than writing a zero that is not known
 // (spec-activity 2.7).
 func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 	f := newFixture(t)
 	_, none := f.get(t, f.server(t), "/profiles")
-	if !strings.Contains(none, `<a class="scr" href="/activity" data-screen="activity">活動</a>`) {
+	if !strings.Contains(none, `<a class="scr" href="/activity" data-screen="activity">アクティビティ</a>`) {
 		t.Errorf("the band writes a number with nothing running:\n%s", none)
 	}
 	if strings.Contains(none, `class="wait"`) {
@@ -254,7 +254,7 @@ func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, broken := f.get(t, server, "/activity")
-	if !strings.Contains(broken, `<span class="scr on" aria-current="page" data-screen="activity">活動</span>`) {
+	if !strings.Contains(broken, `<span class="scr on" aria-current="page" data-screen="activity">アクティビティ</span>`) {
 		t.Errorf("the band writes a number for a herdr it could not read:\n%s", broken)
 	}
 }

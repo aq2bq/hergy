@@ -29,7 +29,7 @@ type navData struct {
 	Waiting  int
 	// Counts says whether the band may show the activity's two numbers: herdr
 	// was read, and there is at least one team running. With no team running the
-	// band is 活動 alone, and with a herdr that could not be read it writes no
+	// band is アクティビティ alone, and with a herdr that could not be read it writes no
 	// number either, rather than a zero it does not know (spec-activity 2.7).
 	Counts bool
 	Key    string

@@ -366,8 +366,11 @@ var glossary = []term{
 	{
 		id:       "activity",
 		english:  "activity",
-		japanese: "活動",
+		japanese: "アクティビティ",
 		meaning:  "how a running team stands now: who is waiting on the human, what needs deciding, and why it is stopped",
+		banned: []ban{
+			{lang: "ja", word: "活動", instead: "アクティビティ"},
+		},
 	},
 	{
 		id:       "launch-record",
