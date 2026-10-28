@@ -633,6 +633,27 @@ func TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor(t *testing.T) {
 	}
 }
 
+// TestRefreshWithoutNextHintLeavesTheNextLineOut: a caller that hands the new
+// lineup itself (apply) gets no "next: hergy reprompt --all" line, because the
+// command it would name is the one the caller is already doing (d-36ef).
+func TestRefreshWithoutNextHintLeavesTheNextLineOut(t *testing.T) {
+	port := addablePort()
+	l, out := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.timeout = 3000
+	l.starts[1].Prompt = "you are spec2; read the rules and wait"
+	spec2 := l.starts[1]
+
+	if err := l.WithoutNextHint().Refresh([]definition.Start{spec2}, ""); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if strings.Contains(out.String(), "next:") {
+		t.Fatalf("refresh named a next command, which apply already did:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "started: demo-spec2") {
+		t.Fatalf("refresh does not report the member it started:\n%s", out.String())
+	}
+}
+
 // TestRefreshAllRestartsTheRunningAndAddsTheRest: with --all the live member is
 // started again in its own pane as before, and the member with no pane is added;
 // the one member's restart does not make a pane.

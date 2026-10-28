@@ -18,6 +18,9 @@ func TestApplyAddsAMemberTheTeamHasNoAgentFor(t *testing.T) {
 	if !strings.Contains(out, "builder") {
 		t.Fatalf("apply does not report the member it applied:\n%s", out)
 	}
+	if strings.Contains(out, "next:") {
+		t.Fatalf("apply names a next command it already did:\n%s", out)
+	}
 	record := readFile(t, log)
 	for _, want := range []string{"pane split", "pane rename", "agent start demo-builder", "agent prompt demo-builder"} {
 		if !strings.Contains(record, want) {
@@ -48,6 +51,29 @@ func TestApplyDrySaysHowAndWhatChanged(t *testing.T) {
 	}
 	if strings.Contains(out, "applied ") {
 		t.Errorf("apply --dry applied something:\n%s", out)
+	}
+}
+
+// TestApplyDrySaysWhyADefinitionDoesNotBuild: a team whose role file does not
+// read cannot be applied, and --dry says the reason and the way to fix it, and
+// answers 1 (2.2, d-36ef).
+func TestApplyDrySaysWhyADefinitionDoesNotBuild(t *testing.T) {
+	f := applyDemo(t)
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), "version: 1\nsections: [\n")
+
+	stdout, stderr, code := run("apply", "--dry")
+	if code == 0 {
+		t.Fatalf("apply --dry answered 0 for a definition that does not build:\n%s", stdout)
+	}
+	for _, want := range []string{"does not build", "hergy validate"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("apply --dry does not say %q:\n%s", want, stdout)
+		}
+	}
+	if stderr == "" {
+		t.Error("apply --dry did not say why it answered 1")
 	}
 }
 

@@ -276,15 +276,30 @@ func workerChanges(current definition.Start, segment, oldPrompt string) []Change
 		nowPairs = append(nowPairs, worker.Purpose+" → "+worker.Profile)
 		nowPurposes = append(nowPurposes, worker.Purpose)
 	}
-	var out []Change
-	for i, pair := range nowPairs {
-		if !strings.Contains(oldPrompt, pair) {
-			out = append(out, Change{Kind: "worker", Worker: nowPurposes[i],
-				Text: i18n.Tf("delivery.worker_added", nowPurposes[i])})
-		}
-	}
 	heading := firstHeading(segment)
 	old := section(oldPrompt, heading)
+	// A purpose that is already in the old note with another profile is a
+	// changed profile, not a new worker: a person reading it is told what
+	// changed, and the team's note says the next worker gets it (d-36ef).
+	was := map[string]string{}
+	for _, pair := range workerPairs(old) {
+		purpose, profile, _ := strings.Cut(pair, " → ")
+		was[purpose] = profile
+	}
+	var out []Change
+	for i, pair := range nowPairs {
+		if strings.Contains(oldPrompt, pair) {
+			continue
+		}
+		purpose := nowPurposes[i]
+		if before, ok := was[purpose]; ok && before != current.Workers[i].Profile {
+			out = append(out, Change{Kind: "worker_profile", Worker: purpose,
+				Text: i18n.Tf("delivery.worker_profile_changed", purpose)})
+			continue
+		}
+		out = append(out, Change{Kind: "worker", Worker: purpose,
+			Text: i18n.Tf("delivery.worker_added", purpose)})
+	}
 	for _, pair := range workerPairs(old) {
 		purpose, _, _ := strings.Cut(pair, " → ")
 		if !containsLine(nowPurposes, purpose) {
@@ -297,11 +312,21 @@ func workerChanges(current definition.Start, segment, oldPrompt string) []Change
 
 var workerPair = regexp.MustCompile(`([^、\s]+) → ([^、\s]+)`)
 
-// workerPairs reads the purpose → profile pairs out of an old workers note.
+// workerPairs reads the purpose → profile pairs out of an old workers note. The
+// pairs stand after the note's colon, one line: the line before it says 「目的 →
+// プロファイル」 as an example, and reading that as a pair would name a worker
+// that never existed.
 func workerPairs(text string) []string {
 	var out []string
-	for _, match := range workerPair.FindAllStringSubmatch(text, -1) {
-		out = append(out, match[1]+" → "+match[2])
+	for line := range strings.SplitSeq(text, "\n") {
+		at := strings.LastIndex(line, ": ")
+		if at < 0 {
+			continue
+		}
+		for _, match := range workerPair.FindAllStringSubmatch(line[at+2:], -1) {
+			out = append(out, match[1]+" → "+match[2])
+		}
+		return out
 	}
 	return out
 }

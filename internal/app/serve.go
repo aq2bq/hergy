@@ -61,20 +61,37 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	cat := env.Catalog(source.Disk{})
 	read := newActivityRead(env)
 	read.ctx = ctx
+	// The screens are written in one language, and the server makes their pages
+	// and the sentences it answers them with in that language; --lang is the
+	// command line's language, so the lines serve prints keep it (d-aacf's
+	// follow-up, r-85b3).
+	cliLang := i18n.Language()
+	if err := i18n.Use(screenLanguage); err != nil {
+		return err
+	}
+	defer func() { _ = i18n.Use(cliLang) }()
 	server, err := web.New(cat, read)
 	if err != nil {
 		return err
 	}
 	return server.Serve(ctx, opts.Port, func(url string) {
-		fmt.Fprintln(stdout, i18n.Tf("serve.url", url))
+		fmt.Fprintln(stdout, i18n.Textf(cliLang, "serve.url", url))
 		if opts.NoOpen {
 			return
 		}
 		if err := openBrowser(url); err != nil {
-			fmt.Fprintln(stderr, i18n.Tf("serve.no_browser", url))
+			fmt.Fprintln(stderr, i18n.Textf(cliLang, "serve.no_browser", url))
 		}
 	})
 }
+
+// screenLanguage is the language the WebUI's screens are written in. The
+// screens' JavaScript writes its words in Japanese only, so the server makes
+// their pages and the sentences it answers the screens with in the same
+// language, whatever --lang says: one serve has one language, and --lang stays
+// the command line's. When the screens are written in both languages, this goes
+// and the screens follow --lang (r-85b3, ac-f0e0).
+const screenLanguage = "ja"
 
 // openBrowser opens a URL in the person's browser. It is internal/browser's
 // Open, held as a variable so a test can watch what runServe asks for without a

@@ -84,3 +84,19 @@ func TestPreambleSaysWhatChangedAndWhatToDo(t *testing.T) {
 		}
 	}
 }
+
+// TestAChangedWorkerProfileIsNotAnAddedWorker: a purpose that already stood in
+// the old note with another profile is a profile change, so a person is told
+// that, not that the worker was added (d-36ef).
+func TestAChangedWorkerProfileIsNotAnAddedWorker(t *testing.T) {
+	segment := "\n## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"
+	old := "## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"
+	current := definition.Start{Workers: []definition.WorkerNode{{Purpose: "校正", Profile: "good"}}}
+	changes := workerChanges(current, segment, old)
+	if len(changes) != 1 || changes[0].Kind != "worker_profile" {
+		t.Fatalf("changes = %+v, want one worker_profile change", changes)
+	}
+	if !strings.Contains(changes[0].Text, "校正") {
+		t.Errorf("the text = %q, want the purpose named", changes[0].Text)
+	}
+}

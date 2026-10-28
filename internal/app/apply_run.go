@@ -172,7 +172,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 
 // applyGroup applies one team's members, and records what they were handed.
 func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *resolved, group []plannedMember) error {
-	l := newLauncher(r, 30000, io.Discard).WithContext(ctx)
+	l := newLauncher(r, 30000, io.Discard).WithContext(ctx).WithoutNextHint()
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
 	var starts, restarts, resends []definition.Start
 	for _, member := range group {

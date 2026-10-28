@@ -155,7 +155,7 @@ var flagMeaning = map[string]string{
 	"purpose": "The worker's purpose.",
 	"task":    "The worker's task text.",
 	"from":    "The member a hire is from, or, on tell, who the message is from; a short member name or a herdr name.",
-	"lang":    "The language for this run. The global config.yaml can set lang; --lang wins; default en.",
+	"lang":    "The language of the command line's output for this run. The global config.yaml can set lang; --lang wins; default en. The WebUI hergy serve opens is Japanese, whatever this says.",
 	"dir":     "The project root to resolve against (default: the git root, else the current directory).",
 	"help":    "Print the page of the command, with each flag and what it means there. hergy --help lists every command.",
 }

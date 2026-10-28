@@ -41,7 +41,7 @@ type Spec struct {
 // common is what every command but version accepts. It is written once, so a
 // command's Flags leaves it out.
 var common = []Use{
-	{Flag: flagLang, Desc: text("Language of the output (default en)", "表示の言語（既定は en）")},
+	{Flag: flagLang, Desc: text("Language of the command line's output (default en)\nThe WebUI is Japanese", "コマンドの出力の言語（既定は en）\nWebUI は日本語")},
 	{Flag: flagHelp, Desc: text("Show this text", "この説明を表示する")},
 }
 

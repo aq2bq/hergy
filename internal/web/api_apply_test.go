@@ -62,7 +62,7 @@ func TestApplyAPIAnswersTheCountAndTheDrift(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET apply answers %d: %s", resp.StatusCode, body)
 	}
-	for _, want := range []string{`"how":"resend"`, `"how":"start"`, `"TEAM-1"`, `"demo-builder"`, `"can_apply":true`} {
+	for _, want := range []string{`"how":"resend"`, `"how":"start"`, `"TEAM-1"`, `"demo-builder"`, `"can_apply":true`, `"changes":[]`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("apply = %s, want %s", body, want)
 		}

@@ -39,6 +39,10 @@ type Launcher struct {
 	observe   func(Event)
 	workspace string
 	wsLabel   string
+	// noNext drops the "next: hergy reprompt --all" line a refresh prints after
+	// adding a member: apply is the caller that hands the lineup itself, so the
+	// command line it suggests would be wrong (d-36ef).
+	noNext bool
 
 	// kill stops a process group. It is a field so a test can record the call
 	// instead of signalling a real process group.
@@ -267,7 +271,10 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 		fmt.Fprint(l.out, i18n.Tf("launcher.refresh_added", strings.Join(added, ", "), tabNamed(tab.label, tab.id)))
 		// The members that were already running do not know the new ones: the
 		// bootstrap prompt is what tells them, and it keeps their conversation.
-		fmt.Fprintln(l.out, i18n.Tf("next", i18n.Tf("launcher.refresh_added_next", l.team)))
+		// A caller that hands that prompt itself (apply) asks for no next line.
+		if !l.noNext {
+			fmt.Fprintln(l.out, i18n.Tf("next", i18n.Tf("launcher.refresh_added_next", l.team)))
+		}
 	}
 	return nil
 }
@@ -277,6 +284,14 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 type NewPanes struct {
 	Members []string
 	Tab     string
+}
+
+// WithoutNextHint says the caller goes on with the members a refresh adds, so a
+// refresh prints no "next: hergy reprompt --all" line (apply): the next command
+// it would name is the one the caller is already doing (d-36ef).
+func (l *Launcher) WithoutNextHint() *Launcher {
+	l.noNext = true
+	return l
 }
 
 // RefreshDry checks the same targets a real refresh checks and changes nothing,

@@ -182,3 +182,56 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 		t.Errorf("notes = %q, want the changed worker named", joined)
 	}
 }
+
+// TestApplyTellsAChangedWorkerProfileFromAnAddedWorker: a worker entry whose
+// purpose stays and whose profile changed is a changed profile, not a new
+// worker, and it is the team's note as well as the member's change (d-36ef).
+func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
+	useJapanese(t)
+	f := applyDemo(t)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n  scout:\n    kind: claude\n")
+	teamPath := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
+	writeFile(t, teamPath, readFile(t, teamPath)+"workers:\n  - from: lead\n    purpose: 調査\n    profile: claude-default\n")
+	env := serveEnv(t)
+	cat := env.Catalog(source.Disk{})
+	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, err := launchlog.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+		t.Fatal(err)
+	}
+	// The profile the worker entry names changes after the launch.
+	writeFile(t, teamPath, strings.Replace(readFile(t, teamPath), "purpose: 調査\n    profile: claude-default", "purpose: 調査\n    profile: scout", 1))
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
+
+	got := newActivityRead(serveEnv(t)).Apply()
+	if len(got.Teams) != 1 {
+		t.Fatalf("apply = %+v, want the demo team", got)
+	}
+	joined := strings.Join(got.Teams[0].Notes, "\n")
+	if !strings.Contains(joined, "調査") {
+		t.Errorf("notes = %q, want the changed worker named", joined)
+	}
+	for _, member := range got.Teams[0].Members {
+		if member.Short != "lead" {
+			continue
+		}
+		kinds := map[string]string{}
+		for _, change := range member.Changes {
+			kinds[change.Kind] = change.Text
+		}
+		if _, ok := kinds["worker_profile"]; !ok {
+			t.Errorf("lead's changes = %+v, want a worker_profile change", member.Changes)
+		}
+		if _, added := kinds["worker"]; added {
+			t.Errorf("lead's changes = %+v, want no worker added", member.Changes)
+		}
+	}
+}

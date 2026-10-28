@@ -48,10 +48,21 @@ func (m plannedMember) canApply() bool {
 }
 
 // Apply is GET /api/apply: the drift between the saved definitions and the teams
-// running from them, and how hergy would put each member right (d-36ef). It is
-// read from the same plan as the delivery answer, so the band and the sheet
-// cannot disagree about what changed.
-func (a *activityRead) Apply() web.ApplyList { return a.plan(a.clock()).apply }
+// running from them, and how hergy would put each member right (d-36ef). A
+// member with no change of its own (a start, a member the definition no longer
+// has) carries an empty list, never null: the promise says every member has a
+// changes array.
+func (a *activityRead) Apply() web.ApplyList {
+	list := a.plan(a.clock()).apply
+	for i := range list.Teams {
+		for j := range list.Teams[i].Members {
+			if list.Teams[i].Members[j].Changes == nil {
+				list.Teams[i].Members[j].Changes = []deliver.Change{}
+			}
+		}
+	}
+	return list
+}
 
 // ApplyCount is the light answer the band reads on every page.
 func (a *activityRead) ApplyCount() int { return a.Apply().Count }
@@ -129,6 +140,14 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 	}
 	recorded := teamsRecorded(records, running.Project)[running.Name]
 	oldRecord := false
+	noted := map[string]bool{}
+	addNote := func(text string) {
+		if text == "" || noted[text] {
+			return
+		}
+		noted[text] = true
+		row.Notes = append(row.Notes, text)
+	}
 	for i := range running.Built.starts {
 		start := running.Built.starts[i]
 		node, live := byHerdr[start.Name]
@@ -158,6 +177,11 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 			planned.whyNot = drift.whyNot(start.Short)
 		}
 		one.members[start.Name] = planned
+		for _, change := range drift.changes {
+			if change.Kind == "worker_profile" {
+				addNote(i18n.Tf("apply.note_worker", change.Worker))
+			}
+		}
 		if !drift.any() {
 			continue
 		}
@@ -172,13 +196,15 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		row.Members = append(row.Members, applied)
 	}
 	if newest, ok := newestRecord(recorded); ok {
-		row.Notes = append(row.Notes, workerNotes(newest, running.Built)...)
+		for _, note := range workerNotes(newest, running.Built) {
+			addNote(note)
+		}
 	}
 	if oldRecord {
 		// The record was written before hergy kept the fingerprint: a profile
 		// that changed since then cannot be told from one that did not, so the
 		// sheet says so rather than claiming the member is current.
-		row.Notes = append(row.Notes, i18n.T("apply.note_old_record"))
+		addNote(i18n.T("apply.note_old_record"))
 	}
 	// A member the definition no longer has is still live: hergy cannot put it
 	// right without stopping and starting the team (d-36ef). Only an agent the

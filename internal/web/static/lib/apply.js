@@ -74,7 +74,7 @@ function teamOf(path) {
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
 function linkFor(change, group) {
   const kind = change.kind || "";
-  if (kind === "turn" || kind === "worker" || kind === "roster" || kind === "template" || kind === "prompt") {
+  if (kind === "turn" || kind === "worker" || kind === "worker_profile" || kind === "roster" || kind === "template" || kind === "prompt") {
     return `/teams?open=${enc(group.definition || group.team)}`;
   }
   if (kind === "rule" || kind === "document") {

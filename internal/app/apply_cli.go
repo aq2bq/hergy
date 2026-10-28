@@ -37,13 +37,21 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	if err != nil {
 		return err
 	}
+	broken := brokenTeams(plan.apply.Teams)
+	printBroken(stdout, broken)
 	if opts.Dry {
-		return printApplyPlan(stdout, selected, remaining, opts.JSON)
+		if err := printApplyPlan(stdout, selected, remaining, opts.JSON); err != nil {
+			return err
+		}
+		return applyBrokenError(len(broken))
 	}
 	if len(selected) == 0 {
 		fmt.Fprintln(stdout, i18n.T("apply.nothing"))
 		printRemaining(stdout, remaining)
-		return applyLeftError(remaining)
+		if err := applyLeftError(remaining); err != nil {
+			return err
+		}
+		return applyBrokenError(len(broken))
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
@@ -52,7 +60,10 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return err
 	}
 	printRemaining(stdout, remaining)
-	return applyLeftError(remaining)
+	if err := applyLeftError(remaining); err != nil {
+		return err
+	}
+	return applyBrokenError(len(broken))
 }
 
 // plannedByName finds one member of the plan by the name herdr sees first, then
@@ -67,6 +78,38 @@ func plannedByName(plan deliveryPlan, name string) (plannedMember, bool) {
 		}
 	}
 	return plannedMember{}, false
+}
+
+// brokenTeams is the running teams whose definition cannot be built: hergy has no
+// member to apply for them, and a person has to fix the settings (2.2).
+func brokenTeams(teams []web.ApplyTeam) []web.ApplyTeam {
+	var out []web.ApplyTeam
+	for _, team := range teams {
+		if team.Error != "" {
+			out = append(out, team)
+		}
+	}
+	return out
+}
+
+// printBroken says why a team's definition cannot be built, and what to do: the
+// reason hergy status writes, then hergy validate.
+func printBroken(stdout io.Writer, broken []web.ApplyTeam) {
+	for _, team := range broken {
+		fmt.Fprintln(stdout, i18n.Tf("apply.broken_team", team.Team, team.Error))
+	}
+	if len(broken) > 0 {
+		fmt.Fprintln(stdout, i18n.T("apply.broken_fix"))
+	}
+}
+
+// applyBrokenError is the exit status for a team whose definition does not
+// build: nothing named a member, and the person has to fix the file first.
+func applyBrokenError(count int) error {
+	if count == 0 {
+		return nil
+	}
+	return i18n.Errorf("apply.broken_left", count)
 }
 
 // chosen is one member the command applies or leaves, with the sentence for
@@ -134,7 +177,7 @@ func applyNow(ctx context.Context, env team.Env, selected []plannedMember, timeo
 		if err != nil {
 			return err
 		}
-		l := newLauncher(r, timeout, stdout).WithContext(ctx)
+		l := newLauncher(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
 		var starts, resends []definition.Start
 		for _, member := range group {
 			if member.how == web.ApplyResend {

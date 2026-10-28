@@ -61,7 +61,7 @@ const enc = (s: string): string => encodeURIComponent(String(s == null ? '' : s)
 
 function linkFor(change: ApplyChange, group: ApplyTeam): string {
   const kind = change.kind || '';
-  if (kind === 'turn' || kind === 'worker' || kind === 'roster' || kind === 'template' || kind === 'prompt') {
+  if (kind === 'turn' || kind === 'worker' || kind === 'worker_profile' || kind === 'roster' || kind === 'template' || kind === 'prompt') {
     return `/teams?open=${enc(group.definition || group.team)}`;
   }
   if (kind === 'rule' || kind === 'document') {

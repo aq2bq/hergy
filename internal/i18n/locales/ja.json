@@ -1,5 +1,5 @@
 {
-  "usage": "hergy - herdr の上でエージェントのチームを動かす\n\n使い方: hergy <コマンド> [オプション]\n\nチームを動かす\n  up [チーム定義]            チームを起動する\n  down [チーム]              チームを終了する。hire したワーカーも閉じる\n  status [チーム]            メンバーとワーカーの状態を見る\n  apply [メンバー...]        動いているチームに定義の変更を反映する\n  refresh <メンバー>|--all   メンバーを起動し直す\n  reprompt <メンバー>|--all  初期プロンプトを送り直す。会話は残る\n  focus <メンバー>           メンバーのペインに移動する\n  nudge <メンバー> [本文]    止まっているメンバーに続けるよううながす\n  stop <メンバー>            メンバーの今のターンを止める\n  tell <メンバー> \"<本文>\"   メンバーに伝える（誰からかを付けられる）\n  hire <名前>                ワーカーを追加する\n\nチーム定義を扱う\n  new <チーム定義>           チーム定義のひな形を作る\n  ls                         チーム定義の一覧を見る\n  show <チーム定義>          最終的なチーム定義と、その出どころを見る\n  validate                   設定ファイルを検査する\n  serve                      ブラウザで WebUI を開く\n\nそのほか\n  cheat [--ai]               チートシートを見る\n  version                    バージョンを見る\n\n主なオプション\n  --dry                      実行せず、何をするかだけを表示する\n  --as <チーム名>            同じチーム定義を別のチーム名で動かす（up だけ）\n  --team <チーム名>          apply・refresh・reprompt・hire・focus・nudge・stop・tell の対象のチーム\n  -C <ディレクトリ>          プロジェクトの場所を指定する\n  --lang en|ja               表示の言語（既定は en）\n  --port <ポート>            serve が待ち受けるポート（既定 8787）\n\nhire のオプション\n  --purpose <目的> --task \"<依頼>\" [--profile <プロファイル>] [--from <メンバー>]\n\nチーム定義の場所\n  プロジェクト               .hergy/teams/<チーム定義>/team.yaml\n  プロジェクトの外           ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとの説明は hergy <コマンド> --help\n",
+  "usage": "hergy - herdr の上でエージェントのチームを動かす\n\n使い方: hergy <コマンド> [オプション]\n\nチームを動かす\n  up [チーム定義]            チームを起動する\n  down [チーム]              チームを終了する。hire したワーカーも閉じる\n  status [チーム]            メンバーとワーカーの状態を見る\n  apply [メンバー...]        動いているチームに定義の変更を反映する\n  refresh <メンバー>|--all   メンバーを起動し直す\n  reprompt <メンバー>|--all  初期プロンプトを送り直す。会話は残る\n  focus <メンバー>           メンバーのペインに移動する\n  nudge <メンバー> [本文]    止まっているメンバーに続けるよううながす\n  stop <メンバー>            メンバーの今のターンを止める\n  tell <メンバー> \"<本文>\"   メンバーに伝える（誰からかを付けられる）\n  hire <名前>                ワーカーを追加する\n\nチーム定義を扱う\n  new <チーム定義>           チーム定義のひな形を作る\n  ls                         チーム定義の一覧を見る\n  show <チーム定義>          最終的なチーム定義と、その出どころを見る\n  validate                   設定ファイルを検査する\n  serve                      ブラウザで WebUI を開く\n\nそのほか\n  cheat [--ai]               チートシートを見る\n  version                    バージョンを見る\n\n主なオプション\n  --dry                      実行せず、何をするかだけを表示する\n  --as <チーム名>            同じチーム定義を別のチーム名で動かす（up だけ）\n  --team <チーム名>          apply・refresh・reprompt・hire・focus・nudge・stop・tell の対象のチーム\n  -C <ディレクトリ>          プロジェクトの場所を指定する\n  --lang en|ja               コマンドの出力の言語（既定は en）。WebUI は日本語\n  --port <ポート>            serve が待ち受けるポート（既定 8787）\n\nhire のオプション\n  --purpose <目的> --task \"<依頼>\" [--profile <プロファイル>] [--from <メンバー>]\n\nチーム定義の場所\n  プロジェクト               .hergy/teams/<チーム定義>/team.yaml\n  プロジェクトの外           ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとの説明は hergy <コマンド> --help\n",
   "help.usage_label": "使い方:",
   "help.options_placeholder": "[オプション]",
   "help.arguments": "引数",
@@ -533,5 +533,9 @@
   "web.hq.path_empty": "プロジェクトのディレクトリのパスを書いてください",
   "web.hq.tab_created": "タブ %s を作りました",
   "web.hq.panes_created": "ペインを %d 個作りました",
-  "apply.note_worker": "ワーカー %s のプロファイルが変わった。次に雇うワーカーから効く"
+  "apply.note_worker": "ワーカー %s のプロファイルが変わった。次に雇うワーカーから効く",
+  "delivery.worker_profile_changed": "ワーカー %s のプロファイルが変わった",
+  "apply.broken_team": "%s のチーム定義を組み立てられません: %s",
+  "apply.broken_fix": "設定ファイルを直してから、hergy validate で確かめてください",
+  "apply.broken_left": "%d チームの定義を組み立てられないので、そのずれを反映できません"
 }
