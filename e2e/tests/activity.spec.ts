@@ -1,8 +1,8 @@
-// ACTIVITY-C1 and ACTIVITY-P4 — walked in a browser (spec-activity 2,
-// spec 6 章, d-8a45). Only what the browser alone can see is compared here
-// (d-3e43): who the screen says is waiting for the human before a team is
-// picked, and the ten-second re-reading leaving the person's pick, scroll and
-// address where they were.
+// ACTIVITY-P4 — walked in a browser (spec-activity 2, spec 6 章, d-8a45). Only
+// what the browser alone can see is compared here (d-3e43): the ten-second
+// re-reading leaving the person's pick, scroll and address where they were. Who
+// the screen says is waiting, from the reading it was given, is the module's
+// (internal/web/jstest/activity-waiting.test.js).
 //
 // The run's clock and zone are its own (r-f647): the serve reads its moment from
 // HERGY_E2E_NOW (d-f978), and the fixture's times are counted back from the same
@@ -11,7 +11,7 @@ import { test } from './fixtures';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { press, q, read, readTo, wait } from './helpers';
+import { read, readTo, wait } from './helpers';
 
 test.use({ reads: 'activity' });
 
@@ -26,19 +26,6 @@ const band =
   `if(!s) throw new Error('no activity band');` +
   `var n=s.querySelector('.n'),w=s.querySelector('.wait');` +
   `return [n?n.textContent:'none',w?w.textContent:'none'].join('|')})()`;
-
-// waiting is one team's row in the first tier as it reads at a glance: the badge
-// and the member herdr knows (spec 6 章).
-const waiting = (team: string): string =>
-  `(function(){var a=document.querySelector('.hq-at[data-pick='+JSON.stringify(${JSON.stringify(team)})+']');` +
-  `if(!a) throw new Error('no waiting row for '+${JSON.stringify(team)});` +
-  `return [a.querySelector('.st').textContent,a.querySelector('.hq-aw code').textContent].join('|');})()`;
-
-// state is one team's figure's badge (spec 6 章).
-const state = (team: string): string =>
-  `(function(){var a=document.querySelector('.hq-tile[data-team='+JSON.stringify(${JSON.stringify(team)})+']');` +
-  `if(!a) throw new Error('no figure for '+${JSON.stringify(team)});` +
-  `return a.querySelector('.st').textContent;})()`;
 
 // open opens the screen on one address and waits for the board.
 async function open(page: Page, base: string, query: string): Promise<void> {
@@ -78,20 +65,6 @@ function agentState(cfg: string, name: string, state: string): void {
   if (!found) throw new Error(`the fixture has no agent ${name}`);
   writeFileSync(at, JSON.stringify(doc));
 }
-
-test('ACTIVITY-C1 who the screen says is waiting', async ({ page, app }) => {
-  // C1: before a team is picked, the first tier says whose answer is waited by
-  // the human: core's lead handed the turn over, and migrate's tester waits for
-  // a permission.
-  await open(page, app.base, '');
-  await readTo<string>(page, waiting('core'), 'core reads, want 人間の番 with its herdr name').toBe(
-    '人間の番|core-lead',
-  );
-  await readTo<string>(page, waiting('migrate'), 'migrate reads, want 許可待ち with its herdr name').toBe(
-    '許可待ち|migrate-tester',
-  );
-  await readTo<string>(page, state('core'), "core's figure reads, want 人間の番").toBe('人間の番');
-});
 
 test('ACTIVITY-P4 reading again', async ({ page, app }) => {
   // P4: the screen reads again every ten seconds (2.6), and the re-reading
