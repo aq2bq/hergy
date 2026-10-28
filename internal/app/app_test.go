@@ -244,6 +244,7 @@ case "$g $s" in
     printf '{"result":{"tab":{"tab_id":"t%s"},"root_pane":{"pane_id":"p1"}}}' "$n"
     ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"p1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -322,13 +323,14 @@ fi
 case "$g $s" in
   "agent get")
     case "$3" in
-      demo-lead) echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}}}' ;;
+      demo-lead|p1) echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}}}' ;;
       *) echo '{"error":{"code":"agent_not_found"}}' ;;
     esac
     ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"demo-lead","tab_id":"t1"}]}}' ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"p1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `

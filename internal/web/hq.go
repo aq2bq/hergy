@@ -245,6 +245,9 @@ type HQRefreshIn struct {
 const (
 	ActionLaunch  = "launch"
 	ActionRefresh = "refresh"
+	// ActionApply is the drift of one or more running teams applied at once
+	// (d-36ef). Its progress is read the way a start's is.
+	ActionApply = "apply"
 )
 
 // HQWorkspaceIn is the workspace a start asks for: one that is there, or one to

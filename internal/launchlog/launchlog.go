@@ -40,6 +40,7 @@ const (
 	CommandUp       = "up"
 	CommandRefresh  = "refresh"
 	CommandReprompt = "reprompt"
+	CommandApply    = "apply"
 	CommandHire     = "hire"
 )
 

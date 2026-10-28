@@ -35,8 +35,24 @@ type plannedMember struct {
 	start   definition.Start
 	state   string
 	stale   bool
+	changed bool
 	changes []deliver.Change
 	how     string
+	whyNot  string
+}
+
+// canApply says whether hergy may apply the drift to this member now: a member
+// with no drift of its own is not in the plan, a start needs no waiting, and a
+// send or a restart needs a member that is not working (d-aacf).
+func (m plannedMember) canApply() bool {
+	switch m.how {
+	case web.ApplyCannot:
+		return false
+	case web.ApplyStart:
+		return true
+	default:
+		return sendable(m.state)
+	}
 }
 
 // Delivery is GET /api/delivery: the running members whose prompt is not the one
@@ -138,6 +154,9 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		if !live {
 			// The definition has the member and no agent of the team is live
 			// for it: hergy starts it (d-36ef).
+			one.members[start.Name] = plannedMember{
+				team: running, start: start, state: "absent", changed: true, how: web.ApplyStart,
+			}
 			row.Members = append(row.Members, web.ApplyMember{
 				Name: start.Name, Short: start.Short, Role: start.Role,
 				State: "absent", How: web.ApplyStart, Changes: []deliver.Change{}, CanApply: true,
@@ -150,10 +169,14 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		}
 		drift := a.memberDrift(running.Catalog, log, logErr, running, start, record, hasRecord)
 		state := node.State.Slug()
-		one.members[start.Name] = plannedMember{
+		planned := plannedMember{
 			team: running, start: start, state: state, stale: drift.prompt,
-			changes: drift.changes, how: drift.how(state),
+			changed: drift.any(), changes: drift.changes, how: drift.how(state),
 		}
+		if !planned.canApply() {
+			planned.whyNot = drift.whyNot(start.Short)
+		}
+		one.members[start.Name] = planned
 		if !drift.any() {
 			continue
 		}

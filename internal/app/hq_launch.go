@@ -536,7 +536,7 @@ func startCommand(definition, name string) string {
 // subject is what a launch's last line is about: the team a start booted, or the
 // members a refresh started (r-5d1a). Both read 起動しました, as hergy calls it.
 func (op *launchOp) subject() string {
-	if op.launch.Action == web.ActionRefresh {
+	if op.launch.Action == web.ActionRefresh || op.launch.Action == web.ActionApply {
 		return strings.Join(op.launch.Members, i18n.T("list.separator"))
 	}
 	return op.launch.Team
@@ -546,8 +546,11 @@ func (op *launchOp) subject() string {
 // it: the start of the team, or the start of the member that was being started
 // (r-5d1a).
 func (op *launchOp) wayOn(member string) string {
-	if op.launch.Action == web.ActionRefresh {
+	switch op.launch.Action {
+	case web.ActionRefresh:
 		return i18n.Tf("web.hq.raise_command", member)
+	case web.ActionApply:
+		return i18n.Tf("web.apply.command", member)
 	}
 	return startCommand(op.launch.Definition, op.launch.Team)
 }
