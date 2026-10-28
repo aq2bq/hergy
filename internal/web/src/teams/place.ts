@@ -1,17 +1,35 @@
-// teams/place.js — 図の点の置き場所（spec-teams B7、d-a575）。
+// teams/place.ts — 図の点の置き場所（spec-teams B7、d-a575）。
 //
 // 描く位置は、人が置いた点（placed）と、置いていない点の自動の場所から組み立てる。
 // place は新しい Map を返すだけで、渡されたものを書き換えない。描く関数が状態を
 // 書かないので、何が画面を描き直すのかが読める（webui-components 1 章）。
 // 位置は保存しない: 開き直すと引き直す（d-a575）。
+
+// Spot is where one point stands, in the figure's own coordinates.
+export type Spot = [number, number];
+
+// Figure is the part of a team a figure is drawn from: its members, and the
+// workers each of them hires. The draft and a saved document both answer it.
+export type Figure = {
+  members: { name: string }[];
+  workers: { purpose?: string; from: string }[];
+};
+
+// Positions is every point's place, by the point's name ('human', a member's
+// name, or 'w<i>' for the i-th worker).
+export type Positions = Record<string, Spot>;
+
+// Box is the room one point's words need.
+export type Box = { w: number; h: number };
+
 // textW is how wide a word is drawn: a full-width letter is 13, and a Latin one
 // is 8.4 in a name's monospace and 7.4 elsewhere.
-const textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
+const textW = (s: unknown, mono?: boolean): number => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 
 // boxOf is the room one point's words need.
-export function boxOf(id, t) {
+export function boxOf(id: string, t: Figure): Box {
   if (id === 'human') return { w: 76, h: 36 };
-  const w = (t.workers || []).find((x, i) => 'w' + i === id);
+  const w = (t.workers || []).find((_worker, i) => 'w' + i === id);
   if (w) return { w: Math.max(108, textW(w.purpose || '（目的）') + 26), h: 40 };
   return { w: Math.max(96, textW(id, true) + 30), h: 46 };
 }
@@ -20,7 +38,7 @@ export function boxOf(id, t) {
 // it, and each member's workers in the nearest room no other point holds. A point
 // never stands on another (監査 1-4).
 const GAP = 10;
-function hits(t, p, id, c) {
+function hits(t: Figure, p: Positions, id: string, c: Spot): boolean {
   const b = boxOf(id, t);
   return Object.keys(p).some((oid) => {
     if (oid === id) return false;
@@ -30,28 +48,28 @@ function hits(t, p, id, c) {
 }
 // freeNear keeps the wanted place when it is free, and otherwise walks round
 // it in rings until it finds room.
-function freeNear(t, p, id, want, startR) {
+function freeNear(t: Figure, p: Positions, id: string, want: Spot, startR?: number): Spot {
   if (!hits(t, p, id, want)) return want;
   for (let r = startR || 54; r <= 560; r += 26) {
     for (let k = 0; k < 20; k++) {
       const a = (-100 + k * 18) * Math.PI / 180;
-      const c = [want[0] + r * Math.cos(a), want[1] + r * Math.sin(a)];
+      const c: Spot = [want[0] + r * Math.cos(a), want[1] + r * Math.sin(a)];
       if (!hits(t, p, id, c)) return c;
     }
   }
   return [want[0], want[1] + 160];
 }
-function workerWant(t, p, from, wbox) {
+function workerWant(t: Figure, p: Positions, from: string, wbox: Box): Spot {
   const from0 = p[from] || [0, 0], hbox = boxOf(from, t);
   const side = from0[0] >= 0 ? 1 : -1;
   return [from0[0] + side * (hbox.w / 2 + wbox.w / 2 + 30), from0[1]];
 }
-function ring(t, narrowPage) {
+function ring(t: Figure, narrowPage: boolean): Positions {
   const ids = ['human', ...t.members.map((m) => m.name)];
   const n = Math.max(ids.length, 2);
   const R = n <= 3 ? 140 : 112 + n * 14;
   const rx = narrowPage ? (n <= 3 ? 95 : 105) : R, ry = narrowPage ? 70 + n * 34 : R * (n <= 3 ? 0.8 : 0.86);
-  const out = {};
+  const out: Positions = {};
   ids.forEach((id, i) => {
     const a = (-90 + i * 360 / n) * Math.PI / 180;
     out[id] = [rx * Math.cos(a), ry * Math.sin(a)];
@@ -64,13 +82,13 @@ function ring(t, narrowPage) {
 // room no other point holds. With no place at all it lays the row out afresh:
 // the human, the members round it, and their workers beside them. The places of
 // points the draft no longer holds are left out.
-export function place(t, placed, narrowPage) {
+export function place(t: Figure, placed?: Positions | null, narrowPage?: boolean): Positions {
   const put = placed || {};
-  const ids = ['human', ...t.members.map((m) => m.name), ...(t.workers || []).map((w, i) => 'w' + i)];
-  const out = {};
+  const ids = ['human', ...t.members.map((m) => m.name), ...(t.workers || []).map((_worker, i) => 'w' + i)];
+  const out: Positions = {};
   ids.forEach((id) => { if (put[id]) out[id] = [put[id][0], put[id][1]]; });
   if (!Object.keys(out).length) {
-    const first = ring(t, narrowPage);
+    const first = ring(t, !!narrowPage);
     t.workers.forEach((w, i) => {
       const id = 'w' + i, b = boxOf(id, t);
       first[id] = freeNear(t, first, id, workerWant(t, first, w.from, b), 58);
@@ -98,7 +116,7 @@ export function place(t, placed, narrowPage) {
   // A worker that a change of purpose made wider, or one put down on another by
   // a double press, is moved to the nearest room: workers only, so a member a
   // person picked stays where it stands.
-  (t.workers || []).forEach((w, i) => {
+  (t.workers || []).forEach((_worker, i) => {
     const id = 'w' + i;
     if (hits(t, out, id, out[id])) out[id] = freeNear(t, out, id, out[id], 40);
   });

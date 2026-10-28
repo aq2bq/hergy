@@ -62,12 +62,12 @@ import {
 } from "../chunk/nav-mdymvqv4.js";
 import"../chunk/nav-bpr8kyt6.js";
 
-// teams/place.js
+// teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 function boxOf(id, t) {
   if (id === "human")
     return { w: 76, h: 36 };
-  const w = (t.workers || []).find((x, i) => "w" + i === id);
+  const w = (t.workers || []).find((_worker, i) => "w" + i === id);
   if (w)
     return { w: Math.max(108, textW(w.purpose || "（目的）") + 26), h: 40 };
   return { w: Math.max(96, textW(id, true) + 30), h: 46 };
@@ -114,14 +114,14 @@ function ring(t, narrowPage) {
 }
 function place(t, placed, narrowPage) {
   const put = placed || {};
-  const ids = ["human", ...t.members.map((m) => m.name), ...(t.workers || []).map((w, i) => "w" + i)];
+  const ids = ["human", ...t.members.map((m) => m.name), ...(t.workers || []).map((_worker, i) => "w" + i)];
   const out = {};
   ids.forEach((id) => {
     if (put[id])
       out[id] = [put[id][0], put[id][1]];
   });
   if (!Object.keys(out).length) {
-    const first = ring(t, narrowPage);
+    const first = ring(t, !!narrowPage);
     t.workers.forEach((w, i) => {
       const id = "w" + i, b = boxOf(id, t);
       first[id] = freeNear(t, first, id, workerWant(t, first, w.from, b), 58);
@@ -142,7 +142,7 @@ function place(t, placed, narrowPage) {
       bx += b.w + 30;
     }
   });
-  (t.workers || []).forEach((w, i) => {
+  (t.workers || []).forEach((_worker, i) => {
     const id = "w" + i;
     if (hits(t, out, id, out[id]))
       out[id] = freeNear(t, out, id, out[id], 40);
@@ -150,7 +150,7 @@ function place(t, placed, narrowPage) {
   return out;
 }
 
-// teams/state.js
+// teams/state.ts
 var view = document.getElementById("view");
 var tabsEl = document.getElementById("tabs");
 var DATA = JSON.parse((document.getElementById("teams-data") || {}).textContent || "{}");
@@ -160,11 +160,11 @@ var DIR = DATA.dirs || { project: "", global: "" };
 var PROFILES = DATA.profiles || [];
 var HQ = DATA.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
-var GROUPS = GROUPED ? HQ.teams || [] : null;
-var CURRENT = HQ ? HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
+var GROUPS = GROUPED && HQ ? HQ.teams || [] : null;
+var CURRENT = HQ && HQ.projects && HQ.projects.current ? HQ.projects.current.path || "" : "";
 var rowsIn = (g) => g.list && g.list.items || [];
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
-var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
+var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name || "" : "";
 if (HQ)
   document.body.classList.add("hq-teams");
 var ROLES_BY = {};
@@ -174,8 +174,9 @@ if (HQ) {
   (HQ.roles || []).forEach((g) => {
     ROLES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
-      return { name: item.name || "", title: ((places[eff] || {}).doc || {}).title || "" };
-    }).filter((x) => x.name);
+      const doc = (places[eff] || {}).doc;
+      return { name: item.name || "", title: doc && doc.title || "" };
+    }).filter((x) => !!x.name);
   });
   (HQ.profiles || []).forEach((g) => {
     PROFILES_BY[groupKeyOf(g)] = rowsIn(g).map((item) => item.name).filter(Boolean);
@@ -265,7 +266,7 @@ var cloneTeam = (t) => ({
   mission: t && t.mission || "",
   members: (t && t.members || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
   workers: (t && t.workers || []).map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })),
-  turns: (t && t.turns || []).map((x) => Array.isArray(x) ? [x[0], x[1]] : [x.from, x.to])
+  turns: (t && t.turns || []).map((x) => ("from" in x) ? [x.from, x.to] : [x[0], x[1]])
 });
 function applyOps(saved, ops) {
   const t = cloneTeam(saved);
@@ -346,8 +347,9 @@ function applyOps(saved, ops) {
 var STILL = ["uid", "dom", "project", "places", "draftRow", "how", "base"];
 function recOf(init) {
   const r = {};
+  const fields = r;
   Object.keys(init).forEach((k) => {
-    r[k] = STILL.includes(k) ? init[k] : y(init[k]);
+    fields[k] = STILL.includes(k) ? init[k] : y(init[k]);
   });
   r.draft = O(() => applyOps(r.saved.value, r.ops.value));
   r.key = O(() => dkey(r));
@@ -363,14 +365,14 @@ function seedPlaces(r) {
 var recs = y([]);
 var uids = 0;
 function defOf(item, project) {
-  project = project || "";
+  const group = project || "";
   const places = item.places || {};
   const eff = item.effective || (places.project ? "project" : "global");
   const place = places[eff] || {};
   const doc = place.doc || {};
   const agree = doc.agreement || { path: "", hash: "", has: false, doc: null };
   const sum = item.summary || {};
-  const dom = domOf(item.name || "", project);
+  const dom = domOf(item.name || "", group);
   const had = byKey(dom + "." + eff);
   if (had)
     return had;
@@ -387,7 +389,7 @@ function defOf(item, project) {
   const r = recOf({
     name: item.name || "",
     dom,
-    project,
+    project: group,
     place: eff,
     places: PLACES.filter((p) => places[p]),
     teamPath: place.path || "",
@@ -404,7 +406,7 @@ function defOf(item, project) {
     findings: [],
     size: sum.size || 0,
     limit: sum.limit || 0,
-    problems: item.problems || {},
+    problems: item.problems || { err: 0, warn: 0 },
     check: null,
     drawMark: 0,
     draftRow: false,
@@ -464,7 +466,7 @@ function draftRecord(how, place, name, base, project) {
     agreeDraft: fromJSON2({ name: "", title: "チームのルール", revision: 1, sections: [] }),
     agreeSavedIssues: null,
     findings: [],
-    problems: {},
+    problems: { err: 0, warn: 0 },
     check: null,
     size: 0,
     limit: 0,
@@ -488,14 +490,16 @@ function draftRecord(how, place, name, base, project) {
   return r;
 }
 function seedDraft(r, json) {
-  const doc = json.doc || {}, agree = doc.agreement || {};
+  const draft = json;
+  const doc = draft.doc;
+  const agree = doc.agreement || {};
   r.seeded.value = true;
   r.placed.value = {};
   r.saved.value = cloneTeam(doc);
   r.broken.value = !!doc.broken;
-  r.teamPath.value = json.path || "";
+  r.teamPath.value = draft.path || "";
   r.agreePath.value = agree.path || "";
-  r.hash.value = json.hash || "";
+  r.hash.value = draft.hash || "";
   r.agreeHash.value = agree.hash || "";
   if (agree.doc) {
     const d = fromJSON2(agree.doc);
@@ -551,13 +555,14 @@ var convProblems = (doc, list) => (list || []).map((p) => ({
   definition: p.definition || ""
 }));
 var buildCheck = (doc, json) => {
-  const effect = json.effect || {};
+  const saved = json;
+  const effect = saved.effect || {};
   return {
     issues: convProblems(doc, json.problems || []),
     markdown: json.preview || { lines: [], chars: 0 },
     diff: effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
     turns: effect.turns || [],
-    readers: json.readers || []
+    readers: saved.readers || []
   };
 };
 function figFindings(r, problems) {
@@ -639,7 +644,7 @@ function changeCount(r) {
     if (w.from !== o.from || w.purpose !== o.purpose || w.profile !== sw.profile)
       n++;
   });
-  wasW.forEach((sw, k) => {
+  wasW.forEach((_sw, k) => {
     if (!claimed.has(k))
       n++;
   });
@@ -652,7 +657,7 @@ function changeCount(r) {
     else if (sm.role !== m.role || sm.profile !== m.profile)
       n++;
   });
-  wasM.forEach((m, name) => {
+  wasM.forEach((_m, name) => {
     if (!nowM.has(name))
       n++;
   });
@@ -666,7 +671,7 @@ var ownAgreement = (r, m) => {
 var ruleID = (m) => (m.field || "").split("#")[1] || "";
 var vlistParts = (r) => {
   const issues = teamIssues(r);
-  const at = (m) => m.field && m.field.startsWith("rule:");
+  const at = (m) => !!m.field && m.field.startsWith("rule:");
   const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
   const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
   const own = issues.filter((m) => !at(m));
@@ -683,29 +688,31 @@ var vlistParts = (r) => {
 var teamChecks = new Map;
 function checkersFor(r) {
   const k = dkey(r);
-  let one = teamChecks.get(k);
-  if (one)
-    return one;
+  const had = teamChecks.get(k);
+  if (had)
+    return had;
   const load = async (signal, payload) => {
     const res = await call2("POST", "/api/team/check", payload, { signal });
     return res.ok ? res.json || {} : null;
   };
-  one = { draft: resource(load), base: resource(load), agree: resource(load) };
+  const one = { draft: resource(load), base: resource(load), agree: resource(load) };
   teamChecks.set(k, one);
   return one;
 }
 function applyTeamAnswer(r, json, findings) {
   r.findings.value = findings;
-  r.prompts.value = Array.isArray(json.members) ? json.members : [];
-  r.promptsReady.value = !!(json.members && json.members.length);
+  const answered = json;
+  r.prompts.value = Array.isArray(answered.members) ? answered.members : [];
+  r.promptsReady.value = !!(answered.members && answered.members.length);
   const pv = json.preview || r.preview.value;
   r.preview.value = pv;
   if (r.draftRow) {
-    r.writes.value = json.writes || r.writes.value;
+    const draft = json;
+    r.writes.value = draft.writes || r.writes.value;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === "name" || p.field === "name");
-    if (json.path)
-      r.teamPath.value = json.path;
-    const ag = (json.doc || {}).agreement || {};
+    if (draft.path)
+      r.teamPath.value = draft.path;
+    const ag = draft.doc.agreement || {};
     if (ag.path) {
       r.agreePath.value = ag.path;
       const saved = r.agreeSaved.value;
@@ -771,7 +778,7 @@ async function saveTeam(r) {
   const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } }));
   if (!res.ok)
     return refuse(r, "t", problemText2(res, "保存できませんでした"));
-  const json = res && res.json || {};
+  const json = res.json || {};
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -789,7 +796,7 @@ async function saveAgree(r) {
   const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } }));
   if (!res.ok)
     return refuse(r, "a", problemText2(res, "保存できませんでした"));
-  const json = res && res.json || {};
+  const json = res.json || {};
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON2(json.doc);
@@ -814,7 +821,7 @@ async function saveFolder(r) {
   const res = await call2("PUT", `/api/team/${encodeURIComponent(r.name.value)}`, body);
   if (!res.ok)
     return refuse(r, "t", problemText2(res, "保存できませんでした"));
-  const json = res && res.json || {};
+  const json = res.json || {};
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
   const at = firstIndexOf((x) => x.dom === dom || x.name.value === name);
   const gone = recs.value.filter((x) => x.dom === dom);
@@ -846,7 +853,7 @@ async function doDelete(r) {
   const res = await call2("DELETE", delURL(r));
   if (!res.ok)
     return refuse(r, "t", problemText2(res, "削除できませんでした"));
-  const json = res && res.json || {};
+  const json = res.json || {};
   const name = r.name.value;
   const at = firstIndexOf((x) => x.dom === r.dom);
   const gone = recs.value.filter((x) => x.dom === r.dom);
@@ -897,7 +904,7 @@ var cundo = new Map;
 var actSeq = 0;
 var ctyping = { key: null, field: null };
 var toastRow = null;
-var toastTimer = null;
+var toastTimer;
 var cloneOps = (ops) => JSON.parse(JSON.stringify(ops || []));
 function canvasUndoPoint(r, label) {
   const k = dkey(r), st = cundo.get(k) || [];
@@ -964,6 +971,8 @@ function canvasUndo(r) {
   if (!st || !st.length)
     return;
   const point = st.pop();
+  if (!point)
+    return;
   setOps(r, cloneOps(point.ops));
   ctyping = { key: null, field: null };
   checkTeam(r);
@@ -1032,8 +1041,8 @@ var bumpRoles = () => {
 var yfiles = y((LIST.files || []).map((f) => ({
   file: `${f.name}.${f.place}.${f.kind}`,
   place: f.place,
-  name: f.name,
-  kind: f.kind,
+  name: f.name || "",
+  kind: f.kind || "",
   label: PLACE[f.place] || "",
   path: f.path || "",
   hash: f.hash || "",
@@ -1086,8 +1095,8 @@ var promptsOf = (r) => r.prompts.value;
 var promptBlockedOf = (r) => r.promptsReady.value === false;
 var teamLabel = (r) => r.name.value || "新しいチーム定義";
 var currentProjectName = () => {
-  const p = HQ && HQ.projects || {};
-  return p.current && p.current.name || "";
+  const p = HQ && HQ.projects || null;
+  return p && p.current && p.current.name || "";
 };
 function syncURL() {
   const s = state.value;
@@ -1373,7 +1382,7 @@ function selectPick(r, sel, side) {
     r.side.value = side;
 }
 function boot() {
-  if (GROUPED)
+  if (GROUPS)
     GROUPS.forEach((g) => rowsIn(g).forEach((item) => defOf(item, groupKeyOf(g))));
   else
     (LIST.items || []).forEach((item) => defOf(item));
@@ -1401,8 +1410,9 @@ function boot() {
     const fill = (kind, map, toEntry) => call2("GET", "/api/hq/" + kind).then((res) => {
       if (!res.ok || !res.json)
         return;
-      (res.json.groups || []).forEach((g) => {
-        map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter(Boolean);
+      const answer = res.json;
+      (answer.groups || []).forEach((g) => {
+        map[groupKeyOf(g)] = rowsIn(g).map(toEntry).filter((x) => x !== null);
       });
       if (map === ROLES_BY)
         ROLES_IN.value = true;
@@ -1411,7 +1421,8 @@ function boot() {
     later.push(fill("roles", ROLES_BY, (item) => {
       const places = item.places || {}, eff = item.effective || (places.project ? "project" : "global");
       const name = item.name || "";
-      return name ? { name, title: ((places[eff] || {}).doc || {}).title || "" } : null;
+      const doc = (places[eff] || {}).doc;
+      return name ? { name, title: doc && doc.title || "" } : null;
     }).finally(rolesCame));
     later.push(fill("profiles", PROFILES_BY, (item) => item.name || null));
   }
