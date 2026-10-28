@@ -9,7 +9,7 @@
 
 import {
   u
-} from "./nav-hx0kbeeq.js";
+} from "./nav-fa78a466.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");

@@ -13,7 +13,7 @@ import {
   A,
   y,
   u
-} from "./nav-hx0kbeeq.js";
+} from "./nav-fa78a466.js";
 
 // lib/ruledoc.tsx
 var clone2 = (o) => JSON.parse(JSON.stringify(o));

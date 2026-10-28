@@ -1195,7 +1195,7 @@ function u(e, t, n, o, i, u) {
   return l.vnode && l.vnode(l2), l2;
 }
 
-export { S, R, d, h, _, A, y, O, x, html, u };
+export { S, R, d, h, _, A, y, O, x, u };
 
 // ---- licences ---------------------------------------------------------
 //
