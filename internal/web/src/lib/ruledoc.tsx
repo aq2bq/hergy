@@ -107,7 +107,7 @@ export type RulePanelInput = Omit<RulePanel, 'e' | 'saved' | 'draft' | 'markdown
   saved: RulePanelDocument | null;
   draft: RulePanelDocument;
   markdown: components['schemas']['RolePreview'] | components['schemas']['TeamRuleMarkdown'] | {
-    lines?: { text?: string; at?: string; part?: string; held?: string }[] | null;
+    lines?: { text?: string; at?: string; part?: string; held?: string; section?: number; rule?: number }[] | null;
     diff?: { added?: number[] | null; removedBefore?: number[] | null; removedAtEnd?: boolean } | null;
     chars?: number;
   };
