@@ -145,3 +145,40 @@ esac
 		t.Errorf("the record kept the preamble as the member's prompt: %q", string(text))
 	}
 }
+
+// TestApplyNotesAChangedWorkerProfile: a worker's profile reaches the next worker
+// hired, not the live ones, so the change is the team's note and not a member to
+// apply (d-36ef).
+func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
+	useJapanese(t)
+	f := applyDemo(t)
+	teamPath := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
+	writeFile(t, teamPath, readFile(t, teamPath)+"workers:\n  - from: lead\n    purpose: coder\n    profile: claude-default\n")
+	// The launch is recorded again with the worker entry, as a real up would.
+	env := serveEnv(t)
+	cat := env.Catalog(source.Disk{})
+	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, err := launchlog.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
+		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    args: [--model, opus]\n")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
+
+	got := newActivityRead(serveEnv(t)).Apply()
+	if len(got.Teams) != 1 {
+		t.Fatalf("apply = %+v, want the demo team", got)
+	}
+	joined := strings.Join(got.Teams[0].Notes, "\n")
+	if !strings.Contains(joined, "coder") {
+		t.Errorf("notes = %q, want the changed worker named", joined)
+	}
+}

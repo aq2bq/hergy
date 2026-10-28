@@ -93,6 +93,19 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Executable: executable(),
 		Lang:       i18n.Language(),
 	}
+	// A worker's profile is not a member's: it reaches the next worker hired,
+	// so the record keeps its fingerprint for the apply sheet's note (d-36ef).
+	for _, worker := range r.team.Definition.Graph.Workers {
+		p, ok := r.profiles[worker.Profile]
+		if !ok {
+			continue
+		}
+		rec.Workers = append(rec.Workers, launchlog.Worker{
+			From: worker.From, Purpose: worker.Purpose, Profile: worker.Profile,
+			Start: launchlog.StartFingerprint(p.Kind, p.Args),
+			Env:   launchlog.EnvFingerprint(p.Env),
+		})
+	}
 	// A document two members read is one entry, and one blob: the record names
 	// the files, not the times they were read.
 	seen := map[string]bool{}

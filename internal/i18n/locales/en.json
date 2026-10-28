@@ -532,5 +532,6 @@
   "web.hq.path_relative": "%s is a relative path. Write an absolute path, or one that starts with ~/",
   "web.hq.path_empty": "Write the path of a project directory",
   "web.hq.tab_created": "Created tab %s",
-  "web.hq.panes_created": "Created %d panes"
+  "web.hq.panes_created": "Created %d panes",
+  "apply.note_worker": "the worker %s starts with a different profile now; the next worker hired for it gets the change"
 }

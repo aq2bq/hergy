@@ -171,6 +171,9 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		}
 		row.Members = append(row.Members, applied)
 	}
+	if newest, ok := newestRecord(recorded); ok {
+		row.Notes = append(row.Notes, workerNotes(newest, running.Built)...)
+	}
 	if oldRecord {
 		// The record was written before hergy kept the fingerprint: a profile
 		// that changed since then cannot be told from one that did not, so the
@@ -196,6 +199,52 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		one.apply.Teams = append(one.apply.Teams, row)
 		one.apply.Count += len(row.Members)
 	}
+}
+
+// newestRecord is the newest launch among the records of one team's members: the
+// team-level facts (its worker entries) are the same in each, so the newest is
+// the one the note reads.
+func newestRecord(recorded map[string]launchlog.Record) (launchlog.Record, bool) {
+	var best launchlog.Record
+	found := false
+	for _, record := range recorded {
+		if !found || record.Time > best.Time {
+			best, found = record, true
+		}
+	}
+	return best, found
+}
+
+// workerNotes is the team's own note: a worker entry's profile changed since the
+// launch, so the next worker hired from it gets the new engine, while the workers
+// already hired keep theirs (d-36ef). A record written before the worker
+// fingerprints were kept says nothing.
+func workerNotes(record launchlog.Record, r *resolved) []string {
+	if len(record.Workers) == 0 {
+		return nil
+	}
+	before := map[string]launchlog.Worker{}
+	for _, worker := range record.Workers {
+		before[worker.From+"/"+worker.Purpose] = worker
+	}
+	var out []string
+	for _, worker := range r.team.Definition.Graph.Workers {
+		was, ok := before[worker.From+"/"+worker.Purpose]
+		if !ok {
+			continue
+		}
+		p, ok := r.profiles[worker.Profile]
+		if !ok {
+			continue
+		}
+		if was.Profile == worker.Profile &&
+			was.Start == launchlog.StartFingerprint(p.Kind, p.Args) &&
+			was.Env == launchlog.EnvFingerprint(p.Env) {
+			continue
+		}
+		out = append(out, i18n.Tf("apply.note_worker", worker.Purpose))
+	}
+	return out
 }
 
 // memberDrift is what one live member differs in: its prompt, how it is started,

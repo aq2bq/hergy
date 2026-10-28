@@ -67,6 +67,19 @@ type Member struct {
 	Env    string `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
 }
 
+// Worker is one worker entry of a team definition as it stood at a launch: the
+// member that hires it, the purpose, the profile, and the fingerprints of how a
+// worker hired from it would start. A worker's profile change reaches the next
+// worker hired, not the live ones, so the record keeps this to tell a change from
+// none (d-36ef).
+type Worker struct {
+	From    string `json:"from"`
+	Purpose string `json:"purpose"`
+	Profile string `json:"profile"`
+	Start   string `json:"start,omitempty"`
+	Env     string `json:"env,omitempty"`
+}
+
 // Doc is one rule file a member read. Revision is the document's own revision,
 // or 0 when it has none.
 type Doc struct {
@@ -110,6 +123,9 @@ type Record struct {
 	// A hire line carries no members, no docs and no team_yaml: nothing was
 	// handed a prompt by it.
 	Hire *Hire `json:"hire,omitempty"`
+	// Workers are the definition's worker entries at this launch, for the note
+	// that a worker's profile changed (d-36ef).
+	Workers []Worker `json:"workers,omitempty"`
 }
 
 // IsHire says this line records a worker's hire, not a launch.
