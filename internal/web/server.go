@@ -200,7 +200,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 
 	// 本部 (d-73fc, r-b7e1): the projects a person lists, the lists of every
 	// project and the global layer, the workspaces, and starting and stopping a
-	// team from the screens.
+	// team from the screens, and raising a member of a running one (r-5d1a).
 	mux.HandleFunc("GET /api/hq/projects", s.hqProjects)
 	mux.HandleFunc("POST /api/hq/projects", s.hqAddProject)
 	mux.HandleFunc("DELETE /api/hq/projects", s.hqRemoveProject)
@@ -214,6 +214,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/hq/launches/{id}", s.hqLaunchState)
 	mux.HandleFunc("DELETE /api/hq/launches/{id}", s.hqLaunchCancel)
 	mux.HandleFunc("POST /api/hq/stop", s.hqStop)
+	mux.HandleFunc("POST /api/hq/refresh", s.hqRefresh)
 
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)

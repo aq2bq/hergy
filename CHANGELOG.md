@@ -26,6 +26,17 @@
 
 ### Added
 
+- **The screens raise a member the team definition has and no agent is live
+  for**: the 動き column of the teams screen and the opened team on the activity
+  screen name those members and offer 起こす, and the press starts the member in
+  the team's tab — the same launcher refresh the command line runs, so it reads
+  the rules it would get from `hergy up` and the start's own sheet shows the
+  progress and any question it asks while it starts (ac-d090, r-5d1a).
+  `GET /api/hq/running` names them under `not_up`, and `POST /api/hq/refresh`
+  answers a start's own state, read at `/api/hq/launches/<id>`. A member that is
+  live is refused (starting it again would end its conversation), as is a team
+  that is not running. The members already running are told the new lineup with
+  変更を伝える.
 - **`hergy refresh` adds a member the definition has, without a down and up**:
   write the member in `team.yaml` and run `hergy refresh <member>`, and hergy
   makes a pane for it in the running team's own tab and starts it there, the way

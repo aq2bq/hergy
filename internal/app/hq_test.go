@@ -19,8 +19,12 @@ import (
 
 // hqHerdr is a fake herdr with two workspaces and two teams, one in each. It
 // answers the calls the headquarters makes: the tabs with their workspace, the
-// panes hergy named, the agents, and the workspaces.
+// panes hergy named, the agents, the workspaces, and the calls a raise makes (a
+// member with no pane is given one in the team's tab). Every call is written to
+// the fixture's herdr.log, so a test can read what a raise did.
 const hqHerdr = `#!/bin/sh
+log="${HERDR_TEST_LOG:-}"
+[ -n "$log" ] && printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
@@ -34,9 +38,16 @@ case "$g $s" in
   "agent list") echo '{"result":{"agents":[
     {"name":"core-lead","agent":"claude","agent_status":"blocked","pane_id":"p1","tab_id":"t1","state_change_seq":2},
     {"name":"ledger-lead","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2","state_change_seq":1}]}}' ;;
+  "agent get")
+    case "$3" in
+      core-lead|p1) echo '{"result":{"agent":{"name":"core-lead","agent":"claude","agent_status":"blocked","pane_id":"p1","tab_id":"t1","state_change_seq":2}}}' ;;
+      ledger-lead|p2) echo '{"result":{"agent":{"name":"ledger-lead","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2","state_change_seq":1}}}' ;;
+      *) echo '{"error":{"code":"agent_not_found"}}' ;;
+    esac ;;
   "pane list") echo '{"result":{"panes":[
     {"pane_id":"p1","label":"core-lead","tab_id":"t1","workspace_id":"w3"},
     {"pane_id":"p2","label":"ledger-lead","tab_id":"t2","workspace_id":"w2"}]}}' ;;
+  "pane split") echo '{"result":{"pane":{"pane_id":"p9"}}}' ;;
   "workspace list") echo '{"result":{"workspaces":[
     {"workspace_id":"w1","label":"proj-dev","focused":false},
     {"workspace_id":"w2","label":"ledger-dev","focused":false},

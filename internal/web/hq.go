@@ -30,6 +30,7 @@ type HQ interface {
 	Workspaces() HQWorkspaces
 	LaunchOptions(project, definition, place string) (HQLaunchOptions, error)
 	StartLaunch(in HQLaunchIn) (HQLaunch, error)
+	RefreshMembers(in HQRefreshIn) (HQLaunch, error)
 	LaunchState(id string) (HQLaunch, bool)
 	CancelLaunch(id string) (HQLaunch, bool)
 	Stop(team string) (HQStopped, error)
@@ -137,6 +138,9 @@ type HQRunningTeam struct {
 	Members     []HQMember  `json:"members"`
 	Workers     []HQWorker  `json:"workers"`
 	Waiting     []string    `json:"waiting"`
+	// NotUp is the members the definition has that no agent of the team is live
+	// for, by short name: the ones a screen offers 起こす for (r-5d1a).
+	NotUp []string `json:"not_up"`
 }
 
 // HQWorkspace is one herdr workspace: its id, its label, and the team that is in
@@ -225,6 +229,20 @@ type HQLaunchIn struct {
 	Workspace  HQWorkspaceIn `json:"workspace"`
 }
 
+// HQRefreshIn is POST /api/hq/refresh's body: the team, and the members of its
+// definition to raise (r-5d1a).
+type HQRefreshIn struct {
+	Team    string   `json:"team"`
+	Members []string `json:"members"`
+}
+
+// The actions a launch answer is about: a team starting, or the members of a
+// running team being raised. A screen words its progress from this.
+const (
+	ActionLaunch  = "launch"
+	ActionRefresh = "refresh"
+)
+
 // HQWorkspaceIn is the workspace a start asks for: one that is there, or one to
 // make with this label.
 type HQWorkspaceIn struct {
@@ -235,6 +253,7 @@ type HQWorkspaceIn struct {
 // HQLaunch is one start, as it is now.
 type HQLaunch struct {
 	ID          string         `json:"id"`
+	Action      string         `json:"action"`
 	Team        string         `json:"team"`
 	Definition  string         `json:"definition"`
 	Place       string         `json:"place"`
@@ -246,6 +265,9 @@ type HQLaunch struct {
 	Steps       []HQLaunchStep `json:"steps"`
 	Waiting     *HQWaiting     `json:"waiting"`
 	Error       string         `json:"error"`
+	// Members are the members a raise starts, by short name: empty for a start,
+	// whose members the start sheet reads from the definition.
+	Members []string `json:"members,omitempty"`
 }
 
 // HQLaunchStep is one line of the start's progress.
@@ -637,6 +659,25 @@ func (s *Server) hqLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	launch, err := s.hq.StartLaunch(in)
+	if err != nil {
+		answerHQ(w, nil, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"launch": launch})
+}
+
+// hqRefresh is POST /api/hq/refresh: hergy refresh, from the screens. The raise
+// goes on after the answer, and its progress and startup question are read from
+// GET /api/hq/launches/{id}, the way a start's are.
+func (s *Server) hqRefresh(w http.ResponseWriter, r *http.Request) {
+	if !s.hqOrFail(w) || !s.apiGuard(w, r) {
+		return
+	}
+	in, ok := readHQIn[HQRefreshIn](w, r)
+	if !ok {
+		return
+	}
+	launch, err := s.hq.RefreshMembers(in)
 	if err != nil {
 		answerHQ(w, nil, err)
 		return

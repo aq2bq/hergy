@@ -283,6 +283,11 @@ function RunSheet({ id, launch: first }) {
   const steps = useRef(null);
   const launch = watched.value[id] || first;
   const over = launch.phase === 'done' || launch.phase === 'failed' || launch.phase === 'cancelled';
+  // A raise (action: refresh, r-5d1a) goes through this same sheet: the member is
+  // started in the team's tab and the startup question is answered in its pane,
+  // and only the words differ from a team's start.
+  const raised = launch.action === 'refresh';
+  const who = raised ? (launch.members || []).join(' · ') : launch.team;
   // A stage is the step in progress, not a finished one: the last stage stands
   // with … only while the start is starting, and is dropped when the next line
   // comes or the start waits or ends (r-5b96 audit 9).
@@ -292,10 +297,13 @@ function RunSheet({ id, launch: first }) {
   useLayoutEffect(() => {
     if (steps.current) steps.current.scrollTop = steps.current.scrollHeight;
   });
-  const title = launch.phase === 'done' ? '起動しました'
-    : launch.phase === 'failed' ? '起動できませんでした'
-      : launch.phase === 'cancelled' ? '起動をやめました' : '起動しています';
-  const where = `${launch.project_name} · ワークスペース ${launch.workspace.label || launch.workspace.id}`;
+  const title = launch.phase === 'done' ? (raised ? '起こしました' : '起動しました')
+    : launch.phase === 'failed' ? (raised ? '起こせませんでした' : '起動できませんでした')
+      : launch.phase === 'cancelled' ? (raised ? '起こすのをやめました' : '起動をやめました')
+        : (raised ? '起こしています' : '起動しています');
+  const where = raised
+    ? `${launch.project_name} · タブ ${launch.tab.label}`
+    : `${launch.project_name} · ワークスペース ${launch.workspace.label || launch.workspace.id}`;
   const abort = async () => {
     try {
       const answer = await call('DELETE', '/api/hq/launches/' + encodeURIComponent(id));
@@ -304,25 +312,27 @@ function RunSheet({ id, launch: first }) {
     } catch (e) { /* the reading a moment later says where it stands */ }
     readRunning();
   };
-  return html`<div class="hq-h"><b data-role="title">${title}</b><code>${launch.team}</code><${Close} /></div>
-      <p class="hq-sub" data-role="where">${over ? where : `${where}。この欄を閉じても、起動は続きます。`}</p>
+  return html`<div class="hq-h"><b data-role="title">${title}</b><code>${who}</code><${Close} /></div>
+      <p class="hq-sub" data-role="where">${over ? where : `${where}。この欄を閉じても、${raised ? '起こすのは' : '起動は'}続きます。`}</p>
       <ul class="hq-steps" data-role="steps" ref=${steps}>${shownSteps.map((step) => {
         const now = step.kind === 'stage';
         const mark = now ? 'now' : step.kind === 'done' || step.kind === 'member' ? 'done' : '';
         return html`<li class=${mark}><span>${step.text}</span></li>`;
       })}</ul>
-      <div data-role="waitbox">${launch.waiting ? html`<div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">許可待ち</span><b><code>${launch.waiting.herdr}</code> が、起動の途中で確認に答えを待っています</b></div>
+      <div data-role="waitbox">${launch.waiting ? html`<div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">許可待ち</span><b><code>${launch.waiting.herdr}</code> が、${raised ? '起こしている途中で' : '起動の途中で'}確認に答えを待っています</b></div>
           <p class="hq-where">ワークスペース ${launch.waiting.workspace} · タブ ${launch.waiting.tab} · ペイン ${launch.waiting.pane}</p>
           <p>エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
           <p>答え終わると、hergy は <code>${launch.waiting.herdr}</code> に初期プロンプトを送って続きを進めます。</p></div>` : ''}</div>
       <div class="hq-acts" data-role="endacts">${launch.phase === 'done'
-        ? html`<p class="hq-ok">${`起動しました: ${launch.team}（${launch.project_name} · ワークスペース ${launch.workspace.label || launch.workspace.id} · タブ ${launch.tab.label}）`}</p>
+        ? html`<p class="hq-ok">${raised
+          ? `起こしました: ${who}（${launch.project_name} · タブ ${launch.tab.label}）`
+          : `起動しました: ${launch.team}（${launch.project_name} · ワークスペース ${launch.workspace.label || launch.workspace.id} · タブ ${launch.tab.label}）`}</p>
         <a class="hq-btn primary" href=${`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>活動で見る</a><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>閉じる</button>`
         : launch.phase === 'failed'
-          ? html`<p class="hq-err">${launch.error || '起動できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>閉じる</button>`
+          ? html`<p class="hq-err">${launch.error || (raised ? '起こせませんでした' : '起動できませんでした')}</p><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>閉じる</button>`
           : launch.phase === 'cancelled'
-            ? html`<p class="hq-sub">起動をやめました。作ったタブとペインは残っています（止めるのはチームを止める欄から）。</p><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>閉じる</button>`
-            : html`<button type="button" class="hq-btn danger" data-hq="abort" data-launch=${id} onClick=${abort}>起動をやめる</button>`}</div>`;
+            ? html`<p class="hq-sub">${raised ? '起こすのをやめました。チームはそのまま動いています（止めるのはチームを止める欄から）。' : '起動をやめました。作ったタブとペインは残っています（止めるのはチームを止める欄から）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick=${closeSheet}>閉じる</button>`
+            : html`<button type="button" class="hq-btn danger" data-hq="abort" data-launch=${id} onClick=${abort}>${raised ? '起こすのをやめる' : '起動をやめる'}</button>`}</div>`;
 }
 
 export function runStart(launch) {

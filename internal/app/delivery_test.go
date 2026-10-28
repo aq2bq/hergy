@@ -2,9 +2,11 @@ package app
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -164,6 +166,73 @@ esac
 	for _, node := range doc.Nodes {
 		if node.Name == "lead" && node.Stale {
 			t.Errorf("demo's lead is still marked 定義が変わった: %+v", doc.Nodes)
+		}
+	}
+}
+
+// TestDeliveryCountsTheRunningMembersAfterAMemberIsAdded: a member added to a
+// running team's definition changes the roster the members already running were
+// handed, so they are the ones 伝えていない after the new member is raised. The
+// raise's own record names only the raised member, so it does not clear them
+// (r-5d1a, ac-d090).
+func TestDeliveryCountsTheRunningMembersAfterAMemberIsAdded(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	env := serveEnv(t)
+	cat := env.Catalog(source.Disk{})
+	log, err := launchlog.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The two members were handed their prompts at the boot.
+	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The definition gains a third member, as the screen writes it.
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		"version: 1\nmission: what this team is for, in one line\nmembers:\n"+
+			"  - name: lead\n    role: lead\n    profile: claude-default\n"+
+			"  - name: builder\n    role: builder\n    profile: claude-default\n"+
+			"  - name: spec2\n    role: builder\n    profile: claude-default\n"+
+			"turns:\n  - human -> lead\n  - lead -> builder\n  - builder -> lead\n  - lead -> human\n  - spec2 -> lead\n")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1},`+
+			`{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":2}`)
+
+	// The raise records the member it started, and nothing else.
+	raised, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec2, err := raised.member("spec2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeLaunch(log, env, raised, launchlog.CommandRefresh, []definition.Start{*spec2}, launchlog.Workspace{}); err != nil {
+		t.Fatal(err)
+	}
+
+	a := newActivityRead(env)
+	answer := a.Delivery()
+	if answer.Count != 2 || len(answer.Teams) != 1 {
+		t.Fatalf("delivery = %+v, want the two members already running", answer)
+	}
+	got := []string{}
+	for _, member := range answer.Teams[0].Members {
+		got = append(got, member.Short)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, []string{"builder", "lead"}) {
+		t.Errorf("the members counted as 伝えていない are %v, want lead and builder", got)
+	}
+	for _, member := range answer.Teams[0].Members {
+		if member.Short == "spec2" {
+			t.Errorf("the member just raised is counted as 伝えていない: %+v", member)
 		}
 	}
 }

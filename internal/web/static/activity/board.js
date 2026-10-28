@@ -5,7 +5,7 @@
 // ここは state.js の signal を読んで描くだけで、DOM を自分では書かない
 // （webui-preact-design 5 章 1）。class と data-* は CSS と e2e が読むので、
 // 移す前のマークアップから 1 つも変えない（5 章 6）。
-import { html } from '../vendor/preact.js';
+import { html, useState } from '../vendor/preact.js';
 import * as A from '../lib/hq.js';
 import { openSheet } from '../lib/deliver/state.js';
 import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
@@ -69,8 +69,12 @@ function Tile({ team: t }) {
 }
 
 // Detail is the third tier: the opened team's last screen, where to answer, and
-// every member and worker with its state (spec 6 章).
+// every member and worker with its state (spec 6 章). A member the definition has
+// and no agent is live for carries 起こす (r-5d1a): the member is started in the
+// team's tab, and the progress stands in the start's own sheet.
 function Detail({ team: t }) {
+  const [error, setError] = useState('');
+  const press = async (name) => { setError(await A.raiseMember(t.name, name)); };
   // The headquarters' reading is a module: the board imports it (5 章 1).
   // The screen's last lines are drawn when there are some: a team whose pane
   // could not be read (a working one, often) has no heading and no empty box
@@ -80,13 +84,13 @@ function Detail({ team: t }) {
   const screenBox = hasTail ? html`<div class="hq-dq"><div class="th">画面の最後（<code>${t.wait ? (t.wait.herdr || (t.name + '-' + t.wait.name)) : t.last ? (t.name + '-' + t.last) : t.name}</code>）</div>
     <pre class="term">${t.tail.join('\n')}</pre>${answerBox}</div>`
     : (answerBox ? html`<div class="hq-dq">${answerBox}</div>` : '');
-  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ''}</li>`);
+  const rows = t.crew.map((m) => html`<li class=${m.state}><i class=${'dot ' + m.state}></i><span class="nm">${m.name}</span><span class="sw">${NS[m.state] || ''}${m.state === 'absent' && !t.starting ? html`<button type="button" class="hq-btn sm" data-hq="raise" data-team=${t.name} data-member=${m.name} aria-label=${`${m.name} を起こす`} onClick=${() => press(m.name)}>起こす</button>` : ''}</span><span class="t">${m.at || ''}</span>${m.doing ? html`<span class="hq-doing">${m.doing}</span>` : ''}${m.stale ? html`<span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick=${() => openSheet()}>定義が変わった</button></span>` : ''}</li>`);
   const wk = t.workers.length ? [html`<li class="sub">ワーカー</li>`, t.workers.map((w) => html`<li class=${w.state}><i class=${'dot ' + w.state}></i><span class="nm wk">${w.name}</span><span class="sw">${NS[w.state] || ''}</span><span class="t">${w.from ? w.from + ' が追加' : ''}</span>${w.doing ? html`<span class="hq-doing">${w.doing}</span>` : ''}</li>`)] : '';
   const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
   return html`<section class="hq-detail" aria-label="${t.name} の中">
     <div class="hq-dh"><b>${t.name}</b><span class="hq-pw">${[t.projectName, t.workspace ? 'ワークスペース ' + t.workspace : ''].filter(Boolean).join(' · ')}</span><span class=${'st ' + t.state}>${ST[t.state] || ''}</span>
       <span class="hq-dacts"><a class="hq-btn sm" href=${defHref}>チーム定義を開く</a><button type="button" class="hq-btn sm danger" data-hq="stop" data-team=${t.name} onClick=${() => A.stopSheet(t.name)}>チームを止める…</button></span></div>
-    <div class="hq-db">${screenBox}<ul class="nodes">${rows}${wk}</ul></div></section>`;
+    <div class="hq-db">${screenBox}<ul class="nodes">${rows}${wk}</ul>${error ? html`<p class="hq-err" data-role="raise-error">${error}</p>` : ''}</div></section>`;
 }
 
 // Board is the whole screen: the three tiers, or the one line a board with

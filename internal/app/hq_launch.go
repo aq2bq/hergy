@@ -246,7 +246,7 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 		return web.HQLaunch{}, err
 	}
 	op := h.newOp(web.HQLaunch{
-		Team: name, Definition: in.Definition, Place: in.Place,
+		Action: web.ActionLaunch, Team: name, Definition: in.Definition, Place: in.Place,
 		Project: env.ProjectRoot, ProjectName: h.projectNameIn(env.ProjectRoot),
 		Workspace: workspace, Tab: web.HQTab{Label: name},
 		Phase: "starting", Steps: []web.HQLaunchStep{},
@@ -533,6 +533,16 @@ func startCommand(definition, name string) string {
 	return command
 }
 
+// wayOn is the command that goes on after a startup question, as the answer names
+// it: the start of the team, or the raise of the member that was being started
+// (r-5d1a).
+func (op *launchOp) wayOn(member string) string {
+	if op.launch.Action == web.ActionRefresh {
+		return i18n.Tf("web.hq.raise_command", member)
+	}
+	return startCommand(op.launch.Definition, op.launch.Team)
+}
+
 // observe writes one step of the start, and where a startup question waits. The
 // first event that names the tab drops the herdr memory: the next read of the
 // activity and the headquarters sees the new tab (r-b7e1).
@@ -554,7 +564,7 @@ func (h *hqRead) observe(op *launchOp, event launcher.Event) {
 			Workspace: event.Waiting.Workspace, Tab: event.Waiting.Tab,
 			Pane: event.Waiting.Pane,
 		}
-		op.launch.Waiting.Command = startCommand(op.launch.Definition, op.launch.Team)
+		op.launch.Waiting.Command = op.wayOn(event.Waiting.Member)
 	} else if op.launch.Phase == "awaiting" {
 		op.launch.Phase = "starting"
 		op.launch.Waiting = nil
@@ -599,7 +609,11 @@ func (h *hqRead) finish(op *launchOp, phase, reason string) {
 	op.launch.Waiting = nil
 	op.finished = time.Now()
 	if phase == "done" {
-		op.stepLocked("done", i18n.Tf("web.hq.started", op.launch.Team))
+		if op.launch.Action == web.ActionRefresh {
+			op.stepLocked("done", i18n.Tf("web.hq.raised", strings.Join(op.launch.Members, i18n.T("list.separator"))))
+		} else {
+			op.stepLocked("done", i18n.Tf("web.hq.started", op.launch.Team))
+		}
 	}
 	op.mu.Unlock()
 	h.act.forgetHerdr()
