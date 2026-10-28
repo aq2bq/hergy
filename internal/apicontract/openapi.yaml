@@ -84,12 +84,21 @@ paths:
     get:
       operationId: listRoles
       summary: ロールの一覧
+      description: ロール名ごとの行。行は置き場所ごとのロールの文書と、一覧が読む数を持つ。
+      parameters:
+        - name: project
+          in: query
+          required: false
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。
+          schema:
+            type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: ロール名ごとの行と、ロールの文書が入っているファイルのハッシュ
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/RoleList"
   /api/role/{name}:
     get:
       operationId: getRole
@@ -98,14 +107,34 @@ paths:
         - name: name
           in: path
           required: true
+          description: ロール名
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: false
+          description: 読む置き場所。project はプロジェクト、global はグローバル。
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: ロールの文書 1 つと、その文書が入っているファイルの文
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/RoleGet"
+        "404":
+          description: その置き場所にロールの文書がない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
     put:
       operationId: saveRole
       summary: ロールを保存する
@@ -113,18 +142,40 @@ paths:
         - name: name
           in: path
           required: true
+          description: 行のロール名。書く文書の名前は本文の doc.name が決める。
           schema:
             type: string
       requestBody:
+        description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: "#/components/schemas/RoleSaveRequest"
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 保存したロールの文書と、保存のあとの一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/RoleSaved"
+        "409":
+          description: 読んだときからファイルが変わっていた
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "422":
+          description: 保存できない下書きか、使えないロール名
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
     delete:
       operationId: deleteRole
       summary: ロールを消す
@@ -132,38 +183,94 @@ paths:
         - name: name
           in: path
           required: true
+          description: 消すロール名
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: false
+          description: 消す置き場所。project はプロジェクト、global はグローバル。
+          schema:
+            type: string
+        - name: hash
+          in: query
+          required: false
+          description: 読んだときのファイルのハッシュ。今のハッシュと違えば消さない。
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: 消すプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 消したあとのロールの一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/RoleList"
+        "409":
+          description: 読んだときからファイルが変わっていた
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/role/check:
     post:
       operationId: checkRole
       summary: ロールの下書きを検査する
       requestBody:
+        description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: "#/components/schemas/RoleCheckRequest"
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 見つかった問題、メンバーが読む Markdown、変更が動かした行、その文書を読むメンバー
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/RoleCheck"
+        "422":
+          description: 下書きが読めない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/profile:
     get:
       operationId: listProfiles
       summary: プロファイルの一覧
+      description: プロファイル名ごとの行と、2 つのプロファイルのファイル（YAML タブが読む文とハッシュ）。
+      parameters:
+        - name: project
+          in: query
+          required: false
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。
+          schema:
+            type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/ProfileList"
   /api/profile/{name}:
     get:
       operationId: getProfile
@@ -172,14 +279,34 @@ paths:
         - name: name
           in: path
           required: true
+          description: プロファイル名
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: false
+          description: 読む置き場所。project はプロジェクト、global はグローバル。
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: その置き場所のプロファイル 1 つと、そのファイルの文
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/ProfileGet"
+        "404":
+          description: その置き場所にそのプロファイルがない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
     put:
       operationId: saveProfile
       summary: プロファイルを保存する
@@ -187,18 +314,46 @@ paths:
         - name: name
           in: path
           required: true
+          description: 行のプロファイル名。書くプロファイルの名前は本文の doc.name が決める。
           schema:
             type: string
       requestBody:
+        description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: "#/components/schemas/ProfileSaveRequest"
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 保存したプロファイルと、保存のあとの一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/ProfileSaved"
+        "400":
+          description: 置き場所が project でも global でもない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "409":
+          description: 読んだときからファイルが変わっていた
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "422":
+          description: 保存できない下書きか、ファイルを置く場所がない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
     delete:
       operationId: deleteProfile
       summary: プロファイルを消す
@@ -206,28 +361,93 @@ paths:
         - name: name
           in: path
           required: true
+          description: 消すプロファイル名
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: false
+          description: 消す置き場所。project はプロジェクト、global はグローバル。
+          schema:
+            type: string
+        - name: hash
+          in: query
+          required: false
+          description: 読んだときのファイルのハッシュ。今のハッシュと違えば消さない。
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: 消すプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 消したあとのプロファイルの一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/ProfileList"
+        "400":
+          description: 置き場所が project でも global でもない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "409":
+          description: 読んだときからファイルが変わっていた
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "422":
+          description: その置き場所にそのプロファイルがない、またはファイルを置く場所がない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/profile/check:
     post:
       operationId: checkProfile
       summary: プロファイルの下書きを検査する
       requestBody:
+        description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: "#/components/schemas/ProfileCheckRequest"
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 見つかった問題
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/ProfileCheck"
+        "400":
+          description: 置き場所が project でも global でもない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "422":
+          description: 下書きが読めない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
+        "403":
+          description: 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない）
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/activity:
     get:
       operationId: listActivity
@@ -563,3 +783,900 @@ components:
         hash:
           type: string
           description: ファイルが変わっていたときの今のハッシュ
+    Counts:
+      description: 1 つの行が抱える問題の数（spec-boundary 5）。一覧の欄と、置き場所ごとの読みが答える。
+      type: object
+      additionalProperties: false
+      required: [err, warn]
+      properties:
+        err:
+          type: integer
+          minimum: 0
+          description: 保存を止める問題の数
+        warn:
+          type: integer
+          minimum: 0
+          description: 読めるが直したほうがよい問題の数
+    RoleList:
+      description: GET /api/role の答え（spec-boundary 5）。ロール名ごとの行と、ロールの文書が入っているファイルのハッシュ。
+      type: object
+      additionalProperties: false
+      required: [items, hashes]
+      properties:
+        items:
+          type: array
+          nullable: true
+          description: ロール名ごとの行。ロールが 1 つもなければ null。
+          items:
+            $ref: "#/components/schemas/RoleItem"
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+          description: 置き場所とロール名（project.builder）ごとの、ロールの文書が入っているファイルのハッシュ
+    RoleItem:
+      description: ロールの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。
+      type: object
+      additionalProperties: false
+      required: [name, places, effective, hidden, summary, problems]
+      properties:
+        name:
+          type: string
+          description: ロール名
+        places:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/RolePlace"
+          description: 置き場所（project か global）ごとの、そのロール名の読み
+        effective:
+          type: string
+          description: 使われる置き場所。両方に文書があれば project、グローバルのものだけなら global。
+        hidden:
+          type: array
+          nullable: true
+          description: 別の置き場所の文書に隠れている置き場所
+          items:
+            type: string
+        summary:
+          $ref: "#/components/schemas/RoleSummary"
+        problems:
+          $ref: "#/components/schemas/Counts"
+    RolePlace:
+      description: 1 つの置き場所のロールの文書と、それが入っているファイルの読み。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, problems]
+      properties:
+        doc:
+          $ref: "#/components/schemas/RoleDoc"
+        text:
+          type: string
+          description: ロールの文書が入っているファイルの全体の文
+        hash:
+          type: string
+          description: ロールの文書が入っているファイルのハッシュ
+        path:
+          type: string
+          description: ロールの文書のファイルの道
+        readers:
+          type: integer
+          minimum: 0
+          description: この名前を読む人たちの数。ロールの読みは送らない。
+        savedLine:
+          type: boolean
+          description: いま保存した欄か（保存の答えだけが立てる）
+        problems:
+          $ref: "#/components/schemas/Counts"
+    RoleDoc:
+      description: ロールの文書 1 つ。節と規則を持ち、書いたときはファイルのハッシュと文も持つ。
+      type: object
+      additionalProperties: false
+      required: [name, title, revision, sections]
+      properties:
+        name:
+          type: string
+          description: ロール名
+        title:
+          type: string
+          description: 文書の題
+        revision:
+          type: integer
+          nullable: true
+          description: 文書のバージョン。書いていなければ null。
+        sections:
+          type: array
+          nullable: true
+          description: 文書の節
+          items:
+            $ref: "#/components/schemas/RoleSection"
+        hash:
+          type: string
+          description: この文書が入っているファイルのハッシュ
+        text:
+          type: string
+          description: この文書が入っているファイルの全体の文
+    RoleSection:
+      description: ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。
+      type: object
+      additionalProperties: false
+      required: [heading, level, intro, rules]
+      properties:
+        from:
+          type: integer
+          nullable: true
+          description: 保存されている文書でこの節が立つ節の番号。下書きが送る。
+        heading:
+          type: string
+          description: 節の見出し
+        level:
+          type: integer
+          description: 見出しの深さ（Markdown の # の数）
+        intro:
+          type: string
+          description: 節の前書き
+        rules:
+          type: array
+          nullable: true
+          description: この節の規則
+          items:
+            $ref: "#/components/schemas/RoleRule"
+    RoleRule:
+      description: ロールの文書の規則 1 つ。
+      type: object
+      additionalProperties: false
+      required: [id, text, in_prompt, note]
+      properties:
+        from:
+          type: object
+          nullable: true
+          additionalProperties: false
+          description: 保存されている文書でこの規則が立つ場所。下書きが送る。
+          required: [section, rule]
+          properties:
+            section:
+              type: integer
+              description: 節の番号
+            rule:
+              type: integer
+              description: 節の中での規則の番号
+        id:
+          type: string
+          description: 規則の ID
+        text:
+          type: string
+          description: 規則の文
+        in_prompt:
+          type: boolean
+          description: プロンプトに含めるか
+        off_since:
+          type: string
+          description: 規則を切った日。切っていなければ空。
+        note:
+          type: string
+          description: 規則に添えるメモ
+    RoleSummary:
+      description: ロールの一覧の 1 行が読む数（spec-boundary 5）。
+      type: object
+      additionalProperties: false
+      required: [rules, chars]
+      properties:
+        rules:
+          type: integer
+          minimum: 0
+          description: プロンプトに入る規則の数
+        chars:
+          type: integer
+          minimum: 0
+          description: メンバー 1 人が読む文の文字数
+        markdown:
+          type: string
+          description: 文書がまだ Markdown のままで読めないときの文
+        noDoc:
+          type: boolean
+          description: まだロールの文書がない行か
+        isNew:
+          type: boolean
+          description: これからロールの文書を作る行か
+    RoleGet:
+      description: GET /api/role/{name} の答え。ロールの文書 1 つと、それが入っているファイルの文とハッシュ。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, effective, hidden]
+      properties:
+        doc:
+          $ref: "#/components/schemas/RoleDoc"
+        text:
+          type: string
+          description: ロールの文書が入っているファイルの全体の文
+        hash:
+          type: string
+          description: ロールの文書が入っているファイルのハッシュ
+        path:
+          type: string
+          description: ロールの文書のファイルの道
+        effective:
+          type: string
+          description: 使われる置き場所
+        hidden:
+          type: array
+          nullable: true
+          description: 別の置き場所の文書に隠れている置き場所
+          items:
+            type: string
+    RoleCheck:
+      description: POST /api/role/check の答え（spec-boundary 5）。問題、メンバーが読む Markdown、変更が動かした行と規則の矢印、その文書を読むメンバー。
+      type: object
+      additionalProperties: false
+      required: [problems, preview, effect, readers]
+      properties:
+        problems:
+          type: array
+          description: 見つかった問題
+          items:
+            $ref: "#/components/schemas/Problem"
+        preview:
+          $ref: "#/components/schemas/RolePreview"
+        effect:
+          $ref: "#/components/schemas/RoleEffect"
+        readers:
+          type: array
+          nullable: true
+          description: そのロールの文書を読むメンバー
+          items:
+            $ref: "#/components/schemas/RoleReader"
+        limit:
+          type: integer
+          minimum: 0
+          description: この文書に置いている文字数の目安。0 のときは送らない。
+        size:
+          type: integer
+          minimum: 0
+          description: プロンプトに入る部分の文字数。0 のときは送らない。
+    RolePreview:
+      description: メンバーが読む Markdown。1 行ずつと、全体の文字数。
+      type: object
+      additionalProperties: false
+      required: [lines, chars]
+      properties:
+        lines:
+          type: array
+          nullable: true
+          description: Markdown の行
+          items:
+            $ref: "#/components/schemas/RolePreviewLine"
+        chars:
+          type: integer
+          minimum: 0
+          description: 全体の文字数
+    RolePreviewLine:
+      description: Markdown の 1 行。どの節のどの規則から来たかも持つ。
+      type: object
+      additionalProperties: false
+      required: [text, part, section, rule]
+      properties:
+        text:
+          type: string
+          description: 行の文
+        part:
+          type: string
+          description: 行の種類（見出し、本文、空行、切った規則など）
+        section:
+          type: integer
+          description: 行が来た節の番号。節から来ていなければ -1。
+        rule:
+          type: integer
+          description: 行が来た規則の番号。規則から来ていなければ -1。
+    RoleEffect:
+      description: 下書きが保存されている文書からどう動いたか。
+      type: object
+      additionalProperties: false
+      required: [diff, turns]
+      properties:
+        diff:
+          $ref: "#/components/schemas/RoleDiff"
+        turns:
+          type: array
+          nullable: true
+          description: 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの
+          items:
+            $ref: "#/components/schemas/RoleTurn"
+    RoleDiff:
+      description: メンバーが読む Markdown の、保存されている文書からの動き。
+      type: object
+      additionalProperties: false
+      required: [added, removedBefore, removedAtEnd]
+      properties:
+        added:
+          type: array
+          nullable: true
+          description: 増えた行の番号
+          items:
+            type: integer
+        removedBefore:
+          type: array
+          nullable: true
+          description: 消えた行が、その番号の行の前に立っていた
+          items:
+            type: integer
+        removedAtEnd:
+          type: boolean
+          description: 消えた行が最後の行より後ろに立っていた
+    RoleTurn:
+      description: 規則の文が書く矢印 1 つを、その文書を読むチーム定義 1 つについて見たもの。
+      type: object
+      additionalProperties: false
+      required: [section, rule, arrow, definition, ok]
+      properties:
+        section:
+          type: integer
+          description: 矢印を書いた規則がある節の番号
+        rule:
+          type: integer
+          description: 矢印を書いた規則の番号
+        arrow:
+          type: string
+          description: 矢印を人が読む形（lead -> builder）
+        definition:
+          type: string
+          description: その矢印を見たチーム定義の名前
+        ok:
+          type: boolean
+          description: そのチーム定義の turns がこの矢印を持つか
+    RoleReader:
+      description: そのロールの文書を読むメンバー 1 人。
+      type: object
+      additionalProperties: false
+      required: [definition, member]
+      properties:
+        definition:
+          type: string
+          description: そのメンバーがいるチーム定義の名前
+        member:
+          type: string
+          description: メンバー名
+    RoleSaved:
+      description: PUT /api/role/{name} の答え（spec-boundary 5）。保存したロールの文書と、保存のあとの一覧。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path]
+      properties:
+        doc:
+          $ref: "#/components/schemas/RoleDoc"
+        text:
+          type: string
+          description: 保存したファイルの全体の文
+        hash:
+          type: string
+          description: 保存したファイルのハッシュ
+        path:
+          type: string
+          description: 保存したファイルの道
+        effective:
+          type: string
+          description: 使われる置き場所
+        hidden:
+          type: array
+          description: 別の置き場所の文書に隠れている置き場所
+          items:
+            type: string
+        items:
+          type: array
+          description: 保存のあとのロールの一覧
+          items:
+            $ref: "#/components/schemas/RoleItem"
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+          description: 置き場所とロール名ごとの、ロールの文書が入っているファイルのハッシュ
+    RoleDraft:
+      description: 欄の下書きとして送るロールの文書。書かない欄は省くか null を送る。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: ロール名
+        title:
+          type: string
+          description: 文書の題
+        revision:
+          type: integer
+          nullable: true
+          description: 文書のバージョン
+        sections:
+          type: array
+          nullable: true
+          description: 文書の節
+          items:
+            $ref: "#/components/schemas/RoleDraftSection"
+        hash:
+          type: string
+          description: 読んだときのファイルのハッシュ
+        text:
+          type: string
+          description: 読んだときのファイルの文
+    RoleDraftSection:
+      description: 欄の下書きとして送る節 1 つ。
+      type: object
+      additionalProperties: false
+      properties:
+        from:
+          type: integer
+          nullable: true
+          description: 保存されている文書でこの節が立つ節の番号。新しい節は null。
+        heading:
+          type: string
+          description: 節の見出し
+        level:
+          type: integer
+          description: 見出しの深さ
+        intro:
+          type: string
+          description: 節の前書き
+        rules:
+          type: array
+          nullable: true
+          description: この節の規則
+          items:
+            $ref: "#/components/schemas/RoleDraftRule"
+    RoleDraftRule:
+      description: 欄の下書きとして送る規則 1 つ。
+      type: object
+      additionalProperties: false
+      properties:
+        from:
+          type: object
+          nullable: true
+          additionalProperties: false
+          description: 保存されている文書でこの規則が立つ場所。新しい規則は null。
+          required: [section, rule]
+          properties:
+            section:
+              type: integer
+              description: 節の番号
+            rule:
+              type: integer
+              description: 節の中での規則の番号
+        id:
+          type: string
+          description: 規則の ID
+        text:
+          type: string
+          description: 規則の文
+        in_prompt:
+          type: boolean
+          description: プロンプトに含めるか
+        off_since:
+          type: string
+          description: 規則を切った日
+        note:
+          type: string
+          description: 規則に添えるメモ
+    RoleCheckRequest:
+      description: POST /api/role/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
+        place:
+          type: string
+          description: 置き場所。project はプロジェクト、global はグローバル。
+        name:
+          type: string
+          description: ロール名
+        original:
+          type: string
+          nullable: true
+          description: 保存されているロール名。名前を変えていないときは省くか null。
+        doc:
+          $ref: "#/components/schemas/RoleDraft"
+        text:
+          type: string
+          description: YAML タブが打っている文
+    RoleSaveRequest:
+      description: PUT /api/role/{name} に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
+        place:
+          type: string
+          description: 置き場所。project はプロジェクト、global はグローバル。
+        name:
+          type: string
+          description: ロール名
+        original:
+          type: string
+          nullable: true
+          description: 保存されているロール名。名前を変えていないときは省くか null。
+        doc:
+          $ref: "#/components/schemas/RoleDraft"
+        text:
+          type: string
+          description: YAML タブが打っている文
+        hash:
+          type: string
+          description: 読んだときのファイルのハッシュ。今のハッシュと違えば書かない。
+        rename_users:
+          type: boolean
+          description: 名前を変えたとき、そのロール名を名指すメンバーの team.yaml も書き換えるか
+        base:
+          type: object
+          nullable: true
+          additionalProperties: false
+          description: 複製やコピーが元にした文書。新しい文書は省く。
+          required: [place, name]
+          properties:
+            place:
+              type: string
+              description: 元の文書の置き場所
+            name:
+              type: string
+              description: 元の文書のロール名
+    ProfileList:
+      description: GET /api/profile の答え（spec-boundary 5）。プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み。
+      type: object
+      additionalProperties: false
+      required: [items, hashes, files]
+      properties:
+        items:
+          type: array
+          nullable: true
+          description: プロファイル名ごとの行
+          items:
+            $ref: "#/components/schemas/ProfileItem"
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+          description: 置き場所（project か global）ごとの、プロファイルのファイルのハッシュ
+        files:
+          type: array
+          description: 2 つのプロファイルのファイル（プロジェクトのものとグローバルのもの）
+          items:
+            $ref: "#/components/schemas/File"
+    ProfileItem:
+      description: プロファイルの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。
+      type: object
+      additionalProperties: false
+      required: [name, places, effective, hidden, summary, problems]
+      properties:
+        name:
+          type: string
+          description: プロファイル名
+        places:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ProfilePlace"
+          description: 置き場所（project か global）ごとの、そのプロファイル名の読み
+        effective:
+          type: string
+          description: 使われる置き場所。両方にあれば project、グローバルのものだけなら global。
+        hidden:
+          type: array
+          nullable: true
+          description: 別の置き場所のプロファイルに隠れている置き場所
+          items:
+            type: string
+        summary:
+          $ref: "#/components/schemas/ProfileSummary"
+        problems:
+          $ref: "#/components/schemas/Counts"
+    ProfilePlace:
+      description: 1 つの置き場所のプロファイルと、そのファイルの読み。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, problems]
+      properties:
+        doc:
+          $ref: "#/components/schemas/ProfileDoc"
+        text:
+          type: string
+          description: そのプロファイルが入っているファイルの全体の文
+        hash:
+          type: string
+          description: そのプロファイルが入っているファイルのハッシュ
+        path:
+          type: string
+          description: そのプロファイルが入っているファイルの道
+        readers:
+          type: integer
+          minimum: 0
+          description: この名前を変えたときに、その置き場所を読む人たちへ書き写す数
+        savedLine:
+          type: boolean
+          description: いま保存した欄か（保存の答えだけが立てる）
+        problems:
+          $ref: "#/components/schemas/Counts"
+    ProfileDoc:
+      description: プロファイル 1 つ。起動する kind と、その kind に渡す引数と環境変数。
+      type: object
+      additionalProperties: false
+      required: [name, kind, args, env]
+      properties:
+        name:
+          type: string
+          description: プロファイル名
+        kind:
+          type: string
+          description: 起動するエージェントの種類（claude、codex、opencode など）
+        args:
+          type: array
+          nullable: true
+          description: kind に渡す引数
+          items:
+            type: string
+        env:
+          type: array
+          nullable: true
+          description: kind に渡す環境変数。ファイルに書いた順。
+          items:
+            $ref: "#/components/schemas/ProfileEnvPair"
+    ProfileEnvPair:
+      description: 環境変数 1 つ。
+      type: object
+      additionalProperties: false
+      required: [key, value]
+      properties:
+        key:
+          type: string
+          description: 環境変数の名前
+        value:
+          type: string
+          description: 環境変数の値
+    ProfileSummary:
+      description: プロファイルの一覧の 1 行が読む値（spec-boundary 5）。
+      type: object
+      additionalProperties: false
+      required: [kind, kindClass, args, env, more, users, roles, chips]
+      properties:
+        kind:
+          type: string
+          description: 起動するエージェントの種類
+        kindClass:
+          type: string
+          description: 種類を色分けするための分類
+        args:
+          type: string
+          description: 一覧に出す引数（空白で区切って 1 行にしたもの）
+        env:
+          type: array
+          nullable: true
+          description: 一覧に出す環境変数（名前=値）。多くても 2 つ。
+          items:
+            type: string
+        more:
+          type: integer
+          minimum: 0
+          description: 一覧に出さずに省いた環境変数の数
+        users:
+          type: integer
+          minimum: 0
+          description: このプロファイル名を名指すメンバーとワーカーの数
+        roles:
+          type: string
+          description: このプロファイルを使う人たちのロール名（ワーカーは目的）を並べた文
+        chips:
+          type: array
+          nullable: true
+          description: このプロファイルを使う人たち
+          items:
+            $ref: "#/components/schemas/ProfileChip"
+    ProfileChip:
+      description: プロファイルを使う人 1 人。
+      type: object
+      additionalProperties: false
+      required: [def, id, who, role, worker, local]
+      properties:
+        def:
+          type: string
+          description: その人がいるチーム定義の名前
+        id:
+          type: string
+          description: その人の識別子（m-<番号> はメンバー、w-<番号> はワーカー）
+        who:
+          type: string
+          description: メンバー名。ワーカーのときは雇ったメンバー名。
+        role:
+          type: string
+          description: ロール名。ワーカーのときは目的。
+        worker:
+          type: boolean
+          description: その人がワーカーか
+        local:
+          type: boolean
+          description: そのチーム定義がプロジェクトのものか（グローバルのものなら false）
+    File:
+      description: YAML タブが読むファイル 1 つ。全体の文と、その文の問題。
+      type: object
+      additionalProperties: false
+      required: [place, label, path, text, hash, problems]
+      properties:
+        place:
+          type: string
+          description: ファイルの置き場所。project はプロジェクト、global はグローバル。
+        label:
+          type: string
+          description: 画面に出す置き場所の名前
+        path:
+          type: string
+          description: ファイルの道
+        text:
+          type: string
+          description: ファイルの全体の文
+        hash:
+          type: string
+          description: ファイルのハッシュ
+        name:
+          type: string
+          description: このファイルが属する名前（1 つの名前が 2 つのファイルを持つ種類だけ）
+        kind:
+          type: string
+          description: このファイルが 2 つのうちどちらか（1 つの名前が 2 つのファイルを持つ種類だけ）
+        hidden:
+          type: boolean
+          description: 別の置き場所の同じ名前のファイルに隠れているか
+        problems:
+          type: array
+          nullable: true
+          description: この文の問題
+          items:
+            $ref: "#/components/schemas/Problem"
+    ProfileGet:
+      description: GET /api/profile/{name} の答え。その置き場所のプロファイル 1 つと、そのファイルの文とハッシュ。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, effective, hidden]
+      properties:
+        doc:
+          $ref: "#/components/schemas/ProfileDoc"
+        text:
+          type: string
+          description: そのプロファイルが入っているファイルの全体の文
+        hash:
+          type: string
+          description: そのプロファイルが入っているファイルのハッシュ
+        path:
+          type: string
+          description: そのファイルの道
+        effective:
+          type: string
+          description: 使われる置き場所
+        hidden:
+          type: array
+          nullable: true
+          description: 別の置き場所のプロファイルに隠れている置き場所
+          items:
+            type: string
+    ProfileCheck:
+      description: POST /api/profile/check の答え（spec-boundary 5）。見つかった問題だけを答える。
+      type: object
+      additionalProperties: false
+      required: [problems]
+      properties:
+        problems:
+          type: array
+          description: 見つかった問題
+          items:
+            $ref: "#/components/schemas/Problem"
+    ProfileSaved:
+      description: PUT /api/profile/{name} の答え（spec-boundary 5）。保存したプロファイルと、保存のあとの一覧。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path]
+      properties:
+        doc:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ProfileDoc"
+          description: 保存したプロファイル。YAML タブの保存は null。
+        text:
+          type: string
+          description: 保存したファイルの全体の文
+        hash:
+          type: string
+          description: 保存したファイルのハッシュ
+        path:
+          type: string
+          description: 保存したファイルの道
+        effective:
+          type: string
+          description: 使われる置き場所
+        hidden:
+          type: array
+          description: 別の置き場所のプロファイルに隠れている置き場所
+          items:
+            type: string
+        items:
+          type: array
+          description: 保存のあとのプロファイルの一覧
+          items:
+            $ref: "#/components/schemas/ProfileItem"
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+          description: 置き場所ごとの、プロファイルのファイルのハッシュ
+        files:
+          type: array
+          description: 2 つのプロファイルのファイル
+          items:
+            $ref: "#/components/schemas/File"
+    ProfileDraft:
+      description: 欄の下書きとして送るプロファイル。書かない欄は省く。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: プロファイル名
+        kind:
+          type: string
+          description: 起動するエージェントの種類
+        args:
+          type: array
+          nullable: true
+          description: kind に渡す引数
+          items:
+            type: string
+        env:
+          type: array
+          nullable: true
+          description: kind に渡す環境変数
+          items:
+            $ref: "#/components/schemas/ProfileEnvPair"
+    ProfileCheckRequest:
+      description: POST /api/profile/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
+        place:
+          type: string
+          description: 置き場所。project はプロジェクト、global はグローバル。
+        name:
+          type: string
+          description: YAML タブが開いている行のプロファイル名。検査は本文の名前を読まない。
+        original:
+          type: string
+          description: 保存されているプロファイル名。新しいプロファイルは空。
+        doc:
+          $ref: "#/components/schemas/ProfileDraft"
+        text:
+          type: string
+          description: YAML タブが打っている文
+    ProfileSaveRequest:
+      description: PUT /api/profile/{name} に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
+        place:
+          type: string
+          description: 置き場所。project はプロジェクト、global はグローバル。
+        name:
+          type: string
+          description: YAML タブが開いている行のプロファイル名。保存は本文の doc.name を読む。
+        original:
+          type: string
+          description: 保存されているプロファイル名。新しいプロファイルは空。
+        doc:
+          $ref: "#/components/schemas/ProfileDraft"
+        text:
+          type: string
+          description: YAML タブが打っている文
+        hash:
+          type: string
+          description: 読んだときのファイルのハッシュ。今のハッシュと違えば書かない。
+        rename_users:
+          type: boolean
+          description: 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか

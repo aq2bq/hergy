@@ -3,16 +3,6 @@ getTeam
 checkTeam
 saveTeam
 deleteTeam
-listRoles
-getRole
-checkRole
-saveRole
-deleteRole
-listProfiles
-getProfile
-checkProfile
-saveProfile
-deleteProfile
 listActivity
 getActivity
 checkActivity

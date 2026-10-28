@@ -64,7 +64,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** ロールの一覧 */
+        /**
+         * ロールの一覧
+         * @description ロール名ごとの行。行は置き場所ごとのロールの文書と、一覧が読む数を持つ。
+         */
         get: operations["listRoles"];
         put?: never;
         post?: never;
@@ -117,7 +120,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** プロファイルの一覧 */
+        /**
+         * プロファイルの一覧
+         * @description プロファイル名ごとの行と、2 つのプロファイルのファイル（YAML タブが読む文とハッシュ）。
+         */
         get: operations["listProfiles"];
         put?: never;
         post?: never;
@@ -483,6 +489,499 @@ export interface components {
             /** @description ファイルが変わっていたときの今のハッシュ */
             hash?: string;
         };
+        /** @description 1 つの行が抱える問題の数（spec-boundary 5）。一覧の欄と、置き場所ごとの読みが答える。 */
+        Counts: {
+            /** @description 保存を止める問題の数 */
+            err: number;
+            /** @description 読めるが直したほうがよい問題の数 */
+            warn: number;
+        };
+        /** @description GET /api/role の答え（spec-boundary 5）。ロール名ごとの行と、ロールの文書が入っているファイルのハッシュ。 */
+        RoleList: {
+            /** @description ロール名ごとの行。ロールが 1 つもなければ null。 */
+            items: components["schemas"]["RoleItem"][] | null;
+            /** @description 置き場所とロール名（project.builder）ごとの、ロールの文書が入っているファイルのハッシュ */
+            hashes: {
+                [key: string]: string;
+            };
+        };
+        /** @description ロールの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。 */
+        RoleItem: {
+            /** @description ロール名 */
+            name: string;
+            /** @description 置き場所（project か global）ごとの、そのロール名の読み */
+            places: {
+                [key: string]: components["schemas"]["RolePlace"];
+            };
+            /** @description 使われる置き場所。両方に文書があれば project、グローバルのものだけなら global。 */
+            effective: string;
+            /** @description 別の置き場所の文書に隠れている置き場所 */
+            hidden: string[] | null;
+            summary: components["schemas"]["RoleSummary"];
+            problems: components["schemas"]["Counts"];
+        };
+        /** @description 1 つの置き場所のロールの文書と、それが入っているファイルの読み。 */
+        RolePlace: {
+            doc: components["schemas"]["RoleDoc"];
+            /** @description ロールの文書が入っているファイルの全体の文 */
+            text: string;
+            /** @description ロールの文書が入っているファイルのハッシュ */
+            hash: string;
+            /** @description ロールの文書のファイルの道 */
+            path: string;
+            /** @description この名前を読む人たちの数。ロールの読みは送らない。 */
+            readers?: number;
+            /** @description いま保存した欄か（保存の答えだけが立てる） */
+            savedLine?: boolean;
+            problems: components["schemas"]["Counts"];
+        };
+        /** @description ロールの文書 1 つ。節と規則を持ち、書いたときはファイルのハッシュと文も持つ。 */
+        RoleDoc: {
+            /** @description ロール名 */
+            name: string;
+            /** @description 文書の題 */
+            title: string;
+            /** @description 文書のバージョン。書いていなければ null。 */
+            revision: number | null;
+            /** @description 文書の節 */
+            sections: components["schemas"]["RoleSection"][] | null;
+            /** @description この文書が入っているファイルのハッシュ */
+            hash?: string;
+            /** @description この文書が入っているファイルの全体の文 */
+            text?: string;
+        };
+        /** @description ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。 */
+        RoleSection: {
+            /** @description 保存されている文書でこの節が立つ節の番号。下書きが送る。 */
+            from?: number | null;
+            /** @description 節の見出し */
+            heading: string;
+            /** @description 見出しの深さ（Markdown の */
+            level: number;
+            /** @description 節の前書き */
+            intro: string;
+            /** @description この節の規則 */
+            rules: components["schemas"]["RoleRule"][] | null;
+        };
+        /** @description ロールの文書の規則 1 つ。 */
+        RoleRule: {
+            /** @description 保存されている文書でこの規則が立つ場所。下書きが送る。 */
+            from?: {
+                /** @description 節の番号 */
+                section: number;
+                /** @description 節の中での規則の番号 */
+                rule: number;
+            } | null;
+            /** @description 規則の ID */
+            id: string;
+            /** @description 規則の文 */
+            text: string;
+            /** @description プロンプトに含めるか */
+            in_prompt: boolean;
+            /** @description 規則を切った日。切っていなければ空。 */
+            off_since?: string;
+            /** @description 規則に添えるメモ */
+            note: string;
+        };
+        /** @description ロールの一覧の 1 行が読む数（spec-boundary 5）。 */
+        RoleSummary: {
+            /** @description プロンプトに入る規則の数 */
+            rules: number;
+            /** @description メンバー 1 人が読む文の文字数 */
+            chars: number;
+            /** @description 文書がまだ Markdown のままで読めないときの文 */
+            markdown?: string;
+            /** @description まだロールの文書がない行か */
+            noDoc?: boolean;
+            /** @description これからロールの文書を作る行か */
+            isNew?: boolean;
+        };
+        /** @description GET /api/role/{name} の答え。ロールの文書 1 つと、それが入っているファイルの文とハッシュ。 */
+        RoleGet: {
+            doc: components["schemas"]["RoleDoc"];
+            /** @description ロールの文書が入っているファイルの全体の文 */
+            text: string;
+            /** @description ロールの文書が入っているファイルのハッシュ */
+            hash: string;
+            /** @description ロールの文書のファイルの道 */
+            path: string;
+            /** @description 使われる置き場所 */
+            effective: string;
+            /** @description 別の置き場所の文書に隠れている置き場所 */
+            hidden: string[] | null;
+        };
+        /** @description POST /api/role/check の答え（spec-boundary 5）。問題、メンバーが読む Markdown、変更が動かした行と規則の矢印、その文書を読むメンバー。 */
+        RoleCheck: {
+            /** @description 見つかった問題 */
+            problems: components["schemas"]["Problem"][];
+            preview: components["schemas"]["RolePreview"];
+            effect: components["schemas"]["RoleEffect"];
+            /** @description そのロールの文書を読むメンバー */
+            readers: components["schemas"]["RoleReader"][] | null;
+            /** @description この文書に置いている文字数の目安。0 のときは送らない。 */
+            limit?: number;
+            /** @description プロンプトに入る部分の文字数。0 のときは送らない。 */
+            size?: number;
+        };
+        /** @description メンバーが読む Markdown。1 行ずつと、全体の文字数。 */
+        RolePreview: {
+            /** @description Markdown の行 */
+            lines: components["schemas"]["RolePreviewLine"][] | null;
+            /** @description 全体の文字数 */
+            chars: number;
+        };
+        /** @description Markdown の 1 行。どの節のどの規則から来たかも持つ。 */
+        RolePreviewLine: {
+            /** @description 行の文 */
+            text: string;
+            /** @description 行の種類（見出し、本文、空行、切った規則など） */
+            part: string;
+            /** @description 行が来た節の番号。節から来ていなければ -1。 */
+            section: number;
+            /** @description 行が来た規則の番号。規則から来ていなければ -1。 */
+            rule: number;
+        };
+        /** @description 下書きが保存されている文書からどう動いたか。 */
+        RoleEffect: {
+            diff: components["schemas"]["RoleDiff"];
+            /** @description 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの */
+            turns: components["schemas"]["RoleTurn"][] | null;
+        };
+        /** @description メンバーが読む Markdown の、保存されている文書からの動き。 */
+        RoleDiff: {
+            /** @description 増えた行の番号 */
+            added: number[] | null;
+            /** @description 消えた行が、その番号の行の前に立っていた */
+            removedBefore: number[] | null;
+            /** @description 消えた行が最後の行より後ろに立っていた */
+            removedAtEnd: boolean;
+        };
+        /** @description 規則の文が書く矢印 1 つを、その文書を読むチーム定義 1 つについて見たもの。 */
+        RoleTurn: {
+            /** @description 矢印を書いた規則がある節の番号 */
+            section: number;
+            /** @description 矢印を書いた規則の番号 */
+            rule: number;
+            /** @description 矢印を人が読む形（lead -> builder） */
+            arrow: string;
+            /** @description その矢印を見たチーム定義の名前 */
+            definition: string;
+            /** @description そのチーム定義の turns がこの矢印を持つか */
+            ok: boolean;
+        };
+        /** @description そのロールの文書を読むメンバー 1 人。 */
+        RoleReader: {
+            /** @description そのメンバーがいるチーム定義の名前 */
+            definition: string;
+            /** @description メンバー名 */
+            member: string;
+        };
+        /** @description PUT /api/role/{name} の答え（spec-boundary 5）。保存したロールの文書と、保存のあとの一覧。 */
+        RoleSaved: {
+            doc: components["schemas"]["RoleDoc"];
+            /** @description 保存したファイルの全体の文 */
+            text: string;
+            /** @description 保存したファイルのハッシュ */
+            hash: string;
+            /** @description 保存したファイルの道 */
+            path: string;
+            /** @description 使われる置き場所 */
+            effective?: string;
+            /** @description 別の置き場所の文書に隠れている置き場所 */
+            hidden?: string[];
+            /** @description 保存のあとのロールの一覧 */
+            items?: components["schemas"]["RoleItem"][];
+            /** @description 置き場所とロール名ごとの、ロールの文書が入っているファイルのハッシュ */
+            hashes?: {
+                [key: string]: string;
+            };
+        };
+        /** @description 欄の下書きとして送るロールの文書。書かない欄は省くか null を送る。 */
+        RoleDraft: {
+            /** @description ロール名 */
+            name?: string;
+            /** @description 文書の題 */
+            title?: string;
+            /** @description 文書のバージョン */
+            revision?: number | null;
+            /** @description 文書の節 */
+            sections?: components["schemas"]["RoleDraftSection"][] | null;
+            /** @description 読んだときのファイルのハッシュ */
+            hash?: string;
+            /** @description 読んだときのファイルの文 */
+            text?: string;
+        };
+        /** @description 欄の下書きとして送る節 1 つ。 */
+        RoleDraftSection: {
+            /** @description 保存されている文書でこの節が立つ節の番号。新しい節は null。 */
+            from?: number | null;
+            /** @description 節の見出し */
+            heading?: string;
+            /** @description 見出しの深さ */
+            level?: number;
+            /** @description 節の前書き */
+            intro?: string;
+            /** @description この節の規則 */
+            rules?: components["schemas"]["RoleDraftRule"][] | null;
+        };
+        /** @description 欄の下書きとして送る規則 1 つ。 */
+        RoleDraftRule: {
+            /** @description 保存されている文書でこの規則が立つ場所。新しい規則は null。 */
+            from?: {
+                /** @description 節の番号 */
+                section: number;
+                /** @description 節の中での規則の番号 */
+                rule: number;
+            } | null;
+            /** @description 規則の ID */
+            id?: string;
+            /** @description 規則の文 */
+            text?: string;
+            /** @description プロンプトに含めるか */
+            in_prompt?: boolean;
+            /** @description 規則を切った日 */
+            off_since?: string;
+            /** @description 規則に添えるメモ */
+            note?: string;
+        };
+        /** @description POST /api/role/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
+        RoleCheckRequest: {
+            /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+            project?: string;
+            /** @description 置き場所。project はプロジェクト、global はグローバル。 */
+            place?: string;
+            /** @description ロール名 */
+            name?: string;
+            /** @description 保存されているロール名。名前を変えていないときは省くか null。 */
+            original?: string | null;
+            doc?: components["schemas"]["RoleDraft"];
+            /** @description YAML タブが打っている文 */
+            text?: string;
+        };
+        /** @description PUT /api/role/{name} に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
+        RoleSaveRequest: {
+            /** @description 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+            project?: string;
+            /** @description 置き場所。project はプロジェクト、global はグローバル。 */
+            place?: string;
+            /** @description ロール名 */
+            name?: string;
+            /** @description 保存されているロール名。名前を変えていないときは省くか null。 */
+            original?: string | null;
+            doc?: components["schemas"]["RoleDraft"];
+            /** @description YAML タブが打っている文 */
+            text?: string;
+            /** @description 読んだときのファイルのハッシュ。今のハッシュと違えば書かない。 */
+            hash?: string;
+            /** @description 名前を変えたとき、そのロール名を名指すメンバーの team.yaml も書き換えるか */
+            rename_users?: boolean;
+            /** @description 複製やコピーが元にした文書。新しい文書は省く。 */
+            base?: {
+                /** @description 元の文書の置き場所 */
+                place: string;
+                /** @description 元の文書のロール名 */
+                name: string;
+            } | null;
+        };
+        /** @description GET /api/profile の答え（spec-boundary 5）。プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み。 */
+        ProfileList: {
+            /** @description プロファイル名ごとの行 */
+            items: components["schemas"]["ProfileItem"][] | null;
+            /** @description 置き場所（project か global）ごとの、プロファイルのファイルのハッシュ */
+            hashes: {
+                [key: string]: string;
+            };
+            /** @description 2 つのプロファイルのファイル（プロジェクトのものとグローバルのもの） */
+            files: components["schemas"]["File"][];
+        };
+        /** @description プロファイルの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。 */
+        ProfileItem: {
+            /** @description プロファイル名 */
+            name: string;
+            /** @description 置き場所（project か global）ごとの、そのプロファイル名の読み */
+            places: {
+                [key: string]: components["schemas"]["ProfilePlace"];
+            };
+            /** @description 使われる置き場所。両方にあれば project、グローバルのものだけなら global。 */
+            effective: string;
+            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            hidden: string[] | null;
+            summary: components["schemas"]["ProfileSummary"];
+            problems: components["schemas"]["Counts"];
+        };
+        /** @description 1 つの置き場所のプロファイルと、そのファイルの読み。 */
+        ProfilePlace: {
+            doc: components["schemas"]["ProfileDoc"];
+            /** @description そのプロファイルが入っているファイルの全体の文 */
+            text: string;
+            /** @description そのプロファイルが入っているファイルのハッシュ */
+            hash: string;
+            /** @description そのプロファイルが入っているファイルの道 */
+            path: string;
+            /** @description この名前を変えたときに、その置き場所を読む人たちへ書き写す数 */
+            readers?: number;
+            /** @description いま保存した欄か（保存の答えだけが立てる） */
+            savedLine?: boolean;
+            problems: components["schemas"]["Counts"];
+        };
+        /** @description プロファイル 1 つ。起動する kind と、その kind に渡す引数と環境変数。 */
+        ProfileDoc: {
+            /** @description プロファイル名 */
+            name: string;
+            /** @description 起動するエージェントの種類（claude、codex、opencode など） */
+            kind: string;
+            /** @description kind に渡す引数 */
+            args: string[] | null;
+            /** @description kind に渡す環境変数。ファイルに書いた順。 */
+            env: components["schemas"]["ProfileEnvPair"][] | null;
+        };
+        /** @description 環境変数 1 つ。 */
+        ProfileEnvPair: {
+            /** @description 環境変数の名前 */
+            key: string;
+            /** @description 環境変数の値 */
+            value: string;
+        };
+        /** @description プロファイルの一覧の 1 行が読む値（spec-boundary 5）。 */
+        ProfileSummary: {
+            /** @description 起動するエージェントの種類 */
+            kind: string;
+            /** @description 種類を色分けするための分類 */
+            kindClass: string;
+            /** @description 一覧に出す引数（空白で区切って 1 行にしたもの） */
+            args: string;
+            /** @description 一覧に出す環境変数（名前=値）。多くても 2 つ。 */
+            env: string[] | null;
+            /** @description 一覧に出さずに省いた環境変数の数 */
+            more: number;
+            /** @description このプロファイル名を名指すメンバーとワーカーの数 */
+            users: number;
+            /** @description このプロファイルを使う人たちのロール名（ワーカーは目的）を並べた文 */
+            roles: string;
+            /** @description このプロファイルを使う人たち */
+            chips: components["schemas"]["ProfileChip"][] | null;
+        };
+        /** @description プロファイルを使う人 1 人。 */
+        ProfileChip: {
+            /** @description その人がいるチーム定義の名前 */
+            def: string;
+            /** @description その人の識別子（m-<番号> はメンバー、w-<番号> はワーカー） */
+            id: string;
+            /** @description メンバー名。ワーカーのときは雇ったメンバー名。 */
+            who: string;
+            /** @description ロール名。ワーカーのときは目的。 */
+            role: string;
+            /** @description その人がワーカーか */
+            worker: boolean;
+            /** @description そのチーム定義がプロジェクトのものか（グローバルのものなら false） */
+            local: boolean;
+        };
+        /** @description YAML タブが読むファイル 1 つ。全体の文と、その文の問題。 */
+        File: {
+            /** @description ファイルの置き場所。project はプロジェクト、global はグローバル。 */
+            place: string;
+            /** @description 画面に出す置き場所の名前 */
+            label: string;
+            /** @description ファイルの道 */
+            path: string;
+            /** @description ファイルの全体の文 */
+            text: string;
+            /** @description ファイルのハッシュ */
+            hash: string;
+            /** @description このファイルが属する名前（1 つの名前が 2 つのファイルを持つ種類だけ） */
+            name?: string;
+            /** @description このファイルが 2 つのうちどちらか（1 つの名前が 2 つのファイルを持つ種類だけ） */
+            kind?: string;
+            /** @description 別の置き場所の同じ名前のファイルに隠れているか */
+            hidden?: boolean;
+            /** @description この文の問題 */
+            problems: components["schemas"]["Problem"][] | null;
+        };
+        /** @description GET /api/profile/{name} の答え。その置き場所のプロファイル 1 つと、そのファイルの文とハッシュ。 */
+        ProfileGet: {
+            doc: components["schemas"]["ProfileDoc"];
+            /** @description そのプロファイルが入っているファイルの全体の文 */
+            text: string;
+            /** @description そのプロファイルが入っているファイルのハッシュ */
+            hash: string;
+            /** @description そのファイルの道 */
+            path: string;
+            /** @description 使われる置き場所 */
+            effective: string;
+            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            hidden: string[] | null;
+        };
+        /** @description POST /api/profile/check の答え（spec-boundary 5）。見つかった問題だけを答える。 */
+        ProfileCheck: {
+            /** @description 見つかった問題 */
+            problems: components["schemas"]["Problem"][];
+        };
+        /** @description PUT /api/profile/{name} の答え（spec-boundary 5）。保存したプロファイルと、保存のあとの一覧。 */
+        ProfileSaved: {
+            /** @description 保存したプロファイル。YAML タブの保存は null。 */
+            doc: components["schemas"]["ProfileDoc"] | null;
+            /** @description 保存したファイルの全体の文 */
+            text: string;
+            /** @description 保存したファイルのハッシュ */
+            hash: string;
+            /** @description 保存したファイルの道 */
+            path: string;
+            /** @description 使われる置き場所 */
+            effective?: string;
+            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            hidden?: string[];
+            /** @description 保存のあとのプロファイルの一覧 */
+            items?: components["schemas"]["ProfileItem"][];
+            /** @description 置き場所ごとの、プロファイルのファイルのハッシュ */
+            hashes?: {
+                [key: string]: string;
+            };
+            /** @description 2 つのプロファイルのファイル */
+            files?: components["schemas"]["File"][];
+        };
+        /** @description 欄の下書きとして送るプロファイル。書かない欄は省く。 */
+        ProfileDraft: {
+            /** @description プロファイル名 */
+            name?: string;
+            /** @description 起動するエージェントの種類 */
+            kind?: string;
+            /** @description kind に渡す引数 */
+            args?: string[] | null;
+            /** @description kind に渡す環境変数 */
+            env?: components["schemas"]["ProfileEnvPair"][] | null;
+        };
+        /** @description POST /api/profile/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
+        ProfileCheckRequest: {
+            /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+            project?: string;
+            /** @description 置き場所。project はプロジェクト、global はグローバル。 */
+            place?: string;
+            /** @description YAML タブが開いている行のプロファイル名。検査は本文の名前を読まない。 */
+            name?: string;
+            /** @description 保存されているプロファイル名。新しいプロファイルは空。 */
+            original?: string;
+            doc?: components["schemas"]["ProfileDraft"];
+            /** @description YAML タブが打っている文 */
+            text?: string;
+        };
+        /** @description PUT /api/profile/{name} に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
+        ProfileSaveRequest: {
+            /** @description 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+            project?: string;
+            /** @description 置き場所。project はプロジェクト、global はグローバル。 */
+            place?: string;
+            /** @description YAML タブが開いている行のプロファイル名。保存は本文の doc.name を読む。 */
+            name?: string;
+            /** @description 保存されているプロファイル名。新しいプロファイルは空。 */
+            original?: string;
+            doc?: components["schemas"]["ProfileDraft"];
+            /** @description YAML タブが打っている文 */
+            text?: string;
+            /** @description 読んだときのファイルのハッシュ。今のハッシュと違えば書かない。 */
+            hash?: string;
+            /** @description 名前を変えたとき、そのプロファイル名を名指す team.yaml も書き換えるか */
+            rename_users?: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -608,42 +1107,60 @@ export interface operations {
     };
     listRoles: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description ロール名ごとの行と、ロールの文書が入っているファイルのハッシュ */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RoleList"];
                 };
             };
         };
     };
     getRole: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 読む置き場所。project はプロジェクト、global はグローバル。 */
+                place?: string;
+                /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path: {
+                /** @description ロール名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description ロールの文書 1 つと、その文書が入っているファイルの文 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RoleGet"];
+                };
+            };
+            /** @description その置き場所にロールの文書がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -653,45 +1170,100 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description 行のロール名。書く文書の名前は本文の doc.name が決める。 */
                 name: string;
             };
             cookie?: never;
         };
+        /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
         requestBody?: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["RoleSaveRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 保存したロールの文書と、保存のあとの一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RoleSaved"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 読んだときからファイルが変わっていた */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 保存できない下書きか、使えないロール名 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
     };
     deleteRole: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 消す置き場所。project はプロジェクト、global はグローバル。 */
+                place?: string;
+                /** @description 読んだときのファイルのハッシュ。今のハッシュと違えば消さない。 */
+                hash?: string;
+                /** @description 消すプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+                project?: string;
+            };
             header?: never;
             path: {
+                /** @description 消すロール名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 消したあとのロールの一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RoleList"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 読んだときからファイルが変わっていた */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -703,61 +1275,98 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
+        /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
         requestBody?: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["RoleCheckRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 見つかった問題、メンバーが読む Markdown、変更が動かした行、その文書を読むメンバー */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RoleCheck"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 下書きが読めない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
     };
     listProfiles: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProfileList"];
                 };
             };
         };
     };
     getProfile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 読む置き場所。project はプロジェクト、global はグローバル。 */
+                place?: string;
+                /** @description 読むプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path: {
+                /** @description プロファイル名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description その置き場所のプロファイル 1 つと、そのファイルの文 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProfileGet"];
+                };
+            };
+            /** @description その置き場所にそのプロファイルがない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -767,45 +1376,127 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description 行のプロファイル名。書くプロファイルの名前は本文の doc.name が決める。 */
                 name: string;
             };
             cookie?: never;
         };
+        /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
         requestBody?: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["ProfileSaveRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 保存したプロファイルと、保存のあとの一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProfileSaved"];
+                };
+            };
+            /** @description 置き場所が project でも global でもない */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 読んだときからファイルが変わっていた */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 保存できない下書きか、ファイルを置く場所がない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
     };
     deleteProfile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 消す置き場所。project はプロジェクト、global はグローバル。 */
+                place?: string;
+                /** @description 読んだときのファイルのハッシュ。今のハッシュと違えば消さない。 */
+                hash?: string;
+                /** @description 消すプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+                project?: string;
+            };
             header?: never;
             path: {
+                /** @description 消すプロファイル名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 消したあとのプロファイルの一覧 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProfileList"];
+                };
+            };
+            /** @description 置き場所が project でも global でもない */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 読んだときからファイルが変わっていた */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description その置き場所にそのプロファイルがない、またはファイルを置く場所がない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
@@ -817,19 +1508,47 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
+        /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
         requestBody?: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["ProfileCheckRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
-            default: {
+            /** @description 見つかった問題 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProfileCheck"];
+                };
+            };
+            /** @description 置き場所が project でも global でもない */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 書き込みを受け取れない（Origin がこの画面のものでない、または X-Hergy-Token がこの起動のものでない） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description 下書きが読めない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
                 };
             };
         };
