@@ -3,7 +3,7 @@
 // mount と、住所・帯への受け渡しだけを持つ。描くのは view.js / assign.js / yaml.js、
 // 状態は state.js の signal、押し込みは部品が自分の onClick / onInput から
 // state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
-import { html, effect, render } from '../lib/preact.js';
+import { effect, render } from '../lib/preact.js';
 import { setCount } from '../lib/nav.js';
 import { view, tabsEl, dirty, take, savedRoles, boot } from './state.js';
 import { Tabs, App } from './view.js';
@@ -17,8 +17,8 @@ if (view) {
 
   // The two trees the page holds stand where the server drew them, and stay
   // where they are: a signal they read draws them again (5 章 2).
-  render(html`<${Tabs} />`, tabsEl);
-  render(html`<${App} />`, view);
+  render(<Tabs />, tabsEl!);
+  render(<App />, view);
 
   // The band's number is the list's own: it counts the definitions that are saved
   // (spec-nav 1.1).
