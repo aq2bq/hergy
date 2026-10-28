@@ -59,27 +59,47 @@ function ring(t, narrowPage) {
   return out;
 }
 
-// place is every point's place as the figure draws it: the place a person put a
-// point down at, and, for a point they did not, the nearest room around the
-// ring. The places of points the draft no longer holds are left out.
+// place is every point's place as the figure draws it: the places already in the
+// record, and, for a point the record does not hold yet, a place in the nearest
+// room no other point holds. With no place at all it lays the row out afresh:
+// the human, the members round it, and their workers beside them. The places of
+// points the draft no longer holds are left out.
 export function place(t, placed, narrowPage) {
   const put = placed || {};
-  const ids = ['human', ...t.members.map((m) => m.name)];
-  const workers = (t.workers || []).map((w, i) => [`w${i}`, w]);
-  const auto = ring(t, narrowPage);
+  const ids = ['human', ...t.members.map((m) => m.name), ...(t.workers || []).map((w, i) => 'w' + i)];
   const out = {};
-  ids.forEach((id) => { out[id] = put[id] ? [put[id][0], put[id][1]] : auto[id]; });
-  // A worker stands beside the member it was added under, in the nearest room
-  // no other point holds.
-  workers.forEach(([id, w]) => {
-    if (put[id]) { out[id] = [put[id][0], put[id][1]]; return; }
-    const b = boxOf(id, t);
-    out[id] = freeNear(t, out, id, workerWant(t, out, w.from, b), 58);
+  ids.forEach((id) => { if (put[id]) out[id] = [put[id][0], put[id][1]]; });
+  if (!Object.keys(out).length) {
+    const first = ring(t, narrowPage);
+    t.workers.forEach((w, i) => {
+      const id = 'w' + i, b = boxOf(id, t);
+      first[id] = freeNear(t, first, id, workerWant(t, first, w.from, b), 58);
+    });
+    return first;
+  }
+  // A point the record does not hold yet stands beside the points it has: the
+  // room to the right of them, and below them, as the figure always laid one
+  // out. It goes into the answer, and the screen puts it in the record (so a
+  // point that stands does not move when another is added).
+  const known = Object.values(out);
+  let bx = known.length ? Math.min(...known.map((q) => q[0])) : 0;
+  let by = known.length ? Math.max(...known.map((q) => q[1])) + 100 : 0;
+  ids.filter((id) => !out[id]).forEach((id) => {
+    const wi = /^w(\d+)$/.exec(id);
+    if (wi) {
+      const w = t.workers[Number(wi[1])], b = boxOf(id, t);
+      out[id] = freeNear(t, out, id, workerWant(t, out, w.from, b), 58);
+    } else {
+      const b = boxOf(id, t);
+      out[id] = freeNear(t, out, id, [bx, by], 54);
+      bx += b.w + 30;
+    }
   });
   // A worker that a change of purpose made wider, or one put down on another by
   // a double press, is moved to the nearest room: workers only, so a member a
   // person picked stays where it stands.
-  workers.forEach(([id]) => {
+  (t.workers || []).forEach((w, i) => {
+    const id = 'w' + i;
     if (hits(t, out, id, out[id])) out[id] = freeNear(t, out, id, out[id], 40);
   });
   return out;

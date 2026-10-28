@@ -204,6 +204,14 @@ function recOf(init) {
   r.layout = computed(() => place(r.draft.value, r.placed.value, thin.value));
   return r;
 }
+// seedPlaces puts every point of the draft into the record's places, once: when
+// the row is made, and after each change of the draft. The places are the
+// screen's own state, decided by the operation that changes the draft, so the
+// figure draws what stands there and writes nothing, and a point that was laid
+// out does not move when another is added (webui-components 1 章).
+export function seedPlaces(r) {
+  r.placed.value = place(r.draft.value, r.placed.value, thin.value);
+}
 export const recs = signal([]);
 let uids = 0;
 
@@ -259,6 +267,7 @@ function defOf(item, project) {
     lastAct: 0,
   });
   r.uid = ++uids;
+  seedPlaces(r);
   recs.value = [...recs.value, r];
   return r;
 }
@@ -311,6 +320,7 @@ function draftRecord(how, place, name, base, project) {
     sel: null, side: 'attr', menu: null, typed: null, flash: null,
     lastAct: 0,
   });
+  seedPlaces(r);
   recs.value = [...recs.value, r];
   return r;
 }
@@ -320,6 +330,9 @@ function draftRecord(how, place, name, base, project) {
 function seedDraft(r, json) {
   const doc = json.doc || {}, agree = doc.agreement || {};
   r.seeded.value = true;
+  // The base the row stands on is a draft of its own: its points are laid out
+  // afresh, not kept from the empty one the row was made with.
+  r.placed.value = {};
   r.saved.value = cloneTeam(doc);
   r.broken.value = !!doc.broken;
   r.teamPath.value = json.path || '';
@@ -333,6 +346,7 @@ function seedDraft(r, json) {
     r.agreeSaved.value = d;
     r.agreeDraft.value = clone(d);
   }
+  seedPlaces(r);
 }
 // theName is the name a duplicate takes: the source's with -2, -3 … until one
 // is free, so the row starts without the name problem the same name would raise
@@ -607,9 +621,15 @@ export function syncTeam(r) {
 export function syncAgree(r) {
   checkAgree(r);
 }
-export function pushOp(r, op) { r.ops.value = [...r.ops.value, op]; }
+export function pushOp(r, op) {
+  r.ops.value = [...r.ops.value, op];
+  seedPlaces(r);
+}
 // setOps puts a whole list of operations in: a revert drops them all at once.
-export function setOps(r, ops) { r.ops.value = ops; }
+export function setOps(r, ops) {
+  r.ops.value = ops;
+  seedPlaces(r);
+}
 
 // saveTeam writes the team.yaml's ops (spec-teams B6). The refusal is the
 // screen's own state: the panel's foot draws it (5 章 2).
@@ -777,7 +797,7 @@ export function canvasAct(r, ops, o) {
   r.promptsReady.value = undefined;
   clearOk(r);
   canvasUndoPoint(r, o.undo || '');
-  r.ops.value = [...r.ops.value, ...(ops || [])];
+  (ops || []).forEach((op) => pushOp(r, op));
   ctyping = { key: null, field: null };
   if (o.focus) focusAsk.value = { dom: r.dom, sel: o.focus };
   checkTeam(r);
@@ -827,6 +847,7 @@ export function resetCanvas(r) {
   r.typed.value = null;
   r.flash.value = null;
   r.placed.value = {};
+  seedPlaces(r);
 }
 
 // The worker's prompt is the one hire --dry builds (r-4cf9). Its name and task
@@ -1056,7 +1077,7 @@ export function restore(carried) {
   (carried.teams || []).forEach((c) => {
     const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
     if (!r || (c.hash && r.hash.value !== c.hash)) return;
-    r.ops.value = clone(c.ops);
+    setOps(r, clone(c.ops));
     checkTeam(r);
   });
   (carried.agrees || []).forEach((c) => {
