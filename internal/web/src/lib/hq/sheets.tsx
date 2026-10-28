@@ -622,7 +622,7 @@ function Results(): JSX.Element | null {
   return <div class="hq-sr" role="listbox" aria-label="探した結果" ref={box}>{body}</div>;
 }
 
-// mountResults stands the list's one place in the page, the way lib/deliver.js
+// mountResults stands the list's one place in the page, the way lib/apply.js
 // stands its layer: display: contents, so the band's row is not made to hold it.
 function mountResults(): void {
   const host = document.createElement('div');

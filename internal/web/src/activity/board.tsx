@@ -5,10 +5,9 @@
 // ここは state.ts の signal を読んで描くだけで、DOM を自分では書かない
 // （webui-preact-design 5 章 1）。class と data-* は CSS と e2e が読むので、
 // 移す前のマークアップから 1 つも変えない（5 章 6）。
-import { useState } from '../lib/preact.js';
 import type { JSX } from 'preact';
 import * as A from '../lib/hq.js';
-import { openSheet } from '../lib/deliver/state.js';
+import { openSheet, teamCount } from '../lib/apply/state.js';
 import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
@@ -75,12 +74,12 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
 }
 
 // Detail is the third tier: the opened team's last screen, where to answer, and
-// every member and worker with its state (spec 6 章). A member the definition has
-// and no agent is live for carries 起動 (r-5d1a): the member is started in the
-// team's tab, and the progress stands in the start's own sheet.
+// every member and worker with its state (spec 6 章). A team with a change that
+// is not applied yet carries 反映していない変更 の数 here (n-4b22): the press opens
+// the sheet narrowed to this team. Starting one member by hand is not offered any
+// more — a member the definition has and no agent is live for is 起動する の反映
+// (d-36ef).
 function Detail({ team: t }: { team: ActivityTeam }): JSX.Element {
-  const [error, setError] = useState('');
-  const press = async (name: string): Promise<void> => { setError(await A.raiseMember(t.name, name)); };
   // The headquarters' reading is a module: the board imports it (5 章 1).
   // The screen's last lines are drawn when there are some: a team whose pane
   // could not be read (a working one, often) has no heading and no empty box
@@ -90,13 +89,15 @@ function Detail({ team: t }: { team: ActivityTeam }): JSX.Element {
   const screenBox = hasTail ? <div class="hq-dq"><div class="th">画面の最後（<code>{t.wait ? (t.wait.herdr || (t.name + '-' + t.wait.name)) : t.last ? (t.name + '-' + t.last) : t.name}</code>）</div>
     <pre class="term">{t.tail.join('\n')}</pre>{answerBox}</div>
     : (answerBox ? <div class="hq-dq">{answerBox}</div> : '');
-  const rows = t.crew.map((m) => <li class={m.state}><i class={'dot ' + m.state}></i><span class="nm">{m.name}</span><span class="sw">{NS[m.state] || ''}{m.state === 'absent' && !t.starting ? <button type="button" class="hq-btn sm" data-hq="raise" data-team={t.name} data-member={m.name} aria-label={`${m.name} を起動`} onClick={() => press(m.name)}>起動</button> : ''}</span><span class="t">{m.at || ''}</span>{m.doing ? <span class="hq-doing">{m.doing}</span> : ''}{m.stale ? <span class="dlv-sub"><button class="dlv-badge" type="button" data-deliver-open title="伝えていない変更があります" onClick={() => openSheet()}>定義が変わった</button></span> : ''}</li>);
+  const rows = t.crew.map((m) => <li class={m.state}><i class={'dot ' + m.state}></i><span class="nm">{m.name}</span><span class="sw">{NS[m.state] || ''}</span><span class="t">{m.at || ''}</span>{m.doing ? <span class="hq-doing">{m.doing}</span> : ''}</li>);
   const workers = t.workers.length ? <><li class="sub">ワーカー</li>{t.workers.map((w) => <li class={w.state}><i class={'dot ' + w.state}></i><span class="nm wk">{w.name}</span><span class="sw">{NS[w.state] || ''}</span><span class="t">{w.from ? w.from + ' が追加' : ''}</span>{w.doing ? <span class="hq-doing">{w.doing}</span> : ''}</li>)}</> : '';
   const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
+  const stale = teamCount(t.name);
+  const apply = stale ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.name} onClick={() => openSheet(t.name)}>反映していない変更 <b>{stale}</b></button> : '';
   return <section class="hq-detail" aria-label={`${t.name} の中`}>
     <div class="hq-dh"><b>{t.name}</b><span class="hq-pw">{[t.projectName, t.workspace ? 'ワークスペース ' + t.workspace : ''].filter(Boolean).join(' · ')}</span><span class={'st ' + t.state}>{ST[t.state] || ''}</span>
-      <span class="hq-dacts"><a class="hq-btn sm" href={defHref}>チーム定義を開く</a><button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを止める…</button></span></div>
-    <div class="hq-db">{screenBox}<ul class="nodes">{rows}{workers}</ul>{error ? <p class="hq-err" data-role="raise-error">{error}</p> : ''}</div></section>;
+      <span class="hq-dacts"><a class="hq-btn sm" href={defHref}>チーム定義を開く</a>{apply}<button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを止める…</button></span></div>
+    <div class="hq-db">{screenBox}<ul class="nodes">{rows}{workers}</ul></div></section>;
 }
 
 // Board is the whole screen: the three tiers, or the one line a board with

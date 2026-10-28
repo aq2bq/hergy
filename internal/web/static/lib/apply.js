@@ -14,28 +14,33 @@ import {
   A,
   u
 } from "../chunk/nav-fa78a466.js";
-import"../chunk/nav-5wv4wf6d.js";
+import"../chunk/nav-gpszvdfw.js";
+import"../chunk/nav-vyr0f22b.js";
 import {
   POLL,
   count,
   opened,
   answer,
   note,
+  scope,
   chosen,
   toast,
   toastOn,
-  canSend,
-  sendLabel,
+  teams,
+  canApply,
+  applyLabel,
   toggle,
   readCount,
+  readTeams,
   openSheet,
   close,
   send
-} from "../chunk/nav-mmh8rgff.js";
+} from "../chunk/nav-mrthzccx.js";
 
-// lib/deliver/view.tsx
+// lib/apply/view.tsx
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
-var INTRO = "チェックした人に、初期プロンプトを送り直します（それまでの会話は残ります）。仕事中と許可待ちの人には送れません。";
+var HOW = { resend: "送り直す", start: "起動する", restart: "起動し直す", cannot: "反映できない" };
+var INTRO = "チェックした人に、定義の変更を反映します。送り直すは会話が残り、起動し直すは会話が消えます。仕事中と許可待ちの人には、今は反映できません。";
 var press = (fn) => (e) => {
   e.preventDefault();
   fn();
@@ -44,15 +49,15 @@ function BandButton() {
   const n = count.value;
   return /* @__PURE__ */ u("button", {
     type: "button",
-    class: "dlv-bandbtn",
-    "data-dlv": "open",
+    class: "apl-bandbtn",
+    "data-apl": "open",
     "aria-haspopup": "dialog",
-    title: "定義を直したあと、まだ伝えていない人",
-    "aria-label": `変更を伝えていない人 ${n}`,
+    title: "定義を直したあと、まだ反映していない人",
+    "aria-label": `反映していない変更 ${n}`,
     hidden: n <= 0,
     onClick: press(openSheet),
     children: [
-      "変更を伝えていない人 ",
+      "反映していない変更 ",
       /* @__PURE__ */ u("b", {
         children: n
       })
@@ -72,13 +77,13 @@ var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
 function linkFor(change, group) {
   const kind = change.kind || "";
   if (kind === "turn" || kind === "worker" || kind === "roster" || kind === "template" || kind === "prompt") {
-    return `/teams?open=${enc(group.definition || group.name)}`;
+    return `/teams?open=${enc(group.definition || group.team)}`;
   }
   if (kind === "rule" || kind === "document") {
     const role = roleOf(change.document);
     if (role)
       return `/roles?open=${enc(role)}${kind === "rule" && change.rule ? `&rule=${enc(change.rule)}` : ""}`;
-    const team = teamOf(change.document) || group.definition || group.name;
+    const team = teamOf(change.document) || group.definition || group.team;
     const tab = kind === "rule" || /agreement\.ya?ml$/.test(baseName(change.document)) ? `&agree=${enc(team)}` : "";
     return `/teams?open=${enc(team)}${tab}`;
   }
@@ -94,23 +99,27 @@ function Sheet() {
   const a = answer.value;
   if (!a)
     return null;
+  const groups = teams.value;
   return /* @__PURE__ */ u("section", {
-    class: "dlv-sheet",
+    class: "apl-sheet",
     role: "dialog",
-    "aria-label": "変更を伝える",
+    "aria-label": "反映",
     tabIndex: -1,
     ref: box,
     children: [
       /* @__PURE__ */ u("div", {
-        class: "dlv-h",
+        class: "apl-h",
         children: [
           /* @__PURE__ */ u("b", {
-            children: "変更を伝える"
+            children: [
+              "反映",
+              scope.value ? `: ${scope.value}` : ""
+            ]
           }),
           /* @__PURE__ */ u("button", {
-            class: "dlv-x",
+            class: "apl-x",
             type: "button",
-            "data-dlv": "close",
+            "data-apl": "close",
             "aria-label": "閉じる",
             onClick: press(close),
             children: "×"
@@ -118,33 +127,36 @@ function Sheet() {
         ]
       }),
       /* @__PURE__ */ u("div", {
-        class: "dlv-sub2",
+        class: "apl-intro",
         children: INTRO
       }),
       /* @__PURE__ */ u("p", {
-        class: "dlv-note err",
-        "data-dlv-note": true,
+        class: "apl-note err",
+        "data-apl-note": true,
         hidden: !note.value,
         children: note.value
       }),
-      (a.teams || []).map((g) => /* @__PURE__ */ u(Team, {
+      groups.length ? groups.map((g) => /* @__PURE__ */ u(Team, {
         group: g
-      })),
+      })) : /* @__PURE__ */ u("p", {
+        class: "apl-empty",
+        children: "反映していない変更はありません。"
+      }),
       /* @__PURE__ */ u("div", {
-        class: "dlv-acts",
+        class: "apl-acts",
         children: [
           /* @__PURE__ */ u("button", {
-            class: "dlv-btn dlv-primary",
+            class: "apl-btn apl-primary",
             type: "button",
-            "data-dlv": "send",
-            disabled: !canSend.value,
+            "data-apl": "send",
+            disabled: !canApply.value,
             onClick: press(send),
-            children: sendLabel.value
+            children: applyLabel.value
           }),
           /* @__PURE__ */ u("button", {
-            class: "dlv-btn",
+            class: "apl-btn",
             type: "button",
-            "data-dlv": "close",
+            "data-apl": "close",
             onClick: press(close),
             children: "やめる"
           })
@@ -154,7 +166,7 @@ function Sheet() {
   });
 }
 function Team({ group }) {
-  const def = group.definition && group.definition !== group.name ? /* @__PURE__ */ u(S, {
+  const def = group.definition && group.definition !== group.team ? /* @__PURE__ */ u(S, {
     children: [
       "（定義 ",
       /* @__PURE__ */ u("code", {
@@ -163,21 +175,31 @@ function Team({ group }) {
       "）"
     ]
   }) : "";
+  const where = group.project_name ? /* @__PURE__ */ u("span", {
+    class: "apl-where",
+    children: group.project_name
+  }) : "";
+  const notes = (group.notes || []).map((t) => /* @__PURE__ */ u("p", {
+    class: "apl-tnote",
+    children: t
+  }));
   return /* @__PURE__ */ u("div", {
-    class: "dlv-team",
+    class: "apl-team",
     children: [
       /* @__PURE__ */ u("div", {
-        class: "dlv-th",
+        class: "apl-th",
         children: [
           "チーム ",
           /* @__PURE__ */ u("code", {
-            children: group.name
+            children: group.team
           }),
-          def
+          def,
+          where
         ]
       }),
+      notes,
       /* @__PURE__ */ u("div", {
-        class: "dlv-ms",
+        class: "apl-ms",
         children: (group.members || []).map((m) => /* @__PURE__ */ u(Member, {
           m,
           group
@@ -187,41 +209,50 @@ function Team({ group }) {
   });
 }
 function Member({ m, group }) {
-  const can = !!m.can_send;
+  const can = !!m.can_apply;
+  const how = HOW[m.how] || m.how;
   return /* @__PURE__ */ u("label", {
-    class: can ? "dlv-mm" : "dlv-mm no",
+    class: can ? "apl-mm" : "apl-mm no",
     children: [
       /* @__PURE__ */ u("input", {
         type: "checkbox",
-        "data-dlv-name": m.name,
+        "data-apl-name": m.name,
         checked: can && chosen.value.has(m.name),
         disabled: !can,
         onChange: () => toggle(m.name)
       }),
       /* @__PURE__ */ u("span", {
-        class: "dlv-who",
+        class: "apl-who",
         children: [
           /* @__PURE__ */ u("code", {
             children: m.name
           }),
           /* @__PURE__ */ u("span", {
-            class: "dlv-st",
+            class: "apl-st",
             children: STATE[m.state] || m.state
           }),
-          can ? null : /* @__PURE__ */ u("span", {
-            class: "dlv-wait",
-            children: "仕事が終わると伝えられます"
-          })
+          /* @__PURE__ */ u("span", {
+            class: "apl-how " + m.how,
+            children: how
+          }),
+          m.conversation_lost ? /* @__PURE__ */ u("span", {
+            class: "apl-lost",
+            children: "会話が消えます"
+          }) : null
         ]
       }),
+      m.how === "cannot" && m.why_not ? /* @__PURE__ */ u("span", {
+        class: "apl-why",
+        children: m.why_not
+      }) : null,
       /* @__PURE__ */ u("span", {
-        class: "dlv-what",
+        class: "apl-what",
         children: (m.changes || []).map((c) => {
           const href = linkFor(c, group);
           const text = c.text || "";
           return /* @__PURE__ */ u("span", {
             children: href ? /* @__PURE__ */ u("a", {
-              class: "dlv-chg",
+              class: "apl-chg",
               href,
               children: text
             }) : text
@@ -233,7 +264,7 @@ function Member({ m, group }) {
 }
 function Toast() {
   return /* @__PURE__ */ u("div", {
-    class: "dlv-toast",
+    class: "apl-toast",
     role: "status",
     hidden: !toastOn.value,
     children: toast.value
@@ -248,13 +279,13 @@ function Layer() {
   });
 }
 
-// lib/deliver.tsx
+// lib/apply.tsx
 function mountBand() {
   const after = document.querySelector(".bar .hq-search") || document.querySelector(".bar .screens");
   if (!after)
     return null;
   const host = document.createElement("div");
-  host.className = "dlv-band";
+  host.className = "apl-band";
   host.style.display = "contents";
   after.insertAdjacentElement("afterend", host);
   R(/* @__PURE__ */ u(BandButton, {}), host);
@@ -262,7 +293,7 @@ function mountBand() {
 }
 function mountLayer() {
   const host = document.createElement("div");
-  host.className = "dlv-layer";
+  host.className = "apl-layer";
   document.body.appendChild(host);
   R(/* @__PURE__ */ u(Layer, {}), host);
   return host;
@@ -273,15 +304,27 @@ document.addEventListener("keydown", (e) => {
     close();
   }
 });
-document.addEventListener("hergy:saved", () => readCount());
+document.addEventListener("hergy:saved", () => {
+  readCount();
+  readTeams();
+});
 mountBand();
 mountLayer();
 readCount();
+var showsTeams = /^\/(teams|activity)/.test(location.pathname);
+if (showsTeams)
+  readTeams();
 setInterval(() => {
-  if (document.visibilityState === "visible")
-    readCount();
+  if (document.visibilityState !== "visible")
+    return;
+  readCount();
+  if (showsTeams)
+    readTeams();
 }, POLL);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible")
+  if (document.visibilityState === "visible") {
     readCount();
+    if (showsTeams)
+      readTeams();
+  }
 });

@@ -65,9 +65,12 @@ var get2 = (kind, name, place, project, opts) => read2(urls.get(kind, name, plac
 var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
 var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${enc(name)}`, payload, opts);
 var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DELETE", urls.del(kind, name, place, hash, agreementHash || "", project || ""), undefined, opts);
-var delivery2 = (opts) => read2("/api/delivery", opts);
-var deliveryCount2 = (opts) => read2("/api/delivery/count", opts);
-var deliver2 = (members, opts) => call2("POST", "/api/delivery", { members }, opts);
+var applyList2 = (opts) => read2("/api/apply", opts);
+var applyCount2 = (opts) => read2("/api/apply/count", opts);
+async function applyMembers2(members, opts) {
+  const a = await call2("POST", "/api/apply", { members }, opts);
+  return a.json || {};
+}
 var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));
 var problemText2 = (refusal, fallback) => {
@@ -204,4 +207,4 @@ function checkAnswer2(a) {
   };
 }
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, delivery2, deliveryCount2, deliver2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2, checkAnswer2 };
+export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2, checkAnswer2 };

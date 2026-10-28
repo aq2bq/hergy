@@ -26,14 +26,15 @@ import {
   del2,
   problemText2,
   profileModel2
-} from "../chunk/nav-5wv4wf6d.js";
+} from "../chunk/nav-gpszvdfw.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-qz2btas9.js";
+} from "../chunk/nav-mrthzccx.js";
+import"../chunk/nav-75tnj102.js";
 import {
   YamlTab2
-} from "../chunk/nav-gbg5ekdb.js";
+} from "../chunk/nav-bds0mbqj.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";

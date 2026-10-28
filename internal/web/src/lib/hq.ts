@@ -24,7 +24,6 @@ import {
   resetSearch, searchHook, sheetOpen, searchBoxOpen, closeBox,
 } from './hq/sheets.js';
 import { TeamFigure } from './hq/figure.js';
-import { raiseMember } from './hq/raise.js';
 
 declare global {
   interface Window {
@@ -98,5 +97,5 @@ function stickBar() {
 // global any more.
 export {
   st as state, setRunning, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
-  readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure, raiseMember,
+  readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure,
 };

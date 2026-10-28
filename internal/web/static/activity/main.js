@@ -10,14 +10,13 @@
 import {
   S,
   R,
-  d,
   y,
   O,
   u
 } from "../chunk/nav-fa78a466.js";
 import {
   read2
-} from "../chunk/nav-5wv4wf6d.js";
+} from "../chunk/nav-gpszvdfw.js";
 import {
   setActivity2
 } from "../chunk/nav-vyr0f22b.js";
@@ -30,13 +29,13 @@ import {
   definitionOf2,
   readGroups2,
   stopSheet2,
-  raiseMember2,
+  teamCount,
+  openSheet
+} from "../chunk/nav-mrthzccx.js";
+import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-qz2btas9.js";
-import {
-  openSheet
-} from "../chunk/nav-mmh8rgff.js";
+} from "../chunk/nav-75tnj102.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -437,10 +436,6 @@ function Tile({ team: t }) {
   });
 }
 function Detail({ team: t }) {
-  const [error, setError] = d("");
-  const press = async (name) => {
-    setError(await raiseMember2(t.name, name));
-  };
   const answerBox = t.wait ? /* @__PURE__ */ u("div", {
     class: "hq-ans",
     children: [
@@ -490,19 +485,7 @@ function Detail({ team: t }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "sw",
-        children: [
-          NS[m.state] || "",
-          m.state === "absent" && !t.starting ? /* @__PURE__ */ u("button", {
-            type: "button",
-            class: "hq-btn sm",
-            "data-hq": "raise",
-            "data-team": t.name,
-            "data-member": m.name,
-            "aria-label": `${m.name} を起動`,
-            onClick: () => press(m.name),
-            children: "起動"
-          }) : ""
-        ]
+        children: NS[m.state] || ""
       }),
       /* @__PURE__ */ u("span", {
         class: "t",
@@ -511,17 +494,6 @@ function Detail({ team: t }) {
       m.doing ? /* @__PURE__ */ u("span", {
         class: "hq-doing",
         children: m.doing
-      }) : "",
-      m.stale ? /* @__PURE__ */ u("span", {
-        class: "dlv-sub",
-        children: /* @__PURE__ */ u("button", {
-          class: "dlv-badge",
-          type: "button",
-          "data-deliver-open": true,
-          title: "伝えていない変更があります",
-          onClick: () => openSheet(),
-          children: "定義が変わった"
-        })
       }) : ""
     ]
   }));
@@ -558,6 +530,20 @@ function Detail({ team: t }) {
     ]
   }) : "";
   const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
+  const stale = teamCount(t.name);
+  const apply = stale ? /* @__PURE__ */ u("button", {
+    type: "button",
+    class: "hq-btn sm",
+    "data-hq": "apply",
+    "data-team": t.name,
+    onClick: () => openSheet(t.name),
+    children: [
+      "反映していない変更 ",
+      /* @__PURE__ */ u("b", {
+        children: stale
+      })
+    ]
+  }) : "";
   return /* @__PURE__ */ u("section", {
     class: "hq-detail",
     "aria-label": `${t.name} の中`,
@@ -584,6 +570,7 @@ function Detail({ team: t }) {
                 href: defHref,
                 children: "チーム定義を開く"
               }),
+              apply,
               /* @__PURE__ */ u("button", {
                 type: "button",
                 class: "hq-btn sm danger",
@@ -606,12 +593,7 @@ function Detail({ team: t }) {
               rows,
               workers
             ]
-          }),
-          error ? /* @__PURE__ */ u("p", {
-            class: "hq-err",
-            "data-role": "raise-error",
-            children: error
-          }) : ""
+          })
         ]
       })
     ]

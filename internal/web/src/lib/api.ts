@@ -17,6 +17,7 @@
 // (n-e3de, r-5a03), so a screen reads an answer's fields through the type the
 // server is held to. Nothing here writes a field's name on its own.
 import type { components, operations } from '../../../apicontract/api-types';
+import type { ApplyList, ApplyCount, ApplyEnvelope } from './apply/types';
 
 // Schemas is the shapes the API answers and takes, by their names in the promise.
 export type Schemas = components['schemas'];
@@ -98,7 +99,7 @@ const urls = {
 };
 
 // What one operation answers and takes, read from the operation itself: a
-// schema picked by hand can be the wrong one (deliveryCount answered the note
+// schema picked by hand can be the wrong one (a count operation answered the note
 // beside the count), so every answer here comes from the operation that sends it.
 type JsonOf<T> = T extends { content: { 'application/json': infer R } } ? R : never;
 export type ApiAnswer<K extends keyof operations> = operations[K] extends { responses: { 200: infer R } } ? JsonOf<R> : never;
@@ -142,16 +143,20 @@ export const save = <K extends Kind>(kind: K, name: string, payload: Request<K, 
 export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: string, agreementHash?: string, project?: string, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'del'>>> =>
   call<Answer<K, 'del'>>('DELETE', urls.del(kind, name, place, hash, agreementHash || '', project || ''), undefined, opts);
 
-// ---- 変更を伝える (r-a8fa) -------------------------------------------------
-// delivery is GET /api/delivery: the running members whose prompt is not the one
-// hergy last handed them, by running team.
-export const delivery = (opts?: CallOptions): Promise<ApiAnswer<'listDelivery'>> => read('/api/delivery', opts);
-// deliveryCount is GET /api/delivery/count: the band's number alone.
-export const deliveryCount = (opts?: CallOptions): Promise<ApiAnswer<'countDelivery'>> => read('/api/delivery/count', opts);
-// deliver is POST /api/delivery: hand the current prompt to the named herdr
-// members. A refusal comes back 422 with the one sentence in text.
-export const deliver = (members: string[], opts?: CallOptions): Promise<RawAnswer<ApiAnswer<'deliver'>>> =>
-  call<ApiAnswer<'deliver'>>('POST', '/api/delivery', { members } satisfies ApiBody<'deliver'>, opts);
+// ---- 反映 (n-4b22, d-36ef) -----------------------------------------------
+// applyList is GET /api/apply: the members whose definition change is not in the
+// running team yet, by team, each with the way hergy would apply it (送り直す・
+// 起動する・起動し直す・反映できない).
+export const applyList = (opts?: CallOptions): Promise<ApplyList> => read('/api/apply', opts);
+// applyCount is GET /api/apply/count: the band's number alone.
+export const applyCount = (opts?: CallOptions): Promise<ApplyCount> => read('/api/apply/count', opts);
+// applyMembers is POST /api/apply: apply the named herdr members' definition
+// changes. It answers 202 with the launch to watch; a refusal comes back with
+// the one sentence in text.
+export async function applyMembers(members: string[], opts?: CallOptions): Promise<ApplyEnvelope> {
+  const a = await call<ApplyEnvelope>('POST', '/api/apply', { members }, opts);
+  return (a.json || {}) as ApplyEnvelope;
+}
 // hqList is one headquarters reading: the groups of teams, roles or profiles a
 // screen draws beside its own (d-73fc). The answer is the operation's own.
 const HQ_LISTS = { teams: 'listHQTeams', roles: 'listHQRoles', profiles: 'listHQProfiles' } as const;
@@ -159,7 +164,7 @@ export type HQKind = keyof typeof HQ_LISTS;
 export const hqList = <K extends HQKind>(kind: K, opts?: CallOptions): Promise<ApiAnswer<(typeof HQ_LISTS)[K]>> => read(`/api/hq/${kind}`, opts);
 
 // saved says one save wrote. Every screen's successful save says it, and the
-// band reads its number again (deliver.js).
+// band reads its number again (lib/apply.tsx).
 export const saved = (): boolean => document.dispatchEvent(new CustomEvent('hergy:saved'));
 
 // problemText is the sentence one refusal carries, or the fallback word. The
