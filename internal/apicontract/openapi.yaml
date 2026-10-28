@@ -297,6 +297,7 @@ paths:
           schema:
             type: string
       requestBody:
+        required: true
         description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
@@ -379,6 +380,7 @@ paths:
       operationId: checkRole
       summary: ロールの下書きを検査する
       requestBody:
+        required: true
         description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
@@ -469,6 +471,7 @@ paths:
           schema:
             type: string
       requestBody:
+        required: true
         description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:
@@ -569,6 +572,7 @@ paths:
       operationId: checkProfile
       summary: プロファイルの下書きを検査する
       requestBody:
+        required: true
         description: 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか
         content:
           application/json:

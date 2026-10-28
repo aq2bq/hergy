@@ -2769,7 +2769,7 @@ export interface operations {
             cookie?: never;
         };
         /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["RoleSaveRequest"];
             };
@@ -2869,7 +2869,7 @@ export interface operations {
             cookie?: never;
         };
         /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["RoleCheckRequest"];
             };
@@ -2975,7 +2975,7 @@ export interface operations {
             cookie?: never;
         };
         /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["ProfileSaveRequest"];
             };
@@ -3102,7 +3102,7 @@ export interface operations {
             cookie?: never;
         };
         /** @description 欄の下書き（doc）か、YAML タブが打っている文（text）のどちらか */
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["ProfileCheckRequest"];
             };
