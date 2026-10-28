@@ -7,7 +7,7 @@ import { useRef, useEffect } from '../preact.js';
 import type { JSX } from 'preact';
 import type { components } from '../../../../apicontract/api-types';
 
-type ApplyChange = components['schemas']['ApplyChange'];
+type ApplyChange = components['schemas']['DeliveryChange'];
 type ApplyMember = components['schemas']['ApplyMember'];
 type ApplyTeam = components['schemas']['ApplyTeam'];
 import {
