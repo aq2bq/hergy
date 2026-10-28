@@ -4,7 +4,7 @@
 // 自分の onClick / onChange から actions.js と state.js の関数を直接呼ぶ
 // （webui-preact-design 5 章 1）。
 import { html } from '../vendor/preact.js';
-import { assign, assignKind, pickChanged, teamDirty, teamMissing, ISLAND, setPick, tellDirty } from './state.js';
+import { assign, assignKind, pickChanged, teamDirty, teamMissing, ISLAND, setPick, tellDirty, labelOf } from './state.js';
 import { pressKind, pressTeamSave } from './actions.js';
 
 const optionKind = (row) => {
@@ -54,10 +54,11 @@ function Team({ team }) {
   const dirty = teamDirty(team);
   const missing = teamMissing(team);
   const rows = team.rows || [];
-  return html`<section class="team" data-g=${team.name} data-hash=${team.hash}>
-    <header class="th"><span class="tl">チーム定義</span><code class="tid">${team.name}</code><span class="tn">${team.members}</span>
+  return html`<section class="team" data-g=${team.name} data-hash=${team.hash} data-place=${team.place || 'project'}>
+    <header class="th"><span class="tl">チーム定義</span><code class="tid">${team.name}</code><span class="pill on">${labelOf(team.place)}</span><span class="tn">${team.members}</span>
       <span class="tside">${team.err > 0 ? html`<span class="sev err">問題 ${team.err}</span>` : ''}${team.saved && !dirty ? html`<span class="ok">保存しました</span>` : ''}${dirty > 0 ? html`<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="g-save" disabled=${missing > 0} onClick=${() => pressTeamSave(team.name)}>保存</button>` : ''}</span>
       <code class="path">${team.path}</code>
+      ${team.place === 'global' ? html`<span class="tnote" data-role="place-note">グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります</span>` : ''}
     </header>
     ${rows.filter((row) => row.kind === 'm').map((row) => html`<${AssignRow} key=${row.key} row=${row} team=${team.name} />`)}
     ${team.workers > 0 ? html`<div class="sub">ワーカー</div>${rows.filter((row) => row.kind === 'w').map((row) => html`<${AssignRow} key=${row.key} row=${row} team=${team.name} />`)}` : ''}

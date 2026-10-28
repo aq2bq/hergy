@@ -718,10 +718,12 @@ export async function doAssignSave(id) {
   const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
   if (!changes.length) return;
   // The pick travels as the team kind's own op, so the save writes one line of
-  // team.yaml and no other (spec-boundary 6, spec-teams 1.3).
+  // team.yaml and no other (spec-boundary 6, spec-teams 1.3). The place is the
+  // card's own: a global definition is saved in the global file, and every
+  // project reading it changes (d-0f32, r-f8b9).
   let res;
   try {
-    res = await apiSave('team', id, { place: 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } });
+    res = await apiSave('team', id, { place: t.place || 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } });
   } catch (err) {
     patch({ teamErrors: { ...state.value.teamErrors, [id]: problemText(err, '保存できませんでした') } });
     touch();

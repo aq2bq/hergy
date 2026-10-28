@@ -533,6 +533,9 @@ export function initAssign() {
     empty: !!card.empty,
     teams: (card.teams || []).map((team) => ({
       name: team.name,
+      // The place the card's save writes: a global definition is saved in the
+      // global file, and every project reading it changes (d-0f32, r-f8b9).
+      place: team.place || 'project',
       hash: team.hash,
       path: team.path,
       members: team.members || 0,
@@ -579,7 +582,7 @@ export async function saveTeam(name) {
     ? { kind: 'memberProfile', member: row.name, profile: row.profile }
     : { kind: 'workerProfile', from: row.role, purpose: row.name, profile: row.profile }));
   try {
-    const answer = await apiSave('team', team.name, { place: 'project', doc: { ops }, hash: team.hash });
+    const answer = await apiSave('team', team.name, { place: team.place || 'project', doc: { ops }, hash: team.hash });
     const json = (answer.json && answer.json) || {};
     assign.value = {
       ...assign.value,

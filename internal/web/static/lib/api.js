@@ -182,15 +182,16 @@ function roleRow(item, i) {
 
 // teamModel is GET /api/team read as the role screen's 割り当て model: one team
 // per definition, with the members' roles and the place it stands in. The hash
-// a save carries is the project file's: the assign tab writes there.
+// a save carries is the file of that place: a global definition is saved in the
+// global file, and every project reading it changes (d-0f32, r-f8b9).
 export function teamModel(list) {
   return {
     teams: ((list && list.items) || []).map((item) => {
       const places = item.places || {}, s = item.summary || {};
       const eff = item.effective || (places.project ? 'project' : 'global');
-      const place = places[eff] || {}, proj = places.project || {};
+      const place = places[eff] || {};
       return {
-        id: item.name || '', hash: proj.hash || '', place: eff,
+        id: item.name || '', hash: place.hash || '', place: eff,
         turns: ((place.doc || {}).turns || []).map((t) => [t.from, t.to]),
         members: (s.members || []).map((m) => ({ name: m.name, saved: m.role || '', draft: m.role || '' })),
       };

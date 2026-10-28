@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/profile"
 )
 
@@ -283,10 +284,16 @@ func (s *Server) p2AssignData(data p2Data, project, shared p2File, defs []p2Def,
 	return data
 }
 
-// p2Team is one team definition's card on the assign tab.
+// p2Team is one team definition's card on the assign tab. The place is the layer
+// p2Defs read the file from, so the card's hash and its save both stand on that
+// file (r-f8b9).
 func (s *Server) p2Team(def p2Def, project, shared p2File) p2Team {
 	options, kinds := p2Resolved(def, project, shared)
-	out := p2Team{Name: def.name, Path: def.display, Members: len(def.members), Workers: len(def.workers), Hash: def.hash}
+	place := catalog.PlaceGlobal
+	if def.local {
+		place = catalog.PlaceProject
+	}
+	out := p2Team{Name: def.name, Place: place, Path: def.display, Members: len(def.members), Workers: len(def.workers), Hash: def.hash}
 	for i, member := range def.members {
 		row := p2ARow{Kind: "m", ID: fmt.Sprintf("m-%d", i), Name: member.Name, Role: member.Role, Profile: member.Profile}
 		p2FillRow(&row, fmt.Sprintf("members[%d]", i), options, kinds)

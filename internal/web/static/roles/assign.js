@@ -51,9 +51,10 @@ function Team({ t }) {
   const dirty = t.members.filter((m) => m.draft !== m.saved).length;
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
-  return html`<section class="team" data-t=${t.id} ref=${el}>
+  return html`<section class="team" data-t=${t.id} data-place=${t.place || 'project'} ref=${el}>
       <header class="th"><span class="tl">チーム定義</span><code class="tid">${t.id}</code><span class="pill on">${LNAME[t.place] || LNAME.project}</span>
         <span class="tside">${errs ? html`<span class="sev err">問題 ${errs}</span>` : ''}${dirty ? html`<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="t-save" disabled=${errs > 0} onClick=${() => doAssignSave(t.id)}>保存</button>` : okOf('t' + t.id) ? html`<span class="ok">保存しました</span>` : ''}</span>
+        ${t.place === 'global' ? html`<span class="tnote" data-role="place-note">グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります</span>` : ''}
         ${refusal ? html`<span class="errline">${refusal}</span>` : ''}
       </header>
       ${t.members.map((m, i) => html`<${ARow} key=${m.name} t=${t} m=${m} i=${i} />`)}

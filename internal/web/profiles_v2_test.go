@@ -74,6 +74,9 @@ type p2PageIsland struct {
 		Empty bool `json:"empty"`
 		Teams []struct {
 			Name    string `json:"name"`
+			Place   string `json:"place"`
+			Path    string `json:"path"`
+			Hash    string `json:"hash"`
 			Err     int    `json:"err"`
 			Members int    `json:"members"`
 			Workers int    `json:"workers"`
@@ -852,5 +855,55 @@ func copyTree(t *testing.T, from, to string) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestTheAssignCardSavesThePlaceItStandsIn: a definition that is only in the
+// global layer stands there — the card carries that place and that file's hash —
+// and its save writes the global file, which every project reading the name
+// changes with it (d-0f32, r-f8b9). The project's layer gets nothing.
+func TestTheAssignCardSavesThePlaceItStandsIn(t *testing.T) {
+	f := newFixture(t)
+	shared := filepath.Join(f.global, "teams", "shared", "team.yaml")
+	if err := os.MkdirAll(filepath.Dir(shared), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text := "version: 1\nmission: 共通のチーム\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n"
+	if err := os.WriteFile(shared, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server := f.server(t)
+
+	assign := f.islandOf(t, server, "/profiles/assign")
+	card := -1
+	for i := range assign.Assign.Teams {
+		if assign.Assign.Teams[i].Name == "shared" {
+			card = i
+		}
+	}
+	if card < 0 {
+		t.Fatalf("the assign tab carries no shared card: %+v", assign.Assign.Teams)
+	}
+	if got := assign.Assign.Teams[card].Place; got != "global" {
+		t.Fatalf("shared's card stands in %q, want global", got)
+	}
+	if got := assign.Assign.Teams[card].Hash; got != source.Hash(text) {
+		t.Errorf("shared's card carries %q, want the global file's hash", got)
+	}
+
+	resp, body := f.api(t, server, http.MethodPut, "/api/team/shared", map[string]any{
+		"place": "global", "hash": source.Hash(text),
+		"doc": map[string]any{
+			"ops": []map[string]string{{"kind": "memberProfile", "member": "lead", "profile": "planner"}},
+		},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the save in the card's place answered %d: %s", resp.StatusCode, body)
+	}
+	if got := readFile(t, shared); !strings.Contains(got, "profile: planner\n") {
+		t.Errorf("the save did not write the global file:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "teams", "shared", "team.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the save made a project definition of the global name: %v", err)
 	}
 }

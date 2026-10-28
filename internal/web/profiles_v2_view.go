@@ -143,9 +143,14 @@ type p2Assign struct {
 	Empty bool        `json:"empty"`
 }
 
-// p2Team is one team definition's card.
+// p2Team is one team definition's card. Place is the layer whose team.yaml the
+// card's save writes: a name resolves to the project's own first and the global
+// one otherwise (d-0f32), so a global definition is saved into the global file,
+// and every project that reads it changes. The screen shows the place for that
+// reason (r-f8b9).
 type p2Team struct {
 	Name    string   `json:"name"`
+	Place   string   `json:"place"` // "project" or "global"
 	Path    string   `json:"path"`
 	Members int      `json:"members"`
 	Workers int      `json:"workers"`
