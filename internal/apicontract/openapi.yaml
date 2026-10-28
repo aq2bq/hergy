@@ -10,76 +10,227 @@ paths:
     get:
       operationId: listTeams
       summary: チーム定義の一覧
+      description: チーム定義ごとに、プロジェクトとグローバルの読み取り、集計、YAML タブのファイルを返す。
+      parameters:
+        - name: project
+          in: query
+          required: false
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
+          schema:
+            type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: チーム定義の一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/TeamList'
+        default:
+          description: 読み取りを断ったときの答え
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 書き込み用トークンなどを断った理由
   /api/team/{name}:
     get:
       operationId: getTeam
       summary: チーム定義を 1 件読む
+      description: 指定した場所のチーム定義とチームのルールを返す。
       parameters:
         - name: name
           in: path
           required: true
+          description: チーム定義名
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: true
+          description: 読む場所。project または global。
+          schema:
+            type: string
+            enum: [project, global]
+        - name: project
+          in: query
+          required: false
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 1 つの場所にあるチーム定義
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/TeamDefinitionRead'
+        default:
+          description: 読み取りを断ったときの答え
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 書き込み用トークンなどを断った理由
     put:
       operationId: saveTeam
       summary: チーム定義を保存する
+      description: チーム定義、チームのルール、または YAML の全文を保存する。
       parameters:
         - name: name
           in: path
           required: true
+          description: チーム定義名
+          schema:
+            type: string
+        - name: X-Hergy-Token
+          in: header
+          required: true
+          description: この serve の書き込み用トークン
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: false
+          description: 指定するときはこの serve と同じ origin
           schema:
             type: string
       requestBody:
+        required: true
+        description: 保存するチーム定義またはチームのルール
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/TeamSaveRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 保存後のチーム定義と一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/TeamSaved'
+        default:
+          description: 保存を断ったときの答え
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 書き込み用トークンなどを断った理由
     delete:
       operationId: deleteTeam
       summary: チーム定義を消す
+      description: 指定した場所のチーム定義とチームのルールを消し、残った一覧を返す。
       parameters:
         - name: name
           in: path
           required: true
+          description: チーム定義名
+          schema:
+            type: string
+        - name: X-Hergy-Token
+          in: header
+          required: true
+          description: この serve の書き込み用トークン
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: false
+          description: 指定するときはこの serve と同じ origin
+          schema:
+            type: string
+        - name: place
+          in: query
+          required: true
+          description: 消す場所。project または global。
+          schema:
+            type: string
+            enum: [project, global]
+        - name: hash
+          in: query
+          required: false
+          description: 読み取った team.yaml のハッシュ
+          schema:
+            type: string
+        - name: agreement_hash
+          in: query
+          required: false
+          description: 読み取った agreement.yaml のハッシュ
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
           schema:
             type: string
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 削除後のチーム定義の一覧
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/TeamList'
+        default:
+          description: 削除を断ったときの答え
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 書き込み用トークンなどを断った理由
   /api/team/check:
     post:
       operationId: checkTeam
       summary: チーム定義の下書きを検査する
+      description: チーム定義、チームのルール、YAML 全文、またはワーカーの初期プロンプトを検査する。
+      parameters:
+        - name: X-Hergy-Token
+          in: header
+          required: true
+          description: この serve の書き込み用トークン
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: false
+          description: 指定するときはこの serve と同じ origin
+          schema:
+            type: string
       requestBody:
+        required: true
+        description: 検査するチーム定義またはチームのルール
         content:
           application/json:
-            schema: {}
+            schema:
+              $ref: '#/components/schemas/TeamCheckRequest'
       responses:
-        default:
-          description: まだ書いていない（pending）
+        "200":
+          description: 検査結果
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/TeamCheckResponse'
+        default:
+          description: 検査を断ったときの答え
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+            text/plain:
+              schema:
+                type: string
+                description: 書き込み用トークンなどを断った理由
   /api/role:
     get:
       operationId: listRoles
@@ -3553,3 +3704,1115 @@ components:
         value:
           type: string
           description: 環境変数の値
+    TeamList:
+      description: GET /api/team と DELETE /api/team/{name} が返すチーム定義の一覧。
+      type: object
+      additionalProperties: false
+      required: [items, hashes]
+      properties:
+        items:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamItem'
+          description: チーム定義ごとの読み取りと集計
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+            description: チーム定義のファイルのハッシュ
+          description: 場所とチーム定義名をキーにしたファイルのハッシュ
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamFile'
+          description: YAML タブが読むチーム定義とチームのルール
+    TeamItem:
+      description: チーム定義の一覧にある 1 件。
+      type: object
+      additionalProperties: false
+      required: [name, places, effective, hidden, summary, problems]
+      properties:
+        name:
+          type: string
+          description: チーム定義名
+        places:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/TeamPlace'
+          description: 場所ごとのチーム定義
+        effective:
+          type: string
+          enum: [project, global]
+          description: 有効なチーム定義の場所
+        hidden:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 有効なチーム定義に隠れている場所
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/TeamSummary'
+          description: チーム定義の一覧に出す集計
+        problems:
+          allOf:
+            - $ref: '#/components/schemas/TeamCounts'
+          description: 有効なチーム定義の問題と警告の数
+    TeamPlace:
+      description: 1 つの場所にあるチーム定義の読み取り。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, problems]
+      properties:
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamDocument'
+          description: チーム定義の文書
+        text:
+          type: string
+          description: team.yaml の全文
+        hash:
+          type: string
+          description: team.yaml のハッシュ
+        path:
+          type: string
+          description: team.yaml のパス
+        problems:
+          allOf:
+            - $ref: '#/components/schemas/TeamCounts'
+          description: チーム定義の問題と警告の数
+    TeamCounts:
+      description: チーム定義にある問題と警告の数。
+      type: object
+      additionalProperties: false
+      required: [err, warn]
+      properties:
+        err:
+          type: integer
+          minimum: 0
+          description: チーム定義を読めない、または保存を止める問題の数
+        warn:
+          type: integer
+          minimum: 0
+          description: 読めるが直したほうがよい問題の数
+    TeamSummary:
+      description: チーム定義の一覧に出す使命、メンバー、ワーカー、チームのルールの集計。
+      type: object
+      additionalProperties: false
+      required: [mission, members, workers, rules, size, limit]
+      properties:
+        mission:
+          type: string
+          description: チーム定義の使命
+        members:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamMember'
+          description: チーム定義のメンバー
+        workers:
+          type: integer
+          minimum: 0
+          description: チーム定義のワーカー数
+        rules:
+          type: integer
+          minimum: 0
+          description: チームのルールにある規則の数
+        excluded:
+          type: integer
+          minimum: 0
+          description: プロンプトに含めない規則の数
+        broken:
+          type: boolean
+          description: team.yaml をチーム定義として読めなかったか
+        size:
+          type: integer
+          minimum: 0
+          description: チーム定義の規則とテンプレートの文字数
+        limit:
+          type: integer
+          minimum: 0
+          description: チーム定義に適用する文字数の上限
+    TeamMember:
+      description: チーム定義に書くメンバー。
+      type: object
+      additionalProperties: false
+      required: [name, role, profile]
+      properties:
+        name:
+          type: string
+          description: メンバー名
+        role:
+          type: string
+          description: メンバーが担うロール名
+        profile:
+          type: string
+          description: メンバーが使うプロファイル名
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamPromptSegment'
+          description: メンバーに渡す初期プロンプトを由来ごとに分けた部分
+    TeamWorker:
+      description: チーム定義に書くワーカー。
+      type: object
+      additionalProperties: false
+      required: [from, purpose, profile]
+      properties:
+        from:
+          type: string
+          description: ワーカーを起動するメンバー名
+        purpose:
+          type: string
+          description: ワーカーを起動する目的
+        profile:
+          type: string
+          description: ワーカーが使うプロファイル名
+    TeamDocument:
+      description: team.yaml から読むチーム定義。
+      type: object
+      additionalProperties: false
+      required: [mission, members, workers, turns, prompt]
+      properties:
+        mission:
+          type: string
+          description: チーム定義の使命
+        members:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamMember'
+          description: チーム定義のメンバー
+        workers:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamWorker'
+          description: チーム定義のワーカー
+        turns:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamTurn'
+          description: メンバーがターンを渡す先
+        prompt:
+          allOf:
+            - $ref: '#/components/schemas/TeamPrompt'
+          description: 初期プロンプトに書くターンとワーカー
+        agreement:
+          allOf:
+            - $ref: '#/components/schemas/TeamAgreement'
+          description: チーム定義に属するチームのルール
+        broken:
+          type: boolean
+          description: team.yaml をチーム定義として読めなかったか
+    TeamTurn:
+      description: チーム定義に書くターンを渡すエッジ。
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          description: ターンを渡す元のノード名
+        to:
+          type: string
+          description: ターンを受け取る先のノード名
+    TeamPrompt:
+      description: ノードごとに初期プロンプトへ書くターンとワーカー。
+      type: object
+      additionalProperties: false
+      required: [turns, workers]
+      properties:
+        turns:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+            description: ターンを渡す先のメンバー名
+          description: ノード名ごとのターンを渡す先
+        workers:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+            description: 起動できるワーカーの行
+          description: メンバー名ごとのワーカー
+    TeamAgreement:
+      description: チーム定義に属するチームのルール。
+      type: object
+      additionalProperties: false
+      required: [path, hash, has, rules]
+      properties:
+        path:
+          type: string
+          description: agreement.yaml のパス
+        hash:
+          type: string
+          description: agreement.yaml のハッシュ
+        has:
+          type: boolean
+          description: チームのルールがあるか
+        rules:
+          type: integer
+          description: チームのルールにある規則の数
+        excluded:
+          type: integer
+          description: プロンプトに含めない規則の数
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamRuleDocument'
+          description: チームのルールの文書
+    TeamFile:
+      description: YAML タブが読むチーム定義またはチームのルールのファイル。
+      type: object
+      additionalProperties: false
+      required: [place, label, path, text, hash, problems]
+      properties:
+        place:
+          type: string
+          enum: [project, global]
+          description: ファイルがある場所。project または global。
+        label:
+          type: string
+          description: 画面に表示する場所
+        path:
+          type: string
+          description: ファイルのパス
+        text:
+          type: string
+          description: ファイルの全文
+        hash:
+          type: string
+          description: ファイルのハッシュ
+        name:
+          type: string
+          description: ファイルが属するチーム定義名
+        kind:
+          type: string
+          enum: [team, agreement]
+          description: team.yaml または agreement.yaml の区別
+        hidden:
+          type: boolean
+          description: 同名のプロジェクトのチーム定義に隠れているか
+        problems:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Problem'
+          description: ファイルの検査で見つかった問題
+    TeamDefinitionRead:
+      description: GET /api/team/{name} が返す 1 つの場所のチーム定義。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path, effective, hidden]
+      properties:
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamDocument'
+          description: チーム定義の文書
+        text:
+          type: string
+          description: team.yaml の全文
+        hash:
+          type: string
+          description: team.yaml のハッシュ
+        path:
+          type: string
+          description: team.yaml のパス
+        effective:
+          type: string
+          enum: [project, global]
+          description: 有効なチーム定義の場所
+        hidden:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 有効なチーム定義に隠れている場所
+    TeamPromptSegment:
+      description: 初期プロンプトを由来ごとに分けた部分。
+      type: object
+      additionalProperties: false
+      required: [kind, text, origin]
+      properties:
+        kind:
+          type: string
+          description: 初期プロンプトの部分の種類
+        text:
+          type: string
+          description: 初期プロンプトの部分の文
+        origin:
+          allOf:
+            - $ref: '#/components/schemas/TeamPromptOrigin'
+          description: 初期プロンプトの部分の由来
+    TeamPromptOrigin:
+      description: 初期プロンプトの部分が読まれた場所。
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          description: 由来の種類
+        name:
+          type: string
+          description: 由来の名前
+        path:
+          type: string
+          description: 由来のパス
+        place:
+          type: string
+          description: 由来がある場所
+    TeamPreview:
+      description: team.yaml の全文と、元のチーム定義から変わる行。
+      type: object
+      additionalProperties: false
+      required: [lines, diff]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamYAMLLine'
+          description: 保存するときに書く team.yaml の行
+        diff:
+          allOf:
+            - $ref: '#/components/schemas/TeamDiff'
+          description: 元の team.yaml と変わる行の番号
+    TeamYAMLLine:
+      description: team.yaml の 1 行と、その行が表すチーム定義の欄。
+      type: object
+      additionalProperties: false
+      required: [text, at]
+      properties:
+        text:
+          type: string
+          description: team.yaml の行の文
+        at:
+          type: string
+          description: 行が表すチーム定義の欄。該当がなければ空文字。
+    TeamDiff:
+      description: 初期プロンプトの行が元の文書からどう変わるか。
+      type: object
+      additionalProperties: false
+      required: [added, removedBefore, removedAtEnd]
+      properties:
+        added:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          description: 追加した行の番号
+        removedBefore:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          description: 削除した行の前にある行の番号
+        removedAtEnd:
+          type: boolean
+          description: 最後の行より後ろに削除した行があるか
+    TeamEffect:
+      description: 1 つの編集で変わる初期プロンプトの行と、新たに見つかる問題。
+      type: object
+      additionalProperties: false
+      required: [lines, problems]
+      properties:
+        lines:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamEffectLine'
+          description: メンバーごとに変わる初期プロンプトの行
+        problems:
+          type: array
+          items:
+            $ref: '#/components/schemas/Problem'
+          description: 編集で新たに見つかった問題
+    TeamEffectLine:
+      description: 1 人のメンバーに渡す初期プロンプトで変わる部分。
+      type: object
+      additionalProperties: false
+      required: [member, part, removed, added]
+      properties:
+        member:
+          type: string
+          description: 影響を受けるメンバーの herdr 名
+        part:
+          type: string
+          description: 変わる初期プロンプトのターンまたはワーカー
+        removed:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 初期プロンプトからなくなる行
+        added:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 初期プロンプトに加わる行
+    TeamMemberPrompt:
+      description: 1 人のメンバーに渡す初期プロンプト。
+      type: object
+      additionalProperties: false
+      required: [name, segments]
+      properties:
+        name:
+          type: string
+          description: メンバー名
+        segments:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamPromptSegment'
+          description: 初期プロンプトを由来ごとに分けた部分
+    TeamRuleMarkdown:
+      description: チームのルールをメンバーが読む Markdown の行。
+      type: object
+      additionalProperties: false
+      required: [lines, chars]
+      properties:
+        lines:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleMarkdownLine'
+          description: チームのルールから作った Markdown の行
+        chars:
+          type: integer
+          description: Markdown 全体の文字数
+    TeamRuleMarkdownLine:
+      description: メンバーが読む Markdown の 1 行。
+      type: object
+      additionalProperties: false
+      required: [text, part, section, rule]
+      properties:
+        text:
+          type: string
+          description: Markdown の行の文
+        part:
+          type: string
+          description: 行が表す規則文書の部分
+        section:
+          type: integer
+          description: 規則文書の節の番号。節を指さないときは -1。
+        rule:
+          type: integer
+          description: 節の中の規則の番号。規則を指さないときは -1。
+    TeamAgreementEffect:
+      description: チームのルールの Markdown とターンを渡す矢印に対する編集の影響。
+      type: object
+      additionalProperties: false
+      required: [diff, turns]
+      properties:
+        diff:
+          allOf:
+            - $ref: '#/components/schemas/TeamDiff'
+          description: Markdown の行の変化
+        turns:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleTurn'
+          description: 規則が書く矢印とチーム定義のターン
+    TeamRuleTurn:
+      description: 規則が書く矢印をチーム定義のターンと照合した結果。
+      type: object
+      additionalProperties: false
+      required: [section, rule, arrow, definition, ok]
+      properties:
+        section:
+          type: integer
+          description: 規則文書の節の番号
+        rule:
+          type: integer
+          description: 節の中の規則の番号
+        arrow:
+          type: string
+          description: 規則に書かれたターンを渡す矢印
+        definition:
+          type: string
+          description: 照合するチーム定義名
+        ok:
+          type: boolean
+          description: チーム定義が矢印のターンを持つか
+    TeamRuleReader:
+      description: チームのルールを読むメンバー。
+      type: object
+      additionalProperties: false
+      required: [definition, member]
+      properties:
+        definition:
+          type: string
+          description: メンバーが読むチーム定義名
+        member:
+          type: string
+          description: チーム定義のメンバー名
+    TeamCheckAnswer:
+      description: 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。
+      type: object
+      additionalProperties: false
+      required: [problems]
+      properties:
+        problems:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Problem'
+          description: 検査で見つかった問題
+        preview:
+          oneOf:
+            - $ref: '#/components/schemas/TeamPreview'
+            - $ref: '#/components/schemas/TeamRuleMarkdown'
+          description: team.yaml またはチームのルールの検査表示
+        effect:
+          oneOf:
+            - $ref: '#/components/schemas/TeamEffect'
+            - $ref: '#/components/schemas/TeamAgreementEffect'
+          description: 編集で変わる初期プロンプトまたはチームのルール
+        readers:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleReader'
+          description: チームのルールを読むメンバー
+        limit:
+          type: integer
+          description: チーム定義またはチームのルールの文字数の上限
+        size:
+          type: integer
+          description: チーム定義またはチームのルールの文字数
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMemberPrompt'
+          description: メンバーごとの初期プロンプト
+        prompt:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamPromptSegment'
+          description: ワーカーに渡す初期プロンプト
+    TeamDraftCheckAnswer:
+      description: まだ保存していないチーム定義の検査結果。
+      type: object
+      additionalProperties: false
+      required: [name, place, starter, path, hash, writes, problems, doc, preview]
+      properties:
+        name:
+          type: string
+          description: チーム定義名
+        place:
+          type: string
+          enum: [project, global]
+          description: チーム定義を保存する場所
+        starter:
+          type: boolean
+          description: 雛形から作ったチーム定義か
+        path:
+          type: string
+          description: team.yaml のパス
+        hash:
+          type: string
+          description: 空の team.yaml のハッシュ
+        writes:
+          type: array
+          items:
+            type: string
+          description: 保存で書き込むファイルのパス
+        problems:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/Problem'
+          description: 検査で見つかった問題
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamDocument'
+          description: 保存前のチーム定義
+        preview:
+          allOf:
+            - $ref: '#/components/schemas/TeamPreview'
+          description: 保存するときに書く team.yaml と差分
+    TeamCheckResponse:
+      description: checkTeam が返す保存済みまたは保存前の検査結果。
+      oneOf:
+        - $ref: '#/components/schemas/TeamCheckAnswer'
+        - $ref: '#/components/schemas/TeamDraftCheckAnswer'
+    TeamSaved:
+      description: 保存したチーム定義またはチームのルールと、保存後の一覧。
+      type: object
+      additionalProperties: false
+      required: [doc, text, hash, path]
+      properties:
+        doc:
+          oneOf:
+            - $ref: '#/components/schemas/TeamDocument'
+            - $ref: '#/components/schemas/TeamRuleDocument'
+          description: 保存したチーム定義またはチームのルールの文書
+        text:
+          type: string
+          description: 保存したファイルの全文
+        hash:
+          type: string
+          description: 保存したファイルのハッシュ
+        path:
+          type: string
+          description: 保存したファイルのパス
+        effective:
+          type: string
+          description: 有効なチーム定義の場所
+        hidden:
+          type: array
+          items:
+            type: string
+          description: 有効なチーム定義に隠れている場所
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamItem'
+          description: 保存後のチーム定義の一覧
+        hashes:
+          type: object
+          additionalProperties:
+            type: string
+            description: チーム定義のファイルのハッシュ
+          description: 場所とチーム定義名をキーにしたファイルのハッシュ
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamFile'
+          description: YAML タブが読むチーム定義とチームのルール
+    TeamCheckRequest:
+      description: チーム定義、チームのルール、YAML 全文、ワーカーの初期プロンプトの検査本文。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 検査対象を持つ、並べたプロジェクトのパス
+        place:
+          type: string
+          description: 検査するチーム定義の場所。project または global。
+        name:
+          type: string
+          description: 検査するチーム定義名
+        part:
+          type: string
+          description: 検査する対象。team、agreement、worker のいずれか
+        new:
+          type: boolean
+          description: 雛形から作るチーム定義か
+        base:
+          allOf:
+            - $ref: '#/components/schemas/TeamBase'
+          nullable: true
+          description: 複製またはコピー元のチーム定義
+        text:
+          type: string
+          description: YAML 全文を入力するときの文
+        doc:
+          anyOf:
+            - $ref: '#/components/schemas/TeamOperationDocument'
+            - $ref: '#/components/schemas/TeamWorkerPromptRequest'
+          nullable: true
+          description: 検査する編集、チームのルールの文書、またはワーカーの情報
+    TeamSaveRequest:
+      description: チーム定義またはチームのルールを保存する本文。
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          type: string
+          description: 保存先を持つ、並べたプロジェクトのパス
+        place:
+          type: string
+          description: 保存する場所。project または global。
+        name:
+          type: string
+          description: 保存するチーム定義名
+        part:
+          type: string
+          description: 保存する対象。team、agreement、folder のいずれか
+        hash:
+          type: string
+          description: 読み取った team.yaml のハッシュ
+        agreement_hash:
+          type: string
+          description: 読み取った agreement.yaml のハッシュ
+        new:
+          type: boolean
+          description: 雛形から作るチーム定義か
+        base:
+          allOf:
+            - $ref: '#/components/schemas/TeamBase'
+          nullable: true
+          description: 複製またはコピー元のチーム定義
+        text:
+          type: string
+          description: YAML 全文を保存するときの文
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamOperationDocument'
+          description: 保存する編集またはチームのルールの文書
+    TeamBase:
+      description: チーム定義の複製またはコピー元。
+      type: object
+      additionalProperties: false
+      properties:
+        place:
+          type: string
+          description: 元のチーム定義がある場所
+        name:
+          type: string
+          description: 元のチーム定義名
+    TeamOperationDocument:
+      description: チーム定義またはチームのルールに加える編集。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: チーム定義名
+        ops:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamOperation'
+          description: チーム定義に加える編集
+        op:
+          allOf:
+            - $ref: '#/components/schemas/TeamOperation'
+          nullable: true
+          description: 影響を検査する 1 つの編集
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamRuleDocumentRequest'
+          nullable: true
+          description: 編集するチームのルールの文書
+        members:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamDraftMember'
+          description: ロールまたはプロファイルを変えるメンバー
+        workers:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamDraftWorker'
+          description: プロファイルを変えるワーカー
+    TeamOperation:
+      description: チーム定義に加える 1 つの編集。
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          description: 編集の種類
+        text:
+          type: string
+          description: 使命の文
+        member:
+          type: string
+          description: 編集するメンバー名
+        role:
+          type: string
+          description: メンバーに設定するロール名
+        profile:
+          type: string
+          description: メンバーまたはワーカーに設定するプロファイル名
+        from:
+          type: string
+          description: ターンを渡す元、またはワーカーを起動するメンバー名
+        to:
+          type: string
+          description: ターンを渡す先、またはワーカーを移す先のメンバー名
+        purpose:
+          type: string
+          description: ワーカーを起動する目的
+        old:
+          type: string
+          description: 変更前の目的
+        new:
+          type: string
+          description: 変更後の目的またはメンバー名
+    TeamDraftMember:
+      description: ロールまたはプロファイルの変更を受けるメンバー。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: メンバー名
+        from:
+          type: string
+          description: ワーカーを起動するメンバー名
+        purpose:
+          type: string
+          description: ワーカーを起動する目的
+        role:
+          type: string
+          nullable: true
+          description: 変更後のロール名。変更しないときは null。
+        profile:
+          type: string
+          nullable: true
+          description: 変更後のプロファイル名。変更しないときは null。
+    TeamDraftWorker:
+      description: プロファイルの変更を受けるワーカー。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: ワーカー名
+        from:
+          type: string
+          description: ワーカーを起動するメンバー名
+        purpose:
+          type: string
+          description: ワーカーを起動する目的
+        role:
+          type: string
+          nullable: true
+          description: ロール名。変更しないときは null。
+        profile:
+          type: string
+          nullable: true
+          description: 変更後のプロファイル名。変更しないときは null。
+    TeamWorkerPromptRequest:
+      description: ワーカーに渡す初期プロンプトの検査情報。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: ワーカー名
+        purpose:
+          type: string
+          description: ワーカーを起動する目的
+        task:
+          type: string
+          description: ワーカーに渡す依頼
+        from:
+          type: string
+          description: ワーカーを起動するメンバー名。空なら目的から決める。
+    TeamRuleDocument:
+      description: チームのルールを検査または保存する文書。
+      type: object
+      additionalProperties: false
+      required: [name, title, revision, sections]
+      properties:
+        name:
+          type: string
+          description: チームのルールの文書名
+        title:
+          type: string
+          description: チームのルールの見出し
+        revision:
+          type: integer
+          nullable: true
+          description: チームのルールのバージョン
+        sections:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleSection'
+          description: チームのルールの節
+        hash:
+          type: string
+          description: 保存済みチームのルールのハッシュ
+        text:
+          type: string
+          description: 保存済みチームのルールの全文
+    TeamRuleDocumentRequest:
+      description: 画面から送るチームのルールの編集文書。
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: チームのルールの文書名
+        title:
+          type: string
+          description: チームのルールの見出し
+        revision:
+          type: integer
+          nullable: true
+          description: チームのルールのバージョン
+        sections:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleSectionRequest'
+          description: チームのルールの節
+        hash:
+          type: string
+          description: 編集元のチームのルールのハッシュ
+        text:
+          type: string
+          description: 編集元のチームのルールの全文
+    TeamRuleSection:
+      description: チームのルールの節。
+      type: object
+      additionalProperties: false
+      required: [heading, level, intro, rules]
+      properties:
+        from:
+          type: integer
+          nullable: true
+          description: 保存済みのチームのルールでの節の番号
+        heading:
+          type: string
+          description: 節の見出し
+        level:
+          type: integer
+          description: 節の見出しの深さ
+        intro:
+          type: string
+          description: 節の導入文
+        rules:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRule'
+          description: 節にある規則
+    TeamRuleSectionRequest:
+      description: 画面から送るチームのルールの節。
+      type: object
+      additionalProperties: false
+      properties:
+        from:
+          type: integer
+          nullable: true
+          description: 保存済みのチームのルールでの節の番号
+        heading:
+          type: string
+          description: 節の見出し
+        level:
+          type: integer
+          description: 節の見出しの深さ
+        intro:
+          type: string
+          description: 節の導入文
+        rules:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleRequest'
+          description: 節にある規則
+    TeamRule:
+      description: チームのルールにある規則。
+      type: object
+      additionalProperties: false
+      required: [id, text, in_prompt, note]
+      properties:
+        from:
+          type: object
+          nullable: true
+          additionalProperties: false
+          properties:
+            section:
+              type: integer
+              description: 規則がある節の番号
+            rule:
+              type: integer
+              description: 節にある規則の番号
+          description: 保存済みのチームのルールでの規則の位置
+        id:
+          type: string
+          description: 規則の ID
+        text:
+          type: string
+          description: 規則の文
+        in_prompt:
+          type: boolean
+          description: 規則をメンバーの初期プロンプトに含めるか
+        off_since:
+          type: string
+          description: 規則をプロンプトに含めなくした日
+        note:
+          type: string
+          description: 規則について人が残すメモ
+    TeamRuleRequest:
+      description: 画面から送るチームのルールの規則。
+      type: object
+      additionalProperties: false
+      properties:
+        from:
+          allOf:
+            - $ref: '#/components/schemas/TeamRuleFrom'
+          nullable: true
+          description: 保存済みのチームのルールでの規則の位置
+        id:
+          type: string
+          description: 規則の ID
+        text:
+          type: string
+          description: 規則の文
+        in_prompt:
+          type: boolean
+          description: 規則をメンバーの初期プロンプトに含めるか
+        off_since:
+          type: string
+          description: 規則をプロンプトに含めなくした日
+        note:
+          type: string
+          description: 規則について人が残すメモ
+        why:
+          type: string
+          description: 古い形式で規則に付いていた理由
+        send_why:
+          type: boolean
+          description: 古い形式で理由を初期プロンプトに含めるか
+        origin:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamRuleOriginRequest'
+          description: 古い形式で規則に付いていた由来
+        report:
+          type: string
+          description: 古い形式で規則に付いていた報告の形
+        tests:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 古い形式で規則に付いていた検証方法
+    TeamRuleOriginRequest:
+      description: 古い形式で規則に付いていた由来の 1 件。
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          description: 由来の種類
+        date:
+          type: string
+          description: 由来の日付
+        refs:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: 由来が指す参照
+    TeamRuleFrom:
+      description: 保存済みのチームのルールでの規則の位置。
+      type: object
+      additionalProperties: false
+      required: [section, rule]
+      properties:
+        section:
+          type: integer
+          description: 規則がある節の番号
+        rule:
+          type: integer
+          description: 節にある規則の番号

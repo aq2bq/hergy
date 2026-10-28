@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** チーム定義の一覧 */
+        /**
+         * チーム定義の一覧
+         * @description チーム定義ごとに、プロジェクトとグローバルの読み取り、集計、YAML タブのファイルを返す。
+         */
         get: operations["listTeams"];
         put?: never;
         post?: never;
@@ -28,12 +31,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** チーム定義を 1 件読む */
+        /**
+         * チーム定義を 1 件読む
+         * @description 指定した場所のチーム定義とチームのルールを返す。
+         */
         get: operations["getTeam"];
-        /** チーム定義を保存する */
+        /**
+         * チーム定義を保存する
+         * @description チーム定義、チームのルール、または YAML の全文を保存する。
+         */
         put: operations["saveTeam"];
         post?: never;
-        /** チーム定義を消す */
+        /**
+         * チーム定義を消す
+         * @description 指定した場所のチーム定義とチームのルールを消し、残った一覧を返す。
+         */
         delete: operations["deleteTeam"];
         options?: never;
         head?: never;
@@ -49,7 +61,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** チーム定義の下書きを検査する */
+        /**
+         * チーム定義の下書きを検査する
+         * @description チーム定義、チームのルール、YAML 全文、またはワーカーの初期プロンプトを検査する。
+         */
         post: operations["checkTeam"];
         delete?: never;
         options?: never;
@@ -1866,6 +1881,613 @@ export interface components {
             /** @description 環境変数の値 */
             value: string;
         };
+        /** @description GET /api/team と DELETE /api/team/{name} が返すチーム定義の一覧。 */
+        TeamList: {
+            /** @description チーム定義ごとの読み取りと集計 */
+            items: components["schemas"]["TeamItem"][] | null;
+            /** @description 場所とチーム定義名をキーにしたファイルのハッシュ */
+            hashes: {
+                [key: string]: string;
+            };
+            /** @description YAML タブが読むチーム定義とチームのルール */
+            files?: components["schemas"]["TeamFile"][];
+        };
+        /** @description チーム定義の一覧にある 1 件。 */
+        TeamItem: {
+            /** @description チーム定義名 */
+            name: string;
+            /** @description 場所ごとのチーム定義 */
+            places: {
+                [key: string]: components["schemas"]["TeamPlace"];
+            };
+            /**
+             * @description 有効なチーム定義の場所
+             * @enum {string}
+             */
+            effective: "project" | "global";
+            /** @description 有効なチーム定義に隠れている場所 */
+            hidden: string[] | null;
+            /** @description チーム定義の一覧に出す集計 */
+            summary: components["schemas"]["TeamSummary"];
+            /** @description 有効なチーム定義の問題と警告の数 */
+            problems: components["schemas"]["TeamCounts"];
+        };
+        /** @description 1 つの場所にあるチーム定義の読み取り。 */
+        TeamPlace: {
+            /** @description チーム定義の文書 */
+            doc: components["schemas"]["TeamDocument"];
+            /** @description team.yaml の全文 */
+            text: string;
+            /** @description team.yaml のハッシュ */
+            hash: string;
+            /** @description team.yaml のパス */
+            path: string;
+            /** @description チーム定義の問題と警告の数 */
+            problems: components["schemas"]["TeamCounts"];
+        };
+        /** @description チーム定義にある問題と警告の数。 */
+        TeamCounts: {
+            /** @description チーム定義を読めない、または保存を止める問題の数 */
+            err: number;
+            /** @description 読めるが直したほうがよい問題の数 */
+            warn: number;
+        };
+        /** @description チーム定義の一覧に出す使命、メンバー、ワーカー、チームのルールの集計。 */
+        TeamSummary: {
+            /** @description チーム定義の使命 */
+            mission: string;
+            /** @description チーム定義のメンバー */
+            members: components["schemas"]["TeamMember"][] | null;
+            /** @description チーム定義のワーカー数 */
+            workers: number;
+            /** @description チームのルールにある規則の数 */
+            rules: number;
+            /** @description プロンプトに含めない規則の数 */
+            excluded?: number;
+            /** @description team.yaml をチーム定義として読めなかったか */
+            broken?: boolean;
+            /** @description チーム定義の規則とテンプレートの文字数 */
+            size: number;
+            /** @description チーム定義に適用する文字数の上限 */
+            limit: number;
+        };
+        /** @description チーム定義に書くメンバー。 */
+        TeamMember: {
+            /** @description メンバー名 */
+            name: string;
+            /** @description メンバーが担うロール名 */
+            role: string;
+            /** @description メンバーが使うプロファイル名 */
+            profile: string;
+            /** @description メンバーに渡す初期プロンプトを由来ごとに分けた部分 */
+            segments?: components["schemas"]["TeamPromptSegment"][];
+        };
+        /** @description チーム定義に書くワーカー。 */
+        TeamWorker: {
+            /** @description ワーカーを起動するメンバー名 */
+            from: string;
+            /** @description ワーカーを起動する目的 */
+            purpose: string;
+            /** @description ワーカーが使うプロファイル名 */
+            profile: string;
+        };
+        /** @description team.yaml から読むチーム定義。 */
+        TeamDocument: {
+            /** @description チーム定義の使命 */
+            mission: string;
+            /** @description チーム定義のメンバー */
+            members: components["schemas"]["TeamMember"][] | null;
+            /** @description チーム定義のワーカー */
+            workers: components["schemas"]["TeamWorker"][] | null;
+            /** @description メンバーがターンを渡す先 */
+            turns: components["schemas"]["TeamTurn"][] | null;
+            /** @description 初期プロンプトに書くターンとワーカー */
+            prompt: components["schemas"]["TeamPrompt"];
+            /** @description チーム定義に属するチームのルール */
+            agreement?: components["schemas"]["TeamAgreement"];
+            /** @description team.yaml をチーム定義として読めなかったか */
+            broken?: boolean;
+        };
+        /** @description チーム定義に書くターンを渡すエッジ。 */
+        TeamTurn: {
+            /** @description ターンを渡す元のノード名 */
+            from: string;
+            /** @description ターンを受け取る先のノード名 */
+            to: string;
+        };
+        /** @description ノードごとに初期プロンプトへ書くターンとワーカー。 */
+        TeamPrompt: {
+            /** @description ノード名ごとのターンを渡す先 */
+            turns: {
+                [key: string]: string[];
+            } | null;
+            /** @description メンバー名ごとのワーカー */
+            workers: {
+                [key: string]: string[];
+            } | null;
+        };
+        /** @description チーム定義に属するチームのルール。 */
+        TeamAgreement: {
+            /** @description agreement.yaml のパス */
+            path: string;
+            /** @description agreement.yaml のハッシュ */
+            hash: string;
+            /** @description チームのルールがあるか */
+            has: boolean;
+            /** @description チームのルールにある規則の数 */
+            rules: number;
+            /** @description プロンプトに含めない規則の数 */
+            excluded?: number;
+            /** @description チームのルールの文書 */
+            doc?: components["schemas"]["TeamRuleDocument"];
+        };
+        /** @description YAML タブが読むチーム定義またはチームのルールのファイル。 */
+        TeamFile: {
+            /**
+             * @description ファイルがある場所。project または global。
+             * @enum {string}
+             */
+            place: "project" | "global";
+            /** @description 画面に表示する場所 */
+            label: string;
+            /** @description ファイルのパス */
+            path: string;
+            /** @description ファイルの全文 */
+            text: string;
+            /** @description ファイルのハッシュ */
+            hash: string;
+            /** @description ファイルが属するチーム定義名 */
+            name?: string;
+            /**
+             * @description team.yaml または agreement.yaml の区別
+             * @enum {string}
+             */
+            kind?: "team" | "agreement";
+            /** @description 同名のプロジェクトのチーム定義に隠れているか */
+            hidden?: boolean;
+            /** @description ファイルの検査で見つかった問題 */
+            problems: components["schemas"]["Problem"][] | null;
+        };
+        /** @description GET /api/team/{name} が返す 1 つの場所のチーム定義。 */
+        TeamDefinitionRead: {
+            /** @description チーム定義の文書 */
+            doc: components["schemas"]["TeamDocument"];
+            /** @description team.yaml の全文 */
+            text: string;
+            /** @description team.yaml のハッシュ */
+            hash: string;
+            /** @description team.yaml のパス */
+            path: string;
+            /**
+             * @description 有効なチーム定義の場所
+             * @enum {string}
+             */
+            effective: "project" | "global";
+            /** @description 有効なチーム定義に隠れている場所 */
+            hidden: string[] | null;
+        };
+        /** @description 初期プロンプトを由来ごとに分けた部分。 */
+        TeamPromptSegment: {
+            /** @description 初期プロンプトの部分の種類 */
+            kind: string;
+            /** @description 初期プロンプトの部分の文 */
+            text: string;
+            /** @description 初期プロンプトの部分の由来 */
+            origin: components["schemas"]["TeamPromptOrigin"];
+        };
+        /** @description 初期プロンプトの部分が読まれた場所。 */
+        TeamPromptOrigin: {
+            /** @description 由来の種類 */
+            kind: string;
+            /** @description 由来の名前 */
+            name?: string;
+            /** @description 由来のパス */
+            path?: string;
+            /** @description 由来がある場所 */
+            place?: string;
+        };
+        /** @description team.yaml の全文と、元のチーム定義から変わる行。 */
+        TeamPreview: {
+            /** @description 保存するときに書く team.yaml の行 */
+            lines: components["schemas"]["TeamYAMLLine"][];
+            /** @description 元の team.yaml と変わる行の番号 */
+            diff: components["schemas"]["TeamDiff"];
+        };
+        /** @description team.yaml の 1 行と、その行が表すチーム定義の欄。 */
+        TeamYAMLLine: {
+            /** @description team.yaml の行の文 */
+            text: string;
+            /** @description 行が表すチーム定義の欄。該当がなければ空文字。 */
+            at: string;
+        };
+        /** @description 初期プロンプトの行が元の文書からどう変わるか。 */
+        TeamDiff: {
+            /** @description 追加した行の番号 */
+            added: number[] | null;
+            /** @description 削除した行の前にある行の番号 */
+            removedBefore: number[] | null;
+            /** @description 最後の行より後ろに削除した行があるか */
+            removedAtEnd: boolean;
+        };
+        /** @description 1 つの編集で変わる初期プロンプトの行と、新たに見つかる問題。 */
+        TeamEffect: {
+            /** @description メンバーごとに変わる初期プロンプトの行 */
+            lines: components["schemas"]["TeamEffectLine"][] | null;
+            /** @description 編集で新たに見つかった問題 */
+            problems: components["schemas"]["Problem"][];
+        };
+        /** @description 1 人のメンバーに渡す初期プロンプトで変わる部分。 */
+        TeamEffectLine: {
+            /** @description 影響を受けるメンバーの herdr 名 */
+            member: string;
+            /** @description 変わる初期プロンプトのターンまたはワーカー */
+            part: string;
+            /** @description 初期プロンプトからなくなる行 */
+            removed: string[] | null;
+            /** @description 初期プロンプトに加わる行 */
+            added: string[] | null;
+        };
+        /** @description 1 人のメンバーに渡す初期プロンプト。 */
+        TeamMemberPrompt: {
+            /** @description メンバー名 */
+            name: string;
+            /** @description 初期プロンプトを由来ごとに分けた部分 */
+            segments: components["schemas"]["TeamPromptSegment"][] | null;
+        };
+        /** @description チームのルールをメンバーが読む Markdown の行。 */
+        TeamRuleMarkdown: {
+            /** @description チームのルールから作った Markdown の行 */
+            lines: components["schemas"]["TeamRuleMarkdownLine"][] | null;
+            /** @description Markdown 全体の文字数 */
+            chars: number;
+        };
+        /** @description メンバーが読む Markdown の 1 行。 */
+        TeamRuleMarkdownLine: {
+            /** @description Markdown の行の文 */
+            text: string;
+            /** @description 行が表す規則文書の部分 */
+            part: string;
+            /** @description 規則文書の節の番号。節を指さないときは -1。 */
+            section: number;
+            /** @description 節の中の規則の番号。規則を指さないときは -1。 */
+            rule: number;
+        };
+        /** @description チームのルールの Markdown とターンを渡す矢印に対する編集の影響。 */
+        TeamAgreementEffect: {
+            /** @description Markdown の行の変化 */
+            diff: components["schemas"]["TeamDiff"];
+            /** @description 規則が書く矢印とチーム定義のターン */
+            turns: components["schemas"]["TeamRuleTurn"][] | null;
+        };
+        /** @description 規則が書く矢印をチーム定義のターンと照合した結果。 */
+        TeamRuleTurn: {
+            /** @description 規則文書の節の番号 */
+            section: number;
+            /** @description 節の中の規則の番号 */
+            rule: number;
+            /** @description 規則に書かれたターンを渡す矢印 */
+            arrow: string;
+            /** @description 照合するチーム定義名 */
+            definition: string;
+            /** @description チーム定義が矢印のターンを持つか */
+            ok: boolean;
+        };
+        /** @description チームのルールを読むメンバー。 */
+        TeamRuleReader: {
+            /** @description メンバーが読むチーム定義名 */
+            definition: string;
+            /** @description チーム定義のメンバー名 */
+            member: string;
+        };
+        /** @description 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。 */
+        TeamCheckAnswer: {
+            /** @description 検査で見つかった問題 */
+            problems: components["schemas"]["Problem"][] | null;
+            /** @description team.yaml またはチームのルールの検査表示 */
+            preview?: components["schemas"]["TeamPreview"] | components["schemas"]["TeamRuleMarkdown"];
+            /** @description 編集で変わる初期プロンプトまたはチームのルール */
+            effect?: components["schemas"]["TeamEffect"] | components["schemas"]["TeamAgreementEffect"];
+            /** @description チームのルールを読むメンバー */
+            readers?: components["schemas"]["TeamRuleReader"][] | null;
+            /** @description チーム定義またはチームのルールの文字数の上限 */
+            limit?: number;
+            /** @description チーム定義またはチームのルールの文字数 */
+            size?: number;
+            /** @description メンバーごとの初期プロンプト */
+            members?: components["schemas"]["TeamMemberPrompt"][];
+            /** @description ワーカーに渡す初期プロンプト */
+            prompt?: components["schemas"]["TeamPromptSegment"][];
+        };
+        /** @description まだ保存していないチーム定義の検査結果。 */
+        TeamDraftCheckAnswer: {
+            /** @description チーム定義名 */
+            name: string;
+            /**
+             * @description チーム定義を保存する場所
+             * @enum {string}
+             */
+            place: "project" | "global";
+            /** @description 雛形から作ったチーム定義か */
+            starter: boolean;
+            /** @description team.yaml のパス */
+            path: string;
+            /** @description 空の team.yaml のハッシュ */
+            hash: string;
+            /** @description 保存で書き込むファイルのパス */
+            writes: string[];
+            /** @description 検査で見つかった問題 */
+            problems: components["schemas"]["Problem"][] | null;
+            /** @description 保存前のチーム定義 */
+            doc: components["schemas"]["TeamDocument"];
+            /** @description 保存するときに書く team.yaml と差分 */
+            preview: components["schemas"]["TeamPreview"];
+        };
+        /** @description checkTeam が返す保存済みまたは保存前の検査結果。 */
+        TeamCheckResponse: components["schemas"]["TeamCheckAnswer"] | components["schemas"]["TeamDraftCheckAnswer"];
+        /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
+        TeamSaved: {
+            /** @description 保存したチーム定義またはチームのルールの文書 */
+            doc: components["schemas"]["TeamDocument"] | components["schemas"]["TeamRuleDocument"];
+            /** @description 保存したファイルの全文 */
+            text: string;
+            /** @description 保存したファイルのハッシュ */
+            hash: string;
+            /** @description 保存したファイルのパス */
+            path: string;
+            /** @description 有効なチーム定義の場所 */
+            effective?: string;
+            /** @description 有効なチーム定義に隠れている場所 */
+            hidden?: string[];
+            /** @description 保存後のチーム定義の一覧 */
+            items?: components["schemas"]["TeamItem"][];
+            /** @description 場所とチーム定義名をキーにしたファイルのハッシュ */
+            hashes?: {
+                [key: string]: string;
+            };
+            /** @description YAML タブが読むチーム定義とチームのルール */
+            files?: components["schemas"]["TeamFile"][];
+        };
+        /** @description チーム定義、チームのルール、YAML 全文、ワーカーの初期プロンプトの検査本文。 */
+        TeamCheckRequest: {
+            /** @description 検査対象を持つ、並べたプロジェクトのパス */
+            project?: string;
+            /** @description 検査するチーム定義の場所。project または global。 */
+            place?: string;
+            /** @description 検査するチーム定義名 */
+            name?: string;
+            /** @description 検査する対象。team、agreement、worker のいずれか */
+            part?: string;
+            /** @description 雛形から作るチーム定義か */
+            new?: boolean;
+            /** @description 複製またはコピー元のチーム定義 */
+            base?: components["schemas"]["TeamBase"] | null;
+            /** @description YAML 全文を入力するときの文 */
+            text?: string;
+            /** @description 検査する編集、チームのルールの文書、またはワーカーの情報 */
+            doc?: (components["schemas"]["TeamOperationDocument"] | components["schemas"]["TeamWorkerPromptRequest"]) | null;
+        };
+        /** @description チーム定義またはチームのルールを保存する本文。 */
+        TeamSaveRequest: {
+            /** @description 保存先を持つ、並べたプロジェクトのパス */
+            project?: string;
+            /** @description 保存する場所。project または global。 */
+            place?: string;
+            /** @description 保存するチーム定義名 */
+            name?: string;
+            /** @description 保存する対象。team、agreement、folder のいずれか */
+            part?: string;
+            /** @description 読み取った team.yaml のハッシュ */
+            hash?: string;
+            /** @description 読み取った agreement.yaml のハッシュ */
+            agreement_hash?: string;
+            /** @description 雛形から作るチーム定義か */
+            new?: boolean;
+            /** @description 複製またはコピー元のチーム定義 */
+            base?: components["schemas"]["TeamBase"] | null;
+            /** @description YAML 全文を保存するときの文 */
+            text?: string;
+            /** @description 保存する編集またはチームのルールの文書 */
+            doc?: components["schemas"]["TeamOperationDocument"];
+        };
+        /** @description チーム定義の複製またはコピー元。 */
+        TeamBase: {
+            /** @description 元のチーム定義がある場所 */
+            place?: string;
+            /** @description 元のチーム定義名 */
+            name?: string;
+        };
+        /** @description チーム定義またはチームのルールに加える編集。 */
+        TeamOperationDocument: {
+            /** @description チーム定義名 */
+            name?: string;
+            /** @description チーム定義に加える編集 */
+            ops?: components["schemas"]["TeamOperation"][] | null;
+            /** @description 影響を検査する 1 つの編集 */
+            op?: components["schemas"]["TeamOperation"] | null;
+            /** @description 編集するチームのルールの文書 */
+            doc?: components["schemas"]["TeamRuleDocumentRequest"] | null;
+            /** @description ロールまたはプロファイルを変えるメンバー */
+            members?: components["schemas"]["TeamDraftMember"][] | null;
+            /** @description プロファイルを変えるワーカー */
+            workers?: components["schemas"]["TeamDraftWorker"][] | null;
+        };
+        /** @description チーム定義に加える 1 つの編集。 */
+        TeamOperation: {
+            /** @description 編集の種類 */
+            kind?: string;
+            /** @description 使命の文 */
+            text?: string;
+            /** @description 編集するメンバー名 */
+            member?: string;
+            /** @description メンバーに設定するロール名 */
+            role?: string;
+            /** @description メンバーまたはワーカーに設定するプロファイル名 */
+            profile?: string;
+            /** @description ターンを渡す元、またはワーカーを起動するメンバー名 */
+            from?: string;
+            /** @description ターンを渡す先、またはワーカーを移す先のメンバー名 */
+            to?: string;
+            /** @description ワーカーを起動する目的 */
+            purpose?: string;
+            /** @description 変更前の目的 */
+            old?: string;
+            /** @description 変更後の目的またはメンバー名 */
+            new?: string;
+        };
+        /** @description ロールまたはプロファイルの変更を受けるメンバー。 */
+        TeamDraftMember: {
+            /** @description メンバー名 */
+            name?: string;
+            /** @description ワーカーを起動するメンバー名 */
+            from?: string;
+            /** @description ワーカーを起動する目的 */
+            purpose?: string;
+            /** @description 変更後のロール名。変更しないときは null。 */
+            role?: string | null;
+            /** @description 変更後のプロファイル名。変更しないときは null。 */
+            profile?: string | null;
+        };
+        /** @description プロファイルの変更を受けるワーカー。 */
+        TeamDraftWorker: {
+            /** @description ワーカー名 */
+            name?: string;
+            /** @description ワーカーを起動するメンバー名 */
+            from?: string;
+            /** @description ワーカーを起動する目的 */
+            purpose?: string;
+            /** @description ロール名。変更しないときは null。 */
+            role?: string | null;
+            /** @description 変更後のプロファイル名。変更しないときは null。 */
+            profile?: string | null;
+        };
+        /** @description ワーカーに渡す初期プロンプトの検査情報。 */
+        TeamWorkerPromptRequest: {
+            /** @description ワーカー名 */
+            name?: string;
+            /** @description ワーカーを起動する目的 */
+            purpose?: string;
+            /** @description ワーカーに渡す依頼 */
+            task?: string;
+            /** @description ワーカーを起動するメンバー名。空なら目的から決める。 */
+            from?: string;
+        };
+        /** @description チームのルールを検査または保存する文書。 */
+        TeamRuleDocument: {
+            /** @description チームのルールの文書名 */
+            name: string;
+            /** @description チームのルールの見出し */
+            title: string;
+            /** @description チームのルールのバージョン */
+            revision: number | null;
+            /** @description チームのルールの節 */
+            sections: components["schemas"]["TeamRuleSection"][] | null;
+            /** @description 保存済みチームのルールのハッシュ */
+            hash?: string;
+            /** @description 保存済みチームのルールの全文 */
+            text?: string;
+        };
+        /** @description 画面から送るチームのルールの編集文書。 */
+        TeamRuleDocumentRequest: {
+            /** @description チームのルールの文書名 */
+            name?: string;
+            /** @description チームのルールの見出し */
+            title?: string;
+            /** @description チームのルールのバージョン */
+            revision?: number | null;
+            /** @description チームのルールの節 */
+            sections?: components["schemas"]["TeamRuleSectionRequest"][] | null;
+            /** @description 編集元のチームのルールのハッシュ */
+            hash?: string;
+            /** @description 編集元のチームのルールの全文 */
+            text?: string;
+        };
+        /** @description チームのルールの節。 */
+        TeamRuleSection: {
+            /** @description 保存済みのチームのルールでの節の番号 */
+            from?: number | null;
+            /** @description 節の見出し */
+            heading: string;
+            /** @description 節の見出しの深さ */
+            level: number;
+            /** @description 節の導入文 */
+            intro: string;
+            /** @description 節にある規則 */
+            rules: components["schemas"]["TeamRule"][] | null;
+        };
+        /** @description 画面から送るチームのルールの節。 */
+        TeamRuleSectionRequest: {
+            /** @description 保存済みのチームのルールでの節の番号 */
+            from?: number | null;
+            /** @description 節の見出し */
+            heading?: string;
+            /** @description 節の見出しの深さ */
+            level?: number;
+            /** @description 節の導入文 */
+            intro?: string;
+            /** @description 節にある規則 */
+            rules?: components["schemas"]["TeamRuleRequest"][] | null;
+        };
+        /** @description チームのルールにある規則。 */
+        TeamRule: {
+            /** @description 保存済みのチームのルールでの規則の位置 */
+            from?: {
+                /** @description 規則がある節の番号 */
+                section?: number;
+                /** @description 節にある規則の番号 */
+                rule?: number;
+            } | null;
+            /** @description 規則の ID */
+            id: string;
+            /** @description 規則の文 */
+            text: string;
+            /** @description 規則をメンバーの初期プロンプトに含めるか */
+            in_prompt: boolean;
+            /** @description 規則をプロンプトに含めなくした日 */
+            off_since?: string;
+            /** @description 規則について人が残すメモ */
+            note: string;
+        };
+        /** @description 画面から送るチームのルールの規則。 */
+        TeamRuleRequest: {
+            /** @description 保存済みのチームのルールでの規則の位置 */
+            from?: components["schemas"]["TeamRuleFrom"] | null;
+            /** @description 規則の ID */
+            id?: string;
+            /** @description 規則の文 */
+            text?: string;
+            /** @description 規則をメンバーの初期プロンプトに含めるか */
+            in_prompt?: boolean;
+            /** @description 規則をプロンプトに含めなくした日 */
+            off_since?: string;
+            /** @description 規則について人が残すメモ */
+            note?: string;
+            /** @description 古い形式で規則に付いていた理由 */
+            why?: string;
+            /** @description 古い形式で理由を初期プロンプトに含めるか */
+            send_why?: boolean;
+            /** @description 古い形式で規則に付いていた由来 */
+            origin?: components["schemas"]["TeamRuleOriginRequest"][] | null;
+            /** @description 古い形式で規則に付いていた報告の形 */
+            report?: string;
+            /** @description 古い形式で規則に付いていた検証方法 */
+            tests?: string[] | null;
+        };
+        /** @description 古い形式で規則に付いていた由来の 1 件。 */
+        TeamRuleOriginRequest: {
+            /** @description 由来の種類 */
+            kind?: string;
+            /** @description 由来の日付 */
+            date?: string;
+            /** @description 由来が指す参照 */
+            refs?: string[] | null;
+        };
+        /** @description 保存済みのチームのルールでの規則の位置。 */
+        TeamRuleFrom: {
+            /** @description 規則がある節の番号 */
+            section: number;
+            /** @description 節にある規則の番号 */
+            rule: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1877,42 +2499,71 @@ export type $defs = Record<string, never>;
 export interface operations {
     listTeams: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
+            /** @description チーム定義の一覧 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamList"];
+                };
+            };
+            /** @description 読み取りを断ったときの答え */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
     };
     getTeam: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description 読む場所。project または global。 */
+                place: "project" | "global";
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
             header?: never;
             path: {
+                /** @description チーム定義名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
+            /** @description 1 つの場所にあるチーム定義 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamDefinitionRead"];
+                };
+            };
+            /** @description 読み取りを断ったときの答え */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
@@ -1920,47 +2571,89 @@ export interface operations {
     saveTeam: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description この serve の書き込み用トークン */
+                "X-Hergy-Token": string;
+                /** @description 指定するときはこの serve と同じ origin */
+                Origin?: string;
+            };
             path: {
+                /** @description チーム定義名 */
                 name: string;
             };
             cookie?: never;
         };
-        requestBody?: {
+        /** @description 保存するチーム定義またはチームのルール */
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["TeamSaveRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
+            /** @description 保存後のチーム定義と一覧 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamSaved"];
+                };
+            };
+            /** @description 保存を断ったときの答え */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
     };
     deleteTeam: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                /** @description 消す場所。project または global。 */
+                place: "project" | "global";
+                /** @description 読み取った team.yaml のハッシュ */
+                hash?: string;
+                /** @description 読み取った agreement.yaml のハッシュ */
+                agreement_hash?: string;
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
+            header: {
+                /** @description この serve の書き込み用トークン */
+                "X-Hergy-Token": string;
+                /** @description 指定するときはこの serve と同じ origin */
+                Origin?: string;
+            };
             path: {
+                /** @description チーム定義名 */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description まだ書いていない（pending） */
+            /** @description 削除後のチーム定義の一覧 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamList"];
+                };
+            };
+            /** @description 削除を断ったときの答え */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
@@ -1968,23 +2661,39 @@ export interface operations {
     checkTeam: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description この serve の書き込み用トークン */
+                "X-Hergy-Token": string;
+                /** @description 指定するときはこの serve と同じ origin */
+                Origin?: string;
+            };
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        /** @description 検査するチーム定義またはチームのルール */
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["TeamCheckRequest"];
             };
         };
         responses: {
-            /** @description まだ書いていない（pending） */
+            /** @description 検査結果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamCheckResponse"];
+                };
+            };
+            /** @description 検査を断ったときの答え */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Refusal"];
+                    "text/plain": string;
                 };
             };
         };
