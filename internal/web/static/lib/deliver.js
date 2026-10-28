@@ -12,7 +12,7 @@ import {
   h,
   A,
   html
-} from "../chunk/nav-s2ensdem.js";
+} from "../chunk/nav-wqvgfs4g.js";
 import"../chunk/nav-xz225p52.js";
 import {
   POLL,
@@ -30,7 +30,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-9247pvgf.js";
+} from "../chunk/nav-bpxtqb2k.js";
 
 // lib/deliver/view.js
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };

@@ -10,7 +10,7 @@
 import {
   y,
   O
-} from "./nav-s2ensdem.js";
+} from "./nav-wqvgfs4g.js";
 import {
   read2,
   deliver2,

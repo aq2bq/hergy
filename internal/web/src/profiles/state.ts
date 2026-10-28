@@ -1,71 +1,96 @@
-// profiles/state.js — プロファイルの画面の state（webui-preact-design 4 章・5 章）。
+// profiles/state.ts — プロファイルの画面の state（webui-preact-design 4 章・5 章）。
 //
-// サーバーの答えはここだけに入る（5 章 2）。部品（view.js）は signal を読んで
+// サーバーの答えはここだけに入る（5 章 2）。部品（view.tsx）は signal を読んで
 // 描くだけで、捕まえておいた要素に書き込まない。画面は 3 つのタブを持つ:
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
-import { resource } from '../lib/resource';
-import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList } from '../lib/api.js';
+import { resource, type Reading } from '../lib/resource';
+import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { setDirty } from '../lib/nav.js';
+import type {
+  Assign, AssignRow, Carried, ChangeSet, EnvPair, FocusAsk, Island,
+  IslandHQ, IslandGroup, IslandRow, IslandTeam, OpenTarget, Panel, ProfileCheck,
+  ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
+} from './types.js';
 
-export const view = document.getElementById('view');
+// mustElement is a node the page always carries: the screen reads it once, and
+// a page without it is a template that stopped naming the screen's own view.
+function mustElement(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`profiles: the page carries no #${id}`);
+  return el;
+}
+
+export const view = mustElement('view');
+
+// stringList is a JSON array of strings the page or the address carries. A
+// value that is not one reads as no names, as it did when the screen parsed it
+// without looking.
+function stringList(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((one): one is string => typeof one === 'string') : [];
+  } catch (e) { return []; }
+}
 
 // The page carries the kind answers in the boundary's shape (spec-boundary 1,
 // 2, 5): the profile list and, on the 割り当て tab, the assignment cards. The
 // rows, the panels and the YAML sections are drawn from them here, and the Go
 // templates draw none of them.
-export const ISLAND = (() => {
+export const ISLAND: Island = (() => {
   const el = document.getElementById('profiles-data');
   if (!el) return {};
-  try { return JSON.parse(el.textContent || '{}'); } catch (e) { return {}; }
+  try { return JSON.parse(el.textContent || '{}') as Island; } catch (e) { return {}; }
 })();
 
-export const TAB = view.dataset.tab;
+export const TAB = view.dataset.tab || '';
 export const BASE_KINDS = ['claude', 'codex', 'opencode', 'gemini'];
-export const otherKinds = () => {
-  try { return JSON.parse(view.dataset.otherKinds || '[]'); } catch (e) { return []; }
-};
-export const classOf = (kind) => (BASE_KINDS.includes(kind) ? 'k-' + kind : '');
-export const labelOf = (file) => (file === 'global' ? 'グローバル' : 'プロジェクト');
-export const otherOf = (file) => (file === 'global' ? 'project' : 'global');
-const pathOf = (file) => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject);
+export const otherKinds = (): string[] => stringList(view.dataset.otherKinds);
+export const classOf = (kind: string): string => (BASE_KINDS.includes(kind) ? 'k-' + kind : '');
+// placeOf is a place a string names: the address and the band carry words, and
+// anything that is not the global one is this project's (the two the screen has).
+export const placeOf = (file: string): Place => (file === 'global' ? 'global' : 'project');
+export const labelOf = (file: string): string => (file === 'global' ? 'グローバル' : 'プロジェクト');
+export const otherOf = (file: Place): Place => (file === 'global' ? 'project' : 'global');
+const pathOf = (file: Place): string => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject) || '';
 
 // HQ is the headquarters lists (d-73fc): every listed project's profiles, then
 // the global layer's. Without it the screen is the one project's, as it was.
-export const HQ = ISLAND.hq || null;
+export const HQ: IslandHQ | null = ISLAND.hq || null;
 // GROUPED is a headquarters with projects: listed: the rows stand in groups and
 // carry their project. Without projects: the screen is the one project's.
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
-export const CURRENT = GROUPED ? ((HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
-export const groupKeyOf = (g) => (g.global ? 'global' : (g.project ? g.project.path : ''));
-const groupNameOf = (g) => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
-export const GROUPS = GROUPED ? (HQ.profiles || []) : null;
-const groupOrder = () => (GROUPS || []).map(groupKeyOf);
-export const groupName = (key) => {
+export const CURRENT = GROUPED ? ((HQ && HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
+export const groupKeyOf = (g: IslandGroup): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
+const groupNameOf = (g: IslandGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const GROUPS: IslandGroup[] | null = GROUPED ? (HQ && HQ.profiles) || [] : null;
+const groupOrder = (): string[] => (GROUPS || []).map(groupKeyOf);
+export const groupName = (key: string): string => {
   if (key === 'global') return 'グローバル';
   if (!key || key === CURRENT) {
-    if (!GROUPED) return 'プロジェクト';
-    const p = HQ.projects || {};
+    if (!GROUPED || !HQ) return 'プロジェクト';
+    const p = HQ.projects;
     if (p.mode === 'current') return (p.current && p.current.name) || 'プロジェクト';
     const found = (p.projects || []).find((x) => x.path === CURRENT);
     return found ? found.name : ((p.current && p.current.name) || 'プロジェクト');
   }
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === key);
-  return g ? groupNameOf(g) : String(key).split('/').filter(Boolean).pop();
+  return g ? groupNameOf(g) : String(key).split('/').filter(Boolean).pop() || '';
 };
 // currentProjectName is the name the プロジェクト column gives this serve's
 // project, whether or not it is listed (d-8a45, r-5b96 audit 5).
-export const currentProjectName = () => {
+export const currentProjectName = (): string => {
   if (!HQ) return 'プロジェクト';
-  const p = HQ.projects || {};
+  const p = HQ.projects;
   return (p.current && p.current.name) || '';
 };
 // pathFor is the file one panel of a group would write: the group's own
 // profiles.yaml. The saved panels carry the server's path already; this is for
 // a row a person is adding.
-export const pathFor = (file, group) => {
+export const pathFor = (file: Place, group: string | undefined): string => {
   if (!GROUPED || !group || group === CURRENT) return pathOf(file);
   if (group === 'global') return '~/.config/hergy/profiles.yaml';
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === group);
@@ -75,28 +100,29 @@ export const pathFor = (file, group) => {
 // answers with the list, and the hashes are the list's, so the next write
 // carries the file the page just wrote (spec-boundary 5).
 export const hashes = signal({ project: view.dataset.hashProject || '', global: view.dataset.hashShared || '' });
-export const hashOf = (file) => (file === 'global' ? hashes.value.global : hashes.value.project);
+export const hashOf = (file: Place): string => (file === 'global' ? hashes.value.global : hashes.value.project);
 
 // ---- the address --------------------------------------------------------
 // The list carries no screen state (spec-boundary 5): the open rows, the kind
 // and the search stand in the address, and the address is where the screen
 // starts from.
-const params = () => new URLSearchParams(location.search);
+const params = (): URLSearchParams => new URLSearchParams(location.search);
 const OPEN = (params().get('open') || '').split(',').filter(Boolean);
-const OPEN_ROWS = parseOpen(OPEN.join(',')) || [];
-const isOpenRow = (row) => OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
+const OPEN_ROWS: OpenTarget[] = parseOpen(OPEN.join(',')) || [];
+const isOpenRow = (row: { name: string; group?: string }): boolean =>
+  OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
 
 export const filterKind = signal(TAB === 'profiles' ? (params().get('kind') || '') : '');
 export const query = signal(TAB === 'profiles' ? (params().get('q') || '') : '');
-export const openKeys = signal(new Set(OPEN_ROWS.map((t) => t.name + '|' + (t.group || ''))));
+export const openKeys = signal(new Set<string>(OPEN_ROWS.map((t) => t.name + '|' + (t.group || ''))));
 
 // ---- the list's rows ----------------------------------------------------
 let nextId = 1;
-const newKey = () => 'new-' + nextId++;
+const newKey = (): string => 'new-' + nextId++;
 
 // panelOf reads one server panel as the panel's state: what the file holds
 // (saved), and the draft the fields start from.
-function panelOf(p, group, rowKey) {
+function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Panel {
   return {
     key: rowKey + ':' + p.file,
     rowKey,
@@ -107,7 +133,7 @@ function panelOf(p, group, rowKey) {
     otherLabel: p.otherLabel,
     both: !!p.both,
     shadowed: !!p.shadowed,
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || '[]'), env: JSON.parse(p.savedEnv || '[]') } : null,
+    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || '[]') as string[], env: JSON.parse(p.savedEnv || '[]') as EnvPair[] } : null,
     hash: p.hash || '',
     users: p.users || 0,
     renameUsers: p.renameUsers || 0,
@@ -124,7 +150,7 @@ function panelOf(p, group, rowKey) {
 
 // rowOf reads one row of the model: its summary columns, and the panels it
 // opens into.
-function rowOf(row, index) {
+function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
   const key = (row.name || '') + '|' + (row.group || '') + (row.name ? '' : '|' + index);
   return {
     key,
@@ -147,23 +173,31 @@ function rowOf(row, index) {
   };
 }
 
-function modelOf(list, group) {
+// modelOf reads one list answer as the screen's model. A grouped screen says
+// which project each row stands in, so the rows keep that beside the model's own
+// columns and the address's open rows.
+type ModelRow = ProfileRow & { group?: string };
+type Model = { rows: ModelRow[]; files: YamlFile[] };
+
+function modelOf(list: ProfileList | null, group?: string): Model {
   const model = profileModel(list, OPEN_ROWS.map((t) => t.name));
-  if (GROUPED) model.rows.forEach((row) => { row.group = group; row.open = isOpenRow(row); });
-  else model.rows.forEach((row) => { row.group = ''; });
-  return model;
+  const rows: ModelRow[] = model.rows.map((row) => {
+    const placed: ModelRow = { ...row, group: GROUPED ? (group || '') : '' };
+    return GROUPED ? { ...placed, open: isOpenRow(placed) } : placed;
+  });
+  return { rows, files: model.files };
 }
 
-export const rows = signal([]);
-export const files = signal([]);
+export const rows = signal<Row[]>([]);
+export const files = signal<YamlFile[]>([]);
 
-function readInitial() {
+function readInitial(): { rows: Row[]; files: YamlFile[] } {
   if (!GROUPED) {
-    const model = modelOf(ISLAND.profile);
+    const model = modelOf(ISLAND.profile || null);
     return { rows: model.rows.map(rowOf), files: model.files || [] };
   }
-  const all = [];
-  (GROUPS || []).forEach((g) => { all.push(...modelOf(g.list || {}, groupKeyOf(g)).rows); });
+  const all: ModelRow[] = [];
+  (GROUPS || []).forEach((g) => { all.push(...modelOf(g.list || null, groupKeyOf(g)).rows); });
   return { rows: all.map(rowOf), files: [] };
 }
 {
@@ -173,12 +207,12 @@ function readInitial() {
 }
 
 // ---- what a panel holds, and how far it is from the file ----------------
-export function changedOf(panel) {
+export function changedOf(panel: Panel): ChangeSet {
   const saved = panel.saved;
   const draft = panel.draft;
   const beforeArgs = (saved && saved.args) || [];
   const beforeEnv = (saved && saved.env) || [];
-  const out = { name: false, kind: false, args: [], env: [], count: 0 };
+  const out: ChangeSet = { name: false, kind: false, args: [], env: [], count: 0 };
   out.name = !saved || draft.name !== saved.name;
   out.kind = !saved || draft.kind !== saved.kind;
   draft.args.forEach((arg, i) => { out.args[i] = !saved || beforeArgs[i] !== arg; });
@@ -197,46 +231,47 @@ export function changedOf(panel) {
   return out;
 }
 
-export const isDirtyPanel = (panel) => panel.saved === null || changedOf(panel).count > 0;
-export const rowUnsaved = (row) => row.panels.some(isDirtyPanel);
-export const saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? changedOf(panel).count === 0 : false) || panel.draft.name === '';
+export const isDirtyPanel = (panel: Panel): boolean => panel.saved === null || changedOf(panel).count > 0;
+export const rowUnsaved = (row: Row): boolean => row.panels.some(isDirtyPanel);
+export const saveBlocked = (panel: Panel): boolean =>
+  panel.errors > 0 || (panel.saved ? changedOf(panel).count === 0 : false) || panel.draft.name === '';
 
 // ---- what the screen asks the page to do after a press -------------------
 // Focus is put only where a person just pressed (webui-preact-design 5 章 5):
 // ＋引数 puts the caret in the new argument, ＋環境変数 in the new key, 複製 in
 // the name of the copy. The ask is state, and the panel that owns the field
 // reads it after the draw.
-export const focusAsk = signal(null);
-export function askFocus(key, field, index, select) {
+export const focusAsk = signal<FocusAsk | null>(null);
+export function askFocus(key: string, field: string, index: number, select: boolean): void {
   focusAsk.value = { key, field, index: index || 0, select: !!select, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
 }
-export const scrollAsk = signal(null);
-export function askScroll(rowKey) {
+export const scrollAsk = signal<ScrollAsk | null>(null);
+export function askScroll(rowKey: string): void {
   scrollAsk.value = { key: rowKey, seq: ((scrollAsk.value && scrollAsk.value.seq) || 0) + 1 };
 }
 
 // ---- the list's own operations -----------------------------------------
-export function updateRow(fn) {
+export function updateRow(fn: (row: Row) => Row): void {
   rows.value = rows.value.map(fn);
 }
 
-export function patchPanel(key, patch) {
+export function patchPanel(key: string, patch: Partial<Panel> | ((panel: Panel) => Partial<Panel>)): void {
   updateRow((row) => (row.panels.some((p) => p.key === key)
     ? { ...row, panels: row.panels.map((p) => (p.key === key ? { ...p, ...(typeof patch === 'function' ? patch(p) : patch) } : p)) }
     : row));
 }
 
-export const panelsOf = (row) => row.panels;
-export function allPanels() {
+export const panelsOf = (row: Row): Panel[] => row.panels;
+export function allPanels(): { row: Row; panel: Panel }[] {
   return rows.value.flatMap((row) => row.panels.map((panel) => ({ row, panel })));
 }
-export function panelByKey(key) {
+export function panelByKey(key: string): Panel | undefined {
   return rows.value.flatMap((row) => row.panels).find((p) => p.key === key);
 }
 
 // toggleRow opens or shuts one row. Which rows are open is in the address, and
 // the rows a person opens are the ones a re-reading keeps.
-export function toggleRow(key) {
+export function toggleRow(key: string): void {
   const next = new Set(openKeys.value);
   const row = rows.value.find((r) => r.key === key);
   if (!row) return;
@@ -245,21 +280,22 @@ export function toggleRow(key) {
   updateRow((r) => (r.key === key ? { ...r, open: next.has(key) } : r));
 }
 
-export function closeAllConfirm() {
+export function closeAllConfirm(): void {
   updateRow((row) => ({ ...row, panels: row.panels.map((p) => (p.confirming ? { ...p, confirming: false } : p)) }));
 }
 
 // newRow is a row a person is adding: it opens at once, and its panel starts
 // from the kind the toolbar would give it.
-export function addRow(file, group) {
+export function addRow(file: Place, group: string | undefined): Row {
   const key = newKey();
   const panel = panelOf({
     file, label: labelOf(file), otherLabel: labelOf(otherOf(file)), path: pathFor(file, group),
     saved: false, name: '', kind: 'claude', args: ['--model', ''], env: [], argsJSON: '[]', envJSON: '[]',
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+    shadowed: false, both: false, other: otherOf(file), savedLine: false,
   }, group, key);
   panel.layerSwitch = true;
-  const row = {
+  const row: Row = {
     key, name: '', group: group || '', kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
     users: 0, roles: '', err: 0, warn: 0, chips: [], places: [], isNew: true, open: true, panels: [panel],
   };
@@ -276,7 +312,7 @@ export function addRow(file, group) {
 
 // duplicateRow adds a copy of one panel's saved profile under a name that is
 // not in the list yet.
-export function duplicateRow(panel) {
+export function duplicateRow(panel: Panel): Row | null {
   const saved = panel.saved;
   if (!saved) return null;
   const names = rows.value.map((r) => r.name);
@@ -284,7 +320,7 @@ export function duplicateRow(panel) {
   while (names.includes(`${saved.name}-${suffix}`)) suffix++;
   const list = rows.value.slice();
   const at = list.findIndex((r) => r.panels.some((p) => p.key === panel.key));
-  const row = {
+  const row: Row = {
     key: newKey(), name: `${saved.name}-${suffix}`, group: panel.group, kind: saved.kind, kindClass: classOf(saved.kind),
     args: saved.args.join(' '), env: saved.env.map((pair) => pair.value), more: 0, users: 0, roles: '', err: 0, warn: 0,
     chips: [], places: [], isNew: true, open: true,
@@ -294,6 +330,7 @@ export function duplicateRow(panel) {
       env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
       argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
       hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+      shadowed: false, both: false, other: otherOf(panel.file), savedLine: false,
     }, panel.group, `${saved.name}-${suffix}`)],
   };
   row.panels[0].key = row.key + ':' + panel.file;
@@ -308,23 +345,24 @@ export function duplicateRow(panel) {
 
 // copyPanel adds the other layer's panel to a row: グローバルにコピー and
 // プロジェクトにコピー, which save as a new file on that side.
-export function copyPanel(panel) {
+export function copyPanel(panel: Panel): Panel | null {
   const saved = panel.saved;
   if (!saved) return null;
-  const file = otherOf(panel.file);
+  const file: Place = otherOf(panel.file);
   const fresh = panelOf({
     file, label: labelOf(file), otherLabel: labelOf(panel.file), path: pathFor(file, panel.group),
     saved: false, name: saved.name, kind: saved.kind, args: saved.args.slice(),
     env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
     argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
     hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+    shadowed: false, both: false, other: otherOf(file), savedLine: false,
   }, panel.group, panel.rowKey);
   fresh.key = panel.rowKey + ':' + file;
   updateRow((row) => (row.key === panel.rowKey ? { ...row, panels: [...row.panels, fresh].sort((a, b) => (a.file === 'project' ? 0 : 1) - (b.file === 'project' ? 0 : 1)) } : row));
   return fresh;
 }
 
-export function discardPanel(key) {
+export function discardPanel(key: string): void {
   const row = rows.value.find((r) => r.panels.some((p) => p.key === key));
   if (!row) return;
   if (row.panels.length > 1) {
@@ -341,16 +379,21 @@ export function discardPanel(key) {
 // checkers are one resource per panel: a check is a reading like any other, so
 // the newest request is the one whose answer is kept and the one before it is
 // dropped (5 章 3). The panel keeps no numbering of its own.
-const checkers = new Map();
-function checkerFor(key) {
+type CheckRequest = Schemas['ProfileCheckRequest'];
+type CheckAnswer = { json: ProfileCheck | null };
+
+const checkers = new Map<string, Reading<CheckAnswer, [CheckRequest]>>();
+function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
   let one = checkers.get(key);
   if (one) return one;
-  one = resource(async (signal, payload) => {
+  one = resource<CheckAnswer, [CheckRequest]>(async (signal, payload) => {
     try {
-      return await apiCheck('profile', payload, { signal });
+      const answer = await apiCheck('profile', payload, { signal });
+      return { json: answer.json as ProfileCheck | null };
     } catch (e) {
       // A refusal about the draft still carries what is wrong with it.
-      if (e && e.json) return { json: e.json };
+      const refusal = e as { json?: ProfileCheck | null } | null;
+      if (refusal && refusal.json) return { json: refusal.json };
       throw e;
     }
   });
@@ -360,13 +403,13 @@ function checkerFor(key) {
 
 // check asks what is wrong with one panel's draft. A panel that is shut keeps
 // its last answer, and a check a newer one replaced answers nothing.
-export async function checkPanel(key) {
+export async function checkPanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
   const answer = await checkerFor(key).run({
     place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
   });
-  const problems = (answer && answer.json && answer.json.problems) || [];
+  const problems: Problem[] = (answer && answer.json && answer.json.problems) || [];
   if (!panelByKey(key)) return;
   patchPanel(key, { problems, errors: problems.filter((p) => p.sev === 'err').length });
 }
@@ -374,7 +417,7 @@ export async function checkPanel(key) {
 // projectOf is the listed project a panel writes to: the group the row stands
 // in, and nothing for the global layer or this serve's own project (whose files
 // the API writes without being told).
-export function projectOf(panel) {
+export function projectOf(panel: Panel): string | undefined {
   const group = panel.group || '';
   if (!group || group === 'global' || group === CURRENT) return undefined;
   return group;
@@ -382,7 +425,7 @@ export function projectOf(panel) {
 
 // savePanel writes one panel. The answer carries the project's list, which
 // stands in place of the rows: the counts move with it (spec-boundary 5).
-export async function savePanel(key) {
+export async function savePanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
   const draft = panel.draft;
@@ -396,39 +439,54 @@ export async function savePanel(key) {
       rename_users: !!panel.rename,
       hash: panel.hash || hashOf(panel.file),
     });
-    applySaved(panel, (answer.json && answer.json) || {});
+    applySaved(panel, answer.json);
   } catch (e) {
-    patchPanel(key, { refusal: (e && (e.text || (e.json && e.json.text))) || '保存できませんでした' });
+    patchPanel(key, { refusal: problemText(e, '保存できませんでした') });
   }
 }
 
 // deletePanel takes one document away, after the person pressed 削除する.
-export async function deletePanel(key) {
+export async function deletePanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel || !panel.saved) return;
   patchPanel(key, { refusal: '', confirming: false });
   try {
     const answer = await apiDel('profile', panel.saved.name, panel.file, panel.hash || hashOf(panel.file), undefined, projectOf(panel));
-    applySaved(panel, (answer.json && answer.json) || {});
+    applySaved(panel, answer.json);
   } catch (e) {
-    patchPanel(key, { refusal: (e && (e.text || (e.json && e.json.text))) || '削除できませんでした' });
+    patchPanel(key, { refusal: problemText(e, '削除できませんでした') });
   }
 }
+
+// SavedList is what a save or a delete answered with, read for the one thing
+// the screen takes from it: the rows that stand again and the files' hashes. A
+// save answers the document and the list under it; a delete answers the list.
+type SavedList = {
+  items?: Schemas['ProfileItem'][] | null;
+  hashes?: Record<string, string> | null;
+  files?: Schemas['File'][] | null;
+};
 
 // applySaved puts the list a save (or a delete) answered with in place of the
 // rows, keeping open the rows a person had open and opening the one just
 // written by its new name.
-function applySaved(panel, answer) {
-  const model = modelOf(answer, panel.group);
-  if (!GROUPED && answer.hashes) {
+function applySaved(panel: Panel, answer: SavedList | null): void {
+  const list: ProfileList = {
+    items: (answer && answer.items) || null,
+    hashes: (answer && answer.hashes) || {},
+    files: (answer && answer.files) || [],
+  };
+  const model = modelOf(list, panel.group);
+  if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }
   const order = GROUPED ? groupOrder() : [''];
-  const byGroup = new Map();
+  const byGroup = new Map<string, Row[]>();
   rows.value.forEach((row) => {
     const key = row.group || '';
     if (!byGroup.has(key)) byGroup.set(key, []);
-    byGroup.get(key).push(row);
+    const group = byGroup.get(key);
+    if (group) group.push(row);
   });
   byGroup.set(panel.group || '', model.rows.map(rowOf));
   const next = order.flatMap((key) => byGroup.get(key) || []);
@@ -445,7 +503,7 @@ function applySaved(panel, answer) {
 }
 
 // ---- the address the screen writes --------------------------------------
-export function syncURL() {
+export function syncURL(): void {
   const params = new URLSearchParams();
   if (filterKind.value) params.set('kind', filterKind.value);
   if (query.value) params.set('q', query.value);
@@ -468,9 +526,9 @@ export const shownRows = computed(() => rows.value.filter((row) => {
 // chips are the toolbar's filters: すべて and every kind the list holds, in the
 // toolbar's order (render.go's splitKinds, then the other kinds).
 export const chips = computed(() => {
-  const counts = {};
+  const counts: Record<string, number> = {};
   rows.value.forEach((row) => { counts[row.kind] = (counts[row.kind] || 0) + 1; });
-  const out = [{ name: '', count: rows.value.length, kindClass: '' }];
+  const out: { name: string; count: number; kindClass: string }[] = [{ name: '', count: rows.value.length, kindClass: '' }];
   [...BASE_KINDS, ...otherKinds().filter((k) => !BASE_KINDS.includes(k))].forEach((kind) => {
     if (counts[kind]) out.push({ name: kind, count: counts[kind], kindClass: classOf(kind) });
   });
@@ -482,21 +540,21 @@ export const chips = computed(() => {
 
 // ---- the band's report and the draft it carries -------------------------
 // dirty is whether the screen holds something no save wrote yet (spec-nav 1.5).
-export function dirty() {
+export function dirty(): boolean {
   const panels = allPanels().some(({ panel }) => isDirtyPanel(panel));
   const ytexts = yamlTexts().some((one) => one.text !== one.base);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
 }
-export function tellDirty() {
+export function tellDirty(): void {
   setDirty(dirty());
 }
 
 // take is the draft the band puts aside: every panel that is not what the file
 // holds, every YAML text that was typed, every pick that was made — each with
 // the hash of the file it was read from (spec-nav 1.5).
-export function take() {
-  const out = { rows: [], ytexts: [], picks: [] };
+export function take(): Carried {
+  const out: Required<Carried> = { rows: [], ytexts: [], picks: [] };
   allPanels().forEach(({ panel }) => {
     if (panel.saved && changedOf(panel).count === 0) return;
     out.rows.push({
@@ -522,20 +580,20 @@ export function take() {
 // ---- the assign tab -----------------------------------------------------
 // The cards come from the island's own reading of the team definitions; the
 // picks a person makes are this screen's.
-export const assign = signal({ empty: false, teams: [] });
-export function assignTeams() { return assign.value.teams || []; }
-export const pickChanged = (row) => row.profile !== (row.saved || '');
-export const assignKind = signal(params().get('kind'));
+export const assign = signal<Assign>({ empty: false, teams: [] });
+export function assignTeams(): Team[] { return assign.value.teams || []; }
+export const pickChanged = (row: AssignRow): boolean => row.profile !== (row.saved || '');
+export const assignKind = signal<string | null>(params().get('kind'));
 
-export function initAssign() {
-  const card = ISLAND.assign || {};
+export function initAssign(): void {
+  const card = (ISLAND.assign || {}) as Partial<{ empty: boolean; teams: IslandTeam[] }>;
   assign.value = {
     empty: !!card.empty,
-    teams: (card.teams || []).map((team) => ({
+    teams: (card.teams || []).map((team): Team => ({
       name: team.name,
       // The place the card's save writes: a global definition is saved in the
       // global file, and every project reading it changes (d-0f32, r-f8b9).
-      place: team.place || 'project',
+      place: placeOf(team.place || 'project'),
       hash: team.hash,
       path: team.path,
       members: team.members || 0,
@@ -543,7 +601,7 @@ export function initAssign() {
       err: team.err || 0,
       saved: !!team.saved,
       refusal: '',
-      rows: (team.rows || []).map((row) => ({
+      rows: (team.rows || []).map((row: IslandRow): AssignRow => ({
         key: row.id,
         kind: row.kind,
         name: row.name,
@@ -559,7 +617,7 @@ export function initAssign() {
   };
 }
 
-export function setPick(teamName, key, profile) {
+export function setPick(teamName: string, key: string, profile: string): void {
   assign.value = {
     ...assign.value,
     teams: assign.value.teams.map((team) => (team.name === teamName
@@ -568,37 +626,37 @@ export function setPick(teamName, key, profile) {
   };
 }
 
-export function teamDirty(team) {
+export function teamDirty(team: Team): number {
   return (team.rows || []).filter(pickChanged).length;
 }
-export function teamMissing(team) {
+export function teamMissing(team: Team): number {
   return (team.rows || []).filter((row) => row.missing).length;
 }
 
-export async function saveTeam(name) {
+export async function saveTeam(name: string): Promise<boolean> {
   const team = assignTeams().find((t) => t.name === name);
-  if (!team) return;
+  if (!team) return false;
   const ops = (team.rows || []).filter(pickChanged).map((row) => (row.key.startsWith('m')
     ? { kind: 'memberProfile', member: row.name, profile: row.profile }
     : { kind: 'workerProfile', from: row.role, purpose: row.name, profile: row.profile }));
   try {
     const answer = await apiSave('team', team.name, { place: team.place || 'project', doc: { ops }, hash: team.hash });
-    const json = (answer.json && answer.json) || {};
+    const json = answer.json;
     assign.value = {
       ...assign.value,
       teams: assign.value.teams.map((t) => (t.name === name
-        ? { ...t, hash: json.hash || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) }
+        ? { ...t, hash: (json && json.hash) || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) }
         : t)),
     };
     return true;
   } catch (e) {
-    const text = (e && (e.text || (e.json && e.json.text))) || '保存できませんでした';
+    const text = problemText(e, '保存できませんでした');
     assign.value = { ...assign.value, teams: assign.value.teams.map((t) => (t.name === name ? { ...t, refusal: text } : t)) };
     return false;
   }
 }
 
-export function syncAssignURL() {
+export function syncAssignURL(): void {
   const params = new URLSearchParams(location.search);
   if (assignKind.value) params.set('kind', assignKind.value); else params.delete('kind');
   const search = params.toString();
@@ -610,18 +668,18 @@ export function syncAssignURL() {
 // Each file's section is the shared YAML part (lib/yamltab.js); what this
 // screen keeps is the text each file was read with, so the band knows what was
 // typed and the carry can put it back (spec-nav 1.5).
-export const yamlFiles = signal([]);
-export const yamlState = signal(new Map());
-export function yamlTexts() {
+export const yamlFiles = signal<YamlFile[]>([]);
+export const yamlState = signal(new Map<string, YamlOne>());
+export function yamlTexts(): { file: string; hash: string; base: string; text: string }[] {
   return yamlFiles.value.map((file) => {
     const one = yamlState.value.get(file.file) || {};
     return { file: file.file, hash: file.hash, base: one.base || file.text || '', text: one.text === undefined ? (file.text || '') : one.text };
   });
 }
-export function initYaml() {
+export function initYaml(): void {
   yamlFiles.value = (files.value || []).map((file) => ({ ...file }));
 }
-export function tellYaml(file, one) {
+export function tellYaml(file: string, one: YamlOne): void {
   const next = new Map(yamlState.value);
   next.set(file, one);
   yamlState.value = next;
@@ -629,16 +687,16 @@ export function tellYaml(file, one) {
 
 // applyCarried puts the band's draft back, skipping every part whose file moved
 // outside since the draft was made (spec-nav 1.5).
-export function restore(carried) {
+export function restore(carried: Carried): void {
   (carried.rows || []).forEach((c) => {
-    if (c.hash && c.hash !== hashOf(c.file)) return;
-    const found = allPanels().find(({ panel }) => panel.file === c.file && (panel.saved ? panel.saved.name : null) === c.saved);
+    if (c.hash && c.hash !== hashOf(placeOf(c.file))) return;
+    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
       patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
       return;
     }
     if (c.saved) return;
-    const row = addRow(c.file, CURRENT);
+    const row = addRow(placeOf(c.file), CURRENT);
     patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
   });
   (carried.ytexts || []).forEach((c) => {

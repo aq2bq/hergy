@@ -9,7 +9,7 @@
 
 import {
   y
-} from "./nav-s2ensdem.js";
+} from "./nav-wqvgfs4g.js";
 
 // lib/resource.ts
 function resource(load) {

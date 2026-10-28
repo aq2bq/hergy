@@ -16,7 +16,7 @@ import {
   y,
   O,
   html
-} from "./nav-s2ensdem.js";
+} from "./nav-wqvgfs4g.js";
 import {
   call2,
   read2,

@@ -1181,7 +1181,7 @@ function M() {
 // lib/preact.ts
 var html = htm_module_default.bind(k);
 
-export { R, d, h, _, A, y, O, x, html };
+export { l, S, R, d, h, _, A, y, O, x, html };
 
 // ---- licences ---------------------------------------------------------
 //

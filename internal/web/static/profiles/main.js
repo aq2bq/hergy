@@ -6,15 +6,18 @@
 // The screens are written in internal/web/src and built from the entries the
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
+//
+//   preact 10.29.8 — MIT
 
 import {
+  l,
+  S,
   R,
   h,
   A,
   y,
-  O,
-  html
-} from "../chunk/nav-s2ensdem.js";
+  O
+} from "../chunk/nav-wqvgfs4g.js";
 import {
   takeDraft2,
   setDirty2
@@ -23,21 +26,38 @@ import {
   check2,
   save2,
   del2,
+  problemText2,
   profileModel2
 } from "../chunk/nav-xz225p52.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-wcgwcg8c.js";
+} from "../chunk/nav-8w00s4h3.js";
 import {
   YamlTab2
-} from "../chunk/nav-7s9qtprs.js";
+} from "../chunk/nav-bgmvn086.js";
 import {
   resource
-} from "../chunk/nav-xgz6sqrh.js";
+} from "../chunk/nav-mdymvqv4.js";
 
-// profiles/state.js
-var view = document.getElementById("view");
+// profiles/state.ts
+function mustElement(id) {
+  const el = document.getElementById(id);
+  if (!el)
+    throw new Error(`profiles: the page carries no #${id}`);
+  return el;
+}
+var view = mustElement("view");
+function stringList(raw) {
+  if (!raw)
+    return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((one) => typeof one === "string") : [];
+  } catch (e) {
+    return [];
+  }
+}
 var ISLAND = (() => {
   const el = document.getElementById("profiles-data");
   if (!el)
@@ -48,45 +68,40 @@ var ISLAND = (() => {
     return {};
   }
 })();
-var TAB = view.dataset.tab;
+var TAB = view.dataset.tab || "";
 var BASE_KINDS = ["claude", "codex", "opencode", "gemini"];
-var otherKinds = () => {
-  try {
-    return JSON.parse(view.dataset.otherKinds || "[]");
-  } catch (e) {
-    return [];
-  }
-};
+var otherKinds = () => stringList(view.dataset.otherKinds);
 var classOf = (kind) => BASE_KINDS.includes(kind) ? "k-" + kind : "";
+var placeOf = (file) => file === "global" ? "global" : "project";
 var labelOf = (file) => file === "global" ? "グローバル" : "プロジェクト";
 var otherOf = (file) => file === "global" ? "project" : "global";
-var pathOf = (file) => file === "global" ? view.dataset.pathShared : view.dataset.pathProject;
+var pathOf = (file) => (file === "global" ? view.dataset.pathShared : view.dataset.pathProject) || "";
 var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
-var CURRENT = GROUPED ? HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
+var CURRENT = GROUPED ? HQ && HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
 var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
-var GROUPS = GROUPED ? HQ.profiles || [] : null;
+var GROUPS = GROUPED ? HQ && HQ.profiles || [] : null;
 var groupOrder = () => (GROUPS || []).map(groupKeyOf);
 var groupName = (key) => {
   if (key === "global")
     return "グローバル";
   if (!key || key === CURRENT) {
-    if (!GROUPED)
+    if (!GROUPED || !HQ)
       return "プロジェクト";
-    const p = HQ.projects || {};
+    const p = HQ.projects;
     if (p.mode === "current")
       return p.current && p.current.name || "プロジェクト";
     const found = (p.projects || []).find((x) => x.path === CURRENT);
     return found ? found.name : p.current && p.current.name || "プロジェクト";
   }
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === key);
-  return g ? groupNameOf(g) : String(key).split("/").filter(Boolean).pop();
+  return g ? groupNameOf(g) : String(key).split("/").filter(Boolean).pop() || "";
 };
 var currentProjectName = () => {
   if (!HQ)
     return "プロジェクト";
-  const p = HQ.projects || {};
+  const p = HQ.projects;
   return p.current && p.current.name || "";
 };
 var pathFor = (file, group) => {
@@ -157,27 +172,22 @@ function rowOf(row, index) {
 }
 function modelOf(list, group) {
   const model = profileModel2(list, OPEN_ROWS.map((t) => t.name));
-  if (GROUPED)
-    model.rows.forEach((row) => {
-      row.group = group;
-      row.open = isOpenRow(row);
-    });
-  else
-    model.rows.forEach((row) => {
-      row.group = "";
-    });
-  return model;
+  const rows = model.rows.map((row) => {
+    const placed = { ...row, group: GROUPED ? group || "" : "" };
+    return GROUPED ? { ...placed, open: isOpenRow(placed) } : placed;
+  });
+  return { rows, files: model.files };
 }
 var rows = y([]);
 var files = y([]);
 function readInitial() {
   if (!GROUPED) {
-    const model = modelOf(ISLAND.profile);
+    const model = modelOf(ISLAND.profile || null);
     return { rows: model.rows.map(rowOf), files: model.files || [] };
   }
   const all = [];
   (GROUPS || []).forEach((g) => {
-    all.push(...modelOf(g.list || {}, groupKeyOf(g)).rows);
+    all.push(...modelOf(g.list || null, groupKeyOf(g)).rows);
   });
   return { rows: all.map(rowOf), files: [] };
 }
@@ -280,7 +290,11 @@ function addRow(file, group) {
     users: 0,
     renameUsers: 0,
     err: 0,
-    warn: 0
+    warn: 0,
+    shadowed: false,
+    both: false,
+    other: otherOf(file),
+    savedLine: false
   }, group, key);
   panel.layerSwitch = true;
   const row = {
@@ -359,7 +373,11 @@ function duplicateRow(panel) {
       users: 0,
       renameUsers: 0,
       err: 0,
-      warn: 0
+      warn: 0,
+      shadowed: false,
+      both: false,
+      other: otherOf(panel.file),
+      savedLine: false
     }, panel.group, `${saved.name}-${suffix}`)]
   };
   row.panels[0].key = row.key + ":" + panel.file;
@@ -396,7 +414,11 @@ function copyPanel(panel) {
     users: 0,
     renameUsers: 0,
     err: 0,
-    warn: 0
+    warn: 0,
+    shadowed: false,
+    both: false,
+    other: otherOf(file),
+    savedLine: false
   }, panel.group, panel.rowKey);
   fresh.key = panel.rowKey + ":" + file;
   updateRow((row) => row.key === panel.rowKey ? { ...row, panels: [...row.panels, fresh].sort((a, b) => (a.file === "project" ? 0 : 1) - (b.file === "project" ? 0 : 1)) } : row);
@@ -422,10 +444,12 @@ function checkerFor(key) {
     return one;
   one = resource(async (signal, payload) => {
     try {
-      return await check2("profile", payload, { signal });
+      const answer = await check2("profile", payload, { signal });
+      return { json: answer.json };
     } catch (e) {
-      if (e && e.json)
-        return { json: e.json };
+      const refusal = e;
+      if (refusal && refusal.json)
+        return { json: refusal.json };
       throw e;
     }
   });
@@ -468,9 +492,9 @@ async function savePanel(key) {
       rename_users: !!panel.rename,
       hash: panel.hash || hashOf(panel.file)
     });
-    applySaved(panel, answer.json && answer.json || {});
+    applySaved(panel, answer.json);
   } catch (e) {
-    patchPanel(key, { refusal: e && (e.text || e.json && e.json.text) || "保存できませんでした" });
+    patchPanel(key, { refusal: problemText2(e, "保存できませんでした") });
   }
 }
 async function deletePanel(key) {
@@ -480,14 +504,19 @@ async function deletePanel(key) {
   patchPanel(key, { refusal: "", confirming: false });
   try {
     const answer = await del2("profile", panel.saved.name, panel.file, panel.hash || hashOf(panel.file), undefined, projectOf(panel));
-    applySaved(panel, answer.json && answer.json || {});
+    applySaved(panel, answer.json);
   } catch (e) {
-    patchPanel(key, { refusal: e && (e.text || e.json && e.json.text) || "削除できませんでした" });
+    patchPanel(key, { refusal: problemText2(e, "削除できませんでした") });
   }
 }
 function applySaved(panel, answer) {
-  const model = modelOf(answer, panel.group);
-  if (!GROUPED && answer.hashes) {
+  const list = {
+    items: answer && answer.items || null,
+    hashes: answer && answer.hashes || {},
+    files: answer && answer.files || []
+  };
+  const model = modelOf(list, panel.group);
+  if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }
   const order = GROUPED ? groupOrder() : [""];
@@ -496,7 +525,9 @@ function applySaved(panel, answer) {
     const key = row.group || "";
     if (!byGroup.has(key))
       byGroup.set(key, []);
-    byGroup.get(key).push(row);
+    const group = byGroup.get(key);
+    if (group)
+      group.push(row);
   });
   byGroup.set(panel.group || "", model.rows.map(rowOf));
   const next = order.flatMap((key) => byGroup.get(key) || []);
@@ -592,7 +623,7 @@ function initAssign() {
     empty: !!card.empty,
     teams: (card.teams || []).map((team) => ({
       name: team.name,
-      place: team.place || "project",
+      place: placeOf(team.place || "project"),
       hash: team.hash,
       path: team.path,
       members: team.members || 0,
@@ -630,18 +661,18 @@ function teamMissing(team) {
 async function saveTeam(name) {
   const team = assignTeams().find((t) => t.name === name);
   if (!team)
-    return;
+    return false;
   const ops = (team.rows || []).filter(pickChanged).map((row) => row.key.startsWith("m") ? { kind: "memberProfile", member: row.name, profile: row.profile } : { kind: "workerProfile", from: row.role, purpose: row.name, profile: row.profile });
   try {
     const answer = await save2("team", team.name, { place: team.place || "project", doc: { ops }, hash: team.hash });
-    const json = answer.json && answer.json || {};
+    const json = answer.json;
     assign.value = {
       ...assign.value,
-      teams: assign.value.teams.map((t) => t.name === name ? { ...t, hash: json.hash || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) } : t)
+      teams: assign.value.teams.map((t) => t.name === name ? { ...t, hash: json && json.hash || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) } : t)
     };
     return true;
   } catch (e) {
-    const text = e && (e.text || e.json && e.json.text) || "保存できませんでした";
+    const text = problemText2(e, "保存できませんでした");
     assign.value = { ...assign.value, teams: assign.value.teams.map((t) => t.name === name ? { ...t, refusal: text } : t) };
     return false;
   }
@@ -673,16 +704,16 @@ function tellYaml(file, one) {
 }
 function restore(carried) {
   (carried.rows || []).forEach((c) => {
-    if (c.hash && c.hash !== hashOf(c.file))
+    if (c.hash && c.hash !== hashOf(placeOf(c.file)))
       return;
-    const found = allPanels().find(({ panel }) => panel.file === c.file && (panel.saved ? panel.saved.name : null) === c.saved);
+    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
       patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
       return;
     }
     if (c.saved)
       return;
-    const row = addRow(c.file, CURRENT);
+    const row = addRow(placeOf(c.file), CURRENT);
     patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
   });
   (carried.ytexts || []).forEach((c) => {
@@ -709,7 +740,7 @@ function restore(carried) {
     tellDirty();
 }
 
-// profiles/actions.js
+// profiles/actions.ts
 function pressNew() {
   clearFilter();
   const row = addRow("project", CURRENT);
@@ -874,7 +905,9 @@ function inputField(key, field, index, value) {
 }
 var timers = new Map;
 function scheduleCheck(key) {
-  clearTimeout(timers.get(key));
+  const timer = timers.get(key);
+  if (timer !== undefined)
+    clearTimeout(timer);
   timers.set(key, setTimeout(() => {
     checkPanel(key);
   }, 300));
@@ -882,8 +915,29 @@ function scheduleCheck(key) {
 function initPanel(key) {
   checkPanel(key);
 }
+// ../../../tools/webvendor/node_modules/preact/jsx-runtime/dist/jsxRuntime.module.js
+var f = 0;
+function u(e, t, n, o, i, u) {
+  t || (t = {});
+  var a, c, p = t;
+  if ("ref" in p)
+    for (c in p = {}, t)
+      c == "ref" ? a = t[c] : p[c] = t[c];
+  var l2 = { type: e, props: p, key: n, ref: a, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: undefined, __v: --f, __i: -1, __u: 0, __source: i, __self: u };
+  if (typeof e == "function" && (a = e.defaultProps))
+    for (c in a)
+      p[c] === undefined && (p[c] = a[c]);
+  return l.vnode && l.vnode(l2), l2;
+}
 
-// profiles/view.js
+// profiles/view.tsx
+function inputValue(e) {
+  const t = e.target;
+  return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ? t.value : "";
+}
+function checkedOf(e) {
+  return e.target instanceof HTMLInputElement ? e.target.checked : false;
+}
 function chipsURL(kind) {
   const params = new URLSearchParams;
   if (kind)
@@ -894,28 +948,121 @@ function chipsURL(kind) {
   return "/profiles" + (search ? "?" + search : "");
 }
 function Toolbar() {
-  return html`<div class="toolbar">
-    <button class="btn primary" data-act="new" onClick=${pressNew}>＋ プロファイルを追加</button>
-    <div class="filters">
-      ${chips.value.map((chip) => html`<a class=${"fchip" + (chip.name === filterKind.value ? " on" : "")} data-act="kind-filter" data-k=${chip.name} href=${chipsURL(chip.name)} aria-pressed=${chip.name === filterKind.value ? "true" : "false"} onClick=${(e) => {
-    e.preventDefault();
-    pressFilter(chip.name);
-  }}>${chip.name ? html`<i class=${"sw " + chip.kindClass}></i>${chip.name}` : "すべて"}<span class="n">${chip.count}</span></a>`)}
-    </div>
-    <input id="q" class="search" type="search" placeholder="プロファイル名" value=${query.value} autocomplete="off" onInput=${(e) => pressQuery(e.target.value)} />
-  </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "toolbar",
+    children: [
+      /* @__PURE__ */ u("button", {
+        class: "btn primary",
+        "data-act": "new",
+        onClick: pressNew,
+        children: "＋ プロファイルを追加"
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "filters",
+        children: chips.value.map((chip) => /* @__PURE__ */ u("a", {
+          class: "fchip" + (chip.name === filterKind.value ? " on" : ""),
+          "data-act": "kind-filter",
+          "data-k": chip.name,
+          href: chipsURL(chip.name),
+          "aria-pressed": chip.name === filterKind.value ? "true" : "false",
+          onClick: (e) => {
+            e.preventDefault();
+            pressFilter(chip.name);
+          },
+          children: [
+            chip.name ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("i", {
+                  class: "sw " + chip.kindClass
+                }),
+                chip.name
+              ]
+            }) : "すべて",
+            /* @__PURE__ */ u("span", {
+              class: "n",
+              children: chip.count
+            })
+          ]
+        }))
+      }),
+      /* @__PURE__ */ u("input", {
+        id: "q",
+        class: "search",
+        type: "search",
+        placeholder: "プロファイル名",
+        value: query.value,
+        autocomplete: "off",
+        onInput: (e) => pressQuery(inputValue(e))
+      })
+    ]
+  });
 }
 function PersonChip({ c }) {
-  const inner = c.worker ? html`<span class="wk">ワーカー</span><span class="r">${c.role}</span>` : html`${c.who}<span class="g">${c.role}</span>`;
-  return html`<a class="uchip" href=${"/profiles/assign#" + c.def + "." + c.id} data-act="goto" data-g=${c.def} data-k=${c.id}><span class="g">${c.def}</span>${inner}</a>`;
+  const inner = c.worker ? /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "wk",
+        children: "ワーカー"
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "r",
+        children: c.role
+      })
+    ]
+  }) : /* @__PURE__ */ u(S, {
+    children: [
+      c.who,
+      /* @__PURE__ */ u("span", {
+        class: "g",
+        children: c.role
+      })
+    ]
+  });
+  return /* @__PURE__ */ u("a", {
+    class: "uchip",
+    href: "/profiles/assign#" + c.def + "." + c.id,
+    "data-act": "goto",
+    "data-g": c.def,
+    "data-k": c.id,
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "g",
+        children: c.def
+      }),
+      inner
+    ]
+  });
 }
 function PlacePills({ row }) {
   if (!GROUPED) {
-    return (row.places || []).map((place) => html`<span class=${"pill " + place.state}>${place.label === "プロジェクト" ? currentProjectName() : place.label}</span>`);
+    return /* @__PURE__ */ u(S, {
+      children: (row.places || []).map((place) => /* @__PURE__ */ u("span", {
+        class: "pill " + place.state,
+        children: place.label === "プロジェクト" ? currentProjectName() : place.label
+      }))
+    });
   }
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
-  return html`<span class="pill on">${row.group === "global" ? "グローバル" : groupName(row.group)}</span>${row.group && row.group !== "global" && (over[row.name] || []).includes(row.group) ? html`<span class="pill shadow">グローバル</span>` : ""}${row.group === "global" ? (over[row.name] || []).map((p) => html`<span class="pill hq-ov">${groupName(p)} で上書き</span>`) : ""}`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "pill on",
+        children: row.group === "global" ? "グローバル" : groupName(row.group)
+      }),
+      row.group && row.group !== "global" && (over[row.name] || []).includes(row.group) ? /* @__PURE__ */ u("span", {
+        class: "pill shadow",
+        children: "グローバル"
+      }) : "",
+      row.group === "global" ? (over[row.name] || []).map((p) => /* @__PURE__ */ u("span", {
+        class: "pill hq-ov",
+        children: [
+          groupName(p),
+          " で上書き"
+        ]
+      })) : ""
+    ]
+  });
 }
 function Row({ row }) {
   const detail = A(null);
@@ -933,26 +1080,149 @@ function Row({ row }) {
   const name = row.isNew && first ? first.draft.name : row.name;
   const kind = row.isNew && first ? first.draft.kind : row.kind;
   const kindClass = row.isNew && first ? classOf(first.draft.kind) : row.kindClass;
-  return html`<div class=${"row" + (row.open ? " open" : "") + (rowUnsaved(row) ? " unsaved" : "")} data-key=${row.key} data-name=${row.name} data-group=${row.group || ""} data-kind=${row.isNew ? "claude" : kind}>
-    <div class="sum" role="button" tabindex="0" aria-expanded=${row.open ? "true" : "false"} data-act="toggle" ref=${sum} onClick=${() => pressToggle(row.key)} onKeyDown=${(e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      pressToggle(row.key);
-    }
-  }}>
-      <span class="chev"></span>
-      <span class="c-name"><span class="nm">${name ? name : html`<span class="none">—</span>`}</span>${row.isNew ? html`<span class="tag">新規</span>` : ""}${row.err > 0 ? html`<span class="sev err">問題 ${row.err}</span>` : row.warn > 0 ? html`<span class="sev warn">警告 ${row.warn}</span>` : ""}</span>
-      <span class="c-kind">${kind ? html`<i class=${"sw " + kindClass}></i>${kind}` : ""}</span>
-      <span class="c-place">${row.isNew && (row.places || []).length === 0 ? html`<span class="pill pending">${GROUPED ? groupName(row.group) : labelOf(first ? first.file : "project")}</span>` : html`<${PlacePills} row=${row} />`}</span>
-      <span class="c-args">${row.args ? row.args : html`<span class="none">—</span>`}</span>
-      <span class="c-env">${row.env && row.env.length ? [row.env.map((value) => html`<span>${value}</span>`), row.more > 0 ? html`<span class="more">+${row.more}</span>` : ""] : html`<span class="none">—</span>`}</span>
-      <span class="c-users">${row.users > 0 ? html`<b>${row.users}</b><span>${row.roles}</span>` : html`<span class="none">0</span>`}</span>
-    </div>
-    <div class="detail" ref=${detail} hidden=${!row.open}>
-      ${row.open ? html`${row.chips && row.chips.length ? html`<div class="usage"><span class="lbl">使っている人</span>${row.chips.map((c) => html`<${PersonChip} c=${c} />`)}</div>` : ""}
-      <div class=${"panels" + (row.panels.length > 1 ? " two" : "")}>${row.panels.map((panel) => html`<${Panel} key=${panel.key} panel=${panel} />`)}</div>` : ""}
-    </div>
-  </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "row" + (row.open ? " open" : "") + (rowUnsaved(row) ? " unsaved" : ""),
+    "data-key": row.key,
+    "data-name": row.name,
+    "data-group": row.group || "",
+    "data-kind": row.isNew ? "claude" : kind,
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "sum",
+        role: "button",
+        tabindex: 0,
+        "aria-expanded": row.open ? "true" : "false",
+        "data-act": "toggle",
+        ref: sum,
+        onClick: () => pressToggle(row.key),
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            pressToggle(row.key);
+          }
+        },
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "chev"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-name",
+            children: [
+              /* @__PURE__ */ u("span", {
+                class: "nm",
+                children: name ? name : /* @__PURE__ */ u("span", {
+                  class: "none",
+                  children: "—"
+                })
+              }),
+              row.isNew ? /* @__PURE__ */ u("span", {
+                class: "tag",
+                children: "新規"
+              }) : "",
+              row.err > 0 ? /* @__PURE__ */ u("span", {
+                class: "sev err",
+                children: [
+                  "問題 ",
+                  row.err
+                ]
+              }) : row.warn > 0 ? /* @__PURE__ */ u("span", {
+                class: "sev warn",
+                children: [
+                  "警告 ",
+                  row.warn
+                ]
+              }) : ""
+            ]
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-kind",
+            children: kind ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("i", {
+                  class: "sw " + kindClass
+                }),
+                kind
+              ]
+            }) : ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-place",
+            children: row.isNew && (row.places || []).length === 0 ? /* @__PURE__ */ u("span", {
+              class: "pill pending",
+              children: GROUPED ? groupName(row.group) : labelOf(first ? first.file : "project")
+            }) : /* @__PURE__ */ u(PlacePills, {
+              row
+            })
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-args",
+            children: row.args ? row.args : /* @__PURE__ */ u("span", {
+              class: "none",
+              children: "—"
+            })
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-env",
+            children: row.env && row.env.length ? [row.env.map((value) => /* @__PURE__ */ u("span", {
+              children: value
+            })), row.more > 0 ? /* @__PURE__ */ u("span", {
+              class: "more",
+              children: [
+                "+",
+                row.more
+              ]
+            }) : ""] : /* @__PURE__ */ u("span", {
+              class: "none",
+              children: "—"
+            })
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "c-users",
+            children: row.users > 0 ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("b", {
+                  children: row.users
+                }),
+                /* @__PURE__ */ u("span", {
+                  children: row.roles
+                })
+              ]
+            }) : /* @__PURE__ */ u("span", {
+              class: "none",
+              children: "0"
+            })
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "detail",
+        ref: detail,
+        hidden: !row.open,
+        children: row.open ? /* @__PURE__ */ u(S, {
+          children: [
+            row.chips && row.chips.length ? /* @__PURE__ */ u("div", {
+              class: "usage",
+              children: [
+                /* @__PURE__ */ u("span", {
+                  class: "lbl",
+                  children: "使っている人"
+                }),
+                row.chips.map((c) => /* @__PURE__ */ u(PersonChip, {
+                  c
+                }))
+              ]
+            }) : "",
+            /* @__PURE__ */ u("div", {
+              class: "panels" + (row.panels.length > 1 ? " two" : ""),
+              children: row.panels.map((panel) => /* @__PURE__ */ u(Panel, {
+                panel
+              }, panel.key))
+            })
+          ]
+        }) : ""
+      })
+    ]
+  });
 }
 function badOf(panel) {
   const out = { name: false, kind: false, args: new Set, env: new Map };
@@ -992,36 +1262,269 @@ function Panel({ panel }) {
       confirmButton.current.focus();
   }, [focusAsk.value]);
   const saved = panel.saved;
-  const acts = html`${saved ? html`<button class="btn" data-act="dup" onClick=${() => pressDup(panel.key)}>複製</button>` : ""}${saved && !panel.both ? html`<button class="btn" data-act="copy" onClick=${() => pressCopy(panel.key)}>${panel.otherLabel}にコピー</button>` : ""}${saved ? html`<button class="btn danger" data-act="del" onClick=${() => pressDel(panel.key)}>削除</button>` : html`<button class="btn danger" data-act="discard" onClick=${() => pressDiscard(panel.key)}>取り消し</button>`}`;
-  return html`<section class=${"panel" + (panel.shadowed ? " shadowed" : "")} data-key=${panel.key} data-file=${panel.file} data-group=${panel.group || ""} data-saved=${saved ? "1" : undefined} data-users=${panel.users} data-rename-users=${panel.renameUsers} data-hash=${panel.hash}>
-    <header class="ph">${panel.layerSwitch ? html`<div class="seg small">${["project", "global"].map((x) => html`<button class=${panel.file === x ? "on" : ""} data-act="pick-layer" data-x=${x} onClick=${() => pressLayer(panel.key, x)}>${labelOf(x)}</button>`)}</div>` : html`<span class="ln">${GROUPED && panel.group && panel.group !== "global" ? groupName(panel.group) : panel.label}</span>`}<code class="path">${panel.path}</code>${panel.both ? html`<span class=${"state " + (panel.shadowed ? "off" : "on")}>${panel.shadowed ? "隠れている" : "効いている"}</span>` : ""}</header>
-    <div class="field"><label>プロファイル名</label><div>
-      <input class=${"in-name" + (changed.name ? " changed" : "") + (bad.name ? " bad" : "")} data-f="name" value=${panel.draft.name} spellcheck="false" autocomplete="off" ref=${nameInput} onInput=${(e) => inputField(panel.key, "name", 0, e.target.value)} />
-      <label class="rename" hidden=${!hints}><input type="checkbox" data-f="rename" checked=${panel.rename} onChange=${(e) => pressRename(panel.key, e.target.checked)} /><span>${hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ""}</span></label>
-      <ul class="vm" data-for="name">${problemsOf(panel, "name")}</ul>
-    </div></div>
-    <div class="field"><label>kind</label><div>
-      <div class=${"seg" + (changed.kind ? " changed" : "") + (bad.kind ? " bad" : "")} data-f="kind">${BASE_KINDS.map((k) => html`<button class=${panel.draft.kind === k ? "on" : ""} data-act="set-kind" data-k=${k} aria-pressed=${panel.draft.kind === k ? "true" : "false"} onClick=${() => pressSetKind(panel.key, k)}><i class=${"sw " + classOf(k)}></i>${k}</button>`)}${kindSelect(panel)}</div>
-      <ul class="vm" data-for="kind">${problemsOf(panel, "kind")}</ul>
-    </div></div>
-    <div class="field"><label>引数</label><div>
-      <${Args} panel=${panel} changed=${changed} bad=${bad} />
-      <ul class="vm" data-for="args">${problemsOf(panel, "args")}</ul>
-    </div></div>
-    <div class="field"><label>環境変数</label><div>
-      <div class="env">${panel.draft.env.map((pair, i) => html`<${EnvRow} key=${"env" + i} index=${i} pair=${pair} changed=${changed.env[i] || {}} bad=${bad.env.get(i) || {}} panelKey=${panel.key} />`)}<button class="add" data-act="env-add" aria-label="環境変数を足す" onClick=${() => pressEnvAdd(panel.key)}>＋</button></div>
-      <ul class="vm" data-for="env">${problemsOf(panel, "env")}</ul>
-    </div></div>
-    <footer class="pf">
-      <button class="btn primary" data-act="save" disabled=${saveBlocked(panel)} onClick=${() => pressSave(panel.key)}>保存</button><span class="dirty">${saved && changed.count ? `${changed.count} か所` : ""}</span><span class="vcount">${counts(panel)}</span>${panel.savedLine ? html`<span class="ok">保存しました</span>` : ""}${panel.refusal ? html`<span class="sev err refusal">${panel.refusal}</span>` : ""}
-      <span class="acts">${panel.confirming ? html`<button class="btn danger solid" data-act="del-yes" ref=${confirmButton} onClick=${() => pressDelYes(panel.key)}>削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}</button><button class="btn" data-act="del-no" onClick=${() => pressDelNo(panel.key)}>やめる</button>` : acts}</span>
-    </footer>
-  </section>`;
+  const acts = /* @__PURE__ */ u(S, {
+    children: [
+      saved ? /* @__PURE__ */ u("button", {
+        class: "btn",
+        "data-act": "dup",
+        onClick: () => pressDup(panel.key),
+        children: "複製"
+      }) : "",
+      saved && !panel.both ? /* @__PURE__ */ u("button", {
+        class: "btn",
+        "data-act": "copy",
+        onClick: () => pressCopy(panel.key),
+        children: [
+          panel.otherLabel,
+          "にコピー"
+        ]
+      }) : "",
+      saved ? /* @__PURE__ */ u("button", {
+        class: "btn danger",
+        "data-act": "del",
+        onClick: () => pressDel(panel.key),
+        children: "削除"
+      }) : /* @__PURE__ */ u("button", {
+        class: "btn danger",
+        "data-act": "discard",
+        onClick: () => pressDiscard(panel.key),
+        children: "取り消し"
+      })
+    ]
+  });
+  return /* @__PURE__ */ u("section", {
+    class: "panel" + (panel.shadowed ? " shadowed" : ""),
+    "data-key": panel.key,
+    "data-file": panel.file,
+    "data-group": panel.group || "",
+    "data-saved": saved ? "1" : undefined,
+    "data-users": panel.users,
+    "data-rename-users": panel.renameUsers,
+    "data-hash": panel.hash,
+    children: [
+      /* @__PURE__ */ u("header", {
+        class: "ph",
+        children: [
+          panel.layerSwitch ? /* @__PURE__ */ u("div", {
+            class: "seg small",
+            children: ["project", "global"].map((x) => /* @__PURE__ */ u("button", {
+              class: panel.file === x ? "on" : "",
+              "data-act": "pick-layer",
+              "data-x": x,
+              onClick: () => pressLayer(panel.key, x),
+              children: labelOf(x)
+            }))
+          }) : /* @__PURE__ */ u("span", {
+            class: "ln",
+            children: GROUPED && panel.group && panel.group !== "global" ? groupName(panel.group) : panel.label
+          }),
+          /* @__PURE__ */ u("code", {
+            class: "path",
+            children: panel.path
+          }),
+          panel.both ? /* @__PURE__ */ u("span", {
+            class: "state " + (panel.shadowed ? "off" : "on"),
+            children: panel.shadowed ? "隠れている" : "効いている"
+          }) : ""
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "field",
+        children: [
+          /* @__PURE__ */ u("label", {
+            children: "プロファイル名"
+          }),
+          /* @__PURE__ */ u("div", {
+            children: [
+              /* @__PURE__ */ u("input", {
+                class: "in-name" + (changed.name ? " changed" : "") + (bad.name ? " bad" : ""),
+                "data-f": "name",
+                value: panel.draft.name,
+                spellcheck: false,
+                autocomplete: "off",
+                ref: nameInput,
+                onInput: (e) => inputField(panel.key, "name", 0, inputValue(e))
+              }),
+              /* @__PURE__ */ u("label", {
+                class: "rename",
+                hidden: !hints,
+                children: [
+                  /* @__PURE__ */ u("input", {
+                    type: "checkbox",
+                    "data-f": "rename",
+                    checked: panel.rename,
+                    onChange: (e) => pressRename(panel.key, checkedOf(e))
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    children: hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ""
+                  })
+                ]
+              }),
+              /* @__PURE__ */ u("ul", {
+                class: "vm",
+                "data-for": "name",
+                children: problemsOf(panel, "name")
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "field",
+        children: [
+          /* @__PURE__ */ u("label", {
+            children: "kind"
+          }),
+          /* @__PURE__ */ u("div", {
+            children: [
+              /* @__PURE__ */ u("div", {
+                class: "seg" + (changed.kind ? " changed" : "") + (bad.kind ? " bad" : ""),
+                "data-f": "kind",
+                children: [
+                  BASE_KINDS.map((k) => /* @__PURE__ */ u("button", {
+                    class: panel.draft.kind === k ? "on" : "",
+                    "data-act": "set-kind",
+                    "data-k": k,
+                    "aria-pressed": panel.draft.kind === k ? "true" : "false",
+                    onClick: () => pressSetKind(panel.key, k),
+                    children: [
+                      /* @__PURE__ */ u("i", {
+                        class: "sw " + classOf(k)
+                      }),
+                      k
+                    ]
+                  })),
+                  kindSelect(panel)
+                ]
+              }),
+              /* @__PURE__ */ u("ul", {
+                class: "vm",
+                "data-for": "kind",
+                children: problemsOf(panel, "kind")
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "field",
+        children: [
+          /* @__PURE__ */ u("label", {
+            children: "引数"
+          }),
+          /* @__PURE__ */ u("div", {
+            children: [
+              /* @__PURE__ */ u(Args, {
+                panel,
+                changed,
+                bad
+              }),
+              /* @__PURE__ */ u("ul", {
+                class: "vm",
+                "data-for": "args",
+                children: problemsOf(panel, "args")
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "field",
+        children: [
+          /* @__PURE__ */ u("label", {
+            children: "環境変数"
+          }),
+          /* @__PURE__ */ u("div", {
+            children: [
+              /* @__PURE__ */ u("div", {
+                class: "env",
+                children: [
+                  panel.draft.env.map((pair, i) => /* @__PURE__ */ u(EnvRow, {
+                    index: i,
+                    pair,
+                    changed: changed.env[i] || {},
+                    bad: bad.env.get(i) || {},
+                    panelKey: panel.key
+                  }, "env" + i)),
+                  /* @__PURE__ */ u("button", {
+                    class: "add",
+                    "data-act": "env-add",
+                    "aria-label": "環境変数を足す",
+                    onClick: () => pressEnvAdd(panel.key),
+                    children: "＋"
+                  })
+                ]
+              }),
+              /* @__PURE__ */ u("ul", {
+                class: "vm",
+                "data-for": "env",
+                children: problemsOf(panel, "env")
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("footer", {
+        class: "pf",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            "data-act": "save",
+            disabled: saveBlocked(panel),
+            onClick: () => pressSave(panel.key),
+            children: "保存"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "dirty",
+            children: saved && changed.count ? `${changed.count} か所` : ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "vcount",
+            children: counts(panel)
+          }),
+          panel.savedLine ? /* @__PURE__ */ u("span", {
+            class: "ok",
+            children: "保存しました"
+          }) : "",
+          panel.refusal ? /* @__PURE__ */ u("span", {
+            class: "sev err refusal",
+            children: panel.refusal
+          }) : "",
+          /* @__PURE__ */ u("span", {
+            class: "acts",
+            children: panel.confirming ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("button", {
+                  class: "btn danger solid",
+                  "data-act": "del-yes",
+                  ref: confirmButton,
+                  onClick: () => pressDelYes(panel.key),
+                  children: [
+                    "削除する",
+                    panel.users ? `（${panel.users} 人が使っている）` : ""
+                  ]
+                }),
+                /* @__PURE__ */ u("button", {
+                  class: "btn",
+                  "data-act": "del-no",
+                  onClick: () => pressDelNo(panel.key),
+                  children: "やめる"
+                })
+              ]
+            }) : acts
+          })
+        ]
+      })
+    ]
+  });
 }
 function Args({ panel, changed, bad }) {
   const drop = (event) => {
-    const target = event.target.closest(".arg");
-    const source = event.currentTarget.querySelector(".dragging");
+    const found = event.target instanceof Element ? event.target.closest(".arg") : null;
+    const target = found instanceof HTMLElement ? found : null;
+    const holder = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    const dragged = holder ? holder.querySelector(".dragging") : null;
+    const source = dragged instanceof HTMLElement ? dragged : null;
     if (!target || !source || target === source)
       return;
     event.preventDefault();
@@ -1038,19 +1541,65 @@ function Args({ panel, changed, bad }) {
     source.removeAttribute("draggable");
     reorderArgs(panel.key, order);
   };
-  return html`<div class="args" onDragOver=${(e) => {
-    if (e.target.closest(".arg"))
-      e.preventDefault();
-  }} onDrop=${drop}><span class="bin">${panel.draft.kind}</span>${panel.draft.args.map((arg, i) => html`<${ArgChip} key=${"arg" + i} index=${i} arg=${arg} changed=${changed.args[i]} bad=${bad.args.has(i)} panelKey=${panel.key} />`)}<button class="add" data-act="arg-add" aria-label="引数を足す" onClick=${() => pressArgAdd(panel.key)}>＋</button></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "args",
+    onDragOver: (e) => {
+      if (e.target instanceof Element && e.target.closest(".arg"))
+        e.preventDefault();
+    },
+    onDrop: drop,
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "bin",
+        children: panel.draft.kind
+      }),
+      panel.draft.args.map((arg, i) => /* @__PURE__ */ u(ArgChip, {
+        index: i,
+        arg,
+        changed: changed.args[i] || false,
+        bad: bad.args.has(i),
+        panelKey: panel.key
+      }, "arg" + i)),
+      /* @__PURE__ */ u("button", {
+        class: "add",
+        "data-act": "arg-add",
+        "aria-label": "引数を足す",
+        onClick: () => pressArgAdd(panel.key),
+        children: "＋"
+      })
+    ]
+  });
 }
 function problemsOf(panel, field) {
   const list = (panel.problems || []).filter((p) => (p.at === "line" ? "" : p.at || "").split(".")[0] === field);
-  return list.map((p) => html`<li><span class=${"sev " + (p.sev === "err" ? "err" : "warn")}>${p.sev === "err" ? "問題" : "警告"}</span><span>${p.text}</span></li>`);
+  return list.map((p) => /* @__PURE__ */ u("li", {
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "sev " + (p.sev === "err" ? "err" : "warn"),
+        children: p.sev === "err" ? "問題" : "警告"
+      }),
+      /* @__PURE__ */ u("span", {
+        children: p.text
+      })
+    ]
+  }));
 }
 function counts(panel) {
   const errs = (panel.problems || []).filter((p) => p.sev === "err").length;
   const warns = (panel.problems || []).length - errs;
-  return [errs ? html`<span class="sev err">問題 ${errs}</span>` : "", warns ? html`<span class="sev warn">警告 ${warns}</span>` : ""];
+  return [errs ? /* @__PURE__ */ u("span", {
+    class: "sev err",
+    children: [
+      "問題 ",
+      errs
+    ]
+  }) : "", warns ? /* @__PURE__ */ u("span", {
+    class: "sev warn",
+    children: [
+      "警告 ",
+      warns
+    ]
+  }) : ""];
 }
 function kindSelect(panel) {
   const rest = otherKinds().filter((k) => !BASE_KINDS.includes(k));
@@ -1058,7 +1607,25 @@ function kindSelect(panel) {
   if (kind && !BASE_KINDS.includes(kind) && !rest.includes(kind))
     rest.push(kind);
   const chosen = BASE_KINDS.includes(kind) ? "" : kind;
-  return html`<span class="sel"><select data-f="kind-other" aria-label="ほかの kind" value=${chosen} onChange=${(e) => pressKindOther(panel.key, e.target.value)}><option value="">ほか</option>${rest.map((k) => html`<option value=${k}>${k}</option>`)}</select></span>`;
+  return /* @__PURE__ */ u("span", {
+    class: "sel",
+    children: /* @__PURE__ */ u("select", {
+      "data-f": "kind-other",
+      "aria-label": "ほかの kind",
+      value: chosen,
+      onChange: (e) => pressKindOther(panel.key, inputValue(e)),
+      children: [
+        /* @__PURE__ */ u("option", {
+          value: "",
+          children: "ほか"
+        }),
+        rest.map((k) => /* @__PURE__ */ u("option", {
+          value: k,
+          children: k
+        }))
+      ]
+    })
+  });
 }
 function ArgChip({ index, arg, changed, bad, panelKey }) {
   const input = A(null);
@@ -1068,15 +1635,49 @@ function ArgChip({ index, arg, changed, bad, panelKey }) {
       input.current.focus();
   }, [focusAsk.value]);
   const size = Math.max(String(arg).length, 3);
-  return html`<span class=${"arg" + (String(arg).startsWith("-") ? " flag" : "") + (changed ? " changed" : "") + (bad ? " bad" : "")} data-i=${index} onPointerDown=${(e) => {
-    if (e.target.closest(".grip"))
-      e.currentTarget.setAttribute("draggable", "true");
-  }} onDragStart=${(e) => {
-    e.currentTarget.classList.add("dragging");
-  }} onDragEnd=${(e) => {
-    e.currentTarget.classList.remove("dragging");
-    e.currentTarget.removeAttribute("draggable");
-  }}><span class="grip" aria-hidden="true">⋮</span><input data-f="arg" data-i=${index} value=${arg} size=${size} spellcheck="false" autocomplete="off" ref=${input} onInput=${(e) => inputField(panelKey, "arg", index, e.target.value)} /><button class="x" data-act="arg-del" data-i=${index} aria-label="${arg} を消す" onClick=${() => pressArgDel(panelKey, index)}>×</button></span>`;
+  return /* @__PURE__ */ u("span", {
+    class: "arg" + (String(arg).startsWith("-") ? " flag" : "") + (changed ? " changed" : "") + (bad ? " bad" : ""),
+    "data-i": index,
+    onPointerDown: (e) => {
+      if (e.target instanceof Element && e.target.closest(".grip") && e.currentTarget instanceof HTMLElement)
+        e.currentTarget.setAttribute("draggable", "true");
+    },
+    onDragStart: (e) => {
+      if (e.currentTarget instanceof HTMLElement)
+        e.currentTarget.classList.add("dragging");
+    },
+    onDragEnd: (e) => {
+      if (e.currentTarget instanceof HTMLElement) {
+        e.currentTarget.classList.remove("dragging");
+        e.currentTarget.removeAttribute("draggable");
+      }
+    },
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "grip",
+        "aria-hidden": "true",
+        children: "⋮"
+      }),
+      /* @__PURE__ */ u("input", {
+        "data-f": "arg",
+        "data-i": index,
+        value: arg,
+        size,
+        spellcheck: false,
+        autocomplete: "off",
+        ref: input,
+        onInput: (e) => inputField(panelKey, "arg", index, inputValue(e))
+      }),
+      /* @__PURE__ */ u("button", {
+        class: "x",
+        "data-act": "arg-del",
+        "data-i": index,
+        "aria-label": `${arg} を消す`,
+        onClick: () => pressArgDel(panelKey, index),
+        children: "×"
+      })
+    ]
+  });
 }
 function EnvRow({ index, pair, changed, bad, panelKey }) {
   const key = A(null);
@@ -1092,19 +1693,101 @@ function EnvRow({ index, pair, changed, bad, panelKey }) {
     val.current.style.height = "auto";
     val.current.style.height = `${val.current.scrollHeight + 2}px`;
   }, [pair.value]);
-  return html`<div class="envrow" data-i=${index}><input class=${(changed.key ? "changed" : "") + (bad.key ? " bad" : "")} data-f="ek" data-i=${index} value=${pair.key} spellcheck="false" autocomplete="off" ref=${key} onInput=${(e) => inputField(panelKey, "ek", index, e.target.value)} /><span class="eq">=</span><textarea class=${(changed.value ? "changed" : "") + (bad.value ? " bad" : "")} data-f="ev" data-i=${index} rows="1" spellcheck="false" value=${pair.value} ref=${val} onInput=${(e) => inputField(panelKey, "ev", index, e.target.value)}></textarea><button class="x" data-act="env-del" data-i=${index} aria-label="${pair.key} を消す" onClick=${() => pressEnvDel(panelKey, index)}>×</button></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "envrow",
+    "data-i": index,
+    children: [
+      /* @__PURE__ */ u("input", {
+        class: (changed.key ? "changed" : "") + (bad.key ? " bad" : ""),
+        "data-f": "ek",
+        "data-i": index,
+        value: pair.key,
+        spellcheck: false,
+        autocomplete: "off",
+        ref: key,
+        onInput: (e) => inputField(panelKey, "ek", index, inputValue(e))
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "eq",
+        children: "="
+      }),
+      /* @__PURE__ */ u("textarea", {
+        class: (changed.value ? "changed" : "") + (bad.value ? " bad" : ""),
+        "data-f": "ev",
+        "data-i": index,
+        rows: 1,
+        spellcheck: false,
+        value: pair.value,
+        ref: val,
+        onInput: (e) => inputField(panelKey, "ev", index, inputValue(e))
+      }),
+      /* @__PURE__ */ u("button", {
+        class: "x",
+        "data-act": "env-del",
+        "data-i": index,
+        "aria-label": `${pair.key} を消す`,
+        onClick: () => pressEnvDel(panelKey, index),
+        children: "×"
+      })
+    ]
+  });
 }
 function List() {
   const visible = shownRows.value;
-  return html`<${Toolbar} />
-    <div class="list">
-      <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
-      <div id="rows">
-        ${rows.value.length === 0 ? html`<p class="none">プロファイルはありません</p>` : ""}
-        <p class="none" id="no-match" hidden=${rows.value.length === 0 || visible.length > 0}>合うプロファイルはありません</p>
-        ${groupedRows(visible).map((one) => one.head !== undefined ? html`<${GroupHead} group=${one.head} />` : html`<${Row} key=${one.row.key} row=${one.row} />`)}
-      </div>
-    </div>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(Toolbar, {}),
+      /* @__PURE__ */ u("div", {
+        class: "list",
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "head",
+            children: [
+              /* @__PURE__ */ u("span", {}),
+              /* @__PURE__ */ u("span", {
+                children: "プロファイル名"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "kind"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "プロジェクト"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "引数"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "環境変数"
+              }),
+              /* @__PURE__ */ u("span", {
+                children: "使っている人"
+              })
+            ]
+          }),
+          /* @__PURE__ */ u("div", {
+            id: "rows",
+            children: [
+              rows.value.length === 0 ? /* @__PURE__ */ u("p", {
+                class: "none",
+                children: "プロファイルはありません"
+              }) : "",
+              /* @__PURE__ */ u("p", {
+                class: "none",
+                id: "no-match",
+                hidden: rows.value.length === 0 || visible.length > 0,
+                children: "合うプロファイルはありません"
+              }),
+              groupedRows(visible).map((one) => ("head" in one) ? /* @__PURE__ */ u(GroupHead, {
+                group: one.head
+              }) : /* @__PURE__ */ u(Row, {
+                row: one.row
+              }, one.row.key))
+            ]
+          })
+        ]
+      })
+    ]
+  });
 }
 function groupedRows(list) {
   if (!GROUPED)
@@ -1124,14 +1807,54 @@ function groupedRows(list) {
 function GroupHead({ group }) {
   const g = (GROUPS || []).find((x) => (x.global ? "global" : x.project && x.project.path) === group);
   if (!g)
-    return html``;
+    return null;
   if (g.global)
-    return html`<div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">${g.display || ""}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
+    return /* @__PURE__ */ u("div", {
+      class: "hq-gh global",
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "hq-gn",
+          children: "グローバル"
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gp",
+          children: g.display || ""
+        }),
+        /* @__PURE__ */ u("span", {
+          class: "hq-gc",
+          children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        })
+      ]
+    });
   const count = (g.list && g.list.items || []).length;
-  return html`<div class="hq-gh"><span class="hq-gn">${g.project ? g.project.name : ""}</span><span class="hq-gp">${g.project ? g.project.display : ""}</span><span class="hq-gc">プロファイル <b>${count}</b></span></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-gh",
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "hq-gn",
+        children: g.project ? g.project.name : ""
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gp",
+        children: g.project ? g.project.display : ""
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "hq-gc",
+        children: [
+          "プロファイル ",
+          /* @__PURE__ */ u("b", {
+            children: count
+          })
+        ]
+      })
+    ]
+  });
 }
 
-// profiles/assign.js
+// profiles/assign.tsx
+function inputValue2(e) {
+  return e.target instanceof HTMLSelectElement ? e.target.value : "";
+}
 var optionKind = (row) => {
   const group = (row.options || []).find((g) => (g.names || []).includes(row.profile));
   return group ? group.kind : "";
@@ -1148,77 +1871,301 @@ function kindCounts() {
 function Kindbar() {
   const kinds = ISLAND.assign && ISLAND.assign.kinds || [];
   const counts = kindCounts();
-  return html`<div class="kindbar">${kinds.map((k) => {
-    const count = counts[k.name] || 0;
-    const grow = Math.max(1, Math.min(20, count));
-    const on = assignKind.value !== null && assignKind.value === k.name;
-    const dim = assignKind.value !== null && !on;
-    return html`<button class=${"kseg " + (k.kindClass || "") + " g" + grow + (dim ? " dim" : "")} data-act="kind-hi" data-k=${k.name} aria-pressed=${on ? "true" : "false"} onClick=${() => pressKind(k.name)}><span>${k.name}</span><b>${count}</b></button>`;
-  })}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "kindbar",
+    children: kinds.map((k) => {
+      const count = counts[k.name] || 0;
+      const grow = Math.max(1, Math.min(20, count));
+      const on = assignKind.value !== null && assignKind.value === k.name;
+      const dim = assignKind.value !== null && !on;
+      return /* @__PURE__ */ u("button", {
+        class: "kseg " + (k.kindClass || "") + " g" + grow + (dim ? " dim" : ""),
+        "data-act": "kind-hi",
+        "data-k": k.name,
+        "aria-pressed": on ? "true" : "false",
+        onClick: () => pressKind(k.name),
+        children: [
+          /* @__PURE__ */ u("span", {
+            children: k.name
+          }),
+          /* @__PURE__ */ u("b", {
+            children: count
+          })
+        ]
+      });
+    })
+  });
 }
 function Pick({ row, team }) {
   const kind = optionKind(row);
-  return html`<div class="pick">${pickChanged(row) ? html`<s class="was">${row.saved}</s>` : ""}<i class=${"sw " + (kind ? "k-" + kind : row.kindCls || "")}></i><span class="sel"><select data-k=${row.key} data-act="pick" aria-label="${row.name} のプロファイル" onChange=${(e) => {
-    setPick(team, row.key, e.target.value);
-    tellDirty();
-  }}>${row.missing ? html`<option selected value=${row.profile} data-kind="">${row.profile}</option>` : ""}${(row.options || []).map((g) => html`<optgroup label=${g.kind}>${(g.names || []).map((name) => html`<option value=${name} data-kind=${g.kind} selected=${name === row.profile}>${name}</option>`)}</optgroup>`)}</select></span></div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "pick",
+    children: [
+      pickChanged(row) ? /* @__PURE__ */ u("s", {
+        class: "was",
+        children: row.saved
+      }) : "",
+      /* @__PURE__ */ u("i", {
+        class: "sw " + (kind ? "k-" + kind : row.kindCls || "")
+      }),
+      /* @__PURE__ */ u("span", {
+        class: "sel",
+        children: /* @__PURE__ */ u("select", {
+          "data-k": row.key,
+          "data-act": "pick",
+          "aria-label": `${row.name} のプロファイル`,
+          onChange: (e) => {
+            setPick(team, row.key, inputValue2(e));
+            tellDirty();
+          },
+          children: [
+            row.missing ? /* @__PURE__ */ u("option", {
+              selected: true,
+              value: row.profile,
+              "data-kind": "",
+              children: row.profile
+            }) : "",
+            (row.options || []).map((g) => /* @__PURE__ */ u("optgroup", {
+              label: g.kind,
+              children: (g.names || []).map((name) => /* @__PURE__ */ u("option", {
+                value: name,
+                "data-kind": g.kind,
+                selected: name === row.profile,
+                children: name
+              }))
+            }))
+          ]
+        })
+      })
+    ]
+  });
 }
-function AssignRow({ row, team }) {
+function AssignRowView({ row, team }) {
   const dim = assignKind.value !== null && optionKind(row) !== assignKind.value;
-  return html`<div class=${"arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (pickChanged(row) ? " changed" : "")} data-k=${row.key} data-saved=${row.saved || ""}>
-    <div class="who">${row.kind === "m" ? html`<code>${row.name}</code><span class="role"><code>role ${row.role}</code></span>` : html`<span class="purpose">${row.name}</span><span class="role"><code>from ${row.role}</code></span>`}</div>
-    <${Pick} row=${row} team=${team} />
-    ${row.missing ? html`<ul class="vm"><li><span class="sev err">問題</span><span>${row.error}</span></li></ul>` : ""}
-  </div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (pickChanged(row) ? " changed" : ""),
+    "data-k": row.key,
+    "data-saved": row.saved || "",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "who",
+        children: row.kind === "m" ? /* @__PURE__ */ u(S, {
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: row.name
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "role",
+              children: /* @__PURE__ */ u("code", {
+                children: [
+                  "role ",
+                  row.role
+                ]
+              })
+            })
+          ]
+        }) : /* @__PURE__ */ u(S, {
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "purpose",
+              children: row.name
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "role",
+              children: /* @__PURE__ */ u("code", {
+                children: [
+                  "from ",
+                  row.role
+                ]
+              })
+            })
+          ]
+        })
+      }),
+      /* @__PURE__ */ u(Pick, {
+        row,
+        team
+      }),
+      row.missing ? /* @__PURE__ */ u("ul", {
+        class: "vm",
+        children: /* @__PURE__ */ u("li", {
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "sev err",
+              children: "問題"
+            }),
+            /* @__PURE__ */ u("span", {
+              children: row.error
+            })
+          ]
+        })
+      }) : ""
+    ]
+  });
 }
-function Team({ team }) {
+function TeamCard({ team }) {
   const dirty = teamDirty(team);
   const missing = teamMissing(team);
   const rows = team.rows || [];
-  return html`<section class="team" data-g=${team.name} data-hash=${team.hash} data-place=${team.place || "project"}>
-    <header class="th"><span class="tl">チーム定義</span><code class="tid">${team.name}</code><span class="pill on">${labelOf(team.place)}</span><span class="tn">${team.members}</span>
-      <span class="tside">${team.err > 0 ? html`<span class="sev err">問題 ${team.err}</span>` : ""}${team.saved && !dirty ? html`<span class="ok">保存しました</span>` : ""}${dirty > 0 ? html`<span class="dirty">${dirty} 人</span><button class="btn primary" data-act="g-save" disabled=${missing > 0} onClick=${() => pressTeamSave(team.name)}>保存</button>` : ""}</span>
-      <code class="path">${team.path}</code>
-      ${team.place === "global" ? html`<span class="tnote" data-role="place-note">グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります</span>` : ""}
-    </header>
-    ${rows.filter((row) => row.kind === "m").map((row) => html`<${AssignRow} key=${row.key} row=${row} team=${team.name} />`)}
-    ${team.workers > 0 ? html`<div class="sub">ワーカー</div>${rows.filter((row) => row.kind === "w").map((row) => html`<${AssignRow} key=${row.key} row=${row} team=${team.name} />`)}` : ""}
-    ${team.refusal ? html`<span class="sev err refusal">${team.refusal}</span>` : ""}
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "team",
+    "data-g": team.name,
+    "data-hash": team.hash,
+    "data-place": team.place || "project",
+    children: [
+      /* @__PURE__ */ u("header", {
+        class: "th",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "tl",
+            children: "チーム定義"
+          }),
+          /* @__PURE__ */ u("code", {
+            class: "tid",
+            children: team.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "pill on",
+            children: labelOf(team.place)
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "tn",
+            children: team.members
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "tside",
+            children: [
+              team.err > 0 ? /* @__PURE__ */ u("span", {
+                class: "sev err",
+                children: [
+                  "問題 ",
+                  team.err
+                ]
+              }) : "",
+              team.saved && !dirty ? /* @__PURE__ */ u("span", {
+                class: "ok",
+                children: "保存しました"
+              }) : "",
+              dirty > 0 ? /* @__PURE__ */ u(S, {
+                children: [
+                  /* @__PURE__ */ u("span", {
+                    class: "dirty",
+                    children: [
+                      dirty,
+                      " 人"
+                    ]
+                  }),
+                  /* @__PURE__ */ u("button", {
+                    class: "btn primary",
+                    "data-act": "g-save",
+                    disabled: missing > 0,
+                    onClick: () => pressTeamSave(team.name),
+                    children: "保存"
+                  })
+                ]
+              }) : ""
+            ]
+          }),
+          /* @__PURE__ */ u("code", {
+            class: "path",
+            children: team.path
+          }),
+          team.place === "global" ? /* @__PURE__ */ u("span", {
+            class: "tnote",
+            "data-role": "place-note",
+            children: "グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります"
+          }) : ""
+        ]
+      }),
+      rows.filter((row) => row.kind === "m").map((row) => /* @__PURE__ */ u(AssignRowView, {
+        row,
+        team: team.name
+      }, row.key)),
+      team.workers > 0 ? /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "sub",
+            children: "ワーカー"
+          }),
+          rows.filter((row) => row.kind === "w").map((row) => /* @__PURE__ */ u(AssignRowView, {
+            row,
+            team: team.name
+          }, row.key))
+        ]
+      }) : "",
+      team.refusal ? /* @__PURE__ */ u("span", {
+        class: "sev err refusal",
+        children: team.refusal
+      }) : ""
+    ]
+  });
 }
 function AssignPage() {
-  return html`<${Kindbar} /><div class="teams">${assign.value.empty ? html`<p class="none">チーム定義はありません</p>` : ""}${(assign.value.teams || []).map((team) => html`<${Team} key=${team.name} team=${team} />`)}</div>`;
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(Kindbar, {}),
+      /* @__PURE__ */ u("div", {
+        class: "teams",
+        children: [
+          assign.value.empty ? /* @__PURE__ */ u("p", {
+            class: "none",
+            children: "チーム定義はありません"
+          }) : "",
+          (assign.value.teams || []).map((team) => /* @__PURE__ */ u(TeamCard, {
+            team
+          }, team.name))
+        ]
+      })
+    ]
+  });
 }
 
-// profiles/yaml.js
-function YamlFile({ file }) {
+// profiles/yaml.tsx
+function YamlFileSection({ file }) {
   const one = yamlState.value.get(file.file) || {};
-  return html`<section class="yed" data-file=${file.file} data-hash=${file.hash}>
-    <${YamlTab2} key=${file.file} file=${file.file} label=${file.label} path=${file.path}
-      text=${file.text} hash=${file.hash} kind="profile" place=${file.file} name="_yaml" problems=${file.problems || []}
-      carried=${one.carried === undefined ? null : one.carried}
-      onState=${(state) => {
-    tellYaml(file.file, { ...yamlState.value.get(file.file) || {}, ...state, carried: null });
-    tellDirty();
-  }} />
-  </section>`;
+  return /* @__PURE__ */ u("section", {
+    class: "yed",
+    "data-file": file.file,
+    "data-hash": file.hash,
+    children: /* @__PURE__ */ u(YamlTab2, {
+      file: file.file,
+      label: file.label,
+      path: file.path,
+      text: file.text,
+      hash: file.hash,
+      kind: "profile",
+      place: file.file,
+      name: "_yaml",
+      problems: file.problems || [],
+      carried: one.carried === undefined ? null : one.carried,
+      onState: (state) => {
+        tellYaml(file.file, { ...yamlState.value.get(file.file) || {}, ...state, carried: null });
+        tellDirty();
+      }
+    }, file.file)
+  });
 }
 function YamlPage() {
-  return html`<div class="yeds">${yamlFiles.value.map((file) => html`<${YamlFile} key=${file.file} file=${file} />`)}</div>`;
+  return /* @__PURE__ */ u("div", {
+    class: "yeds",
+    children: yamlFiles.value.map((file) => /* @__PURE__ */ u(YamlFileSection, {
+      file
+    }, file.file))
+  });
 }
 
-// profiles/main.js
+// profiles/main.tsx
 function App() {
   if (TAB === "assign")
-    return html`<${AssignPage} />`;
+    return /* @__PURE__ */ u(AssignPage, {});
   if (TAB === "yaml")
-    return html`<${YamlPage} />`;
-  return html`<${List} />`;
+    return /* @__PURE__ */ u(YamlPage, {});
+  return /* @__PURE__ */ u(List, {});
 }
 var page = { screen: "profiles", dirty, take, tellDirty, settled: true };
-window.hergyPage = page;
+Object.assign(window, { hergyPage: page });
 view.replaceChildren();
-R(html`<${App} />`, view);
+R(/* @__PURE__ */ u(App, {}), view);
 if (TAB === "assign") {
   initAssign();
   syncAssignURL();
@@ -1238,12 +2185,12 @@ function flashFromHash() {
   const key = id.slice(dot + 1);
   requestAnimationFrame(() => {
     const row = view.querySelector(`.team[data-g="${CSS.escape(team)}"] .arow[data-k="${CSS.escape(key)}"]`);
-    if (!row)
+    if (!(row instanceof HTMLElement))
       return;
     row.scrollIntoView({ block: "center" });
     row.classList.add("flash");
     const select = row.querySelector("select");
-    if (select)
+    if (select instanceof HTMLElement)
       select.focus({ preventScroll: true });
   });
 }
@@ -1251,3 +2198,29 @@ var carried = takeDraft2("profiles");
 if (carried)
   restore(carried);
 tellDirty();
+
+// ---- licences ---------------------------------------------------------
+//
+// preact 10.29.8 — MIT
+//
+// The MIT License (MIT)
+//
+// Copyright (c) 2015-present Jason Miller
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.

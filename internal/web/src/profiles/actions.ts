@@ -1,6 +1,6 @@
-// profiles/actions.js — 一覧のタブの押し込み（spec 4 章、r-c683）。
+// profiles/actions.ts — 一覧のタブの押し込み（spec 4 章、r-c683）。
 //
-// 押し込みはここに集める: 部品（view.js / assign.js）は描き、自分の onClick /
+// 押し込みはここに集める: 部品（view.tsx / assign.tsx）は描き、自分の onClick /
 // onInput からここの関数を直接呼ぶ。だから同じ押し込みが 2 回走ることも、部品が
 // 自分の DOM を書き換えることもない（webui-preact-design 5 章 1）。
 import {
@@ -9,9 +9,11 @@ import {
   patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL,
   syncAssignURL, saveTeam, tellDirty,
 } from './state.js';
+import type { Place } from '../lib/api.js';
+import type { Row } from './types.js';
 
 // ---- the toolbar --------------------------------------------------------
-export function pressNew() {
+export function pressNew(): Row {
   clearFilter();
   const row = addRow('project', CURRENT);
   if (row && row.panels[0]) askFocus(row.panels[0].key, 'name', 0, false);
@@ -19,26 +21,26 @@ export function pressNew() {
   return row;
 }
 
-export function pressFilter(kind) {
+export function pressFilter(kind: string): void {
   filterKind.value = kind || '';
   syncURL();
   tellDirty();
 }
 
-export function pressQuery(value) {
+export function pressQuery(value: string): void {
   query.value = value || '';
   syncURL();
   tellDirty();
 }
 
-export function clearFilter() {
+export function clearFilter(): void {
   filterKind.value = '';
   query.value = '';
   syncURL();
 }
 
 // ---- the rows -----------------------------------------------------------
-export function pressToggle(key) {
+export function pressToggle(key: string): void {
   toggleRow(key);
   const row = rows.value.find((r) => r.key === key);
   if (row && row.open) askScroll(key);
@@ -47,18 +49,18 @@ export function pressToggle(key) {
 }
 
 // ---- the panel ----------------------------------------------------------
-export function pressSetKind(key, kind) {
+export function pressSetKind(key: string, kind: string): void {
   patchPanel(key, (panel) => ({ draft: { ...panel.draft, kind } }));
   scheduleCheck(key);
   tellDirty();
 }
 
-export function pressKindOther(key, kind) {
+export function pressKindOther(key: string, kind: string): void {
   if (!kind) return;
   pressSetKind(key, kind);
 }
 
-export function pressArgAdd(key) {
+export function pressArgAdd(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const args = panel.draft.args.concat(['']);
@@ -68,7 +70,7 @@ export function pressArgAdd(key) {
   tellDirty();
 }
 
-export function pressArgDel(key, index) {
+export function pressArgDel(key: string, index: number): void {
   const panel = panelByKey(key);
   if (!panel) return;
   patchPanel(key, (p) => ({ draft: { ...p.draft, args: p.draft.args.filter((_, i) => i !== index) } }));
@@ -76,7 +78,7 @@ export function pressArgDel(key, index) {
   tellDirty();
 }
 
-export function pressEnvAdd(key) {
+export function pressEnvAdd(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const env = panel.draft.env.concat([{ key: '', value: '' }]);
@@ -86,17 +88,17 @@ export function pressEnvAdd(key) {
   tellDirty();
 }
 
-export function pressEnvDel(key, index) {
+export function pressEnvDel(key: string, index: number): void {
   patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.filter((_, i) => i !== index) } }));
   scheduleCheck(key);
   tellDirty();
 }
 
-export function pressSave(key) {
+export function pressSave(key: string): Promise<void> {
   return savePanel(key);
 }
 
-export function pressDup(key) {
+export function pressDup(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const row = duplicateRow(panel);
@@ -107,7 +109,7 @@ export function pressDup(key) {
   tellDirty();
 }
 
-export function pressCopy(key) {
+export function pressCopy(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const fresh = copyPanel(panel);
@@ -118,7 +120,7 @@ export function pressCopy(key) {
   tellDirty();
 }
 
-export function pressDiscard(key) {
+export function pressDiscard(key: string): void {
   discardPanel(key);
   syncURL();
   tellDirty();
@@ -126,7 +128,7 @@ export function pressDiscard(key) {
 
 // reorderArgs is a drag that ended: the chips' order is the order the save
 // writes (spec 4 章).
-export function reorderArgs(key, order) {
+export function reorderArgs(key: string, order: string[]): void {
   const panel = panelByKey(key);
   if (!panel) return;
   patchPanel(key, (p) => ({ draft: { ...p.draft, args: order.slice() } }));
@@ -134,27 +136,27 @@ export function reorderArgs(key, order) {
   tellDirty();
 }
 
-export function pressDel(key) {
+export function pressDel(key: string): void {
   patchPanel(key, { confirming: true });
   askFocus(key, 'del-yes', 0, false);
 }
 
-export function pressDelNo(key) {
+export function pressDelNo(key: string): void {
   patchPanel(key, { confirming: false });
 }
 
-export function pressDelYes(key) {
+export function pressDelYes(key: string): Promise<void> {
   return deletePanel(key);
 }
 
-export function pressRename(key, on) {
+export function pressRename(key: string, on: boolean): void {
   patchPanel(key, { rename: !!on });
 }
 
 // ---- the layer, the assign tab's kind and its save ----------------------
 // pressLayer moves a row being added between the project's file and the
 // global one: the path, the segment and the pending pill follow.
-export function pressLayer(key, file) {
+export function pressLayer(key: string, file: Place): void {
   const panel = panelByKey(key);
   if (!panel || panel.file === file) return;
   patchPanel(key, { file, path: pathFor(file, panel.group) });
@@ -164,18 +166,18 @@ export function pressLayer(key, file) {
 
 // pressKind is the assign tab's kind: the other kinds and people go thin, the
 // chosen one stays plain, and the address keeps it (R6).
-export function pressKind(kind) {
+export function pressKind(kind: string): void {
   assignKind.value = assignKind.value === kind ? null : kind;
   syncAssignURL();
   tellDirty();
 }
 
-export function pressTeamSave(name) {
+export function pressTeamSave(name: string): Promise<boolean> {
   return saveTeam(name).then((ok) => { tellDirty(); return ok; });
 }
 
 // ---- the fields ---------------------------------------------------------
-export function inputField(key, field, index, value) {
+export function inputField(key: string, field: string, index: number, value: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   if (field === 'name') {
@@ -194,15 +196,16 @@ export function inputField(key, field, index, value) {
 }
 
 // ---- the check the typing rides on (300ms after it stops) ---------------
-const timers = new Map();
-export function scheduleCheck(key) {
-  clearTimeout(timers.get(key));
+const timers = new Map<string, ReturnType<typeof setTimeout>>();
+export function scheduleCheck(key: string): void {
+  const timer = timers.get(key);
+  if (timer !== undefined) clearTimeout(timer);
   timers.set(key, setTimeout(() => { checkPanel(key); }, 300));
 }
 
 // initPanel is a panel that stands open: it asks what is wrong with its draft
 // once, as the screen always did.
-export function initPanel(key) {
+export function initPanel(key: string): void {
   checkPanel(key);
 }
 

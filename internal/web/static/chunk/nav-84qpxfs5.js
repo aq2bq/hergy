@@ -9,7 +9,7 @@
 
 import {
   html
-} from "./nav-s2ensdem.js";
+} from "./nav-wqvgfs4g.js";
 
 // lib/measure.js
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
