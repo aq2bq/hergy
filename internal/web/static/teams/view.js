@@ -10,7 +10,7 @@ import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
 import { RunCell } from '../lib/hq/run.js';
-import { state as hq, projectName as hqProjectName, rev as hqRev } from '../lib/hq.js';
+import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup,
   dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName, teamLabel, dtabOf, isOpen,
@@ -32,9 +32,8 @@ export function Tabs() {
 }
 
 export function App() {
-  // The 動き column and the group heads are the headquarters' reading: a
-  // re-reading draws them without the screen asking (5 章 2).
-  hqRev.value;
+  // The 動き column and the group heads are the headquarters' reading: each
+  // reads it, so a re-reading draws it without the screen asking (5 章 2).
   return html`${state.value.tab === 'list' ? html`<${List} />` : html`<${YamlPage} />`}<${CanvasToast} />`;
 }
 
@@ -63,11 +62,10 @@ export function List() {
 // comes last, with the one sentence about being used from every project.
 function GroupHead({ g }) {
   const key = groupKeyOf(g);
-  hqRev.value;
   if (g.global) {
     return html`<div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">${g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>`;
   }
-  const live = ((hq.running && hq.running.teams) || []).filter((t) => t.project === key).length;
+  const live = ((hq.running.value && hq.running.value.teams) || []).filter((t) => t.project === key).length;
   return html`<div class="hq-gh" data-group=${key}><span class="hq-gn">${groupNameOf(g)}</span><span class="hq-gp">${g.project ? g.project.display : ''}</span><span class="hq-gc">チーム定義 <b>${rowsIn(g).length}</b> · 動いているチーム <b>${live}</b></span></div>`;
 }
 

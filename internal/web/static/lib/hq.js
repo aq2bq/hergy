@@ -15,7 +15,7 @@
 // （チームの図の部品）、lib/hq/run.js（一覧の「動き」の欄）、lib/hq/sheets.js
 // （欄と検索）。画面はここから import して読む。
 import {
-  st, rev, token, parseOpen, projectName, runningTeam, definitionOf,
+  st, setRunning, token, parseOpen, projectName, runningTeam, definitionOf,
   readAll, readCore, readGroups, readRunning, startReads,
 } from './hq/state.js';
 import { RunCell } from './hq/run.js';
@@ -88,6 +88,6 @@ function stickBar() {
 // A screen imports what it reads: nothing of the headquarters goes through a
 // global any more.
 export {
-  st as state, rev, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
+  st as state, setRunning, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
   readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure,
 };

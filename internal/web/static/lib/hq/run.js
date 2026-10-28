@@ -8,13 +8,12 @@
 // はこの部品が受ける（webui-components 2 章）: 起動… は起動の欄、止める は止める欄を
 // 開く。data-hq は e2e と CSS が読むので残す。
 import { html } from '../../vendor/preact.js';
-import { rev, runningFor, lastWorkspaceOf, projectName } from './state.js';
+import { runningFor, lastWorkspaceOf, projectName } from './state.js';
 import { startSheet, stopSheet } from './sheets.js';
 
 // RunCell is one row's 動き: the running teams, or 起動… (spec 5 章). The
 // headquarters holds the reading; the cell reads it and draws it.
 export function RunCell({ definition, place, project }) {
-  rev.value;
   const live = runningFor(definition, place, project);
   return html`${live.map((t) => {
     const label = t.starting ? '起動の途中 · 許可待ち' : (t.waiting || []).length ? '動いている · 許可待ち' : '動いている';

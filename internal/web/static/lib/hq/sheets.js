@@ -10,7 +10,7 @@
 import { html, render as draw, signal, computed, useEffect, useLayoutEffect, useRef, useState } from '../../vendor/preact.js';
 import { call, problemText } from '../api.js';
 import {
-  st, rev, token, projectName, readJSONOr, readGroups, readCore, readRunning,
+  st, token, projectName, readJSONOr, readGroups, readCore, readRunning,
   noteStarting, definitionDoc, listProject, unlistProject, groupOf, projectOfGroup,
   groupLabel, runningTeam,
 } from './state.js';
@@ -76,7 +76,7 @@ const mmdd = (iso) => {
 function ProjectsSheet() {
   const [error, setError] = useState('');
   const [path, setPath] = useState('');
-  const p = st.projects;
+  const p = st.projects.value;
   if (!p) return html`<${Head} title="本部に並べるプロジェクト" /><p class="hq-sub">読み込んでいます…</p>`;
   const listed = (p.projects || []).filter((x) => x.listed);
   const candidates = (p.projects || []).filter((x) => !x.listed && x.source === 'launch');
@@ -444,13 +444,13 @@ function buildIndex() {
 }
 
 const searchIndex = () => {
-  if (!index || indexTeams !== st.groups.teams) { index = buildIndex(); indexTeams = st.groups.teams; }
+  if (!index || indexTeams !== st.groups.value.teams) { index = buildIndex(); indexTeams = st.groups.value.teams; }
   return index;
 };
 
 function liveEntries() {
   const out = [];
-  for (const t of st.running.teams || []) {
+  for (const t of st.running.value.teams || []) {
     const wait = (t.waiting || []).length;
     out.push({
       kind: 'live', group: t.project, project: t.project_name || projectName(t.project),
@@ -459,8 +459,8 @@ function liveEntries() {
       href: `/activity?open=${encodeURIComponent(token(t.team, t.project))}`,
     });
   }
-  for (const w of st.workspaces || []) {
-    const last = (st.running.teams || []).find((t) => t.workspace && t.workspace.id === w.id);
+  for (const w of st.workspaces.value || []) {
+    const last = (st.running.value.teams || []).find((t) => t.workspace && t.workspace.id === w.id);
     out.push({
       kind: 'ws', group: last ? last.project : '', project: last ? (last.project_name || projectName(last.project)) : '',
       label: w.label,
@@ -498,15 +498,11 @@ export const searchOpen = signal(false);
 
 // searchLoading and searchGroups are what the list shows. The lists a search
 // reads are read when it is opened, and a reading that comes later draws the
-// list again: both read the headquarters' revision (lib/hq/state.js's rev).
-export const searchLoading = computed(() => {
-  rev.value;
-  return !st.groupsLoaded;
-});
+// list again: both read the headquarters' own signals (lib/hq/state.js).
+export const searchLoading = computed(() => !st.groupsLoaded.value);
 export const searchGroups = computed(() => {
   const text = searchText.value.trim();
   if (!text) return [];
-  rev.value;
   const low = text.toLowerCase();
   const all = liveEntries().concat(searchIndex()).filter((e) => e.text.toLowerCase().includes(low));
   return KINDS.map(([kind, title]) => ({ kind, title, items: all.filter((e) => e.kind === kind) })).filter((g) => g.items.length);

@@ -17,19 +17,24 @@ export const POLL = 10000;
 // the run cell of the team definition's list).
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// groups は、プロジェクトごとの組の配列（API の groups と同じ形）。組は最後に
-// グローバルが 1 つ。
+// st holds the headquarters' readings. Every field is a signal of its own, and a
+// reading puts a new value in: the trees that read one are drawn again, and no
+// screen keeps a number to know that it must (webui-components 1 章). groups は、
+// プロジェクトごとの組の配列（API の groups と同じ形）。組は最後にグローバルが 1 つ。
 export const st = {
-  projects: null,
-  running: { herdr: { ok: true, text: '' }, teams: [] },
-  workspaces: [],
-  groups: { teams: [], roles: [], profiles: [] },
-  loaded: false,
+  projects: signal(null),
+  running: signal({ herdr: { ok: true, text: '' }, teams: [] }),
+  workspaces: signal([]),
+  groups: signal({ teams: [], roles: [], profiles: [] }),
+  loaded: signal(false),
+  groupsLoaded: signal(false),
 };
 
-// rev is the number that says a reading changed. The parts that draw from st read
-// it, so a reading redraws them without a screen asking.
-export const rev = signal(0);
+// setRunning puts the running teams the activity screen read into the same
+// reading the list's 動き column uses (api.md 3.5).
+export function setRunning(running) {
+  st.running.value = running;
+}
 
 export const groupKey = (g) => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
 export const groupLabel = (g) => (g && g.global ? 'グローバル' : (g.project ? g.project.name : ''));
@@ -52,7 +57,7 @@ export function parseOpen(value) {
 
 export const projectName = (path) => {
   if (!path) return '';
-  const found = ((st.projects && st.projects.projects) || []).find((p) => p.path === path);
+  const found = ((st.projects.value && st.projects.value.projects) || []).find((p) => p.path === path);
   if (found) return found.name;
   if (path === 'global') return 'グローバル';
   return String(path).split('/').filter(Boolean).pop() || path;
@@ -65,23 +70,23 @@ export async function readJSONOr(url) {
   try { return await read(url); } catch (e) { return null; }
 }
 
-export const groupOf = (kind) => st.groups[kind] || [];
+export const groupOf = (kind) => st.groups.value[kind] || [];
 export const itemGroup = (kind, name, group) => groupOf(kind).find((g) => groupKey(g) === group) || null;
 
 // runningFor is the running teams a team definition has: its own, of its place
 // and its project (spec 5 章).
 export function runningFor(definition, place, project) {
-  return (st.running.teams || []).filter((t) => t.definition === definition
+  return (st.running.value.teams || []).filter((t) => t.definition === definition
     && (t.place || 'project') === (place || 'project')
     && (place === 'global' || !project || t.project === project));
 }
-export const runningTeam = (name) => (st.running.teams || []).find((t) => t.team === name) || null;
+export const runningTeam = (name) => (st.running.value.teams || []).find((t) => t.team === name) || null;
 
 // lastWorkspaceOf is where a team definition ran last, as the launch record wrote
 // it (the workspace whose last_team is this definition). Empty when the record
 // has none.
 export function lastWorkspaceOf(definition) {
-  const ws = (st.workspaces || []).find((w) => w.last_team === definition);
+  const ws = (st.workspaces.value || []).find((w) => w.last_team === definition);
   return ws ? ws.label : '';
 }
 
@@ -125,9 +130,9 @@ export function definitionDoc(definition, project) {
 // bandActivity keeps the band's two numbers the reading's own: 活動 N（動いている
 // チーム）と 待ち N（人間を待っているメンバー）(spec 2 章, spec-activity 2.1).
 export function bandActivity() {
-  const teams = st.running.teams || [];
+  const teams = st.running.value.teams || [];
   const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  setActivity(teams.length, waiting, !!st.running.herdr.ok && teams.length > 0);
+  setActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
 }
 
 // bandCounts writes the projects reading's totals into the band, so the four
@@ -135,7 +140,7 @@ export function bandActivity() {
 // writes them too; this keeps them right after a project is listed or removed
 // without a reload.
 export function bandCounts() {
-  const p = st.projects;
+  const p = st.projects.value;
   if (!p) return;
   if (p.mode !== 'listed') return;
   const totals = { teams: 0, roles: 0, profiles: 0 };
@@ -152,9 +157,9 @@ export function bandCounts() {
   setCount('profiles', totals.profiles);
 }
 
-// say tells the screens a reading changed: the parts that draw it read rev.
+// say tells the screens a reading came: the activity screen reads its own view
+// again when one does. What the parts draw is the signals themselves.
 export function say() {
-  rev.value += 1;
   document.dispatchEvent(new CustomEvent('hergy:hq', { detail: st }));
 }
 
@@ -168,10 +173,10 @@ export async function readCore() {
     readJSONOr('/api/hq/running'),
     readJSONOr('/api/hq/workspaces'),
   ]);
-  if (projects) st.projects = projects;
-  if (running) st.running = running;
-  if (workspaces) st.workspaces = workspaces.workspaces || [];
-  st.loaded = true;
+  if (projects) st.projects.value = projects;
+  if (running) st.running.value = running;
+  if (workspaces) st.workspaces.value = workspaces.workspaces || [];
+  st.loaded.value = true;
   bandActivity();
   bandCounts();
   say();
@@ -180,16 +185,18 @@ export async function readCore() {
 // readGroups reads the lists a search looks through: the team definitions, roles
 // and profiles of every listed project and the global layer.
 export async function readGroups() {
-  if (st.groupsLoaded) return;
+  if (st.groupsLoaded.value) return;
   const [teams, roles, profiles] = await Promise.all([
     readJSONOr('/api/hq/teams'),
     readJSONOr('/api/hq/roles'),
     readJSONOr('/api/hq/profiles'),
   ]);
-  st.groups.teams = (teams && teams.groups) || [];
-  st.groups.roles = (roles && roles.groups) || [];
-  st.groups.profiles = (profiles && profiles.groups) || [];
-  st.groupsLoaded = true;
+  st.groups.value = {
+    teams: (teams && teams.groups) || [],
+    roles: (roles && roles.groups) || [],
+    profiles: (profiles && profiles.groups) || [],
+  };
+  st.groupsLoaded.value = true;
   say();
 }
 
@@ -204,8 +211,8 @@ export async function readAll() {
 // without a reload. The groups and the projects stay as they were.
 export async function readRunning() {
   const [running, workspaces] = await Promise.all([readJSONOr('/api/hq/running'), readJSONOr('/api/hq/workspaces')]);
-  if (running) st.running = mergeRunning(running);
-  if (workspaces) st.workspaces = workspaces.workspaces || [];
+  if (running) st.running.value = mergeRunning(running);
+  if (workspaces) st.workspaces.value = workspaces.workspaces || [];
   bandActivity();
   say();
 }
@@ -219,7 +226,7 @@ function mergeRunning(running) {
   const seen = new Set(real.map(sameTeam));
   // A provisional row stands only for a team the real reading has not found yet:
   // once it is found, the provisional one goes at once.
-  const provisional = (st.running.teams || []).filter((t) => t.provisional && !seen.has(sameTeam(t)));
+  const provisional = (st.running.value.teams || []).filter((t) => t.provisional && !seen.has(sameTeam(t)));
   return Object.assign({}, running, { teams: real.concat(provisional) });
 }
 
@@ -227,7 +234,7 @@ function mergeRunning(running) {
 // it: the row says 起動の途中 at once, and the next reading replaces this with the
 // team as herdr sees it (r-5b96 audit R5).
 export function noteStarting(launch) {
-  const teams = (st.running.teams || []).filter((t) => sameTeam(t) !== sameTeam(launch));
+  const teams = (st.running.value.teams || []).filter((t) => sameTeam(t) !== sameTeam(launch));
   teams.push({
     team: launch.team, definition: launch.definition, place: launch.place,
     project: launch.project, project_name: launch.project_name,
@@ -235,7 +242,7 @@ export function noteStarting(launch) {
     starting: true, launch: launch.id, members: [], workers: [], waiting: [],
     provisional: true,
   });
-  st.running.teams = teams;
+  st.running.value = { ...st.running.value, teams };
   bandActivity();
   say();
   // The tab is made within the first second; a few readings bring the team in
@@ -256,7 +263,7 @@ export async function unlistProject(path) {
 // in is listed first, so listing another one does not drop the teams a person is
 // looking at (r-5b96 audit 7).
 export async function listProject(path) {
-  const p = st.projects;
+  const p = st.projects.value;
   if (p && p.mode !== 'listed' && p.current && p.current.path && p.current.path !== path) {
     const first = await postProject(p.current.path);
     if (first) return first;

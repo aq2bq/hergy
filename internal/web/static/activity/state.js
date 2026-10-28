@@ -104,7 +104,7 @@ async function readBoard(stop) {
   // The headquarters reading is the same one the list's 動き column uses, so a
   // team's state cannot read two ways (api.md 3.5).
   const running = await read('/api/hq/running', { signal: stop }).catch(() => null);
-  if (running && A) A.state.running = running;
+  if (running && A) A.setRunning(running);
 
   // A sheet that could not be read keeps the one the screen already had: the
   // figure of that team stays as it was instead of falling back to the run's
