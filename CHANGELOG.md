@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- **変更を伝える counts every listed project's teams**: the band and its sheet read
+  the launch record of the project serve was started in, so a team of another
+  project listed in the headquarters found no record to compare and read as none
+  of its members 伝えていない — a changed role was never offered to be sent
+  (n-a1a4, r-2e49, ac-9cab). Each running team is now counted against its own
+  project's record, and a send reaches it in that project.
 - **A member's name typed in the figure does not take another member's name**:
   while the typed name is one another member already holds, the figure's name
   field no longer puts a rename into the draft — the letters stay in the field

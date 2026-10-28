@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -73,7 +74,7 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 		one.answer.Herdr = deliver.Note{OK: false, Text: read.err.Error()}
 		return one
 	}
-	records := latestMemberRecords(a.env)
+	records := latestMemberRecords()
 	log, logErr := launchlog.Open()
 	for _, running := range a.teamsOf(read) {
 		if running.Built == nil {
@@ -86,7 +87,7 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 				byHerdr[node.Herdr] = node
 			}
 		}
-		recorded := records[running.Name]
+		recorded := teamsRecorded(records, running.Project)[running.Name]
 		row := deliver.Team{Name: running.Name, Definition: running.Definition, Members: []deliver.Member{}}
 		for i := range running.Built.starts {
 			start := running.Built.starts[i]
@@ -151,7 +152,9 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 		run.Executable = executable()
 	}
 	if run.Base == "" {
-		run.Base = a.env.ProjectRoot
+		// The team's own project, not the one serve was started in: a team of
+		// another listed project is built from that project (r-2e49).
+		run.Base = running.Project
 	}
 	built, err := prompt.Member(running.Built.team.Definition, &node, run)
 	if err != nil {
@@ -170,12 +173,17 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	return true, changes
 }
 
-// latestMemberRecords is, for each team and each member, the newest launch that
-// handed that member a prompt. A reprompt records only the members it sent, so a
-// team's newest line is not a snapshot of the others: each member's own last
-// prompt is the one to compare.
-func latestMemberRecords(env team.Env) map[string]map[string]launchlog.Record {
-	out := map[string]map[string]launchlog.Record{}
+// latestMemberRecords is, for each project, each of its teams and each of that
+// team's members, the newest launch that handed that member a prompt. A reprompt
+// records only the members it sent, so a team's newest line is not a snapshot of
+// the others: each member's own last prompt is the one to compare.
+//
+// The project stands in the key: the headquarters shows several projects, and a
+// record is the one its own project wrote (r-2e49). A record that names no project
+// — one written before the record kept it — stands under "", and is read for a
+// team whose project has no record of its own (teamsRecorded).
+func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
+	out := map[string]map[string]map[string]launchlog.Record{}
 	log, err := launchlog.Open()
 	if err != nil {
 		return out
@@ -188,21 +196,41 @@ func latestMemberRecords(env team.Env) map[string]map[string]launchlog.Record {
 		if record.Team == "" || record.Definition == "" || record.IsHire() {
 			continue
 		}
-		if record.Project != "" && !samePath(record.Project, env.ProjectRoot) {
-			continue
+		project := ""
+		if record.Project != "" {
+			project = filepath.Clean(record.Project)
 		}
-		if out[record.Team] == nil {
-			out[record.Team] = map[string]launchlog.Record{}
+		if out[project] == nil {
+			out[project] = map[string]map[string]launchlog.Record{}
+		}
+		if out[project][record.Team] == nil {
+			out[project][record.Team] = map[string]launchlog.Record{}
 		}
 		// The record is history, oldest first: the last record that carries a
 		// member is that member's last prompt.
 		for _, member := range record.Members {
 			if member.Name != "" {
-				out[record.Team][member.Name] = record
+				out[project][record.Team][member.Name] = record
 			}
 		}
 	}
 	return out
+}
+
+// teamsRecorded is one project's teams as the launch record holds them, found the
+// way the record names the project: the same directory, symlinks and all. A
+// project with no record of its own falls back to the records that name none
+// (r-2e49).
+func teamsRecorded(records map[string]map[string]map[string]launchlog.Record, project string) map[string]map[string]launchlog.Record {
+	if teams, ok := records[filepath.Clean(project)]; ok {
+		return teams
+	}
+	for key, teams := range records {
+		if key != "" && samePath(key, project) {
+			return teams
+		}
+	}
+	return records[""]
 }
 
 // oldDocs is the documents the launch record holds, by the path the record

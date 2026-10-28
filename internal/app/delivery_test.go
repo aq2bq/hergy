@@ -236,3 +236,67 @@ func TestDeliveryCountsTheRunningMembersAfterAMemberIsAdded(t *testing.T) {
 		}
 	}
 }
+
+// TestDeliveryCountsATeamOfAnotherListedProject: the headquarters shows several
+// projects, and a team running in one of them is counted against that project's
+// own launch record — not the record of the project serve was started in. A role
+// changed there makes that team's members 伝えていない, and a send reaches them
+// (r-2e49, ac-9cab, n-a1a4).
+func TestDeliveryCountsATeamOfAnotherListedProject(t *testing.T) {
+	useJapanese(t)
+	f, env, other := hqFixture(t)
+	otherEnv, err := env.AtProject(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, err := launchlog.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The other project's team was handed its prompts at its boot.
+	cat := otherEnv.Catalog(source.Disk{})
+	r, err := readDefinition(cat, other, "ledger", "ledger")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeLaunch(log, otherEnv, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A rule of the role the team's lead plays changes after the launch.
+	rolePath := filepath.Join(other, ".hergy", "roles", "lead.yaml")
+	role := readFile(t, rolePath)
+	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
+
+	// The serve was started in this fixture's project, and the other one is listed
+	// beside it: the team is the other project's.
+	if !samePath(other, otherEnv.ProjectRoot) || samePath(other, env.ProjectRoot) {
+		t.Fatalf("the fixture's projects are %q and %q", env.ProjectRoot, other)
+	}
+	a := newActivityRead(env)
+	answer := a.Delivery()
+	if answer.Count != 1 || len(answer.Teams) != 1 {
+		t.Fatalf("delivery = %+v, want the other project's lead", answer)
+	}
+	if answer.Teams[0].Name != "ledger" || len(answer.Teams[0].Members) != 1 || answer.Teams[0].Members[0].Name != "ledger-lead" {
+		t.Fatalf("delivery names %+v, want ledger's lead", answer.Teams)
+	}
+
+	// The send reaches it, in that project, and takes it off the count.
+	sent, err := a.Deliver([]string{"ledger-lead"})
+	if err != nil {
+		t.Fatalf("send to ledger-lead: %v", err)
+	}
+	if len(sent.Sent) != 1 || sent.Sent[0] != "ledger-lead" {
+		t.Errorf("sent = %+v, want ledger-lead", sent.Sent)
+	}
+	if after := a.Delivery().Count; after != 0 {
+		t.Errorf("the lead is still 伝えていない after the send: %d", after)
+	}
+	// The record the send wrote belongs to the team's own project.
+	_, records := launchLog(t, f)
+	last := records[len(records)-1]
+	if last.Command != launchlog.CommandReprompt || !samePath(last.Project, other) {
+		t.Errorf("the send recorded %q in %q, want a reprompt of the other project", last.Command, last.Project)
+	}
+}
