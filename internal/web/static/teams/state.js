@@ -551,8 +551,11 @@ export async function checkTeam(r) {
     const findings = figFindings(r, json.problems || []);
     r.baseFindings = findings;
     // The baseline is kept even when it is too old to draw (the guard above),
-    // but it does not draw over a newer answer (spec-teams X3).
-    if ((r.drawMark || 0) !== at) return;
+    // but it does not draw over a newer answer (spec-teams X3). The foot is
+    // drawn again all the same: its save is held to the baseline, and an
+    // answer that came last would otherwise leave the save shut on an error
+    // the file already held.
+    if ((r.drawMark || 0) !== at) { render(); return; }
     applyTeamAnswer(r, json, findings);
     return;
   }
