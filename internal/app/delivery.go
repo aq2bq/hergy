@@ -189,10 +189,15 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 			continue
 		}
 		short := shortMember(hired.Herdr, running.Name)
+		why := i18n.Tf("apply.refused_removed", short)
+		one.members[hired.Herdr] = plannedMember{
+			team: running, state: hired.State.Slug(), changed: true,
+			how: web.ApplyCannot, whyNot: why,
+		}
 		row.Members = append(row.Members, web.ApplyMember{
 			Name: hired.Herdr, Short: short, State: hired.State.Slug(),
 			How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
-			WhyNot: i18n.Tf("apply.refused_removed", short),
+			WhyNot: why,
 		})
 	}
 	if len(row.Members) > 0 {
