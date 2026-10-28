@@ -69,7 +69,7 @@ var applyList2 = (opts) => read2("/api/apply", opts);
 var applyCount2 = (opts) => read2("/api/apply/count", opts);
 async function applyMembers2(members, opts) {
   const a = await call2("POST", "/api/apply", { members }, opts);
-  return a.json || {};
+  return a.json;
 }
 var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));

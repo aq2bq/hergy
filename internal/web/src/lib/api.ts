@@ -102,6 +102,9 @@ const urls = {
 // beside the count), so every answer here comes from the operation that sends it.
 type JsonOf<T> = T extends { content: { 'application/json': infer R } } ? R : never;
 export type ApiAnswer<K extends keyof operations> = operations[K] extends { responses: { 200: infer R } } ? JsonOf<R> : never;
+// ApiAccepted is what an operation that answers 202 sends: the work goes on
+// behind the answer, and the answer is what to watch it with (an apply's launch).
+export type ApiAccepted<K extends keyof operations> = operations[K] extends { responses: { 202: infer R } } ? JsonOf<R> : never;
 export type ApiBody<K extends keyof operations> = operations[K] extends { requestBody: infer B } ? JsonOf<B> : never;
 
 // KindOps is the kind a screen names and the operations the promise writes for
@@ -149,16 +152,12 @@ export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: s
 export const applyList = (opts?: CallOptions): Promise<ApiAnswer<'listApply'>> => read('/api/apply', opts);
 // applyCount is GET /api/apply/count: the band's number alone.
 export const applyCount = (opts?: CallOptions): Promise<ApiAnswer<'countApply'>> => read('/api/apply/count', opts);
-// ApplyEnvelope is what POST /api/apply answers once the promise carries it:
-// the launch to watch. Until then the design's shape is written here (the
-// operation is pico's next commit, apply-design.md).
-type ApplyEnvelope = { launch?: components['schemas']['HQLaunch'] };
-// applyMembers is POST /api/apply: apply the named herdr members' definition
-// changes. It answers 202 with the launch to watch; a refusal comes back with
-// the one sentence in text.
-export async function applyMembers(members: string[], opts?: CallOptions): Promise<ApplyEnvelope> {
-  const a = await call<ApplyEnvelope>('POST', '/api/apply', { members }, opts);
-  return (a.json || {}) as ApplyEnvelope;
+// applyMembers is POST /api/apply: apply the named herdr members' drift. It
+// answers 202 with the launch to watch (the progress and any startup question
+// are read at /api/hq/launches/{id}); a refusal comes back as a Refusal.
+export async function applyMembers(members: string[], opts?: CallOptions): Promise<ApiAccepted<'applyMembers'>> {
+  const a = await call<ApiAccepted<'applyMembers'>>('POST', '/api/apply', { members } satisfies ApiBody<'applyMembers'>, opts);
+  return a.json as ApiAccepted<'applyMembers'>;
 }
 // hqList is one headquarters reading: the groups of teams, roles or profiles a
 // screen draws beside its own (d-73fc). The answer is the operation's own.

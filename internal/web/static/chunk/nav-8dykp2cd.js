@@ -26,7 +26,7 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-gpszvdfw.js";
+} from "./nav-8062kswf.js";
 import {
   setCount2,
   setActivity2

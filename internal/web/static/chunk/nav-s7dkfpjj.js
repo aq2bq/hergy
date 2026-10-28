@@ -19,7 +19,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-gpszvdfw.js";
+} from "./nav-8062kswf.js";
 
 // lib/yamltab.tsx
 async function checkText2(kind, place, name, text, extra) {
