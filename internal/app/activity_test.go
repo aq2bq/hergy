@@ -293,8 +293,8 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	// core waits for the human (its lead handed the turn over), and it comes
 	// before a stopped team (spec-activity 2.2).
 	core := list.Items[0]
-	if core.Name != "core" || core.Summary.State != "turn" || core.Summary.Last != "lead" {
-		t.Errorf("the first row is %+v, want core waiting with lead", core)
+	if core.Name != "core" || core.Summary.State != "turn" {
+		t.Errorf("the first tile is %+v, want core waiting for the human", core)
 	}
 	if core.Summary.Definition != "core" {
 		t.Errorf("core's definition = %q, want core", core.Summary.Definition)
@@ -308,9 +308,6 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	if got := activityNow.Add(-160 * time.Minute).Format("15:04"); !strings.Contains(core.Summary.Since.At, got) {
 		t.Errorf("core's since is %q, want the moment %s", core.Summary.Since.At, got)
 	}
-	if core.Summary.Working != nil {
-		t.Errorf("a team waiting for the human carries working: %+v", core.Summary.Working)
-	}
 	if core.Error != "" {
 		t.Errorf("core's row carries the error %q", core.Error)
 	}
@@ -318,8 +315,8 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	// core-hotfix stopped, and its definition is not its name: the row carries
 	// the definition so the screen can write 定義 core (S4).
 	hotfix := list.Items[1]
-	if hotfix.Name != "core-hotfix" || hotfix.Summary.State != "stalled" || hotfix.Summary.Last != "impl-a" {
-		t.Errorf("the second row is %+v, want core-hotfix stopped with impl-a", hotfix)
+	if hotfix.Name != "core-hotfix" || hotfix.Summary.State != "stalled" {
+		t.Errorf("the second tile is %+v, want core-hotfix stopped", hotfix)
 	}
 	if hotfix.Summary.Definition != "core" {
 		t.Errorf("core-hotfix's definition = %q, want core", hotfix.Summary.Definition)
@@ -417,10 +414,23 @@ func TestActivityListRemembersHerdr(t *testing.T) {
 	}
 }
 
-// TestActivityOneReadsTheRowThatIsOpen: one team's opened part carries the
-// member the line is about, its role, its pane's last lines, and the questions
-// that member asked — and only those (spec-activity 2.4, V3).
-func TestActivityOneReadsTheRowThatIsOpen(t *testing.T) {
+func TestAskingLineKeepsOnlyOneUsefulLine(t *testing.T) {
+	for _, tc := range []struct{ name, text, want string }{
+		{"question", "●  続けてもよいですか？\nほかの行", "続けてもよいですか？"},
+		{"fallback", "\n最初の行\n次の行\n", "最初の行"},
+		{"empty", " \n \n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := askingLine(tc.text); got != tc.want {
+				t.Errorf("askingLine(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestActivityOneReadsTheTileMembersAndQuestion: one team's tile carries its
+// members, workers and only the question line shown on its waiting row.
+func TestActivityOneReadsTheTileMembersAndQuestion(t *testing.T) {
 	f := newActivityFixture(t)
 	f.stateFile(t, map[string]string{
 		"core-lead": entry(90, activityNow.Add(-160*time.Minute), false),
@@ -430,54 +440,8 @@ func TestActivityOneReadsTheRowThatIsOpen(t *testing.T) {
 	if !ok {
 		t.Fatal("core is running, so its opened part is there")
 	}
-	if doc.Name != "core" || doc.Definition != "core" || doc.State != "turn" || doc.Last != "lead" {
-		t.Errorf("the opened part is %+v, want core waiting with lead", doc)
-	}
-	if doc.Herdr != "core-lead" || doc.Role != "lead" {
-		t.Errorf("herdr/role = %q/%q, want core-lead/lead", doc.Herdr, doc.Role)
-	}
-
-	// The pane's last lines, with the empty ones at the end dropped (6 A6).
-	want := []string{"⏺ impl-a と impl-b の差分をまとめました。", "", "  q-7c2e に 2 つの案を書きました。"}
-	if strings.Join(doc.Tail.Lines, "\n") != strings.Join(want, "\n") {
-		t.Errorf("the pane reads\n%q\nwant\n%q", doc.Tail.Lines, want)
-	}
-	if doc.Tail.Shown != 6 {
-		t.Errorf("shown = %d, want 6", doc.Tail.Shown)
-	}
-
-	// The questions core-lead asked, newest first, and nobody else's: q-9e10 was
-	// asked by core-hotfix-impl-a and is not here (2.4).
-	if len(doc.Questions) != 3 {
-		t.Fatalf("the opened part holds %d questions, want 3: %+v", len(doc.Questions), doc.Questions)
-	}
-	if doc.Questions[0].ID != "q-7c2e" || doc.Questions[0].Ago != "2 時間 45 分前" {
-		t.Errorf("the first question is %+v, want q-7c2e asked 2 時間 45 分前", doc.Questions[0])
-	}
-	if len(doc.Questions[0].Options) != 2 {
-		t.Errorf("q-7c2e carries %d options, want 2", len(doc.Questions[0].Options))
-	}
-	if doc.Questions[1].ID != "q-51b9" || doc.Questions[2].ID != "q-0d4a" {
-		t.Errorf("the questions are %s, %s, want q-7c2e, q-51b9, q-0d4a",
-			doc.Questions[1].ID, doc.Questions[2].ID)
-	}
-	// 24 時間以上は日で数える (6 A4).
-	if doc.Questions[1].Ago != "1 日前" || doc.Questions[2].Ago != "2 日前" {
-		t.Errorf("the older questions read %q and %q, want 1 日前 and 2 日前",
-			doc.Questions[1].Ago, doc.Questions[2].Ago)
-	}
-	if !doc.Gy.OK {
-		t.Errorf("gy = %+v, want a gy that read", doc.Gy)
-	}
-
-	// Every question's own read, and no more: gy show is asked once per question
-	// this member asked (V3).
-	log := calls(t, f.gyLog)
-	if n := strings.Count(log, "show "); n != 3 {
-		t.Errorf("gy show was asked %d times, want 3:\n%s", n, log)
-	}
-	if strings.Contains(log, "q-9e10") {
-		t.Errorf("the opened part asked about another writer's question:\n%s", log)
+	if want := "⏺ impl-a と impl-b の差分をまとめました。"; doc.Question != want {
+		t.Errorf("the waiting row question is %q, want %q", doc.Question, want)
 	}
 
 	// The members, with the one that handed the turn over marked, and core's
@@ -509,15 +473,8 @@ func TestActivityOneLeavesAWorkingTeamAlone(t *testing.T) {
 	if !ok {
 		t.Fatal("core is running")
 	}
-	if doc.State != "working" || doc.Last != "" || doc.Herdr != "" {
-		t.Errorf("the opened part is %+v, want a working team with no member", doc)
-	}
-	if len(doc.Questions) != 0 || len(doc.Tail.Lines) != 0 {
-		t.Errorf("a working team's opened part holds questions %+v and a pane %+v",
-			doc.Questions, doc.Tail.Lines)
-	}
-	if calls := calls(t, f.gyLog); calls != "" {
-		t.Errorf("a working team's opened part called gy:\n%s", calls)
+	if len(doc.Nodes) != 2 || len(doc.Hired) != 0 {
+		t.Errorf("a working team's tile has %d members and %d workers, want 2 and 0", len(doc.Nodes), len(doc.Hired))
 	}
 }
 
@@ -568,12 +525,11 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	}
 
 	doc, ok := read.One("broken")
-	if !ok || doc.Error == "" {
-		t.Fatalf("broken's opened part is %+v, want the reason", doc)
+	if !ok {
+		t.Fatal("broken's tile data is missing")
 	}
-	if doc.Last != "lead" || len(doc.Questions) != 0 || len(doc.Tail.Lines) != 0 {
-		t.Errorf("a definition that does not read named %q with %d questions and a pane %+v, want the live agent lead alone",
-			doc.Last, len(doc.Questions), doc.Tail.Lines)
+	if doc.Question != "" {
+		t.Errorf("a definition that does not read has question %q, want none", doc.Question)
 	}
 	if len(doc.Nodes) != 1 || doc.Nodes[0].Name != "lead" || doc.Nodes[0].Herdr != "broken-lead" {
 		t.Errorf("the members are %+v, want the live agent broken-lead as lead", doc.Nodes)
@@ -680,9 +636,6 @@ func TestActivityTimeWordsAreTheServers(t *testing.T) {
 		if got := activity.Length(one.at, one.lower); got != one.len {
 			t.Errorf("Length(%s, %v) = %q, want %q", one.at, one.lower, got, one.len)
 		}
-	}
-	if got := activity.Ago(activityNow, activityNow.Add(-(25*time.Hour + 30*time.Minute))); got != "1 日前" {
-		t.Errorf("Ago of a day and a half = %q, want 1 日前", got)
 	}
 	if got := activity.SinceAt(activityNow, activityNow.Add(-18*time.Minute), false); !regexp.MustCompile(`^\d\d:\d\d から$`).MatchString(got) {
 		t.Errorf("SinceAt = %q, want a clock and から", got)

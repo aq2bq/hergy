@@ -27,7 +27,12 @@ function layout() {
 const team = {
   name: 'core', project: '/work/alpha', project_name: '注文 API',
   workspace: { id: 'w1', label: '本体' },
-  summary: { definition: 'core', state: 'working', last: '' },
+  summary: { definition: 'core', state: 'working' },
+};
+const unchangedTeam = {
+  name: 'quiet', project: '/work/alpha', project_name: '注文 API',
+  workspace: { id: 'w2', label: 'quiet' },
+  summary: { definition: 'quiet', state: 'working' },
 };
 const sheet = {
   doc: {
@@ -35,7 +40,8 @@ const sheet = {
       { name: 'lead', herdr: 'core-lead', state: 'idle', at: '', stale: true },
       { name: 'spec2', herdr: '', state: 'absent', at: '', stale: false },
     ],
-    hired: [], tail: { lines: [] }, herdr: '',
+    hired: [],
+    question: '',
   },
 };
 
@@ -79,8 +85,9 @@ test('the opened team carries the count once, and the sheet applies that team', 
   const asked = serve((method, url) => {
     if (url === '/api/apply/count') return { count: 2 };
     if (url === '/api/apply') return method === 'POST' ? { launch } : applyAnswer();
-    if (url === '/api/activity') return { items: [team], herdr: { ok: true }, running: 1, waiting: 0 };
+    if (url === '/api/activity') return { items: [team, unchangedTeam], herdr: { ok: true }, running: 2, waiting: 0 };
     if (url === '/api/activity/core') return sheet;
+    if (url === '/api/activity/quiet') return { doc: { nodes: [], hired: [], question: '' } };
     if (url === '/api/hq/running') return running;
     if (url === '/api/hq/projects') {
       return { mode: 'listed', current: { path: '/work/alpha', name: 'alpha' }, projects: [{ path: '/work/alpha', name: 'alpha', listed: true, definitions: 1 }], global: { definitions: 0 } };
@@ -96,15 +103,21 @@ test('the opened team carries the count once, and the sheet applies that team', 
   await import('../src/lib/apply');
   await settle();
 
-  const detail = () => document.querySelector('.hq-detail');
+  const tile = () => document.querySelector('.hq-tile[data-team="core"]');
+  const quietTile = () => document.querySelector('.hq-tile[data-team="quiet"]');
   // No member row starts itself by hand, and none carries a mark of its own:
-  // the team's count stands once, in its heading.
-  expect(detail().querySelectorAll('[data-hq=raise]').length).toBe(0);
-  expect(detail().querySelectorAll('.nodes .apl-mark').length).toBe(0);
-  const marks = detail().querySelectorAll('[data-hq=apply]');
+  // the team's count stands once, in the tile's action row.
+  expect(tile().querySelectorAll('[data-hq=raise]').length).toBe(0);
+  expect(tile().querySelectorAll('.apl-mark').length).toBe(0);
+  expect(tile().querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
+  expect(tile().querySelector('[data-hq=stop]').textContent).toBe('チームを止める…');
+  const marks = tile().querySelectorAll('[data-hq=apply]');
   expect(marks.length).toBe(1);
   expect(marks[0].textContent).toContain('反映していない変更');
   expect(marks[0].querySelector('b').textContent).toBe('2');
+  expect(quietTile().querySelector('[data-hq=apply]')).toBe(null);
+  expect(quietTile().querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
+  expect(quietTile().querySelector('[data-hq=stop]').textContent).toBe('チームを止める…');
 
   marks[0].click();
   await settle();

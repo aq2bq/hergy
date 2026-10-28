@@ -18,10 +18,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// tailLimit is how much of a pane's tail the screen keeps (6 A6): the last lines,
-// with the empty ones at the end dropped.
-const tailLimit = 40
-
 // State is how a team is doing (設計 5.2).
 type State int
 
@@ -78,18 +74,15 @@ type Watch struct {
 	Lower bool
 }
 
-// Question is one open question from gy. 段 6 reads it; the judgement only
-// carries it, and an empty list is the common case (hergy does not need gy).
+// Question is one open question returned by the gy command client. The
+// activity screen does not expose it, but gycli uses the shape for its read.
 type Question struct {
 	ID      string
 	Title   string
 	Options []string
 	Decider string
 	At      time.Time
-	// Writer is who asked it, as gy's write unit names them. The activity
-	// shows the question on a team's own section when the writer is one of that
-	// team's herdr names (設計 5.3, W4).
-	Writer string
+	Writer  string
 }
 
 // Input is everything the judgement reads (設計 5.2).
@@ -102,11 +95,6 @@ type Input struct {
 	// hired worker) counts for whether the team works or waits, and stands in
 	// the line by its herdr name.
 	Agents []Agent
-	// Tails is each node's pane tail, by node name, for the node the line is
-	// about. A node with no tail has none.
-	Tails map[string]string
-	// Questions are gy's open questions (段 6); empty is fine.
-	Questions []Question
 	// Seen is when each agent's current state was first seen, by herdr name.
 	Seen map[string]Watch
 	// Now is when the judgement is made.
@@ -152,22 +140,16 @@ type Team struct {
 	// Nodes is the graph's nodes: the ones waiting for the human first, then the
 	// working ones, then the stopped ones, then the ones with no agent.
 	Nodes []Node
-	// Tail is the pane tail of the node the line is about, as the lines the
-	// screen shows: the last 40 lines, with the empty ones at the end dropped
-	// (6 A6). It is empty when there is no tail.
-	Tail []string
 	// Hired is the live agents that are no node of the graph, by the herdr name
 	// herdr knows them by: the workers a member hired (3.2). The screen lists
 	// each under the workers: node of the member that hired it.
 	Hired []Node
-	// Questions are gy's open questions (段 6).
-	Questions []Question
 }
 
 // Of judges one team. Nothing is read: everything comes from in.
 func Of(in Input) Team {
 	lives := livesOf(in)
-	team := Team{Name: in.Team, Questions: in.Questions}
+	team := Team{Name: in.Team}
 
 	working := filter(lives, Active)
 	blocked := filter(lives, Blocked)
@@ -183,7 +165,6 @@ func Of(in Input) Team {
 		team.Last = last.name
 		team.Stalled, team.Lower = length.d, length.lower
 		team.At = last.at
-		team.Tail = tailLines(in.Tails[last.name])
 		team.Line = i18n.Tf("activity.line_stuck", last.name, length.words())
 	case len(working) > 0:
 		team.State = Working
@@ -201,7 +182,6 @@ func Of(in Input) Team {
 		team.Last = last.name
 		team.Stalled, team.Lower = length.d, length.lower
 		team.At = last.at
-		team.Tail = tailLines(in.Tails[last.name])
 		if last.human {
 			team.State = WaitingTurn
 			team.Line = i18n.Tf("activity.line_waiting_human", last.name, length.words())
@@ -646,24 +626,4 @@ func markLower(text string, lower bool) string {
 		return text
 	}
 	return i18n.Tf("activity.or_more", text)
-}
-
-// tailLines is a pane's tail as the screen shows it (6 A6): the lines, with the
-// empty lines at the end dropped, and the last 40 of what is left. A tail with
-// nothing in it is no lines at all.
-func tailLines(tail string) []string {
-	if tail == "" {
-		return nil
-	}
-	lines := strings.Split(tail, "\n")
-	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-		lines = lines[:len(lines)-1]
-	}
-	if len(lines) == 0 {
-		return nil
-	}
-	if len(lines) > tailLimit {
-		lines = lines[len(lines)-tailLimit:]
-	}
-	return lines
 }

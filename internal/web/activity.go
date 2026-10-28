@@ -37,11 +37,10 @@ type ActivityList struct {
 	Herdr   ActivityNote   `json:"herdr"`
 }
 
-// ActivityItem is one running team, one row of the list.
+// ActivityItem is one running team tile in the list.
 type ActivityItem struct {
-	Name     string           `json:"name"`
-	Summary  ActivitySummary  `json:"summary"`
-	Problems ActivityProblems `json:"problems"`
+	Name    string          `json:"name"`
+	Summary ActivitySummary `json:"summary"`
 	// Error is why this team's definition cannot be read, as hergy status
 	// writes it (2.2). Empty when it reads.
 	Error string `json:"error"`
@@ -59,24 +58,17 @@ type ActivitySpace struct {
 	Label string `json:"label"`
 }
 
-// ActivitySummary is the row's columns: which definition it runs from, what it
-// is doing, who the row is about, how long it has been that way, and who is
-// working.
+// ActivitySummary is the tile's definition, state and how long that state has
+// lasted.
 type ActivitySummary struct {
 	// Definition is the team definition the team was booted from, which the row
 	// writes under the team's name when the two differ (2.2).
 	Definition string `json:"definition"`
 	// State is answer, turn, stalled or working (activity.State).
 	State string `json:"state"`
-	// Last is the short name of the member the row is about: the one waiting for
-	// the human, or the one that stopped last. Empty for a working team and for
-	// one with no live agent.
-	Last string `json:"last"`
-	// Since is how long the row has been in this state, and when it began. It is
+	// Since is how long the tile has been in this state, and when it began. It is
 	// left out for a working team and for one with no live agent (2.2).
 	Since *ActivitySince `json:"since,omitempty"`
-	// Working is who is working, for a working team only.
-	Working *ActivityWork `json:"working,omitempty"`
 }
 
 // ActivitySince is a length and the moment it began, in the server's own words
@@ -87,21 +79,6 @@ type ActivitySince struct {
 	Lower bool   `json:"lower"`
 }
 
-// ActivityWork is a working team's members and how many of its workers are
-// working.
-type ActivityWork struct {
-	Members []string `json:"members"`
-	Workers int      `json:"workers"`
-}
-
-// ActivityProblems is the row's counts. The activity's reading finds no problem
-// of its own to count — a definition it cannot read is the row's error, not a
-// problem here — so both are zero (spec-activity 3).
-type ActivityProblems struct {
-	Err  int `json:"err"`
-	Warn int `json:"warn"`
-}
-
 // ActivityNote is one reader that could not be read: whether it could, and the
 // sentence a person reads when it could not.
 type ActivityNote struct {
@@ -109,38 +86,17 @@ type ActivityNote struct {
 	Text string `json:"text"`
 }
 
-// ActivityDoc is GET /api/activity/{team}'s doc: one team, opened.
+// ActivityDoc is GET /api/activity/{team}'s members and workers for its tile.
 type ActivityDoc struct {
-	Name        string        `json:"name"`
-	Definition  string        `json:"definition"`
-	Project     string        `json:"project"`
-	ProjectName string        `json:"project_name"`
-	Workspace   ActivitySpace `json:"workspace"`
-	State       string        `json:"state"`
-	Last        string        `json:"last"`
-	// Herdr is the row's main member as herdr knows it ("core-lead"), which is
-	// the heading of the left column. Empty for a working team.
-	Herdr string `json:"herdr"`
-	// Role is that member's role from the team definition (2.4).
-	Role  string         `json:"role"`
-	Since *ActivitySince `json:"since,omitempty"`
 	// Nodes are the definition's members with their live state, the one waiting
 	// for the human first and, within one state, the one that stopped last
-	// first (2.5, 6 A3).
+	// first.
 	Nodes []ActivityNode `json:"nodes"`
-	// Hired are the team's workers, in the same order (X1, 6 A3).
+	// Hired are the team's workers, in the same order.
 	Hired []ActivityNode `json:"hired"`
-	// Questions are the open questions the row's main member asked, newest
-	// first. All of them: the screen shows one and the rest in one line each
-	// (2.4).
-	Questions []ActivityQuestion `json:"questions"`
-	Tail      ActivityTail       `json:"tail"`
-	// Gy says whether the ledger could be read, and why not when it could not
-	// (2.4).
-	Gy ActivityNote `json:"gy"`
-	// Error is why this team's definition cannot be read, for the row and for
-	// the opened part (2.2).
-	Error string `json:"error"`
+	// Question is the confirmation line from the main member's pane the waiting row shows.
+	// Empty when the member has no pane or no readable text.
+	Question string `json:"question"`
 }
 
 // ActivityNode is one member or one worker of the right-hand column: the name,
@@ -169,20 +125,4 @@ type ActivityNode struct {
 	// hire line of the launch record (d-b4b9). Empty for a worker hired before
 	// that line was written, and always empty for a member.
 	From string `json:"from,omitempty"`
-}
-
-// ActivityQuestion is one open question the row's main member asked.
-type ActivityQuestion struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Ago     string   `json:"ago"`
-	Options []string `json:"options"`
-}
-
-// ActivityTail is the last lines of the row's main member's pane, as herdr wrote
-// them (2.4, 6 A6). Lines is empty when the pane could not be read.
-type ActivityTail struct {
-	Lines []string `json:"lines"`
-	// Shown is how many of them the screen shows before 上に N 行.
-	Shown int `json:"shown"`
 }

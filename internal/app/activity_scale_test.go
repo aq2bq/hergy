@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,7 +23,7 @@ import (
 // browser so that each check of the activity screen stands at its own size: the tests
 // here hold the reading behind GET /api/activity, GET /api/activity/{team} and
 // the judgement of one team, over testdata/teams-v2 overlaid with
-// testdata/activity — a mock herdr and gy, 4 running teams and 55 open questions.
+// testdata/activity — a mock herdr and the project's team and launch records.
 
 // ---- the fixture's own moment ------------------------------------------------------------
 
@@ -251,7 +250,6 @@ type activityListItem struct {
 	Summary struct {
 		Definition string         `json:"definition"`
 		State      string         `json:"state"`
-		Last       string         `json:"last"`
 		Since      *activitySince `json:"since"`
 	} `json:"summary"`
 	Error string `json:"error"`
@@ -274,38 +272,6 @@ type activityListAnswer struct {
 	} `json:"herdr"`
 }
 
-// activityQuestionAnswer is one open question as the opened part carries it.
-type activityQuestionAnswer struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Ago     string   `json:"ago"`
-	Options []string `json:"options"`
-}
-
-// activityDocAnswer is GET /api/activity/{team}'s answer.
-type activityDocAnswer struct {
-	Doc struct {
-		Name      string                   `json:"name"`
-		Herdr     string                   `json:"herdr"`
-		Role      string                   `json:"role"`
-		Questions []activityQuestionAnswer `json:"questions"`
-		Nodes     []struct {
-			Name  string `json:"name"`
-			Herdr string `json:"herdr"`
-			State string `json:"state"`
-			At    string `json:"at"`
-		} `json:"nodes"`
-		Tail struct {
-			Lines []string `json:"lines"`
-			Shown int      `json:"shown"`
-		} `json:"tail"`
-		Gy struct {
-			OK   bool   `json:"ok"`
-			Text string `json:"text"`
-		} `json:"gy"`
-	} `json:"doc"`
-}
-
 // activityItemNames is the list's teams in the order it answers them.
 func activityItemNames(items []activityListItem) string {
 	names := make([]string, 0, len(items))
@@ -313,15 +279,6 @@ func activityItemNames(items []activityListItem) string {
 		names = append(names, item.Name)
 	}
 	return strings.Join(names, ",")
-}
-
-// activityQuestionIDs is the opened part's questions in the order it answers them.
-func activityQuestionIDs(questions []activityQuestionAnswer) string {
-	ids := make([]string, 0, len(questions))
-	for _, question := range questions {
-		ids = append(ids, question.ID)
-	}
-	return strings.Join(ids, ",")
 }
 
 // activityWrite asks the serve for one write on the activity kind, which is a
@@ -423,12 +380,6 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 	}
 	// The team waits for the human, and the line is about the lead that handed
 	// the turn over.
-	if doc.State != "turn" || doc.Last != "lead" {
-		t.Errorf("core reads %q with last %q, want turn and lead", doc.State, doc.Last)
-	}
-	if doc.Herdr != "core-lead" {
-		t.Errorf("core's line stands under %q, want core-lead", doc.Herdr)
-	}
 
 	// The fixture's agents: the lead handed the turn to the human, every other
 	// member stopped (analyst's agent reports done, which is one way to stop).
@@ -458,9 +409,8 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 
 // TestACTIVITY-C5_saysHowLongFromTheFixedClock makes every length and every
 // moment from a fixed "now" and the fixture's stopped moments: core waits
-// 2 時間 40 分 from a clock, core-hotfix is stopped 4 時間 5 分以上 from a moment
-// that is a lower bound, and the lead's questions read 2 時間 45 分前, 1 日前 and
-// 2 日前. The moment is placed so that every stopped moment falls on the same
+// 2 時間 40 分 from a clock, and core-hotfix is stopped 4 時間 5 分以上 from a
+// moment that is a lower bound. The moment is placed so every stopped moment falls on the same
 // calendar day as it, so the clock is written without a date; the wall clock is
 // never read, and the screen's own script makes none of these words (V1).
 func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
@@ -489,61 +439,56 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 
 	// core: the lead handed the turn over 2 時間 40 分 ago, and the moment it
 	// began reads as a clock with から.
-	core, ok := r.One("core")
-	if !ok {
-		t.Fatal("core is running, so its opened part is there")
+	list := r.List()
+	var coreRow *web.ActivityItem
+	var hotfixRow *web.ActivityItem
+	for i := range list.Items {
+		switch list.Items[i].Name {
+		case "core":
+			coreRow = &list.Items[i]
+		case "core-hotfix":
+			hotfixRow = &list.Items[i]
+		}
 	}
-	if core.Since == nil {
-		t.Fatalf("core's row carries no いつから: %+v", core)
+	if coreRow == nil || coreRow.Summary.Since == nil {
+		t.Fatalf("core's tile carries no いつから: %+v", coreRow)
 	}
-	if core.Since.Len != "2 時間 40 分" {
-		t.Errorf("core has waited %q, want 2 時間 40 分", core.Since.Len)
+	if coreRow.Summary.Since.Len != "2 時間 40 分" {
+		t.Errorf("core has waited %q, want 2 時間 40 分", coreRow.Summary.Since.Len)
 	}
-	if want := at.Add(-160*time.Minute).Format("15:04") + " から"; core.Since.At != want {
-		t.Errorf("core has waited since %q, want %q", core.Since.At, want)
+	if want := at.Add(-160*time.Minute).Format("15:04") + " から"; coreRow.Summary.Since.At != want {
+		t.Errorf("core has waited since %q, want %q", coreRow.Summary.Since.At, want)
 	}
 	// The member the row is about carries the same moment in the words the row
 	// reads: the server writes them, so the screen writes no time word of its own
 	// (d-b4b9 audit 2).
+	coreDoc, ok := r.One("core")
+	if !ok {
+		t.Fatal("core is running, so its tile data is there")
+	}
 	var leadNode *web.ActivityNode
-	for i := range core.Nodes {
-		if core.Nodes[i].Name == "lead" {
-			leadNode = &core.Nodes[i]
+	for i := range coreDoc.Nodes {
+		if coreDoc.Nodes[i].Name == "lead" {
+			leadNode = &coreDoc.Nodes[i]
 		}
 	}
 	if leadNode == nil {
-		t.Fatalf("core has no lead node: %+v", core.Nodes)
+		t.Fatalf("core has no lead node: %+v", coreDoc.Nodes)
 	}
-	if leadNode.SinceAt != core.Since.At {
-		t.Errorf("the lead's いつから reads %q, want the row's %q", leadNode.SinceAt, core.Since.At)
+	if leadNode.SinceAt != coreRow.Summary.Since.At {
+		t.Errorf("the lead's いつから reads %q, want the tile's %q", leadNode.SinceAt, coreRow.Summary.Since.At)
 	}
 
 	// core-hotfix: its members were already stopped when the watching began, so
 	// the length is a lower bound and the moment reads より前.
-	hotfix, ok := r.One("core-hotfix")
-	if !ok {
-		t.Fatal("core-hotfix is running, so its opened part is there")
+	if hotfixRow == nil || hotfixRow.Summary.Since == nil {
+		t.Fatalf("core-hotfix's tile carries no いつから: %+v", hotfixRow)
 	}
-	if hotfix.Since == nil {
-		t.Fatalf("core-hotfix's row carries no いつから: %+v", hotfix)
+	if hotfixRow.Summary.Since.Len != "4 時間 5 分以上" || !hotfixRow.Summary.Since.Lower {
+		t.Errorf("core-hotfix is stopped %q (lower=%v), want 4 時間 5 分以上", hotfixRow.Summary.Since.Len, hotfixRow.Summary.Since.Lower)
 	}
-	if hotfix.Since.Len != "4 時間 5 分以上" || !hotfix.Since.Lower {
-		t.Errorf("core-hotfix is stopped %q (lower=%v), want 4 時間 5 分以上", hotfix.Since.Len, hotfix.Since.Lower)
-	}
-	if want := at.Add(-245*time.Minute).Format("15:04") + " より前"; hotfix.Since.At != want {
-		t.Errorf("core-hotfix is stopped since %q, want %q", hotfix.Since.At, want)
-	}
-
-	// 問いは 2 時間 45 分前・1 日前・2 日前: 24 時間以上は日で数える (6 A4).
-	if len(core.Questions) != 3 {
-		t.Fatalf("core carries %d questions, want its lead's three: %+v", len(core.Questions), core.Questions)
-	}
-	if core.Questions[0].ID != "q-7c2e" || core.Questions[0].Ago != "2 時間 45 分前" {
-		t.Errorf("the newest question is %+v, want q-7c2e asked 2 時間 45 分前", core.Questions[0])
-	}
-	if core.Questions[1].Ago != "1 日前" || core.Questions[2].Ago != "2 日前" {
-		t.Errorf("the older questions read %q and %q, want 1 日前 and 2 日前",
-			core.Questions[1].Ago, core.Questions[2].Ago)
+	if want := at.Add(-245*time.Minute).Format("15:04") + " より前"; hotfixRow.Summary.Since.At != want {
+		t.Errorf("core-hotfix is stopped since %q, want %q", hotfixRow.Summary.Since.At, want)
 	}
 
 	// V1: none of these words is the screen's own. The scripts the browser runs
@@ -593,23 +538,22 @@ func TestACTIVITY_S3_listsTheRunningTeams(t *testing.T) {
 	if list.Running != 4 || list.Waiting != 2 {
 		t.Errorf("the band reads running=%d waiting=%d, want 4 and 2", list.Running, list.Waiting)
 	}
-	want := []struct{ name, state, last, definition string }{
-		{"core", "turn", "lead", "core"},
-		{"migrate", "answer", "tester", "migrate"},
+	want := []struct{ name, state, definition string }{
+		{"core", "turn", "core"},
+		{"migrate", "answer", "migrate"},
 		// core-hotfix was booted from core's definition, so its row names 定義 core.
-		{"core-hotfix", "stalled", "impl-a", "core"},
-		{"research", "working", "", "research"},
+		{"core-hotfix", "stalled", "core"},
+		{"research", "working", "research"},
 	}
 	if len(list.Items) != len(want) {
 		t.Fatalf("the list holds %d rows, want %d", len(list.Items), len(want))
 	}
 	for i, one := range want {
 		item := list.Items[i]
-		if item.Name != one.name || item.Summary.State != one.state ||
-			item.Summary.Last != one.last || item.Summary.Definition != one.definition {
-			t.Errorf("row %d is %s/%s/%s/%s, want %s/%s/%s/%s", i,
-				item.Name, item.Summary.State, item.Summary.Last, item.Summary.Definition,
-				one.name, one.state, one.last, one.definition)
+		if item.Name != one.name || item.Summary.State != one.state || item.Summary.Definition != one.definition {
+			t.Errorf("tile %d is %s/%s/%s, want %s/%s/%s", i,
+				item.Name, item.Summary.State, item.Summary.Definition,
+				one.name, one.state, one.definition)
 		}
 	}
 	// 人の作業用のタブ (the fixture's "notes") is no team of this project.
@@ -622,12 +566,9 @@ func TestACTIVITY_S3_listsTheRunningTeams(t *testing.T) {
 
 // ---- ACTIVITY-C2 -------------------------------------------------------------------------
 
-// TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions reads GET /api/activity
-// and GET /api/activity/core over a real serve with a gy that writes down every
-// call: the list reads no gy at all, while the opened part of core reads each of
-// its lead's three questions' own details once and no other question's. Of the
-// fixture's 55 open questions only those three come back.
-func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
+// TestACTIVITY_C2_readsOnlyTileData reads the read-only API and confirms that
+// gy is not queried and the opened tile no longer carries the detail fields.
+func TestACTIVITY_C2_readsOnlyTileData(t *testing.T) {
 	useJapanese(t)
 	serveAt(t)
 	cwd, err := os.Getwd()
@@ -648,79 +589,33 @@ func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
 	base, stop := startServe(t, f)
 	defer stop()
 
-	// 一覧は gy を呼ばない: GET /api/activity reads herdr, the launch record and
-	// the definitions, and never gy.
 	resp, _ := navGet(t, base, "/api/activity")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /api/activity answers %d", resp.StatusCode)
-	}
-	if got := calls(t, log); got != "" {
-		t.Errorf("GET /api/activity called gy: %s", strings.TrimSpace(got))
-	}
-
-	if err := os.WriteFile(log, nil, 0o644); err != nil {
-		t.Fatal(err)
 	}
 	resp, page := navGet(t, base, "/api/activity/core")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /api/activity/core answers %d", resp.StatusCode)
 	}
-	var doc activityDocAnswer
-	readJSONText(t, "GET /api/activity/core", page, &doc)
-
-	// core's questions are its lead's three alone, newest first, and the newest
-	// one carries its title and its two options.
-	if got := activityQuestionIDs(doc.Doc.Questions); got != "q-7c2e,q-51b9,q-0d4a" {
-		t.Errorf("the opened part carries %q, want the row's own member's three", got)
+	if strings.TrimSpace(calls(t, log)) != "" {
+		t.Errorf("the activity API called gy: %s", strings.TrimSpace(calls(t, log)))
 	}
-	if len(doc.Doc.Questions) != 3 {
-		t.Fatalf("the opened part carries %d questions, want 3: %+v", len(doc.Doc.Questions), doc.Doc.Questions)
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(page), &shape); err != nil {
+		t.Fatalf("GET /api/activity/core is not JSON: %v", err)
 	}
-	first := doc.Doc.Questions[0]
-	if first.Title != "注文 API のページ送りを cursor に替えるか" {
-		t.Errorf("q-7c2e's title reads %q", first.Title)
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(shape["doc"], &doc); err != nil {
+		t.Fatalf("the tile document is not JSON: %v", err)
 	}
-	if len(first.Options) != 2 {
-		t.Errorf("q-7c2e carries %d options, want 2", len(first.Options))
-	}
-
-	// gy show is read once per question this member asked, and for no other.
-	var shown []string
-	for line := range strings.SplitSeq(strings.TrimSpace(calls(t, log)), "\n") {
-		if strings.HasPrefix(line, "show ") {
-			shown = append(shown, strings.Fields(line)[1])
+	for _, field := range []string{"tail", "questions", "gy", "role", "last"} {
+		if _, ok := doc[field]; ok {
+			t.Errorf("the tile document still carries unused field %q", field)
 		}
 	}
-	if !slices.Equal(shown, []string{"q-7c2e", "q-51b9", "q-0d4a"}) {
-		t.Errorf("the questions' details were read for %v, want each of the three once", shown)
+	if _, ok := doc["question"]; !ok {
+		t.Error("the tile document has no question field for the waiting row")
 	}
-
-	// Of the fixture's 55 open questions, the 52 core's lead did not ask are not
-	// in the answer.
-	var open []struct {
-		ID string `json:"id"`
-	}
-	readJSONText(t, "open.json", readFile(t, filepath.Join(work, "gy", "open.json")), &open)
-	if len(open) != 55 {
-		t.Fatalf("the fixture holds %d open questions, want 55", len(open))
-	}
-	here := map[string]bool{"q-7c2e": true, "q-51b9": true, "q-0d4a": true}
-	hidden := 0
-	for _, question := range open {
-		if here[question.ID] {
-			continue
-		}
-		hidden++
-		if strings.Contains(page, question.ID) {
-			t.Errorf("the answer carries %s, which core's lead did not ask", question.ID)
-		}
-	}
-	if hidden != 52 {
-		t.Errorf("the fixture holds %d questions the answer must hide, want 52", hidden)
-	}
-
-	// The kind is one someone reads: the three writes are refused with 405 and
-	// the word the boundary writes for that (3 章).
 	for _, one := range []struct{ method, path string }{
 		{"POST", "/api/activity/check"},
 		{"PUT", "/api/activity/core"},
@@ -732,67 +627,6 @@ func TestACTIVITY_C2_readsGyOnlyForTheOpenedRowsQuestions(t *testing.T) {
 		}
 		if got := strings.TrimSpace(body); got != i18n.T("web.error.read_only") {
 			t.Errorf("%s %s says %q, want the read-only sentence", one.method, one.path, got)
-		}
-	}
-}
-
-// ---- ACTIVITY-C3 -------------------------------------------------------------------------
-
-// TestACTIVITY_C3_showsThePanesLastSixLines reads GET /api/activity/migrate: the
-// row waits for a permission and has no question at all, and its pane carries
-// the last six lines the screen shows — the first of them the empty line herdr
-// wrote — with herdr's own psql question in them. The pane holds at most the 40
-// lines the reading keeps (6 A6).
-func TestACTIVITY_C3_showsThePanesLastSixLines(t *testing.T) {
-	useJapanese(t)
-	serveAt(t)
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := newFixture(t)
-	copyActivityFixture(t, f, cwd)
-	base, stop := startServe(t, f)
-	defer stop()
-
-	resp, page := navGet(t, base, "/api/activity/migrate")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/activity/migrate answers %d", resp.StatusCode)
-	}
-	var doc activityDocAnswer
-	readJSONText(t, "GET /api/activity/migrate", page, &doc)
-
-	// 問いは無く, and nothing says a question could not be read.
-	if len(doc.Doc.Questions) != 0 {
-		t.Errorf("migrate's opened part carries %d questions, want none: %+v", len(doc.Doc.Questions), doc.Doc.Questions)
-	}
-	if !doc.Doc.Gy.OK {
-		t.Errorf("migrate says it could not read a question: %+v", doc.Doc.Gy)
-	}
-
-	// 画面の最後: the reading keeps the pane's last 40 lines, and the screen
-	// shows the last six of them.
-	lines := doc.Doc.Tail.Lines
-	if doc.Doc.Tail.Shown != 6 {
-		t.Errorf("the pane shows %d lines at first, want 6", doc.Doc.Tail.Shown)
-	}
-	if len(lines) > 40 {
-		t.Errorf("the pane carries %d lines, want at most the 40 the reading keeps", len(lines))
-	}
-	if len(lines) < 6 {
-		t.Fatalf("the pane carries %d lines, want the six the screen shows first", len(lines))
-	}
-	last := lines[len(lines)-6:]
-	if last[0] != "" {
-		t.Errorf("the pane's last six lines start %q, want the empty line herdr wrote first", last[0])
-	}
-	pane := strings.Join(last, "\n")
-	for _, want := range []string{
-		"Would you like to run the following command?",
-		`$ psql "$STAGING_URL" -f migrate/0042_split_ledger.sql`,
-	} {
-		if !strings.Contains(pane, want) {
-			t.Errorf("the pane's last six lines never say %q:\n%s", want, pane)
 		}
 	}
 }
@@ -855,67 +689,4 @@ func TestACTIVITY_E1_saysWhenHerdrIsNotThere(t *testing.T) {
 			t.Errorf("a herdr with no tab still made %+v, want no row and running 0", list)
 		}
 	})
-}
-
-// ---- ACTIVITY-E3 -------------------------------------------------------------------------
-
-// TestACTIVITY_E3_saysWhenGyFails reads GET /api/activity/core with a gy that is
-// there and fails and with a gy that is not there: the first answers with gy's
-// own sentence, the second says nothing about it, and both carry the questions
-// as empty. The pane and the members come back either way — only gy was the
-// thing that could not be read.
-func TestACTIVITY_E3_saysWhenGyFails(t *testing.T) {
-	useJapanese(t)
-	serveAt(t)
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := newFixture(t)
-	copyActivityFixture(t, f, cwd)
-	bad := filepath.Join(f.cfg, "activity", "bin", "gy-bad")
-	writeFile(t, bad, "#!/bin/sh\necho 'gy: the ledger could not be read' >&2\nexit 1\n")
-	if err := os.Chmod(bad, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	base, stop := startServe(t, f)
-	defer stop()
-
-	// 前者: a gy that is there and fails says so in its own sentence.
-	t.Setenv("HERGY_GY", bad)
-	resp, page := navGet(t, base, "/api/activity/core")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/activity/core answers %d", resp.StatusCode)
-	}
-	var doc activityDocAnswer
-	readJSONText(t, "GET /api/activity/core", page, &doc)
-	if doc.Doc.Gy.OK || doc.Doc.Gy.Text == "" {
-		t.Errorf("gy = %+v, want the sentence of a gy that failed", doc.Doc.Gy)
-	}
-	if len(doc.Doc.Questions) != 0 {
-		t.Errorf("a gy that failed still answered %d questions", len(doc.Doc.Questions))
-	}
-	if len(doc.Doc.Tail.Lines) == 0 || len(doc.Doc.Nodes) == 0 {
-		t.Errorf("only gy failed, so the pane and the members must still come back: %d lines, %d members",
-			len(doc.Doc.Tail.Lines), len(doc.Doc.Nodes))
-	}
-
-	// 後者: a gy that is not there is no gy here, so nothing is said about it and
-	// the questions are empty.
-	t.Setenv("HERGY_GY", filepath.Join(f.cfg, "no-gy"))
-	resp, page = navGet(t, base, "/api/activity/core")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/activity/core answers %d", resp.StatusCode)
-	}
-	readJSONText(t, "GET /api/activity/core", page, &doc)
-	if !doc.Doc.Gy.OK || doc.Doc.Gy.Text != "" {
-		t.Errorf("gy = %+v, want nothing said about a gy that is not there", doc.Doc.Gy)
-	}
-	if len(doc.Doc.Questions) != 0 {
-		t.Errorf("a gy that is not there still answered %d questions", len(doc.Doc.Questions))
-	}
-	if len(doc.Doc.Tail.Lines) == 0 || len(doc.Doc.Nodes) == 0 {
-		t.Errorf("a gy that is not there must leave the pane and the members: %d lines, %d members",
-			len(doc.Doc.Tail.Lines), len(doc.Doc.Nodes))
-	}
 }

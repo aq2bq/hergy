@@ -1,4 +1,4 @@
-// lib/hq/figure.tsx — チームの図（spec 6 章）。アクティビティの画面のタイルと詳細が同じ 1 つの
+// lib/hq/figure.tsx — チームの図（spec 6 章）。アクティビティの札と
 // 図を描くための部品（webui-preact-design 5 章 1。前は hq.js が SVG の文字列を返し、
 // アクティビティの画面が dangerouslySetInnerHTML で流し込んでいた）。
 //
@@ -7,8 +7,8 @@
 // フォーカスの入るものも無い（role="img"）。
 import type { JSX } from 'preact';
 
-type FigureMember = { name: string; state: string };
-type FigureWorker = { name: string; state: string; from: string };
+type FigureMember = { name: string; state: string; doing?: string };
+type FigureWorker = { name: string; state: string; from: string; doing?: string };
 type FigureTeam = { name: string; crew?: FigureMember[]; workers?: FigureWorker[] };
 type Point = [number, number];
 type Props = { team: FigureTeam; turns?: [string, string][]; W?: number; H?: number; layout?: 'default' | 'packed' };
@@ -189,7 +189,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     const member = slot.item;
     const state = nodeState(member.state);
     nodes.push(<g class={'hq-n ' + member.state}>
-      <title>{`${member.name} · ${state}`}</title>
+      <title>{`${member.name} · ${state}${member.doing ? ` · ${member.doing}` : ''}`}</title>
       <circle class="ring" cx={slot.x} cy={slot.y} r="15" />
       <circle class="dot" cx={slot.x} cy={slot.y} r="11" />
       {member.state === 'blocked' ? <text class="bang" x={slot.x} y={slot.y + 4}>!</text> : ''}
@@ -201,7 +201,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     const state = nodeState(worker.state);
     const ownerText = owner ? `${owner} のワーカー` : '持ち主を特定できないワーカー';
     nodes.push(<g class={'hq-n wkr ' + worker.state} data-owner={owner || ''}>
-      <title>{`${worker.name} · ${ownerText} · ${state}`}</title>
+      <title>{`${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ''}`}</title>
       <circle class="dot" cx={slot.x} cy={slot.y} r="6" />
       <text class="lbl s" x={slot.x} y={slot.y + 20} data-label-width={slot.width} data-label-row={`worker-${slot.row}`}>{worker.name}</text>
     </g>);

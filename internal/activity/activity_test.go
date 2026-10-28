@@ -3,7 +3,6 @@ package activity
 import (
 	"fmt"
 	"os"
-	"slices"
 	"testing"
 	"time"
 
@@ -71,7 +70,6 @@ func TestOfStates(t *testing.T) {
 		last     string
 		stalled  time.Duration
 		lower    bool
-		tail     []string
 		nodeLead NodeState
 		nodeSpec NodeState
 	}{
@@ -80,11 +78,10 @@ func TestOfStates(t *testing.T) {
 			in: Input{
 				Graph:  twoWay,
 				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "blocked", Seq: 7}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 2}},
-				Tails:  map[string]string{"lead": "許可をください"},
 				Seen:   map[string]Watch{"demo-lead": ago(25 * time.Minute)},
 			},
 			state: WaitingAnswer, line: i18n.Tf("activity.line_stuck", "lead", durationText(25*time.Minute, false)),
-			last: "lead", stalled: 25 * time.Minute, tail: []string{"許可をください"},
+			last: "lead", stalled: 25 * time.Minute,
 			nodeLead: Blocked, nodeSpec: Idle,
 		},
 		{
@@ -92,11 +89,10 @@ func TestOfStates(t *testing.T) {
 			in: Input{
 				Graph:  twoWay,
 				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 9}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 3}},
-				Tails:  map[string]string{"lead": "lead の最後のターン"},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
 			},
 			state: WaitingTurn, line: i18n.Tf("activity.line_waiting_human", "lead", durationText(12*time.Minute, false)),
-			last: "lead", stalled: 12 * time.Minute, tail: []string{"lead の最後のターン"},
+			last: "lead", stalled: 12 * time.Minute,
 			nodeLead: HandedOver, nodeSpec: Idle,
 		},
 		{
@@ -104,12 +100,11 @@ func TestOfStates(t *testing.T) {
 			in: Input{
 				Graph:  throughLead,
 				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 8}},
-				Tails:  map[string]string{"spec": "spec の最後のターン"},
 				Seen:   map[string]Watch{"demo-spec": ago(4 * time.Minute)},
 			},
 			state: Stalled,
 			line:  i18n.Tf("activity.line_team_stuck", durationText(4*time.Minute, false)) + i18n.Tf("activity.line_last_turn", "spec"),
-			last:  "spec", stalled: 4 * time.Minute, tail: []string{"spec の最後のターン"},
+			last:  "spec", stalled: 4 * time.Minute,
 			nodeLead: Idle, nodeSpec: Idle,
 		},
 		{
@@ -142,9 +137,6 @@ func TestOfStates(t *testing.T) {
 			}
 			if got.Stalled != c.stalled || got.Lower != c.lower {
 				t.Errorf("Stalled = %v (lower %v), want %v (lower %v)", got.Stalled, got.Lower, c.stalled, c.lower)
-			}
-			if !slices.Equal(got.Tail, c.tail) {
-				t.Errorf("Tail = %q, want %q", got.Tail, c.tail)
 			}
 			if len(got.Nodes) != 2 {
 				t.Fatalf("Nodes = %+v, want the two members", got.Nodes)

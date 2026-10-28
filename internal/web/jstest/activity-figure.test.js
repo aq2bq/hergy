@@ -1,5 +1,5 @@
-// ACTIVITY-FIGURE large teams keep every member and worker label readable at
-// the tile size and in the opened team's larger diagram (r-8b04, ac-ecb0).
+// ACTIVITY-FIGURE large teams keep every member and worker label readable in
+// the tile, and the tile carries its actions without a third detail section.
 import { expect, test } from 'bun:test';
 import { serve, settle } from './page.js';
 
@@ -13,7 +13,7 @@ function layout() {
 }
 
 const members = [
-  { name: 'lead', state: 'active' },
+  { name: 'lead', state: 'active', doing: '設計を読む' },
   { name: 'webui-design', state: 'idle' },
   { name: 'long-reviewer', state: 'blocked' },
   { name: 'qa', state: 'absent' },
@@ -51,33 +51,48 @@ test('four members and seven differently named workers fit both activity diagram
   layout();
   serve((method, url) => {
     if (url === '/api/activity') return {
-      items: [{ name: 'large', project: '/work/alpha', project_name: 'alpha', summary: { definition: 'large', state: 'working' } }],
+      items: [
+        { name: 'large', project: '/work/alpha', project_name: 'alpha', summary: { definition: 'large', state: 'working' } },
+        { name: 'idle', project: '/work/alpha', project_name: 'alpha', summary: { definition: 'idle', state: 'working' } },
+      ],
       herdr: { ok: true, text: '' }, running: 1, waiting: 1,
     };
     if (url === '/api/activity/large') return {
       doc: {
         nodes: members.map((member) => ({ ...member, herdr: `large-${member.name}`, at: '' })),
-        hired: workers, tail: { lines: [] }, herdr: '',
+        hired: workers,
+        question: '',
       },
     };
+    if (url === '/api/activity/idle') return { doc: { nodes: [], hired: [], question: '' } };
+    if (url === '/api/apply') return { herdr: { ok: true }, count: 1, teams: [{ team: 'large', members: [{ name: 'large-lead' }] }] };
+    if (url === '/api/apply/count') return { count: 1 };
     return undefined;
   });
   await import('../src/activity/main');
+  await import('../src/lib/apply');
   await settle();
 
   const tile = document.querySelector('.hq-tile[data-team="large"]');
-  const detail = document.querySelector('.hq-detail');
   expect(tile).not.toBe(null);
-  expect(detail).not.toBe(null);
+  expect(document.querySelector('.hq-detail')).toBe(null);
+  expect(document.querySelectorAll('.hq-tile')).toHaveLength(2);
   expect(tile.querySelector('.hq-tc').textContent).toContain('メンバー 4人');
   expect(tile.querySelector('.hq-tc').textContent).toContain('ワーカー 7人');
+  expect(tile.querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
+  expect(tile.querySelector('.hq-tactions a').getAttribute('href')).toContain('/teams?open=');
+  expect(tile.querySelector('[data-hq="apply"]').textContent).toContain('反映していない変更');
+  expect(tile.querySelector('[data-hq="stop"]').textContent).toBe('チームを止める…');
+  const idleTile = document.querySelector('.hq-tile[data-team="idle"]');
+  expect(idleTile.querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
+  expect(idleTile.querySelector('[data-hq="apply"]')).toBe(null);
+  expect(idleTile.querySelector('[data-hq="stop"]').textContent).toBe('チームを止める…');
 
-  const compact = tile.querySelector('svg.hq-svg.packed');
-  const large = detail.querySelector('.hq-dleft svg.hq-svg.packed');
-  expect(compact.getAttribute('viewBox')).toMatch(/^0 0 440 /);
-  expect(large.getAttribute('viewBox')).toMatch(/^0 0 720 /);
-  expectLabelsDoNotOverlap(compact);
-  expectLabelsDoNotOverlap(large);
-  expect(large.querySelectorAll('.hq-e.wk')).toHaveLength(workers.length);
-  expect([...large.querySelectorAll('.wkr')].map((el) => el.getAttribute('data-owner'))).toEqual(workers.map((worker) => worker.from));
+  const figure = tile.querySelector('svg.hq-svg.packed');
+  expect(figure.getAttribute('viewBox')).toMatch(/^0 0 440 /);
+  expectLabelsDoNotOverlap(figure);
+  expect(figure.querySelectorAll('.hq-e.wk')).toHaveLength(workers.length);
+  expect([...figure.querySelectorAll('.wkr')].map((el) => el.getAttribute('data-owner'))).toEqual(workers.map((worker) => worker.from));
+  expect(figure.querySelector('g.hq-n.active title').textContent).toBe('lead · 仕事中 · 設計を読む');
+  expect(figure.querySelector('g.hq-n.idle title').textContent).toBe('webui-design · 止まっている');
 });

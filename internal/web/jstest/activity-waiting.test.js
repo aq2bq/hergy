@@ -22,20 +22,21 @@ function layout() {
 const team = (name, state) => ({
   name, project: '', project_name: '注文 API',
   workspace: { id: 'w1', label: '本体' },
-  summary: { definition: name, state, last: '' },
+  summary: { definition: name, state },
 });
 // sheet is one team's own reading: the members herdr knows, with their state.
-const sheet = (nodes) => ({ doc: { nodes, hired: [], tail: { lines: [] }, herdr: '' } });
+const sheet = (nodes, question = '') => ({ doc: { nodes, hired: [], question } });
 
 test('the first tier and the figure say whose answer a person owes', async () => {
   history.replaceState({}, '', '/activity');
   layout();
   serve((method, url) => {
     if (url === '/api/activity') {
-      return { items: [team('core', 'turn'), team('migrate', 'answer')], herdr: { ok: true }, running: 2, waiting: 2 };
+      return { items: [team('core', 'turn'), team('migrate', 'answer'), team('stalled', 'stalled')], herdr: { ok: true }, running: 3, waiting: 2 };
     }
-    if (url === '/api/activity/core') return sheet([{ name: 'lead', herdr: 'core-lead', state: 'handed', at: '' }]);
-    if (url === '/api/activity/migrate') return sheet([{ name: 'tester', herdr: 'migrate-tester', state: 'blocked', at: '' }]);
+    if (url === '/api/activity/core') return sheet([{ name: 'lead', herdr: 'core-lead', state: 'handed', at: '' }], 'Continue with the change?');
+    if (url === '/api/activity/migrate') return sheet([{ name: 'tester', herdr: 'migrate-tester', state: 'blocked', at: '' }], 'Trust this folder?');
+    if (url === '/api/activity/stalled') return sheet([{ name: 'lead', herdr: 'stalled-lead', state: 'idle', at: '' }]);
     return undefined;
   });
   await import('../src/activity/main');
@@ -49,9 +50,21 @@ test('the first tier and the figure say whose answer a person owes', async () =>
   // core's lead handed the turn over; migrate's tester waits for a permission.
   expect(waiting('core')).toEqual(['人間の番', 'core-lead']);
   expect(waiting('migrate')).toEqual(['許可待ち', 'migrate-tester']);
+  expect(document.querySelector('.hq-at[data-pick="core"] .hq-aq').textContent).toBe('Continue with the change?');
+  expect(document.querySelector('.hq-at[data-pick="migrate"] .hq-aq').textContent).toBe('Trust this folder?');
 
   // The team's own figure says the same state.
   const tile = document.querySelector('.hq-tile[data-team="core"] .st');
   expect(tile).not.toBe(null);
   expect(tile.textContent).toBe('人間の番');
+
+  const scrolled = [];
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value(options) { scrolled.push([this.dataset.team, options.block]); } });
+  for (const name of ['migrate', 'stalled']) {
+    document.querySelector(`.hq-at[data-pick="${name}"]`).click();
+    await settle();
+    expect(document.querySelector('.hq-tile.sel').dataset.team).toBe(name);
+    expect(location.search).toContain(`open=${name}`);
+  }
+  expect(scrolled).toEqual([['migrate', 'nearest'], ['stalled', 'nearest']]);
 });

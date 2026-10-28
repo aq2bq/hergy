@@ -2100,10 +2100,10 @@ components:
             - $ref: '#/components/schemas/ActivityNote'
           description: herdr を読めたかと、読めない理由
     ActivityItem:
-      description: アクティビティの一覧にあるチーム 1 件
+      description: アクティビティの一覧にあるチームの札 1 件
       type: object
       additionalProperties: false
-      required: [name, summary, problems, error, project, project_name, workspace]
+      required: [name, summary, error, project, project_name, workspace]
       properties:
         name:
           type: string
@@ -2111,11 +2111,7 @@ components:
         summary:
           allOf:
             - $ref: '#/components/schemas/ActivitySummary'
-          description: チームの状態と直近のメンバー
-        problems:
-          allOf:
-            - $ref: '#/components/schemas/ActivityProblems'
-          description: アクティビティの問題の数
+          description: チームの状態と長さ
         error:
           type: string
           description: チーム定義を読めない理由。読めるときは空
@@ -2130,10 +2126,10 @@ components:
             - $ref: '#/components/schemas/ActivitySpace'
           description: チームが動いているワークスペース
     ActivitySummary:
-      description: アクティビティ一覧に出すチームの状態
+      description: アクティビティの札に出すチームの状態
       type: object
       additionalProperties: false
-      required: [definition, state, last]
+      required: [definition, state]
       properties:
         definition:
           type: string
@@ -2141,19 +2137,11 @@ components:
         state:
           type: string
           description: チームのアクティビティ状態
-        last:
-          type: string
-          description: 人間を待っている、または最後に動いたメンバー名
         since:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/ActivitySince'
           description: アクティビティ状態が続いている長さと開始時刻。ないときは省略
-        working:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/ActivityWork'
-          description: 動いているメンバーとワーカーの数。ないときは省略
     ActivitySince:
       description: アクティビティ状態が続いている長さと開始時刻
       type: object
@@ -2169,32 +2157,6 @@ components:
         lower:
           type: boolean
           description: 時刻が監視を始める前を示すか
-    ActivityWork:
-      description: 動いているメンバーとワーカーの数
-      type: object
-      additionalProperties: false
-      required: [members, workers]
-      properties:
-        members:
-          type: array
-          items:
-            type: string
-          description: 動いているメンバー名
-        workers:
-          type: integer
-          description: 動いているワーカーの数
-    ActivityProblems:
-      description: アクティビティ一覧で数える問題
-      type: object
-      additionalProperties: false
-      required: [err, warn]
-      properties:
-        err:
-          type: integer
-          description: エラーの数
-        warn:
-          type: integer
-          description: 警告の数
     ActivityNote:
       description: 読み取り元を読めたかと、読めない理由
       type: object
@@ -2220,7 +2182,7 @@ components:
           type: string
           description: ワークスペース名
     ActivityOpened:
-      description: 開いたチームのアクティビティ
+      description: 開いたチームの札のデータ
       type: object
       additionalProperties: false
       required: [doc]
@@ -2228,46 +2190,13 @@ components:
         doc:
           allOf:
             - $ref: '#/components/schemas/ActivityDocument'
-          description: チームのアクティビティの詳細
+          description: チームのメンバーとワーカー
     ActivityDocument:
-      description: 開いたチームのアクティビティの詳細
+      description: チームのメンバーとワーカー
       type: object
       additionalProperties: false
-      required: [name, definition, project, project_name, workspace, state, last, herdr, role, nodes, hired, questions, tail, gy, error]
+      required: [nodes, hired, question]
       properties:
-        name:
-          type: string
-          description: チーム名
-        definition:
-          type: string
-          description: チームの起動元になったチーム定義名
-        project:
-          type: string
-          description: チームが属するプロジェクトの場所
-        project_name:
-          type: string
-          description: プロジェクト名
-        workspace:
-          allOf:
-            - $ref: '#/components/schemas/ActivitySpace'
-          description: チームが動いているワークスペース
-        state:
-          type: string
-          description: チームのアクティビティ状態
-        last:
-          type: string
-          description: 人間を待っている、または最後に動いたメンバー名
-        herdr:
-          type: string
-          description: チームの主なメンバーの herdr 名
-        role:
-          type: string
-          description: 主なメンバーのロール名
-        since:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/ActivitySince'
-          description: アクティビティ状態が続いている長さと開始時刻。ないときは省略
         nodes:
           type: array
           items:
@@ -2278,24 +2207,11 @@ components:
           items:
             $ref: '#/components/schemas/ActivityNode'
           description: チームのワーカーとそれぞれの状態
-        questions:
-          type: array
-          items:
-            $ref: '#/components/schemas/ActivityQuestion'
-          description: 主なメンバーが出した未決の質問
-        tail:
-          allOf:
-            - $ref: '#/components/schemas/ActivityTail'
-          description: 主なメンバーの pane の末尾
-        gy:
-          allOf:
-            - $ref: '#/components/schemas/ActivityNote'
-          description: gy を読めたかと、読めない理由
-        error:
+        question:
           type: string
-          description: チーム定義を読めない理由。読めるときは空
+          description: 人間を待っている行に出す pane の確認 1 行。表示できないときは空
     ActivityNode:
-      description: アクティビティの詳細にあるメンバーまたはワーカー
+      description: アクティビティの札にあるメンバーまたはワーカー
       type: object
       additionalProperties: false
       required: [name, herdr, state, at]
@@ -2321,40 +2237,6 @@ components:
         from:
           type: string
           description: このワーカーを雇ったメンバー名
-    ActivityQuestion:
-      description: メンバーが出した未決の質問
-      type: object
-      additionalProperties: false
-      required: [id, title, ago, options]
-      properties:
-        id:
-          type: string
-          description: 質問の ID
-        title:
-          type: string
-          description: 質問の題名
-        ago:
-          type: string
-          description: 質問が出てからの長さ
-        options:
-          type: array
-          items:
-            type: string
-          description: 質問への選択肢
-    ActivityTail:
-      description: 主なメンバーの pane の末尾
-      type: object
-      additionalProperties: false
-      required: [lines, shown]
-      properties:
-        lines:
-          type: array
-          items:
-            type: string
-          description: pane の末尾の行
-        shown:
-          type: integer
-          description: 画面に表示する末尾の行数
     ApplyRequest:
       description: ずれを反映するメンバー
       type: object

@@ -493,7 +493,7 @@ function PackedFigure({ team, turns, W }) {
       class: "hq-n " + member.state,
       children: [
         /* @__PURE__ */ u("title", {
-          children: `${member.name} · ${state}`
+          children: `${member.name} · ${state}${member.doing ? ` · ${member.doing}` : ""}`
         }),
         /* @__PURE__ */ u("circle", {
           class: "ring",
@@ -533,7 +533,7 @@ function PackedFigure({ team, turns, W }) {
       "data-owner": owner || "",
       children: [
         /* @__PURE__ */ u("title", {
-          children: `${worker.name} · ${ownerText} · ${state}`
+          children: `${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ""}`
         }),
         /* @__PURE__ */ u("circle", {
           class: "dot",

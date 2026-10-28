@@ -21,7 +21,7 @@ const reason = '.hergy/teams/core/team.yaml: ロール名「進行管理」は�
 const team = {
   name: 'core', project: '/work/alpha', project_name: '注文 API',
   workspace: { id: 'w1', label: '本体' },
-  summary: { definition: 'core', state: 'stopped', last: 'lead' },
+  summary: { definition: 'core', state: 'stopped' },
   error: reason,
 };
 
@@ -33,7 +33,7 @@ test('the row of a team whose definition cannot be built says why', async () => 
       return { items: [team], herdr: { ok: true }, running: 1, waiting: 0 };
     }
     if (url === '/api/activity/core') {
-      return { doc: { nodes: [{ name: 'lead', herdr: 'core-lead', state: 'idle', at: '' }], hired: [], tail: { lines: [] }, herdr: '' } };
+      return { doc: { nodes: [{ name: 'lead', herdr: 'core-lead', state: 'idle', at: '' }], hired: [], question: '' } };
     }
     return undefined;
   });

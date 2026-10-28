@@ -35,7 +35,7 @@ import {
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-1b7jqx34.js";
+} from "../chunk/nav-9tdfy6n0.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -63,10 +63,6 @@ function memberOrderOf(def, nodes) {
   const rest = (nodes || []).map((n) => n.name).filter((n) => named.indexOf(n) < 0);
   return named.concat(rest);
 }
-function askingLine(lines) {
-  const clean = (lines || []).map((s) => String(s).replace(/^[●\s]+/, "")).filter(Boolean);
-  return clean.find((s) => /(よいか|ますか|ですか|\?|？)/.test(s)) || clean[0] || "";
-}
 function lastMoment(t) {
   const at = (t.crew || []).map((m) => m.at).filter(Boolean).sort();
   return at.length ? at[at.length - 1] : "";
@@ -90,31 +86,21 @@ function sheetOf(item, docs) {
     doing: "doing" in w && typeof w.doing === "string" && w.doing || "",
     from: "from" in w && typeof w.from === "string" && w.from || ""
   }));
-  const lines = doc && doc.tail && doc.tail.lines || [];
   const state = item.summary.state || "idle";
-  const wait = crew.find((m) => m.state === "blocked") || crew.find((m) => m.state === "handed") || null;
   return {
-    item,
     name: item.name,
     project: item.project,
     projectName: item.project_name || (exports_hq ? projectName2(item.project) : ""),
     workspace: item.workspace && item.workspace.label || run && run.workspace && run.workspace.label || "",
     definition: defName,
-    def,
     state,
     since: item.summary.since || null,
-    last: item.summary.last || "",
     crew,
     workers,
     turns: turnsOf(def),
-    lines,
-    wait,
     starting: !!(run && run.starting),
-    launch: run && run.launch || "",
-    error: item.error || doc && doc.error || "",
-    herdr: doc && doc.herdr || "",
-    tail: lines,
-    question: askingLine(lines)
+    error: item.error || "",
+    question: doc && doc.question || ""
   };
 }
 function sortTeams(rows) {
@@ -173,13 +159,13 @@ function pick(name) {
 }
 
 // activity/figure.tsx
-function Figure({ team, large = false }) {
+function Figure({ team }) {
   return /* @__PURE__ */ u("div", {
-    class: "hq-fig" + (large ? " large" : ""),
+    class: "hq-fig",
     children: /* @__PURE__ */ u(TeamFigure2, {
       team,
       turns: team.turns,
-      W: large ? 720 : 440,
+      W: 440,
       layout: "packed"
     })
   });
@@ -192,6 +178,12 @@ var whereText = (t, node) => [
   `ペイン ${node && node.herdr || t.name}`
 ].filter(Boolean).join(" · ");
 var tabWhere = (t) => [t.workspace ? `ワークスペース ${t.workspace}` : "", `タブ ${t.name}`].filter(Boolean).join(" · ");
+function pickTile(name) {
+  pick(name);
+  const tile = Array.from(document.querySelectorAll(".hq-tile[data-team]")).find((el) => el.dataset.team === name);
+  if (tile && typeof tile.scrollIntoView === "function")
+    tile.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
 function Attention({ rows }) {
   const waiting = [];
   for (const t of rows) {
@@ -203,7 +195,7 @@ function Attention({ rows }) {
         type: "button",
         class: "hq-at",
         "data-pick": t.name,
-        onClick: () => pick(t.name),
+        onClick: () => pickTile(t.name),
         children: [
           /* @__PURE__ */ u("span", {
             class: "st " + (m.state === "blocked" ? "answer" : "turn"),
@@ -241,7 +233,7 @@ function Attention({ rows }) {
     type: "button",
     class: "hq-at stall",
     "data-pick": t.name,
-    onClick: () => pick(t.name),
+    onClick: () => pickTile(t.name),
     children: [
       /* @__PURE__ */ u("span", {
         class: "st stalled",
@@ -378,6 +370,8 @@ function Tile({ team: t }) {
     "data-role": "definition-error",
     children: t.error
   }) : "";
+  const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
+  const changed = teamCount(t.name);
   return /* @__PURE__ */ u("article", {
     class: "hq-tile " + t.state + (sel ? " sel" : ""),
     "data-team": t.name,
@@ -424,177 +418,36 @@ function Tile({ team: t }) {
       }),
       broken,
       stall,
-      countsLine(t)
-    ]
-  });
-}
-function Detail({ team: t }) {
-  const answerBox = t.wait ? /* @__PURE__ */ u("div", {
-    class: "hq-ans",
-    children: [
-      /* @__PURE__ */ u("span", {
-        children: "答える場所"
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "hq-where",
-        children: whereText(t, t.wait)
-      })
-    ]
-  }) : "";
-  const hasTail = t.tail.length > 0;
-  const screenBox = hasTail ? /* @__PURE__ */ u("div", {
-    class: "hq-dq",
-    children: [
+      countsLine(t),
       /* @__PURE__ */ u("div", {
-        class: "th",
+        class: "hq-tactions",
+        "aria-label": `${t.name} の操作`,
         children: [
-          "画面の最後（",
-          /* @__PURE__ */ u("code", {
-            children: t.wait ? t.wait.herdr || t.name + "-" + t.wait.name : t.last ? t.name + "-" + t.last : t.name
+          /* @__PURE__ */ u("a", {
+            class: "hq-btn sm",
+            href: defHref,
+            children: "チーム定義を開く"
           }),
-          "）"
-        ]
-      }),
-      /* @__PURE__ */ u("pre", {
-        class: "term",
-        children: t.tail.join(`
-`)
-      }),
-      answerBox
-    ]
-  }) : answerBox ? /* @__PURE__ */ u("div", {
-    class: "hq-dq",
-    children: answerBox
-  }) : "";
-  const rows = t.crew.map((m) => /* @__PURE__ */ u("li", {
-    class: m.state,
-    children: [
-      /* @__PURE__ */ u("i", {
-        class: "dot " + m.state
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "nm",
-        children: m.name
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "sw",
-        children: NS[m.state] || ""
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "t",
-        children: m.at || ""
-      }),
-      m.doing ? /* @__PURE__ */ u("span", {
-        class: "hq-doing",
-        children: m.doing
-      }) : ""
-    ]
-  }));
-  const workers = t.workers.length ? /* @__PURE__ */ u(S, {
-    children: [
-      /* @__PURE__ */ u("li", {
-        class: "sub",
-        children: "ワーカー"
-      }),
-      t.workers.map((w) => /* @__PURE__ */ u("li", {
-        class: w.state,
-        children: [
-          /* @__PURE__ */ u("i", {
-            class: "dot " + w.state
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "nm wk",
-            children: w.name
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "sw",
-            children: NS[w.state] || ""
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "t",
-            children: w.from ? w.from + " が追加" : ""
-          }),
-          w.doing ? /* @__PURE__ */ u("span", {
-            class: "hq-doing",
-            children: w.doing
-          }) : ""
-        ]
-      }))
-    ]
-  }) : "";
-  const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
-  const changed = teamCount(t.name);
-  const apply = changed ? /* @__PURE__ */ u("button", {
-    type: "button",
-    class: "hq-btn sm",
-    "data-hq": "apply",
-    "data-team": t.name,
-    onClick: () => openSheet(t.name),
-    children: [
-      "反映していない変更 ",
-      /* @__PURE__ */ u("b", {
-        children: changed
-      })
-    ]
-  }) : "";
-  return /* @__PURE__ */ u("section", {
-    class: "hq-detail",
-    "aria-label": `${t.name} の中`,
-    children: [
-      /* @__PURE__ */ u("div", {
-        class: "hq-dh",
-        children: [
-          /* @__PURE__ */ u("b", {
-            children: t.name
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-pw",
-            children: [t.projectName, t.workspace ? "ワークスペース " + t.workspace : ""].filter(Boolean).join(" · ")
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "st " + t.state,
-            children: ST[t.state] || ""
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-dacts",
+          changed > 0 ? /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "hq-btn sm",
+            "data-hq": "apply",
+            "data-team": t.name,
+            onClick: () => openSheet(t.name),
             children: [
-              /* @__PURE__ */ u("a", {
-                class: "hq-btn sm",
-                href: defHref,
-                children: "チーム定義を開く"
-              }),
-              apply,
-              /* @__PURE__ */ u("button", {
-                type: "button",
-                class: "hq-btn sm danger",
-                "data-hq": "stop",
-                "data-team": t.name,
-                onClick: () => stopSheet2(t.name),
-                children: "チームを止める…"
+              "反映していない変更 ",
+              /* @__PURE__ */ u("b", {
+                children: changed
               })
             ]
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "hq-db",
-        children: [
-          /* @__PURE__ */ u("div", {
-            class: "hq-dleft",
-            children: [
-              /* @__PURE__ */ u(Figure, {
-                team: t,
-                large: true
-              }),
-              screenBox
-            ]
-          }),
-          /* @__PURE__ */ u("ul", {
-            class: "nodes",
-            children: [
-              rows,
-              workers
-            ]
+          }) : "",
+          /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "hq-btn sm danger",
+            "data-hq": "stop",
+            "data-team": t.name,
+            onClick: () => stopSheet2(t.name),
+            children: "チームを止める…"
           })
         ]
       })
@@ -614,7 +467,6 @@ function Board() {
       class: "gone",
       children: n.text
     });
-  const sel = current.value;
   return /* @__PURE__ */ u("div", {
     class: "hq-board",
     children: [
@@ -626,10 +478,7 @@ function Board() {
         children: rows.map((t) => /* @__PURE__ */ u(Tile, {
           team: t
         }, t.name))
-      }),
-      sel ? /* @__PURE__ */ u(Detail, {
-        team: sel
-      }) : ""
+      })
     ]
   });
 }

@@ -4,66 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 )
-
-// TestTailLines: the pane tail is kept as lines, with the empty lines at the end
-// dropped and the last forty kept, so the screen shows the end of a pane rather
-// than everything herdr ever wrote (6 A6).
-func TestTailLines(t *testing.T) {
-	cases := []struct {
-		name string
-		tail string
-		want []string
-	}{
-		{name: "no tail at all", tail: "", want: nil},
-		{name: "one line", tail: "hello", want: []string{"hello"}},
-		{
-			name: "the empty lines at the end go",
-			tail: "one\ntwo\n\n   \n",
-			want: []string{"one", "two"},
-		},
-		{
-			name: "an empty line in the middle stays",
-			tail: "one\n\ntwo\n",
-			want: []string{"one", "", "two"},
-		},
-		{name: "only empty lines", tail: "\n\n\n", want: nil},
-		{
-			name: "a line that opens a command is not an empty line",
-			tail: "⏺ ls -la\n",
-			want: []string{"⏺ ls -la"},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := tailLines(c.tail); !slices.Equal(got, c.want) {
-				t.Errorf("tailLines(%q) = %q, want %q", c.tail, got, c.want)
-			}
-		})
-	}
-}
-
-// TestTailLinesKeepsTheLastForty: a pane longer than the screen holds is cut to
-// its last forty lines, so the row carries the end of the pane (6 A6).
-func TestTailLinesKeepsTheLastForty(t *testing.T) {
-	var tail strings.Builder
-	for i := 1; i <= 45; i++ {
-		tail.WriteString("line " + strconv.Itoa(i) + "\n")
-	}
-	got := tailLines(tail.String())
-	if len(got) != tailLimit {
-		t.Fatalf("tailLines = %d lines, want %d", len(got), tailLimit)
-	}
-	if got[0] != "line 6" || got[len(got)-1] != "line 45" {
-		t.Errorf("tailLines = %q … %q, want the last forty (line 6 … line 45)", got[0], got[len(got)-1])
-	}
-}
 
 // TestOfNodesStopLastFirst (6 A3): within one state the node whose
 // state_change_seq is greatest comes first — it stopped last — and the worked
@@ -218,11 +163,6 @@ func TestWordsReadInJapanese(t *testing.T) {
 	}{
 		{"a length", Length(18*time.Minute, false), "18 分"},
 		{"a length that is a lower bound", Length(4*time.Hour+5*time.Minute, true), "4 時間 5 分以上"},
-		{"a question asked minutes ago", Ago(noon, noon.Add(-45*time.Minute)), "45 分前"},
-		{"a question asked hours ago", Ago(noon, noon.Add(-(2*time.Hour + 45*time.Minute))), "2 時間 45 分前"},
-		{"a question asked a day ago", Ago(noon, noon.Add(-25*time.Hour)), "1 日前"},
-		{"a question asked days ago", Ago(noon, noon.Add(-75*time.Hour)), "3 日前"},
-		{"a question with no time", Ago(noon, time.Time{}), ""},
 		{"today's clock", Clock(noon, noon.Add(-2*time.Hour)), "10:00"},
 		{"another day's clock", Clock(noon, noon.Add(-25*time.Hour)), "10/16 11:00"},
 		{"a moment it began", SinceAt(noon, noon.Add(-2*time.Hour), false), "10:00 から"},

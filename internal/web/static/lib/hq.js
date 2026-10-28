@@ -10,7 +10,7 @@
 import {
   RunCell2,
   TeamFigure2
-} from "../chunk/nav-1b7jqx34.js";
+} from "../chunk/nav-9tdfy6n0.js";
 import {
   st,
   setRunning2,

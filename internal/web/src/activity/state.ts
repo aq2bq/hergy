@@ -1,4 +1,4 @@
-// activity/state.ts — アクティビティの画面の state（webui-preact-design 4 章・5 章）。
+// activity/state.ts — アクティビティ画面の state（webui-preact-design 4 章・5 章）。
 //
 // サーバーの答えはここだけに入る（5 章 2）。部品（board.tsx）は signal を読んで
 // 描くだけで、捕まえておいた要素に書き込まない。読むのは /api/activity と
@@ -33,26 +33,18 @@ export type CrewMember = {
 };
 type Worker = { name: string; state: string; doing: string; from: string };
 export type ActivityTeam = {
-  item: ActivityItem;
   name: string;
   project: string;
   projectName: string;
   workspace: string;
   definition: string;
-  def: ActivityDefinition | null;
   state: string;
   since: components['schemas']['ActivitySince'] | null;
-  last: string;
   crew: CrewMember[];
   workers: Worker[];
   turns: [string, string][];
-  lines: string[];
-  wait: CrewMember | null;
   starting: boolean;
-  launch: string;
   error: string;
-  herdr: string;
-  tail: string[];
   question: string;
 };
 type ActivityBoard = {
@@ -93,10 +85,6 @@ function memberOrderOf(def: ActivityDefinition | null, nodes: ActivityNode[]): s
   const rest = (nodes || []).map((n) => n.name).filter((n) => named.indexOf(n) < 0);
   return named.concat(rest);
 }
-function askingLine(lines: string[]): string {
-  const clean = (lines || []).map((s) => String(s).replace(/^[●\s]+/, '')).filter(Boolean);
-  return clean.find((s) => /(よいか|ますか|ですか|\?|？)/.test(s)) || clean[0] || '';
-}
 function lastMoment(t: Pick<ActivityTeam, 'crew'>): string {
   const at = (t.crew || []).map((m) => m.at).filter(Boolean).sort();
   return at.length ? at[at.length - 1] : '';
@@ -104,7 +92,7 @@ function lastMoment(t: Pick<ActivityTeam, 'crew'>): string {
 
 // sheetOf reads one team as the board draws it: the members in the definition's
 // order with their live state, the workers under the member that added them, the
-// turns of team.yaml, and the sentence of the screen's last line (spec 6 章).
+// turns of team.yaml, and the sentence of the waiting row (spec 6 章).
 function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): ActivityTeam {
   const doc = docs.get(item.name);
   const run = A ? A.runningTeam(item.name) : null;
@@ -124,21 +112,15 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
     doing: ('doing' in w && typeof w.doing === 'string' && w.doing) || '',
     from: ('from' in w && typeof w.from === 'string' && w.from) || '',
   }));
-  const lines = (doc && doc.tail && doc.tail.lines) || [];
   const state = item.summary.state || 'idle';
-  const wait = crew.find((m) => m.state === 'blocked') || crew.find((m) => m.state === 'handed') || null;
   return {
-    item, name: item.name, project: item.project, projectName: item.project_name || (A ? A.projectName(item.project) : ''),
+    name: item.name, project: item.project, projectName: item.project_name || (A ? A.projectName(item.project) : ''),
     workspace: (item.workspace && item.workspace.label) || (run && run.workspace && run.workspace.label) || '',
-    definition: defName, def, state, since: item.summary.since || null, last: item.summary.last || '',
-    crew, workers, turns: turnsOf(def), lines,
-    wait,
+    definition: defName, state, since: item.summary.since || null,
+    crew, workers, turns: turnsOf(def),
     starting: !!(run && run.starting),
-    launch: (run && run.launch) || '',
-    error: item.error || (doc && doc.error) || '',
-    herdr: (doc && doc.herdr) || '',
-    tail: lines,
-    question: askingLine(lines),
+    error: item.error || '',
+    question: (doc && doc.question) || '',
   };
 }
 

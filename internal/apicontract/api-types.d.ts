@@ -994,14 +994,12 @@ export interface components {
             /** @description herdr を読めたかと、読めない理由 */
             herdr: components["schemas"]["ActivityNote"];
         };
-        /** @description アクティビティの一覧にあるチーム 1 件 */
+        /** @description アクティビティの一覧にあるチームの札 1 件 */
         ActivityItem: {
             /** @description チーム名 */
             name: string;
-            /** @description チームの状態と直近のメンバー */
+            /** @description チームの状態と長さ */
             summary: components["schemas"]["ActivitySummary"];
-            /** @description アクティビティの問題の数 */
-            problems: components["schemas"]["ActivityProblems"];
             /** @description チーム定義を読めない理由。読めるときは空 */
             error: string;
             /** @description チームが属するプロジェクトの場所 */
@@ -1011,18 +1009,14 @@ export interface components {
             /** @description チームが動いているワークスペース */
             workspace: components["schemas"]["ActivitySpace"];
         };
-        /** @description アクティビティ一覧に出すチームの状態 */
+        /** @description アクティビティの札に出すチームの状態 */
         ActivitySummary: {
             /** @description チームの起動元になったチーム定義名 */
             definition: string;
             /** @description チームのアクティビティ状態 */
             state: string;
-            /** @description 人間を待っている、または最後に動いたメンバー名 */
-            last: string;
             /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
             since?: components["schemas"]["ActivitySince"] | null;
-            /** @description 動いているメンバーとワーカーの数。ないときは省略 */
-            working?: components["schemas"]["ActivityWork"] | null;
         };
         /** @description アクティビティ状態が続いている長さと開始時刻 */
         ActivitySince: {
@@ -1032,20 +1026,6 @@ export interface components {
             at: string;
             /** @description 時刻が監視を始める前を示すか */
             lower: boolean;
-        };
-        /** @description 動いているメンバーとワーカーの数 */
-        ActivityWork: {
-            /** @description 動いているメンバー名 */
-            members: string[];
-            /** @description 動いているワーカーの数 */
-            workers: number;
-        };
-        /** @description アクティビティ一覧で数える問題 */
-        ActivityProblems: {
-            /** @description エラーの数 */
-            err: number;
-            /** @description 警告の数 */
-            warn: number;
         };
         /** @description 読み取り元を読めたかと、読めない理由 */
         ActivityNote: {
@@ -1061,47 +1041,21 @@ export interface components {
             /** @description ワークスペース名 */
             label: string;
         };
-        /** @description 開いたチームのアクティビティ */
+        /** @description 開いたチームの札のデータ */
         ActivityOpened: {
-            /** @description チームのアクティビティの詳細 */
+            /** @description チームのメンバーとワーカー */
             doc: components["schemas"]["ActivityDocument"];
         };
-        /** @description 開いたチームのアクティビティの詳細 */
+        /** @description チームのメンバーとワーカー */
         ActivityDocument: {
-            /** @description チーム名 */
-            name: string;
-            /** @description チームの起動元になったチーム定義名 */
-            definition: string;
-            /** @description チームが属するプロジェクトの場所 */
-            project: string;
-            /** @description プロジェクト名 */
-            project_name: string;
-            /** @description チームが動いているワークスペース */
-            workspace: components["schemas"]["ActivitySpace"];
-            /** @description チームのアクティビティ状態 */
-            state: string;
-            /** @description 人間を待っている、または最後に動いたメンバー名 */
-            last: string;
-            /** @description チームの主なメンバーの herdr 名 */
-            herdr: string;
-            /** @description 主なメンバーのロール名 */
-            role: string;
-            /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
-            since?: components["schemas"]["ActivitySince"] | null;
             /** @description チーム定義のメンバーとそれぞれの状態 */
             nodes: components["schemas"]["ActivityNode"][];
             /** @description チームのワーカーとそれぞれの状態 */
             hired: components["schemas"]["ActivityNode"][];
-            /** @description 主なメンバーが出した未決の質問 */
-            questions: components["schemas"]["ActivityQuestion"][];
-            /** @description 主なメンバーの pane の末尾 */
-            tail: components["schemas"]["ActivityTail"];
-            /** @description gy を読めたかと、読めない理由 */
-            gy: components["schemas"]["ActivityNote"];
-            /** @description チーム定義を読めない理由。読めるときは空 */
-            error: string;
+            /** @description 人間を待っている行に出す pane の確認 1 行。表示できないときは空 */
+            question: string;
         };
-        /** @description アクティビティの詳細にあるメンバーまたはワーカー */
+        /** @description アクティビティの札にあるメンバーまたはワーカー */
         ActivityNode: {
             /** @description メンバー名、またはワーカー名 */
             name: string;
@@ -1117,24 +1071,6 @@ export interface components {
             doing?: string;
             /** @description このワーカーを雇ったメンバー名 */
             from?: string;
-        };
-        /** @description メンバーが出した未決の質問 */
-        ActivityQuestion: {
-            /** @description 質問の ID */
-            id: string;
-            /** @description 質問の題名 */
-            title: string;
-            /** @description 質問が出てからの長さ */
-            ago: string;
-            /** @description 質問への選択肢 */
-            options: string[];
-        };
-        /** @description 主なメンバーの pane の末尾 */
-        ActivityTail: {
-            /** @description pane の末尾の行 */
-            lines: string[];
-            /** @description 画面に表示する末尾の行数 */
-            shown: number;
         };
         /** @description ずれを反映するメンバー */
         ApplyRequest: {

@@ -16,20 +16,6 @@ func Length(d time.Duration, lower bool) string {
 	return durationText(d, lower)
 }
 
-// Ago is when something was asked, as a person reads it: how long ago in the
-// words of a length, and whole days from 24 hours on ("2 時間 45 分前", "3 日
-// 前"). A time nobody knows has no words.
-func Ago(now, at time.Time) string {
-	if at.IsZero() {
-		return ""
-	}
-	d := now.Sub(at)
-	if d >= 24*time.Hour {
-		return i18n.Tf("activity.ago", count(int(d/(24*time.Hour)), "activity.day", "activity.days"))
-	}
-	return i18n.Tf("activity.ago", durationText(d, false))
-}
-
 // Clock is a moment as the screen writes it: today reads "15:04", another day
 // reads "1/2 15:04", so a time from yesterday is not read as today's. The moment
 // is read in the reader's own time zone, which is the clock the reader is

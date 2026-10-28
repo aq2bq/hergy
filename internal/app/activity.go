@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/gycli"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -25,16 +23,12 @@ import (
 
 // This file is the reading behind the activity screen (spec-activity, r-8a67):
 // which teams of this project are running, how each one is doing, and, for one
-// team that is open, its questions and its pane. It is here rather than in
-// internal/web because it starts herdr and gy, which only this layer does (6 A1);
+// team tile, its members and workers. It is here rather than in
+// internal/web because this layer reads herdr (6 A1);
 // the screen is handed the answer.
 //
 // The reading of herdr is shared with hergy status: both call readRunningTeams,
 // which is runningTeams plus each team's built definition (6 A1).
-
-// tailShown is how many lines of a pane the screen shows at first, before 上に N
-// 行 (2.4).
-const tailShown = 6
 
 // runningTeam is one running team with its team definition built: what hergy
 // status lists and what the activity screen shows. Broken says why a definition
@@ -645,7 +639,6 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 		Summary: web.ActivitySummary{
 			Definition: row.definition,
 			State:      t.State.Slug(),
-			Last:       t.Last,
 		},
 		Error:       row.broken,
 		Project:     row.project,
@@ -656,9 +649,6 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 	// (2.2): a working node has no moment to read, and there is no last turn.
 	if since := sinceOf(t, now); since != nil {
 		item.Summary.Since = since
-	}
-	if t.State == activity.Working {
-		item.Summary.Working = workingOf(t)
 	}
 	return item
 }
@@ -675,23 +665,6 @@ func sinceOf(t activity.Team, now time.Time) *web.ActivitySince {
 		return nil
 	}
 	return &web.ActivitySince{Len: activity.Length(t.Stalled, t.Lower), At: at, Lower: t.Lower}
-}
-
-// workingOf is a working team's 誰: the members that are working, and how many of
-// its workers are (2.2).
-func workingOf(t activity.Team) *web.ActivityWork {
-	work := &web.ActivityWork{Members: []string{}}
-	for _, node := range t.Nodes {
-		if node.State == activity.Active {
-			work.Members = append(work.Members, node.Name)
-		}
-	}
-	for _, hired := range t.Hired {
-		if hired.State == activity.Active {
-			work.Workers++
-		}
-	}
-	return work
 }
 
 // One is GET /api/activity/{team}: one team's opened part. ok is false for a team
@@ -729,14 +702,13 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	}
 	in := activity.Input{Team: one.Name, Graph: graph, Agents: agents, Seen: read.seen, Now: now}
 	t := activity.Of(in)
-	// The pane of the row's own member is what the left column shows (2.4), and
-	// which member that is only the judgement says, so the team is judged once
-	// to find them and, with their pane in hand, judged again.
+	// Keep the one line the waiting row already shows, without returning the
+	// pane's tail to the screen. The opened tile itself needs no pane content.
 	main := mainAgent(t, in.Agents)
-	if main != "" {
+	question := ""
+	if main != "" && (t.State == activity.WaitingAnswer || t.State == activity.WaitingTurn) {
 		if text, err := herdrPane(main); err == nil {
-			in.Tails = map[string]string{t.Last: text}
-			t = activity.Of(in)
+			question = askingLine(text)
 		}
 	}
 
@@ -750,45 +722,36 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		}
 	}
 	doc := web.ActivityDoc{
-		Name:        one.Name,
-		Definition:  one.Definition,
-		Project:     one.Project,
-		ProjectName: one.ProjectName,
-		Workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
-		State:       t.State.Slug(),
-		Last:        t.Last,
-		Nodes:       docNodes(t, now, titles),
-		Hired:       docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
-		Questions:   []web.ActivityQuestion{},
-		Tail:        web.ActivityTail{Lines: []string{}, Shown: tailShown},
-		Gy:          web.ActivityNote{OK: true},
-		Error:       one.Broken,
+		Nodes:    docNodes(t, now, titles),
+		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
+		Question: question,
 	}
-	if since := sinceOf(t, now); since != nil {
-		doc.Since = since
-	}
-	if main != "" {
-		doc.Herdr = main
-		doc.Role = roleOf(graph, t.Last)
-		if len(t.Tail) > 0 {
-			doc.Tail.Lines = t.Tail
-		}
-		projectEnv := a.env
-		if scoped, err := a.env.AtProject(one.Project); err == nil {
-			projectEnv = scoped
-		}
-		questions, err := gycli.OpenQuestionsBy(projectEnv.ProjectRoot, []string{main})
-		if err != nil {
-			// gy is there and cannot be read: the question's place says so in
-			// one line rather than showing no question (2.4).
-			doc.Gy = web.ActivityNote{OK: false, Text: err.Error()}
-		} else {
-			doc.Questions = questionsOf(questions, now)
-		}
-	}
-	// With no member the line is about there is no question and no pane to show:
-	// a working team's opened part is the right-hand column alone (2.4, 2.5).
+	// With no member the line is about, there is no question: a working team's
+	// opened part is the right-hand column alone (2.5).
 	return doc, true
+}
+
+// askingLine keeps the one confirmation line the waiting row uses from a member's pane. The
+// pane itself is not part of the activity API.
+func askingLine(text string) string {
+	var lines []string
+	for line := range strings.SplitSeq(text, "\n") {
+		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "●"))
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	for _, line := range lines {
+		for _, mark := range []string{"よいか", "ますか", "ですか", "?", "？"} {
+			if strings.Contains(line, mark) {
+				return line
+			}
+		}
+	}
+	if len(lines) > 0 {
+		return lines[0]
+	}
+	return ""
 }
 
 // mainAgent is the herdr name of the member the line is about: the one the
@@ -804,15 +767,6 @@ func mainAgent(t activity.Team, agents []activity.Agent) string {
 		}
 	}
 	return ""
-}
-
-// roleOf is the role team.yaml gives a member (2.4: the heading's ロール).
-func roleOf(graph *definition.Graph, name string) string {
-	member, ok := graph.Member(name)
-	if !ok {
-		return ""
-	}
-	return member.Role
 }
 
 // docNodes is a team's members as the opened part shows them (2.5): the state,
@@ -875,29 +829,9 @@ func hireSources(project, teamName string) map[string]string {
 	return out
 }
 
-// questionsOf is the questions the row's own member asked, newest first, with how
-// long ago each was asked in the server's words (2.4, 6 A4). The screen shows one
-// of them and the rest in a line each, so all of them are sent.
-func questionsOf(questions []activity.Question, now time.Time) []web.ActivityQuestion {
-	// 新しい順 (2.4): gy lists them newest first already, and a question gy does
-	// not date keeps the place it was listed in, at the end.
-	sorted := slices.Clone(questions)
-	slices.SortStableFunc(sorted, func(a, b activity.Question) int { return b.At.Compare(a.At) })
-	out := make([]web.ActivityQuestion, 0, len(sorted))
-	for _, question := range sorted {
-		out = append(out, web.ActivityQuestion{
-			ID:      question.ID,
-			Title:   question.Title,
-			Ago:     activity.Ago(now, question.At),
-			Options: question.Options,
-		})
-	}
-	return out
-}
-
-// herdrPane reads what one member's terminal shows, the way hergy status reads a
-// screen (herdr agent read --source detection). An error is a pane that is not
-// there to read, which leaves the screen's last lines out (2.4).
+// herdrPane reads what one member's terminal shows so the waiting row can keep
+// its one-line question (herdr agent read --source detection). An error leaves
+// that line empty.
 func herdrPane(name string) (string, error) {
 	return herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Read(name)
 }
