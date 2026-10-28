@@ -81,9 +81,9 @@ func gatesFor(paths []string) []gate {
 			add("reading", "e2e")
 		case strings.HasPrefix(p, "internal/web/src/"):
 			// The WebUI's sources: the modules the screens are written in. A change
-			// here is built into static/ (webbuild), checked (names, types, unit)
-			// and walked (e2e).
-			add("names", "types", "unit", "webbuild", "e2e")
+			// here is built into static/ (webbuild), checked (types, unit) and walked
+			// (e2e).
+			add("types", "unit", "webbuild", "e2e")
 		case strings.HasPrefix(p, "internal/web/templates/"):
 			// The templates name the build's entries; the pages are embedded too.
 			add("webbuild", "e2e")

@@ -44,7 +44,7 @@ var gates = []gate{
 	{"tidy", Hard, "go mod tidy -diff is empty", (*runner).tidyGate},
 	{"fix", Hard, "go fix -diff is empty", (*runner).fixGate},
 	{"webbuild", Hard, "internal/web/static's scripts are what internal/web/src makes, from the entries the templates load and the packages pinned in tools/webvendor (go run ./tools/check webbuild -write); CSS, fonts and the other files there are not the build's", (*runner).webbuildGate},
-	{"names", Hard, "every name the WebUI's modules use is defined, imported or the browser's own, and every name they define or import is read (eslint no-undef and no-unused-vars from tools/webtools over internal/web/src)", (*runner).namesGate},
+	{"names", Hard, "every name the WebUI's modules use is defined, imported or the browser's own, and every name they define or import is read (eslint no-undef and no-unused-vars from tools/webtools over the unit tests in internal/web/jstest; the screens' TypeScript is the types gate's)", (*runner).namesGate},
 	{"types", Hard, "tsc --noEmit (strict, noUnusedLocals, noUnusedParameters) over internal/web/src with internal/web/tsconfig.json (typescript from tools/webtools)", (*runner).typesGate},
 	{"apitypes", Hard, "internal/apicontract/api-types.d.ts is what openapi-typescript (tools/webtools) makes from internal/apicontract/openapi.yaml, the API's written promise (go run ./tools/check apitypes -write)", (*runner).apitypesGate},
 	{"unit", Hard, "the WebUI's modules' own tests (internal/web/jstest/*.test.js) under bun test, with happy-dom's document and no browser (tools/webtools)", (*runner).unitGate},

@@ -68,7 +68,7 @@ func TestGatesForPicksWhatAChangeCanFail(t *testing.T) {
 		{[]string{"internal/app/serve.go"}, "fmt tidy fix lint arch test e2e coverage deadcode"},
 		{[]string{"internal/app/serve_test.go"}, "fmt fix lint arch test coverage deadcode"},
 		{[]string{"tools/check/diff.go"}, "fmt fix lint arch test coverage deadcode"},
-		{[]string{"internal/web/src/roles/main.js"}, "webbuild names types unit test e2e"},
+		{[]string{"internal/web/src/roles/main.tsx"}, "webbuild types unit test e2e"},
 		{[]string{"internal/web/static/app.js"}, "webbuild test e2e"},
 		{[]string{"internal/web/static/app.css"}, "test e2e"},
 		{[]string{"internal/web/templates/roles_v2.html"}, "webbuild test e2e"},

@@ -88,12 +88,13 @@ func (r *runner) namesGate() error {
 		return err
 	}
 	// eslint reads the files under the directory it runs in, so it runs in
-	// internal/web, over the modules and their tests, with the config named
-	// from where it was installed. The modules moved to TypeScript are tsc's
-	// (the types gate), so this reads the .js that are left.
+	// internal/web with the config named from where it was installed. The
+	// screens' modules are all TypeScript now (n-893d), and tsc holds their
+	// names (the types gate: strict, noUnusedLocals, noUnusedParameters), so
+	// this reads the unit tests, which are still JavaScript.
 	return r.execIn(filepath.Join(r.root, "internal", "web"), env, filepath.Join(dir, "node_modules", ".bin", "eslint"),
 		"--no-config-lookup", "--config", filepath.Join(dir, "eslint.config.js"), "--max-warnings", "0",
-		filepath.Base(webSrc), filepath.Base(webTests))
+		filepath.Base(webTests))
 }
 
 func (r *runner) unitGate() error {
