@@ -26,6 +26,18 @@
 
 ### Added
 
+- **`hergy refresh` adds a member the definition has, without a down and up**:
+  write the member in `team.yaml` and run `hergy refresh <member>`, and hergy
+  makes a pane for it in the running team's own tab and starts it there, the way
+  `hergy up` starts a member: the same bootstrap prompt, the same wait on a
+  question while it starts, and the same `--timeout`. The members already running
+  keep their conversation and are not touched; with `--all`, the live members
+  restart as before and the members with no pane are added (ac-bb45, d-8fcf,
+  r-7e09). The last line then names `hergy reprompt --all --team <team>`, which
+  hands the new lineup to the members that were already running. `--dry` names the
+  panes it would make, and `--json` carries them under `new_panes`. A team that is
+  not running has no tab to add a member to: refresh refuses and names `hergy up`,
+  as before.
 - **The headquarters screens**: the band names the number of listed projects and
   opens the sheet that lists and unlists them (a project the launch record knows
   is offered as a candidate), and its Find field (`/`) looks through the running

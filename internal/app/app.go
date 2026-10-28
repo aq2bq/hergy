@@ -1794,9 +1794,11 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 		return err
 	}
 	if opts.Dry {
-		// --dry stops nothing, but it shows the same refusal the real refresh
-		// would, so it reads the live agents too (like down --dry).
-		if err := newLauncher(r, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID")); err != nil {
+		// --dry stops and makes nothing, but it shows the same refusal the real
+		// refresh would, and the panes a refresh would make, so it reads the
+		// live agents, tabs and panes too (like down --dry).
+		newPanes, err := newLauncher(r, opts.Timeout, stdout).RefreshDry(selected, os.Getenv("HERDR_PANE_ID"))
+		if err != nil {
 			return err
 		}
 		next := "refresh " + memberName
@@ -1804,7 +1806,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 			next = "refresh --all"
 		}
 		next += " --team " + r.team.Name
-		return dryPlan(stdout, env, r, "restart", selected, opts, next)
+		return dryPlanWithPanes(stdout, env, r, "restart", selected, opts, next, newPanes)
 	}
 	if err := requireHerdrPane(); err != nil {
 		return err
@@ -1901,10 +1903,19 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 // readable form (the prompt verbatim) by default. next, when not empty, is the
 // command the plan moves on to, printed last and only in the readable form.
 func dryPlan(stdout io.Writer, env team.Env, r *resolved, mode string, members []definition.Start, opts *options.Options, next string) error {
+	return dryPlanWithPanes(stdout, env, r, mode, members, opts, next, launcher.NewPanes{})
+}
+
+// dryPlanWithPanes is dryPlan with the panes a plan would make: a refresh that
+// adds a member says which member gets a pane, and in which tab, in both forms.
+func dryPlanWithPanes(stdout io.Writer, env team.Env, r *resolved, mode string, members []definition.Start, opts *options.Options, next string, panes launcher.NewPanes) error {
 	if opts.JSON {
-		return printPlanJSON(stdout, mode, r, members, opts.Timeout)
+		return printPlanJSON(stdout, mode, r, members, opts.Timeout, panes)
 	}
 	printPlanText(stdout, mode, r, members, opts.Timeout, env)
+	for _, name := range panes.Members {
+		fmt.Fprint(stdout, i18n.Tf("launcher.refresh_dry_add", name, panes.Tab))
+	}
 	if next != "" {
 		printNext(stdout, next)
 	}
@@ -2053,7 +2064,7 @@ func printPlanText(w io.Writer, mode string, r *resolved, members []definition.S
 }
 
 // printPlanJSON is the --dry output with --json: the expanded members as JSON.
-func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.Start, timeout int) error {
+func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.Start, timeout int, panes launcher.NewPanes) error {
 	plans := make([]map[string]any, len(members))
 	for i := range members {
 		plans[i] = members[i].ToPlan()
@@ -2063,6 +2074,9 @@ func printPlanJSON(w io.Writer, mode string, r *resolved, members []definition.S
 		"team":               r.team.Name,
 		"startup_timeout_ms": timeout,
 		"members":            plans,
+	}
+	if len(panes.Members) > 0 {
+		plan["new_panes"] = map[string]any{"tab": panes.Tab, "members": panes.Members}
 	}
 	if def := r.team.Definition; def != nil && len(def.Graph.Turns) > 0 {
 		turns := make([]string, len(def.Graph.Turns))

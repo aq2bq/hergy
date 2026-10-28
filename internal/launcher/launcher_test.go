@@ -40,11 +40,15 @@ type fakePort struct {
 	// Refresh state. agents is the live set by herdr name; gone marks the names
 	// herdr has forgotten. process maps a pane to its {foreground group, shell}.
 	// onAgentGet, when set, runs before each agent get, so a test can change the
-	// live state between the first check and the one before the stop.
+	// live state between the first check and the one before the stop. splits and
+	// renamed record the panes a refresh made and named for a member the
+	// definition has and hergy has no pane for.
 	agents     map[string]protocol.Agent
 	gone       map[string]bool
 	process    map[string][2]int
 	onAgentGet func(target string)
+	splits     []splitCall
+	renamed    []string
 
 	// screens is what `agent read` answers for a target, by herdr name. A target
 	// that is not in it answers a stable stand-in, so a status test can check the
@@ -73,6 +77,35 @@ func (p *fakePort) Verify(mode string) error {
 
 func (p *fakePort) record(args ...string) {
 	p.calls = append(p.calls, strings.Join(args, " "))
+}
+
+// splitCall is one pane split the fake made: the pane it split, the direction,
+// and the pane it made.
+type splitCall struct {
+	from      string
+	direction string
+	pane      string
+}
+
+// tabOf is the tab one pane of the fake stands in, or "" when it is not a pane
+// the fake was given.
+func (p *fakePort) tabOf(pane string) string {
+	for _, known := range p.panes {
+		if known.ID == pane {
+			return known.TabID
+		}
+	}
+	return ""
+}
+
+// hasCall reports whether the fake was asked one command that starts with prefix.
+func hasCall(p *fakePort, prefix string) bool {
+	for _, call := range p.calls {
+		if strings.HasPrefix(call, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // findAgent looks a live agent up by herdr name or by pane id.
@@ -135,6 +168,16 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
 		p.closed = append(p.closed, args[2])
 		return map[string]any{}, nil
+	case len(args) == 4 && args[0] == "pane" && args[1] == "rename":
+		p.renamed = append(p.renamed, args[2]+" "+args[3])
+		return map[string]any{}, nil
+	case len(args) >= 3 && args[0] == "pane" && args[1] == "split":
+		// A split makes a pane of its own, in the tab the pane it splits is in:
+		// a test can read where a refresh put a member it added.
+		pane := fmt.Sprintf("n%d", len(p.splits)+1)
+		p.splits = append(p.splits, splitCall{from: args[2], direction: argValue(args, "--direction"), pane: pane})
+		p.panes = append(p.panes, protocol.Pane{ID: pane, TabID: p.tabOf(args[2])})
+		return map[string]any{"pane": map[string]any{"pane_id": pane}}, nil
 	case len(args) == 3 && args[0] == "agent" && args[1] == "get":
 		target := args[2]
 		if agent, ok := p.findAgent(target); ok && p.startedBlocked[agent.Name] {
@@ -529,22 +572,190 @@ func TestRefreshStartsAMemberThatIsNotLive(t *testing.T) {
 	}
 }
 
-// TestRefreshRefusesAMemberWithNoPane: a member that is not live and has no pane
-// named after it is refused, and nothing is started.
-func TestRefreshRefusesAMemberWithNoPane(t *testing.T) {
-	port := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}}
-	l, _ := downLauncher(t, port, "team-lead")
-	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
-	members := l.starts
+// addablePort is a running demo team whose tab holds demo-lead at p1, and a
+// definition that also has demo-spec2, which hergy has no pane for.
+func addablePort() *fakePort {
+	return &fakePort{
+		agents: map[string]protocol.Agent{
+			"demo-lead": {Name: "demo-lead", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
+		},
+		gone:    map[string]bool{},
+		process: map[string][2]int{"p1": {4242, 900}},
+		panes: []protocol.Pane{
+			{ID: "px", Label: "other-lead", TabID: "t9"},
+			{ID: "p1", Label: "demo-lead", TabID: "t1"},
+		},
+		tabs: []protocol.Tab{
+			{ID: "t9", Label: "other"},
+			{ID: "t1", Label: "demo"},
+		},
+	}
+}
 
-	if err := l.Refresh(members, ""); err == nil {
-		t.Fatal("Refresh accepted a member with no pane")
+// TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor: a member written in the
+// definition that hergy made no pane for is given one in the team's tab, and
+// started there with the bootstrap prompt and the timeout a boot uses. The
+// members already running are left alone (d-8fcf, r-7e09).
+func TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor(t *testing.T) {
+	port := addablePort()
+	l, out := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.timeout = 3000
+	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d for a member it only adds", pgid); return nil }
+	l.starts[1].Prompt = "you are spec2; read the rules and wait"
+	spec2 := l.starts[1]
+
+	if err := l.Refresh([]definition.Start{spec2}, ""); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	want := []splitCall{{from: "p1", direction: "right", pane: "n1"}}
+	if !slices.Equal(port.splits, want) {
+		t.Fatalf("splits %+v, want %+v (a pane in the team's tab, from the team's pane)", port.splits, want)
+	}
+	if !slices.Equal(port.renamed, []string{"n1 demo-spec2"}) {
+		t.Fatalf("renamed %v, want the new pane named after the member", port.renamed)
+	}
+	if !hasCall(port, "agent start demo-spec2 --kind claude --pane n1 --timeout 3000") {
+		t.Fatalf("refresh did not start the member in its new pane with the timeout:\n%v", port.calls)
+	}
+	if !hasCall(port, "agent prompt demo-spec2 "+spec2.Prompt) {
+		t.Fatalf("refresh did not submit the bootstrap prompt to the new pane:\n%v", port.calls)
+	}
+	for _, call := range port.calls {
+		if strings.Contains(call, "demo-lead") {
+			t.Fatalf("refresh touched a member it was not asked about: %q\n%v", call, port.calls)
+		}
+	}
+	if !strings.Contains(out.String(), "started: demo-spec2 (tab demo (t1))") {
+		t.Fatalf("refresh does not report the member it started:\n%s", out.String())
+	}
+	if !strings.HasSuffix(out.String(), "next: hergy reprompt --all --team demo\n") {
+		t.Fatalf("the last line does not name hergy reprompt --all:\n%s", out.String())
+	}
+}
+
+// TestRefreshAllRestartsTheRunningAndAddsTheRest: with --all the live member is
+// started again in its own pane as before, and the member with no pane is added;
+// the one member's restart does not make a pane.
+func TestRefreshAllRestartsTheRunningAndAddsTheRest(t *testing.T) {
+	port := addablePort()
+	l, out := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.timeout = 3000
+	var killed []int
+	l.kill = func(pgid int) error {
+		killed = append(killed, pgid)
+		port.gone["demo-lead"] = true
+		return nil
+	}
+	l.starts[1].Prompt = "you are spec2; read the rules and wait"
+	spec2 := l.starts[1]
+
+	if err := l.Refresh(l.starts, ""); err != nil {
+		t.Fatalf("Refresh --all: %v", err)
+	}
+	if !slices.Equal(killed, []int{4242}) {
+		t.Fatalf("killed %v, want only the live member's process group", killed)
+	}
+	if want := []splitCall{{from: "p1", direction: "right", pane: "n1"}}; !slices.Equal(port.splits, want) {
+		t.Fatalf("splits %+v, want one pane for the member with none: %+v", port.splits, want)
+	}
+	if !hasCall(port, "agent start demo-lead --kind claude --pane p1 --timeout 3000") {
+		t.Fatalf("refresh did not start the live member again in its own pane:\n%v", port.calls)
+	}
+	if !hasCall(port, "agent start demo-spec2 --kind claude --pane n1 --timeout 3000") {
+		t.Fatalf("refresh did not start the added member in its new pane:\n%v", port.calls)
+	}
+	if !hasCall(port, "agent prompt demo-spec2 "+spec2.Prompt) {
+		t.Fatalf("refresh did not submit the bootstrap prompt to the added member:\n%v", port.calls)
+	}
+	if !strings.Contains(out.String(), "restarted: demo-lead") {
+		t.Fatalf("refresh does not report the restart:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "started: demo-spec2 (tab demo (t1))") {
+		t.Fatalf("refresh does not report the added member:\n%s", out.String())
+	}
+}
+
+// TestRefreshRefusesToAddWhenTheTeamHasNoTab: a team that is not running has no
+// tab to add a member to, so refresh refuses and names hergy up, and nothing is
+// split or started.
+func TestRefreshRefusesToAddWhenTheTeamHasNoTab(t *testing.T) {
+	port := addablePort()
+	port.tabs = nil
+	l, _ := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
+	spec2 := l.starts[1]
+
+	err := l.Refresh([]definition.Start{spec2}, "")
+	if err == nil {
+		t.Fatal("Refresh accepted a member with no pane in a team that is not running")
+	}
+	if !strings.Contains(err.Error(), "hergy up") {
+		t.Fatalf("the refusal does not name hergy up: %v", err)
+	}
+	if len(port.splits) != 0 || slices.Contains(commandTrail(port.calls), "agent start") {
+		t.Fatalf("refresh made or started something in a team that is not running:\n%v", port.calls)
+	}
+}
+
+// TestRefreshDryShowsThePaneItWouldMake: --dry names the member it would give a
+// pane to and the tab, and makes and starts nothing.
+func TestRefreshDryShowsThePaneItWouldMake(t *testing.T) {
+	port := addablePort()
+	l, _ := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.kill = func(pgid int) error { t.Fatalf("dry refresh killed %d", pgid); return nil }
+	spec2 := l.starts[1]
+
+	plan, err := l.RefreshDry([]definition.Start{spec2}, "")
+	if err != nil {
+		t.Fatalf("RefreshDry: %v", err)
+	}
+	want := NewPanes{Members: []string{"demo-spec2"}, Tab: "demo (t1)"}
+	if !slices.Equal(plan.Members, want.Members) || plan.Tab != want.Tab {
+		t.Fatalf("RefreshDry = %+v, want %+v", plan, want)
+	}
+	if len(port.splits) != 0 || len(port.renamed) != 0 {
+		t.Fatalf("dry refresh made a pane: %v %v", port.splits, port.renamed)
 	}
 	if slices.Contains(commandTrail(port.calls), "agent start") {
-		t.Fatalf("refresh started a member with no pane:\n%v", port.calls)
+		t.Fatalf("dry refresh started the member:\n%v", port.calls)
 	}
-	if slices.Contains(commandTrail(port.calls), "pane process-info") {
-		t.Fatalf("refresh read process info without a pane:\n%v", port.calls)
+}
+
+// TestRefreshWaitsOnAnAddedMembersStartupQuestion: a member hergy adds asks a
+// question while it starts, the way a boot's member does: hergy names the tab, the
+// pane and the kind, waits, then submits the bootstrap prompt. The wait names the
+// team's tab, which refresh made no tab of its own for.
+func TestRefreshWaitsOnAnAddedMembersStartupQuestion(t *testing.T) {
+	inLanguage(t, "en")
+	port := addablePort()
+	port.startupBlocked = map[string]bool{"demo-spec2": true}
+	port.startupTab = "t1"
+	l, out := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
+	l.timeout = 3000
+	l.kill = func(pgid int) error { t.Fatalf("refresh killed %d", pgid); return nil }
+	readings := 0
+	port.onStartupGet = func(name string) {
+		readings++
+		if readings > 1 {
+			answered(port, name)
+		}
+	}
+	l.starts[1].Prompt = "you are spec2; read the rules and wait"
+	spec2 := l.starts[1]
+
+	if err := l.Refresh([]definition.Start{spec2}, ""); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	for _, want := range []string{
+		"waiting for permission: demo-spec2 is asking a question while it starts (tab demo (t1), pane n1)",
+		"demo-spec2 answered and started; going on",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("the wait does not show %q:\n%s", want, out.String())
+		}
+	}
+	if !hasCall(port, "agent prompt demo-spec2 "+spec2.Prompt) {
+		t.Fatalf("hergy did not submit the bootstrap prompt after the answer:\n%v", port.calls)
 	}
 }
 
@@ -625,7 +836,7 @@ func TestRefreshDryAcceptsADeadMember(t *testing.T) {
 	l.kill = func(pgid int) error { t.Fatalf("dry refresh killed %d", pgid); return nil }
 	members := l.starts
 
-	if err := l.RefreshDry(members, ""); err != nil {
+	if _, err := l.RefreshDry(members, ""); err != nil {
 		t.Fatalf("RefreshDry: %v", err)
 	}
 	if len(port.verified) != 0 {
@@ -874,7 +1085,7 @@ func TestRefreshDryShowsTheSameRefusal(t *testing.T) {
 	l.kill = func(pgid int) error { t.Fatalf("dry refresh called kill(%d)", pgid); return nil }
 	members := l.starts
 
-	if err := l.RefreshDry(members, "own"); err == nil {
+	if _, err := l.RefreshDry(members, "own"); err == nil {
 		t.Fatal("RefreshDry accepted its own pane")
 	}
 	if len(port.verified) != 0 {

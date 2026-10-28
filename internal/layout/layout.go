@@ -18,6 +18,16 @@ type Rename struct{ Member string }
 
 func (Rename) isStep() {}
 
+// Direction is the way one level of the plan splits: right at even depths, down
+// at odd ones. A member added to a tab that is already laid out is split in at
+// the same alternation, so a pane made later is not always cut from the same side.
+func Direction(depth int) string {
+	if depth%2 == 0 {
+		return "right"
+	}
+	return "down"
+}
+
 // Plan is a balanced binary tree: halve the roster, alternate right/down.
 // A three-member roster becomes left one / right two stacked.
 func Plan(members []string, depth int) []Step {
@@ -27,11 +37,7 @@ func Plan(members []string, depth int) []Step {
 	midpoint := len(members) / 2
 	first := members[:midpoint]
 	second := members[midpoint:]
-	direction := "down"
-	if depth%2 == 0 {
-		direction = "right"
-	}
-	steps := []Step{Split{Source: first[0], Target: second[0], Direction: direction}}
+	steps := []Step{Split{Source: first[0], Target: second[0], Direction: Direction(depth)}}
 	steps = append(steps, Plan(first, depth+1)...)
 	steps = append(steps, Plan(second, depth+1)...)
 	return steps

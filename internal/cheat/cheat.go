@@ -98,10 +98,12 @@ var behavior = map[options.Kind]string{
 `,
 	options.Status: `      With a team name: one line per member and per worker, its live agent_status (working/idle/done/blocked), or "not present" when the member is not live; a worker carries "(worker)". Then a judgement line: "waiting for a human: <names>" when any is blocked, else "nobody is working" when none is working or blocked. With no team name: every running team, each with its team definition name, its member and worker counts, and the same judgement. It only reads herdr, and runs outside a herdr-managed pane too.
 `,
-	options.Refresh: `      Restart each selected member. A live member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. A member that is not live: start it again in the pane hergy named after it, when that pane is still at its shell. Either way the conversation starts empty. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).` + startupQuestion + `
+	options.Refresh: `      Restart each selected member, and add a member the definition has that hergy made no pane for. A live member: stop its process group, wait for herdr to forget the name, then start it again in the same pane and submit the bootstrap prompt. A member that is not live: start it again in the pane hergy named after it, when that pane is still at its shell. A member with no pane: make one for it in the team's tab and start it there, the way a boot starts a member, so it reads the same rules and is handed the same bootstrap prompt; the members already running are left alone, and with --all the live members restart while the members with no pane are added. Every member a refresh starts starts with an empty conversation. The settings are read again first, so an edited profile, kind, args or prompt takes effect; env does not (it is fixed when the pane is made).` + startupQuestion + `
       Both <member> and --all is an error; neither is an error.
       A member running in your own pane (HERDR_PANE_ID) cannot refresh itself: stopping it would stop hergy first. That is an error, and nothing is stopped.
-      If any selected member is not idle or done, is your own pane, or (when not live) has no pane at its shell, nothing is changed and the whole command errors. A pane that is gone or busy points at hergy down then hergy up.
+      If any selected member is not idle or done, is your own pane, or (when not live) has a pane that is busy, nothing is changed and the whole command errors. A busy pane points at hergy down then hergy up.
+      Adding a member needs the team to be running: a team with no tab of its own is refused, and hergy up is named. A refresh makes no tab and starts no team.
+      After it has added a member, the last line names hergy reprompt --all --team <team>: that hands the new lineup to the members that were already running, and keeps their conversation.
 `,
 	options.Reprompt: `      Re-submit the bootstrap prompt to members that are idle or done, keeping each one's conversation. It starts nothing.
       Both <member> and --all is an error; neither is an error.
@@ -142,7 +144,7 @@ var behavior = map[options.Kind]string{
 var flagMeaning = map[string]string{
 	"ai":      "Print the agent cheatsheet (this text) instead of the short one. Always English.",
 	"as":      "Run the team definition under this team name. The team name is the first half of the herdr name; without it, the team definition name.",
-	"dry":     "Print what would happen and change nothing. up and hire never read herdr (a hire --dry can plan for a team that is not running); down, refresh, reprompt, nudge, stop and tell read the live agents and tabs, so they need the team to be running (refresh also refuses your own pane). --dry-run is an alias.",
+	"dry":     "Print what would happen and change nothing. up and hire never read herdr (a hire --dry can plan for a team that is not running); down, refresh, reprompt, nudge, stop and tell read the live agents and tabs, so they need the team to be running (refresh also refuses your own pane, and names the panes it would make). --dry-run is an alias.",
 	"json":    "With --dry, print the plan as JSON; status --json prints its rows as JSON (state and unchanged_minutes) and is the one command that does not need --dry. --json without --dry is an error on every other command.",
 	"all":     "Act on every member instead of one <member>; both together is an error.",
 	"timeout": "Startup timeout, 3001..300000 (default 30000).",
@@ -165,14 +167,15 @@ const tail = `Running against herdr:
   up and hire fail if a resulting herdr name is already live, and if a member's cwd is not a directory.
   down closes the panes named after the team whether an agent stands in them or not: a member that never started, and one whose agent ended, are closed with the rest, and a pane hergy did not name is a person's own and stays. It closes the team's hired workers too, and hergy's own pane last. It also finds a team whose boot stopped before any agent ran, from the tab labelled with the team's name.
   refresh refuses a member running in your own pane (HERDR_PANE_ID): stopping it would stop hergy before it could start the agent again. Run it from another pane, or as the human.
-  refresh starts a member that is not live again in the pane hergy named after it, when that pane is still at its shell; a pane that is gone or busy is an error, and refresh points at down then up.
+  refresh starts a member that is not live again in the pane hergy named after it, when that pane is still at its shell; a pane that is busy is an error, and refresh points at down then up.
+  refresh adds a member the definition has and hergy made no pane for: it makes a pane for it in the team's tab, the way a boot makes one, and starts it with the same bootstrap prompt. A team that is not running (no tab of its own) is refused, and hergy up is named.
   env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env. Every pane hergy makes also gets GY_ACTOR=<herdr name>: the name the agent writes into gy. A profile's own GY_ACTOR does not win, and validate warns when a profile writes it.
 
 Reading the output:
   Most lines are "name: value" (for example "team: demo", or "team definition: demo" for a team definition). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
-  --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members.
+  --dry prints the plan; with --json it is an object: mode (up boot, refresh restart, reprompt reprompt, hire spawn), team, startup_timeout_ms, members, and new_panes (the members refresh would make a pane for, and the tab), which is there only when there are any.
   status --json prints its rows as JSON, the one command that does not need --dry: a team object with members, each {name, state, unchanged_minutes, live, worker}, where unchanged_minutes is the number of minutes a working member's screen has stood (absent when it changed or hergy had not seen it). With no team name it is {"teams": [...]}, one such object each.
   A JSON member always has name, role, kind, args, env, cwd (an absolute path) and prompt: env is the pane's environment, the profile's own variables plus GY_ACTOR. profile, workers, turns and sources appear only when set.
   Exit codes: 0 success; 1 a failure, or validate finding a broken file; 130 interrupted with Ctrl-C.

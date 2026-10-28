@@ -187,6 +187,81 @@ func TestDryAndFailedLaunchesRecordNothing(t *testing.T) {
 	}
 }
 
+// TestRefreshRecordsTheMemberItAdded: a refresh of a member the definition has and
+// hergy has no pane for gives it a pane in the team's tab, submits its bootstrap
+// prompt, leaves the members already running alone, and keeps the added member in
+// the launch record (r-7e09).
+func TestRefreshRecordsTheMemberItAdded(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	log := f.addingHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "w0:p1")
+
+	got := mustRun(t, "refresh", "builder")
+	if !strings.Contains(got, "started: demo-builder (tab team:demo@demo (t1))") {
+		t.Fatalf("refresh does not report the member it added:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "next: hergy reprompt --all --team demo\n") {
+		t.Fatalf("the last line does not name hergy reprompt --all:\n%s", got)
+	}
+	record := readFile(t, log)
+	for _, want := range []string{
+		"pane split p1 --direction right",
+		"pane rename p2 demo-builder",
+		"agent start demo-builder --kind claude --pane p2",
+		"agent prompt demo-builder",
+	} {
+		if !strings.Contains(record, want) {
+			t.Fatalf("refresh did not run %q:\n%s", want, record)
+		}
+	}
+	if strings.Contains(record, "agent get demo-lead") {
+		t.Fatalf("refresh read a member it was not asked about:\n%s", record)
+	}
+
+	launches, records := launchLog(t, f)
+	last := records[len(records)-1]
+	if last.Command != launchlog.CommandRefresh {
+		t.Fatalf("the last record is %q, want %q", last.Command, launchlog.CommandRefresh)
+	}
+	if len(last.Members) != 1 || last.Members[0].Name != "demo-builder" || last.Members[0].Short != "builder" {
+		t.Fatalf("the record holds %v, want only the member the refresh added", last.Members)
+	}
+	text, err := launches.Text(last.Members[0].Prompt)
+	if err != nil || len(text) == 0 {
+		t.Fatalf("the prompt the added member was handed is not in blobs/: %v", err)
+	}
+}
+
+// TestRefreshDryNamesThePaneItWouldMake: --dry says which member it would give a
+// pane to and in which tab, and makes nothing.
+func TestRefreshDryNamesThePaneItWouldMake(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	log := f.addingHerdr(t)
+
+	got := mustRun(t, "refresh", "builder", "--dry")
+	if !strings.Contains(got, "demo-builder: would make a pane and start it (tab team:demo@demo (t1))\n") {
+		t.Fatalf("refresh --dry does not name the pane it would make:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "next: refresh builder --team demo\n") {
+		t.Fatalf("refresh --dry does not end with next:\n%s", got)
+	}
+	record := readFile(t, log)
+	for _, want := range []string{"pane split", "pane rename", "agent start"} {
+		if strings.Contains(record, want) {
+			t.Fatalf("refresh --dry ran %q:\n%s", want, record)
+		}
+	}
+
+	// The JSON plan says the same, so a script that reads the plan sees the pane.
+	plan := mustRun(t, "refresh", "builder", "--dry", "--json")
+	if !strings.Contains(plan, `"new_panes"`) || !strings.Contains(plan, "demo-builder") {
+		t.Fatalf("refresh --dry --json does not name the pane it would make:\n%s", plan)
+	}
+}
+
 // failingStartHerdr is a fake herdr whose agent start fails, so a boot stops
 // before it has started anything.
 const failingStartHerdr = `#!/bin/sh

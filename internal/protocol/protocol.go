@@ -175,8 +175,11 @@ var repromptGroups = []Group{
 }
 
 var refreshGroups = []Group{
+	// A refresh starts a member again where it stands, and gives a member the
+	// definition has and hergy has no pane for a pane in the team's tab.
 	{Name: "agent", Subs: []string{"get", "prompt", "start"}},
-	{Name: "pane", Subs: []string{"process-info", "list"}},
+	{Name: "pane", Subs: []string{"list", "process-info", "rename", "split"}},
+	{Name: "tab", Subs: []string{"list"}},
 }
 
 var downGroups = []Group{

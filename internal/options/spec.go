@@ -121,22 +121,24 @@ var specs = []Spec{
 	},
 	{
 		Kind: Refresh, Name: "refresh",
-		Summary: text("Restart a member; its conversation starts empty", "メンバーを起動し直す。会話は消える"),
+		Summary: text("Restart a member; add one the definition has", "メンバーを起動し直す。定義にあれば足す"),
 		Detail: text(
-			"End each selected member's agent and start it again in the same pane. Give a member or --all.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\nメンバーか --all のどちらかを指定する。"),
+			"End each selected member's agent and start it again in the same pane.\nA member the definition has and hergy made no pane for is given one in the\nteam's tab and started there; the last line then names hergy reprompt --all.\nGive a member or --all.",
+			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n定義にあって hergy が作ったペインが無いメンバーには、チームのタブに\nペインを作って起こす。そのあと最後の行で hergy reprompt --all を示す。\nメンバーか --all のどちらかを指定する。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
-				"The member to restart, by short member name or herdr name",
-				"起動し直すメンバー（短いメンバー名か herdr 名）"),
+				"The member to restart or add, by short member name or herdr name",
+				"起動し直す、または足すメンバー（短いメンバー名か herdr 名）"),
 		}},
 		Flags: []Use{
-			use(flagAll, text("Restart every member (not with a member)", "全メンバーを起動し直す（メンバーとは同時に指定できない）")),
+			use(flagAll, text(
+				"Restart every member, and add the ones with no pane\n(not with a member)",
+				"全メンバーを起動し直す。ペインの無いメンバーは足す\n（メンバーとは同時に指定できない）")),
 			use(flagTeam, descTeam),
 			use(flagDry, text(
-				"Print what would restart and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
-				"起動し直す予定だけを表示し、何も変えない\nherdr の今の状態を読み、自分のペインは本番と同じく断る")),
+				"Print what would restart or be added, and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
+				"起動し直す予定と、足す予定を表示し、何も変えない\nherdr の今の状態を読み、自分のペインは本番と同じく断る")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),

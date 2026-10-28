@@ -303,6 +303,39 @@ esac
 	return log
 }
 
+// addingHerdr writes a fake herdr where the demo team is running with demo-lead
+// at p1, and demo-builder has no live agent and no pane named after it: a refresh
+// of builder adds it to the team's tab. It records every call in <cfg>/herdr.log
+// and returns that path.
+func (f *fixture) addingHerdr(t *testing.T) string {
+	t.Helper()
+	log := filepath.Join(f.cfg, "herdr.log")
+	script := `#!/bin/sh
+log='` + log + `'
+printf '%s\n' "$*" >> "$log"
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent get")
+    case "$3" in
+      demo-lead) echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}}}' ;;
+      *) echo '{"error":{"code":"agent_not_found"}}' ;;
+    esac
+    ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"demo-lead","tab_id":"t1"}]}}' ;;
+  "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`
+	f.herdr(t, script)
+	return log
+}
+
 // readFile returns a file's contents, failing the test when it is missing.
 func readFile(t *testing.T, path string) string {
 	t.Helper()

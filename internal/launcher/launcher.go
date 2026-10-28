@@ -216,40 +216,84 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 	return nil
 }
 
-// Refresh restarts each selected member. A member that is live has its process
+// Refresh restarts each selected member, and gives a pane to a member the
+// definition has and hergy has none for. A member that is live has its process
 // group stopped, Herdr's name waited away, and the member started again in the
 // same pane; a member that is not live, but whose pane hergy named after it is
-// still there at its shell, is started again in that pane. Either way the
-// conversation starts empty, and the settings are read again first, so an edited
-// profile, kind, args or prompt takes effect. selfPane is the pane hergy itself
-// runs in: a member there cannot be restarted, because stopping it would stop
-// hergy before it could start the agent again. It checks every selected member
-// before it stops or starts any, so one member that is not idle or done, is
-// hergy's own, or has no pane to start in, stops the whole command with nothing
-// changed.
+// still there at its shell, is started again in that pane. A member with no pane
+// at all is added to the running team: hergy makes a pane for it in the team's tab
+// and starts it there, the way a boot makes one member's pane, with the same
+// bootstrap prompt and the same wait on a startup question (d-8fcf); the other
+// members are left alone. Either way the conversation starts empty, and the
+// settings are read again first, so an edited profile, kind, args or prompt takes
+// effect. selfPane is the pane hergy itself runs in: a member there cannot be
+// restarted, because stopping it would stop hergy before it could start the agent
+// again. It checks every selected member before it stops, starts or makes any
+// pane, so one member that is not idle or done, is hergy's own, or whose pane is
+// busy stops the whole command with nothing changed.
+//
+// A team that is not running has no tab to add a member to, and refresh starts no
+// team: it refuses and names hergy up, as it always has.
 func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
-	targets, err := l.checkTargets(members, selfPane)
+	targets, tab, err := l.checkTargets(members, selfPane)
 	if err != nil {
 		return err
 	}
+	var restarted, added []string
+	from, depth := tab.from, 0
 	for _, target := range targets {
-		if err := l.restart(target, NextRefresh()); err != nil {
+		if !target.makesPane() {
+			if err := l.restart(target, NextRefresh()); err != nil {
+				return err
+			}
+			restarted = append(restarted, target.member.Name)
+			continue
+		}
+		if err := l.addMember(target.member, from, layout.Direction(depth), tab.label); err != nil {
 			return err
 		}
+		// The member added before is the pane the next one is split from, so a
+		// second new member does not halve the pane the team was using.
+		from, depth = l.paneOf(target.member.Name), depth+1
+		added = append(added, target.member.Name)
 	}
-	fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(namesOf(members), ", "))
+	if len(restarted) > 0 {
+		fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(restarted, ", "))
+	}
+	if len(added) > 0 {
+		fmt.Fprint(l.out, i18n.Tf("launcher.refresh_added", strings.Join(added, ", "), tabNamed(tab.label, tab.id)))
+		// The members that were already running do not know the new ones: the
+		// bootstrap prompt is what tells them, and it keeps their conversation.
+		fmt.Fprintln(l.out, i18n.Tf("next", i18n.Tf("launcher.refresh_added_next", l.team)))
+	}
 	return nil
 }
 
+// NewPanes is the part of a refresh that makes panes: the members the definition
+// has and hergy has no pane for, and the team's tab, named as the lines name it.
+type NewPanes struct {
+	Members []string
+	Tab     string
+}
+
 // RefreshDry checks the same targets a real refresh checks and changes nothing,
-// so --dry shows the same refusal. Like down --dry, it reads the live agents and
-// panes.
-func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) error {
-	_, err := l.checkTargets(members, selfPane)
-	return err
+// so --dry shows the same refusal, and says which members a refresh would give a
+// pane to. Like down --dry, it reads the live agents, tabs and panes.
+func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) (NewPanes, error) {
+	targets, tab, err := l.checkTargets(members, selfPane)
+	if err != nil {
+		return NewPanes{}, err
+	}
+	plan := NewPanes{Tab: tabNamed(tab.label, tab.id)}
+	for _, target := range targets {
+		if target.makesPane() {
+			plan.Members = append(plan.Members, target.member.Name)
+		}
+	}
+	return plan, nil
 }
 
 // Status reads the live agents and tabs and reports one row per selected member
@@ -447,20 +491,37 @@ func (l *Launcher) stoppedByNow(name string) (bool, error) {
 	}
 }
 
-// refreshTarget is one member a refresh acts on: its pane, and whether an agent
-// is live there. A member with no live agent is started again in the pane hergy
-// named for it, when that pane is at its shell.
+// refreshTarget is one member a refresh acts on: its pane, and whether an agent is
+// live there. A member with no live agent is started again in the pane hergy named
+// for it, when that pane is at its shell. A member with no pane at all is one
+// hergy has not run yet: refresh makes it a pane in the team's tab (d-8fcf), and
+// pane is empty.
 type refreshTarget struct {
 	member *definition.Start
 	pane   string
 	live   bool
 }
 
+// makesPane is whether refresh gives the member a new pane.
+func (t refreshTarget) makesPane() bool { return t.pane == "" }
+
+// teamTab is the tab hergy made for the team, read when a refresh gives a member a
+// pane: the tab the pane is made in, its label, and the pane the first new pane is
+// split from.
+type teamTab struct {
+	id    string
+	label string
+	from  string
+}
+
 // checkTargets reads every selected member and refuses the whole command unless
-// each one can be restarted: live and idle or done, or not live with its named
-// pane still at the shell. A member in hergy's own pane is refused either way.
-// Nothing is stopped or started until every member passes.
-func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]refreshTarget, error) {
+// each one can be restarted or given a pane: live and idle or done, not live with
+// a named pane still at the shell, or with no pane at all, which the team's tab
+// takes. A member in hergy's own pane is refused. When a member has no pane the
+// team's tab is read here too, so a team that is not running refuses the command
+// before anything is stopped or made. Nothing is stopped, started or made until
+// every member passes.
+func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]refreshTarget, teamTab, error) {
 	targets := make([]refreshTarget, 0, len(members))
 	for i := range members {
 		member := &members[i]
@@ -468,11 +529,11 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
 			if protocol.ErrorCode(err) != herdr.AgentNotFound {
-				return nil, err
+				return nil, teamTab{}, err
 			}
 			target, err := l.deadTarget(member, selfPane)
 			if err != nil {
-				return nil, err
+				return nil, teamTab{}, err
 			}
 			targets = append(targets, target)
 			continue
@@ -480,31 +541,42 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]
 		// No kind check here: the settings were just read again, and the live
 		// agent still runs the kind those settings had before the edit.
 		if err := agent.CheckLive(member.Name); err != nil {
-			return nil, err
+			return nil, teamTab{}, err
 		}
 		if agent.PaneID == "" {
-			return nil, i18n.Errorf("error.missing_pane_id", member.Name)
+			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name)
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return nil, i18n.Errorf("error.refresh_self", member.Name)
+			return nil, teamTab{}, i18n.Errorf("error.refresh_self", member.Name)
 		}
 		l.place(member.Name, agent.PaneID)
 		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
 	}
-	return targets, nil
+	for _, target := range targets {
+		if !target.makesPane() {
+			continue
+		}
+		tab, err := l.teamTab(target.member)
+		if err != nil {
+			return nil, teamTab{}, err
+		}
+		return targets, tab, nil
+	}
+	return targets, teamTab{}, nil
 }
 
 // deadTarget finds the pane hergy named after a member that has no live agent.
 // The member can be started again only when that pane is still there and its
-// foreground process is the shell; otherwise the pane is gone or something hergy
-// did not start is running in it, and refresh must not take it over.
+// foreground process is the shell; a pane that is gone is a member hergy has not
+// run, which refresh gives a pane to, and one that runs something hergy did not
+// start is refused, because refresh must not take it over.
 func (l *Launcher) deadTarget(member *definition.Start, selfPane string) (refreshTarget, error) {
 	pane, err := l.herdr.FindPane(member.Name)
 	if err != nil {
 		return refreshTarget{}, err
 	}
 	if pane == "" {
-		return refreshTarget{}, i18n.Errorf("error.refresh_no_pane", member.Name)
+		return refreshTarget{member: member}, nil
 	}
 	if selfPane != "" && pane == selfPane {
 		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name)
@@ -518,6 +590,47 @@ func (l *Launcher) deadTarget(member *definition.Start, selfPane string) (refres
 	}
 	l.place(member.Name, pane)
 	return refreshTarget{member: member, pane: pane, live: false}, nil
+}
+
+// teamTab finds the tab hergy made for this team, and the pane a first new pane
+// is split from: the first pane in the tab that herdr lists. A team whose tab is
+// not there, or whose tab has no pane to split, is refused, and hergy up is named:
+// refresh starts no team, as before.
+func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
+	tabs, err := l.herdr.Tabs()
+	if err != nil {
+		return teamTab{}, err
+	}
+	for _, tab := range tabs {
+		if !protocol.NamesTeam(tab.Label, l.team) {
+			continue
+		}
+		panes, err := l.herdr.Panes()
+		if err != nil {
+			return teamTab{}, err
+		}
+		for _, pane := range panes {
+			if pane.TabID == tab.ID {
+				return teamTab{id: tab.ID, label: tab.Label, from: pane.ID}, nil
+			}
+		}
+	}
+	return teamTab{}, i18n.Errorf("error.refresh_no_pane", member.Name)
+}
+
+// addMember makes one member's pane in the team's tab and starts the member in it,
+// the way a boot makes each member of its plan: the pane is split from another
+// pane in the tab and named after the member, then the agent is started and the
+// bootstrap prompt submitted. A startup question is waited on as a boot waits.
+func (l *Launcher) addMember(member *definition.Start, from, direction, tabLabel string) error {
+	l.stage(i18n.T("progress.stage.creating_panes"))
+	if err := l.splitPane(from, member, direction); err != nil {
+		return err
+	}
+	if err := l.namePane(member.Name); err != nil {
+		return err
+	}
+	return l.start(member, NextRefresh(), tabLabel)
 }
 
 // restart stops a live member's process group and waits for Herdr to drop the
@@ -1037,18 +1150,28 @@ func (l *Launcher) layOut(step layout.Step) error {
 		if err != nil {
 			return err
 		}
-		pane, err := l.herdr.Split(l.paneOf(s.Source), s.Direction, target.Cwd, target.Env)
-		if err != nil {
-			return err
-		}
-		l.place(s.Target, pane)
+		return l.splitPane(l.paneOf(s.Source), target, s.Direction)
 	case layout.Rename:
-		l.mark(s.Member, i18n.T("progress.mark.pane_created"))
-		if err := l.herdr.Rename(l.paneOf(s.Member), s.Member); err != nil {
-			return err
-		}
+		return l.namePane(s.Member)
 	}
 	return nil
+}
+
+// splitPane splits one pane and gives the new pane to one member.
+func (l *Launcher) splitPane(source string, member *definition.Start, direction string) error {
+	pane, err := l.herdr.Split(source, direction, member.Cwd, member.Env)
+	if err != nil {
+		return err
+	}
+	l.place(member.Name, pane)
+	return nil
+}
+
+// namePane names a member's pane after it, so hergy finds the member by the name
+// on its pane when its agent is not live.
+func (l *Launcher) namePane(member string) error {
+	l.mark(member, i18n.T("progress.mark.pane_created"))
+	return l.herdr.Rename(l.paneOf(member), member)
 }
 
 func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel string) error {
