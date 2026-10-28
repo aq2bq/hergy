@@ -43,9 +43,15 @@ type t2TestCheck struct {
 	Preview struct {
 		Lines []struct {
 			Text string `json:"text"`
+			At   string `json:"at"`
 			Part string `json:"part"`
 			Held string `json:"held"`
 		} `json:"lines"`
+		Diff struct {
+			Added         []int `json:"added"`
+			RemovedBefore []int `json:"removedBefore"`
+			RemovedAtEnd  bool  `json:"removedAtEnd"`
+		} `json:"diff"`
 		Chars int `json:"chars"`
 	} `json:"preview"`
 	Effect struct {
@@ -1139,6 +1145,55 @@ func TestTEAMS_SaveKeepsAHumanTurnProblemForTheDefinition(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the definition does not carry %q: %+v", want, check.Problems)
+	}
+}
+
+// TestTEAMS_Y6_ThePreviewIsTheSavedFile: the topology tab's preview is the saved
+// team.yaml line for line, comments and blank lines among them, and a turn the
+// panel adds stands as an added line marked with the turn it is (spec-teams B7,
+// Y6, Y2). Moved from the browser walk TEAMS-Y2, which compared the drawn lines
+// with the file's own text.
+func TestTEAMS_Y6_ThePreviewIsTheSavedFile(t *testing.T) {
+	f := newFixture(t)
+	text := "version: 1\n# a comment a person wrote\nmission: demo の使命\n\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: analyst\n    role: analyst\n    profile: coder\nturns:\n  - human -> lead\n  - analyst -> lead\n"
+	f.write(t, "teams/demo/team.yaml", text)
+	server := f.server(t)
+
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team",
+		"doc": map[string]any{"ops": []map[string]any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the check answers %d: %s", resp.StatusCode, body)
+	}
+	check := teamsCheck(t, body)
+	got := make([]string, len(check.Preview.Lines))
+	for i, line := range check.Preview.Lines {
+		got[i] = line.Text
+	}
+	want := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	if !slices.Equal(got, want) {
+		t.Errorf("the preview is not the saved file line for line:\n got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// The turn the panel adds is an op; its line is the one the diff marks
+	// added, and it stands at the end of the preview.
+	resp, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "demo", "part": "team",
+		"doc": map[string]any{"ops": []map[string]any{
+			{"kind": "addTurn", "from": "lead", "to": "analyst"},
+		}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the check with the turn answers %d: %s", resp.StatusCode, body)
+	}
+	check = teamsCheck(t, body)
+	added := check.Preview.Diff.Added
+	if len(added) != 1 || added[0] != len(check.Preview.Lines)-1 {
+		t.Fatalf("the diff marks %v lines added, want the last line alone", added)
+	}
+	if line := check.Preview.Lines[added[0]]; strings.TrimSpace(line.Text) != "- lead -> analyst" {
+		t.Errorf("the added line reads %q, want the turn", line.Text)
 	}
 }
 

@@ -1,17 +1,18 @@
-// TEAMS-N1, TEAMS-P5, TEAMS-Y2 and TEAMS-V1 — walked
+// TEAMS-N1, TEAMS-P5 and TEAMS-V1 — walked
 // in a browser. Only what the browser alone can see is compared here (d-3e43):
 // the path the shape panel's head writes (TEAMS-V4), 元に戻す standing where
 // nothing changed (R5), a definition whose names do not resolve being drawn (R10),
 // the words the cards are built with (undefined), the cursor while a field is
 // drawn again, a rule opening inside the window (R12), the one line a save writes
 // from the screen's own assembly, the line a change would take away standing once
-// (R6), the preview against the file (Y6), the box sent to the line a turn added
-// (R2), the band following a save and a delete (R7), and the files a 共通 save
-// writes and does not write.
+// (R6), the band following a save and a delete (R7), and the files a 共通 save
+// writes and does not write. The preview's lines and the line a turn adds are
+// the module's (internal/web/jstest/teams-preview.test.js) and the check's
+// (TestTEAMS_Y6_ThePreviewIsTheSavedFile).
 import { test, expect, hergyNew } from './fixtures';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { DEADLINE, choose, diff, press, q, read, readTo, set, there, wait } from './helpers';
+import { diff, press, q, read, readTo, set, there, wait } from './helpers';
 
 test.use({ reads: 'teams' });
 
@@ -320,56 +321,6 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
     `document.querySelector('.screens .scr[data-screen=teams] .n').textContent`,
     'the band counts the definition the delete took away',
   ).toBe(String(before - 1));
-});
-
-test('TEAMS-Y2 the preview and the line a turn adds', async ({ page, app }) => {
-  // e2eTeamsTopology's browser-only part: the preview the topology tab draws is
-  // the saved team.yaml line for line (Y6), and a turn added from a member's
-  // card stands in the preview with the box sent to it (Y2, R2).
-  const panel = shape('core');
-  const line = (find: string) => `${panel}.querySelector(${JSON.stringify(`.tprev .yl${find}`)})`;
-
-  await page.goto(`${app.base}/teams?open=core`);
-  await wait(page, there('#view .tdef'));
-  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=yaml]')`);
-  await wait(page, there2(panel, '.tprev .ybox .yl'));
-
-  // Y6: the preview is the saved team.yaml line for line, comments and all. The
-  // reading is held to the file until it matches; a line the preview draws as a
-  // single space stands for a blank line of the file.
-  const text = readFileSync(path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml'), 'utf8');
-  const want = text.replace(/\n$/, '').split('\n');
-  const preview = `[...document.querySelectorAll('.tdef[data-name="core"] .tprev .yl .yt')].map(function(t){return t.textContent}).join('\u0001')`;
-  await expect
-    .poll(
-      async () => {
-        const got = (await read<string>(page, preview)).split('\u0001');
-        if (got.length !== want.length) {
-          return `the preview holds ${got.length} lines, want the file's ${want.length}`;
-        }
-        const at = want.findIndex(
-          (line, i) => got[i] !== line && !(got[i] === ' ' && line.trim() === ''),
-        );
-        if (at < 0) return '';
-        return `the preview's line ${at + 1} reads ${JSON.stringify(got[at])}, want ${JSON.stringify(want[at])}`;
-      },
-      { timeout: DEADLINE, message: 'the preview is the saved team.yaml line for line' },
-    ).toBe('');
-
-  // Y2: a turn added from analyst to reviewer stands at the end of the preview
-  // as an added line, and the box was sent to it (B7, R2).
-  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=attr]')`);
-  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=analyst]')`);
-  await wait(page, there2(panel, '.cv-side select[data-cv-f=turn-add]'));
-  await choose(page, `${panel}.querySelector('.cv-side select[data-cv-f=turn-add]')`, 'reviewer');
-  await wait(page, there2(panel, '.cv-side .cv-t'));
-  await press(page, `${panel}.querySelector('.cv-sh [data-cv-side=yaml]')`);
-  await wait(page, `!!${line('.ins')} && ${line('.ins')}.textContent.indexOf('analyst -> reviewer')>=0`);
-  await readTo<string>(
-    page,
-    `(function(){var b=${panel}.querySelector('.tprev .ybox'),l=${line('.ins')};if(!b||!l)return false;var br=b.getBoundingClientRect(),lr=l.getBoundingClientRect();return lr.top>=br.top-1&&lr.bottom<=br.bottom+1;})()+''`,
-    'the box was not sent to the line the turn added',
-  ).toBe('true');
 });
 
 test('TEAMS-C1 the canvas adds a member, removes it, and adds a worker', async ({ page, app }) => {
