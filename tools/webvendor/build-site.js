@@ -18,6 +18,19 @@
 // bun.lock, resolved through internal/web/tsconfig.json's paths, so a version
 // change is seen by `webbuild` as a change of the committed files.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
+
+// JSX is compiled to preact/jsx-runtime, which exists; Bun's dev runtime
+// (preact/jsx-dev-runtime) is not in the package's files, so the build always
+// runs as a production one. Bun decides that from the environment it started
+// with, so a run that was not told starts itself again with it set.
+if (process.env.NODE_ENV !== 'production') {
+  const again = Bun.spawnSync({
+    cmd: [process.execPath, import.meta.path],
+    env: { ...process.env, NODE_ENV: 'production' },
+    stdio: ['inherit', 'inherit', 'inherit'],
+  });
+  process.exit(again.exitCode ?? 1);
+}
 import { join, relative, sep } from 'node:path';
 
 const here = import.meta.dir;

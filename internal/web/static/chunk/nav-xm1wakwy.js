@@ -12,7 +12,7 @@ import {
   A,
   y,
   html
-} from "./nav-hd8fn60s.js";
+} from "./nav-s2ensdem.js";
 
 // lib/ruledoc.js
 var clone2 = (o) => JSON.parse(JSON.stringify(o));

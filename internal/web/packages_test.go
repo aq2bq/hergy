@@ -19,9 +19,13 @@ import (
 // only) cannot do once a screen moves to TypeScript.
 
 // packageImport is an import of one of the three packages, from the modules
-// they are pinned in: preact (and its hooks and jsx runtime), htm, and the
-// signals.
-var packageImport = regexp.MustCompile(`(?m)^\s*(?:export\s+[^;]*?from|import\s[^;]*?from|import)\s*['"](?:preact(?:/[a-z-]+)?|htm|@preact/signals(?:/[a-z-]+)?)['"]`)
+// they are pinned in: preact (and its hooks), htm, and the signals.
+var packageImport = regexp.MustCompile(`(?m)^\s*(?:export\s+[^;]*?from|import\s+[^;]*?from|import)\s*['"](?:preact(?:/[a-z-]+)?|htm|@preact/signals(?:/[a-z-]+)?)['"]`)
+
+// typeImport is an import that names types alone. It is erased before a browser
+// sees the file, so a screen may name Preact's types where it draws (JSX.Element,
+// Signal, ComponentChildren) without a second copy of anything.
+var typeImport = regexp.MustCompile(`(?ms)^\s*(?:import|export)\s+type\b.*?(?:;|$)`)
 
 // preactModule is the one file allowed to name them.
 const preactModule = "lib/preact"
@@ -46,7 +50,7 @@ func TestOnlyTheOneModuleImportsThePackages(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		body := string(raw)
+		body := typeImport.ReplaceAllString(string(raw), "")
 		if !packageImport.MatchString(body) {
 			return nil
 		}

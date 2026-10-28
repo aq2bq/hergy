@@ -14,7 +14,7 @@ import {
   y,
   O,
   html
-} from "../chunk/nav-hd8fn60s.js";
+} from "../chunk/nav-s2ensdem.js";
 import {
   takeDraft2,
   setDirty2
@@ -28,13 +28,13 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-d9j9dsfw.js";
+} from "../chunk/nav-s52mkpb5.js";
 import {
   YamlTab2
-} from "../chunk/nav-97pgjwg4.js";
+} from "../chunk/nav-r50jwkmx.js";
 import {
   resource
-} from "../chunk/nav-xcvtgqjz.js";
+} from "../chunk/nav-xgz6sqrh.js";
 
 // profiles/state.js
 var view = document.getElementById("view");

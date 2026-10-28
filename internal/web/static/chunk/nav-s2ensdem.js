@@ -1178,7 +1178,7 @@ function M() {
     (l.requestAnimationFrame || A3)(F);
 }
 
-// lib/preact.js
+// lib/preact.ts
 var html = htm_module_default.bind(k);
 
 export { R, d, h, _, A, y, O, x, html };
