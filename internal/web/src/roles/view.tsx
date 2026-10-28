@@ -211,11 +211,11 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   // under ロール名, and while it is there the save is held. A save's refusal is the
   // same answer until the next check speaks.
   const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
-  const nameError = nameIssue ? nameIssue.msg : (refusal && refusal.at === 'name' ? refusal.text : '');
+  const nameError = nameIssue ? nameIssue.text : (refusal && refusal.at === 'name' ? refusal.text : '');
   const docError = refusal && refusal.at === 'doc' ? refusal.text : '';
   const n = diffCount(e);
-  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.msg));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.msg)) || n === 0));
+  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.text));
+  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.text)) || n === 0));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
       <header class="ph">
         {r.isNew

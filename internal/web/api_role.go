@@ -69,14 +69,19 @@ func (s *Server) r2ListOf(reading r2Reading) apiList {
 			if place.doc == nil {
 				continue
 			}
-			doc := *place.doc
-			doc.Text, doc.Hash = "", ""
+			path := s.cat.RolePath(place.name, place.doc.Name)
+			text, _ := s.cat.Reader().Read(source.Doc{Path: path})
 			item.Places[place.name] = apiPlace{
-				Doc: doc, Text: place.doc.Text, Hash: place.doc.Hash,
-				Path:     s.cat.Display(s.cat.RolePath(place.name, place.doc.Name)),
-				Problems: r2DocCounts(place.doc.Text, s.cat.Display(s.cat.RolePath(place.name, place.doc.Name))),
+				Doc: *place.doc, Text: text, Hash: source.Hash(text),
+				Path:     s.cat.Display(path),
+				Problems: r2DocCounts(text, s.cat.Display(path)),
 			}
-			out.Hashes[place.name+"."+place.doc.Name] = place.doc.Hash
+			out.Hashes[place.name+"."+place.doc.Name] = source.Hash(text)
+		}
+		// The row's count is the count of the document the row stands on, the
+		// way a profile's row carries its effective place's count (n-3f6c).
+		if place, ok := item.Places[item.Effective]; ok {
+			item.Problems = place.Problems
 		}
 		item.Summary = summary
 		out.Items = append(out.Items, item)
@@ -171,7 +176,7 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 	}
 	effective, hidden := s.r2RowPlaces(name)
 	return map[string]any{
-		"doc":       r2DocOf(doc, source.Hash(text), text),
+		"doc":       r2DocOf(doc),
 		"text":      text,
 		"hash":      source.Hash(text),
 		"path":      s.cat.Display(path),
@@ -221,11 +226,21 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 // check read a whole text rather than a draft's fields, so every problem stands
 // on its line.
 func r2CheckAnswer(report check.DocReport, fromText bool) apiCheck {
+	// Empty is an empty list, never null: a screen draws a list it can walk
+	// without asking whether this kind of check carries one (n-3f6c).
+	turns := report.Turns
+	if turns == nil {
+		turns = []check.RoleTurn{}
+	}
+	readers := report.Readers
+	if readers == nil {
+		readers = []check.RoleReader{}
+	}
 	return apiCheck{
 		Problems: r2Problems(report.Problems, fromText),
 		Preview:  report.Markdown,
-		Effect:   apiEffect{Diff: report.Diff, Turns: report.Turns},
-		Readers:  report.Readers,
+		Effect:   apiEffect{Diff: report.Diff, Turns: turns},
+		Readers:  readers,
 		Limit:    report.Limit,
 		Size:     report.Markdown.Chars,
 	}
@@ -356,7 +371,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if got == nil {
 		got = &rules.Document{Path: target}
 	}
-	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got, source.Hash(string(edited)), string(edited))), nil
+	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got), string(edited)), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -397,14 +412,14 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	if doc == nil {
 		doc = &rules.Document{Path: path}
 	}
-	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc, source.Hash(in.Text), in.Text)), nil
+	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc), in.Text), nil
 }
 
 // savedAnswer is the answer of a write: the one document as GET
 // /api/role/{name} reads it now, with the whole list under it (spec-boundary 5).
-func (k apiRole) savedAnswer(place, name string, doc *r2Doc) apiSaved {
+func (k apiRole) savedAnswer(place, name string, doc *r2Doc, text string) apiSaved {
 	list := k.s.r2List()
-	out := apiSaved{Doc: doc, Text: doc.Text, Hash: doc.Hash, Path: k.s.cat.Display(k.s.cat.RolePath(place, name)), Items: list.Items, Hashes: list.Hashes}
+	out := apiSaved{Doc: doc, Text: text, Hash: source.Hash(text), Path: k.s.cat.Display(k.s.cat.RolePath(place, name)), Items: list.Items, Hashes: list.Hashes}
 	out.Effective, out.Hidden = k.s.r2RowPlaces(name)
 	return out
 }

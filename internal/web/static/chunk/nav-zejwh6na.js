@@ -127,7 +127,7 @@ function profileRow(item, isOpen) {
       savedEnv: jsonOf(doc.env),
       hash: place.hash || "",
       users: both ? 0 : s.users || 0,
-      renameUsers: place.readers || 0,
+      rename_targets: place.rename_targets || 0,
       err: c.err,
       warn: c.warn,
       savedLine: !!place.savedLine

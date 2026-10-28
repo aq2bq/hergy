@@ -1270,7 +1270,7 @@ components:
         problems:
           $ref: "#/components/schemas/Counts"
     RoleDoc:
-      description: ロールの文書 1 つ。節と規則を持ち、書いたときはファイルのハッシュと文も持つ。
+      description: ロールの文書 1 つ。節と規則だけを持ち、ファイルのハッシュと文は置き場所が持つ。
       type: object
       additionalProperties: false
       required: [name, title, revision, sections]
@@ -1291,12 +1291,6 @@ components:
           description: 文書の節
           items:
             $ref: "#/components/schemas/RoleSection"
-        hash:
-          type: string
-          description: この文書が入っているファイルのハッシュ
-        text:
-          type: string
-          description: この文書が入っているファイルの全体の文
     RoleSection:
       description: ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。
       type: object
@@ -1422,7 +1416,6 @@ components:
           $ref: "#/components/schemas/RoleEffect"
         readers:
           type: array
-          nullable: true
           description: そのロールの文書を読むメンバー
           items:
             $ref: "#/components/schemas/RoleReader"
@@ -1478,7 +1471,6 @@ components:
           $ref: "#/components/schemas/RoleDiff"
         turns:
           type: array
-          nullable: true
           description: 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの
           items:
             $ref: "#/components/schemas/RoleTurn"
@@ -1786,15 +1778,26 @@ components:
         path:
           type: string
           description: そのプロファイルが入っているファイルの道
-        readers:
+        rename_targets:
           type: integer
           minimum: 0
-          description: この名前を変えたときに、その置き場所を読む人たちへ書き写す数
+          description: この名前を変えたときに書き換える、この名前を使っている人の数
         savedLine:
           type: boolean
           description: いま保存した欄か（保存の答えだけが立てる）
         problems:
           $ref: "#/components/schemas/Counts"
+    ProfileFileDoc:
+      description: profiles.yaml 1 つの文書。ファイルに書いた順のプロファイルを持つ。
+      type: object
+      additionalProperties: false
+      required: [profiles]
+      properties:
+        profiles:
+          type: array
+          description: ファイルに書いた順のプロファイル
+          items:
+            $ref: "#/components/schemas/ProfileDoc"
     ProfileDoc:
       description: プロファイル 1 つ。起動する kind と、その kind に渡す引数と環境変数。
       type: object
@@ -1973,10 +1976,9 @@ components:
       required: [doc, text, hash, path]
       properties:
         doc:
-          nullable: true
           allOf:
-            - $ref: "#/components/schemas/ProfileDoc"
-          description: 保存したプロファイル。YAML タブの保存は null。
+            - $ref: "#/components/schemas/ProfileFileDoc"
+          description: 保存で書いたファイルの文書。パネルの保存も YAML タブの保存も同じ形。
         text:
           type: string
           description: 保存したファイルの全体の文
@@ -2043,9 +2045,6 @@ components:
         place:
           type: string
           description: 置き場所。project はプロジェクト、global はグローバル。
-        name:
-          type: string
-          description: YAML タブが開いている行のプロファイル名。検査は本文の名前を読まない。
         original:
           type: string
           description: 保存されているプロファイル名。新しいプロファイルは空。
@@ -2065,9 +2064,6 @@ components:
         place:
           type: string
           description: 置き場所。project はプロジェクト、global はグローバル。
-        name:
-          type: string
-          description: YAML タブが開いている行のプロファイル名。保存は本文の doc.name を読む。
         original:
           type: string
           description: 保存されているプロファイル名。新しいプロファイルは空。
@@ -2325,9 +2321,6 @@ components:
         from:
           type: string
           description: このワーカーを雇ったメンバー名
-        stale:
-          type: boolean
-          description: メンバーに渡した初期プロンプトが現在のものと異なるか
     ActivityQuestion:
       description: メンバーが出した未決の質問
       type: object
@@ -3191,6 +3184,9 @@ components:
         readers:
           type: integer
           description: 文書を読むメンバーとワーカーの数
+        rename_targets:
+          type: integer
+          description: このプロファイル名を変えたときに書き換える人の数。プロファイル以外は送らない
         savedLine:
           type: boolean
           description: 文書の行を保存したか
@@ -4249,11 +4245,23 @@ components:
           items:
             $ref: '#/components/schemas/TeamPromptSegment'
           description: ワーカーに渡す初期プロンプト
-    TeamDraftCheckAnswer:
-      description: まだ保存していないチーム定義の検査結果。
+        doc:
+          allOf:
+            - $ref: '#/components/schemas/TeamDocument'
+          description: 保存前のチーム定義。保存済みの検査の答えには無い
+        draft:
+          allOf:
+            - $ref: '#/components/schemas/TeamCheckDraft'
+          description: まだ保存していない定義だけが持つ欄。保存済みの検査の答えには無い
+    TeamCheckResponse:
+      description: checkTeam が返す検査結果。保存済みでも保存前でも同じ形で、保存前だけの欄は draft の塊に入る。
+      allOf:
+        - $ref: '#/components/schemas/TeamCheckAnswer'
+    TeamCheckDraft:
+      description: まだ保存していないチーム定義だけが持つ欄。
       type: object
       additionalProperties: false
-      required: [name, place, starter, path, hash, writes, problems, doc, preview]
+      required: [name, place, starter, path, hash, writes]
       properties:
         name:
           type: string
@@ -4276,25 +4284,6 @@ components:
           items:
             type: string
           description: 保存で書き込むファイルのパス
-        problems:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/Problem'
-          description: 検査で見つかった問題
-        doc:
-          allOf:
-            - $ref: '#/components/schemas/TeamDocument'
-          description: 保存前のチーム定義
-        preview:
-          allOf:
-            - $ref: '#/components/schemas/TeamPreview'
-          description: 保存するときに書く team.yaml と差分
-    TeamCheckResponse:
-      description: checkTeam が返す保存済みまたは保存前の検査結果。
-      oneOf:
-        - $ref: '#/components/schemas/TeamCheckAnswer'
-        - $ref: '#/components/schemas/TeamDraftCheckAnswer'
     TeamSaved:
       description: 保存したチーム定義またはチームのルールと、保存後の一覧。
       type: object
@@ -4555,7 +4544,7 @@ components:
           type: string
           description: ワーカーを起動するメンバー名。空なら目的から決める。
     TeamRuleDocument:
-      description: チームのルールを検査または保存する文書。
+      description: チームのルールを検査または保存する文書。文書だけを持ち、ファイルのハッシュと文は置き場所が持つ。
       type: object
       additionalProperties: false
       required: [name, title, revision, sections]
@@ -4576,12 +4565,6 @@ components:
           items:
             $ref: '#/components/schemas/TeamRuleSection'
           description: チームのルールの節
-        hash:
-          type: string
-          description: 保存済みチームのルールのハッシュ
-        text:
-          type: string
-          description: 保存済みチームのルールの全文
     TeamRuleDocumentRequest:
       description: 画面から送るチームのルールの編集文書。
       type: object

@@ -120,7 +120,7 @@ type p2TestPlace struct {
 	} `json:"doc"`
 	Path      string `json:"path"`
 	Hash      string `json:"hash"`
-	Readers   int    `json:"readers"`
+	Targets   int    `json:"rename_targets"`
 	SavedLine bool   `json:"savedLine"`
 	Problems  struct {
 		Err  int `json:"err"`
@@ -763,14 +763,14 @@ func TestProfilesPageNamesTheFileAndItsReaders(t *testing.T) {
 	if project == nil || project.Path != projectPath {
 		t.Errorf("the project's place does not name its file: %+v", project)
 	}
-	if project != nil && project.Readers != 3 {
-		t.Errorf("the project's place counts %d readers of its file, want 3", project.Readers)
+	if project != nil && project.Targets != 3 {
+		t.Errorf("the project's place counts %d readers of its file, want 3", project.Targets)
 	}
 	if shared == nil {
 		t.Fatalf("the row carries no shared place")
 	}
-	if shared.Readers != 0 {
-		t.Errorf("the shared place counts %d readers it does not have", shared.Readers)
+	if shared.Targets != 0 {
+		t.Errorf("the shared place counts %d readers it does not have", shared.Targets)
 	}
 }
 

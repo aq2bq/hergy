@@ -45,8 +45,6 @@ type r2Doc struct {
 	Title    string      `json:"title"`
 	Revision *int        `json:"revision"`
 	Sections []r2Section `json:"sections"`
-	Hash     string      `json:"hash,omitempty"`
-	Text     string      `json:"text,omitempty"`
 }
 
 type r2Section struct {
@@ -164,12 +162,12 @@ func (s *Server) r2Read(path string) *r2Doc {
 	if doc == nil {
 		doc = &rules.Document{Path: path}
 	}
-	return r2DocOf(doc, source.Hash(text), text)
+	return r2DocOf(doc)
 }
 
 // r2DocOf is a parsed document in the screen's JSON shape.
-func r2DocOf(doc *rules.Document, hash, text string) *r2Doc {
-	out := &r2Doc{Name: roleNameOf(doc.Path), Title: doc.Title, Revision: doc.Revision, Hash: hash, Text: text}
+func r2DocOf(doc *rules.Document) *r2Doc {
+	out := &r2Doc{Name: roleNameOf(doc.Path), Title: doc.Title, Revision: doc.Revision}
 	for _, section := range doc.Sections {
 		sec := r2Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
 		for i := range section.Rules {

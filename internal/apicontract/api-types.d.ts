@@ -539,7 +539,7 @@ export interface components {
             savedLine?: boolean;
             problems: components["schemas"]["Counts"];
         };
-        /** @description ロールの文書 1 つ。節と規則を持ち、書いたときはファイルのハッシュと文も持つ。 */
+        /** @description ロールの文書 1 つ。節と規則だけを持ち、ファイルのハッシュと文は置き場所が持つ。 */
         RoleDoc: {
             /** @description ロール名 */
             name: string;
@@ -549,10 +549,6 @@ export interface components {
             revision: number | null;
             /** @description 文書の節 */
             sections: components["schemas"]["RoleSection"][] | null;
-            /** @description この文書が入っているファイルのハッシュ */
-            hash?: string;
-            /** @description この文書が入っているファイルの全体の文 */
-            text?: string;
         };
         /** @description ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。 */
         RoleSection: {
@@ -621,7 +617,7 @@ export interface components {
             preview: components["schemas"]["RolePreview"];
             effect: components["schemas"]["RoleEffect"];
             /** @description そのロールの文書を読むメンバー */
-            readers: components["schemas"]["RoleReader"][] | null;
+            readers: components["schemas"]["RoleReader"][];
             /** @description この文書に置いている文字数の目安。0 のときは送らない。 */
             limit?: number;
             /** @description プロンプトに入る部分の文字数。0 のときは送らない。 */
@@ -649,7 +645,7 @@ export interface components {
         RoleEffect: {
             diff: components["schemas"]["RoleDiff"];
             /** @description 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの */
-            turns: components["schemas"]["RoleTurn"][] | null;
+            turns: components["schemas"]["RoleTurn"][];
         };
         /** @description メンバーが読む Markdown の、保存されている文書からの動き。 */
         RoleDiff: {
@@ -822,11 +818,16 @@ export interface components {
             hash: string;
             /** @description そのプロファイルが入っているファイルの道 */
             path: string;
-            /** @description この名前を変えたときに、その置き場所を読む人たちへ書き写す数 */
-            readers?: number;
+            /** @description この名前を変えたときに書き換える、この名前を使っている人の数 */
+            rename_targets?: number;
             /** @description いま保存した欄か（保存の答えだけが立てる） */
             savedLine?: boolean;
             problems: components["schemas"]["Counts"];
+        };
+        /** @description profiles.yaml 1 つの文書。ファイルに書いた順のプロファイルを持つ。 */
+        ProfileFileDoc: {
+            /** @description ファイルに書いた順のプロファイル */
+            profiles: components["schemas"]["ProfileDoc"][];
         };
         /** @description プロファイル 1 つ。起動する kind と、その kind に渡す引数と環境変数。 */
         ProfileDoc: {
@@ -922,8 +923,8 @@ export interface components {
         };
         /** @description PUT /api/profile/{name} の答え（spec-boundary 5）。保存したプロファイルと、保存のあとの一覧。 */
         ProfileSaved: {
-            /** @description 保存したプロファイル。YAML タブの保存は null。 */
-            doc: components["schemas"]["ProfileDoc"] | null;
+            /** @description 保存で書いたファイルの文書。パネルの保存も YAML タブの保存も同じ形。 */
+            doc: components["schemas"]["ProfileFileDoc"];
             /** @description 保存したファイルの全体の文 */
             text: string;
             /** @description 保存したファイルのハッシュ */
@@ -960,8 +961,6 @@ export interface components {
             project?: string;
             /** @description 置き場所。project はプロジェクト、global はグローバル。 */
             place?: string;
-            /** @description YAML タブが開いている行のプロファイル名。検査は本文の名前を読まない。 */
-            name?: string;
             /** @description 保存されているプロファイル名。新しいプロファイルは空。 */
             original?: string;
             doc?: components["schemas"]["ProfileDraft"];
@@ -974,8 +973,6 @@ export interface components {
             project?: string;
             /** @description 置き場所。project はプロジェクト、global はグローバル。 */
             place?: string;
-            /** @description YAML タブが開いている行のプロファイル名。保存は本文の doc.name を読む。 */
-            name?: string;
             /** @description 保存されているプロファイル名。新しいプロファイルは空。 */
             original?: string;
             doc?: components["schemas"]["ProfileDraft"];
@@ -1120,8 +1117,6 @@ export interface components {
             doing?: string;
             /** @description このワーカーを雇ったメンバー名 */
             from?: string;
-            /** @description メンバーに渡した初期プロンプトが現在のものと異なるか */
-            stale?: boolean;
         };
         /** @description メンバーが出した未決の質問 */
         ActivityQuestion: {
@@ -1606,6 +1601,8 @@ export interface components {
             path: string;
             /** @description 文書を読むメンバーとワーカーの数 */
             readers?: number;
+            /** @description このプロファイル名を変えたときに書き換える人の数。プロファイル以外は送らない */
+            rename_targets?: number;
             /** @description 文書の行を保存したか */
             savedLine?: boolean;
             /** @description 文書にある問題の数 */
@@ -2179,9 +2176,15 @@ export interface components {
             members?: components["schemas"]["TeamMemberPrompt"][];
             /** @description ワーカーに渡す初期プロンプト */
             prompt?: components["schemas"]["TeamPromptSegment"][];
+            /** @description 保存前のチーム定義。保存済みの検査の答えには無い */
+            doc?: components["schemas"]["TeamDocument"];
+            /** @description まだ保存していない定義だけが持つ欄。保存済みの検査の答えには無い */
+            draft?: components["schemas"]["TeamCheckDraft"];
         };
-        /** @description まだ保存していないチーム定義の検査結果。 */
-        TeamDraftCheckAnswer: {
+        /** @description checkTeam が返す検査結果。保存済みでも保存前でも同じ形で、保存前だけの欄は draft の塊に入る。 */
+        TeamCheckResponse: components["schemas"]["TeamCheckAnswer"];
+        /** @description まだ保存していないチーム定義だけが持つ欄。 */
+        TeamCheckDraft: {
             /** @description チーム定義名 */
             name: string;
             /**
@@ -2197,15 +2200,7 @@ export interface components {
             hash: string;
             /** @description 保存で書き込むファイルのパス */
             writes: string[];
-            /** @description 検査で見つかった問題 */
-            problems: components["schemas"]["Problem"][] | null;
-            /** @description 保存前のチーム定義 */
-            doc: components["schemas"]["TeamDocument"];
-            /** @description 保存するときに書く team.yaml と差分 */
-            preview: components["schemas"]["TeamPreview"];
         };
-        /** @description checkTeam が返す保存済みまたは保存前の検査結果。 */
-        TeamCheckResponse: components["schemas"]["TeamCheckAnswer"] | components["schemas"]["TeamDraftCheckAnswer"];
         /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
         TeamSaved: {
             /** @description 保存したチーム定義またはチームのルールの文書 */
@@ -2353,7 +2348,7 @@ export interface components {
             /** @description ワーカーを起動するメンバー名。空なら目的から決める。 */
             from?: string;
         };
-        /** @description チームのルールを検査または保存する文書。 */
+        /** @description チームのルールを検査または保存する文書。文書だけを持ち、ファイルのハッシュと文は置き場所が持つ。 */
         TeamRuleDocument: {
             /** @description チームのルールの文書名 */
             name: string;
@@ -2363,10 +2358,6 @@ export interface components {
             revision: number | null;
             /** @description チームのルールの節 */
             sections: components["schemas"]["TeamRuleSection"][] | null;
-            /** @description 保存済みチームのルールのハッシュ */
-            hash?: string;
-            /** @description 保存済みチームのルールの全文 */
-            text?: string;
         };
         /** @description 画面から送るチームのルールの編集文書。 */
         TeamRuleDocumentRequest: {

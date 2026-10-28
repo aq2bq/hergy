@@ -163,7 +163,7 @@ function Panel({ panel }: { panel: PanelState }) {
   const bad = badOf(panel);
   const nameInput = useRef<HTMLInputElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
-  const hints = panel.renameUsers > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
+  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
 
   // Focus goes where a person just pressed (5 章 5): a new row's name, the
   // copy's name (all of it, so typing replaces it), the 削除する they asked for.
@@ -186,7 +186,7 @@ function Panel({ panel }: { panel: PanelState }) {
     </>
   );
   return (
-    <section class={'panel' + (panel.shadowed ? ' shadowed' : '')} data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.renameUsers} data-hash={panel.hash}>
+    <section class={'panel' + (panel.shadowed ? ' shadowed' : '')} data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.rename_targets} data-hash={panel.hash}>
       <header class="ph">
         {panel.layerSwitch
           ? <div class="seg small">{(['project', 'global'] as Place[]).map((x) => <button class={panel.file === x ? 'on' : ''} data-act="pick-layer" data-x={x} onClick={() => pressLayer(panel.key, x)}>{labelOf(x)}</button>)}</div>
@@ -196,7 +196,7 @@ function Panel({ panel }: { panel: PanelState }) {
       </header>
       <div class="field"><label>プロファイル名</label><div>
         <input class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" ref={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
-        <label class="rename" hidden={!hints}><input type="checkbox" data-f="rename" checked={panel.rename} onChange={(e: Event) => pressRename(panel.key, checkedOf(e))} /><span>{hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
+        <label class="rename" hidden={!hints}><input type="checkbox" data-f="rename" checked={panel.rename} onChange={(e: Event) => pressRename(panel.key, checkedOf(e))} /><span>{hints ? `使っている ${panel.rename_targets} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
         <ul class="vm" data-for="name">{problemsOf(panel, 'name')}</ul>
       </div></div>
       <div class="field"><label>kind</label><div>

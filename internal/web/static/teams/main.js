@@ -31,7 +31,7 @@ import {
   hqList2,
   saved2,
   problemText2
-} from "../chunk/nav-8062kswf.js";
+} from "../chunk/nav-zejwh6na.js";
 import {
   clone2,
   fromJSON2,
@@ -48,18 +48,18 @@ import {
   openRule2,
   RuleDoc2,
   observeKeys2
-} from "../chunk/nav-9den34bm.js";
+} from "../chunk/nav-63tsagqe.js";
 import {
   st,
   parseOpen2,
   projectName2
-} from "../chunk/nav-pxfwds98.js";
+} from "../chunk/nav-46q9vsgk.js";
 import {
   RunCell2
-} from "../chunk/nav-4t8adasr.js";
+} from "../chunk/nav-ezrd8mp4.js";
 import {
   YamlTab2
-} from "../chunk/nav-s7dkfpjj.js";
+} from "../chunk/nav-p9f1rwcs.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
@@ -503,8 +503,9 @@ function draftRecord(how, place, name, base, project) {
   return r;
 }
 function seedDraft(r, json) {
-  const draft = json;
-  const doc = draft.doc;
+  const { draft, doc } = json;
+  if (!draft || !doc)
+    return;
   const agree = doc.agreement || {};
   r.seeded.value = true;
   r.placed.value = {};
@@ -564,7 +565,7 @@ var convProblems = (doc, list) => (list || []).map((p) => ({
   sev: p.sev,
   k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
   f: p.field || "",
-  msg: p.text || "",
+  text: p.text || "",
   definition: p.definition || ""
 }));
 var buildCheck = (doc, json) => {
@@ -723,13 +724,13 @@ function applyTeamAnswer(r, json, findings) {
   r.promptsReady.value = !!(answered.members && answered.members.length);
   const pv = json.preview && "diff" in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
-  if (r.draftRow) {
-    const draft = json;
+  const draft = json.draft;
+  if (r.draftRow && draft) {
     r.writes.value = draft.writes || r.writes.value;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === "name" || p.field === "name");
     if (draft.path)
       r.teamPath.value = draft.path;
-    const ag = draft.doc.agreement || {};
+    const ag = json.doc && json.doc.agreement || {};
     if (ag.path) {
       r.agreePath.value = ag.path;
       const saved = r.agreeSaved.value;
@@ -1576,7 +1577,7 @@ function TPrev({ r }) {
                 children: issues.length ? /* @__PURE__ */ u("span", {
                   class: "vcount",
                   children: /* @__PURE__ */ u(Counts2, {
-                    list: issues.map((m) => ({ sev: m.sev, msg: m.text }))
+                    list: issues.map((m) => ({ sev: m.sev, text: m.text }))
                   })
                 }) : /* @__PURE__ */ u("span", {
                   class: "vclean",
@@ -3842,7 +3843,7 @@ function Canvas({ r, vlist }) {
 
 // teams/view.tsx
 function messagesOf(list) {
-  return list.map((m) => ({ sev: m.sev, msg: m.msg !== undefined ? m.msg : m.text || "" }));
+  return list.map((m) => ({ sev: m.sev, text: m.text || "" }));
 }
 function inputValue(e) {
   const t = e.target;
@@ -4278,7 +4279,7 @@ function Detail({ r }) {
       /* @__PURE__ */ u("ul", {
         class: "vm mvm",
         children: /* @__PURE__ */ u(Vm2, {
-          list: [...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "mission")].map((m) => ({ sev: m.sev, msg: m.text }))
+          list: [...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "mission")].map((m) => ({ sev: m.sev, text: m.text }))
         })
       }),
       /* @__PURE__ */ u("nav", {
@@ -4619,8 +4620,8 @@ function Foot({ r, agree }) {
   if (agree) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
-    const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.msg));
-    const blocked = !s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.msg)) || d === 0;
+    const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.text));
+    const blocked = !s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0;
     return /* @__PURE__ */ u("footer", {
       class: "pf",
       children: [

@@ -69,7 +69,9 @@ export async function checkText(
   extra?: YamlTabProps['extra'],
 ): Promise<Problem[]> {
   try {
-    const request: CheckRequest = { place, name, text, ...extra };
+    // A profile's file is known from its place; only a role's file and a team
+    // definition's read a name from the body (n-3f6c).
+    const request: CheckRequest = { place, ...(kind === 'profile' ? {} : { name }), text, ...extra };
     const answer = await apiCheck(kind, request) as ApiAnswer<CheckJson>;
     return (answer.json && answer.json.problems) || [];
   } catch (e) {
@@ -95,7 +97,7 @@ export function saveText(
   hash: string,
   extra?: YamlTabProps['extra'],
 ): Promise<ApiAnswer<SavedJson>> {
-  const request: SaveRequest = { place, name, text, hash: hash || '', ...extra };
+  const request: SaveRequest = { place, ...(kind === 'profile' ? {} : { name }), text, hash: hash || '', ...extra };
   return apiSave(kind, name, request) as Promise<ApiAnswer<SavedJson>>;
 }
 

@@ -100,7 +100,7 @@ type p2Panel struct {
 	SavedEnv    string            `json:"savedEnv"`
 	Hash        string            `json:"hash"`
 	Users       int               `json:"users"`
-	RenameUsers int               `json:"renameUsers"`
+	RenameUsers int               `json:"rename_targets"`
 	Problems    []profile.Problem `json:"-"`
 	Err         int               `json:"err"`
 	Warn        int               `json:"warn"`

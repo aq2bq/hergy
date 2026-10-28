@@ -169,9 +169,6 @@ type ActivityNode struct {
 	// hire line of the launch record (d-b4b9). Empty for a worker hired before
 	// that line was written, and always empty for a member.
 	From string `json:"from,omitempty"`
-	// Stale says hergy last handed this member a different prompt than its
-	// current definition builds (r-a8fa). Workers are never stale.
-	Stale bool `json:"stale,omitempty"`
 }
 
 // ActivityQuestion is one open question the row's main member asked.

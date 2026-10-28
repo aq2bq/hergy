@@ -30,12 +30,12 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-8062kswf.js";
+} from "../chunk/nav-zejwh6na.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-pxfwds98.js";
-import"../chunk/nav-4t8adasr.js";
+} from "../chunk/nav-46q9vsgk.js";
+import"../chunk/nav-ezrd8mp4.js";
 import {
   fromJSON2,
   toDoc2,
@@ -51,10 +51,10 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-9den34bm.js";
+} from "../chunk/nav-63tsagqe.js";
 import {
   YamlTab2
-} from "../chunk/nav-s7dkfpjj.js";
+} from "../chunk/nav-p9f1rwcs.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
@@ -267,7 +267,7 @@ function convertProblems(d, list) {
     sev: p.sev,
     k: (p.section ?? -1) >= 0 ? ruleKeyAt(d, p.section ?? -1, p.rule ?? -1) : 0,
     f: p.field || "",
-    msg: p.text || "",
+    text: p.text || "",
     definition: p.definition || ""
   }));
 }
@@ -959,7 +959,7 @@ function ARow({ t, m, i }) {
       r ? "" : /* @__PURE__ */ u("ul", {
         class: "vm",
         children: /* @__PURE__ */ u(Vm2, {
-          list: [{ sev: "err", msg: fill(TEXT.no_role_doc, m.name, m.draft, places) }]
+          list: [{ sev: "err", text: fill(TEXT.no_role_doc, m.name, m.draft, places) }]
         })
       })
     ]
@@ -1840,11 +1840,11 @@ function Panel({ r, l }) {
   const placeLabel = GROUPED && r.group && r.group !== "global" ? projectNameOf(r.group) : LNAME[l];
   const refusal = refusalOf(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
-  const nameError = nameIssue ? nameIssue.msg : refusal && refusal.at === "name" ? refusal.text : "";
+  const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
   const docError = refusal && refusal.at === "doc" ? refusal.text : "";
   const n = diffCount2(e);
-  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.msg));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : issues.some((m) => m.sev === "err" && !before.has(m.msg)) || n === 0);
+  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.text));
+  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : issues.some((m) => m.sev === "err" && !before.has(m.text)) || n === 0);
   return /* @__PURE__ */ u("section", {
     class: "panel" + (shadowed ? " shadowed" : ""),
     "data-uid": r.uid,

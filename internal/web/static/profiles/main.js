@@ -26,15 +26,15 @@ import {
   del2,
   problemText2,
   profileModel2
-} from "../chunk/nav-8062kswf.js";
+} from "../chunk/nav-zejwh6na.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-pxfwds98.js";
-import"../chunk/nav-4t8adasr.js";
+} from "../chunk/nav-46q9vsgk.js";
+import"../chunk/nav-ezrd8mp4.js";
 import {
   YamlTab2
-} from "../chunk/nav-s7dkfpjj.js";
+} from "../chunk/nav-p9f1rwcs.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -136,7 +136,7 @@ function panelOf(p, group, rowKey) {
     saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || "[]"), env: JSON.parse(p.savedEnv || "[]") } : null,
     hash: p.hash || "",
     users: p.users || 0,
-    renameUsers: p.renameUsers || 0,
+    rename_targets: p.rename_targets || 0,
     draft: { name: p.name || "", kind: p.kind || "claude", args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ key: pair.key, value: pair.value })) },
     problems: [],
     errors: 0,
@@ -287,7 +287,7 @@ function addRow(file, group) {
     savedEnv: "[]",
     hash: "",
     users: 0,
-    renameUsers: 0,
+    rename_targets: 0,
     err: 0,
     warn: 0,
     shadowed: false,
@@ -370,7 +370,7 @@ function duplicateRow(panel) {
       savedEnv: "[]",
       hash: "",
       users: 0,
-      renameUsers: 0,
+      rename_targets: 0,
       err: 0,
       warn: 0,
       shadowed: false,
@@ -411,7 +411,7 @@ function copyPanel(panel) {
     savedEnv: "[]",
     hash: "",
     users: 0,
-    renameUsers: 0,
+    rename_targets: 0,
     err: 0,
     warn: 0,
     shadowed: false,
@@ -442,15 +442,8 @@ function checkerFor(key) {
   if (one)
     return one;
   one = resource(async (signal, payload) => {
-    try {
-      const answer = await check2("profile", payload, { signal });
-      return { json: answer.json };
-    } catch (e) {
-      const refusal = e;
-      if (refusal && refusal.json)
-        return { json: refusal.json };
-      throw e;
-    }
+    const answer = await check2("profile", payload, { signal });
+    return { json: answer.json };
   });
   checkers.set(key, one);
   return one;
@@ -459,12 +452,17 @@ async function checkPanel(key) {
   const panel = panelByKey(key);
   if (!panel)
     return;
-  const answer = await checkerFor(key).run({
-    place: panel.file,
-    original: panel.saved ? panel.saved.name : "",
-    project: projectOf(panel),
-    doc: panel.draft
-  });
+  let answer;
+  try {
+    answer = await checkerFor(key).run({
+      place: panel.file,
+      original: panel.saved ? panel.saved.name : "",
+      project: projectOf(panel),
+      doc: panel.draft
+    });
+  } catch {
+    return;
+  }
   const problems = answer && answer.json && answer.json.problems || [];
   if (!panelByKey(key))
     return;
@@ -1233,7 +1231,7 @@ function Panel({ panel }) {
   const bad = badOf(panel);
   const nameInput = A(null);
   const confirmButton = A(null);
-  const hints = panel.renameUsers > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
+  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.key !== panel.key)
@@ -1284,7 +1282,7 @@ function Panel({ panel }) {
     "data-group": panel.group || "",
     "data-saved": saved ? "1" : undefined,
     "data-users": panel.users,
-    "data-rename-users": panel.renameUsers,
+    "data-rename-users": panel.rename_targets,
     "data-hash": panel.hash,
     children: [
       /* @__PURE__ */ u("header", {
@@ -1341,7 +1339,7 @@ function Panel({ panel }) {
                     onChange: (e) => pressRename(panel.key, checkedOf(e))
                   }),
                   /* @__PURE__ */ u("span", {
-                    children: hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ""
+                    children: hints ? `使っている ${panel.rename_targets} 人の指定も ${panel.draft.name} に書き換える` : ""
                   })
                 ]
               }),

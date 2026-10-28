@@ -303,7 +303,7 @@ const ruleKeyAt = (d: EditableDocument, si: number, ri: number): number => { con
 function convertProblems(d: EditableDocument, list: components['schemas']['Problem'][]): RuleIssue[] {
   return (list || []).map((p) => ({
     sev: p.sev, k: (p.section ?? -1) >= 0 ? ruleKeyAt(d, p.section ?? -1, p.rule ?? -1) : 0,
-    f: p.field || '', msg: p.text || '', definition: p.definition || '',
+    f: p.field || '', text: p.text || '', definition: p.definition || '',
   }));
 }
 

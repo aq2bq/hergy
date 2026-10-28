@@ -104,13 +104,16 @@ type apiCounts struct {
 // shape, the text of the file it stands in, its hash, where it stands, and the
 // few facts only a reading can know (who names it, whether it was just written).
 type apiPlace struct {
-	Doc       any       `json:"doc"`
-	Text      string    `json:"text"`
-	Hash      string    `json:"hash"`
-	Path      string    `json:"path"`
-	Readers   int       `json:"readers,omitempty"`
-	SavedLine bool      `json:"savedLine,omitempty"`
-	Problems  apiCounts `json:"problems"`
+	Doc  any    `json:"doc"`
+	Text string `json:"text"`
+	Hash string `json:"hash"`
+	Path string `json:"path"`
+	// RenameTargets is how many members and workers name this profile, so a
+	// rename has that many places to write (d-36ef): readers is the people who
+	// read a document, which is a different idea (n-3f6c).
+	RenameTargets int       `json:"rename_targets,omitempty"`
+	SavedLine     bool      `json:"savedLine,omitempty"`
+	Problems      apiCounts `json:"problems"`
 }
 
 // apiFile is one file of a kind whose files hold many names: what the YAML tab
@@ -151,6 +154,18 @@ type apiProblem struct {
 	RuleID string `json:"rule_id,omitempty"`
 }
 
+// apiCheckDraft is what a check of a definition that is not there yet knows
+// about the row it would make: its name and place, whether it is a starter, the
+// files it would write, and the hash of the empty files it stands on.
+type apiCheckDraft struct {
+	Name    string   `json:"name"`
+	Place   string   `json:"place"`
+	Starter bool     `json:"starter"`
+	Path    string   `json:"path"`
+	Hash    string   `json:"hash"`
+	Writes  []string `json:"writes"`
+}
+
 // apiCheck is the answer of POST /api/{kind}/check (spec-boundary 5): what is
 // wrong, and, where the kind has them, the Markdown a member reads, the effect
 // of the change and the people that read it. A kind that has none of the latter
@@ -168,10 +183,13 @@ type apiCheck struct {
 	// the part of a guide that goes into the prompt. It is 0 when the kind has
 	// no size to show.
 	Size int `json:"size,omitempty"`
-	// Writes is what a save of this draft would write, for a kind whose one
-	// name is a folder rather than one file (spec-teams B2). A kind that writes
-	// one file leaves it out.
-	Writes []string `json:"writes,omitempty"`
+	// Draft is the block a check of a definition that is not there yet carries:
+	// where a save would stand, and what it would write. A saved definition's
+	// answer has none (n-3f6c).
+	Draft *apiCheckDraft `json:"draft,omitempty"`
+	// Doc is the document a draft would save, for the screen that draws the row
+	// before anything is written. A saved definition's answer leaves it out.
+	Doc any `json:"doc,omitempty"`
 	// Members is each member's prompt as the pieces it was built from, for a
 	// team's check answer (r-4cf9).
 	Members []apiMemberPrompt `json:"members,omitempty"`

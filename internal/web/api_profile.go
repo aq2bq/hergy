@@ -68,12 +68,12 @@ func p2ItemOf(row p2Row, project, shared p2File) apiItem {
 			it.Effective = panel.File
 		}
 		it.Places[panel.File] = apiPlace{
-			Doc:      p2Draft{Name: panel.Name, Kind: panel.Kind, Args: panel.Args, Env: p2EnvPairs(panel.Env)},
-			Text:     texts[panel.File],
-			Hash:     panel.Hash,
-			Path:     panel.Path,
-			Readers:  panel.RenameUsers,
-			Problems: apiCounts{Err: panel.Err, Warn: panel.Warn},
+			Doc:           p2Draft{Name: panel.Name, Kind: panel.Kind, Args: panel.Args, Env: p2EnvPairs(panel.Env)},
+			Text:          texts[panel.File],
+			Hash:          panel.Hash,
+			Path:          panel.Path,
+			RenameTargets: panel.RenameUsers,
+			Problems:      apiCounts{Err: panel.Err, Warn: panel.Warn},
 		}
 	}
 	return it
@@ -261,6 +261,7 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	}
 	list := k.s.p2List()
 	return apiSaved{
+		Doc:  p2FileDocOf(in.Text, display),
 		Text: in.Text, Hash: source.Hash(in.Text), Path: display,
 		Items: list.Items, Hashes: list.Hashes, Files: list.Files,
 	}, nil
@@ -310,7 +311,8 @@ func (k apiProfile) savedAnswer(place, name string) apiSaved {
 	out := apiSaved{Items: list.Items, Hashes: list.Hashes, Files: list.Files}
 	if one, refusal := k.Get(name, place); refusal == nil {
 		if got, ok := one.(apiProfileGet); ok {
-			out.Doc, out.Text, out.Hash, out.Path = got.Doc, got.Text, got.Hash, got.Path
+			out.Doc = p2FileDocOf(got.Text, got.Path)
+			out.Text, out.Hash, out.Path = got.Text, got.Hash, got.Path
 			out.Effective, out.Hidden = got.Effective, got.Hidden
 		}
 	}

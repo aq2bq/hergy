@@ -328,7 +328,7 @@ func (s *Server) t2AgreeOf(name, layer string) *apiTeamAgree {
 	}
 	out.Rules = len(doc.IncludedRules()) + doc.ExcludedCount()
 	out.Excluded = doc.ExcludedCount()
-	out.Doc = r2DocOf(doc, out.Hash, "")
+	out.Doc = r2DocOf(doc)
 	return out
 }
 
@@ -773,11 +773,31 @@ func t2FigureProblems(findings []check.Finding, own string) []apiProblem {
 			sev = "err"
 		}
 		out = append(out, apiProblem{
-			Sev: sev, At: finding.Field, Field: finding.Field, Text: withoutOwnHead(finding.Text, own),
+			Sev: sev, At: finding.Field, Field: figureFieldName(finding.Field), Text: withoutOwnHead(finding.Text, own),
 			Role: finding.Role, RuleID: finding.RuleID,
 		})
 	}
 	return out
+}
+
+// figureFieldName is the name of the field a figure finding stands beside, from
+// the place the finding names: the field is the place, and the name is the key
+// at its end (members[2].role is beside role; workers[0] beside workers). A rule
+// finding names the rule itself as its field, and a node finding the node.
+func figureFieldName(at string) string {
+	switch {
+	case at == "", strings.HasPrefix(at, "rule:"), strings.HasPrefix(at, "node:"):
+		return at
+	case strings.HasSuffix(at, "]"):
+		if before, _, ok := strings.Cut(at, "["); ok {
+			return before
+		}
+		return at
+	}
+	if dot := strings.LastIndex(at, "."); dot >= 0 {
+		return at[dot+1:]
+	}
+	return at
 }
 
 // withoutOwnHead is one problem's sentence as a screen draws it: the name of the

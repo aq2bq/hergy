@@ -33,7 +33,7 @@ function ARow({ t, m, i }: { t: TeamCard; m: TeamMember; i: number }) {
   return <div class={['arow', m.draft !== m.saved ? 'changed' : '', r ? '' : 'missing', dim ? 'dim' : ''].filter(Boolean).join(' ')} data-m={m.name}>
       <div class="who"><code>{m.name}</code></div>
       <div class="pick">{m.draft !== m.saved ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} のロール`} onChange={(e: Event) => pickRole(t.id, i, (e.currentTarget as HTMLSelectElement).value)}>{roleOptions(m.draft)}</select></span></div>
-      {r ? '' : <ul class="vm"><Vm list={[{ sev: 'err', msg: fill(TEXT.no_role_doc, m.name, m.draft, places) }]} /></ul>}
+      {r ? '' : <ul class="vm"><Vm list={[{ sev: 'err', text: fill(TEXT.no_role_doc, m.name, m.draft, places) }]} /></ul>}
     </div>;
 }
 

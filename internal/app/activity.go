@@ -740,12 +740,6 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		}
 	}
 
-	stale := map[string]bool{}
-	for _, team := range a.plan(a.clock()).apply.Teams {
-		for _, member := range team.Members {
-			stale[member.Name] = true
-		}
-	}
 	// What each agent's terminal says it is doing, and which member added a
 	// worker: the title herdr strips for us (d-b4b9), and the hire lines of the
 	// launch record. The title stands as herdr gives it, whatever the state.
@@ -763,7 +757,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		Workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		State:       t.State.Slug(),
 		Last:        t.Last,
-		Nodes:       docNodes(t, now, stale, titles),
+		Nodes:       docNodes(t, now, titles),
 		Hired:       docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
 		Questions:   []web.ActivityQuestion{},
 		Tail:        web.ActivityTail{Lines: []string{}, Shown: tailShown},
@@ -823,7 +817,7 @@ func roleOf(graph *definition.Graph, name string) string {
 
 // docNodes is a team's members as the opened part shows them (2.5): the state,
 // when it began, and what the agent's terminal says it is doing (d-b4b9).
-func docNodes(t activity.Team, now time.Time, stale map[string]bool, titles map[string]string) []web.ActivityNode {
+func docNodes(t activity.Team, now time.Time, titles map[string]string) []web.ActivityNode {
 	out := make([]web.ActivityNode, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
 		at := activity.Clock(now, node.At)
@@ -831,7 +825,6 @@ func docNodes(t activity.Team, now time.Time, stale map[string]bool, titles map[
 			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: at,
 			SinceAt: activity.SinceAt(now, node.At, node.Lower),
 			Doing:   titles[node.Herdr],
-			Stale:   stale[node.Herdr],
 		})
 	}
 	return out

@@ -136,7 +136,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: JSON.parse(p.savedArgs || '[]') as string[], env: JSON.parse(p.savedEnv || '[]') as EnvPair[] } : null,
     hash: p.hash || '',
     users: p.users || 0,
-    renameUsers: p.renameUsers || 0,
+    rename_targets: p.rename_targets || 0,
     draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ key: pair.key, value: pair.value })) },
     problems: [],
     errors: 0,
@@ -291,7 +291,7 @@ export function addRow(file: Place, group: string | undefined): Row {
   const panel = panelOf({
     file, label: labelOf(file), otherLabel: labelOf(otherOf(file)), path: pathFor(file, group),
     saved: false, name: '', kind: 'claude', args: ['--model', ''], env: [], argsJSON: '[]', envJSON: '[]',
-    savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+    savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     shadowed: false, both: false, other: otherOf(file), savedLine: false,
   }, group, key);
   panel.layerSwitch = true;
@@ -329,7 +329,7 @@ export function duplicateRow(panel: Panel): Row | null {
       saved: false, name: `${saved.name}-${suffix}`, kind: saved.kind, args: saved.args.slice(),
       env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
       argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
-      hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+      hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
       shadowed: false, both: false, other: otherOf(panel.file), savedLine: false,
     }, panel.group, `${saved.name}-${suffix}`)],
   };
@@ -354,7 +354,7 @@ export function copyPanel(panel: Panel): Panel | null {
     saved: false, name: saved.name, kind: saved.kind, args: saved.args.slice(),
     env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
     argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
-    hash: '', users: 0, renameUsers: 0, err: 0, warn: 0,
+    hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     shadowed: false, both: false, other: otherOf(file), savedLine: false,
   }, panel.group, panel.rowKey);
   fresh.key = panel.rowKey + ':' + file;
@@ -387,15 +387,8 @@ function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
   let one = checkers.get(key);
   if (one) return one;
   one = resource<CheckAnswer, [CheckRequest]>(async (signal, payload) => {
-    try {
-      const answer = await apiCheck('profile', payload, { signal });
-      return { json: answer.json as ProfileCheck | null };
-    } catch (e) {
-      // A refusal about the draft still carries what is wrong with it.
-      const refusal = e as { json?: ProfileCheck | null } | null;
-      if (refusal && refusal.json) return { json: refusal.json };
-      throw e;
-    }
+    const answer = await apiCheck('profile', payload, { signal });
+    return { json: answer.json as ProfileCheck | null };
   });
   checkers.set(key, one);
   return one;
@@ -406,9 +399,15 @@ function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
 export async function checkPanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
-  const answer = await checkerFor(key).run({
-    place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
-  });
+  let answer: CheckAnswer | undefined;
+  try {
+    answer = await checkerFor(key).run({
+      place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
+    });
+  } catch {
+    // A refusal is not a check answer: it names no problems (n-3f6c).
+    return;
+  }
   const problems: Problem[] = (answer && answer.json && answer.json.problems) || [];
   if (!panelByKey(key)) return;
   patchPanel(key, { problems, errors: problems.filter((p) => p.sev === 'err').length });

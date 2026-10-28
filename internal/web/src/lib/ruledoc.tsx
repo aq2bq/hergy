@@ -84,7 +84,7 @@ export type RuleIssue = {
   sev: string;
   k: number;
   f: string;
-  msg: string;
+  text: string;
   definition?: string;
 };
 
@@ -139,7 +139,7 @@ type RuleLocation = { si: number; ri: number; x: EditableRule };
 type FocusPosition = { k: number; f: string };
 type AskPosition = { sel: string; how: 'focus' | 'center' | 'nearest'; seq: number };
 type FlashPosition = { k: number; seq: number };
-type Message = Pick<RuleIssue, 'sev' | 'msg'>;
+type Message = Pick<RuleIssue, 'sev' | 'text'>;
 type Piece = { text?: string; node?: unknown };
 type EditProps = { row: RulePanel; issues: RuleIssue[]; nameError?: string; h: InternalRuleDocProps };
 type PreviewProps = { row: RulePanel; issues: RuleIssue[] };
@@ -390,7 +390,7 @@ function Sev({ sev }: { sev: Message['sev'] }) {
   return <span class={'sev ' + (sev === 'err' ? 'err' : 'warn')}>{sev === 'err' ? '問題' : '警告'}</span>;
 }
 function Vm({ list }: { list: Message[] }) {
-  return list.map((m) => <li><Sev sev={m.sev} /><span>{m.msg}</span></li>);
+  return list.map((m) => <li><Sev sev={m.sev} /><span>{m.text}</span></li>);
 }
 function Counts({ list }: { list: Message[] }) {
   const e = list.filter((m) => m.sev === 'err').length, w = list.length - e;
@@ -629,7 +629,7 @@ function Preview({ row, issues }: PreviewProps) {
     // Only a line a person can go to carries the act and the place it goes to;
     // some lines carry the problems that stand on them as their title.
     const props: Record<string, string | number> = go ? { 'data-act': 'yline', 'data-k': k, 'data-si': z.section, 'data-part': z.part } : {};
-    if (ms.length) props.title = ms.map((m) => m.msg).join('\n');
+    if (ms.length) props.title = ms.map((m) => m.text).join('\n');
     return <div class={cls} {...props}><span class="lno">{ri + 1}</span><span class="yt" data-h={h} style={{ '--h': String(h) }}>{node && node.length ? node : ' '}</span></div>;
   });
   const nadd = added.size, ndel = removedBefore.size;

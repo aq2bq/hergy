@@ -55,9 +55,9 @@ func ruRolePath(f *fixture, place, name string) string {
 // every rule carries where it stood in the saved document, so the server can
 // write the changed lines and carry a moved rule or section whole (the from the
 // page's own toDoc adds).
-func ruDraftOf(t *testing.T, doc *rules.Document, hash, text string) *r2Doc {
+func ruDraftOf(t *testing.T, doc *rules.Document, _ string) *r2Doc {
 	t.Helper()
-	out := r2DocOf(doc, hash, text)
+	out := r2DocOf(doc)
 	for si := range out.Sections {
 		at := si
 		out.Sections[si].From = &at
@@ -77,7 +77,7 @@ func ruLoadDraft(t *testing.T, path string) (*r2Doc, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ruDraftOf(t, parsed, source.Hash(text), text), text
+	return ruDraftOf(t, parsed, ""), text
 }
 
 // ruRuleAt finds one rule of a document by its id.

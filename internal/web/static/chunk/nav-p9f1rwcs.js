@@ -19,12 +19,12 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-8062kswf.js";
+} from "./nav-zejwh6na.js";
 
 // lib/yamltab.tsx
 async function checkText2(kind, place, name, text, extra) {
   try {
-    const request = { place, name, text, ...extra };
+    const request = { place, ...kind === "profile" ? {} : { name }, text, ...extra };
     const answer = await check2(kind, request);
     return answer.json && answer.json.problems || [];
   } catch (e) {
@@ -38,7 +38,7 @@ async function checkText2(kind, place, name, text, extra) {
   }
 }
 function saveText2(kind, name, place, text, hash, extra) {
-  const request = { place, name, text, hash: hash || "", ...extra };
+  const request = { place, ...kind === "profile" ? {} : { name }, text, hash: hash || "", ...extra };
   return save2(kind, name, request);
 }
 function tellDirty2() {

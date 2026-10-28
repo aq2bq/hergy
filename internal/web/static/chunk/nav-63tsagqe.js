@@ -232,7 +232,7 @@ function Vm2({ list }) {
         sev: m.sev
       }),
       /* @__PURE__ */ u("span", {
-        children: m.msg
+        children: m.text
       })
     ]
   }));
@@ -905,7 +905,7 @@ function Preview({ row, issues }) {
     const cls = ["yl", sev, added.has(ri) ? "ins" : "", removedBefore.has(ri) ? "del" : "", here ? "cur" : "", around || near ? "curf" : "", go ? "go" : ""].filter(Boolean).join(" ");
     const props = go ? { "data-act": "yline", "data-k": k, "data-si": z.section, "data-part": z.part } : {};
     if (ms.length)
-      props.title = ms.map((m) => m.msg).join(`
+      props.title = ms.map((m) => m.text).join(`
 `);
     return /* @__PURE__ */ u("div", {
       class: cls,

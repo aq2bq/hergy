@@ -131,6 +131,29 @@ func (d p2Draft) profileOf() profile.Draft {
 	return profile.Draft{Name: d.Name, Kind: d.Kind, Args: d.Args, Env: env}
 }
 
+// p2FileDoc is one profiles.yaml as a save answers it: the profiles the file
+// holds, in the order the file writes them. A save writes a file, so its answer
+// carries the file's document, not one profile of it (n-3f6c).
+type p2FileDoc struct {
+	Profiles []p2Draft `json:"profiles"`
+}
+
+// p2FileDocOf reads a saved file into the document a save answers with. A file
+// that does not read has no profile to name, and the answer still carries the
+// document with none in it.
+func p2FileDocOf(text, display string) p2FileDoc {
+	entries, _ := profile.ReadAll(text, display)
+	out := p2FileDoc{Profiles: make([]p2Draft, 0, len(entries))}
+	for _, entry := range entries {
+		env := make([]p2EnvJSON, 0, len(entry.Env))
+		for _, pair := range entry.Env {
+			env = append(env, p2EnvJSON{Key: pair.Key, Value: pair.Value})
+		}
+		out.Profiles = append(out.Profiles, p2Draft{Name: entry.Name, Kind: entry.Kind, Args: entry.Args, Env: env})
+	}
+	return out
+}
+
 // p2EditProfile is the ops one panel's save writes: the name, kind, args and env
 // that changed, and every one of them for a profile being made.
 func p2EditProfile(text, display string, entries []profile.Entry, draft profile.Draft, original string) (string, error) {

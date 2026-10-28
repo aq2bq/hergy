@@ -31,22 +31,6 @@ type apiTeamPreview struct {
 	Diff  check.RoleDiff        `json:"diff"`
 }
 
-// apiTeamDraftAnswer is what a check of a definition that is not there yet
-// answers (spec-teams B2, B7): the draft's own document, the files a save would
-// write, what is wrong with it, where it would stand, and the topology tab's YAML
-// preview. The screen draws the row from it, so it builds no document of its own.
-type apiTeamDraftAnswer struct {
-	Name     string         `json:"name"`
-	Place    string         `json:"place"`
-	Starter  bool           `json:"starter"`
-	Path     string         `json:"path"`
-	Hash     string         `json:"hash"`
-	Writes   []string       `json:"writes"`
-	Problems []apiProblem   `json:"problems"`
-	Doc      apiTeamDoc     `json:"doc"`
-	Preview  apiTeamPreview `json:"preview"`
-}
-
 // t2DraftRow is a definition that is not there yet, as the server reads it: the
 // text its two files stand on, the place and layer it would go into, and whether
 // the starter role documents and profile go with it.
@@ -232,7 +216,7 @@ func (s *Server) t2AgreeOfText(name, layer, text string) *apiTeamAgree {
 	}
 	out.Rules = len(doc.IncludedRules()) + doc.ExcludedCount()
 	out.Excluded = doc.ExcludedCount()
-	out.Doc = r2DocOf(doc, out.Hash, "")
+	out.Doc = r2DocOf(doc)
 	return out
 }
 
@@ -270,11 +254,13 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	problems := append(s.t2NameProblems(in), t2FigureProblems(findings, display)...)
-	return apiTeamDraftAnswer{
-		Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
-		Writes:   s.t2DraftWrites(row, in.Name),
+	return apiCheck{
 		Problems: problems,
 		Doc:      s.t2DocWithAgree(cat, in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
+		Draft: &apiCheckDraft{
+			Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
+			Writes: s.t2DraftWrites(row, in.Name),
+		},
 		Preview: apiTeamPreview{
 			Lines: definition.YAMLLines(draft),
 			Diff:  check.LineDiff(t2LineTexts(definition.YAMLLines(row.Team)), t2LineTexts(definition.YAMLLines(draft))),

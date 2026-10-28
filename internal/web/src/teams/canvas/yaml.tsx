@@ -45,7 +45,7 @@ export function TPrev({ r }: { r: Rec }): JSX.Element {
         <span class="yinfo">
           <span class="vt">{n} 行</span>
           {nadd || ndel ? <span class="dirty">+{nadd} −{ndel}</span> : ''}
-          <span class="yr">{issues.length ? <span class="vcount"><Counts list={issues.map((m) => ({ sev: m.sev, msg: m.text }))} /></span> : <span class="vclean">✓ 問題なし</span>}</span>
+          <span class="yr">{issues.length ? <span class="vcount"><Counts list={issues.map((m) => ({ sev: m.sev, text: m.text }))} /></span> : <span class="vclean">✓ 問題なし</span>}</span>
         </span>
       </div>
       <div class="ybox">

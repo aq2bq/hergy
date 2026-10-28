@@ -716,11 +716,13 @@ func TestTeamsYamlLine(t *testing.T) {
 // t2TestDraft is what a check of a definition that is not there yet answers
 // (spec-teams B2, B7), as the tests look at it.
 type t2TestDraft struct {
-	Name     string          `json:"name"`
-	Place    string          `json:"place"`
-	Starter  bool            `json:"starter"`
-	Path     string          `json:"path"`
-	Writes   []string        `json:"writes"`
+	Draft struct {
+		Name    string   `json:"name"`
+		Place   string   `json:"place"`
+		Starter bool     `json:"starter"`
+		Path    string   `json:"path"`
+		Writes  []string `json:"writes"`
+	} `json:"draft"`
 	Problems []t2TestProblem `json:"problems"`
 	Doc      struct {
 		Mission string `json:"mission"`
@@ -800,11 +802,11 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	draft := checkOne("ops")
 	for _, p := range draft.Problems {
 		if p.At == "name" {
-			t.Errorf("the name %q still answers %q", draft.Name, p.Text)
+			t.Errorf("the name %q still answers %q", draft.Draft.Name, p.Text)
 		}
 	}
-	if draft.Name != "ops" || draft.Place != "project" || !draft.Starter {
-		t.Errorf("the draft reads name %q place %q starter %v, want ops / project / true", draft.Name, draft.Place, draft.Starter)
+	if draft.Draft.Name != "ops" || draft.Draft.Place != "project" || !draft.Draft.Starter {
+		t.Errorf("the draft reads name %q place %q starter %v, want ops / project / true", draft.Draft.Name, draft.Draft.Place, draft.Draft.Starter)
 	}
 	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
 	for _, want := range []string{
@@ -812,8 +814,8 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 		filepath.Join(dir, "agreement.yaml"),
 		filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 	} {
-		if !slices.Contains(draft.Writes, want) {
-			t.Errorf("the writes read %v, want %s among them", draft.Writes, want)
+		if !slices.Contains(draft.Draft.Writes, want) {
+			t.Errorf("the writes read %v, want %s among them", draft.Draft.Writes, want)
 		}
 	}
 	// The starter's own figure: two members, and the mission placeholder
@@ -941,11 +943,11 @@ func TestTEAMS_N5_DraftDuplicateWritesTheSameFiles(t *testing.T) {
 		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
 	}
 	draft := teamsDraft(t, body)
-	if draft.Starter {
+	if draft.Draft.Starter {
 		t.Error("a duplicate is not a starter, so it writes no role documents")
 	}
-	if len(draft.Writes) != 2 {
-		t.Errorf("a duplicate writes %v, want its own two files", draft.Writes)
+	if len(draft.Draft.Writes) != 2 {
+		t.Errorf("a duplicate writes %v, want its own two files", draft.Draft.Writes)
 	}
 	resp, body = f.api(t, server, http.MethodPut, "/api/team/demo-2", map[string]any{
 		"place": "project", "name": "demo-2", "part": "folder", "base": base,
@@ -1062,8 +1064,8 @@ func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
 	}
 	// The paths are the name a person typed, not the definition it collides with
 	// (監査 R5).
-	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); taken.Path != want {
-		t.Errorf("the row says it stands at %q, want %q", taken.Path, want)
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); taken.Draft.Path != want {
+		t.Errorf("the row says it stands at %q, want %q", taken.Draft.Path, want)
 	}
 	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"); taken.Doc.Agreement.Path != want {
 		t.Errorf("the row's agreement says it stands at %q, want %q", taken.Doc.Agreement.Path, want)

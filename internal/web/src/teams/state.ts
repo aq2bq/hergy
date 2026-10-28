@@ -30,6 +30,7 @@ import { parseOpen } from '../lib/hq.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
 import type { Positions } from './place';
+import type { CanvasMenu, CanvasTyped } from './canvas/shared';
 import type { Reading } from '../lib/resource';
 
 // ---- 画面が読む形 -------------------------------------------------------
@@ -193,7 +194,7 @@ export const debounce = (k: string, fn: () => void, ms = 260) => { clearTimeout(
 // ---- 記録の形 -----------------------------------------------------------
 // Issue is one problem as the rules panel draws it: the rule's own key (0 when
 // the finding is not about a rule), the field it stands on, and the sentence.
-export type Issue = { sev: string; k: number; f: string; msg: string; definition: string };
+export type Issue = { sev: string; k: number; f: string; text: string; definition: string };
 // Finding is the figure's problem: the node, the worker or the field it stands
 // beside, and the server's sentence (the role and rule it names, when it does).
 export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string };
@@ -241,7 +242,7 @@ export type Rec = {
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
   preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
   prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
-  sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<unknown>; typed: Sig<unknown>; flash: Sig<string | null>;
+  sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
   lastAct: Sig<number>;
   wprompts: Sig<Record<string, WorkerPrompt>>; wpromptReq: Record<string, boolean>;
   placed: Sig<Positions>; layout: Sig<Positions>;
@@ -343,7 +344,7 @@ type RecInit = {
   writes: string[]; nameIssues: Schemas['Problem'][];
   preview: TeamPreview; baseFindings: Finding[];
   prompts: MemberPrompt[]; promptsReady?: boolean;
-  sel: CanvasPick | null; side: string; menu: unknown; typed: unknown; flash: string | null;
+  sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
   lastAct: number;
 };
 function recOf(init: RecInit): Rec {
@@ -499,9 +500,10 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
 // would write it (spec-teams B2, B3).
 function seedDraft(r: Rec, json: CheckAnswer): void {
   // seedDraft is the answer for a definition that is not there yet: that branch
-  // is the one that carries the document a save would write.
-  const draft = json as Schemas['TeamDraftCheckAnswer'];
-  const doc = draft.doc;
+  // is the one that carries the document a save would write, in doc, and the
+  // row it would make, in draft.
+  const draft = json.draft, doc = json.doc;
+  if (!draft || !doc) return;
   const agree = (doc.agreement || {}) as NonNullable<Schemas['TeamDocument']['agreement']>;
   r.seeded.value = true;
   // The base the row stands on is a draft of its own: its points are laid out
@@ -570,7 +572,7 @@ function ruleKeyAt(doc: RuleDoc, si: number, ri: number): number {
 }
 const convProblems = (doc: RuleDoc, list: Schemas['Problem'][] | null | undefined): Issue[] => (list || []).map((p) => ({
   sev: p.sev, k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
-  f: p.field || '', msg: p.text || '', definition: p.definition || '',
+  f: p.field || '', text: p.text || '', definition: p.definition || '',
 }));
 const buildCheck = (doc: RuleDoc, json: CheckAnswer): Check => {
   // The saved definition's answer carries the effect and the readers; the answer
@@ -748,15 +750,15 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
   // diff. The agreement's answer carries the rule Markdown instead (n-e3de).
   const pv = json.preview && 'diff' in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
-  if (r.draftRow) {
-    const draft = json as Schemas['TeamDraftCheckAnswer'];
+  const draft = json.draft;
+  if (r.draftRow && draft) {
     r.writes.value = draft.writes || r.writes.value;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
     // The paths the row would be written to are the server's, and they move
     // with the name a person is typing: both panels' heads follow the check
     // (spec-teams B2, 監査 R5).
     if (draft.path) r.teamPath.value = draft.path;
-    const ag = (draft.doc.agreement || {}) as NonNullable<Schemas['TeamDocument']['agreement']>;
+    const ag = ((json.doc && json.doc.agreement) || {}) as NonNullable<Schemas['TeamDocument']['agreement']>;
     if (ag.path) {
       r.agreePath.value = ag.path;
       const saved = r.agreeSaved.value;
@@ -1427,7 +1429,8 @@ export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {
 // pressLine is a press on one line of the topology tab's YAML preview: it picks
 // what the line stands for, the way a press on the canvas's own point does
 // (spec-teams B7). A mission line puts the cursor in the mission field.
-export function pressLine(r: Rec, p: Schemas['TeamYAMLLine'] & { f?: string; node?: string; worker?: number; a?: string; b?: string }) {
+export type LinePress = { f?: string; node?: string; worker?: number; a?: string; b?: string };
+export function pressLine(r: Rec, p: LinePress) {
   if (p.f === 'mission') {
     selectPick(r, null, 'attr');
     focusAsk.value = { dom: r.dom, sel: '[data-cv-f="mission"]' };

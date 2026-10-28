@@ -28,7 +28,7 @@ sections:
 	if err != nil {
 		t.Fatal(err)
 	}
-	island := r2DocOf(saved, "hash", text)
+	island := r2DocOf(saved)
 	if len(island.Sections) != 1 || len(island.Sections[0].Rules) != 2 {
 		t.Fatalf("the island holds %+v", island)
 	}

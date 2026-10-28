@@ -93,7 +93,7 @@ export type Panel = {
   saved: SavedProfile | null;
   hash: string;
   users: number;
-  renameUsers: number;
+  rename_targets: number;
   draft: Draft;
   problems: Problem[];
   errors: number;

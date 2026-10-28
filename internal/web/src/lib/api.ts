@@ -208,7 +208,7 @@ export type ProfilePanel = {
   args: string[]; env: Schemas['ProfileEnvPair'][];
   argsJSON: string; envJSON: string;
   savedName: string; savedKind: string; savedArgs: string; savedEnv: string;
-  hash: string; users: number; renameUsers: number; err: number; warn: number;
+  hash: string; users: number; rename_targets: number; err: number; warn: number;
   savedLine: boolean;
 };
 
@@ -243,7 +243,7 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
       savedName: doc.name || '', savedKind: doc.kind || '',
       savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
       hash: place.hash || '', users: both ? 0 : (s.users || 0),
-      renameUsers: place.readers || 0, err: c.err, warn: c.warn,
+      rename_targets: place.rename_targets || 0, err: c.err, warn: c.warn,
       savedLine: !!place.savedLine,
     };
   });

@@ -29,8 +29,8 @@ import type { Schemas } from '../lib/api';
 // messagesOf is the sentences a part draws its count from: the server's
 // findings carry `text`, the rules panel's own messages carry `msg`, and the
 // count reads either (lib/ruledoc's Message).
-function messagesOf(list: { sev: string; msg?: string; text?: string }[]): { sev: string; msg: string }[] {
-  return list.map((m) => ({ sev: m.sev, msg: m.msg !== undefined ? m.msg : (m.text || '') }));
+function messagesOf(list: { sev: string; text?: string }[]): { sev: string; text: string }[] {
+  return list.map((m) => ({ sev: m.sev, text: m.text || '' }));
 }
 
 // inputValue is what a field holds after a person typed in it.
@@ -208,7 +208,7 @@ function Detail({ r }: { r: Rec }) {
   const hidden = r.hidden.value || [];
   return (
     <div class="detail">
-      <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'mission')].map((m) => ({ sev: m.sev, msg: m.text }))} /></ul>
+      <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'mission')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
       <nav class="dtabs"><DtabsNav r={r} /></nav>
       {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       {hidden.map((h) => (
@@ -334,8 +334,8 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   if (agree) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
-    const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.msg));
-    const blocked = !s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.msg)) || d === 0);
+    const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
+    const blocked = !s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0);
     return (
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span><span class="vcount"><Counts list={messagesOf(errs)} /></span>{ok}

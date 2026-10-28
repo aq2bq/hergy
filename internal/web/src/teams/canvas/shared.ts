@@ -19,11 +19,10 @@ export type CanvasMenu = { x: number; y: number; ax: number | null; ay: number |
 export type CanvasTyped = { id: string; value: string; msgs: string[] };
 
 // menuOf and typedOf read the record's two slots that hold the part's own
-// short-lived state. The record keeps them as unknown because the screen never
-// reads them; the figure is the one place that gives them a shape.
-export const menuOf = (r: Rec): CanvasMenu | null => r.menu.value as CanvasMenu | null;
+// short-lived state. The record names their shape now, so no cast is needed.
+export const menuOf = (r: Rec): CanvasMenu | null => r.menu.value;
 export const setMenu = (r: Rec, menu: CanvasMenu | null): void => { r.menu.value = menu; };
-export const typedOf = (r: Rec): CanvasTyped | null => r.typed.value as CanvasTyped | null;
+export const typedOf = (r: Rec): CanvasTyped | null => r.typed.value;
 export const setTyped = (r: Rec, typed: CanvasTyped | null): void => { r.typed.value = typed; };
 
 // livePick is the pick the draft still holds: a point the draft no longer has
