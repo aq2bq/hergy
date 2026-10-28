@@ -27,7 +27,7 @@ import {
   roleModel2,
   teamModel2,
   checkAnswer2
-} from "../chunk/nav-j7c8749y.js";
+} from "../chunk/nav-xz225p52.js";
 export {
   Refusal2 as Refusal,
   call2 as call,

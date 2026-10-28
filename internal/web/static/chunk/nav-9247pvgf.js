@@ -15,7 +15,7 @@ import {
   read2,
   deliver2,
   problemText2
-} from "./nav-j7c8749y.js";
+} from "./nav-xz225p52.js";
 
 // lib/deliver/state.js
 var POLL = 15000;

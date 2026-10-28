@@ -21,7 +21,7 @@ import {
   call2,
   read2,
   problemText2
-} from "./nav-j7c8749y.js";
+} from "./nav-xz225p52.js";
 import {
   setCount2,
   setActivity2

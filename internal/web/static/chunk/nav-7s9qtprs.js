@@ -18,7 +18,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-j7c8749y.js";
+} from "./nav-xz225p52.js";
 
 // lib/yamltab.js
 async function checkText2(kind, place, name, text, extra) {

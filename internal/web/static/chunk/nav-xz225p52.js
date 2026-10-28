@@ -7,11 +7,14 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
-// lib/api.js
-var token3 = (document.querySelector("[data-token]") || {}).dataset?.token || "";
+// lib/api.ts
+var token3 = document.querySelector("[data-token]")?.dataset?.token || "";
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
 
 class Refusal2 extends Error {
+  status;
+  text;
+  json;
   constructor(status, text, json) {
     super(text || `HTTP ${status}`);
     this.name = "Refusal";
@@ -21,11 +24,12 @@ class Refusal2 extends Error {
   }
 }
 async function raw2(method, url, payload, { signal: stop } = {}) {
-  const opts = { method, credentials: "same-origin", headers: { Accept: "application/json" }, signal: stop };
+  const headers = { Accept: "application/json" };
   if (token3)
-    opts.headers["X-Hergy-Token"] = token3;
+    headers["X-Hergy-Token"] = token3;
+  const opts = { method, credentials: "same-origin", headers, signal: stop };
   if (payload !== undefined) {
-    opts.headers["Content-Type"] = "application/json";
+    headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(payload);
   }
   const response = await fetch(url, opts);
@@ -34,7 +38,7 @@ async function raw2(method, url, payload, { signal: stop } = {}) {
   if ((response.headers.get("content-type") || "").includes("application/json")) {
     try {
       json = JSON.parse(text);
-    } catch (e) {
+    } catch {
       json = null;
     }
   }
@@ -42,8 +46,9 @@ async function raw2(method, url, payload, { signal: stop } = {}) {
 }
 async function call2(method, url, payload, opts) {
   const a = await raw2(method, url, payload, opts);
+  const refused = a.json;
   if (!a.ok)
-    throw new Refusal2(a.status, a.json && a.json.text || a.text, a.json);
+    throw new Refusal2(a.status, refused && refused.text || a.text, a.json);
   return a;
 }
 var urls = {
@@ -56,15 +61,18 @@ async function read2(url, opts) {
   return a.json;
 }
 var list2 = (kind, opts) => read2(urls.list(kind), opts);
-var get2 = (kind, name, place, project, opts) => read2(urls.get(kind, name, place, project), opts);
+var get2 = (kind, name, place, project, opts) => read2(urls.get(kind, name, place || "", project || ""), opts);
 var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
 var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${enc(name)}`, payload, opts);
-var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DELETE", urls.del(kind, name, place, hash, agreementHash, project), undefined, opts);
+var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DELETE", urls.del(kind, name, place, hash, agreementHash || "", project || ""), undefined, opts);
 var delivery2 = (opts) => read2("/api/delivery", opts);
 var deliveryCount2 = (opts) => read2("/api/delivery/count", opts);
 var deliver2 = (members, opts) => call2("POST", "/api/delivery", { members }, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));
-var problemText2 = (refusal, fallback) => refusal && (refusal.text || refusal.json && refusal.json.text) || fallback;
+var problemText2 = (refusal, fallback) => {
+  const one = refusal;
+  return one && (one.text || one.json && one.json.text) || fallback;
+};
 var PLACES = ["project", "global"];
 var PLACE_LABEL = { project: "プロジェクト", global: "グローバル" };
 var countOf = (c) => ({ err: c && c.err || 0, warn: c && c.warn || 0 });
@@ -87,7 +95,7 @@ function profileModel2(list, openNames) {
 function profileRow(item, isOpen) {
   const places = item.places || {};
   const hidden = item.hidden || [];
-  const s = item.summary || {};
+  const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
   const both = names.length > 1;
   const panels = names.map((file) => {
@@ -144,8 +152,9 @@ function roleModel2(list) {
   return { roles: (list && list.items || []).map(roleRow) };
 }
 function roleRow(item, i) {
-  const places = item.places || {}, s = item.summary || {};
-  const row = { uid: i + 1 };
+  const places = item.places || {};
+  const s = item.summary;
+  const row = { uid: i + 1, project: null, global: null };
   if (s.markdown) {
     row.markdown = s.markdown;
     row.name = item.name || "";
@@ -164,21 +173,24 @@ function roleRow(item, i) {
 function teamModel2(list) {
   return {
     teams: (list && list.items || []).map((item) => {
-      const places = item.places || {}, s = item.summary || {};
+      const places = item.places || {};
+      const s = item.summary;
       const eff = item.effective || (places.project ? "project" : "global");
       const place = places[eff] || {};
+      const doc = place.doc;
       return {
         id: item.name || "",
         hash: place.hash || "",
         place: eff,
-        turns: ((place.doc || {}).turns || []).map((t) => [t.from, t.to]),
-        members: (s.members || []).map((m) => ({ name: m.name, saved: m.role || "", draft: m.role || "" }))
+        turns: (doc && doc.turns || []).map((t) => [t.from, t.to]),
+        members: (s && s.members || []).map((m) => ({ name: m.name, saved: m.role || "", draft: m.role || "" }))
       };
     })
   };
 }
 function checkAnswer2(a) {
-  const json = a && a.json || {}, effect = json.effect || {};
+  const json = a && a.json ? a.json : {};
+  const effect = json.effect || {};
   return {
     problems: json.problems || [],
     preview: json.preview || null,

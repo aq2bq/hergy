@@ -13,7 +13,7 @@ import {
   A,
   html
 } from "../chunk/nav-s2ensdem.js";
-import"../chunk/nav-j7c8749y.js";
+import"../chunk/nav-xz225p52.js";
 import {
   POLL,
   count,
@@ -30,7 +30,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-kq4x3xf3.js";
+} from "../chunk/nav-9247pvgf.js";
 
 // lib/deliver/view.js
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
