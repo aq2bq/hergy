@@ -813,7 +813,11 @@ function onInput(r, e) {
   if (f === 'm-name') {
     const m = sel && sel.type === 'node' ? memberOf(t, sel.id) : null;
     if (!m) return;
-    const ok = NAME.test(v) && v !== m.name;
+    // A name another member holds is not put into the draft, even for a moment:
+    // the field keeps the letters and the words beside it say why, so the member
+    // being typed cannot take another member's name — and with it that member's
+    // turns and workers — while it is typed (r-4fd7, n-4b24).
+    const ok = NAME.test(v) && v !== m.name && !nameTaken(t, m, v);
     if (ok) {
       renamePlace(r, m.name, v);
       r.typed.value = null;
@@ -838,10 +842,13 @@ function onInput(r, e) {
     canvasAct(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えた`, undo: 'ワーカーのプロファイルを変えたのを取り消した' });
   }
 }
+// nameTaken is whether another member already holds a name: the draft cannot
+// hold two, and a rename would reach the other member's turns and workers.
+const nameTaken = (t, m, v) => t.members.some((x) => x !== m && x.name === v);
 function nameMsgs(r, t, m, v) {
   const msgs = [];
   if (!NAME.test(v)) msgs.push('英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください');
-  if (t.members.some((x) => x !== m && x.name === v)) msgs.push('このチームにもういます');
+  if (nameTaken(t, m, v)) msgs.push('このチームにもういます');
   if (`${r.name.value}-${v}`.length > 32) msgs.push(`herdr 名 ${r.name.value}-${v} が 32 文字を超えます`);
   return msgs;
 }
