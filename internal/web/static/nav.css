@@ -49,7 +49,7 @@
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   background: var(--bg);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
   padding-block: 14px 12px;
 }
 /* The pages under the band carry their own link rules (a.tab, a.fchip,
