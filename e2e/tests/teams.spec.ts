@@ -9,11 +9,30 @@
 // (internal/web/jstest/teams-preview.test.js, TestTEAMS_Y6), and a definition
 // whose names do not resolve (internal/web/jstest/teams-names.test.js).
 import { test, expect, hergyNew } from './fixtures';
-import { readdirSync, readFileSync } from 'node:fs';
+import { realpathSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { diff, press, q, read, readTo, set, there, wait } from './helpers';
 
 test.use({ reads: 'teams' });
+
+test('the team definition action opens the end sheet', async ({ page, app }) => {
+  await page.route('**/api/hq/running', (route) => route.fulfill({ json: {
+    herdr: { ok: true, text: '' },
+    teams: [{
+      team: 'core', definition: 'core', place: 'project', project: realpathSync(app.proj), project_name: 'fixture',
+      workspace: { id: 'w1', label: 'main' }, tab: { id: 't1', label: 'core' },
+      members: [{ name: 'lead', herdr: 'core-lead', live: true, state: 'idle' }],
+      workers: [], waiting: [], starting: false,
+    }],
+  } }));
+  await page.goto(`${app.base}/teams`);
+  const end = page.locator('.tdef .hq-runc [data-hq="stop"]');
+  await expect(end).toHaveText('終了する');
+  await end.click();
+  const sheet = page.locator('.hq-sheet');
+  await expect(sheet.locator('.hq-h b')).toHaveText('終了する');
+  await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toHaveText('終了する');
+});
 
 // tRow is one list row, by the definition's name (e2eTeamsRowJS).
 const tRow = (name: string) =>

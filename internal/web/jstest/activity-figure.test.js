@@ -82,11 +82,11 @@ test('four members and seven differently named workers fit both activity diagram
   expect(tile.querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
   expect(tile.querySelector('.hq-tactions a').getAttribute('href')).toContain('/teams?open=');
   expect(tile.querySelector('[data-hq="apply"]').textContent).toContain('反映していない変更');
-  expect(tile.querySelector('[data-hq="stop"]').textContent).toBe('チームを止める…');
+  expect(tile.querySelector('[data-hq="stop"]').textContent).toBe('チームを終了する…');
   const idleTile = document.querySelector('.hq-tile[data-team="idle"]');
   expect(idleTile.querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
   expect(idleTile.querySelector('[data-hq="apply"]')).toBe(null);
-  expect(idleTile.querySelector('[data-hq="stop"]').textContent).toBe('チームを止める…');
+  expect(idleTile.querySelector('[data-hq="stop"]').textContent).toBe('チームを終了する…');
 
   const figure = tile.querySelector('svg.hq-svg.packed');
   expect(figure.getAttribute('viewBox')).toMatch(/^0 0 440 /);

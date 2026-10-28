@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-pwqfp7qj.js";
+} from "../chunk/nav-1ckwc0dq.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-9tdfy6n0.js";
+} from "../chunk/nav-n38wpb2w.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -447,7 +447,7 @@ function Tile({ team: t }) {
             "data-hq": "stop",
             "data-team": t.name,
             onClick: () => stopSheet2(t.name),
-            children: "チームを止める…"
+            children: "チームを終了する…"
           })
         ]
       })

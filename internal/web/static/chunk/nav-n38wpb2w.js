@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-pwqfp7qj.js";
+} from "./nav-1ckwc0dq.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -102,7 +102,7 @@ function RunCell2({ definition, place, project }) {
               "data-hq": "stop",
               "data-team": t.team,
               onClick: () => stopSheet2(t.team),
-              children: "止める"
+              children: "終了する"
             }),
             t.error ? /* @__PURE__ */ u("span", {
               class: "hq-why",

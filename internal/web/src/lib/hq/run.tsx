@@ -1,6 +1,6 @@
 // lib/hq/run.tsx — チーム定義の一覧の「動き」の欄（spec 5 章、r-5d1a、n-4b22）。
 //
-// 定義が動いているチームと、そのワークスペースと 止める、動いていなければ 起動…
+// 定義が動いているチームと、そのワークスペースと 終了する、動いていなければ 起動…
 // （前に動いたワークスペースがあれば 前は …）。グローバルの定義は、どのプロジェクト
 // でも起動できるので、動いていても 起動… を出す。
 //
@@ -15,7 +15,7 @@
 // （r-fc16）。
 //
 // チーム定義の画面は module になったので、この欄は部品（RunCell）で描く。押し込み
-// はこの部品が受ける（webui-components 2 章）: 起動… は起動の欄、止める は止める欄、
+// はこの部品が受ける（webui-components 2 章）: 起動… は起動の欄、終了する は終了する欄、
 // 反映していない変更 N は反映の欄を開く。data-hq は e2e と CSS が読むので残す。
 import type { JSX } from 'preact';
 import { runningFor, lastWorkspaceOf, projectName } from './state.js';
@@ -32,7 +32,7 @@ export function RunCell({ definition, place, project }: { definition: string; pl
     const where = (place === 'global' ? `${t.project_name || projectName(t.project)} · ` : '') + (t.workspace.label || t.workspace.id);
     const notUp = t.not_up || [];
     const changed = teamCount(t.team);
-    return <><span class={'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>{label}</span><span class="hq-wsn">{where}</span><button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.team} onClick={() => stopSheet(t.team)}>止める</button>{t.error ? <span class="hq-why" data-role="running-error">{t.error}</span> : ''}{changed ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.team} onClick={() => openSheet(t.team)}>反映していない変更 <b>{changed}</b></button> : ''}{notUp.length ? <span class="hq-up" data-role="not-up">{notUp.map((n) => <span class="hq-upm"><code>{n}</code></span>)}</span> : ''}</>;
+      return <><span class={'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>{label}</span><span class="hq-wsn">{where}</span><button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.team} onClick={() => stopSheet(t.team)}>終了する</button>{t.error ? <span class="hq-why" data-role="running-error">{t.error}</span> : ''}{changed ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.team} onClick={() => openSheet(t.team)}>反映していない変更 <b>{changed}</b></button> : ''}{notUp.length ? <span class="hq-up" data-role="not-up">{notUp.map((n) => <span class="hq-upm"><code>{n}</code></span>)}</span> : ''}</>;
   })}{!live.length || place === 'global' ? <><button type="button" class="hq-btn sm" data-hq="start" data-def={definition} data-place={place || 'project'} data-project={place === 'global' ? '' : (project || '')} onClick={() => startSheet(definition, place || 'project', place === 'global' ? '' : (project || ''))}>起動…</button>{!live.length && lastWorkspaceOf(definition) ? <span class="hq-last">前は {lastWorkspaceOf(definition)}</span> : ''}</> : ''}</>;
 }
 

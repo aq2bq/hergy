@@ -89,7 +89,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
     <div class="hq-tactions" aria-label={`${t.name} の操作`}>
       <a class="hq-btn sm" href={defHref}>チーム定義を開く</a>
       {changed > 0 ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.name} onClick={() => openSheet(t.name)}>反映していない変更 <b>{changed}</b></button> : ''}
-      <button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを止める…</button>
+      <button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>チームを終了する…</button>
     </div>
   </article>;
 }

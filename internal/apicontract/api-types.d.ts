@@ -446,7 +446,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** チームを止める */
+        /** チームを終了する */
         post: operations["stopHQTeam"];
         delete?: never;
         options?: never;
@@ -1451,9 +1451,9 @@ export interface components {
             /** @description 本部に並べるプロジェクトの場所 */
             path: string;
         };
-        /** @description 止めるチーム */
+        /** @description 終了するチーム */
         HQStopRequest: {
-            /** @description 止めるチーム名 */
+            /** @description 終了するチーム名 */
             team: string;
         };
         /** @description 起動操作の現在の状態 */
@@ -1523,9 +1523,9 @@ export interface components {
             /** @description 重ならない名前の案 */
             suggested_name: string;
         };
-        /** @description 止めたチームと閉じた数 */
+        /** @description 終了したチームと閉じた数 */
         HQStopped: {
-            /** @description 止めたチーム名 */
+            /** @description 終了したチーム名 */
             team: string;
             /** @description チームの起動元になったチーム定義名 */
             definition?: string;
@@ -1535,7 +1535,7 @@ export interface components {
             workspace: components["schemas"]["HQWorkspace"];
             /** @description 閉じたメンバーとワーカーの数 */
             closed: components["schemas"]["HQClosed"];
-            /** @description チームを止めた時刻 */
+            /** @description チームを終了した時刻 */
             stopped_at: string;
         };
         /** @description 閉じたメンバーとワーカーの数 */
@@ -3512,7 +3512,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 止めたチームと閉じた数 */
+            /** @description 終了したチームと閉じた数 */
             200: {
                 headers: {
                     [name: string]: unknown;

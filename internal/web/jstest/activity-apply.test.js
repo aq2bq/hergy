@@ -110,14 +110,14 @@ test('the opened team carries the count once, and the sheet applies that team', 
   expect(tile().querySelectorAll('[data-hq=raise]').length).toBe(0);
   expect(tile().querySelectorAll('.apl-mark').length).toBe(0);
   expect(tile().querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
-  expect(tile().querySelector('[data-hq=stop]').textContent).toBe('チームを止める…');
+  expect(tile().querySelector('[data-hq=stop]').textContent).toBe('チームを終了する…');
   const marks = tile().querySelectorAll('[data-hq=apply]');
   expect(marks.length).toBe(1);
   expect(marks[0].textContent).toContain('反映していない変更');
   expect(marks[0].querySelector('b').textContent).toBe('2');
   expect(quietTile().querySelector('[data-hq=apply]')).toBe(null);
   expect(quietTile().querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
-  expect(quietTile().querySelector('[data-hq=stop]').textContent).toBe('チームを止める…');
+  expect(quietTile().querySelector('[data-hq=stop]').textContent).toBe('チームを終了する…');
 
   marks[0].click();
   await settle();

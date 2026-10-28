@@ -49,7 +49,7 @@ test('the activity tile and its actions fit at 1440 and 760 pixels', async ({ pa
     const tile = page.locator('.hq-tile svg.packed');
     await expect(tile).toBeVisible();
     await expect(page.locator('.hq-tile .hq-tactions a')).toHaveText('チーム定義を開く');
-    await expect(page.locator('.hq-tile .hq-tactions [data-hq="stop"]')).toHaveText('チームを止める…');
+    await expect(page.locator('.hq-tile .hq-tactions [data-hq="stop"]')).toHaveText('チームを終了する…');
 
     const overlaps = await tile.evaluate((svg) => {
       const rects = [...svg.querySelectorAll('text[data-label-width]')].map((label) => {

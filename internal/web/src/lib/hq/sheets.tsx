@@ -1,6 +1,6 @@
 // lib/hq/sheets.tsx — 本部の欄と、帯の探す欄（n-7f3c、spec 2・3・5 章）。
 //
-// 欄は 3 つ: 並べるプロジェクト、起動、止める（と、起動の途中を見せる欄）。
+// 欄は 3 つ: 並べるプロジェクト、起動、終了する（と、起動の途中を見せる欄）。
 // どれも本文の後ろに 1 つだけ立ち、外を押すか Esc で閉じる。中身は Preact が描き、
 // 押し込みは欄が自分で受ける（webui-preact-design 5 章 1）。
 //
@@ -378,7 +378,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
         : launch.phase === 'failed'
           ? <><p class="hq-err">{launch.error || verb + 'できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
-            ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（止めるのはチームを止める欄から）。' : '作ったタブとペインは残っています（止めるのはチームを止める欄から）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+            ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（チームを終了する欄から操作できます）。' : '作ったタブとペインは残っています（チームを終了する欄から操作できます）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
             : <button type="button" class="hq-btn danger" data-hq="abort" data-launch={id} onClick={abort}>{verb}をやめる</button>}</div>
     </>;
 }
@@ -389,14 +389,14 @@ export function runStart(launch: HQLaunch): void {
   openSheet(<RunSheet id={launch.id} launch={launch} />);
 }
 
-// ---- 止める欄（spec 5 章） ---------------------------------------------
+// ---- 終了する欄（spec 5 章） ---------------------------------------------
 function StopSheet({ team }: { team: string }): JSX.Element {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const t: RunningTeam | null = runningTeam(team);
   if (!t) {
     readRunning();
-    return <><Head title="止める" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
+    return <><Head title="終了する" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
   }
   const members = (t.members || []).filter((m) => m.live !== false).map((m) => m.name);
   const workers = (t.workers || []).length;
@@ -407,7 +407,7 @@ function StopSheet({ team }: { team: string }): JSX.Element {
       await call<HQStopped>('POST', '/api/hq/stop', request);
     } catch (e) {
       setBusy(false);
-      setError(problemText(e, '止められませんでした'));
+      setError(problemText(e, '終了できませんでした'));
       return;
     }
     setBusy(false);
@@ -417,12 +417,12 @@ function StopSheet({ team }: { team: string }): JSX.Element {
     await readCore();
   };
   return <>
-      <Head title="止める" label={team} />
+      <Head title="終了する" label={team} />
       <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{t.project_name || projectName(t.project)}</code></dd><dt>ワークスペース</dt><dd><code>{t.workspace.label || t.workspace.id}</code></dd>
       <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl>
-      <p class="hq-sub">{`エージェントを止めてペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName(t.project)} で `}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
+      <p class="hq-sub">{`エージェントを終了してペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName(t.project)} で `}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
       <Err text={error} />
-      <div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>止める</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
+      <div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
     </>;
 }
 

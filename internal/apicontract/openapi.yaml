@@ -1098,7 +1098,7 @@ paths:
   /api/hq/stop:
     post:
       operationId: stopHQTeam
-      summary: チームを止める
+      summary: チームを終了する
       requestBody:
         required: true
         content:
@@ -1107,7 +1107,7 @@ paths:
               $ref: '#/components/schemas/HQStopRequest'
       responses:
         "200":
-          description: 止めたチームと閉じた数
+          description: 終了したチームと閉じた数
           content:
             application/json:
               schema:
@@ -2914,14 +2914,14 @@ components:
           type: string
           description: 本部に並べるプロジェクトの場所
     HQStopRequest:
-      description: 止めるチーム
+      description: 終了するチーム
       type: object
       additionalProperties: false
       required: [team]
       properties:
         team:
           type: string
-          description: 止めるチーム名
+          description: 終了するチーム名
     HQLaunchEnvelope:
       description: 起動操作の現在の状態
       type: object
@@ -3041,14 +3041,14 @@ components:
           type: string
           description: 重ならない名前の案
     HQStopped:
-      description: 止めたチームと閉じた数
+      description: 終了したチームと閉じた数
       type: object
       additionalProperties: false
       required: [team, project, workspace, closed, stopped_at]
       properties:
         team:
           type: string
-          description: 止めたチーム名
+          description: 終了したチーム名
         definition:
           type: string
           description: チームの起動元になったチーム定義名
@@ -3065,7 +3065,7 @@ components:
           description: 閉じたメンバーとワーカーの数
         stopped_at:
           type: string
-          description: チームを止めた時刻
+          description: チームを終了した時刻
     HQClosed:
       description: 閉じたメンバーとワーカーの数
       type: object

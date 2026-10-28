@@ -33,7 +33,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-pwqfp7qj.js";
+} from "../chunk/nav-1ckwc0dq.js";
 
 // lib/apply/view.tsx
 var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };

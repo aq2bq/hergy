@@ -60,7 +60,7 @@ test('the tile action opens the stop sheet for that team', async ({ page, app })
   await tile.locator('[data-hq="stop"]').click();
   const sheet = page.locator('.hq-sheet');
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator('.hq-h b')).toHaveText('止める');
+  await expect(sheet.locator('.hq-h b')).toHaveText('終了する');
   await expect(sheet.locator('.hq-h code')).toHaveText('core');
-  await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toBeVisible();
+  await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toHaveText('終了する');
 });

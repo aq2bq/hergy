@@ -77,7 +77,7 @@ test('a reading that comes later draws the 動き column again, and the band hol
   await settle();
   expect(cell().querySelector('.hq-on')).not.toBe(null);
   expect(cell().querySelector('.hq-on').textContent).toContain('動いている');
-  expect(cell().querySelector('[data-hq=stop]')).not.toBe(null);
+  expect(cell().querySelector('[data-hq=stop]').textContent).toBe('終了する');
 
   // The band's number is the projects reading's own: seven definitions, where
   // the screen's list holds the one row.

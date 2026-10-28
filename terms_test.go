@@ -250,6 +250,21 @@ var glossary = []term{
 		},
 	},
 	{
+		id:       "down",
+		english:  "down",
+		japanese: "終了する",
+		meaning:  "finish a running team and close its panes with hergy down; do not call this チームを止める",
+		banned: []ban{
+			{lang: "ja", word: "チームを止める", instead: "チームを終了する"},
+		},
+	},
+	{
+		id:       "stop",
+		english:  "stop",
+		japanese: "止める",
+		meaning:  "end one member's current turn with hergy stop; use this for a member's turn, not a team",
+	},
+	{
 		id:       "refresh",
 		english:  "refresh",
 		japanese: "起動し直し",

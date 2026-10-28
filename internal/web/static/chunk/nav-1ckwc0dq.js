@@ -1161,7 +1161,7 @@ function RunSheet({ id, launch: first }) {
               class: "hq-sub",
               children: [
                 `${verb}をやめました。`,
-                raised || applied ? "ペインは残っています（止めるのはチームを止める欄から）。" : "作ったタブとペインは残っています（止めるのはチームを止める欄から）。"
+                raised || applied ? "ペインは残っています（チームを終了する欄から操作できます）。" : "作ったタブとペインは残っています（チームを終了する欄から操作できます）。"
               ]
             }),
             /* @__PURE__ */ u("button", {
@@ -1204,7 +1204,7 @@ function StopSheet({ team }) {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(Head, {
-          title: "止める",
+          title: "終了する",
           label: team
         }),
         /* @__PURE__ */ u("p", {
@@ -1223,7 +1223,7 @@ function StopSheet({ team }) {
       await call2("POST", "/api/hq/stop", request);
     } catch (e) {
       setBusy(false);
-      setError(problemText2(e, "止められませんでした"));
+      setError(problemText2(e, "終了できませんでした"));
       return;
     }
     setBusy(false);
@@ -1233,7 +1233,7 @@ function StopSheet({ team }) {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
-        title: "止める",
+        title: "終了する",
         label: team
       }),
       /* @__PURE__ */ u("dl", {
@@ -1272,7 +1272,7 @@ function StopSheet({ team }) {
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
         children: [
-          `エージェントを止めてペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName2(t.project)} で `,
+          `エージェントを終了してペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName2(t.project)} で `,
           /* @__PURE__ */ u("code", {
             children: `hergy down ${team}`
           }),
@@ -1292,7 +1292,7 @@ function StopSheet({ team }) {
             "data-team": team,
             disabled: busy,
             onClick: stop,
-            children: "止める"
+            children: "終了する"
           }),
           /* @__PURE__ */ u("button", {
             type: "button",
