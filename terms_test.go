@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -122,6 +124,12 @@ var glossary = []term{
 		english:  "profile",
 		japanese: "プロファイル",
 		meaning:  "a named engine (kind, args, env) in profiles.yaml",
+	},
+	{
+		id:       "profile-name",
+		english:  "profile name",
+		japanese: "プロファイル名",
+		meaning:  "the name under profiles: in profiles.yaml; what a member's or worker's profile: names",
 	},
 	{
 		id:       "kind",
@@ -534,6 +542,55 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		default:
 			fmt.Fprintf(&b, "  %s: %q is banned for the term %q; write %q\n", h.where, h.word, h.term, h.want)
 		}
+	}
+	t.Fatal(b.String())
+}
+
+// TestScreensNameTheirNameFields: a screen writes the name of the thing it names
+// with the glossary's word, not 「名前」 alone (ac-ae5f). A field or a column is
+// the element's own text (「ロール名」「チーム定義名」「メンバー名」「プロファイ
+// ル名」), and a search or a label is the same word; the walk over the screens'
+// sources catches the bare word, so one word cannot drift back.
+func TestScreensNameTheirNameFields(t *testing.T) {
+	bare := regexp.MustCompile(`>名前<|placeholder="名前"|aria-label="名前"`)
+	var hits []string
+	for _, dir := range []string{"internal/web/static", "internal/web/templates"} {
+		err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				// The vendored libraries are not the screens' own words.
+				if entry.Name() == "vendor" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".html") {
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for i, line := range strings.Split(string(raw), "\n") {
+				if bare.MatchString(line) {
+					hits = append(hits, fmt.Sprintf("%s:%d: %s", path, i+1, strings.TrimSpace(line)))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("read %s: %v", dir, err)
+		}
+	}
+	if len(hits) == 0 {
+		return
+	}
+	var b strings.Builder
+	b.WriteString("a screen writes 「名前」 alone; write the glossary's word (ロール名・チーム定義名・メンバー名・プロファイル名):\n")
+	for _, hit := range hits {
+		b.WriteString("  " + hit + "\n")
 	}
 	t.Fatal(b.String())
 }

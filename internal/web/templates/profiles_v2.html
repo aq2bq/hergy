@@ -42,10 +42,10 @@
     <a class="fchip {{if eq .KindFilter ""}}on{{end}}" data-act="kind-filter" data-k="" href="/profiles{{if .Query}}?q={{.Query}}{{end}}" aria-pressed="{{if eq .KindFilter ""}}true{{else}}false{{end}}">すべて<span class="n">{{.ProfileCount}}</span></a>
     {{range .Kinds}}{{if .Name}}<a class="fchip {{if .On}}on{{end}}" data-act="kind-filter" data-k="{{.Name}}" href="/profiles?kind={{.Name}}{{if $.Query}}&amp;q={{$.Query}}{{end}}" aria-pressed="{{if .On}}true{{else}}false{{end}}"><i class="sw {{.KindClass}}"></i>{{.Name}}<span class="n">{{.Count}}</span></a>{{end}}{{end}}
   </div>
-  <input id="q" class="search" type="search" placeholder="名前" value="{{.Query}}" autocomplete="off">
+  <input id="q" class="search" type="search" placeholder="プロファイル名" value="{{.Query}}" autocomplete="off">
 </div>
 <div class="list">
-  <div class="head"><span></span><span>名前</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+  <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
   <div id="rows">
     <p class="none" id="no-match" hidden>合うプロファイルはありません</p>
   </div>

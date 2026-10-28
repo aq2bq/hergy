@@ -470,7 +470,7 @@ export const vlistParts = (r) => {
   const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
   const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
   const own = issues.filter((m) => !at(m));
-  const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? '名前' : '');
+  const where = (m) => (m.node ? nodeName(m.node) : m.worker != null && m.worker >= 0 ? ((r.team.draft.workers[m.worker] || {}).purpose || 'ワーカー') : m.field === 'mission' ? '使命' : m.field === 'name' ? 'チーム定義名' : '');
   const file = (m) => (m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop();
   // A finding about a role's own rule opens that role at the rule: the name
   // the server put on the finding (d-8bbf). A finding that names no role
@@ -766,7 +766,7 @@ export function canvasTyping(r, op, field) {
   r.promptsReady = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { mission: '使命を戻した', 'm-name': '名前を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
+    const label = { mission: '使命を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -956,7 +956,7 @@ export const rowOfPanel = (r) => {
 };
 export const host = {
   // A team's rules document has no name of its own to edit: the definition's
-  // name is the row's, so the part leaves the 名前 field out (監査 R9).
+  // name is the row's, so the part leaves the チーム定義名 field out (監査 R9).
   hasName: false,
   row: (panel) => {
     if (!panel || !panel.classList.contains('agree-p')) return null;

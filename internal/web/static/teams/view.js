@@ -40,7 +40,7 @@ export function App() {
 export function List() {
   const toolbar = html`<div class="toolbar"><button class="btn primary" data-act="new">＋ チーム定義を追加</button></div>`;
   if (!allRecs().length && !GROUPED) return html`${toolbar}<div class="list"><p class="none">チーム定義はありません</p></div>`;
-  const head = html`<div class="head"><span></span><span>名前</span><span>使命</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>${HQ ? html`<span class="hq-runh">動き</span>` : ''}</div>`;
+  const head = html`<div class="head"><span></span><span>チーム定義名</span><span>使命</span><span>${HQ ? 'プロジェクト' : '置き場所'}</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>${HQ ? html`<span class="hq-runh">動き</span>` : ''}</div>`;
   if (!GROUPED) {
     return html`${toolbar}<div class="list">${head}${allRecs().map((r) => html`<${Row} key=${r.key} r=${r} />`)}</div>`;
   }
@@ -83,7 +83,7 @@ function NameCell({ r, open }) {
   const tag = r.draftRow ? html`<span class="tag">新規</span>` : '';
   if (!r.draftRow) return html`<span class="nm">${r.name}</span>${tag}`;
   if (r.how === 'copy' || !open) return html`<span class="nm">${r.name || html`<span class="none">—</span>`}</span>${tag}`;
-  return html`<input id=${'nm-' + r.dom} class=${'in-name' + ((r.nameIssues || []).length ? ' bad' : '')} data-f="name" value=${r.name} placeholder="名前" spellcheck="false" autocomplete="off" aria-label="チーム定義名" />${tag}`;
+  return html`<input id=${'nm-' + r.dom} class=${'in-name' + ((r.nameIssues || []).length ? ' bad' : '')} data-f="name" value=${r.name} placeholder="チーム定義名" spellcheck="false" autocomplete="off" aria-label="チーム定義名" />${tag}`;
 }
 
 // placePills is the row's プロジェクト column (spec 4 章): the project's name,

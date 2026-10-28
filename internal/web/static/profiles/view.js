@@ -30,7 +30,7 @@ export function Toolbar() {
     <div class="filters">
       ${chips.value.map((chip) => html`<a class=${'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k=${chip.name} href=${chipsURL(chip.name)} aria-pressed=${chip.name === filterKind.value ? 'true' : 'false'}>${chip.name ? html`<i class=${'sw ' + chip.kindClass}></i>${chip.name}` : 'すべて'}<span class="n">${chip.count}</span></a>`)}
     </div>
-    <input id="q" class="search" type="search" placeholder="名前" value=${query.value} autocomplete="off" />
+    <input id="q" class="search" type="search" placeholder="プロファイル名" value=${query.value} autocomplete="off" />
   </div>`;
 }
 
@@ -138,7 +138,7 @@ function Panel({ panel }) {
     <header class="ph">${panel.layerSwitch
       ? html`<div class="seg small">${['project', 'global'].map((x) => html`<button class=${panel.file === x ? 'on' : ''} data-act="pick-layer" data-x=${x}>${labelOf(x)}</button>`)}</div>`
       : html`<span class="ln">${GROUPED && panel.group && panel.group !== 'global' ? groupName(panel.group) : panel.label}</span>`}<code class="path">${panel.path}</code>${panel.both ? html`<span class=${'state ' + (panel.shadowed ? 'off' : 'on')}>${panel.shadowed ? '隠れている' : '効いている'}</span>` : ''}</header>
-    <div class="field"><label>名前</label><div>
+    <div class="field"><label>プロファイル名</label><div>
       <input class=${'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value=${panel.draft.name} spellcheck="false" autocomplete="off" ref=${nameInput} />
       <label class="rename" hidden=${!hints}><input type="checkbox" data-f="rename" checked=${panel.rename} /><span>${hints ? `使っている ${panel.renameUsers} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
       <ul class="vm" data-for="name">${problemsOf(panel, 'name')}</ul>
@@ -217,7 +217,7 @@ export function List() {
   const visible = shownRows.value;
   return html`<${Toolbar} />
     <div class="list">
-      <div class="head"><span></span><span>名前</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+      <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
       <div id="rows">
         ${rows.value.length === 0 ? html`<p class="none">プロファイルはありません</p>` : ''}
         <p class="none" id="no-match" hidden=${rows.value.length === 0 || visible.length > 0}>合うプロファイルはありません</p>

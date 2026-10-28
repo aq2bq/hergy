@@ -290,7 +290,7 @@ function SideAttr({ r }) {
   const nt = t.turns.filter(([a, b]) => a === id || b === id).length;
   const role = (rolesFor(r) || []).find((x) => x.name === m.role) || {};
   return html`<div class="cv-t"><code>${m.name}</code><span class="cv-k">メンバー${role.title ? ` · ${role.title}` : ''}</span></div>
-      <div class="cv-f"><label for=${`cv-mn-${team}`}>名前</label><input id=${`cv-mn-${team}`} data-cv-f="m-name" value=${typed ? typed.value : m.name} spellcheck="false" autocomplete="off" />${msgs.map((x) => html`<span class="cv-msg">${x}</span>`)}<span class="cv-sub">herdr 名 ${`${team}-${m.name}`}</span></div>
+      <div class="cv-f"><label for=${`cv-mn-${team}`}>メンバー名</label><input id=${`cv-mn-${team}`} data-cv-f="m-name" value=${typed ? typed.value : m.name} spellcheck="false" autocomplete="off" />${msgs.map((x) => html`<span class="cv-msg">${x}</span>`)}<span class="cv-sub">herdr 名 ${`${team}-${m.name}`}</span></div>
       <div class="cv-f"><label for=${`cv-mr-${team}`}>ロール</label><span class="sel"><select id=${`cv-mr-${team}`} data-cv-f="m-role">${(rolesFor(r) || []).map((x) => html`<${Opt} v=${x.name} on=${x.name === m.role}>${x.name}${x.title ? ` · ${x.title}` : ''}</${Opt}>`)}</select></span><span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span></div>
       <div class="cv-f"><label for=${`cv-mp-${team}`}>プロファイル</label><span class="sel"><select id=${`cv-mp-${team}`} data-cv-f="m-profile">${profilesFor(r).map((p) => html`<${Opt} v=${p} on=${p === m.profile}>${p}</${Opt}>`)}</select></span></div>
       <div class="cv-sec"><span class="cv-sl">ターンを渡す相手</span>${turnRows(t, s, id, 'out')}${outs.length ? '' : html`<span class="cv-note">まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください</span>`}${addTurnSel(t, id)}</div>
@@ -688,7 +688,7 @@ function addMember(r, at) {
   if (at) posOf(r)[name] = at;
   got(M.sel, r).v = { type: 'node', id: name }; got(M.side, r).v = 'attr';
   canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
-    message: `メンバー ${name} を足した。名前・ロール・プロファイルを右で決める`,
+    message: `メンバー ${name} を足した。メンバー名・ロール・プロファイルを右で決める`,
     undo: `メンバー ${name} を足したのを取り消した`, focus: '[data-cv-f="m-name"]',
   });
 }
