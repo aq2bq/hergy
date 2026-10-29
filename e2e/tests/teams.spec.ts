@@ -100,13 +100,13 @@ async function graphProblems(page: Parameters<typeof read>[0], base: string): Pr
   await page.goto(`${base}/teams?open=research`);
   await wait(page, there('.tdef[data-name="research"] .panel.team-p .cv-canvas svg'));
   const rp = shape('research');
-  // scout's turn to the human goes, so the team's own agreement's rule RES-6
+  // scout's turn to the human goes, so the team's own agreement's rule VAAJ
   // warns.
   await press(page, `${rp}.querySelector('.cv-n.member[data-cv-n=scout]')`);
   await wait(page, there2(rp, '.cv-side [data-cv-f=m-name]'));
   await press(page, `${rp}.querySelector('.cv-side [data-cv-act=turn-del][data-a=scout][data-b=human]')`);
   await wait(page, `!!document.querySelector('.cv-toast')`);
-  const item = `[...document.querySelectorAll('.tdef[data-name="research"] .panel.team-p .vlist .vitem')].find(function(b){return b.textContent.indexOf('RES-6')>=0})`;
+  const item = `[...document.querySelectorAll('.tdef[data-name="research"] .panel.team-p .vlist .vitem')].find(function(b){return b.textContent.indexOf('VAAJ')>=0})`;
   await wait(page, `!!${item}`);
   await press(page, item);
   await wait(page, there2(agree('research'), '.rule.open'));

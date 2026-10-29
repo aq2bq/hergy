@@ -26,13 +26,13 @@ func reportFor(f *fixture, in RoleInput) RoleReport {
 func TestRoleWarnsAboutAModelNameInARuleText(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := f.roleText("lead", "      - id: LEAD-1\n        text: 設計は claude の opus に任せる。\n")
+	lead := f.roleText("lead", "      - id: PAAF\n        text: 設計は claude の opus に任せる。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
 	want := RoleProblem{
 		Sev: rules.SevWarning, Section: 0, Rule: 0, Field: "text", Line: 7,
-		Text: i18n.Tf("validate.rule_model_name", "LEAD-1", "claude"+i18n.T("list.separator")+"opus"),
+		Text: i18n.Tf("validate.rule_model_name", "PAAF", "claude"+i18n.T("list.separator")+"opus"),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
 		t.Errorf("problems = %+v, want the one model warning %+v", report.Problems, want)
@@ -46,7 +46,7 @@ func TestRoleWarnsAboutAModelNameInARuleText(t *testing.T) {
 func TestRoleDoesNotJudgeATeamTurn(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := f.roleText("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
+	lead := f.roleText("lead", "      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
@@ -60,7 +60,7 @@ func TestRoleDoesNotJudgeATeamTurn(t *testing.T) {
 	team := Team(TeamInput{Catalog: f.cat, Name: "demo", Layer: source.LayerLocal})
 	var found *Finding
 	for i := range team.Problems {
-		if team.Problems[i].RuleID == "LEAD-1" && strings.Contains(team.Problems[i].Text, "impl") {
+		if team.Problems[i].RuleID == "PAAF" && strings.Contains(team.Problems[i].Text, "impl") {
 			found = &team.Problems[i]
 			break
 		}
@@ -74,7 +74,7 @@ func TestRoleDoesNotJudgeATeamTurn(t *testing.T) {
 	if found.RoleDoc != f.leadRolePath() {
 		t.Errorf("role doc = %q, want %q", found.RoleDoc, f.leadRolePath())
 	}
-	want := i18n.Tf("validate.turn_unknown_name", "LEAD-1", "lead → impl", "impl")
+	want := i18n.Tf("validate.turn_unknown_name", "PAAF", "lead → impl", "impl")
 	if found.Text != want {
 		t.Errorf("text = %q, want %q", found.Text, want)
 	}
@@ -125,7 +125,7 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	saved := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
-		"      - id: LEAD-1\n        text: 何かをする。\n"
+		"      - id: PAAF\n        text: 何かをする。\n"
 	f.write(f.leadRolePath(), saved)
 
 	same := reportFor(f, RoleInput{Name: "lead", Text: saved})
@@ -136,7 +136,7 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 		t.Errorf("the document as it is on disk has a diff: %+v", same.Diff)
 	}
 
-	draft := saved + "      - id: LEAD-2\n        text: 足す。\n"
+	draft := saved + "      - id: QAAF\n        text: 足す。\n"
 	report := reportFor(f, RoleInput{Name: "lead", Text: draft})
 	parsed, err := rules.Parse(draft, f.leadRolePath())
 	if err != nil {
@@ -152,7 +152,7 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 	if lines[0].Part != rules.PartTitle || lines[0].Text != "# lead" {
 		t.Errorf("the first line = %+v, want the title", lines[0])
 	}
-	if last := lines[len(lines)-1]; last.Rule != 1 || last.Text != "- **LEAD-2** 足す。" {
+	if last := lines[len(lines)-1]; last.Rule != 1 || last.Text != "- **QAAF** 足す。" {
 		t.Errorf("the last line = %+v, want the rule the draft added", last)
 	}
 	want := len(lines) - 1
@@ -171,7 +171,7 @@ func TestRoleReportsTheMarkdownAndTheDiffFromTheSavedDocument(t *testing.T) {
 func TestRoleLeavesADuplicateWithTheAgreementToTheTeam(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	agreement := f.proj + "/.hergy/teams/demo/agreement.yaml"
 	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
@@ -182,7 +182,7 @@ func TestRoleLeavesADuplicateWithTheAgreementToTheTeam(t *testing.T) {
 		Sections: []rules.Section{{
 			Heading: "仕事",
 			Rules: []rules.Rule{
-				{ID: "LEAD-1", Text: "何かをする。"},
+				{ID: "PAAF", Text: "何かをする。"},
 				{ID: "DUP-1", Text: "書きかけの規則。"},
 			},
 		}},
@@ -222,7 +222,7 @@ func TestRoleLeavesADuplicateWithTheAgreementToTheTeam(t *testing.T) {
 func TestRoleReadsAnEmptiedYAMLFile(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := f.roleText("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	lead := f.roleText("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	report := reportFor(f, RoleInput{Name: "lead", Text: lead})
@@ -249,7 +249,7 @@ func TestRoleReadsAnEmptiedYAMLFile(t *testing.T) {
 func TestRoleAnswerDoesNotChangeWithTheTeamsThatUseIt(t *testing.T) {
 	withTeam := newFixture(t)
 	withTeam.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := withTeam.roleText("lead", "      - id: LEAD-1\n        text: 実装は impl に渡す（lead → impl）。\n")
+	lead := withTeam.roleText("lead", "      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n")
 	withTeam.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	alone := newFixture(t)

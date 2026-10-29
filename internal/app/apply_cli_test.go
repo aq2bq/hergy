@@ -44,7 +44,7 @@ func TestApplyDrySaysHowAndWhatChanged(t *testing.T) {
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 
 	out := mustRun(t, "apply", "--dry")
-	for _, want := range []string{"Plan:", "lead", "sent the prompt again", "L1"} {
+	for _, want := range []string{"Plan:", "lead", "sent the prompt again", "MAAF"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("apply --dry does not say %q:\n%s", want, out)
 		}

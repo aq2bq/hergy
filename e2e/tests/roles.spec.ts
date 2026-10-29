@@ -49,7 +49,7 @@ test('ROLES-R1 the switch, the day a rule went off, and the memo', async ({ page
   expect(head, 'the list column names the switch').toContain('オン / オフ');
 
   // The opened rule: ID, 本文 and メモ only.
-  await press(page, `${rule('LEAD-1')}.querySelector('.rsum')`);
+  await press(page, `${rule('PAAF')}.querySelector('.rsum')`);
   await wait(page, there('#rows .role.open .rule.open .redit'));
   const labels = await page.$$eval('#rows .role.open .rule.open .redit .field > label, #rows .role.open .rule.open .redit .field > .fl', (els) => els.map((e) => (e.textContent || '').trim()));
   expect(labels, 'the opened rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
@@ -62,9 +62,9 @@ test('ROLES-R1 the switch, the day a rule went off, and the memo', async ({ page
 
   // The switch goes off without opening the row; the day is not the screen's
   // to make before the save.
-  await press(page, `${rule('LEAD-1')}.querySelector('.onsw')`);
-  await wait(page, `${rule('LEAD-1')}.querySelector('.onsw').getAttribute('aria-checked')==='false'`);
-  await readTo<string>(page, `${rule('LEAD-1')}.querySelector('.since').textContent`, 'the off day before the save').toBe('保存すると今日から');
+  await press(page, `${rule('PAAF')}.querySelector('.onsw')`);
+  await wait(page, `${rule('PAAF')}.querySelector('.onsw').getAttribute('aria-checked')==='false'`);
+  await readTo<string>(page, `${rule('PAAF')}.querySelector('.since').textContent`, 'the off day before the save').toBe('保存すると今日から');
 
   // The filter of the list keeps the roles that have an off rule.
   await press(page, q('[data-act=filter][data-f=off]'));
@@ -75,21 +75,21 @@ test('ROLES-R1 the switch, the day a rule went off, and the memo', async ({ page
   await press(page, q('#rows .role.open .pf [data-act=save]'));
   await wait(page, there('#rows .role.open .ok'));
   let text = readFileSync(file, 'utf8');
-  const block = text.slice(text.indexOf('id: LEAD-1'), text.indexOf('id: LEAD-2'));
+  const block = text.slice(text.indexOf('id: PAAF'), text.indexOf('id: QAAF'));
   expect(block, 'the save wrote in_prompt: false').toContain('in_prompt: false');
   expect(block, 'the save wrote the day it went off').toMatch(/off_since: "\d{4}-\d{2}-\d{2}"/);
   expect(block, 'the save wrote the memo').toContain(`note: ${memo}`);
   const ruleCount = await page.$eval('#rows .role.open .c-count', (el) => el.textContent || '');
   expect(ruleCount, 'the rules column does not repeat the off count').not.toContain('オフ');
   const day = /off_since: "(\d{4})-(\d{2})-(\d{2})"/.exec(block);
-  await readTo<string>(page, `${rule('LEAD-1')}.querySelector('.since').textContent`, 'the off day after the save').toBe(`${Number(day![2])}/${Number(day![3])} から`);
+  await readTo<string>(page, `${rule('PAAF')}.querySelector('.since').textContent`, 'the off day after the save').toBe(`${Number(day![2])}/${Number(day![3])} から`);
 
   // Back on: the save drops the day.
-  await press(page, `${rule('LEAD-1')}.querySelector('.onsw')`);
-  await wait(page, `${rule('LEAD-1')}.querySelector('.onsw').getAttribute('aria-checked')==='true'`);
+  await press(page, `${rule('PAAF')}.querySelector('.onsw')`);
+  await wait(page, `${rule('PAAF')}.querySelector('.onsw').getAttribute('aria-checked')==='true'`);
   await press(page, q('#rows .role.open .pf [data-act=save]'));
   await wait(page, there('#rows .role.open .ok'));
   text = readFileSync(file, 'utf8');
-  const after = text.slice(text.indexOf('id: LEAD-1'), text.indexOf('id: LEAD-2'));
+  const after = text.slice(text.indexOf('id: PAAF'), text.indexOf('id: QAAF'));
   expect(after, 'the on save dropped the day').not.toContain('off_since');
 });

@@ -534,5 +534,7 @@
   "delivery.worker_profile_changed": "the worker %s's profile changed",
   "apply.broken_team": "%s's team definition does not build: %s",
   "apply.broken_fix": "Fix the settings file, then check it with hergy validate",
-  "apply.broken_left": "%d team(s) have a definition that does not build, so hergy cannot apply their drift"
+  "apply.broken_left": "%d team(s) have a definition that does not build, so hergy cannot apply their drift",
+  "rules.ids_given": "%d rule(s) were given an id",
+  "rules.ids_missing": "rules without an id: %d (hergy gives them an id when it next writes)"
 }

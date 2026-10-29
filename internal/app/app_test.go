@@ -834,9 +834,9 @@ func TestValidateShape(t *testing.T) {
 		"problems: 0",
 		"rules 6 in 3 files",
 		i18n.T("validate.size_heading"),
-		"  team .hergy/teams/demo: 198 characters (the provisional budget is 3000)",
-		"  role .hergy/roles/builder.yaml: 236 characters (the provisional budget is 3000)",
-		"  role .hergy/roles/lead.yaml: 174 characters (the provisional budget is 3000)",
+		"  team .hergy/teams/demo: 202 characters (the provisional budget is 3000)",
+		"  role .hergy/roles/builder.yaml: 240 characters (the provisional budget is 3000)",
+		"  role .hergy/roles/lead.yaml: 178 characters (the provisional budget is 3000)",
 		"This budget is provisional, for cutting team and role definitions; it does not stop hergy up.",
 	)
 }
@@ -1010,8 +1010,8 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
-		"    - **L1** Hand over a task the receiver can start without reading your conversation.",
-		"    - **C1** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
+		"    - **MAAF** Hand over a task the receiver can start without reading your conversation.",
+		"    - **MAAA** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
 		"next: up demo",
 	} {
 		if !strings.Contains(got, line+"\n") {

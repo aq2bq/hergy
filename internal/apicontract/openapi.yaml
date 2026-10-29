@@ -1317,10 +1317,10 @@ components:
           items:
             $ref: "#/components/schemas/RoleRule"
     RoleRule:
-      description: ロールの文書の規則 1 つ。
+      description: ロールの文書の規則 1 つ。id は hergy が書く時に付けるので、下書きは省ける。
       type: object
       additionalProperties: false
-      required: [id, text, in_prompt, note]
+      required: [text, in_prompt, note]
       properties:
         from:
           type: object
@@ -1337,7 +1337,7 @@ components:
               description: 節の中での規則の番号
         id:
           type: string
-          description: 規則の ID
+          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
         text:
           type: string
           description: 規則の文
@@ -1634,7 +1634,7 @@ components:
               description: 節の中での規則の番号
         id:
           type: string
-          description: 規則の ID
+          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
         text:
           type: string
           description: 規則の文
@@ -4070,10 +4070,10 @@ components:
             $ref: '#/components/schemas/TeamRuleRequest'
           description: 節にある規則
     TeamRule:
-      description: チームのルールにある規則。
+      description: チームのルールにある規則。id は hergy が書く時に付けるので、下書きは省ける。
       type: object
       additionalProperties: false
-      required: [id, text, in_prompt, note]
+      required: [text, in_prompt, note]
       properties:
         from:
           type: object
@@ -4089,7 +4089,7 @@ components:
           description: 保存済みのチームのルールでの規則の位置
         id:
           type: string
-          description: 規則の ID
+          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
         text:
           type: string
           description: 規則の文
@@ -4114,7 +4114,7 @@ components:
           description: 保存済みのチームのルールでの規則の位置
         id:
           type: string
-          description: 規則の ID
+          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
         text:
           type: string
           description: 規則の文

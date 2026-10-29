@@ -265,39 +265,35 @@ func collectRule(value *yaml.Node, path, label string, section, rule int) (Rule,
 	n, problems := collectMapping(value, path, label, section, rule, append(append([]string{}, ruleKeys...), oldRuleKeys...)...)
 	var r Rule
 
-	_, hasID := n.atNode("id")
 	_, hasText := n.atNode("text")
-	if !hasID || !hasText {
+	if !hasText {
 		problems = append(problems, newProblem(path, section, rule, "", value.Line,
 			i18n.Errorf("error.rules_rule_needs_id_text", path, label)))
 		return r, problems
 	}
 
-	id, err := n.str("id")
-	switch {
-	case err != nil:
-		problems = append(problems, newProblem(path, section, rule, "id", valueLine(n, "id"), err))
-		return r, problems
-	case id == "":
-		problems = append(problems, newProblem(path, section, rule, "", valueLine(n, "id"),
-			i18n.Errorf("error.rules_rule_needs_id_text", path, label)))
-		return r, problems
+	// An id is hergy's now, so a file without one is a file hergy has not
+	// written yet, not a broken one: the next write gives it one (d-4aab). An
+	// id that is there, in whatever shape, is read as it stands.
+	if _, ok := n.atNode("id"); ok {
+		id, err := n.str("id")
+		if err != nil {
+			problems = append(problems, newProblem(path, section, rule, "id", valueLine(n, "id"), err))
+			return r, problems
+		}
+		r.ID = id
 	}
-	r.ID = id
 	for _, old := range oldRuleKeys {
 		if oldKey, ok := n.atNode(old); ok {
 			problems = append(problems, newProblem(path, section, rule, old, oldKey.Line,
 				i18n.Errorf("error.rules_old_item", path, r.ID, old, oldAdvice(old))))
 		}
 	}
-	if !RuleIDPattern.MatchString(r.ID) {
-		problems = append(problems, newProblem(path, section, rule, "id", valueLine(n, "id"),
-			i18n.Errorf("error.rules_id_pattern", path, n.at("id"), r.ID)))
-	}
 
-	if r.Text, err = n.str("text"); err != nil {
+	text, err := n.str("text")
+	if err != nil {
 		problems = append(problems, newProblem(path, section, rule, "text", valueLine(n, "text"), err))
-	} else if strings.TrimSpace(r.Text) == "" {
+	} else if r.Text = text; strings.TrimSpace(r.Text) == "" {
 		problems = append(problems, newProblem(path, section, rule, "text", valueLine(n, "text"),
 			i18n.Errorf("error.rules_text_empty", path, label)))
 	}

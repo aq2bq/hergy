@@ -265,11 +265,11 @@ func TestCHECK_EachAnswerNamesItsOwnUnit(t *testing.T) {
 	if len(core) != 1 {
 		t.Errorf("core's team answer holds %d problems, want its one size warning: %s", len(core), coreText.String())
 	}
-	if strings.Contains(coreText.String(), "BUILD-5") || strings.Contains(coreText.String(), "本文にモデルの名前") {
+	if strings.Contains(coreText.String(), "HAAA") || strings.Contains(coreText.String(), "本文にモデルの名前") {
 		t.Errorf("core's team answer carries builder.yaml's own warning:\n%s", coreText.String())
 	}
 
-	// 3: draft's rule WRITE-7 names lead, which draft does not have; the
+	// 3: draft's rule FAAM names lead, which draft does not have; the
 	// problem stands on the team definition and names writer.yaml's rule.
 	draft := checkProblemsOf(t, base, "/api/team/check", map[string]any{
 		"place": "global", "name": "draft", "part": "team",
@@ -277,18 +277,18 @@ func TestCHECK_EachAnswerNamesItsOwnUnit(t *testing.T) {
 	})
 	found := false
 	for _, one := range draft {
-		if one.Role != "writer" || one.RuleID != "WRITE-7" {
+		if one.Role != "writer" || one.RuleID != "FAAM" {
 			continue
 		}
 		found = true
 		// The sentence names the rule; the file it stands in is the field the
 		// screen's own column shows (teams/view.js vlistParts).
-		if !strings.Contains(one.Text, "WRITE-7") || !strings.Contains(one.Field, "writer.yaml") {
-			t.Errorf("the combination problem reads %+v, want writer.yaml's WRITE-7", one)
+		if !strings.Contains(one.Text, "FAAM") || !strings.Contains(one.Field, "writer.yaml") {
+			t.Errorf("the combination problem reads %+v, want writer.yaml's FAAM", one)
 		}
 	}
 	if !found {
-		t.Errorf("draft's team answer does not name writer.yaml's WRITE-7: %+v", draft)
+		t.Errorf("draft's team answer does not name writer.yaml's FAAM: %+v", draft)
 	}
 }
 
@@ -326,11 +326,11 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	}
 
 	core := block(".hergy/teams/core/team.yaml")
-	if strings.Contains(core, "BUILD-5") || strings.Contains(core, "names a model") {
+	if strings.Contains(core, "HAAA") || strings.Contains(core, "names a model") {
 		t.Errorf("core's team section carries builder.yaml's own warning:\n%s", core)
 	}
 	builder := block(".hergy/roles/builder.yaml")
-	if !strings.Contains(builder, "BUILD-5") || !strings.Contains(builder, "names a model") {
+	if !strings.Contains(builder, "HAAA") || !strings.Contains(builder, "names a model") {
 		t.Errorf("builder.yaml's own warning is not in its role section:\n%s", builder)
 	}
 	if n := strings.Count(out, "file: .hergy/roles/builder.yaml\n"); n != 1 {
@@ -338,14 +338,14 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	}
 	globalDir := filepath.Join(f.cfg, "hergy")
 	draft := block(filepath.Join(globalDir, "teams", "draft", "team.yaml"))
-	if !regexp.MustCompile(`writer\.yaml: rule WRITE-7|reviewer\.yaml: rule REV-4`).MatchString(draft) {
+	if !regexp.MustCompile(`writer\.yaml: rule FAAM|reviewer\.yaml: rule CAAK`).MatchString(draft) {
 		t.Errorf("draft's team section does not name the role document's rule:\n%s", draft)
 	}
 	hiddenDocs := block(filepath.Join(globalDir, "teams", "docs", "team.yaml"))
 	if !strings.Contains(hiddenDocs, "is not used") {
 		t.Errorf("the hidden docs does not say it is not used:\n%s", hiddenDocs)
 	}
-	if regexp.MustCompile(`WRITE-7|REV-4`).MatchString(hiddenDocs) {
+	if regexp.MustCompile(`FAAM|CAAK`).MatchString(hiddenDocs) {
 		t.Errorf("the hidden docs shows a warning:\n%s", hiddenDocs)
 	}
 	if hiddenScout := block(filepath.Join(globalDir, "roles", "scout.yaml")); !strings.Contains(hiddenScout, "is not used") {

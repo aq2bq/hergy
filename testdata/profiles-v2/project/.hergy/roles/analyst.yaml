@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: A1
+      - id: AAAA
         text: 要求は利用者の言葉で書く。

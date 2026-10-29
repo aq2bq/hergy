@@ -52,7 +52,7 @@ const applyAnswer = () => ({
   teams: [{
     team: 'core', definition: 'core', project: '/work/alpha', project_name: '注文 API',
     members: [
-      { name: 'core-lead', state: 'idle', how: 'resend', can_apply: true, changes: [{ kind: 'rule', document: '.hergy/roles/lead.yaml', rule: 'LEAD-1', text: '規則 LEAD-1 を書き換えた' }] },
+      { name: 'core-lead', state: 'idle', how: 'resend', can_apply: true, changes: [{ kind: 'rule', document: '.hergy/roles/lead.yaml', rule: 'PAAF', text: '規則 PAAF を書き換えた' }] },
       { name: 'core-spec2', state: 'absent', how: 'start', can_apply: true, changes: [{ kind: 'prompt', text: 'メンバー spec2 を足した' }] },
     ],
   }],

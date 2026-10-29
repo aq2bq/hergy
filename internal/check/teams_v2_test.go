@@ -69,14 +69,14 @@ func teamsV2Copy(t *testing.T, from, to string) {
 // TestTEAMS_M2_TheEffectIsThePromptsOwnLine: the effect of taking the turn
 // impl-b -> reviewer away from core is one line of impl-b's own prompt
 // ("ターンを渡す相手"), written the way that prompt writes it, with the problem
-// the change would add — the rule CORE-12 still writing the turn. Taking away
+// the change would add — the rule SAAA still writing the turn. Taking away
 // the last turn a member hands out shows both the line that goes and the
 // sentence that stops the definition (TEAMS-M2).
 func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	cat := teamsV2Catalog(t)
 	in := TeamInput{Catalog: cat, Name: "core", Layer: source.LayerLocal}
 
-	// One turn away: impl-b's own line changes, and CORE-12, which writes the
+	// One turn away: impl-b's own line changes, and SAAA, which writes the
 	// turn, warns.
 	got := TeamEffect(in, definition.RemoveTurn(memberNode("impl-b"), memberNode("reviewer")))
 	if len(got.Lines) != 1 {
@@ -93,7 +93,7 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	if len(line.Added) != 0 {
 		t.Errorf("added = %q, want nothing", line.Added)
 	}
-	warn := i18n.Tf("validate.turn_not_in_turns", "CORE-12", "impl-b → reviewer")
+	warn := i18n.Tf("validate.turn_not_in_turns", "SAAA", "impl-b → reviewer")
 	found := false
 	for _, problem := range got.Problems {
 		if problem.Text == warn {
@@ -152,7 +152,7 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 
 // TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart: the Markdown a screen
 // previews for core's own agreement is the very part the member's initial prompt
-// carries, one character not differing, and CORE-8 — the one rule kept out of
+// carries, one character not differing, and XAAC — the one rule kept out of
 // the prompt — is a struck line with no line number, inside neither the numbered
 // preview nor the prompt (TEAMS-M4).
 func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
@@ -182,22 +182,22 @@ func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 	for _, line := range preview {
 		if line.Part == rules.PartExcluded {
 			excluded++
-			if !strings.HasPrefix(line.Text, "CORE-8 ") {
-				t.Errorf("the excluded line reads %q, want CORE-8's own", line.Text)
+			if !strings.HasPrefix(line.Text, "XAAC ") {
+				t.Errorf("the excluded line reads %q, want XAAC's own", line.Text)
 			}
 			continue
 		}
 		numbered = append(numbered, line.Text)
 	}
 	if excluded != 1 {
-		t.Errorf("the preview draws %d excluded lines, want CORE-8's one", excluded)
+		t.Errorf("the preview draws %d excluded lines, want XAAC's one", excluded)
 	}
 	region := strings.Join(numbered, "\n")
 	if region != strings.TrimRight(doc.Markdown(), "\n") {
 		t.Errorf("the numbered preview is not the Markdown a member reads:\n--- preview ---\n%s\n--- markdown ---\n%s", region, doc.Markdown())
 	}
-	if strings.Contains(region, "CORE-8") || strings.Contains(doc.Markdown(), "CORE-8") {
-		t.Error("CORE-8 stands in the text a member reads, and it is kept out of the prompt")
+	if strings.Contains(region, "XAAC") || strings.Contains(doc.Markdown(), "XAAC") {
+		t.Error("XAAC stands in the text a member reads, and it is kept out of the prompt")
 	}
 
 	// The prompt of a member of core carries the preview's lines verbatim. core's
@@ -221,7 +221,7 @@ func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 	if !strings.Contains(built.Text, "\n\n"+region+"\n") {
 		t.Errorf("the prompt does not carry the agreement's preview verbatim:\n--- preview ---\n%s\n--- prompt ---\n%s", region, built.Text)
 	}
-	if strings.Contains(built.Text, "CORE-8") {
+	if strings.Contains(built.Text, "XAAC") {
 		t.Error("the prompt carries the rule kept out of it")
 	}
 }

@@ -960,6 +960,9 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
 		return r2WriteError(err, display)
 	}
+	if refusal := s.assignRuleIDs(); refusal != nil {
+		return nil, refusal
+	}
 	out := k.savedAnswer(name, in.Place)
 	if one, refusal := k.Get(name, in.Place); refusal == nil {
 		if got, ok := one.(apiTeamGet); ok {
@@ -995,6 +998,7 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 	if in.Hash != hash {
 		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", display))
 	}
+	written := in.Text
 	if kind == "agreement" {
 		if refusal := t2RefuseNewRuleError(display, text, in.Text); refusal != nil {
 			return nil, refusal
@@ -1002,11 +1006,17 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 	} else if refusal := t2RefuseNewTeamText(s.cat, path, name, layer, text, in.Text); refusal != nil {
 		return nil, refusal
 	}
-	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
+	if err := source.WriteIfUnchanged(path, hash, written); err != nil {
 		return r2WriteError(err, display)
 	}
+	if refusal := s.assignRuleIDs(); refusal != nil {
+		return nil, refusal
+	}
+	if kind == "agreement" {
+		written, _ = s.cat.Reader().Read(source.Doc{Path: path})
+	}
 	out := k.savedAnswer(name, place)
-	out.Text, out.Hash, out.Path = in.Text, source.Hash(in.Text), display
+	out.Text, out.Hash, out.Path = written, source.Hash(written), display
 	return out, nil
 }
 

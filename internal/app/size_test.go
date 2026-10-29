@@ -45,7 +45,7 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int, t
 	}
 	agreement := filepath.Join(base, "teams", name, "agreement.yaml")
 	role := filepath.Join(base, "roles", "lead.yaml")
-	roleText := "version: 1\nsections:\n  - heading: 仕事\n    rules:\n      - id: LEAD-1\n        text: 何かをする。\n"
+	roleText := "version: 1\nsections:\n  - heading: 仕事\n    rules:\n      - id: PAAF\n        text: 何かをする。\n"
 	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),

@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -612,8 +613,9 @@ func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 	if !strings.Contains(after, "このチームの約束を変えた。") {
 		t.Errorf("the agreement's save did not write the text:\n%s", after)
 	}
-	if !strings.Contains(after, "id: TEAM-1") {
-		t.Errorf("the agreement's save dropped the rule's id:\n%s", after)
+	saved, _ := rules.ReadAll(after, path)
+	if len(saved.Rules()) != 1 || !rules.RuleIDPattern.MatchString(saved.Rules()[0].ID) {
+		t.Errorf("the agreement's save wrote no id hergy gives:\n%s", after)
 	}
 }
 
@@ -882,7 +884,7 @@ func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	}
 	// The layer's role documents the starter reads were already there, so the
 	// save left them as they are (K5).
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !strings.Contains(got, "LEAD-1") {
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !strings.Contains(got, "PAAF") {
 		t.Errorf("the layer's own lead.yaml was written over:\n%s", got)
 	}
 	// The starter profile went into the layer's profiles.yaml.

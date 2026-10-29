@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: W1
+      - id: YAAK
         text: 一つの文に一つのことを書く。

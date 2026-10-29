@@ -25,7 +25,7 @@ const agreementDoc = "version: 1\ntitle: demo agreement\nsections:\n  - heading:
 func TestAgreementJudgesAnArrowAgainstTheDraftTurns(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	f.write(f.agreementPath(), agreementDoc)
 
@@ -59,7 +59,7 @@ func TestAgreementJudgesAnArrowAgainstTheDraftTurns(t *testing.T) {
 func TestAgreementHoldsAnArrowTheTurnsHave(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	f.write(f.agreementPath(), agreementDoc)
 
@@ -80,7 +80,7 @@ func TestAgreementHoldsAnArrowTheTurnsHave(t *testing.T) {
 func TestAgreementJudgesAgainstTheOverlaidDraftTurns(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 何かをする。\n")
+	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	f.write(f.agreementPath(), agreementDoc)
 

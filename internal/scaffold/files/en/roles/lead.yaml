@@ -1,9 +1,9 @@
 version: 1
 sections:
   - rules:
-      - id: L1
+      - id: MAAF
         text: Hand over a task the receiver can start without reading your conversation.
         note: "The receiver has not seen your conversation. Missing premises get filled in by guesswork."
-      - id: L2
+      - id: NAAF
         text: Mark work done only with your own measured result for each acceptance criterion.
         note: "Saying \"checked\" leaves the criteria nobody measured."

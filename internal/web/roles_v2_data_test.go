@@ -78,8 +78,8 @@ func TestRoleCheckAnswersInTheBoundarysShape(t *testing.T) {
 			"name": "lead", "title": "進め方", "revision": 1,
 			"sections": []any{map[string]any{
 				"heading": "進め方", "level": 2, "intro": "", "rules": []any{
-					map[string]any{"id": "LEAD-1", "text": "lead は最初に動く。", "in_prompt": true},
-					map[string]any{"id": "", "text": "id の無い規則。", "in_prompt": true},
+					map[string]any{"id": "PAAF", "text": "lead は最初に動く。", "in_prompt": true},
+					map[string]any{"id": "", "text": "", "in_prompt": true},
 				},
 			}},
 		},
@@ -126,7 +126,7 @@ func TestRoleCheckAnswersInTheBoundarysShape(t *testing.T) {
 
 	resp, decoded = f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
 		"place": "project", "name": "lead",
-		"text": "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: one\n      - id: LEAD-1\n        text: two\n",
+		"text": "version: 1\nsections:\n  - rules:\n      - id: PAAF\n        text: one\n      - id: PAAF\n        text: two\n",
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the text check answered %d: %v", resp.StatusCode, decoded)

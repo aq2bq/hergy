@@ -15,7 +15,7 @@ function click(el) {
 const doc = {
   name: 'builder', title: '作り方', revision: 1,
   sections: [{ heading: '作る', level: 0, intro: '', rules: [
-    { id: 'BUILD-5', text: '古い本文。', note: '', in_prompt: true },
+    { id: 'HAAA', text: '古い本文。', note: '', in_prompt: true },
   ] }],
 };
 
@@ -40,7 +40,7 @@ const preview = {
     { text: '', part: 'blank', section: -1, rule: -1 },
     { text: '## 作る', part: 'heading', section: 0, rule: -1 },
     { text: '', part: 'blank', section: -1, rule: -1 },
-    { text: '- BUILD-5 古い本文。', part: 'rule', section: 0, rule: 0 },
+    { text: '- HAAA 古い本文。', part: 'rule', section: 0, rule: 0 },
   ],
   chars: 3100,
 };
@@ -73,7 +73,7 @@ test('a document-wide warning marks the first line alone, and the typed text is 
 
   // P4・C4: the typed text is the one the save carries.
   const rule = [...document.querySelectorAll('#rows .role.open .panel .rule')]
-    .find((el) => el.querySelector('.rid b').textContent.trim() === 'BUILD-5');
+    .find((el) => el.querySelector('.rid b').textContent.trim() === 'HAAA');
   expect(rule).toBeTruthy();
   click(rule.querySelector('.rsum'));
   await settle();
@@ -88,6 +88,6 @@ test('a document-wide warning marks the first line alone, and the typed text is 
   expect(save.body.doc.sections[0].rules[0].text).toBe(want);
   // Nothing else of the document moved: the id and the other places the panel
   // carries are the ones the island gave.
-  expect(save.body.doc.sections[0].rules[0].id).toBe('BUILD-5');
+  expect(save.body.doc.sections[0].rules[0].id).toBe('HAAA');
   expect(save.body.doc.sections[0].heading).toBe('作る');
 });

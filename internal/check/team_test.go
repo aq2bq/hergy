@@ -86,7 +86,7 @@ func TestTeamMatchesTheDefinitionsFindings(t *testing.T) {
 func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 実装は spec に渡す（lead → spec）。\n")
+	f.role("lead", "      - id: PAAF\n        text: 実装は spec に渡す（lead → spec）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	op := definition.RemoveTurn(memberNode("lead"), memberNode("spec"))
@@ -96,7 +96,7 @@ func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 	if !slices.Equal(got.Problems, want) {
 		t.Errorf("problems = %+v, want check.Definition's %+v", got.Problems, want)
 	}
-	warn := i18n.Tf("validate.turn_not_in_turns", "LEAD-1", "lead → spec")
+	warn := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec")
 	found := false
 	for _, p := range got.Problems {
 		if p.Text == warn {
@@ -171,7 +171,7 @@ func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("version: 1\nsections:\n  - rules:\n      - id: SHARED-1\n        text: 全員が読む。\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("version: 1\nsections:\n  - rules:\n      - id: WAAK\n        text: 全員が読む。\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	docs := cat.SharedAgreements()

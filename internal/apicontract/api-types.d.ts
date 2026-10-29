@@ -563,7 +563,7 @@ export interface components {
             /** @description この節の規則 */
             rules: components["schemas"]["RoleRule"][] | null;
         };
-        /** @description ロールの文書の規則 1 つ。 */
+        /** @description ロールの文書の規則 1 つ。id は hergy が書く時に付けるので、下書きは省ける。 */
         RoleRule: {
             /** @description 保存されている文書でこの規則が立つ場所。下書きが送る。 */
             from?: {
@@ -572,8 +572,8 @@ export interface components {
                 /** @description 節の中での規則の番号 */
                 rule: number;
             } | null;
-            /** @description 規則の ID */
-            id: string;
+            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
+            id?: string;
             /** @description 規則の文 */
             text: string;
             /** @description プロンプトに含めるか */
@@ -733,7 +733,7 @@ export interface components {
                 /** @description 節の中での規則の番号 */
                 rule: number;
             } | null;
-            /** @description 規則の ID */
+            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
             id?: string;
             /** @description 規則の文 */
             text?: string;
@@ -2085,7 +2085,7 @@ export interface components {
             /** @description 節にある規則 */
             rules?: components["schemas"]["TeamRuleRequest"][] | null;
         };
-        /** @description チームのルールにある規則。 */
+        /** @description チームのルールにある規則。id は hergy が書く時に付けるので、下書きは省ける。 */
         TeamRule: {
             /** @description 保存済みのチームのルールでの規則の位置 */
             from?: {
@@ -2094,8 +2094,8 @@ export interface components {
                 /** @description 節にある規則の番号 */
                 rule?: number;
             } | null;
-            /** @description 規則の ID */
-            id: string;
+            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
+            id?: string;
             /** @description 規則の文 */
             text: string;
             /** @description 規則をメンバーの初期プロンプトに含めるか */
@@ -2109,7 +2109,7 @@ export interface components {
         TeamRuleRequest: {
             /** @description 保存済みのチームのルールでの規則の位置 */
             from?: components["schemas"]["TeamRuleFrom"] | null;
-            /** @description 規則の ID */
+            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
             id?: string;
             /** @description 規則の文 */
             text?: string;

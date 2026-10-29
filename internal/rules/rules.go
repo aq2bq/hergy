@@ -26,9 +26,11 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// RuleIDPattern is the shape a rule id has: an uppercase head with uppercase
-// segments after it (C1, P-TURN-1, SPEC-AUD-5).
-var RuleIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
+// RuleIDPattern is the shape a rule id has: one uppercase letter and three
+// uppercase letters or digits, without the letters that read alike (I, L, O, U),
+// four characters in all (K7QF). hergy gives every id; the shape holds no
+// meaning (d-4aab).
+var RuleIDPattern = regexp.MustCompile(`^[A-HJKMNP-TV-Z][A-HJKMNP-TV-Z0-9]{3}$`)
 
 var (
 	dateLayout = "2006-01-02"

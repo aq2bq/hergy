@@ -168,19 +168,24 @@ func TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem(t *testing.
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT /api/role/legacy answers %d, want 200: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, path); got != typed {
-		t.Errorf("the save wrote %q, want the typed text %q", got, typed)
+	written := readFile(t, path)
+	if !strings.Contains(written, "別のことをする。") || !strings.Contains(written, "nope: 1") {
+		t.Errorf("the save did not write the typed text's own lines:\n%s", written)
+	}
+	writtenDoc, _ := rules.ReadAll(written, path)
+	if len(writtenDoc.Rules()) == 0 || !rules.RuleIDPattern.MatchString(writtenDoc.Rules()[0].ID) {
+		t.Errorf("the saved text kept no id hergy writes:\n%s", written)
 	}
 
 	// A text that adds a problem is refused and leaves the file as it was.
-	grown := strings.Replace(typed, "        nope: 1\n", "        nope: 1\n        wrong: 2\n", 1)
+	grown := strings.Replace(written, "        nope: 1\n", "        nope: 1\n        wrong: 2\n", 1)
 	resp, body = f.api(t, server, http.MethodPut, "/api/role/legacy", map[string]any{
-		"place": "project", "name": "legacy", "hash": source.Hash(typed), "text": grown,
+		"place": "project", "name": "legacy", "hash": source.Hash(written), "text": grown,
 	})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a text that adds a problem answers %d, want 422: %s", resp.StatusCode, body)
 	}
-	if got := readFile(t, path); got != typed {
+	if got := readFile(t, path); got != written {
 		t.Errorf("the refused save wrote the file:\n%s", got)
 	}
 }
@@ -189,8 +194,8 @@ func TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem(t *testing.
 // check answers for the fixture's role documents are the sentences hergy
 // validate writes — the same check.Definition findings and the same size
 // warnings — with only the definition's own head in front of a turn or size
-// warning, so the screen adds no check of its own; and BUILD-3, BUILD-4,
-// core-analyst's amount and BUILD-5 each stand on their rule and line
+// warning, so the screen adds no check of its own; and FAAA, GAAA,
+// core-analyst's amount and HAAA each stand on their rule and line
 // (ROLES-V4).
 func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 	f := rbFixtureRoles(t)
@@ -277,14 +282,14 @@ func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
 	}
 
 	// The one the spec names is the role document's own: the model name beside
-	// BUILD-5. The turn and the derived reference that only a team completes are
+	// HAAA. The turn and the derived reference that only a team completes are
 	// the team definition's check now, so they do not stand here (d-a575).
 	for _, want := range []struct {
 		role, id, sev string
 		section, rule int
 		line          int
 	}{
-		{"builder", "BUILD-5", "warn", 1, 0, 21},
+		{"builder", "HAAA", "warn", 1, 0, 21},
 	} {
 		var one row
 		for _, candidate := range rows {
@@ -445,7 +450,7 @@ func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 	// of the team with the draft laid over its role document is the one that
 	// names both.
 	builder := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"))
-	draft := builder + "      - id: CORE-1\n        text: 重ねて書く。\n"
+	draft := builder + "      - id: PAAA\n        text: 重ねて書く。\n"
 	cat := f.catalog()
 	overlay := cat.With(cat.RolePath(catalog.PlaceProject, "builder"), draft)
 	told := false

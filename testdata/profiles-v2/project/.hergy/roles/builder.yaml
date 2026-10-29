@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: B1
+      - id: BAAA
         text: 変更にはテストを添える。

@@ -57,8 +57,23 @@ sections:
 			t.Errorf("problem %+v has no sentence to give", p)
 		}
 	}
-	if want := "title,sections[0].level,id,text"; strings.Join(fields, ",") != want {
+	if want := "title,sections[0].level,text"; strings.Join(fields, ",") != want {
 		t.Errorf("fields = %v, want %s", fields, want)
+	}
+}
+
+// TestReadAllTakesARuleWithNoID: an id is hergy's to give, so a rule written
+// without one (or with one in an older shape) is read as it stands and is not a
+// problem: the next write gives it an id (d-4aab).
+func TestReadAllTakesARuleWithNoID(t *testing.T) {
+	text := "version: 1\ntitle: T\nsections:\n  - heading: H\n    rules:\n      - text: no id yet\n      - id: C1\n        text: an older shape\n"
+	doc, problems := ReadAll(text, "rules.yaml")
+	if len(problems) != 0 {
+		t.Fatalf("problems = %+v, want none", problems)
+	}
+	rules := doc.Rules()
+	if rules[0].ID != "" || rules[1].ID != "C1" {
+		t.Errorf("ids = %q, %q; want the file's own", rules[0].ID, rules[1].ID)
 	}
 }
 

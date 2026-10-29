@@ -24,7 +24,7 @@ const answer = () => ({
     team: 'core', definition: 'core', project_name: '注文 API',
     notes: ['ワーカー w-1 のプロファイルが変わった。次に雇うワーカーから効く'],
     members: [
-      { name: 'core-impl-a', role: 'builder', state: 'idle', how: 'resend', can_apply: true, changes: [change('rule', '.hergy/roles/builder.yaml', 'BUILD-5', '規則 BUILD-5 を書き換えた')] },
+      { name: 'core-impl-a', role: 'builder', state: 'idle', how: 'resend', can_apply: true, changes: [change('rule', '.hergy/roles/builder.yaml', 'HAAA', '規則 HAAA を書き換えた')] },
       { name: 'core-spec2', role: 'builder', state: 'absent', how: 'start', can_apply: true, changes: [change('prompt', '.hergy/teams/core/team.yaml', '', 'メンバー spec2 を足した')] },
       { name: 'core-lead', role: 'lead', state: 'idle', how: 'restart', can_apply: true, conversation_lost: true, changes: [change('prompt', '.hergy/teams/core/team.yaml', '', 'プロファイルを変えた')] },
       { name: 'core-busy', role: 'builder', state: 'active', how: 'cannot', can_apply: false, why_not: '仕事中なので、今は反映できません', changes: [] },
@@ -83,7 +83,7 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   expect(document.querySelector('.apl-sheet .apl-tnote').textContent).toContain('ワーカー w-1 のプロファイル');
   expect(document.querySelector('.apl-sheet [data-role=definition-error]').textContent).toBe('チーム定義を組み立てられません');
   // The changed rule opens its own place.
-  expect(document.querySelector('.apl-sheet .apl-chg').getAttribute('href')).toBe('/roles?open=builder&rule=BUILD-5');
+  expect(document.querySelector('.apl-sheet .apl-chg').getAttribute('href')).toBe('/roles?open=builder&rule=HAAA');
   // Opening the sheet sent nothing.
   expect(asked.filter((one) => one.method === 'POST')).toEqual([]);
 

@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: R1
+      - id: ZAAH
         text: 指摘には根拠の行を添える。

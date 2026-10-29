@@ -59,8 +59,8 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.writeTeam(t, "demo", "demo の使命")
 	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n  planner:\n    kind: codex\n")
-	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: LEAD-1\n        text: lead は最初に動く。\n")
-	f.write(t, "roles/builder.yaml", "version: 1\nsections:\n  - rules:\n      - id: BUILD-1\n        text: builder は作る。\n")
+	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: PAAF\n        text: lead は最初に動く。\n")
+	f.write(t, "roles/builder.yaml", "version: 1\nsections:\n  - rules:\n      - id: DAAA\n        text: builder は作る。\n")
 	return f
 }
 

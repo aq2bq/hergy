@@ -278,8 +278,8 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 			region := strings.Join(numbered, "\n")
 			built, err := ruMemberPrompt(t, cat, role)
 			if err != nil {
-				// builder's document carries the persisted problem (BUILD-4's
-				// derived origin points at REQ-5, which no member reads): the
+				// builder's document carries the persisted problem (GAAA's
+				// derived origin points at HAAJ, which no member reads): the
 				// prompt's cross-document check refuses before it carries the
 				// role document. That is builder's own problem, not a preview
 				// that drifts, so the preview is still the document a prompt
@@ -287,8 +287,8 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 				if role != "builder" {
 					t.Fatalf("the prompt of %s did not build: %v", role, err)
 				}
-				if !strings.Contains(err.Error(), "BUILD-4") {
-					t.Fatalf("builder's prompt refused with %v, want BUILD-4's persisted problem", err)
+				if !strings.Contains(err.Error(), "GAAA") {
+					t.Fatalf("builder's prompt refused with %v, want GAAA's persisted problem", err)
 				}
 				if region == "" {
 					t.Error("builder's preview draws nothing")
@@ -306,7 +306,7 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 
 	// A rule kept out of the prompt (in_prompt: false) is one struck line with no
 	// number: the numbered count and the character count fall, and the prompt
-	// carries no LEAD-9. No per-member amount is part of the answer (d-b87a).
+	// carries no YAAF. No per-member amount is part of the answer (d-b87a).
 	t.Run("a rule kept out of the prompt", func(t *testing.T) {
 		f := ruFixtureRoles(t)
 		server := f.server(t)
@@ -319,7 +319,7 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 		beforePreview, _ := before["preview"].(map[string]any)
 		beforeLines, beforeChars := ruNumbered(beforePreview)
 
-		si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "LEAD-9")
+		si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "YAAF")
 		draft.Sections[si].Rules[ri].InPrompt = false
 		_, after := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
 			"place": catalog.PlaceProject, "original": "lead", "doc": draft,
@@ -332,13 +332,13 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 			one, _ := l.(map[string]any)
 			if one["part"] == rules.PartExcluded {
 				excluded++
-				if !strings.HasPrefix(one["text"].(string), "LEAD-9 ") {
-					t.Errorf("the excluded line reads %q, want LEAD-9's own", one["text"])
+				if !strings.HasPrefix(one["text"].(string), "YAAF ") {
+					t.Errorf("the excluded line reads %q, want YAAF's own", one["text"])
 				}
 			}
 		}
 		if excluded != 1 {
-			t.Errorf("the preview draws %d excluded lines, want LEAD-9's one", excluded)
+			t.Errorf("the preview draws %d excluded lines, want YAAF's one", excluded)
 		}
 		if afterLines != beforeLines-1 {
 			t.Errorf("the preview reads %d 行 after the switch, want %d", afterLines, beforeLines-1)
@@ -358,7 +358,7 @@ func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
 		if err != nil {
 			t.Fatalf("the prompt of the switched lead did not build: %v", err)
 		}
-		if strings.Contains(built.Text, "LEAD-9") {
+		if strings.Contains(built.Text, "YAAF") {
 			t.Errorf("the prompt still carries the rule kept out of it")
 		}
 	})
@@ -390,7 +390,7 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 			name: "a rule's body",
 			role: "builder",
 			edit: func(t *testing.T, draft *r2Doc) {
-				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "BUILD-5")
+				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "HAAA")
 				draft.Sections[si].Rules[ri].Text = "書き換えた本文。"
 			},
 			want: "        text: 書き換えた本文。",
@@ -415,7 +415,7 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 			name: "a rule kept out of the prompt",
 			role: "lead",
 			edit: func(t *testing.T, draft *r2Doc) {
-				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "LEAD-9")
+				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "YAAF")
 				draft.Sections[si].Rules[ri].InPrompt = false
 			},
 			want: "        in_prompt: false",
@@ -477,8 +477,8 @@ func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
 	}
 }
 
-// TestROLES_F2_AMoveKeepsTheMovedItemsLines: one save that moves rules (BUILD-2
-// down, BUILD-1 below BUILD-3) and a whole section (確かめ方 up) comes back with
+// TestROLES_F2_AMoveKeepsTheMovedItemsLines: one save that moves rules (EAAA
+// down, DAAA below FAAA) and a whole section (確かめ方 up) comes back with
 // the same lines in another order: every rule's item is byte for byte the one
 // that stood before, and the section that moved carries its own lines whole.
 func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
@@ -488,15 +488,15 @@ func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
 	before := readFile(t, path)
 	draft, text := ruLoadDraft(t, path)
 
-	// 作り方's rules take the order a person leaves them in: BUILD-3, BUILD-1,
-	// BUILD-2, BUILD-4 (BUILD-2 one down, BUILD-1 below BUILD-3).
+	// 作り方's rules take the order a person leaves them in: FAAA, DAAA,
+	// EAAA, GAAA (EAAA one down, DAAA below FAAA).
 	sec := draft.Sections[0]
 	byID := map[string]r2Rule{}
 	for _, rule := range sec.Rules {
 		byID[rule.ID] = rule
 	}
 	sec.Rules = nil
-	for _, id := range []string{"BUILD-3", "BUILD-1", "BUILD-2", "BUILD-4"} {
+	for _, id := range []string{"FAAA", "DAAA", "EAAA", "GAAA"} {
 		sec.Rules = append(sec.Rules, byID[id])
 	}
 	draft.Sections[0] = sec
@@ -512,7 +512,7 @@ func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
 	after := readFile(t, path)
 
 	ruSameLines(t, before, after)
-	for _, id := range []string{"BUILD-1", "BUILD-2", "BUILD-3", "BUILD-4", "BUILD-5", "BUILD-6", "BUILD-7"} {
+	for _, id := range []string{"DAAA", "EAAA", "FAAA", "GAAA", "HAAA", "JAAA", "KAAA"} {
 		if got, want := ruItemBlock(t, after, id), ruItemBlock(t, before, id); got != want {
 			t.Errorf("%s's own lines changed:\n%s\nwant\n%s", id, got, want)
 		}
@@ -524,7 +524,7 @@ func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
 		t.Errorf("the moved section did not land first:\n%s", after)
 	}
 	at := 0
-	for _, id := range []string{"BUILD-3", "BUILD-1", "BUILD-2", "BUILD-4"} {
+	for _, id := range []string{"FAAA", "DAAA", "EAAA", "GAAA"} {
 		i := strings.Index(after, "- id: "+id)
 		if i < 0 {
 			t.Fatalf("%s left the file:\n%s", id, after)
@@ -617,7 +617,7 @@ func TestROLES_F5_AStaleHashIsRefused(t *testing.T) {
 }
 
 // TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne: with builder's note on
-// BUILD-4 standing, a save that fixes another rule is written; a save that
+// GAAA standing, a save that fixes another rule is written; a save that
 // overlaps a rule's id is refused. The screen refuses by
 // the check it reads (ruledoc.js disables 保存 while a new error stands; the
 // server's own write has no rule-id check), so the refusal is the check's new
@@ -634,8 +634,8 @@ func TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne(t *testing.T) {
 	})
 	known := ruErrorTexts(mustProblems(t, savedCheck))
 
-	// The fix save: change BUILD-5's body, and the persisted problem stays.
-	si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "BUILD-5")
+	// The fix save: change HAAA's body, and the persisted problem stays.
+	si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "HAAA")
 	draft.Sections[si].Rules[ri].Text = "直した本文。"
 	_, fixCheck := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
 		"place": catalog.PlaceProject, "original": "builder", "doc": draft,
@@ -654,18 +654,18 @@ func TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne(t *testing.T) {
 		t.Fatalf("the fix save answered %d, want it written", resp.StatusCode)
 	}
 	after := readFile(t, path)
-	if !strings.Contains(after, "note: '由来: derived  REQ-5'") {
-		t.Errorf("the fix save lost BUILD-4's note:\n%s", after)
+	if !strings.Contains(after, "note: '由来: derived  HAAJ'") {
+		t.Errorf("the fix save lost GAAA's note:\n%s", after)
 	}
 	if changed := ruChangedLines(before, after); len(changed) != 1 {
-		t.Errorf("the fix save changed %d lines, want BUILD-5's text alone: %v", len(changed), changed)
+		t.Errorf("the fix save changed %d lines, want HAAA's text alone: %v", len(changed), changed)
 	}
 
-	// The overlapping save: BUILD-5 takes BUILD-4's id. The check reports a new
+	// The overlapping save: HAAA takes GAAA's id. The check reports a new
 	// error on the rule's id field, which is what the screen refuses the save on.
 	over, _ := ruLoadDraft(t, path)
-	osi, ori := ruRuleAt(t, draftRuleDoc(t, over, "builder"), "BUILD-5")
-	over.Sections[osi].Rules[ori].ID = "BUILD-4"
+	osi, ori := ruRuleAt(t, draftRuleDoc(t, over, "builder"), "HAAA")
+	over.Sections[osi].Rules[ori].ID = "GAAA"
 	_, dupCheck := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
 		"place": catalog.PlaceProject, "original": "builder", "doc": over,
 	})
@@ -676,7 +676,7 @@ func TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne(t *testing.T) {
 			continue
 		}
 		text, _ := problem["text"].(string)
-		if strings.Contains(text, "BUILD-4") && !known[text] {
+		if strings.Contains(text, "GAAA") && !known[text] {
 			found = true
 		}
 	}
@@ -713,10 +713,11 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 			t.Fatalf("the save answered %d", resp.StatusCode)
 		}
 		written := readFile(t, ruRolePath(f, catalog.PlaceProject, "ra-new"))
-		for _, want := range []string{"id: NEW-1", "新しく足したロールの規則。"} {
-			if !strings.Contains(written, want) {
-				t.Errorf("the added file does not hold %q:\n%s", want, written)
-			}
+		if !strings.Contains(written, "新しく足したロールの規則。") {
+			t.Errorf("the added file does not hold the rule's text:\n%s", written)
+		}
+		if !rules.RuleIDPattern.MatchString(ruleIDIn(t, written)) {
+			t.Errorf("the added file's rule has no id hergy writes:\n%s", written)
 		}
 	})
 
@@ -822,12 +823,24 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 			t.Fatalf("the save answered %d", resp.StatusCode)
 		}
 		written := readFile(t, ruRolePath(f, catalog.PlaceProject, "ghost"))
-		for _, want := range []string{"id: GHOST-1", "文書の無いロールに足した規則。"} {
-			if !strings.Contains(written, want) {
-				t.Errorf("the new file does not hold %q:\n%s", want, written)
-			}
+		if !strings.Contains(written, "文書の無いロールに足した規則。") {
+			t.Errorf("the new file does not hold the rule's text:\n%s", written)
+		}
+		if !rules.RuleIDPattern.MatchString(ruleIDIn(t, written)) {
+			t.Errorf("the new file's rule has no id hergy writes:\n%s", written)
 		}
 	})
+}
+
+// ruleIDIn is the first rule id a written file holds, as the check that hergy
+// gave one reads it.
+func ruleIDIn(t *testing.T, text string) string {
+	t.Helper()
+	doc, _ := rules.ReadAll(text, "written.yaml")
+	if doc == nil || len(doc.Rules()) == 0 {
+		t.Fatalf("the written file holds no rule:\n%s", text)
+	}
+	return doc.Rules()[0].ID
 }
 
 // TestROLES_F8_ALayerWithoutRolesGetsOne: a layer that is there but holds no

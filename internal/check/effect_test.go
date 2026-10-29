@@ -15,7 +15,7 @@ import (
 func TestTeamEffectTakesATurnAway(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
-	f.role("lead", "      - id: LEAD-1\n        text: 実装は spec に渡す（lead → spec）。\n")
+	f.role("lead", "      - id: PAAF\n        text: 実装は spec に渡す（lead → spec）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	got := TeamEffect(teamInput(f), definition.RemoveTurn(memberNode("lead"), memberNode("spec")))
@@ -34,7 +34,7 @@ func TestTeamEffectTakesATurnAway(t *testing.T) {
 		t.Errorf("added = %q, want nothing", line.Added)
 	}
 
-	warn := i18n.Tf("validate.turn_not_in_turns", "LEAD-1", "lead → spec")
+	warn := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec")
 	if len(got.Problems) != 1 || got.Problems[0].Text != warn {
 		t.Errorf("problems = %+v, want the one turn warning %q", got.Problems, warn)
 	}

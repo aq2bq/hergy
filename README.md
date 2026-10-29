@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has an id, its body, whether it is on, the day it was switched off and a note for people. Only the body of a rule that is on is sent to the agent; a note is never sent.
+You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has its body, whether it is on, the day it was switched off and a note for people. hergy writes the rule's id itself — four characters such as `K7QF`, with no meaning — when it writes the file; do not write one, and do not change one already there. Only the body of a rule that is on is sent to the agent; a note is never sent.
 
 Run it in a herdr shell pane.
 

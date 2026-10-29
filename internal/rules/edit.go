@@ -1,7 +1,6 @@
 package rules
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -46,25 +45,6 @@ func (d *Document) DeleteRule(section, rule int) error {
 	kept = append(kept, rules[rule+1:]...)
 	d.Sections[section].Rules = kept
 	return nil
-}
-
-// SuggestRuleID returns an id no rule of the document holds: base when it is
-// free, otherwise base with -2, -3 and so on added until one is free. The
-// screen offers it for a rule it is adding, and the person may change it.
-func (d *Document) SuggestRuleID(base string) string {
-	taken := map[string]bool{}
-	for _, rule := range d.Rules() {
-		taken[rule.ID] = true
-	}
-	if !taken[base] {
-		return base
-	}
-	for n := 2; ; n++ {
-		candidate := base + "-" + strconv.Itoa(n)
-		if !taken[candidate] {
-			return candidate
-		}
-	}
 }
 
 // SectionMarkdown is one section as a member reads it: its heading, its intro

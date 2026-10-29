@@ -534,5 +534,7 @@
   "delivery.worker_profile_changed": "ワーカー %s のプロファイルが変わった",
   "apply.broken_team": "%s のチーム定義を組み立てられません: %s",
   "apply.broken_fix": "設定ファイルを直してから、hergy validate で確かめてください",
-  "apply.broken_left": "%d チームの定義を組み立てられないので、そのずれを反映できません"
+  "apply.broken_left": "%d チームの定義を組み立てられないので、そのずれを反映できません",
+  "rules.ids_given": "%d 件のルールに ID を付けました",
+  "rules.ids_missing": "ID の無いルール: %d 件（次に書く操作で hergy が付けます）"
 }

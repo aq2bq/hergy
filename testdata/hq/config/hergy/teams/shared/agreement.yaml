@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: SHARED-1
+      - id: WAAK
         text: 相談は、まず 1 文で書く。

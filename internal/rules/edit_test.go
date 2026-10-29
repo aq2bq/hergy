@@ -106,19 +106,42 @@ func TestEditsRefuseAPlaceThatIsNotThere(t *testing.T) {
 	}
 }
 
-func TestSuggestRuleIDStepsPastTheTakenOnes(t *testing.T) {
-	doc := twoSections(t)
-	if got := doc.SuggestRuleID("C1"); got != "C1" {
-		t.Errorf("SuggestRuleID(C1) = %q, want C1", got)
+func TestAssignIDsGivesEveryRuleAnIDHergyWrites(t *testing.T) {
+	doc := parseAt(t, "rules.yaml", "version: 1\ntitle: T\nsections:\n  - heading: H\n    rules:\n      - id: C1\n        text: old C1\n      - text: no id yet\n      - id: K7QF\n        text: current\n")
+	taken := map[string]bool{"K7QF": true}
+	given, renames := doc.AssignIDs(taken)
+	if given != 2 {
+		t.Fatalf("AssignIDs gave %d ids, want 2", given)
 	}
-	if got := doc.SuggestRuleID("A1"); got != "A1-2" {
-		t.Errorf("SuggestRuleID(A1) = %q, want A1-2", got)
+	rules := doc.Rules()
+	if !RuleIDPattern.MatchString(rules[0].ID) || rules[0].ID == "C1" {
+		t.Errorf("the old id stayed %q", rules[0].ID)
 	}
-	if err := doc.AddRule(1, Rule{ID: "A1-2", Text: "x"}); err != nil {
-		t.Fatal(err)
+	if !RuleIDPattern.MatchString(rules[1].ID) {
+		t.Errorf("the rule with no id got %q", rules[1].ID)
 	}
-	if got := doc.SuggestRuleID("A1"); got != "A1-3" {
-		t.Errorf("SuggestRuleID(A1) = %q, want A1-3", got)
+	if rules[2].ID != "K7QF" {
+		t.Errorf("a current id changed to %q, want K7QF", rules[2].ID)
+	}
+	if renames["C1"] != rules[0].ID {
+		t.Errorf("renames = %v, want C1 to the new id", renames)
+	}
+	if taken[rules[0].ID] != true {
+		t.Errorf("the given id is not held against the next one")
+	}
+}
+
+func TestRewriteRuleRefsWritesTheNewID(t *testing.T) {
+	doc := parseAt(t, "rules.yaml", "version: 1\ntitle: T\nsections:\n  - heading: H\n    rules:\n      - id: C1\n        text: keep C1 but not C10\n      - id: R2\n        text: see C1.\n")
+	if n := doc.RewriteRuleRefs(map[string]string{"C1": "K7QF"}); n != 2 {
+		t.Fatalf("RewriteRuleRefs changed %d texts, want 2", n)
+	}
+	rules := doc.Rules()
+	if rules[0].Text != "keep K7QF but not C10" {
+		t.Errorf("text = %q, want the whole word written", rules[0].Text)
+	}
+	if rules[1].Text != "see K7QF." {
+		t.Errorf("text = %q, want the reference written", rules[1].Text)
 	}
 }
 

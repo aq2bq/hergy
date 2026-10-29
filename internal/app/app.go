@@ -31,6 +31,7 @@ import (
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ruleid"
 	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/screenlog"
@@ -140,6 +141,16 @@ func fail(stderr io.Writer, err error) {
 }
 
 func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
+	// A command that writes files hands every rule hergy reads its id first: the
+	// prompt it builds carries the ids the files will hold (d-4aab). A read-only
+	// command writes nothing; --dry is read-only even when its command writes.
+	if !opts.Dry && writesRules(opts.Kind) {
+		given, err := ruleid.Assign(env.Catalog(source.Disk{}))
+		if err != nil {
+			return err
+		}
+		ruleid.Print(stdout, given)
+	}
 	switch opts.Kind {
 	case options.Ls:
 		return runLs(env, stdout)
@@ -175,6 +186,18 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runHire(ctx, env, opts, stdout, stderr)
 	default:
 		return i18n.Errorf("error.unhandled_command")
+	}
+}
+
+// writesRules says a command hands every rule hergy reads its id before it
+// builds what it launches (d-4aab): up, apply, reprompt, refresh and hire. A
+// screen's save assigns the ids of the document it writes itself.
+func writesRules(kind options.Kind) bool {
+	switch kind {
+	case options.Up, options.Apply, options.Reprompt, options.Refresh, options.Hire:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -889,6 +912,11 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		}
 	}
 
+	if missing := ruleid.Missing(cat); missing > 0 {
+		// A rule without an id is not a problem: the next write gives it one
+		// (d-4aab). validate says the number so a person knows it is coming.
+		fmt.Fprintln(stdout, i18n.Tf("rules.ids_missing", missing))
+	}
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
 	printTally(stdout, tally)

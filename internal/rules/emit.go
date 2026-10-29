@@ -82,9 +82,11 @@ func emitSections(sections []Section) *yaml.Node {
 func emitRules(rules []Rule) *yaml.Node {
 	items := make([]*yaml.Node, 0, len(rules))
 	for _, rule := range rules {
-		values := map[string]*yaml.Node{
-			"id":   emitText(rule.ID),
-			"text": emitText(rule.Text),
+		values := map[string]*yaml.Node{"text": emitText(rule.Text)}
+		if rule.ID != "" {
+			// hergy writes the id when it has one; a document it makes before a
+			// write has none, and no empty key stands in the file (d-4aab).
+			values["id"] = emitText(rule.ID)
 		}
 		if !rule.Included() {
 			values["in_prompt"] = emitFalse()

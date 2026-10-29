@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **Rule ids are hergy's**: every rule id is now four characters — one uppercase
+  letter and three uppercase letters or digits, without I, L, O and U (for
+  example `K7QF`), with no meaning. People and screens write none: a rule is
+  written without an `id`, and the next write gives it one and writes it back,
+  one line saying how many it gave (d-4aab, d-a873). An id hergy gave is never
+  changed, and an id of a rule that was taken out is never used again.
+- **The first apply after this release resends every rule**: the ids that were
+  written by hand (or by the screen) are given hergy's ids once. A running team
+  then reads every rule as taken out and added, so the first `hergy apply` (or
+  the screens' apply) sends its whole prompt again to every member that has
+  drift. Choose a moment when the team is waiting; the conversation stays
+  (d-a873).
+- **Reading no longer refuses a rule without an id**: `hergy validate`, `--dry`,
+  `hergy status` and the screens read it, and `validate` counts the rules the
+  next write will give an id.
+
 ## 0.9.1 - 2026-10-29
 
 ### Breaking

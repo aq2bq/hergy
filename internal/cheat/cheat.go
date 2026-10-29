@@ -270,7 +270,7 @@ Rule files (what the role documents and the team agreements are):
     level: 2..4     int, optional; how deep the heading is; not allowed without a heading; default 2.
     intro: <text>   string, optional; a paragraph before the rules; not a rule.
     rules:          list; each rule is an entry:
-      id: <id>      required, string; [A-Z][A-Z0-9]*(-[A-Z0-9]+)* (C1, P-TURN-1); unique among the documents one member reads.
+      id: <id>      optional, string; hergy writes it when it writes the file: four characters, one uppercase letter then three uppercase letters or digits, without I, L, O or U (K7QF). Do not write it, and do not change one already in the file; an id hergy gave is never reused.
       text: <text>  required, string; what the member reads, in Markdown. A rule may still write a turn between two of the team as "<member or role> → <member or role>", or "⇄" when it goes both ways; the human is 人間 in a Japanese file and human in an English one. hergy reads turns from the team definition's turns: now, and validate warns when a rule text claims a turn turns: does not hold. The figure draws turns: and nothing else.
       in_prompt: false  boolean, optional; keeps the rule in the file and out of the prompt. On the screen, switching a rule off writes the day in off_since, and switching it on removes it.
       off_since: YYYY-MM-DD   string, optional; the day the rule was switched off. It is read only while in_prompt is false: on a rule that is on it is ignored, and hergy drops it the next time it writes the rule.

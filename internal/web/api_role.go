@@ -367,7 +367,11 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if rename && in.RenameUsers {
 		s.r2RenameUsers(savedName, doc.Name)
 	}
-	got, _ := rules.ReadAll(string(edited), s.cat.Display(target))
+	if refusal := s.assignRuleIDs(); refusal != nil {
+		return nil, refusal
+	}
+	written, _ := s.cat.Reader().Read(source.Doc{Path: target})
+	got, _ := rules.ReadAll(written, s.cat.Display(target))
 	if got == nil {
 		got = &rules.Document{Path: target}
 	}
@@ -408,11 +412,15 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
 		return r2WriteError(err, display)
 	}
-	doc, _ := rules.ReadAll(in.Text, display)
+	if refusal := s.assignRuleIDs(); refusal != nil {
+		return nil, refusal
+	}
+	written, _ := s.cat.Reader().Read(source.Doc{Path: path})
+	doc, _ := rules.ReadAll(written, display)
 	if doc == nil {
 		doc = &rules.Document{Path: path}
 	}
-	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc), in.Text), nil
+	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc), written), nil
 }
 
 // savedAnswer is the answer of a write: the one document as GET

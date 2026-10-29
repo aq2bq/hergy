@@ -1,5 +1,5 @@
 version: 1
 sections:
   - rules:
-      - id: T1
+      - id: XAAK
         text: 再現の手順を残す。
