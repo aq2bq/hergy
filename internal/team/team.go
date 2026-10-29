@@ -91,6 +91,12 @@ func (e Env) Display(path string) string {
 // same wherever hergy serve was started (unlike Display, which makes a path under
 // the project serve runs in relative to it).
 func (e Env) DisplayPath(path string) string {
+	return homeRelative(path)
+}
+
+// homeRelative is path after ~/ when it is under the home directory, and
+// absolute otherwise. It is how a path outside a project is shown to a person.
+func homeRelative(path string) string {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		if resolved, err := filepath.EvalSymlinks(home); err == nil {
 			home = resolved
@@ -123,7 +129,9 @@ func relativeUnder(base, path string) (string, bool) {
 // Lang is the language named in the global config.yaml under GlobalDir, or ""
 // when the file is absent or names none. i18n.Resolve applies the precedence
 // with --lang; this only reads what the file says. The file is held to the same
-// strictness as team.yaml: the version must be 1 and unknown keys stop.
+// strictness as team.yaml: the version must be 1 and unknown keys stop. The
+// error names the file as a person writes it (~/.config/hergy/config.yaml), the
+// way every other message shows a path outside the project.
 func Lang() (string, error) {
 	path := filepath.Join(globalDir(), "config.yaml")
 	if !isFile(path) {
@@ -133,7 +141,7 @@ func Lang() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return ParseConfig(string(text), path)
+	return ParseConfig(string(text), homeRelative(path))
 }
 
 // EnsureGlobalConfig writes the global config.yaml when it is missing, so a

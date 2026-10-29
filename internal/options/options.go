@@ -125,16 +125,6 @@ func ScanLang(argv []string) string {
 	return ""
 }
 
-// ScanCommand returns the command word, argv[0], before the full parse. It lets
-// the caller recognize a command whose own settings file may be broken, so the
-// command can run instead of stopping on that file.
-func ScanCommand(argv []string) string {
-	if len(argv) == 0 {
-		return ""
-	}
-	return argv[0]
-}
-
 // Parse reads argv (without the program name).
 func Parse(argv []string) (*Options, error) {
 	if len(argv) == 0 {

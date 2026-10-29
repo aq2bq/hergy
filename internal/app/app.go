@@ -59,30 +59,12 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
-	// validate must still run when the global config.yaml is broken: it is one
-	// of the files validate reports. cheat reads no team settings and must
-	// print even when the files are broken, so it too goes on. Every other
-	// command keeps stopping here.
-	tolerant := options.ScanCommand(argv) == "validate" || options.ScanCommand(argv) == "cheat"
-	configured, err := team.Lang()
-	if err != nil && !tolerant {
-		fmt.Fprintf(stderr, "error: %v\n", err)
-		return 1
-	}
-	explicit := options.ScanLang(argv)
-	lang, err := i18n.Resolve(explicit, configured)
-	if err != nil {
-		// An unknown --lang is a command-line mistake and always stops. For
-		// validate and cheat, an unknown language in config.yaml is a break
-		// they tolerate: fall back to the default language and go on.
-		if !tolerant || explicit != "" {
-			fmt.Fprintf(stderr, "error: %v\n", err)
-			return 1
-		}
-		lang = i18n.Fallback
-	}
-	if err := i18n.Use(lang); err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
+	// The global config.yaml names the language, but the usage (help, version,
+	// cheat) does not stand on it: a person reads the usage to get out of a
+	// broken file, so it prints anyway and says the file is broken at its end
+	// (d-dfdd).
+	ok, problem := chooseLanguage(argv, stderr)
+	if !ok {
 		return 1
 	}
 
@@ -96,6 +78,9 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	}
 	if opts.Kind == options.Help {
 		fmt.Fprint(stdout, opts.HelpText)
+		if problem != nil {
+			fmt.Fprintf(stdout, "\n%s\n", i18n.Tf("usage.config_unreadable", problem))
+		}
 		return 0
 	}
 	if opts.Kind == options.Version {
@@ -111,6 +96,13 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 			fmt.Fprint(stdout, cheat.People())
 		}
 		return 0
+	}
+	// Every other command stands on the settings, so a broken config.yaml stops
+	// it here, as it always has. validate is the one that reports the file
+	// itself, and the usage above has already answered (d-dfdd).
+	if problem != nil && opts.Kind != options.Validate {
+		fail(stderr, problem)
+		return 1
 	}
 
 	env, err := team.NewEnv()
@@ -133,6 +125,42 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// chooseLanguage picks the language this run prints in, and says what keeps the
+// settings from standing: the global config.yaml cannot be read, or it names a
+// language hergy does not know. The language is --lang, then the config.yaml,
+// then English (d-dfdd). An unknown --lang is a command-line mistake and stops
+// the run: ok is false and the reason is already on stderr.
+func chooseLanguage(argv []string, stderr io.Writer) (ok bool, problem error) {
+	configured, configErr := team.Lang()
+	explicit := options.ScanLang(argv)
+	lang, err := i18n.Resolve(explicit, configured)
+	if err != nil && explicit != "" {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return false, nil
+	}
+	// An unknown language in config.yaml is one way the file is broken: the run
+	// goes on in the default language and says so where it prints usage.
+	unknownLang := err != nil
+	if unknownLang {
+		lang = i18n.Fallback
+	}
+	if err := i18n.Use(lang); err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return false, nil
+	}
+	if configErr == nil && !unknownLang {
+		return true, nil
+	}
+	// The reads above happen before a language is chosen, so their sentences are
+	// in the default one. Read them again, so the line a person reads speaks the
+	// same language as the usage it stands under.
+	if _, configErr = team.Lang(); configErr != nil {
+		return true, configErr
+	}
+	_, err = i18n.Resolve(explicit, configured)
+	return true, err
 }
 
 // fail writes one error line in the language in use.
