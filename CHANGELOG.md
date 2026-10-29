@@ -1,5 +1,97 @@
 # Changelog
 
+## 0.9.1 - 2026-10-29
+
+### Breaking
+
+- **Adding a member to a running team is `hergy apply`**: `hergy refresh` restarts
+  members that have a live agent, and a member with no pane is refused with the
+  way to `hergy apply` (d-36ef, which replaces the adding refresh of 0.9.0,
+  d-8fcf). The screens' 起動 for such a member is gone the same way.
+- **The web API's change roads are one**: `/api/delivery`, `/api/delivery/count`,
+  `POST /api/delivery` and `POST /api/hq/refresh` are gone; `GET /api/apply`,
+  `GET /api/apply/count` and `POST /api/apply` take their place. Every answer and
+  body now has one name and one shape per idea (n-3f6c), the opened team's
+  `GET /api/activity/{team}` no longer carries the pane's last lines or the gy
+  questions, and the whole API is written in `internal/apicontract/openapi.yaml`,
+  which the tests hold every answer to.
+
+### Added
+
+- **`hergy apply`, one way to put a running team right**: hergy compares the saved
+  definition with what each member was started from and decides, member by
+  member, how to apply the drift — 送り直す (only the prompt changed; the
+  conversation stays), 起動する (a member the definition has and no agent runs
+  for), 起動し直す (the profile's way of starting changed; the conversation is
+  lost, and hergy says so), or 反映できない with the reason (an env change, a
+  member taken out of the definition, a definition that cannot be built).
+  `hergy apply [member]... [--team] [--dry] [--json] [--timeout]`; with no member
+  it applies every member with drift, and a member that is working or waiting
+  for a permission is left for later while the rest go on (d-36ef, d-3d30). A
+  changed worker profile is a note on the team: it reaches the next worker hired.
+- **A resend says what changed**: the prompt sent again opens with the changes —
+  the rules, roles, lineup and turns that differ from the launch — and asks the
+  member to follow it in place of the old one, keep its work and conversation,
+  and not redo its start-up steps. `hergy reprompt` adds the same lead when
+  there is a difference.
+- **The WebUI applies too**: the band reads 反映していない変更 N, and the press
+  opens a sheet with each member's way of applying, what changed and whether the
+  conversation is lost; the members ticked are applied the way `hergy apply`
+  does, with the progress and any start-up question in the same sheet.
+
+### Changed
+
+- **The activity screen is two tiers**: the rows of what waits for a human and
+  the teams' cards. The panel under them — a second figure, the pane's last
+  lines and a member list — is gone, and each card carries the team's own
+  チーム定義を開く, 反映していない変更 N (when there is some) and
+  チームを終了する…. A waiting row's press selects its team's card, and a
+  node's description in the figure names what herdr says the agent is doing
+  (n-34e7).
+- **The activity figure stays readable for a large team**: names are measured and
+  the workers stand in as many rows as they need, so no two names overlap; the
+  counts under a card name the members and the workers apart (r-8b04).
+- **Words**: activity is アクティビティ (was 活動), and closing a team is
+  終了する (was 止める on the screens; 止める is only `hergy stop`'s, a member's
+  turn). Applying a changed definition is 反映, with 送り直す / 起動する /
+  起動し直す; 再投入 and 変更を伝える are gone. The glossary bans the old words.
+- **A definition that cannot be built is an error of the definition**: `/api/team/check`
+  and the list's problems name it (a member whose role is not a role name), and
+  the 動き column says why a running team cannot be acted on (r-fc16).
+- **The assignment tabs write the definition where its card stands**: a
+  definition only in the global settings is written there, and the card says
+  that a global one changes it for every project (r-f8b9, d-0f32).
+- The screens are written in TypeScript and built into the binary; nothing a
+  person does changes with it (n-893d).
+
+### Fixed
+
+- **Two running teams of the same name in two projects are told apart**: each is
+  read from its own project's launch record, not from the newest record of that
+  name (r-87c8).
+- **Two messages printed `%!s(MISSING)`**: `hergy new --local`'s answer about the
+  gone layer flag, and the message that names the member to refresh when an agent
+  does not go away (n-60fd, r-bac8). Every message is now checked against the
+  values its call passes.
+- **元に戻す on a team with no agreement file no longer breaks the row**: it puts
+  back the empty document the row opened with (n-e3de).
+- **A workspace with no name leaves no empty mark**: a card's heading no longer
+  ends in `·`, and the 終了する sheet shows no empty ワークスペース line (n-55b8).
+- `hergy refresh --help` no longer says it adds a member.
+
+### Moving from 0.9.0
+
+1. Where you added a member with `hergy refresh <member>`, write the member in
+   `team.yaml` and run `hergy apply` (or `hergy apply --dry` first to see what
+   it will do).
+2. A team started before 0.9.1 has a launch record without the fingerprints of
+   how each member was started. `hergy apply` still sends the prompt again where
+   the prompt changed, but says it cannot tell a profile change for that team.
+   Start the team again (`hergy down`, then `hergy up`) when you want profile
+   changes found too.
+3. A script that called `/api/delivery` or `/api/hq/refresh` calls `/api/apply`
+   now; `internal/apicontract/openapi.yaml` has the shapes.
+
 ## 0.9.0 - 2026-10-28
 
 ### Fixed
