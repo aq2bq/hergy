@@ -2,6 +2,7 @@ package herdr
 
 import (
 	"encoding/json"
+	"sync"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -23,17 +24,27 @@ type SnapshotReader interface {
 }
 
 // SocketPort sends Herdr reads over its socket and leaves writes on the CLI.
-// lookupErr is kept when the socket path could not be discovered at serve start.
+// lookupErr is used by the fixed-path constructor when discovery failed.
 type SocketPort struct {
-	command   Port
-	socket    *Socket
-	lookupErr error
+	command     Port
+	mu          sync.Mutex
+	socket      *Socket
+	lookupErr   error
+	resolve     func(forceStatus bool) (string, error)
+	forceStatus bool
 }
 
-// NewSocketPort builds the serve's Herdr port. command remains the path for
+// NewSocketPort builds a fixed-path Herdr port. command remains the path for
 // writes and command verification; read calls use path.
 func NewSocketPort(command Port, path string, lookupErr error) *SocketPort {
 	return &SocketPort{command: command, socket: NewSocket(path), lookupErr: lookupErr}
+}
+
+// NewResolvingSocketPort looks up its socket path on the first read and again
+// after a failed socket call. A path that keeps working is reused. forceStatus
+// tells resolve to skip any inherited path and ask Herdr for its current socket.
+func NewResolvingSocketPort(command Port, resolve func(forceStatus bool) (string, error)) *SocketPort {
+	return &SocketPort{command: command, resolve: resolve}
 }
 
 // Verify checks the command groups used for writes.
@@ -149,11 +160,13 @@ func (p *SocketPort) SessionSnapshot() (SessionSnapshot, error) {
 }
 
 func (p *SocketPort) result(method string, params map[string]any, args []string) (map[string]any, error) {
-	if p.lookupErr != nil {
-		return nil, i18n.Errorf("error.herdr_socket", p.lookupErr)
-	}
-	response, err := p.socket.Call(method, params)
+	socket, err := p.socketForRead()
 	if err != nil {
+		return nil, i18n.Errorf("error.herdr_socket", err)
+	}
+	response, err := socket.Call(method, params)
+	if err != nil {
+		p.forgetSocket(socket)
 		return nil, i18n.Errorf("error.herdr_socket", err)
 	}
 	if failure, ok := response["error"]; ok && failure != nil {
@@ -168,6 +181,37 @@ func (p *SocketPort) result(method string, params map[string]any, args []string)
 		return nil, i18n.Errorf("error.herdr_no_result")
 	}
 	return result, nil
+}
+
+func (p *SocketPort) socketForRead() (*Socket, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.resolve == nil {
+		if p.lookupErr != nil {
+			return nil, p.lookupErr
+		}
+		return p.socket, nil
+	}
+	if p.socket != nil {
+		return p.socket, nil
+	}
+	path, err := p.resolve(p.forceStatus)
+	if err != nil {
+		p.forceStatus = true
+		return nil, err
+	}
+	p.socket = NewSocket(path)
+	p.forceStatus = false
+	return p.socket, nil
+}
+
+func (p *SocketPort) forgetSocket(socket *Socket) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.resolve != nil && p.socket == socket {
+		p.socket = nil
+		p.forceStatus = true
+	}
 }
 
 func nestedResult(result map[string]any, field string) (map[string]any, error) {
