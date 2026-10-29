@@ -360,6 +360,7 @@ var nodeState = (state) => {
   };
   return labels[state] || state || "状態不明";
 };
+var ownerlessHeading = "持ち主不明";
 function PackedFigure({ team, turns, W }) {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
   const memberDotRadius = 11;
@@ -396,7 +397,9 @@ function PackedFigure({ team, turns, W }) {
     };
   });
   if (free.length) {
-    const width = freeDotOffset + workerDotRadius + workerLabelGap + Math.max(...free.map((worker) => labelWidth(worker.name, 10))) + columnRightPad;
+    const headingRight = freeDotOffset + labelWidth(ownerlessHeading, 11.5);
+    const workerRight = freeDotOffset + workerDotRadius + workerLabelGap + Math.max(...free.map((worker) => labelWidth(worker.name, 10)));
+    const width = Math.max(headingRight, workerRight) + columnRightPad;
     columns.push({
       member: null,
       owner: null,
@@ -544,6 +547,23 @@ function PackedFigure({ team, turns, W }) {
           }));
         }
       }
+    } else {
+      nodes.push(/* @__PURE__ */ u("g", {
+        class: "hq-n ownerless",
+        children: [
+          /* @__PURE__ */ u("title", {
+            children: `${ownerlessHeading} · 持ち主を特定できないワーカー`
+          }),
+          /* @__PURE__ */ u("text", {
+            class: "lbl left",
+            x: column.x,
+            y: memberY + 4,
+            "data-label-width": labelWidth(ownerlessHeading, 11.5),
+            "data-label-row": "member",
+            children: ownerlessHeading
+          })
+        ]
+      }));
     }
     slots.forEach((slot) => {
       const worker = slot.item;

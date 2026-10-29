@@ -35,7 +35,7 @@ import {
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-3dzask0x.js";
+} from "../chunk/nav-8swpdwz3.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";

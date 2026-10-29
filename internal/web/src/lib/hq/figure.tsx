@@ -103,6 +103,8 @@ const nodeState = (state: string): string => {
   return labels[state] || state || '状態不明';
 };
 
+const ownerlessHeading = '持ち主不明';
+
 function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, string][]; W: number }): JSX.Element {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
   const memberDotRadius = 11;
@@ -138,8 +140,13 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     };
   });
   if (free.length) {
-    const width = freeDotOffset + workerDotRadius + workerLabelGap
-      + Math.max(...free.map((worker) => labelWidth(worker.name, 10))) + columnRightPad;
+    // The ownerless group is a column of its own at the end: its heading stands
+    // where a member's name stands, and no point is drawn for it because there
+    // is no member to point at.
+    const headingRight = freeDotOffset + labelWidth(ownerlessHeading, 11.5);
+    const workerRight = freeDotOffset + workerDotRadius + workerLabelGap
+      + Math.max(...free.map((worker) => labelWidth(worker.name, 10)));
+    const width = Math.max(headingRight, workerRight) + columnRightPad;
     columns.push({
       member: null,
       owner: null,
@@ -240,6 +247,13 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
             d={`M${column.x} ${slot.y} H${slot.x - workerDotRadius}`} />);
         }
       }
+    } else {
+      // The workers whose owner the reading cannot name keep the last column,
+      // with no line: the figure does not draw a line it cannot stand behind.
+      nodes.push(<g class="hq-n ownerless">
+        <title>{`${ownerlessHeading} · 持ち主を特定できないワーカー`}</title>
+        <text class="lbl left" x={column.x} y={memberY + 4} data-label-width={labelWidth(ownerlessHeading, 11.5)} data-label-row="member">{ownerlessHeading}</text>
+      </g>);
     }
     slots.forEach((slot) => {
       const worker = slot.item;
