@@ -237,6 +237,13 @@ func (h *Herdr) Panes() ([]protocol.Pane, error) {
 	return out, nil
 }
 
+// CloseTab closes one tab, and the panes in it. hergy closes a worker's own tab
+// only when the worker's pane was the last one in it (d-fa05).
+func (h *Herdr) CloseTab(tab string) error {
+	_, err := h.port.JSON("tab", "close", tab)
+	return err
+}
+
 // ClosePane closes one pane and nothing else. A tab is never closed as a unit:
 // the human may have added their own shell to the team's tab.
 func (h *Herdr) ClosePane(pane string) error {

@@ -596,6 +596,75 @@ func pickTeam(running []team.Running, name string) (team.Running, error) {
 	}
 }
 
+// downWorker is one worker hergy down closes on its own: the team it belongs to,
+// the short name on its tab ("worker:<team>/<short>"), its herdr name, and the
+// tab's label.
+type downWorker struct {
+	Team  string
+	Short string
+	Herdr string
+	Label string
+}
+
+// runningWorkersOf is every worker of the running teams, read from the tabs hergy
+// made for them ("worker:<team>/<worker>"). A tab whose team is not running is
+// not one: only a running team's workers can be closed by name (d-fa05).
+func runningWorkersOf(tabs []team.Tab, running []team.Running) []downWorker {
+	live := make(map[string]bool, len(running))
+	for _, one := range running {
+		live[one.Team] = true
+	}
+	var out []downWorker
+	for _, tab := range tabs {
+		rest, ok := strings.CutPrefix(tab.Label, "worker:")
+		if !ok {
+			continue
+		}
+		teamName, short, ok := strings.Cut(rest, "/")
+		if !ok || teamName == "" || short == "" || !live[teamName] {
+			continue
+		}
+		out = append(out, downWorker{
+			Team: teamName, Short: short, Herdr: teamName + "-" + short, Label: tab.Label,
+		})
+	}
+	return out
+}
+
+// pickDown is hergy down's argument: a running team first, then, when no team
+// carries the name, one worker of a running team, by its short name or its herdr
+// name. A name that is both is refused, naming both, and so is a short name two
+// teams' workers carry (d-fa05).
+func pickDown(running []team.Running, tabs []team.Tab, name string) (team.Running, *downWorker, error) {
+	if name == "" {
+		chosen, err := pickTeam(running, "")
+		return chosen, nil, err
+	}
+	chosen, isTeam := team.FindRunning(running, name)
+	var matched []downWorker
+	for _, worker := range runningWorkersOf(tabs, running) {
+		if worker.Short == name || worker.Herdr == name {
+			matched = append(matched, worker)
+		}
+	}
+	switch {
+	case isTeam && len(matched) > 0:
+		return team.Running{}, nil, i18n.Errorf("error.down_both", name, chosen.Team, matched[0].Herdr)
+	case isTeam:
+		return chosen, nil, nil
+	case len(matched) == 1:
+		return team.Running{}, &matched[0], nil
+	case len(matched) > 1:
+		names := make([]string, 0, len(matched))
+		for _, one := range matched {
+			names = append(names, one.Herdr)
+		}
+		return team.Running{}, nil, i18n.Errorf("error.worker_ambiguous", name, strings.Join(names, i18n.T("list.separator")))
+	default:
+		return team.Running{}, nil, errors.New(i18n.Tf("error.down_not_found", name) + "\n" + i18n.Tf("next", "status"))
+	}
+}
+
 // teamNotRunning is the error for a team name with no tab.
 func teamNotRunning(name string) error {
 	var b strings.Builder
@@ -1260,16 +1329,25 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 // close and reads the live agents, but sends no close and needs no Herdr pane.
 func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	running, err := runningTeams()
+	tabs, agentsRead, err := herdrTabs()
 	if err != nil {
 		return err
 	}
-	chosen, err := pickTeam(running, opts.Team)
+	running := team.RunningTeams(tabs, launchTeams(), agentsRead)
+	chosen, worker, err := pickDown(running, tabs, opts.Team)
 	if err != nil {
+		// A name a running team carries is refused here (it is also a worker's),
+		// rather than read as a stopped team by the tab it has (d-fa05).
+		if _, isTeam := team.FindRunning(running, opts.Team); isTeam {
+			return err
+		}
 		// A team that stopped before any agent ran — a boot cut short at a startup
 		// question — has no live agent to make it a running team, but the tab and
 		// the panes hergy made are still there (d-da92).
 		return downStopped(ctx, opts, err, stdout, stderr)
+	}
+	if worker != nil {
+		return downOneWorker(ctx, opts, *worker, stdout, stderr)
 	}
 	if !hasLiveMemberAgent(chosen.Team) && hasNamedPane(chosen.Team) {
 		// A team d-da92 now finds by its named panes alone prints what a stopped
@@ -1305,6 +1383,29 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	l := newLauncher(r, opts.Timeout, stdout)
 	return runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.Down(r.starts, selfPane, false)
+		return err
+	})
+}
+
+// downOneWorker closes one worker of a running team and nothing else: the pane
+// it stands in, and its own tab when that pane was the last one there (d-fa05).
+// The team definition is not read: closing a worker needs no prompt.
+func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker, stdout, stderr io.Writer) error {
+	field(stdout, label("worker"), worker.Herdr)
+	indentField(stdout, 1, label("team"), worker.Team)
+	l := newLauncher(&resolved{team: team.Team{Name: worker.Team}}, opts.Timeout, stdout)
+	if opts.Dry {
+		if _, err := l.DownWorker(worker.Label, os.Getenv("HERDR_PANE_ID"), true); err != nil {
+			return err
+		}
+		printNext(stdout, "down "+worker.Herdr)
+		return nil
+	}
+	if err := requireHerdrPane(); err != nil {
+		return err
+	}
+	return runOperation(ctx, stderr, nil, nil, func() error {
+		_, err := l.DownWorker(worker.Label, os.Getenv("HERDR_PANE_ID"), false)
 		return err
 	})
 }

@@ -91,13 +91,15 @@ var specs = []Spec{
 	},
 	{
 		Kind: Down, Name: "down",
-		Summary: text("Stop a team, and close the workers it hired", "チームを終了する。hire したワーカーも閉じる"),
+		Summary: text("Stop a team, or one of its workers", "チーム、またはそのワーカーを終了する"),
 		Detail: text(
-			"Close the panes of the running team's live members and of the workers it hired.",
-			"動いているチームのメンバーと、hire したワーカーのペインを閉じる。"),
+			"With a team name, close the panes of the running team's live members and of the workers it hired.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.",
+			"チーム名なら、動いているチームのメンバーと、hire したワーカーのペインを閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。"),
 		Args: []Arg{{
-			Name: text("team", "チーム"), Optional: true,
-			Desc: text("The team name (left out: the one running team)", "チーム名（動いているチームが1つだけなら省ける）"),
+			Name: text("team|worker", "チーム|ワーカー"), Optional: true,
+			Desc: text(
+				"A team name, or a worker of one (short or herdr name)",
+				"チーム名、または動いているチームのワーカー（短い名前か herdr 名）"),
 		}},
 		Flags: []Use{
 			use(flagDry, text(

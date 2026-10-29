@@ -14,7 +14,7 @@ var advertised = []string{
 	"herdr agent get", "herdr agent prompt", "herdr agent start", "herdr agent list",
 	"herdr agent read", "herdr agent focus", "herdr agent send-keys",
 	"herdr pane current", "herdr pane split", "herdr pane rename", "herdr pane close", "herdr pane process-info", "herdr pane list",
-	"herdr tab create", "herdr tab list",
+	"herdr tab create", "herdr tab list", "herdr tab close",
 }
 
 // fakeHerdr writes a stand-in herdr executable and returns a CLI that runs it

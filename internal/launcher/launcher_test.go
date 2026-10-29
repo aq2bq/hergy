@@ -30,12 +30,14 @@ func TestMain(m *testing.M) {
 // every pane it is asked to close. It also serves the calls a refresh makes:
 // agent get, agent start, agent prompt and pane process-info.
 type fakePort struct {
-	live     []protocol.Agent
-	tabs     []protocol.Tab
-	panes    []protocol.Pane
-	closed   []string
-	verified []string
-	calls    []string
+	live   []protocol.Agent
+	tabs   []protocol.Tab
+	panes  []protocol.Pane
+	closed []string
+	// closedTabs are the tabs a down closed after their last pane went.
+	closedTabs []string
+	verified   []string
+	calls      []string
 
 	// Refresh state. agents is the live set by herdr name; gone marks the names
 	// herdr has forgotten. process maps a pane to its {foreground group, shell}.
@@ -167,6 +169,9 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{"panes": panes}, nil
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
 		p.closed = append(p.closed, args[2])
+		return map[string]any{}, nil
+	case len(args) == 3 && args[0] == "tab" && args[1] == "close":
+		p.closedTabs = append(p.closedTabs, args[2])
 		return map[string]any{}, nil
 	case len(args) == 4 && args[0] == "pane" && args[1] == "rename":
 		p.renamed = append(p.renamed, args[2]+" "+args[3])

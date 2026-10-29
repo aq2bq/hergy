@@ -807,6 +807,153 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 	return l.closeTargets(targets, selfPane, absent, dry)
 }
 
+// DownWorker closes one worker of this team, and nothing else: the pane the
+// worker stands in, and the worker's own tab when that pane was the last one in
+// it. The members and the other workers are left alone (d-fa05). label is the
+// worker tab's label, "worker:<team>/<worker>".
+func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
+	if !dry {
+		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
+			return 0, err
+		}
+	}
+	short, ok := strings.CutPrefix(label, protocol.WorkerTabPrefix(l.team))
+	if !ok || short == "" {
+		return 0, i18n.Errorf("error.worker_not_running", label)
+	}
+	name := l.team + "-" + short
+	tabs, err := l.herdr.Tabs()
+	if err != nil {
+		return 0, err
+	}
+	tab, found := tabOf(tabs, label)
+	if !found {
+		return 0, i18n.Errorf("error.worker_not_running", name)
+	}
+	targets, others, err := l.workerPanesIn(tab.ID, name)
+	if err != nil {
+		return 0, err
+	}
+	closed := 0
+	var self *downTarget
+	for _, target := range targets {
+		if target.pane == selfPane {
+			// hergy's own pane, if a worker ever stood in it, is closed last: the
+			// close ends this process before it could say anything else.
+			target.self = true
+			held := target
+			self = &held
+			continue
+		}
+		if err := l.closePane(target, dry); err != nil {
+			return closed, err
+		}
+		closed++
+	}
+	if self != nil {
+		if err := l.closePane(*self, dry); err != nil {
+			return closed, err
+		}
+		closed++
+	}
+	tabClosed, err := l.closeWorkerTab(tab, name, others, dry)
+	if err != nil {
+		return closed, err
+	}
+	if closed == 0 && !tabClosed {
+		fmt.Fprint(l.out, i18n.Tf("down.skipped", name))
+		return 0, nil
+	}
+	if dry {
+		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, 0))
+	} else {
+		fmt.Fprint(l.out, i18n.Tf("down.done", closed, 0))
+	}
+	return closed, nil
+}
+
+// workerPanesIn is the panes of one worker in its own tab: the pane whose label,
+// or whose live agent, is the worker's herdr name. others is how many panes in
+// the tab are not the worker's, which is what keeps the tab.
+func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, others int, err error) {
+	agents, err := l.herdr.LiveAgents()
+	if err != nil {
+		return nil, 0, err
+	}
+	panes, err := l.herdr.Panes()
+	if err != nil {
+		return nil, 0, err
+	}
+	inPane := make(map[string]string, len(agents))
+	for _, agent := range agents {
+		if agent.Name != "" && agent.PaneID != "" {
+			if _, ok := inPane[agent.PaneID]; !ok {
+				inPane[agent.PaneID] = agent.Name
+			}
+		}
+	}
+	for _, pane := range panes {
+		if pane.TabID != tabID {
+			continue
+		}
+		owner := pane.Label
+		if owner == "" {
+			owner = inPane[pane.ID]
+		}
+		if owner != name {
+			others++
+			continue
+		}
+		targets = append(targets, downTarget{name: name, pane: pane.ID, worker: true, stopped: inPane[pane.ID] == ""})
+	}
+	return targets, others, nil
+}
+
+// closeWorkerTab closes the worker's tab when no other pane stands in it. Herdr
+// may close the tab with its last pane, so it is closed only when it is still
+// there.
+func (l *Launcher) closeWorkerTab(tab protocol.Tab, name string, others int, dry bool) (bool, error) {
+	if others > 0 {
+		return false, nil
+	}
+	if dry {
+		fmt.Fprint(l.out, i18n.Tf("down.would_close_tab", name))
+		return true, nil
+	}
+	still, err := l.herdr.Tabs()
+	if err != nil {
+		return false, err
+	}
+	if !hasTabID(still, tab.ID) {
+		return true, nil
+	}
+	if err := l.herdr.CloseTab(tab.ID); err != nil {
+		return false, err
+	}
+	fmt.Fprint(l.out, i18n.Tf("down.closing_tab", name))
+	return true, nil
+}
+
+// tabOf finds one tab by the label it carries.
+func tabOf(tabs []protocol.Tab, label string) (protocol.Tab, bool) {
+	for _, tab := range tabs {
+		if tab.Label == label {
+			return tab, true
+		}
+	}
+	return protocol.Tab{}, false
+}
+
+// hasTabID reports whether a tab is still there after the panes in it closed.
+func hasTabID(tabs []protocol.Tab, id string) bool {
+	for _, tab := range tabs {
+		if tab.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // DownByName closes what this team started when the team definition behind it
 // cannot be read. names are the members' live agent names, which the caller found
 // in this team's own tab: a name is not enough to go by, because another team's

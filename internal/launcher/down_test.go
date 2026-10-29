@@ -107,3 +107,110 @@ func TestDownStoppedWithNoTabOfThatTeamClosesNothing(t *testing.T) {
 		t.Fatalf("down closed a pane in a tab that is not the team's:\n%v", port.calls)
 	}
 }
+
+// TestDownWorkerClosesOnlyThatWorkerAndItsTab: hergy down <worker> closes the
+// pane the worker stands in, and the worker's own tab when that was the last pane
+// in it. The member and the other worker are left as they are (d-fa05).
+func TestDownWorkerClosesOnlyThatWorkerAndItsTab(t *testing.T) {
+	port := &fakePort{
+		tabs: []protocol.Tab{
+			{ID: "t1", Label: "team"},
+			{ID: "t2", Label: "worker:team/w1"},
+			{ID: "t3", Label: "worker:team/w2"},
+		},
+		panes: []protocol.Pane{
+			{ID: "p1", Label: "team-lead", TabID: "t1"},
+			{ID: "p2", Label: "team-w1", TabID: "t2"},
+			{ID: "p3", Label: "team-w2", TabID: "t3"},
+		},
+		live: []protocol.Agent{
+			{Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
+			{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"},
+			{Name: "team-w2", Kind: "claude", Status: "idle", PaneID: "p3", TabID: "t3"},
+		},
+	}
+	l, out := downLauncher(t, port, "team-lead")
+
+	closed, err := l.DownWorker("worker:team/w1", "", false)
+	if err != nil {
+		t.Fatalf("DownWorker: %v", err)
+	}
+	if want := []string{"p2"}; !slices.Equal(port.closed, want) {
+		t.Fatalf("closed %v, want %v", port.closed, want)
+	}
+	if closed != 1 {
+		t.Fatalf("DownWorker returned %d, want 1", closed)
+	}
+	if want := []string{"t2"}; !slices.Equal(port.closedTabs, want) {
+		t.Fatalf("closed tabs %v, want %v", port.closedTabs, want)
+	}
+	for _, call := range port.calls {
+		if call == "tab close t1" || call == "tab close t3" || call == "pane close p1" || call == "pane close p3" {
+			t.Fatalf("down <worker> touched another pane or team:\n%s", strings.Join(port.calls, "\n"))
+		}
+	}
+	for _, line := range []string{
+		"team-w1: closing (pane p2, worker)",
+		"team-w1: closing the tab too (no other pane there)",
+		"closed: 1\n", "absent: 0\n",
+	} {
+		if !strings.Contains(out.String(), line) {
+			t.Errorf("down <worker> does not say %q:\n%s", line, out.String())
+		}
+	}
+}
+
+// TestDownWorkerDryPlansThePaneAndItsTab: --dry names the worker's pane and the
+// tab that would go with it, and closes nothing.
+func TestDownWorkerDryPlansThePaneAndItsTab(t *testing.T) {
+	port := &fakePort{
+		tabs:  []protocol.Tab{{ID: "t2", Label: "worker:team/w1"}},
+		panes: []protocol.Pane{{ID: "p2", Label: "team-w1", TabID: "t2"}},
+		live:  []protocol.Agent{{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
+	}
+	l, out := downLauncher(t, port, "team-lead")
+
+	closed, err := l.DownWorker("worker:team/w1", "", true)
+	if err != nil {
+		t.Fatalf("DownWorker --dry: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("DownWorker --dry returned %d, want 1", closed)
+	}
+	if len(port.closed) != 0 || len(port.closedTabs) != 0 {
+		t.Fatalf("a dry run closed something:\n%s", strings.Join(port.calls, "\n"))
+	}
+	for _, line := range []string{
+		"team-w1: would close (pane p2, worker)",
+		"team-w1: would close the tab too (no other pane there)",
+		"would close: 1\n", "would skip: 0\n",
+	} {
+		if !strings.Contains(out.String(), line) {
+			t.Errorf("down <worker> --dry does not say %q:\n%s", line, out.String())
+		}
+	}
+}
+
+// TestDownWorkerKeepsATabThatStillHoldsAPane: a person's own pane in the worker's
+// tab is not hergy's to close, and the tab stays with it.
+func TestDownWorkerKeepsATabThatStillHoldsAPane(t *testing.T) {
+	port := &fakePort{
+		tabs: []protocol.Tab{{ID: "t2", Label: "worker:team/w1"}},
+		panes: []protocol.Pane{
+			{ID: "p2", Label: "team-w1", TabID: "t2"},
+			{ID: "p4", TabID: "t2"},
+		},
+		live: []protocol.Agent{{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
+	}
+	l, _ := downLauncher(t, port, "team-lead")
+
+	if _, err := l.DownWorker("worker:team/w1", "", false); err != nil {
+		t.Fatalf("DownWorker: %v", err)
+	}
+	if want := []string{"p2"}; !slices.Equal(port.closed, want) {
+		t.Fatalf("closed %v, want only the worker's pane %v", port.closed, want)
+	}
+	if len(port.closedTabs) != 0 {
+		t.Fatalf("the worker's tab was closed while a pane still stands in it: %v", port.closedTabs)
+	}
+}

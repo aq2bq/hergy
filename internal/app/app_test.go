@@ -2601,7 +2601,7 @@ func TestTeamCommandWithNoTabStops(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("down dev wrote to stdout: %q", stdout)
 	}
-	for _, want := range []string{`no running team "dev"`, "hergy status", "next: status"} {
+	for _, want := range []string{`neither a running team nor a worker`, "hergy status", "next: status"} {
 		if !strings.Contains(stderr, want) {
 			t.Fatalf("down dev does not say %q:\n%s", want, stderr)
 		}

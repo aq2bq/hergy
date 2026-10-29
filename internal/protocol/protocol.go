@@ -185,7 +185,7 @@ var refreshGroups = []Group{
 var downGroups = []Group{
 	{Name: "agent", Subs: []string{"list"}},
 	{Name: "pane", Subs: []string{"close", "list"}},
-	{Name: "tab", Subs: []string{"list"}},
+	{Name: "tab", Subs: []string{"list", "close"}},
 }
 
 var statusGroups = []Group{
