@@ -51,7 +51,7 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-4rbjgrmk.js";
+} from "../chunk/nav-n77v2jr6.js";
 import {
   YamlTab2
 } from "../chunk/nav-faptd0c2.js";

@@ -48,7 +48,7 @@ import {
   openRule2,
   RuleDoc2,
   observeKeys2
-} from "../chunk/nav-4rbjgrmk.js";
+} from "../chunk/nav-n77v2jr6.js";
 import {
   st,
   parseOpen2,
@@ -642,7 +642,7 @@ function figFindings(r, problems) {
   const t = r.draft.value;
   return (problems || []).map((p) => {
     const at = p.at || p.field || "";
-    let node = null, worker = null, field = at, m;
+    let node = null, worker = null, field = at, ruleKey = 0, m;
     if (m = /^members\[(\d+)\]/.exec(at)) {
       const mem = t.members[Number(m[1])];
       node = mem ? mem.name : null;
@@ -659,10 +659,14 @@ function figFindings(r, problems) {
       field = "name";
     } else if (at.startsWith("rule:")) {
       field = at;
+      const path = at.slice("rule:".length).split("#")[0];
+      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.yaml`)) {
+        ruleKey = ruleKeyAt(r.agreeDraft.value, p.section, p.rule);
+      }
     } else {
       field = "";
     }
-    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || "", ruleID: p.rule_id || "" };
+    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || "", ruleID: p.rule_id || "", ruleKey };
   });
 }
 var agreeIssues = (r) => r.check.value ? r.check.value.issues : [];
@@ -1431,12 +1435,12 @@ function pressRevert(r) {
 function pressToastUndo() {
   canvasUndoFromToast();
 }
-function pressVrule(r, id) {
+function pressVrule(r, key) {
   if (!r)
     return;
   withOpen(r.dom, true);
   setDtab(r.dom, "agree");
-  const hit = rulesOf2(r.agreeDraft.value).find((x) => String(x.id) === id);
+  const hit = typeof key === "number" ? rulesOf2(r.agreeDraft.value).find((x) => x._k === key) : rulesOf2(r.agreeDraft.value).find((x) => String(x.id) === key);
   checkAgree(r);
   syncURL();
   if (hit)
@@ -4604,7 +4608,8 @@ function VList({ r }) {
             "data-act": "vrule",
             "data-name": r.dom,
             "data-id": ruleID(m),
-            onClick: () => pressVrule(r, ruleID(m)),
+            "data-k": m.ruleKey || 0,
+            onClick: () => pressVrule(r, m.ruleKey || ruleID(m)),
             children: [
               /* @__PURE__ */ u(Sev2, {
                 sev: m.sev

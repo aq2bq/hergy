@@ -245,7 +245,8 @@ function toDoc(draft: RulePanelDocument, saved: RulePanelDocument | null): compo
       rules: (s.rules || []).map((x) => {
         const f = at.get(x._k);
         return {
-          from: f ? { section: f[0], rule: f[1] } : null, id: x.id, text: x.text,
+          from: f ? { section: f[0], rule: f[1] } : null,
+          ...(x.id ? { id: x.id } : {}), text: x.text,
           note: x.note, in_prompt: x.in_prompt, off_since: x.off_since || '',
         };
       }),
@@ -262,33 +263,6 @@ const rulesOf = (document: RulePanelDocument | EditableDocument): EditableRule[]
  * has the same runtime object because it is produced by fromJSON.
  */
 
-// nextID is the ID a rule the person just added carries (n-ec32). Its prefix is
-// the one the document's own IDs use most — LEAD for a lead.yaml — or, in a
-// document that has no such ID yet, the document's name in capital letters with
-// everything but A-Z and 0-9 taken out (ui-impl -> UIIMPL; a name that is
-// missing or starts with a digit gives R). The number is the one after the
-// largest of that prefix, counting both the rules on the screen and the ones
-// already saved, so the number of a rule just deleted is not used again.
-const ID_RE = /^([A-Z][A-Z0-9]*)-(\d+)$/;
-function nextID(row: RulePanel): string {
-  const onScreen = rulesOf(row.draft), saved = row.saved ? rulesOf(row.saved) : [];
-  const count = (list: EditableRule[]): Map<string, number> => {
-    const n = new Map<string, number>();
-    list.forEach((x) => { const m = ID_RE.exec(String(x.id || '').trim()); if (m) n.set(m[1], (n.get(m[1]) || 0) + 1); });
-    return n;
-  };
-  let uses = count(onScreen);
-  if (!uses.size) uses = count(saved);
-  let prefix = '';
-  uses.forEach((n, p) => { if (!prefix || n > (uses.get(prefix) || 0)) prefix = p; });
-  if (!prefix) {
-    prefix = String(row.name || (row.draft && row.draft.name) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!prefix || /^[0-9]/.test(prefix)) prefix = 'R';
-  }
-  let top = 0;
-  onScreen.concat(saved).forEach((x) => { const m = ID_RE.exec(String(x.id || '').trim()); if (m && m[1] === prefix) top = Math.max(top, +m[2]); });
-  return `${prefix}-${top + 1}`;
-}
 const findRule = (d: EditableDocument, k: string | number): RuleLocation | null => {
   for (const [si, s] of d.sections.entries()) {
     const ri = s.rules.findIndex((x) => x._k === Number(k));
@@ -566,9 +540,9 @@ function ruleHTML(row: RulePanel, x: EditableRule, issues: RuleIssue[], h: Inter
 function rsumInner(row: RulePanel, x: EditableRule, mine: RuleIssue[], h: InternalRuleDocProps) {
   const id = String(x.id || '');
   return <><span class="grip" aria-hidden="true">⋮</span>
-      <span class="rid"><b>{id ? deco(id, h.query || '') : <span class="none">—</span>}</b><Badge list={mine} /></span>
+      <span class="rid"><b>{id ? deco(id, h.query || '') : <span class="none">保存で付く</span>}</b><Badge list={mine} /></span>
       <span class="rtx">{deco(snippet(String(x.text || ''), h.query || ''), h.query || '')}</span>
-      <span class="marks">{x.note ? <span class="mk memo">メモ</span> : ''}{inP(x) ? '' : <span class="since">{sinceText(row, x)}</span>}<button class="onsw" type="button" role="switch" aria-checked={inP(x)} data-act="rule-toggle" aria-label={`${String(x.id || '')} をプロンプトに${inP(x) ? '入れている' : '入れていない'}`}>{inP(x) ? 'オン' : 'オフ'}</button></span></>;
+      <span class="marks">{x.note ? <span class="mk memo">メモ</span> : ''}{inP(x) ? '' : <span class="since">{sinceText(row, x)}</span>}<button class="onsw" type="button" role="switch" aria-checked={inP(x)} data-act="rule-toggle" aria-label={`${id || 'この規則'} をプロンプトに${inP(x) ? '入れている' : '入れていない'}`}>{inP(x) ? 'オン' : 'オフ'}</button></span></>;
 }
 
 function ruleEditHTML(row: RulePanel, x: EditableRule, mine: RuleIssue[]) {
@@ -580,7 +554,7 @@ function ruleEditHTML(row: RulePanel, x: EditableRule, mine: RuleIssue[]) {
   const id = String(x.id || '');
   return <div class="redit">
       {inP(x) ? '' : <div class="offinfo">{`この規則はオフ（プロンプトに入れていない）。${sinceText(row, x)}。`}</div>}
-      <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">{id ? id : <span class="none">—</span>}</span><ul class="vm" data-for="id"><Vm list={field('id')} /></ul></div></div>
+      <div class="field"><span class="fl">ID</span><div><span class="ridv" aria-label="ID">{id || <span class="none">保存で付く</span>}</span><ul class="vm" data-for="id"><Vm list={field('id')} /></ul></div></div>
       <div class="field"><label for={'tx' + key}>本文</label><div><Field as="textarea" id={'tx' + key} class={['ta', changed('text') ? 'changed' : '', bad('text', true) ? 'bad' : ''].filter(Boolean).join(' ')} data-f="text" rows="2" value={x.text} /><ul class="vm" data-for="text"><Vm list={field('text')} /></ul></div></div>
       <div class="field"><label for={'nt' + key}>メモ</label><div><Field as="textarea" id={'nt' + key} class={['ta', changed('note') ? 'changed' : '', bad('note') ? 'bad' : ''].filter(Boolean).join(' ')} data-f="note" rows="2" value={x.note} /><div class="notehint">なぜ書いたか・何を見て書いたかを残す。AI には送らない。消すか迷ったときに読む。</div><ul class="vm" data-for="note"><Vm list={field('note')} /></ul></div></div>
       <footer class="rf">
@@ -825,7 +799,7 @@ function handleClick(h: InternalRuleDocProps, b: HTMLElement): boolean {
     }
     case 'intro-add': introOpen.value = secKey(row, c.si); ask(`.sec[data-si="${c.si}"] [data-f=intro]`); break;
     case 'rule-add': {
-      const x = { _k: ++kseq, id: nextID(row), text: '', note: '', in_prompt: true, off_since: '' };
+      const x = { _k: ++kseq, id: '', text: '', note: '', in_prompt: true, off_since: '' };
       c.d.sections[c.si].rules.push(x);
       ropen.value = new Set(ropen.value).add(rkey(row, x));
       ask(`.rule[data-k="${x._k}"] [data-f=text]`); edited(h, row); break;
@@ -887,7 +861,6 @@ function handleInput(h: InternalRuleDocProps, t: HTMLInputElement | HTMLTextArea
     case 'revision': c.d.revision = v === '' ? null : +v; break;
     case 'heading': c.d.sections[c.si].heading = v; break;
     case 'intro': c.d.sections[c.si].intro = v; break;
-    case 'id': if (c.x) c.x.id = v; break;
     case 'text': if (c.x) c.x.text = v; break;
     case 'note': if (c.x) c.x.note = v; break;
     default: return false;

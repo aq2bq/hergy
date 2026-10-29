@@ -210,7 +210,7 @@ export const debounce = (k: string, fn: () => void, ms = 260) => { clearTimeout(
 export type Issue = { sev: string; k: number; f: string; text: string; definition: string };
 // Finding is the figure's problem: the node, the worker or the field it stands
 // beside, and the server's sentence (the role and rule it names, when it does).
-export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string };
+export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string; ruleKey?: number };
 export type CheckDiff = Schemas['TeamDiff'];
 export type CheckTurn = Schemas['TeamRuleTurn'];
 // TeamPreview and RuleMarkdown are the check's two previews, as checkTeam answers
@@ -621,7 +621,7 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
   const t = r.draft.value;
   return (problems || []).map((p) => {
     const at = p.at || p.field || '';
-    let node: string | null = null, worker: number | null = null, field = at, m;
+    let node: string | null = null, worker: number | null = null, field = at, ruleKey = 0, m;
     if ((m = /^members\[(\d+)\]/.exec(at))) { const mem = t.members[Number(m[1])]; node = mem ? mem.name : null; field = 'members'; }
     else if ((m = /^workers\[(\d+)\]/.exec(at))) { worker = Number(m[1]); field = 'workers'; }
     // A sentence about a node ("node:analyst") stands beside that point: the
@@ -629,9 +629,15 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
     else if (at.startsWith('node:')) { node = at.slice('node:'.length); field = 'node'; }
     else if (at === 'mission') { field = 'mission'; }
     else if (at === 'name') { field = 'name'; }
-    else if (at.startsWith('rule:')) { field = at; }
+    else if (at.startsWith('rule:')) {
+      field = at;
+      const path = at.slice('rule:'.length).split('#')[0];
+      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.yaml`)) {
+        ruleKey = ruleKeyAt(r.agreeDraft.value, p.section, p.rule);
+      }
+    }
     else { field = ''; }
-    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '', ruleID: p.rule_id || '' };
+    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '', ruleID: p.rule_id || '', ruleKey };
   });
 }
 export const agreeIssues = (r: Rec): Issue[] => (r.check.value ? r.check.value.issues : []);
@@ -1443,11 +1449,13 @@ export function pressRevert(r: Rec): void {
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVrule opens the team's own rule a finding names (spec-teams 1.4.5,
 // 監査 R9) in the ルール tab, with the cursor in its body (監査 R12).
-export function pressVrule(r: Rec, id: string) {
+export function pressVrule(r: Rec, key: string | number) {
   if (!r) return;
   withOpen(r.dom, true);
   setDtab(r.dom, 'agree');
-  const hit = rulesOf(r.agreeDraft.value).find((x) => String(x.id) === id);
+  const hit = typeof key === 'number'
+    ? rulesOf(r.agreeDraft.value).find((x) => x._k === key)
+    : rulesOf(r.agreeDraft.value).find((x) => String(x.id) === key);
   checkAgree(r);
   syncURL();
   if (hit) jumpToRule(r, hit._k);

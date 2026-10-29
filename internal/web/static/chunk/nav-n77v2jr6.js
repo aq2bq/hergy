@@ -83,7 +83,7 @@ function toDoc2(draft, saved) {
         const f = at.get(x._k);
         return {
           from: f ? { section: f[0], rule: f[1] } : null,
-          id: x.id,
+          ...x.id ? { id: x.id } : {},
           text: x.text,
           note: x.note,
           in_prompt: x.in_prompt,
@@ -94,39 +94,6 @@ function toDoc2(draft, saved) {
   };
 }
 var rulesOf2 = (document2) => toEditableDocument(document2).sections.flatMap((section) => section.rules);
-var ID_RE = /^([A-Z][A-Z0-9]*)-(\d+)$/;
-function nextID(row) {
-  const onScreen = rulesOf2(row.draft), saved = row.saved ? rulesOf2(row.saved) : [];
-  const count = (list) => {
-    const n = new Map;
-    list.forEach((x) => {
-      const m = ID_RE.exec(String(x.id || "").trim());
-      if (m)
-        n.set(m[1], (n.get(m[1]) || 0) + 1);
-    });
-    return n;
-  };
-  let uses = count(onScreen);
-  if (!uses.size)
-    uses = count(saved);
-  let prefix = "";
-  uses.forEach((n, p) => {
-    if (!prefix || n > (uses.get(prefix) || 0))
-      prefix = p;
-  });
-  if (!prefix) {
-    prefix = String(row.name || row.draft && row.draft.name || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!prefix || /^[0-9]/.test(prefix))
-      prefix = "R";
-  }
-  let top = 0;
-  onScreen.concat(saved).forEach((x) => {
-    const m = ID_RE.exec(String(x.id || "").trim());
-    if (m && m[1] === prefix)
-      top = Math.max(top, +m[2]);
-  });
-  return `${prefix}-${top + 1}`;
-}
 var findRule2 = (d, k) => {
   for (const [si, s] of d.sections.entries()) {
     const ri = s.rules.findIndex((x) => x._k === Number(k));
@@ -625,7 +592,7 @@ function rsumInner(row, x, mine, h) {
           /* @__PURE__ */ u("b", {
             children: id ? deco(id, h.query || "") : /* @__PURE__ */ u("span", {
               class: "none",
-              children: "—"
+              children: "保存で付く"
             })
           }),
           /* @__PURE__ */ u(Badge2, {
@@ -654,7 +621,7 @@ function rsumInner(row, x, mine, h) {
             role: "switch",
             "aria-checked": inP2(x),
             "data-act": "rule-toggle",
-            "aria-label": `${String(x.id || "")} をプロンプトに${inP2(x) ? "入れている" : "入れていない"}`,
+            "aria-label": `${id || "この規則"} をプロンプトに${inP2(x) ? "入れている" : "入れていない"}`,
             children: inP2(x) ? "オン" : "オフ"
           })
         ]
@@ -688,9 +655,9 @@ function ruleEditHTML(row, x, mine) {
               /* @__PURE__ */ u("span", {
                 class: "ridv",
                 "aria-label": "ID",
-                children: id ? id : /* @__PURE__ */ u("span", {
+                children: id || /* @__PURE__ */ u("span", {
                   class: "none",
-                  children: "—"
+                  children: "保存で付く"
                 })
               }),
               /* @__PURE__ */ u("ul", {
@@ -1182,7 +1149,7 @@ function handleClick(h, b) {
       ask(`.sec[data-si="${c.si}"] [data-f=intro]`);
       break;
     case "rule-add": {
-      const x = { _k: ++kseq, id: nextID(row), text: "", note: "", in_prompt: true, off_since: "" };
+      const x = { _k: ++kseq, id: "", text: "", note: "", in_prompt: true, off_since: "" };
       c.d.sections[c.si].rules.push(x);
       ropen.value = new Set(ropen.value).add(rkey(row, x));
       ask(`.rule[data-k="${x._k}"] [data-f=text]`);
@@ -1281,10 +1248,6 @@ function handleInput(h, t) {
       break;
     case "intro":
       c.d.sections[c.si].intro = v;
-      break;
-    case "id":
-      if (c.x)
-        c.x.id = v;
       break;
     case "text":
       if (c.x)

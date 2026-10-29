@@ -297,7 +297,7 @@ function VList({ r }: { r: Rec }) {
     <>
       <div class="vhead"><span class="vt">validate</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
       {own.map((m) => <button class="vitem" data-act="vpick" data-node={m.node || null} data-worker={m.worker != null && m.worker >= 0 ? m.worker : null} data-name-field={m.field === 'name' ? 1 : null} onClick={() => pressVpick(r, { ...m, node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === 'name' })}><Sev sev={m.sev} /><span class="lno">{where(m)}</span><span class="msg">{m.text}</span></button>)}
-      {teamOut.length ? <><div class="vsub">チームのルール</div>{teamOut.map((m) => <button class="vitem" data-act="vrule" data-name={r.dom} data-id={ruleID(m)} onClick={() => pressVrule(r, ruleID(m))}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></button>)}</> : null}
+      {teamOut.length ? <><div class="vsub">チームのルール</div>{teamOut.map((m) => <button class="vitem" data-act="vrule" data-name={r.dom} data-id={ruleID(m)} data-k={m.ruleKey || 0} onClick={() => pressVrule(r, m.ruleKey || ruleID(m))}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></button>)}</> : null}
       {out.length ? <><div class="vsub">ロールの文書</div>{out.map((m) => <a class="vitem" href={roleHref(m)}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></a>)}</> : null}
     </>
   );

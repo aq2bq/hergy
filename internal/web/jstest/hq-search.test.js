@@ -11,7 +11,10 @@ function page() {
 
 const team = (name, mission) => ({
   name, effective: 'project',
-  places: { project: { path: `.hergy/teams/${name}/team.yaml`, doc: { mission, members: [], workers: [], turns: [] } } },
+  places: { project: { path: `.hergy/teams/${name}/team.yaml`, doc: {
+    mission, members: [], workers: [], turns: [],
+    agreement: { doc: { sections: [{ rules: [{ id: '', text: `${name} の ID がない規則` }] }] } },
+  } } },
 });
 
 test('the search draws its list from its own state, and the arrows walk it', async () => {
@@ -22,7 +25,12 @@ test('the search draws its list from its own state, and the arrows walk it', asy
     if (url === '/api/hq/running') return { herdr: { ok: true }, teams: [] };
     if (url === '/api/hq/workspaces') return { workspaces: [] };
     if (url === '/api/hq/teams') return { groups: [{ project: { path: '/p/a', name: 'alpha' }, list: { items: [team('core', '注文 API を作り直す'), team('docs', 'core の文書を書く')] } }] };
-    if (url === '/api/hq/roles') return { groups: [] };
+    if (url === '/api/hq/roles') return { groups: [{ project: { path: '/p/a', name: 'alpha' }, list: { items: [{
+      name: 'builder', effective: 'project',
+      places: { project: { path: '.hergy/roles/builder.yaml', doc: {
+        name: 'builder', title: '作り方', sections: [{ rules: [{ id: '', text: 'builder の ID がない規則' }] }],
+      } } },
+    }] } }] };
     if (url === '/api/hq/profiles') return { groups: [] };
     return undefined;
   });
@@ -53,6 +61,21 @@ test('the search draws its list from its own state, and the arrows walk it', asy
   expect(S.searchSel()).toBe(1);
   expect(rows()[1].classList.contains('sel')).toBe(true);
   expect(rows()[0].classList.contains('sel')).toBe(false);
+
+  // An empty id in either search result is still text the screen can search:
+  // the rule body remains visible, with no literal "undefined" in the row.
+  input.value = 'core の ID がない規則';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
+  expect(rows().length).toBe(1);
+  expect(rows()[0].textContent).toContain('core の ID がない規則');
+  expect(rows()[0].textContent).not.toContain('undefined');
+  input.value = 'builder の ID がない規則';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
+  expect(rows().length).toBe(1);
+  expect(rows()[0].textContent).toContain('builder の ID がない規則');
+  expect(rows()[0].textContent).not.toContain('undefined');
 
   // A text nothing matches says so, in the part's own words.
   input.value = 'zzz-nothing';
