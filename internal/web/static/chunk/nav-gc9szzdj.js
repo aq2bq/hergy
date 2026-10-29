@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-1ckwc0dq.js";
+} from "./nav-egb84s8w.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -83,7 +83,7 @@ function RunCell2({ definition, place, project }) {
     children: [
       live.map((t) => {
         const label = t.starting ? "起動の途中 · 許可待ち" : (t.waiting || []).length ? "動いている · 許可待ち" : "動いている";
-        const where = (place === "global" ? `${t.project_name || projectName2(t.project)} · ` : "") + (t.workspace.label || t.workspace.id);
+        const where = [place === "global" ? t.project_name || projectName2(t.project) : "", t.workspace.label || t.workspace.id || ""].filter(Boolean).join(" · ");
         const notUp = t.not_up || [];
         const changed = teamCount(t.team);
         return /* @__PURE__ */ u(S, {
@@ -92,10 +92,10 @@ function RunCell2({ definition, place, project }) {
               class: "hq-on" + (t.starting || (t.waiting || []).length ? " wait" : ""),
               children: label
             }),
-            /* @__PURE__ */ u("span", {
+            where ? /* @__PURE__ */ u("span", {
               class: "hq-wsn",
               children: where
-            }),
+            }) : "",
             /* @__PURE__ */ u("button", {
               type: "button",
               class: "hq-btn sm danger",

@@ -1018,6 +1018,11 @@ function RunSheet({ id, launch: first }) {
   const who = raised || applied ? (launch.members || []).join(" · ") : launch.team;
   const verb = applied ? "反映" : "起動";
   const space = launch.workspace.label || launch.workspace.id;
+  const waitingWhere = launch.waiting ? [
+    launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : "",
+    launch.waiting.tab ? `タブ ${launch.waiting.tab}` : "",
+    launch.waiting.pane ? `ペイン ${launch.waiting.pane}` : ""
+  ].filter(Boolean).join(" · ") : "";
   const all = launch.steps || [];
   const lastStage = all.map((x, i) => x.kind === "stage" ? i : -1).filter((i) => i >= 0).pop();
   const shownSteps = all.filter((x, i) => x.kind !== "stage" || launch.phase === "starting" && i === lastStage);
@@ -1026,7 +1031,17 @@ function RunSheet({ id, launch: first }) {
       steps.current.scrollTop = steps.current.scrollHeight;
   });
   const title = launch.phase === "done" ? verb + "しました" : launch.phase === "failed" ? verb + "できませんでした" : launch.phase === "cancelled" ? verb + "をやめました" : verb + "しています";
-  const where = space ? `${launch.project_name} · ワークスペース ${space}` : `${launch.project_name} · タブ ${launch.tab.label}`;
+  const where = [
+    launch.project_name,
+    space ? `ワークスペース ${space}` : "",
+    space ? "" : launch.tab.label ? `タブ ${launch.tab.label}` : ""
+  ].filter(Boolean).join(" · ");
+  const whereText = where ? `${where}${over ? "" : `。この欄を閉じても、${verb}は続きます。`}` : over ? "" : `この欄を閉じても、${verb}は続きます。`;
+  const doneWhere = [
+    launch.project_name,
+    space ? `ワークスペース ${space}` : "",
+    launch.tab.label ? `タブ ${launch.tab.label}` : ""
+  ].filter(Boolean).join(" · ");
   const abort = async () => {
     try {
       const answer = await call2("DELETE", "/api/hq/launches/" + encodeURIComponent(id));
@@ -1051,11 +1066,11 @@ function RunSheet({ id, launch: first }) {
           /* @__PURE__ */ u(Close, {})
         ]
       }),
-      /* @__PURE__ */ u("p", {
+      whereText ? /* @__PURE__ */ u("p", {
         class: "hq-sub",
         "data-role": "where",
-        children: over ? where : `${where}。この欄を閉じても、${verb}は続きます。`
-      }),
+        children: whereText
+      }) : "",
       /* @__PURE__ */ u("ul", {
         class: "hq-steps",
         "data-role": "steps",
@@ -1093,17 +1108,10 @@ function RunSheet({ id, launch: first }) {
                 })
               ]
             }),
-            /* @__PURE__ */ u("p", {
+            waitingWhere ? /* @__PURE__ */ u("p", {
               class: "hq-where",
-              children: [
-                "ワークスペース ",
-                launch.waiting.workspace,
-                " · タブ ",
-                launch.waiting.tab,
-                " · ペイン ",
-                launch.waiting.pane
-              ]
-            }),
+              children: waitingWhere
+            }) : "",
             /* @__PURE__ */ u("p", {
               children: "エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。"
             }),
@@ -1126,7 +1134,7 @@ function RunSheet({ id, launch: first }) {
           children: [
             /* @__PURE__ */ u("p", {
               class: "hq-ok",
-              children: `${verb}しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ""}タブ ${launch.tab.label}）`
+              children: `${verb}しました: ${who}${doneWhere ? `（${doneWhere}）` : ""}`
             }),
             /* @__PURE__ */ u("a", {
               class: "hq-btn primary",
@@ -1216,6 +1224,12 @@ function StopSheet({ team }) {
   }
   const members = (t.members || []).filter((m) => m.live !== false).map((m) => m.name);
   const workers = (t.workers || []).length;
+  const workspace = t.workspace.label || t.workspace.id || "";
+  const project = t.project_name || projectName2(t.project);
+  const place = [
+    workspace ? `ワークスペース ${workspace} は閉じません。` : "",
+    project ? `${project} で` : ""
+  ].filter(Boolean).join("");
   const stop = async () => {
     setBusy(true);
     try {
@@ -1244,17 +1258,21 @@ function StopSheet({ team }) {
           }),
           /* @__PURE__ */ u("dd", {
             children: /* @__PURE__ */ u("code", {
-              children: t.project_name || projectName2(t.project)
+              children: project
             })
           }),
-          /* @__PURE__ */ u("dt", {
-            children: "ワークスペース"
-          }),
-          /* @__PURE__ */ u("dd", {
-            children: /* @__PURE__ */ u("code", {
-              children: t.workspace.label || t.workspace.id
-            })
-          }),
+          workspace ? /* @__PURE__ */ u(S, {
+            children: [
+              /* @__PURE__ */ u("dt", {
+                children: "ワークスペース"
+              }),
+              /* @__PURE__ */ u("dd", {
+                children: /* @__PURE__ */ u("code", {
+                  children: workspace
+                })
+              })
+            ]
+          }) : "",
           /* @__PURE__ */ u("dt", {
             children: "閉じるペイン"
           }),
@@ -1272,7 +1290,7 @@ function StopSheet({ team }) {
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
         children: [
-          `エージェントを終了してペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName2(t.project)} で `,
+          `エージェントを終了してペインを閉じます。会話は残りません。${place ? `${place} ` : ""}`,
           /* @__PURE__ */ u("code", {
             children: `hergy down ${team}`
           }),
@@ -1406,12 +1424,16 @@ function liveEntries() {
   const out = [];
   for (const t of st.running.value.teams || []) {
     const wait = (t.waiting || []).length;
+    const sub = [
+      t.workspace.label ? `ワークスペース ${t.workspace.label}` : "",
+      wait ? `許可待ち（${t.waiting.join(" · ")}）` : t.starting ? "起動の途中" : "動いている"
+    ].filter(Boolean).join(" · ");
     out.push({
       kind: "live",
       group: t.project,
       project: t.project_name || projectName2(t.project),
       label: t.team,
-      sub: `ワークスペース ${t.workspace.label}${wait ? ` · 許可待ち（${t.waiting.join(" · ")}）` : t.starting ? " · 起動の途中" : " · 動いている"}`,
+      sub,
       text: `${t.team} ${t.definition} ${t.workspace.label} ${t.project_name || ""}`,
       href: `/activity?open=${encodeURIComponent(token2(t.team, t.project))}`
     });

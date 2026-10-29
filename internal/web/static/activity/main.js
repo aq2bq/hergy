@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-1ckwc0dq.js";
+} from "../chunk/nav-egb84s8w.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-n38wpb2w.js";
+} from "../chunk/nav-gc9szzdj.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -353,6 +353,7 @@ function countsLine(t) {
 }
 function Tile({ team: t }) {
   const sel = t.name === current.value?.name;
+  const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(" · ");
   const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
     class: "hq-why",
     children: [
@@ -387,14 +388,10 @@ function Tile({ team: t }) {
             class: "hq-tn",
             children: t.name
           }),
-          /* @__PURE__ */ u("span", {
+          projectWorkspace ? /* @__PURE__ */ u("span", {
             class: "hq-pw",
-            children: [
-              t.projectName,
-              " · ",
-              t.workspace
-            ]
-          }),
+            children: projectWorkspace
+          }) : "",
           /* @__PURE__ */ u("span", {
             class: "st " + t.state,
             children: ST[t.state] || ""

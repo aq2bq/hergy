@@ -68,6 +68,7 @@ function countsLine(t: ActivityTeam): JSX.Element {
 
 function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const sel = t.name === current.value?.name;
+  const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(' · ');
   const stall = t.state === 'stalled'
     ? <p class="hq-why">誰もターンを持っていません（人間の番でもない）。最後に動いたのは {lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
     : '';
@@ -78,7 +79,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const changed = teamCount(t.name);
   return <article class={'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team={t.name}>
     <button type="button" class="hq-th" data-pick={t.name} aria-pressed={sel ? 'true' : 'false'} onClick={() => pick(t.name)}>
-      <span class="hq-tn">{t.name}</span><span class="hq-pw">{t.projectName} · {t.workspace}</span>
+      <span class="hq-tn">{t.name}</span>{projectWorkspace ? <span class="hq-pw">{projectWorkspace}</span> : ''}
       <span class={'st ' + t.state}>{ST[t.state] || ''}</span>
       <span class="hq-tl">{t.since ? <><b>{t.since.len}</b> {t.since.at}</> : ''}</span>
     </button>

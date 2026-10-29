@@ -337,6 +337,11 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   const who = raised || applied ? (launch.members || []).join(' · ') : launch.team;
   const verb = applied ? '反映' : '起動';
   const space = launch.workspace.label || launch.workspace.id;
+  const waitingWhere = launch.waiting ? [
+    launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : '',
+    launch.waiting.tab ? `タブ ${launch.waiting.tab}` : '',
+    launch.waiting.pane ? `ペイン ${launch.waiting.pane}` : '',
+  ].filter(Boolean).join(' · ') : '';
   // A stage is the step in progress, not a finished one: the last stage stands
   // with … only while the start is starting, and is dropped when the next line
   // comes or the start waits or ends (r-5b96 audit 9).
@@ -349,9 +354,19 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   const title = launch.phase === 'done' ? verb + 'しました'
     : launch.phase === 'failed' ? verb + 'できませんでした'
       : launch.phase === 'cancelled' ? verb + 'をやめました' : verb + 'しています';
-  const where = space
-    ? `${launch.project_name} · ワークスペース ${space}`
-    : `${launch.project_name} · タブ ${launch.tab.label}`;
+  const where = [
+    launch.project_name,
+    space ? `ワークスペース ${space}` : '',
+    space ? '' : (launch.tab.label ? `タブ ${launch.tab.label}` : ''),
+  ].filter(Boolean).join(' · ');
+  const whereText = where
+    ? `${where}${over ? '' : `。この欄を閉じても、${verb}は続きます。`}`
+    : (over ? '' : `この欄を閉じても、${verb}は続きます。`);
+  const doneWhere = [
+    launch.project_name,
+    space ? `ワークスペース ${space}` : '',
+    launch.tab.label ? `タブ ${launch.tab.label}` : '',
+  ].filter(Boolean).join(' · ');
   const abort = async (): Promise<void> => {
     try {
       const answer = await call<HQLaunchEnvelope>('DELETE', '/api/hq/launches/' + encodeURIComponent(id));
@@ -362,18 +377,18 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   };
   return <>
       <div class="hq-h"><b data-role="title">{title}</b><code>{who}</code><Close /></div>
-      <p class="hq-sub" data-role="where">{over ? where : `${where}。この欄を閉じても、${verb}は続きます。`}</p>
+      {whereText ? <p class="hq-sub" data-role="where">{whereText}</p> : ''}
       <ul class="hq-steps" data-role="steps" ref={steps}>{shownSteps.map((step: HQLaunchStep) => {
         const now = step.kind === 'stage';
         const mark = now ? 'now' : step.kind === 'done' || step.kind === 'member' ? 'done' : '';
         return <li class={mark}><span>{step.text}</span></li>;
       })}</ul>
       <div data-role="waitbox">{launch.waiting ? <div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">許可待ち</span><b><code>{launch.waiting.herdr}</code> が、起動の途中で確認に答えを待っています</b></div>
-          <p class="hq-where">ワークスペース {launch.waiting.workspace} · タブ {launch.waiting.tab} · ペイン {launch.waiting.pane}</p>
+          {waitingWhere ? <p class="hq-where">{waitingWhere}</p> : ''}
           <p>エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
           <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code> に初期プロンプトを送って続きを進めます。</p></div> : ''}</div>
       <div class="hq-acts" data-role="endacts">{launch.phase === 'done'
-        ? <><p class="hq-ok">{`${verb}しました: ${who}（${launch.project_name} · ${space ? `ワークスペース ${space} · ` : ''}タブ ${launch.tab.label}）`}</p>
+        ? <><p class="hq-ok">{`${verb}しました: ${who}${doneWhere ? `（${doneWhere}）` : ''}`}</p>
         <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>アクティビティで見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
           ? <><p class="hq-err">{launch.error || verb + 'できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
@@ -400,6 +415,12 @@ function StopSheet({ team }: { team: string }): JSX.Element {
   }
   const members = (t.members || []).filter((m) => m.live !== false).map((m) => m.name);
   const workers = (t.workers || []).length;
+  const workspace = t.workspace.label || t.workspace.id || '';
+  const project = t.project_name || projectName(t.project);
+  const place = [
+    workspace ? `ワークスペース ${workspace} は閉じません。` : '',
+    project ? `${project} で` : '',
+  ].filter(Boolean).join('');
   const stop = async (): Promise<void> => {
     setBusy(true);
     try {
@@ -418,9 +439,9 @@ function StopSheet({ team }: { team: string }): JSX.Element {
   };
   return <>
       <Head title="終了する" label={team} />
-      <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{t.project_name || projectName(t.project)}</code></dd><dt>ワークスペース</dt><dd><code>{t.workspace.label || t.workspace.id}</code></dd>
+      <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
       <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl>
-      <p class="hq-sub">{`エージェントを終了してペインを閉じます。会話は残りません。ワークスペース ${t.workspace.label || t.workspace.id} は閉じません。${t.project_name || projectName(t.project)} で `}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
+      <p class="hq-sub">{`エージェントを終了してペインを閉じます。会話は残りません。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
       <Err text={error} />
       <div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
     </>;
@@ -526,9 +547,13 @@ function liveEntries(): SearchEntry[] {
   const out: SearchEntry[] = [];
   for (const t of st.running.value.teams || []) {
     const wait = (t.waiting || []).length;
+    const sub = [
+      t.workspace.label ? `ワークスペース ${t.workspace.label}` : '',
+      wait ? `許可待ち（${t.waiting.join(' · ')}）` : t.starting ? '起動の途中' : '動いている',
+    ].filter(Boolean).join(' · ');
     out.push({
       kind: 'live', group: t.project, project: t.project_name || projectName(t.project),
-      label: t.team, sub: `ワークスペース ${t.workspace.label}${wait ? ` · 許可待ち（${t.waiting.join(' · ')}）` : t.starting ? ' · 起動の途中' : ' · 動いている'}`,
+      label: t.team, sub,
       text: `${t.team} ${t.definition} ${t.workspace.label} ${t.project_name || ''}`,
       href: `/activity?open=${encodeURIComponent(token(t.team, t.project))}`,
     });
