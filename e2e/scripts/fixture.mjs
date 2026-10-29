@@ -165,18 +165,27 @@ export function lay(screen) {
 // fake used; other screens stand on an empty running session.
 export async function startHerdrSocket(fixture) {
   const server = createServer((connection) => {
+    // A client that hangs up is not this server's failure: herdr keeps serving
+    // whoever comes next. The Go reader closes its connection as soon as it has
+    // the answer, and that close can beat this socket's own end; the write then
+    // reports EPIPE/ECONNRESET here. The answer was read, and there is no one
+    // left to tell, so the connection's error stays with the connection.
+    connection.on('error', () => {});
     let requestText = '';
     const onData = (chunk) => {
       requestText += chunk.toString();
       const end = requestText.indexOf('\n');
       if (end < 0) return;
       connection.off('data', onData);
+      const answer = (response) => {
+        if (!connection.destroyed) connection.end(`${JSON.stringify(response)}\n`);
+      };
       void answerHerdrRequest(fixture, requestText.slice(0, end))
-        .then((response) => connection.end(`${JSON.stringify(response)}\n`))
-        .catch((error) => connection.end(`${JSON.stringify({
+        .then(answer)
+        .catch((error) => answer({
           id: safeRequestId(requestText),
           error: { code: 'fixture_error', message: String(error) },
-        })}\n`));
+        }));
     };
     connection.on('data', onData);
   });
