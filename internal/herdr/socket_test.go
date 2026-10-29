@@ -3,6 +3,7 @@ package herdr
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -145,8 +146,12 @@ func TestSocketPortReadsSnapshotAndIndividualMethods(t *testing.T) {
 	if got, err := port.Text("agent", "read", "core-lead", "--source", "detection"); err != nil || got != "waiting" {
 		t.Errorf("agent.read = %q, %v", got, err)
 	}
-	if _, err := port.JSON("pane", "process-info", "--pane", "p1"); err != nil {
+	processInfo, err := port.JSON("pane", "process-info", "--pane", "p1")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if got, _ := processInfo["process_info"].(map[string]any); got["shell_pid"] != float64(9) {
+		t.Errorf("pane.process_info result = %+v", processInfo)
 	}
 
 	mu.Lock()
@@ -194,6 +199,64 @@ func TestSocketPortKeepsHerdrErrorsAndDelegatesWrites(t *testing.T) {
 	}
 	if !reflect.DeepEqual(command.verify, []string{"boot"}) {
 		t.Errorf("CLI verification calls = %v", command.verify)
+	}
+}
+
+// TestSocketPortReadsAgentReadForEveryFlagShape: agent read goes over the
+// socket as long as the target is there, and --source replaces the detection
+// default wherever it stands. Other flags, or --source without a value, leave
+// the default alone.
+func TestSocketPortReadsAgentReadForEveryFlagShape(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		source string
+	}{
+		{"target only", []string{"agent", "read", "core-lead"}, "detection"},
+		{"other flag", []string{"agent", "read", "core-lead", "--format", "text"}, "detection"},
+		{"source flag", []string{"agent", "read", "core-lead", "--source", "buffer"}, "buffer"},
+		{"source flag after another flag", []string{"agent", "read", "core-lead", "--format", "text", "--source", "buffer"}, "buffer"},
+		{"source flag without a value", []string{"agent", "read", "core-lead", "--source"}, "detection"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var sources []any
+			path := fakeSocketServer(t, func(request socketRequest) map[string]any {
+				mu.Lock()
+				sources = append(sources, request.Params["source"])
+				mu.Unlock()
+				return map[string]any{"result": map[string]any{"type": "pane_read", "read": map[string]any{"text": "waiting"}}}
+			})
+			command := &socketTestCommandPort{}
+			port := NewSocketPort(command, path, nil)
+
+			got, err := port.Text(c.args...)
+			if err != nil || got != "waiting" {
+				t.Fatalf("Text(%q) = %q, %v", c.args, got, err)
+			}
+			if len(command.text) != 0 {
+				t.Fatalf("Text(%q) went to the command port: %v", c.args, command.text)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !reflect.DeepEqual(sources, []any{c.source}) {
+				t.Fatalf("sources = %v, want [%s]", sources, c.source)
+			}
+		})
+	}
+}
+
+// TestSocketPortFixedPathWithoutDiscoveryFails: a fixed-path port whose lookup
+// failed reports that failure, even when the path it was given would answer.
+func TestSocketPortFixedPathWithoutDiscoveryFails(t *testing.T) {
+	path := fakeSocketServer(t, func(socketRequest) map[string]any {
+		return map[string]any{"result": map[string]any{"type": "agent_info", "agent": map[string]any{"name": "core-lead"}}}
+	})
+	port := NewSocketPort(&socketTestCommandPort{}, path, errors.New("discovery failed"))
+
+	if _, err := port.JSON("agent", "get", "core-lead"); err == nil || !strings.Contains(err.Error(), "discovery failed") {
+		t.Fatalf("agent.get error = %v, want the discovery failure", err)
 	}
 }
 
