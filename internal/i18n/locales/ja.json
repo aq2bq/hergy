@@ -49,13 +49,13 @@
   "error.docs_gone": "team.yaml の docs: は無くなりました。チームのルールは teams/%s/agreement.yaml に、ほかのチームにも渡すルールはロールの文書（roles/<ロール名>.yaml）に書いてください",
   "error.shared_agreement_gone": "全チームのルール（%s）は廃止しました。このファイルの規則は、もうメンバーのプロンプトに入りません。規則をチームのルール（%s）か、ロールの文書（%s）へ移してから、このファイルを消してください",
   "error.roles_gone": "team.yaml の roles: は無くなりました。ロールの文書は roles/<ロール名>.yaml に書いてください",
-  "error.rules_not_mapping": "%s: %s はマップではありません。「キー: 値」の並びで書いてください",
+  "error.rules_not_mapping": "%s: %sはマップではありません。「キー: 値」の並びで書いてください",
   "error.rules_not_sequence": "%s: %s はリストではありません。「- 」で始まる行の並びで書いてください",
   "error.rules_not_string": "%s: %s は文字列ではありません。引用符で囲んだ文字列にしてください",
   "error.rules_not_integer": "%s: %s は整数ではありません。整数で書いてください",
   "error.rules_not_boolean": "%s: %s は true か false ではありません。true か false を書いてください",
-  "error.rules_duplicate_key": "%s: %s に %s が 2 度あります。同じキーは 1 度だけ書いてください",
-  "error.rules_unknown_key": "%s: %s に知らないキー %s があります。そのキーを消すか、正しいキーに直してください",
+  "error.rules_duplicate_key": "%s: %sに %s が 2 度あります。同じキーは 1 度だけ書いてください",
+  "error.rules_unknown_key": "%s: %sに知らないキー %s があります。そのキーを消すか、正しいキーに直してください",
   "error.rules_sections_missing": "%s: sections がありません。sections: を書いてください",
   "error.rules_sections_empty": "%s: sections が空です。sections: に節を 1 つ以上書いてください",
   "error.rules_rule_needs_id_text": "%s: %s の規則に id と text の両方が要ります。その規則に id: と text: を書いてください",
@@ -538,5 +538,6 @@
   "apply.broken_left": "%d チームの定義を組み立てられないので、そのずれを反映できません",
   "rules.ids_given": "%d 件のルールに ID を付けました",
   "rules.ids_missing": "hergy がまだ ID を付けていないルール: %d 件（次に書く操作で hergy が付けます）",
-  "error.workers_purpose_one": "%s: 目的「%s」に区切り（, や 、）が入っています。1 つのワーカーには目的を 1 つだけ書き、複数の目的は workers: の行を 2 行に分けて書いてください（同じプロファイルでもかまいません）"
+  "error.workers_purpose_one": "%s: 目的「%s」に区切り（, や 、）が入っています。1 つのワーカーには目的を 1 つだけ書き、複数の目的は workers: の行を 2 行に分けて書いてください（同じプロファイルでもかまいません）",
+  "rules.this_file": "このファイル"
 }

@@ -52,10 +52,11 @@ type rawProfile struct {
 	Env  map[string]any `yaml:"env"`
 }
 
-// profileCache holds one profiles.yaml's reading under the text's hash: a serve
-// asks for it for every team definition, and the YAML decode is the work it
-// would otherwise do again. A caller gets its own map, because the catalog
-// writes each profile's own path into what it read.
+// profileCache holds one profiles.yaml's reading under the text's hash and the
+// language (its errors are sentences in it): a serve asks for it for every team
+// definition, and the YAML decode is the work it would otherwise do again. A
+// caller gets its own map, because the catalog writes each profile's own path
+// into what it read.
 var (
 	profileMu    sync.Mutex
 	profileCache = map[[32]byte]profileResult{}
@@ -69,7 +70,7 @@ type profileResult struct {
 // ParseProfiles reads one profiles.yaml, checking its version before anything
 // else and then rejecting unknown keys.
 func ParseProfiles(text, path string) (map[string]Profile, error) {
-	key := sha256.Sum256([]byte(path + "\x00" + text))
+	key := sha256.Sum256([]byte(i18n.Language() + "\x00" + path + "\x00" + text))
 	profileMu.Lock()
 	held, ok := profileCache[key]
 	profileMu.Unlock()

@@ -146,3 +146,35 @@ func TestNewGivesEachTeamsRulesTheirOwnIDs(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateNamesAWholeFileProblemOnce: a role document with an unknown key is
+// named once, and the sentence itself does not name the place again (d-46b9).
+func TestValidateNamesAWholeFileProblemOnce(t *testing.T) {
+	useJapanese(t)
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
+	writeFile(t, rolePath, "version: 1\nmission: not a rule key\nsections:\n  - rules:\n      - text: a rule\n")
+	out, _, code := run("validate", "--lang", "ja")
+	if code == 0 {
+		t.Fatalf("validate accepted an unknown key:\n%s", out)
+	}
+	if !strings.Contains(out, "知らないキー") {
+		t.Fatalf("validate does not name the unknown key:\n%s", out)
+	}
+	named := 0
+	for one := range strings.SplitSeq(out, "\n") {
+		if got := strings.Count(one, "builder.yaml"); got > 1 {
+			t.Errorf("one line names builder.yaml %d times, want at most once: %q", got, one)
+		}
+		if strings.Contains(one, "builder.yaml") {
+			named++
+		}
+	}
+	if named == 0 {
+		t.Errorf("validate does not name builder.yaml:\n%s", out)
+	}
+	if strings.Contains(out, "the file") {
+		t.Errorf("validate puts an English place-word in a Japanese sentence:\n%s", out)
+	}
+}

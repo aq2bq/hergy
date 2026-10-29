@@ -538,5 +538,6 @@
   "apply.broken_left": "%d team(s) have a definition that does not build, so hergy cannot apply their drift",
   "rules.ids_given": "%d rule(s) were given an id",
   "rules.ids_missing": "%d rule(s) have no id from hergy yet (hergy gives them an id when it next writes)",
-  "error.workers_purpose_one": "%s: the purpose %q holds a separator (, or 、). A worker has one purpose; write each purpose on its own line under workers: (the same profile may be written again)"
+  "error.workers_purpose_one": "%s: the purpose %q holds a separator (, or 、). A worker has one purpose; write each purpose on its own line under workers: (the same profile may be written again)",
+  "rules.this_file": "this file"
 }

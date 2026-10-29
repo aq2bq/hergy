@@ -454,11 +454,12 @@ func (c *Catalog) readDefinition(name, path, layer string, mode readMode) (*defi
 }
 
 // definitionKey is the version of everything one definition's reading stands
-// on: its own text and place, the reading mode, the two profiles files, and
-// whether its agreement.yaml is there.
+// on: its own text and place, the reading mode, the language (a reading that
+// stops carries a sentence in it), the two profiles files, and whether its
+// agreement.yaml is there.
 func (c *Catalog) definitionKey(name, path, layer string, mode readMode, text string) [32]byte {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%d\x00%s\x00", name, path, layer, mode, text)
+	fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%d\x00%s\x00%s\x00", name, path, layer, mode, i18n.Language(), text)
 	for _, dir := range []string{c.globalDir, c.localDir} {
 		profiles := filepath.Join(dir, "profiles.yaml")
 		ptext, ok, err := c.fileText(profiles)

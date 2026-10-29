@@ -79,10 +79,11 @@ func newWarning(path string, section, rule int, field string, line int, err erro
 	}
 }
 
-// readCache holds the reading of one text at one path, under the text's hash:
-// hergy serve reads the same rule file for every member and every request, and
-// the YAML walk is the work it would otherwise do again. A caller gets its own
-// copy, because a save changes the document it read.
+// readCache holds the reading of one text at one path, under the text's hash and
+// the language: hergy serve reads the same rule file for every member and every
+// request, and the YAML walk is the work it would otherwise do again. The
+// language is in the key because the sentences it holds are the language's. A
+// caller gets its own copy, because a save changes the document it read.
 var (
 	readMu    sync.Mutex
 	readCache = map[[32]byte]readResult{}
@@ -98,7 +99,7 @@ type readResult struct {
 // (empty, broken YAML, a version hergy does not read) gives its problems and the
 // document as far as it was read. The first error is the one Parse returns.
 func ReadAll(text, path string) (*Document, []Problem) {
-	key := sha256.Sum256([]byte(path + "\x00" + text))
+	key := sha256.Sum256([]byte(i18n.Language() + "\x00" + path + "\x00" + text))
 	readMu.Lock()
 	held, ok := readCache[key]
 	readMu.Unlock()
@@ -140,13 +141,13 @@ func readAll(text, path string) (*Document, []Problem) {
 		return nil, []Problem{newProblem(path, -1, -1, "", 0, err)}
 	}
 	if root.Kind != yaml.MappingNode {
-		p := newProblem(path, -1, -1, "", root.Line, i18n.Errorf("error.rules_not_mapping", path, path))
+		p := newProblem(path, -1, -1, "", root.Line, i18n.Errorf("error.rules_not_mapping", path, i18n.T("rules.this_file")))
 		return &Document{Path: path}, []Problem{p}
 	}
 	doc := &Document{Path: path}
 	var problems []Problem
 
-	top, more := collectMapping(root, path, path, -1, -1, append(append([]string{}, docKeys...), "reports")...)
+	top, more := collectMapping(root, path, i18n.T("rules.this_file"), -1, -1, append(append([]string{}, docKeys...), "reports")...)
 	problems = append(problems, more...)
 
 	switch version, ok, err := top.integer("version"); {
