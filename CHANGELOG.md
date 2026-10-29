@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.9.4 - 2026-10-29
+
+### Breaking
+
+- **A worker's purpose is one word**: a `workers:` entry whose `purpose` holds a
+  comma or a Japanese comma (`設計,実装`) stops `hergy validate`, `hergy up` and
+  the screens' checks, and the message says to write two purposes as two
+  entries (the same profile may be written twice). Before, the whole string was
+  one purpose, so `hergy hire --purpose 実装` was refused while the lead's prompt
+  read as if it were allowed (n-b7de).
+
+### Added
+
+- **`hergy down <worker>` closes one finished worker**: the name is looked up as
+  a running team first, then as a worker of a running team (its short name or
+  its herdr name); only that worker's pane is closed, and its tab when the pane
+  was the tab's last. A name that matches both, or a short name two teams use, is
+  refused with every candidate named (n-a104).
+- **`hergy down` lists what a team left in git**: after the panes close, the git
+  worktrees other than the project's root that a member or a worker stood in are
+  listed with their branch, whether they hold unsaved changes, and how many
+  commits are not on main, beside the project's stash count and the commands that
+  remove them. hergy removes nothing; temporary documents are not listed, since
+  hergy cannot tell which are the team's. The screens' end sheet shows the same
+  list, and `hergy down --dry --json` carries it (n-d4dc).
+
+### Changed
+
+- **A hired worker sends its result to the member that hired it**: the worker's
+  first prompt no longer tells it that writing in its own pane hands the turn to
+  the human, and its last line says to send the result with
+  `herdr agent prompt <member>`, since writing in its own pane does not reach the
+  member, who goes on waiting. A question halfway goes to the same member.
+  Workers hired before this keep the prompt they were given (n-258a).
+- **A start that fails partway says who, why and what is left**: the screens'
+  start sheet and `hergy up` name the member whose start failed, herdr's reason
+  (not its JSON), the members that did start, the tab and panes left, and the
+  commands to run with the project to run them in; the sheet offers
+  チームを終了する… for what is left (n-d885).
+- **The headquarters screens**: a listed project inside a git repository is no
+  longer refused as not listed; a list that cannot be read says why instead of
+  falling back to the old shape; a global team in a role's 使っているチーム is
+  named グローバル:; the start sheet shows its first line at once; a starting
+  team's tile reads 起動の途中 · 許可待ち; a permission question that cannot be
+  read from the screen says so; and listing a project already listed says so
+  (n-32ed).
+- The activity figure heads the workers whose hirer is unknown with 持ち主不明
+  (n-fc2f).
+
+### Fixed
+
+- **The usage prints with a broken config.yaml**: `hergy`, `hergy --help`,
+  `hergy <command> --help`, `hergy cheat` and `hergy version` no longer stop on a
+  config.yaml they cannot read; the usage ends with one line saying why the
+  settings cannot be read. The commands that use the settings still stop (n-5e48).
+- `hergy validate` names a whole-file problem by the file once, in the language
+  in use, instead of the English "the file" (n-120f).
+- The place outside the project is グローバル everywhere, the API's descriptions
+  included; 共通 is gone (n-e424).
+
 ## 0.9.3 - 2026-10-29
 
 ### Changed
