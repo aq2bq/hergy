@@ -484,6 +484,8 @@ func TestWorkersStopsOnBrokenEntries(t *testing.T) {
 		{"an entry without a purpose", "  - from: lead\n    profile: seeker\n", "purpose"},
 		{"an entry without a profile", "  - from: lead\n    purpose: research\n", "profile"},
 		{"two workers of one member and purpose", "  - from: lead\n    purpose: research\n    profile: seeker\n  - from: lead\n    purpose: research\n    profile: developer\n", "research"},
+		{"a purpose with a comma", "  - from: lead\n    purpose: design,implement\n    profile: seeker\n", "own line"},
+		{"a purpose with a Japanese comma", "  - from: lead\n    purpose: 設計、実装\n    profile: seeker\n", "own line"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

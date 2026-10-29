@@ -302,6 +302,12 @@ func parseWorkers(raw rawTeam) ([]WorkerNode, error) {
 		if strings.TrimSpace(rw.Purpose) == "" {
 			return nil, field(label, i18n.Errorf("error.workers_purpose_empty", label))
 		}
+		// A purpose is one word: hire --purpose names one, so a value with a
+		// separator would be read two ways (d-37ac, n-b7de). Two purposes are
+		// two workers: the same profile may be written twice.
+		if strings.ContainsAny(rw.Purpose, ",、") {
+			return nil, field(label, i18n.Errorf("error.workers_purpose_one", label, rw.Purpose))
+		}
 		if rw.Profile == "" {
 			return nil, field(label, i18n.Errorf("error.workers_profile_empty", label))
 		}
