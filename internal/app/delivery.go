@@ -382,7 +382,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	}
 	run := prompt.Run{
 		Team: running.Name, Executable: record.Executable, Base: record.Project, Lang: record.Lang,
-		Reader: source.Disk{}, Sources: cat, Display: cat.Display,
+		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
 		run.Executable = executable()

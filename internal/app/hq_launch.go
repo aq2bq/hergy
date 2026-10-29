@@ -43,7 +43,7 @@ func (h *hqRead) LaunchOptions(project, definitionName, place string) (web.HQLau
 	if err != nil {
 		return web.HQLaunchOptions{}, err
 	}
-	cat := env.Catalog(source.Disk{})
+	cat := env.Catalog(h.act.fileReader())
 	def, err := cat.Definition(definitionName, layer)
 	if err != nil {
 		return web.HQLaunchOptions{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
@@ -97,11 +97,11 @@ func (h *hqRead) globalOptions(definitionName string) web.HQLaunchOptions {
 func (h *hqRead) projectChoices(definitionName string) []web.HQLaunchProject {
 	out := []web.HQLaunchProject{}
 	for _, project := range h.shownProjects() {
-		env, err := h.act.env.AtProject(project.Path)
+		env, err := h.act.envAt(project.Path)
 		if err != nil {
 			continue
 		}
-		cat := env.Catalog(source.Disk{})
+		cat := env.Catalog(h.act.fileReader())
 		one := web.HQLaunchProject{Path: project.Path, Name: project.Name, Available: true}
 		if cat.HoldsDefinition(definitionName, source.LayerLocal) {
 			one.Available = false
@@ -215,7 +215,7 @@ func (h *hqRead) projectEnv(path string) (team.Env, error) {
 	}
 	for _, one := range allowed {
 		if samePath(one, want) {
-			return h.act.env.AtProject(want)
+			return h.act.envAt(want)
 		}
 	}
 	return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
@@ -280,7 +280,7 @@ func (h *hqRead) startProjectEnv(path string) (team.Env, error) {
 	}
 	for _, one := range paths {
 		if samePath(one, want) {
-			return h.act.env.AtProject(want)
+			return h.act.envAt(want)
 		}
 	}
 	return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
@@ -297,7 +297,7 @@ func (h *hqRead) startAllowed(in web.HQLaunchIn, env team.Env) error {
 	if layer != source.LayerGlobal {
 		return nil
 	}
-	if env.Catalog(source.Disk{}).HoldsDefinition(in.Definition, source.LayerLocal) {
+	if env.Catalog(h.act.fileReader()).HoldsDefinition(in.Definition, source.LayerLocal) {
 		return hqRefuse(http.StatusUnprocessableEntity, i18n.Tf("web.hq.project_shadows", h.projectNameIn(env.ProjectRoot), h.projectNameIn(env.ProjectRoot), in.Definition))
 	}
 	return nil

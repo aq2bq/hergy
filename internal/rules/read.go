@@ -1,10 +1,12 @@
 package rules
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"go.yaml.in/yaml/v3"
@@ -77,11 +79,62 @@ func newWarning(path string, section, rule int, field string, line int, err erro
 	}
 }
 
+// readCache holds the reading of one text at one path, under the text's hash:
+// hergy serve reads the same rule file for every member and every request, and
+// the YAML walk is the work it would otherwise do again. A caller gets its own
+// copy, because a save changes the document it read.
+var (
+	readMu    sync.Mutex
+	readCache = map[[32]byte]readResult{}
+)
+
+type readResult struct {
+	doc      *Document
+	problems []Problem
+}
+
 // ReadAll reads one rule file into the document it holds and every problem it
 // has, in the order the file writes them. A file that does not read at all
 // (empty, broken YAML, a version hergy does not read) gives its problems and the
 // document as far as it was read. The first error is the one Parse returns.
 func ReadAll(text, path string) (*Document, []Problem) {
+	key := sha256.Sum256([]byte(path + "\x00" + text))
+	readMu.Lock()
+	held, ok := readCache[key]
+	readMu.Unlock()
+	if ok {
+		return cloneDoc(held.doc), append([]Problem(nil), held.problems...)
+	}
+	doc, problems := readAll(text, path)
+	readMu.Lock()
+	readCache[key] = readResult{doc: cloneDoc(doc), problems: append([]Problem(nil), problems...)}
+	readMu.Unlock()
+	return doc, problems
+}
+
+// cloneDoc is a document of its own, so a caller that changes what it read (a
+// save fills an off day, an id) leaves the held reading as it was.
+func cloneDoc(doc *Document) *Document {
+	if doc == nil {
+		return nil
+	}
+	out := *doc
+	out.Sections = make([]Section, len(doc.Sections))
+	for i, section := range doc.Sections {
+		out.Sections[i] = section
+		out.Sections[i].Rules = make([]Rule, len(section.Rules))
+		copy(out.Sections[i].Rules, section.Rules)
+		for j := range out.Sections[i].Rules {
+			if section.Rules[j].InPrompt != nil {
+				in := *section.Rules[j].InPrompt
+				out.Sections[i].Rules[j].InPrompt = &in
+			}
+		}
+	}
+	return &out
+}
+
+func readAll(text, path string) (*Document, []Problem) {
 	root, err := decode(text, path)
 	if err != nil {
 		return nil, []Problem{newProblem(path, -1, -1, "", 0, err)}

@@ -313,6 +313,15 @@ type activityRead struct {
 	// the screens' running teams and the activity are one reading (r-b7e1).
 	ctx context.Context
 	hq  *hqRead
+	// reader is how this reading opens the settings files: a serve hands it one
+	// reading that holds each file under its version (d-e00b); a command uses
+	// the disk as it always did.
+	reader source.Reader
+	// envMu holds the projects this serve has placed, so the git command that
+	// finds a project's root runs once per project and not once per request
+	// (d-e00b).
+	envMu sync.Mutex
+	envs  map[string]team.Env
 
 	mu      sync.Mutex
 	herdr   herdrNow
@@ -329,9 +338,52 @@ type activityRead struct {
 // kept in this machine's state directory, so a serve that is started again reads
 // a stop from when it was first seen rather than from its own start (6 A2).
 func newActivityRead(env team.Env) *activityRead {
-	read := &activityRead{env: env, watcher: activity.NewWatcherAt(activityStatePath())}
+	return newActivityReadWith(env, source.Disk{})
+}
+
+// newActivityReadWith is this reading over one reader: a serve hands every
+// project the same version-keyed reader, so a file is opened once and read
+// again only when it changed (d-e00b).
+func newActivityReadWith(env team.Env, reader source.Reader) *activityRead {
+	read := &activityRead{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[string]team.Env{}}
 	read.hq = newHQRead(read)
 	return read
+}
+
+// envAt is one project's environment, placed once: the git command that finds
+// the root is not run again for every answer (d-e00b). A project whose path is
+// new is placed on its first use.
+func (a *activityRead) envAt(path string) (team.Env, error) {
+	want, err := team.ExpandProjectPath(path)
+	if err != nil {
+		return team.Env{}, err
+	}
+	a.envMu.Lock()
+	if env, ok := a.envs[want]; ok {
+		a.envMu.Unlock()
+		return env, nil
+	}
+	a.envMu.Unlock()
+	env, err := a.env.AtProject(want)
+	if err != nil {
+		return team.Env{}, err
+	}
+	a.envMu.Lock()
+	if a.envs == nil {
+		a.envs = map[string]team.Env{}
+	}
+	a.envs[want] = env
+	a.envMu.Unlock()
+	return env, nil
+}
+
+// fileReader is how this reading opens files: the reader it was built with, or
+// the disk when a test built one without it.
+func (a *activityRead) fileReader() source.Reader {
+	if a.reader == nil {
+		return source.Disk{}
+	}
+	return a.reader
 }
 
 // activityStatePath is where the watcher keeps its memory (6 A2):
@@ -431,7 +483,7 @@ func (a *activityRead) projectViews() []projectView {
 	}
 	views := make([]projectView, 0, len(paths))
 	for _, path := range paths {
-		env, err := a.env.AtProject(path)
+		env, err := a.envAt(path)
 		if err != nil {
 			continue
 		}
@@ -444,7 +496,7 @@ func (a *activityRead) projectViews() []projectView {
 func (a *activityRead) viewOf(env team.Env) projectView {
 	return projectView{
 		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot),
-		Env: env, Cat: env.Catalog(source.Disk{}),
+		Env: env, Cat: env.Catalog(a.fileReader()),
 	}
 }
 

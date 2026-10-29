@@ -159,8 +159,12 @@ func (k apiTeam) List() (any, *apiErr) {
 // YAML tab's files.
 func (s *Server) t2List() apiList {
 	out := apiList{Hashes: map[string]string{}}
+	// One version for the whole list: every row is checked against the same
+	// files, so a list asked for again builds nothing until one of them moves
+	// (d-e00b).
+	ver := s.cat.Version()
 	for _, listing := range s.cat.Definitions() {
-		out.Items = append(out.Items, s.t2ItemOf(listing))
+		out.Items = append(out.Items, s.t2ItemOf(listing, ver))
 		out.Files = append(out.Files, s.t2FilesOf(listing)...)
 	}
 	return out
@@ -169,7 +173,7 @@ func (s *Server) t2List() apiList {
 // t2ItemOf is one team definition as the list carries it: each place's reading
 // becomes the item's reading of that place, and the effective place's columns
 // its summary.
-func (s *Server) t2ItemOf(listing catalog.Listing) apiItem {
+func (s *Server) t2ItemOf(listing catalog.Listing, ver string) apiItem {
 	item := apiItem{Name: listing.Name, Places: map[string]apiPlace{}}
 	for _, place := range t2PlacesOf(listing) {
 		layer := catalog.Layer(place)
@@ -184,7 +188,7 @@ func (s *Server) t2ItemOf(listing catalog.Listing) apiItem {
 			Text:     text,
 			Hash:     source.Hash(text),
 			Path:     s.cat.Display(path),
-			Problems: s.t2CountsOf(listing.Name, layer),
+			Problems: s.t2CountsOf(listing.Name, layer, ver),
 		}
 	}
 	effective, hidden := t2Effective(listing)
@@ -193,7 +197,7 @@ func (s *Server) t2ItemOf(listing catalog.Listing) apiItem {
 		item.Problems = place.Problems
 	}
 	def, _ := s.cat.Definition(listing.Name, catalog.Layer(effective))
-	item.Summary = s.t2SummaryOf(listing.Name, catalog.Layer(effective), def)
+	item.Summary = s.t2SummaryOf(listing.Name, catalog.Layer(effective), def, ver)
 	return item
 }
 
@@ -262,7 +266,14 @@ type apiMemberPrompt struct {
 }
 
 // t2SummaryOf is the list's columns for one definition.
-func (s *Server) t2SummaryOf(name, layer string, def *definition.Definition) apiTeamSummary {
+func (s *Server) t2SummaryOf(name, layer string, def *definition.Definition, ver string) apiTeamSummary {
+	key := "team.summary|" + s.cat.Base() + "|" + name + "|" + layer + "|" + ver
+	return s.cached(key, func() any { return s.buildSummaryOf(name, layer, def) }).(apiTeamSummary)
+}
+
+// buildSummaryOf is one team's columns, built when no held answer stands for the
+// version of its files.
+func (s *Server) buildSummaryOf(name, layer string, def *definition.Definition) apiTeamSummary {
 	out := apiTeamSummary{}
 	if def == nil || def.Graph == nil {
 		// The team screen draws 使命 — and no numbers for a file that does not
@@ -340,7 +351,14 @@ func (s *Server) t2AgreeFile(name, layer string) string {
 // t2CountsOf is how many errors and warnings one place's definition carries:
 // the one check's findings, counted the way the list's column does (spec-teams
 // 1.2). The row, the panel and the YAML head read this same check (d-a575).
-func (s *Server) t2CountsOf(name, layer string) apiCounts {
+func (s *Server) t2CountsOf(name, layer, ver string) apiCounts {
+	key := "team.counts|" + s.cat.Base() + "|" + name + "|" + layer + "|" + ver
+	return s.cached(key, func() any { return s.buildCountsOf(name, layer) }).(apiCounts)
+}
+
+// buildCountsOf is one definition's counts, built when no held answer stands for
+// the version of its files.
+func (s *Server) buildCountsOf(name, layer string) apiCounts {
 	var out apiCounts
 	team := check.Team(check.TeamInput{Catalog: s.cat, Name: name, Layer: layer})
 	for _, finding := range team.Problems {
@@ -381,9 +399,16 @@ func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 // A team.yaml finding carries a field rather than a line, so the line of the
 // key it names travels beside it (spec-teams 1.8).
 func (s *Server) t2FileOf(place, kind, name, path string, hidden bool) apiFile {
+	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
+	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text) + "|" + map[bool]string{true: "hidden", false: "shown"}[hidden]
+	return s.cached(key, func() any { return s.buildFileOf(place, kind, name, path, hidden, text) }).(apiFile)
+}
+
+// buildFileOf is one YAML tab file with its problems, built when no held answer
+// stands for the file's version.
+func (s *Server) buildFileOf(place, kind, name, path string, hidden bool, text string) apiFile {
 	layer := catalog.Layer(place)
 	display := s.cat.Display(path)
-	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
 	out := apiFile{
 		Place: place, Name: name, Kind: kind, Label: t2PlaceWord(place),
 		Path: display, Hash: source.Hash(text), Text: text, Hidden: hidden,

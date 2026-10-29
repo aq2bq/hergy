@@ -18,9 +18,9 @@ import (
 // headquarters can show every project's own size.
 func (c *Catalog) Counts(layer string) (definitions, roles, profiles int) {
 	dir := c.LayerDir(layer)
-	definitions = len(teamNames(dir))
+	definitions = len(c.teamNames(dir))
 	seen := map[string]bool{}
-	for _, name := range roleNames(dir) {
+	for _, name := range c.roleNames(dir) {
 		if seen[name] {
 			continue
 		}

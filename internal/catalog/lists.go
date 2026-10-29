@@ -54,7 +54,7 @@ func (c *Catalog) Roles() []RoleEntry {
 		add(role)
 	}
 	for _, one := range c.layers() {
-		for _, name := range roleNames(one.dir) {
+		for _, name := range c.roleNames(one.dir) {
 			add(name)
 		}
 	}
@@ -178,6 +178,12 @@ func (c *Catalog) rolePlace(layer, name string) string {
 // roleNames lists the role documents under one layer, by role name: the .yaml
 // hergy reads, and a .md still left as Markdown, which the screen shows as a row
 // that says so (spec-roles 1.2.10).
+// roleNames is one layer's role names, under the version of its roles/
+// directory (d-e00b).
+func (c *Catalog) roleNames(dir string) []string {
+	return c.dirNames(filepath.Join(dir, "roles"), func() []string { return roleNames(dir) })
+}
+
 func roleNames(dir string) []string {
 	var names []string
 	for _, ext := range []string{"yaml", "md"} {

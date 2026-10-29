@@ -8,6 +8,7 @@
 package catalog
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"maps"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -47,6 +49,33 @@ type Catalog struct {
 	// (C5): a screen checks a draft that removes a document, so the reading has
 	// to see the removal before it is written. Without adds one.
 	hidden map[string]bool
+	// held is the parsed readings every catalog of one reader shares: a team
+	// definition read for one request is the same value the next request draws
+	// from, until a file it was read from changes (d-e00b). A catalog is copied
+	// by value (With, LayerOnly), so the map stands behind a pointer.
+	held *heldReadings
+}
+
+// heldReadings is what one reader's catalogs keep parsed, by the version of the
+// inputs it was parsed from. The key is a hash of those inputs, so a file that
+// changed is a different key and is parsed again; nothing is held by time.
+type heldReadings struct {
+	mu   sync.Mutex
+	defs map[[32]byte]defResult
+	// dirs is one directory's file names under the directory's version: a list
+	// a screen asks for on every request opens no directory when nothing was
+	// added or taken away.
+	dirs map[string]dirResult
+}
+
+type dirResult struct {
+	mod, size int64
+	names     []string
+}
+
+type defResult struct {
+	def *definition.Definition
+	err error
 }
 
 // New builds a catalog over the two layer directories and the project root.
@@ -57,6 +86,7 @@ func New(globalDir, localDir, base string, reader source.Reader, display func(st
 		base:      base,
 		reader:    reader,
 		display:   display,
+		held:      &heldReadings{defs: map[[32]byte]defResult{}, dirs: map[string]dirResult{}},
 	}
 }
 
@@ -208,11 +238,7 @@ func (c *Catalog) readText(path string) (string, error) {
 	if text, ok := c.readThrough(path); ok {
 		return text, nil
 	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+	return c.reader.Read(source.Doc{Path: path})
 }
 
 // hasFile reports whether a settings file is there to read: on disk, or as a
@@ -224,7 +250,7 @@ func (c *Catalog) hasFile(path string) bool {
 	if _, ok := c.readThrough(path); ok {
 		return true
 	}
-	return isFile(path)
+	return c.reader.IsFile(source.Doc{Path: path})
 }
 
 // ErrNotFound says a team definition name has none: in the layer asked for, or
@@ -293,10 +319,10 @@ func (c *Catalog) Definitions() []Listing {
 			row.GlobalPath = path
 		}
 	}
-	for _, name := range teamNames(c.localDir) {
+	for _, name := range c.teamNames(c.localDir) {
 		add(name, true, c.TeamYAML(name, source.LayerLocal))
 	}
-	for _, name := range teamNames(c.globalDir) {
+	for _, name := range c.teamNames(c.globalDir) {
 		add(name, false, c.TeamYAML(name, source.LayerGlobal))
 	}
 	rows := make([]Listing, 0, len(byName))
@@ -382,17 +408,17 @@ func (c *Catalog) definitionIn(name, layer string, mode readMode) (*definition.D
 func (c *Catalog) defaultDefinition(layer string, mode readMode) (*definition.Definition, error) {
 	switch layer {
 	case source.LayerGlobal:
-		names := teamNames(c.globalDir)
+		names := c.teamNames(c.globalDir)
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerGlobal, mode)
 		}
 	case source.LayerLocal:
-		names := teamNames(c.localDir)
+		names := c.teamNames(c.localDir)
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerLocal, mode)
 		}
 	default:
-		names := teamNames(c.localDir)
+		names := c.teamNames(c.localDir)
 		if len(names) == 1 {
 			return c.definitionIn(names[0], source.LayerLocal, mode)
 		}
@@ -400,12 +426,51 @@ func (c *Catalog) defaultDefinition(layer string, mode readMode) (*definition.De
 	return nil, c.candidates(layer)
 }
 
-// readDefinition reads one team.yaml with the profiles its layer reads.
+// readDefinition reads one team.yaml with the profiles its layer reads. The
+// reading is held under a hash of everything it stands on — the team.yaml, the
+// two profiles files, and whether the team's agreement is there — so the next
+// request with the same inputs parses nothing (d-e00b).
 func (c *Catalog) readDefinition(name, path, layer string, mode readMode) (*definition.Definition, error) {
 	text, err := c.readText(path)
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
 	}
+	key := c.definitionKey(name, path, layer, mode, text)
+	if c.held != nil {
+		c.held.mu.Lock()
+		h, ok := c.held.defs[key]
+		c.held.mu.Unlock()
+		if ok {
+			return h.def, h.err
+		}
+	}
+	def, err := c.parseDefinition(name, path, layer, mode, text)
+	if c.held != nil {
+		c.held.mu.Lock()
+		c.held.defs[key] = defResult{def: def, err: err}
+		c.held.mu.Unlock()
+	}
+	return def, err
+}
+
+// definitionKey is the version of everything one definition's reading stands
+// on: its own text and place, the reading mode, the two profiles files, and
+// whether its agreement.yaml is there.
+func (c *Catalog) definitionKey(name, path, layer string, mode readMode, text string) [32]byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%d\x00%s\x00", name, path, layer, mode, text)
+	for _, dir := range []string{c.globalDir, c.localDir} {
+		profiles := filepath.Join(dir, "profiles.yaml")
+		ptext, ok, err := c.fileText(profiles)
+		fmt.Fprintf(&b, "%s\x00%t\x00%v\x00%s\x00", profiles, ok, err, ptext)
+	}
+	agree := filepath.Join(filepath.Dir(path), "agreement.yaml")
+	fmt.Fprintf(&b, "%s\x00%t", agree, c.reader.IsFile(source.Doc{Path: agree}))
+	return sha256.Sum256([]byte(b.String()))
+}
+
+// parseDefinition reads one team.yaml with the profiles its layer reads.
+func (c *Catalog) parseDefinition(name, path, layer string, mode readMode, text string) (*definition.Definition, error) {
 	// profiles.yaml must read before a definition does, so a team file is not
 	// read against names a broken profiles file hides. The names a definition
 	// writes are the check's business, not the reading's (spec-teams 1.9).
@@ -478,7 +543,7 @@ func (c *Catalog) candidates(layer string) error {
 		dir = c.globalDir
 	}
 	var b strings.Builder
-	fmt.Fprint(&b, i18n.Tf("error.team_count_candidates", len(teamNames(dir)), strings.Join(list, i18n.T("list.separator"))))
+	fmt.Fprint(&b, i18n.Tf("error.team_count_candidates", len(c.teamNames(dir)), strings.Join(list, i18n.T("list.separator"))))
 	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", nextCommand(list)))
 	return notFoundError{b.String()}
 }
@@ -487,7 +552,7 @@ func (c *Catalog) candidates(layer string) error {
 func (c *Catalog) candidateNames() []string {
 	seen := map[string]bool{}
 	var names []string
-	for _, name := range append(teamNames(c.localDir), teamNames(c.globalDir)...) {
+	for _, name := range append(c.teamNames(c.localDir), c.teamNames(c.globalDir)...) {
 		if !seen[name] {
 			seen[name] = true
 			names = append(names, name)
@@ -498,6 +563,37 @@ func (c *Catalog) candidateNames() []string {
 }
 
 // teamNames lists the team directories under a layer that have a team.yaml.
+// teamNames is one layer's team definition names, under the version of its
+// teams/ directory: the same list is not globbed again until a definition is
+// added or taken away (d-e00b).
+func (c *Catalog) teamNames(dir string) []string {
+	return c.dirNames(filepath.Join(dir, "teams"), func() []string { return teamNames(dir) })
+}
+
+// dirNames is one directory's reading held under the directory's version. A
+// directory hergy cannot stat (a test's reader stands in for it) is read every
+// time, because there is no version to tell it apart by.
+func (c *Catalog) dirNames(dir string, read func() []string) []string {
+	info, err := os.Stat(dir)
+	if err != nil || c.held == nil {
+		return read()
+	}
+	mod, size := info.ModTime().UnixNano(), info.Size()
+	c.held.mu.Lock()
+	held, ok := c.held.dirs[dir]
+	if ok && held.mod == mod && held.size == size {
+		names := append([]string(nil), held.names...)
+		c.held.mu.Unlock()
+		return names
+	}
+	c.held.mu.Unlock()
+	names := read()
+	c.held.mu.Lock()
+	c.held.dirs[dir] = dirResult{mod: mod, size: size, names: append([]string(nil), names...)}
+	c.held.mu.Unlock()
+	return names
+}
+
 func teamNames(dir string) []string {
 	matches, err := filepath.Glob(filepath.Join(dir, "teams", "*", "team.yaml"))
 	if err != nil {
@@ -509,11 +605,6 @@ func teamNames(dir string) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 // ProjectProfileFile is the project's own profiles.yaml, the one a team
@@ -573,14 +664,14 @@ func (c *Catalog) fileText(path string) (text string, ok bool, err error) {
 	if text, carried := c.readThrough(path); carried {
 		return text, true, nil
 	}
-	if !isFile(path) {
+	if !c.reader.IsFile(source.Doc{Path: path}) {
 		return "", false, nil
 	}
-	b, err := os.ReadFile(path)
+	text, err = c.reader.Read(source.Doc{Path: path})
 	if err != nil {
 		return "", false, err
 	}
-	return string(b), true, nil
+	return text, true, nil
 }
 
 // Profile returns the named profile, and whether a team definition sees it.

@@ -105,17 +105,17 @@ func (a *activityRead) GlobalCatalog() *catalog.Catalog {
 // catalogAt builds one project's catalog with the headquarters' display: the
 // same project reads the same paths in every serve.
 func (h *hqRead) catalogAt(path string) (*catalog.Catalog, error) {
-	env, err := h.act.env.AtProject(path)
+	env, err := h.act.envAt(path)
 	if err != nil {
 		return nil, err
 	}
-	return catalog.New(env.GlobalDir, env.LocalDir, env.ProjectRoot, source.Disk{}, env.DisplayPath).InRepo(env.InRepo()), nil
+	return catalog.New(env.GlobalDir, env.LocalDir, env.ProjectRoot, h.act.fileReader(), env.DisplayPath).InRepo(env.InRepo()), nil
 }
 
 // globalCatalog is the global layer alone, with the headquarters' display.
 func (h *hqRead) globalCatalog() *catalog.Catalog {
 	env := h.act.env
-	return catalog.New(env.GlobalDir, filepath.Join(env.GlobalDir, ".hq", "no-layer"), env.GlobalDir, source.Disk{}, env.DisplayPath).InRepo(env.InRepo())
+	return catalog.New(env.GlobalDir, filepath.Join(env.GlobalDir, ".hq", "no-layer"), env.GlobalDir, h.act.fileReader(), env.DisplayPath).InRepo(env.InRepo())
 }
 
 // hqRefuse is a refusal the boundary answers with this status and sentence.
@@ -243,11 +243,11 @@ func screenPath(path string) error {
 
 // projectOf is one project as the headquarters reads it.
 func (h *hqRead) projectOf(path string, listed bool, sourceName string) (web.HQProject, error) {
-	env, err := h.act.env.AtProject(path)
+	env, err := h.act.envAt(path)
 	if err != nil {
 		return web.HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	cat := env.Catalog(source.Disk{})
+	cat := env.Catalog(h.act.fileReader())
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
 	_, statErr := os.Stat(env.ProjectRoot)
 	_, hergyErr := os.Stat(env.LocalDir)
@@ -297,7 +297,7 @@ func nameProjectsOf(projects []web.HQProject) {
 
 // globalCounts is the global layer's own counts.
 func (h *hqRead) globalCounts() web.HQGlobal {
-	cat := h.act.env.Catalog(source.Disk{})
+	cat := h.act.env.Catalog(h.act.fileReader())
 	defs, roles, profiles := cat.Counts(source.LayerGlobal)
 	return web.HQGlobal{
 		Path: h.act.env.GlobalDir, Display: h.act.env.DisplayPath(h.act.env.GlobalDir),

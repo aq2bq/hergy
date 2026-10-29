@@ -58,8 +58,12 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	if _, _, err := env.ProjectPaths(cfg); err != nil {
 		return fmt.Errorf("%s: %w", env.DisplayPath(env.ConfigPath()), err)
 	}
-	cat := env.Catalog(source.Disk{})
-	read := newActivityRead(env)
+	// One version-keyed reader for the whole serve: every project's catalog and
+	// the activity reading open a file once, and read it again only when the
+	// file's version moved (d-e00b).
+	memo := source.NewMemo()
+	cat := env.Catalog(memo)
+	read := newActivityReadWith(env, memo)
 	read.ctx = ctx
 	// The screens are written in one language, and the server makes their pages
 	// and the sentences it answers them with in that language; --lang is the

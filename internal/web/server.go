@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -52,6 +53,35 @@ type Server struct {
 	// addr is this server's own address ("127.0.0.1:8787"), set when the socket
 	// is open; every request is checked against it.
 	addr string
+	// held is what this server built from the settings files, by the files'
+	// version: a list asked for twice checks nothing again until a file changes
+	// (d-e00b).
+	held *heldAnswers
+}
+
+// heldAnswers is the built answers one run keeps, by the version of the files
+// they stand on. A server copied for one project (withProject) shares it.
+type heldAnswers struct {
+	mu    sync.Mutex
+	items map[string]any
+}
+
+// cached is what was built for key, or build's answer held under key.
+func (s *Server) cached(key string, build func() any) any {
+	if s.held == nil {
+		return build()
+	}
+	s.held.mu.Lock()
+	held, ok := s.held.items[key]
+	s.held.mu.Unlock()
+	if ok {
+		return held
+	}
+	answer := build()
+	s.held.mu.Lock()
+	s.held.items[key] = answer
+	s.held.mu.Unlock()
+	return answer
 }
 
 // New builds the server for one run: the catalog every screen reads through, and
@@ -77,7 +107,7 @@ func New(cat *catalog.Catalog, act Activity) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cat: cat, act: act, token: token, tpl: tpl}
+	s := &Server{cat: cat, act: act, token: token, tpl: tpl, held: &heldAnswers{items: map[string]any{}}}
 	if applier, ok := act.(Applier); ok {
 		s.apply = applier
 	}

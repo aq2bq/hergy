@@ -233,7 +233,7 @@ func buildResolved(cat *catalog.Catalog, base string, def *definition.Definition
 	if err != nil {
 		return nil, err
 	}
-	starts, err := startsOf(cat, def, runName, base, profiles, source.Disk{})
+	starts, err := startsOf(cat, def, runName, base, profiles, cat.Reader())
 	if err != nil {
 		return nil, err
 	}

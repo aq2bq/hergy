@@ -26,7 +26,7 @@ func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
 	if !found {
 		return web.HQStopped{}, hqRefuse(http.StatusNotFound, i18n.Tf("error.team_not_running", teamName))
 	}
-	env, err := h.act.env.AtProject(one.Project)
+	env, err := h.act.envAt(one.Project)
 	if err != nil {
 		return web.HQStopped{}, hqError(err)
 	}

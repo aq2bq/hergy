@@ -11,9 +11,12 @@
 package profile
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -49,9 +52,42 @@ type rawProfile struct {
 	Env  map[string]any `yaml:"env"`
 }
 
+// profileCache holds one profiles.yaml's reading under the text's hash: a serve
+// asks for it for every team definition, and the YAML decode is the work it
+// would otherwise do again. A caller gets its own map, because the catalog
+// writes each profile's own path into what it read.
+var (
+	profileMu    sync.Mutex
+	profileCache = map[[32]byte]profileResult{}
+)
+
+type profileResult struct {
+	profiles map[string]Profile
+	err      error
+}
+
 // ParseProfiles reads one profiles.yaml, checking its version before anything
 // else and then rejecting unknown keys.
 func ParseProfiles(text, path string) (map[string]Profile, error) {
+	key := sha256.Sum256([]byte(path + "\x00" + text))
+	profileMu.Lock()
+	held, ok := profileCache[key]
+	profileMu.Unlock()
+	if !ok {
+		held.profiles, held.err = parseProfiles(text, path)
+		profileMu.Lock()
+		profileCache[key] = profileResult{profiles: cloneProfiles(held.profiles), err: held.err}
+		profileMu.Unlock()
+	}
+	if held.err != nil {
+		return nil, held.err
+	}
+	return cloneProfiles(held.profiles), nil
+}
+
+// parseProfiles reads one profiles.yaml, checking its version before anything
+// else and then rejecting unknown keys.
+func parseProfiles(text, path string) (map[string]Profile, error) {
 	if _, err := ReadVersion(text, "profiles.yaml", path); err != nil {
 		return nil, err
 	}
@@ -125,4 +161,25 @@ func envOf(value map[string]any, label string) (map[string]string, error) {
 		out[key] = text
 	}
 	return out, nil
+}
+
+// cloneProfiles is a map of its own, so a caller that writes a profile's path
+// into it leaves the held reading as it was.
+func cloneProfiles(in map[string]Profile) map[string]Profile {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]Profile, len(in))
+	for name, one := range in {
+		if one.Args != nil {
+			one.Args = append([]string(nil), one.Args...)
+		}
+		if one.Env != nil {
+			env := make(map[string]string, len(one.Env))
+			maps.Copy(env, one.Env)
+			one.Env = env
+		}
+		out[name] = one
+	}
+	return out
 }

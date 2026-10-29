@@ -144,7 +144,7 @@ func shortsOfStarts(members []plannedMember) []string {
 // the next comparison does not see the preamble as a change.
 func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedMember) {
 	for _, group := range groupByTeam(selected) {
-		env, err := h.act.env.AtProject(group[0].team.Project)
+		env, err := h.act.envAt(group[0].team.Project)
 		if err != nil {
 			h.finish(op, "failed", err.Error())
 			return
