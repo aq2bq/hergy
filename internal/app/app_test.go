@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -397,6 +398,7 @@ func TestNewShape(t *testing.T) {
 		"profile: claude-default",
 		"file: .hergy/profiles.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
+		i18n.Tf("rules.ids_given", 6),
 		"next: up demo --dry",
 	)
 }
@@ -994,8 +996,10 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 }
 
 func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
-	newFixture(t)
+	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	leadID := ruleIDOf(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), "Hand over a task")
+	agreeID := ruleIDOf(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"), "Work along the gy-loop")
 	got := mustRun(t, "up", "demo", "--dry")
 	if strings.Contains(got, `\n`) {
 		t.Fatalf("up --dry escapes the prompt:\n%s", got)
@@ -1010,8 +1014,8 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"  reads: .hergy/teams/demo/agreement.yaml",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
-		"    - **MAAF** Hand over a task the receiver can start without reading your conversation.",
-		"    - **MAAA** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
+		"    - **" + leadID + "** Hand over a task the receiver can start without reading your conversation.",
+		"    - **" + agreeID + "** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
 		"next: up demo",
 	} {
 		if !strings.Contains(got, line+"\n") {
@@ -2795,4 +2799,22 @@ func TestTeamCommandsRejectAs(t *testing.T) {
 			t.Fatalf("%v does not say why:\n%s", argv, stderr)
 		}
 	}
+}
+
+// ruleIDOf is the id of the rule whose text begins with prefix, as the file
+// holds it: hergy gives the id when it writes the file, so a test reads it back
+// rather than naming one (d-4aab).
+func ruleIDOf(t *testing.T, path, prefix string) string {
+	t.Helper()
+	doc, problems := rules.ReadAll(readFile(t, path), path)
+	if len(problems) != 0 || doc == nil {
+		t.Fatalf("%s does not read: %+v", path, problems)
+	}
+	for _, rule := range doc.Rules() {
+		if strings.HasPrefix(rule.Text, prefix) {
+			return rule.ID
+		}
+	}
+	t.Fatalf("%s holds no rule starting %q", path, prefix)
+	return ""
 }

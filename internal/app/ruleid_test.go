@@ -104,3 +104,43 @@ func TestValidateCountsTheRulesWithoutAnIDAndWritesNothing(t *testing.T) {
 		t.Errorf("validate wrote the file")
 	}
 }
+
+// TestNewGivesEachTeamsRulesTheirOwnIDs: `hergy new` writes rule files, so it
+// gives their rules ids; two teams made in one project do not share an id, and
+// the template carries none to begin with (d-4aab).
+func TestNewGivesEachTeamsRulesTheirOwnIDs(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	mustRun(t, "new", "demo2")
+	seen := map[string]string{}
+	for _, rel := range []string{
+		filepath.Join("teams", "demo", "agreement.yaml"),
+		filepath.Join("teams", "demo2", "agreement.yaml"),
+		filepath.Join("roles", "lead.yaml"),
+		filepath.Join("roles", "builder.yaml"),
+	} {
+		path := filepath.Join(f.proj, ".hergy", rel)
+		doc, problems := rules.ReadAll(readFile(t, path), path)
+		if len(problems) != 0 {
+			t.Fatalf("%s does not read: %+v", rel, problems)
+		}
+		for _, rule := range doc.Rules() {
+			if !rules.RuleIDPattern.MatchString(rule.ID) {
+				t.Errorf("%s: rule %q has id %q, want hergy's shape", rel, rule.Text, rule.ID)
+			}
+			if prev, ok := seen[rule.ID]; ok {
+				t.Errorf("%s and %s share the id %s", rel, prev, rule.ID)
+			}
+			seen[rule.ID] = rel
+		}
+	}
+	for _, name := range []string{"demo", "demo2"} {
+		path := filepath.Join(f.proj, ".hergy", "teams", name, "agreement.yaml")
+		doc, _ := rules.ReadAll(readFile(t, path), path)
+		for _, rule := range doc.Rules() {
+			if rule.ID == "" {
+				t.Errorf("%s still holds a rule with no id", name)
+			}
+		}
+	}
+}

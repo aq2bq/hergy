@@ -249,11 +249,21 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   // The two role documents the shared place lacks are written; the 中 test sees
   // the project's side alone.
   const global = path.join(app.cfg, 'hergy');
+  // The role documents carry the scaffold's own lines; their ids are the ones
+  // hergy gave this write, so they differ from the ids of another `hergy new`
+  // in another project, and no id is shared with the project's own (d-4aab).
+  const withoutIDs = (text: string) => text.replace(/^\s*-?\s*id: [A-Z0-9]+\n/gm, '');
+  const idsIn = (text: string) => [...text.matchAll(/^\s*-?\s*id: ([A-Z0-9]+)$/gm)].map((m) => m[1]);
   for (const name of ['lead.yaml', 'builder.yaml']) {
-    expect(
-      readFileSync(path.join(global, 'roles', name), 'utf8'),
-      `the shared roles/${name} reads, want the scaffold's own`,
-    ).toBe(scaffold.roles.get(name));
+    const shared = readFileSync(path.join(global, 'roles', name), 'utf8');
+    const own = scaffold.roles.get(name) || '';
+    expect(withoutIDs(shared), `the shared roles/${name} reads, want the scaffold's own`).toBe(withoutIDs(own));
+    const sharedIDs = idsIn(shared);
+    expect(sharedIDs.length, `the shared roles/${name} has no rule`).toBeGreaterThan(0);
+    for (const id of sharedIDs) {
+      expect(id, `the shared roles/${name} has an id hergy does not write`).toMatch(/^[A-HJKMNP-TV-Z][A-HJKMNP-TV-Z0-9]{3}$/);
+      expect(idsIn(own), `the shared roles/${name} shares an id with the project's own`).not.toContain(id);
+    }
   }
   expect(
     readFileSync(path.join(global, 'profiles.yaml'), 'utf8'),

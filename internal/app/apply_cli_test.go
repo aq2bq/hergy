@@ -40,11 +40,12 @@ func TestApplyDrySaysHowAndWhatChanged(t *testing.T) {
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	roleID := ruleIDOf(t, rolePath, "Hand over a task")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 
 	out := mustRun(t, "apply", "--dry")
-	for _, want := range []string{"Plan:", "lead", "sent the prompt again", "MAAF"} {
+	for _, want := range []string{"Plan:", "lead", "sent the prompt again", roleID} {
 		if !strings.Contains(out, want) {
 			t.Errorf("apply --dry does not say %q:\n%s", want, out)
 		}

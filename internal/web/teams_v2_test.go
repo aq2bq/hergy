@@ -878,8 +878,16 @@ func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
 	for _, name := range []string{"team.yaml", "agreement.yaml"} {
 		got := readFile(t, filepath.Join(dir, name))
-		if got != want[name] {
-			t.Errorf("the saved %s reads\n%s\nwant hergy new's own\n%s", name, got, want[name])
+		if withoutRuleIDs(got) != want[name] {
+			t.Errorf("the saved %s reads\n%s\nwant hergy new's own (without the ids it gives)\n%s", name, got, want[name])
+		}
+		if name == "agreement.yaml" {
+			doc, _ := rules.ReadAll(got, filepath.Join(dir, name))
+			for _, rule := range doc.Rules() {
+				if !rules.RuleIDPattern.MatchString(rule.ID) {
+					t.Errorf("the saved agreement's rule %q has no id hergy writes", rule.Text)
+				}
+			}
 		}
 	}
 	// The layer's role documents the starter reads were already there, so the
@@ -961,10 +969,37 @@ func TestTEAMS_N5_DraftDuplicateWritesTheSameFiles(t *testing.T) {
 	one := filepath.Join(f.proj, ".hergy", "teams", "demo")
 	two := filepath.Join(f.proj, ".hergy", "teams", "demo-2")
 	for _, name := range []string{"team.yaml", "agreement.yaml"} {
-		if got, want := readFile(t, filepath.Join(two, name)), readFile(t, filepath.Join(one, name)); got != want {
-			t.Errorf("the duplicate's %s reads\n%s\nwant the original's\n%s", name, got, want)
+		got, want := readFile(t, filepath.Join(two, name)), readFile(t, filepath.Join(one, name))
+		if withoutRuleIDs(got) != withoutRuleIDs(want) {
+			t.Errorf("the duplicate's %s reads\n%s\nwant the original's (without the ids)\n%s", name, got, want)
 		}
 	}
+	// The duplicate's rules are its own: no id is shared with the definition it
+	// was copied from (d-4aab).
+	original, _ := rules.ReadAll(readFile(t, filepath.Join(one, "agreement.yaml")), filepath.Join(one, "agreement.yaml"))
+	copied, _ := rules.ReadAll(readFile(t, filepath.Join(two, "agreement.yaml")), filepath.Join(two, "agreement.yaml"))
+	held := map[string]bool{}
+	for _, rule := range original.Rules() {
+		held[rule.ID] = true
+	}
+	for _, rule := range copied.Rules() {
+		if held[rule.ID] {
+			t.Errorf("the duplicate takes the id %s of the definition it copied", rule.ID)
+		}
+	}
+}
+
+// withoutRuleIDs is a file's lines without the id lines hergy writes: the
+// template and the written file are the same shape otherwise (d-4aab).
+func withoutRuleIDs(text string) string {
+	var kept []string
+	for line := range strings.SplitSeq(text, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "id: ") || strings.HasPrefix(strings.TrimSpace(line), "- id: ") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 // TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace: a copy stands on the other place's

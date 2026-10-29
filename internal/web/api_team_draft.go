@@ -337,5 +337,10 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	}); err != nil {
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}
+	// The save wrote rule files — the agreement, and the role documents a
+	// starter definition brings — so their rules get hergy's ids now (d-4aab).
+	if refusal := s.assignRuleIDs(); refusal != nil {
+		return nil, refusal
+	}
 	return k.savedAnswer(name, in.Place), nil
 }

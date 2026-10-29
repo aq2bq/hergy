@@ -48,6 +48,11 @@ func (s *set) addAll(doc *Document) []Problem {
 	for si := range doc.Sections {
 		rules := doc.Sections[si].Rules
 		for ri := range rules {
+			// A rule with no id yet is not a duplicate of another: hergy gives
+			// it one when it writes the file (d-4aab).
+			if rules[ri].ID == "" {
+				continue
+			}
 			if first, ok := s.ids[rules[ri].ID]; ok {
 				problem := newProblem(doc.Path, si, ri, "id", 0,
 					i18n.Errorf("error.rules_duplicate_id", doc.Path, rules[ri].ID, first))

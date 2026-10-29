@@ -732,6 +732,13 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// new writes rule files, so it gives the rules their ids here, after the
+	// files stand: the template carries none, and two teams made in one project
+	// do not take each other's ids (d-4aab).
+	given, err := ruleid.Assign(cat)
+	if err != nil {
+		return err
+	}
 	field(stdout, label("definition"), name)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, path := range written.Files {
@@ -750,6 +757,7 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if madeConfig {
 		field(stdout, label("config"), env.Display(configPath))
 	}
+	ruleid.Print(stdout, given)
 	printNext(stdout, "up "+name+" --dry")
 	return nil
 }
