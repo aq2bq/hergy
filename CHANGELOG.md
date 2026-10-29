@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.2 - 2026-10-29
 
 ### Breaking
 
@@ -8,8 +8,14 @@
   letter and three uppercase letters or digits, without I, L, O and U (for
   example `K7QF`), with no meaning. People and screens write none: a rule is
   written without an `id`, and the next write gives it one and writes it back,
-  one line saying how many it gave (d-4aab, d-a873). An id hergy gave is never
-  changed, and an id of a rule that was taken out is never used again.
+  one line saying how many it gave (d-4aab, d-a873). The writes are `hergy new`,
+  `up`, `apply`, `reprompt`, `refresh` and `hire` (never with `--dry`) and a save
+  on the screens; the screens show 保存で付く for a rule until it is saved, and
+  an id cannot be edited there. An id in the older shape (`LEAD-1`, `TEAM-TURN-1`)
+  is given a new one the same way, in the project's and the global settings at
+  once, and a rule's text that names the old id is rewritten to the new one. An
+  id hergy gave is never changed, and an id of a rule that was taken out is
+  never used again. Only the `id:` lines change: comments and other lines stay.
 - **The first apply after this release resends every rule**: the ids that were
   written by hand (or by the screen) are given hergy's ids once. A running team
   then reads every rule as taken out and added, so the first `hergy apply` (or
@@ -19,6 +25,19 @@
 - **Reading no longer refuses a rule without an id**: `hergy validate`, `--dry`,
   `hergy status` and the screens read it, and `validate` counts the rules the
   next write will give an id.
+
+### Moving from 0.9.1
+
+1. Before the first write, run `hergy validate`: it says how many rules hergy has
+   not given an id yet. Every rule whose id was written by hand is among them.
+2. Wait until the running teams are waiting, then run `hergy apply` (a `--dry`
+   run reads only and gives no ids). hergy first gives the ids in the project's
+   and the global settings, then sends the prompt once more to each member with
+   drift.
+3. The global roles' new ids reach the other projects' teams too: run
+   `hergy apply` in each of those projects as well.
+4. If you wrote the old ids anywhere outside the rule files (notes, gy, scripts),
+   look them up again: hergy rewrites only the rule files.
 
 ## 0.9.1 - 2026-10-29
 
