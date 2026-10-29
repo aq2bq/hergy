@@ -207,6 +207,7 @@
 .hq-svg .hq-call { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 5; animation: hq-flow 1s linear infinite; }
 @keyframes hq-flow { to { stroke-dashoffset: -10; } }
 .hq-svg .hq-n text { font-family: var(--f-mono); font-size: 11.5px; fill: var(--ink); text-anchor: middle; }
+.hq-svg .hq-n text.left { text-anchor: start; }
 .hq-svg .hq-n text.s { font-size: 10px; fill: var(--muted); }
 .hq-svg .human rect { fill: var(--ink); }
 .hq-svg .human text { fill: var(--bg); font-family: var(--f-body); font-size: 12px; font-weight: 700; }

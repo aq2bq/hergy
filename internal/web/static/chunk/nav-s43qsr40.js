@@ -350,37 +350,6 @@ var labelUnits = (value) => {
   return units;
 };
 var labelWidth = (value, size) => Math.ceil(labelUnits(value) * size * 1.05);
-function rowsOf(items, widthOf, maxWidth, gap) {
-  const rows = [];
-  let row = [], used = 0;
-  for (const item of items) {
-    const width = Math.max(28, widthOf(item));
-    if (row.length && used + gap + width > maxWidth) {
-      rows.push(row);
-      row = [];
-      used = 0;
-    }
-    if (row.length)
-      used += gap;
-    row.push({ item, width });
-    used += width;
-  }
-  if (row.length)
-    rows.push(row);
-  return rows;
-}
-function placeRows(rows, W, gap, y, rowStep) {
-  const slots = [];
-  rows.forEach((row, rowIndex) => {
-    const rowWidth = row.reduce((sum, cell) => sum + cell.width, 0) + Math.max(0, row.length - 1) * gap;
-    let left = (W - rowWidth) / 2;
-    for (const cell of row) {
-      slots.push({ item: cell.item, width: cell.width, x: left + cell.width / 2, y: y + rowIndex * rowStep, row: rowIndex });
-      left += cell.width + gap;
-    }
-  });
-  return slots;
-}
 var nodeState = (state) => {
   const labels = {
     active: "仕事中",
@@ -393,6 +362,14 @@ var nodeState = (state) => {
 };
 function PackedFigure({ team, turns, W }) {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
+  const memberDotRadius = 11;
+  const memberLabelGap = 6;
+  const workerDotRadius = 6;
+  const workerDotOffset = 24;
+  const workerLabelGap = 8;
+  const columnRightPad = 8;
+  const memberSpineOffset = 16;
+  const freeDotOffset = 8;
   const owned = new Map;
   const free = [];
   for (const worker of workers) {
@@ -404,27 +381,28 @@ function PackedFigure({ team, turns, W }) {
     list.push(worker);
     owned.set(worker.from, list);
   }
-  const workerWidth = (worker) => Math.max(28, labelWidth(worker.name, 10) + 16);
-  const workerGap = 0;
   const columns = crew.map((member) => {
     const group = owned.get(member.name) || [];
-    const widest = group.map(workerWidth).sort((a, b) => b - a)[0] || 0;
-    const width = Math.max(38, labelWidth(member.name, 11.5) + 8, widest);
+    const memberRight = memberDotRadius + memberLabelGap + labelWidth(member.name, 11.5);
+    const workerRight = group.length ? workerDotOffset + workerDotRadius + workerLabelGap + Math.max(...group.map((worker) => labelWidth(worker.name, 10))) : 0;
+    const width = memberSpineOffset + Math.max(memberRight, workerRight) + columnRightPad;
     return {
       member,
       owner: member.name,
       width,
-      rows: rowsOf(group, workerWidth, widest, workerGap),
+      workers: group,
+      spineOffset: memberSpineOffset,
       x: 0
     };
   });
   if (free.length) {
-    const width = Math.max(...free.map(workerWidth));
+    const width = freeDotOffset + workerDotRadius + workerLabelGap + Math.max(...free.map((worker) => labelWidth(worker.name, 10))) + columnRightPad;
     columns.push({
       member: null,
       owner: null,
       width,
-      rows: rowsOf(free, workerWidth, width, workerGap),
+      workers: free,
+      spineOffset: freeDotOffset,
       x: 0
     });
   }
@@ -433,18 +411,25 @@ function PackedFigure({ team, turns, W }) {
   const viewWidth = Math.max(W, contentWidth + 16);
   let left = (viewWidth - contentWidth) / 2;
   for (const column of columns) {
-    column.x = left + column.width / 2;
+    column.x = left + column.spineOffset;
     left += column.width + columnGap;
   }
   const memberY = 136;
   const workerTop = 210;
-  const workerStep = 48;
+  const workerStep = 40;
   const workerSlots = new Map;
   let workerRowCount = 0;
   for (const column of columns) {
-    const placed = placeRows(column.rows, column.width, workerGap, workerTop, workerStep).map((slot) => ({ ...slot, x: slot.x + column.x - column.width / 2 }));
+    const dotX = column.member ? column.x + workerDotOffset : column.x;
+    const placed = column.workers.map((item, row) => ({
+      item,
+      width: labelWidth(item.name, 10),
+      x: dotX,
+      y: workerTop + row * workerStep,
+      row
+    }));
     workerSlots.set(column, placed);
-    workerRowCount = Math.max(workerRowCount, column.rows.length);
+    workerRowCount = Math.max(workerRowCount, column.workers.length);
   }
   const lastWorkerLabel = workerRowCount ? workerTop + (workerRowCount - 1) * workerStep + 20 : 0;
   const H = Math.max(236, memberY + 50, lastWorkerLabel + 18);
@@ -503,12 +488,12 @@ function PackedFigure({ team, turns, W }) {
     const edges = [];
     const nodes = [];
     const slots = workerSlots.get(column) || [];
-    const left = column.x - column.width / 2;
-    const right = column.x + column.width / 2;
+    const left = column.x - column.spineOffset;
+    const right = left + column.width;
     if (column.member) {
       const member = column.member;
       const state = nodeState(member.state);
-      const label = Math.max(38, labelWidth(member.name, 11.5) + 8);
+      const label = labelWidth(member.name, 11.5);
       nodes.push(/* @__PURE__ */ u("g", {
         class: "hq-n " + member.state,
         children: [
@@ -534,9 +519,9 @@ function PackedFigure({ team, turns, W }) {
             children: "!"
           }) : "",
           /* @__PURE__ */ u("text", {
-            class: "lbl",
-            x: column.x,
-            y: memberY + 30,
+            class: "lbl left",
+            x: column.x + memberDotRadius + memberLabelGap,
+            y: memberY + 4,
             "data-label-width": label,
             "data-label-row": "member",
             children: member.name
@@ -544,12 +529,18 @@ function PackedFigure({ team, turns, W }) {
         ]
       }));
       if (slots.length) {
-        const gutterX = right - 3;
+        const last = slots[slots.length - 1];
+        edges.push(/* @__PURE__ */ u("path", {
+          class: "hq-e wk wk-stem",
+          "data-owner": member.name,
+          d: `M${column.x} ${memberY + memberDotRadius} V${last.y}`
+        }));
         for (const slot of slots) {
           edges.push(/* @__PURE__ */ u("path", {
-            class: "hq-e wk",
+            class: "hq-e wk wk-branch",
             "data-owner": member.name,
-            d: `M${column.x + 15} ${memberY + 4} H${gutterX} V${slot.y} H${slot.x} V${slot.y - 6}`
+            "data-worker": slot.item.name,
+            d: `M${column.x} ${slot.y} H${slot.x - workerDotRadius}`
           }));
         }
       }
@@ -573,9 +564,9 @@ function PackedFigure({ team, turns, W }) {
             r: "6"
           }),
           /* @__PURE__ */ u("text", {
-            class: "lbl s",
-            x: slot.x,
-            y: slot.y + 20,
+            class: "lbl s left",
+            x: slot.x + workerDotRadius + workerLabelGap,
+            y: slot.y + 4,
             "data-label-width": slot.width,
             "data-label-row": `worker-${slot.row}`,
             children: worker.name

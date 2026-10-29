@@ -70,13 +70,13 @@ export function TeamFigure({ team, turns, W = 440, H = 236, layout = 'default' }
   return <svg class="hq-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.name} のメンバーとターン`}>{edges}{calls}{nodes}</svg>;
 }
 
-type RowItem<T> = { item: T; width: number };
-type FigureSlot<T> = { item: T; width: number; x: number; y: number; row: number };
+type FigureWorkerSlot = { item: FigureWorker; width: number; x: number; y: number; row: number };
 type FigureColumn = {
   member: FigureMember | null;
   owner: string | null;
   width: number;
-  rows: RowItem<FigureWorker>[][];
+  workers: FigureWorker[];
+  spineOffset: number;
   x: number;
 };
 
@@ -96,37 +96,6 @@ const labelUnits = (value: string): number => {
 // geometry assertion in the activity screen's unit test.
 const labelWidth = (value: string, size: number): number => Math.ceil(labelUnits(value) * size * 1.05);
 
-function rowsOf<T>(items: T[], widthOf: (item: T) => number, maxWidth: number, gap: number): RowItem<T>[][] {
-  const rows: RowItem<T>[][] = [];
-  let row: RowItem<T>[] = [], used = 0;
-  for (const item of items) {
-    const width = Math.max(28, widthOf(item));
-    if (row.length && used + gap + width > maxWidth) {
-      rows.push(row);
-      row = [];
-      used = 0;
-    }
-    if (row.length) used += gap;
-    row.push({ item, width });
-    used += width;
-  }
-  if (row.length) rows.push(row);
-  return rows;
-}
-
-function placeRows<T>(rows: RowItem<T>[][], W: number, gap: number, y: number, rowStep: number): FigureSlot<T>[] {
-  const slots: FigureSlot<T>[] = [];
-  rows.forEach((row, rowIndex) => {
-    const rowWidth = row.reduce((sum, cell) => sum + cell.width, 0) + Math.max(0, row.length - 1) * gap;
-    let left = (W - rowWidth) / 2;
-    for (const cell of row) {
-      slots.push({ item: cell.item, width: cell.width, x: left + cell.width / 2, y: y + rowIndex * rowStep, row: rowIndex });
-      left += cell.width + gap;
-    }
-  });
-  return slots;
-}
-
 const nodeState = (state: string): string => {
   const labels: Record<string, string> = {
     active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間に渡した', absent: '動いていない',
@@ -136,6 +105,14 @@ const nodeState = (state: string): string => {
 
 function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, string][]; W: number }): JSX.Element {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
+  const memberDotRadius = 11;
+  const memberLabelGap = 6;
+  const workerDotRadius = 6;
+  const workerDotOffset = 24;
+  const workerLabelGap = 8;
+  const columnRightPad = 8;
+  const memberSpineOffset = 16;
+  const freeDotOffset = 8;
   const owned = new Map<string, FigureWorker[]>();
   const free: FigureWorker[] = [];
   for (const worker of workers) {
@@ -144,53 +121,63 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     list.push(worker);
     owned.set(worker.from, list);
   }
-  const workerWidth = (worker: FigureWorker) => Math.max(28, labelWidth(worker.name, 10) + 16);
-  const workerGap = 0;
   const columns: FigureColumn[] = crew.map((member) => {
     const group = owned.get(member.name) || [];
-    const widest = group.map(workerWidth).sort((a, b) => b - a)[0] || 0;
-    const width = Math.max(38, labelWidth(member.name, 11.5) + 8, widest);
+    const memberRight = memberDotRadius + memberLabelGap + labelWidth(member.name, 11.5);
+    const workerRight = group.length
+      ? workerDotOffset + workerDotRadius + workerLabelGap + Math.max(...group.map((worker) => labelWidth(worker.name, 10)))
+      : 0;
+    const width = memberSpineOffset + Math.max(memberRight, workerRight) + columnRightPad;
     return {
       member,
       owner: member.name,
       width,
-      rows: rowsOf(group, workerWidth, widest, workerGap),
+      workers: group,
+      spineOffset: memberSpineOffset,
       x: 0,
     };
   });
   if (free.length) {
-    const width = Math.max(...free.map(workerWidth));
+    const width = freeDotOffset + workerDotRadius + workerLabelGap
+      + Math.max(...free.map((worker) => labelWidth(worker.name, 10))) + columnRightPad;
     columns.push({
       member: null,
       owner: null,
       width,
-      rows: rowsOf(free, workerWidth, width, workerGap),
+      workers: free,
+      spineOffset: freeDotOffset,
       x: 0,
     });
   }
 
-  // Keep each member and the workers they hired in one column. A column grows
-  // to fit its names and its widest worker row; the SVG grows with it instead
-  // of moving a worker into another member's column or clipping a label.
+  // Keep each member and their workers in one column. The member point is the
+  // worker-tree spine; names extend right from each point and the SVG grows to
+  // fit the widest name without moving workers into another member's column.
   const columnGap = 8;
   const contentWidth = columns.reduce((sum, column) => sum + column.width, 0) + Math.max(0, columns.length - 1) * columnGap;
   const viewWidth = Math.max(W, contentWidth + 16);
   let left = (viewWidth - contentWidth) / 2;
   for (const column of columns) {
-    column.x = left + column.width / 2;
+    column.x = left + column.spineOffset;
     left += column.width + columnGap;
   }
 
   const memberY = 136;
   const workerTop = 210;
-  const workerStep = 48;
-  const workerSlots = new Map<FigureColumn, FigureSlot<FigureWorker>[]>();
+  const workerStep = 40;
+  const workerSlots = new Map<FigureColumn, FigureWorkerSlot[]>();
   let workerRowCount = 0;
   for (const column of columns) {
-    const placed = placeRows(column.rows, column.width, workerGap, workerTop, workerStep)
-      .map((slot) => ({ ...slot, x: slot.x + column.x - column.width / 2 }));
+    const dotX = column.member ? column.x + workerDotOffset : column.x;
+    const placed = column.workers.map((item, row) => ({
+      item,
+      width: labelWidth(item.name, 10),
+      x: dotX,
+      y: workerTop + row * workerStep,
+      row,
+    }));
     workerSlots.set(column, placed);
-    workerRowCount = Math.max(workerRowCount, column.rows.length);
+    workerRowCount = Math.max(workerRowCount, column.workers.length);
   }
   const lastWorkerLabel = workerRowCount ? workerTop + (workerRowCount - 1) * workerStep + 20 : 0;
   const H = Math.max(236, memberY + 50, lastWorkerLabel + 18);
@@ -229,26 +216,28 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     const edges: JSX.Element[] = [];
     const nodes: JSX.Element[] = [];
     const slots = workerSlots.get(column) || [];
-    const left = column.x - column.width / 2;
-    const right = column.x + column.width / 2;
+    const left = column.x - column.spineOffset;
+    const right = left + column.width;
     if (column.member) {
       const member = column.member;
       const state = nodeState(member.state);
-      const label = Math.max(38, labelWidth(member.name, 11.5) + 8);
+      const label = labelWidth(member.name, 11.5);
       nodes.push(<g class={'hq-n ' + member.state}>
         <title>{`${member.name} · ${state}${member.doing ? ` · ${member.doing}` : ''}`}</title>
         <circle class="ring" cx={column.x} cy={memberY} r="15" />
         <circle class="dot" cx={column.x} cy={memberY} r="11" />
         {member.state === 'blocked' ? <text class="bang" x={column.x} y={memberY + 4}>!</text> : ''}
-        <text class="lbl" x={column.x} y={memberY + 30} data-label-width={label} data-label-row="member">{member.name}</text>
+        <text class="lbl left" x={column.x + memberDotRadius + memberLabelGap} y={memberY + 4} data-label-width={label} data-label-row="member">{member.name}</text>
       </g>);
       if (slots.length) {
-        // The stem leaves the member beside its name, stays in this column's
-        // gutter, and branches only within the same column to its workers.
-        const gutterX = right - 3;
+        // The member point's x is the tree spine. Each branch ends at its
+        // worker's dot, and the spine ends on the last worker's row.
+        const last = slots[slots.length - 1];
+        edges.push(<path class="hq-e wk wk-stem" data-owner={member.name}
+          d={`M${column.x} ${memberY + memberDotRadius} V${last.y}`} />);
         for (const slot of slots) {
-          edges.push(<path class="hq-e wk" data-owner={member.name}
-            d={`M${column.x + 15} ${memberY + 4} H${gutterX} V${slot.y} H${slot.x} V${slot.y - 6}`} />);
+          edges.push(<path class="hq-e wk wk-branch" data-owner={member.name} data-worker={slot.item.name}
+            d={`M${column.x} ${slot.y} H${slot.x - workerDotRadius}`} />);
         }
       }
     }
@@ -260,7 +249,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
       nodes.push(<g class={'hq-n wkr ' + worker.state} data-owner={owner || ''}>
         <title>{`${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ''}`}</title>
         <circle class="dot" cx={slot.x} cy={slot.y} r="6" />
-        <text class="lbl s" x={slot.x} y={slot.y + 20} data-label-width={slot.width} data-label-row={`worker-${slot.row}`}>{worker.name}</text>
+        <text class="lbl s left" x={slot.x + workerDotRadius + workerLabelGap} y={slot.y + 4} data-label-width={slot.width} data-label-row={`worker-${slot.row}`}>{worker.name}</text>
       </g>);
     });
     return <g class="hq-column" data-member={column.owner || ''} data-x-left={left} data-x-right={right}>{edges}{nodes}</g>;

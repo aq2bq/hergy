@@ -15,10 +15,10 @@ const workers = [
   { name: 'template-image', from: 'webui-design', state: 'idle' },
   { name: 'html-mail', from: 'long-reviewer', state: 'active' },
   { name: 'listing', from: 'long-reviewer', state: 'active' },
-  { name: 'rules-audit', from: 'qa', state: 'active' },
+  { name: 'rules-audit', from: 'lead', state: 'active' },
   { name: 'api-contracts', from: 'lead', state: 'idle' },
   { name: 'prompt-review', from: 'webui-design', state: 'active' },
-  { name: 'visual-regression', from: 'qa', state: 'active' },
+  { name: 'visual-regression', from: 'lead', state: 'active' },
 ];
 const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 
@@ -55,7 +55,36 @@ test('the activity tile and its actions fit at 1440 and 760 pixels', async ({ pa
   await expect(page.locator('.hq-tile[data-team="large"] svg.packed')).toBeVisible();
   await expect(page.locator('.hq-detail')).toHaveCount(0);
   await expect(page.locator('.hq-tile[data-team="large"] .wkr')).toHaveCount(10);
+  await expect(page.locator('.hq-tile[data-team="large"] .wk-stem')).toHaveCount(3);
+  await expect(page.locator('.hq-tile[data-team="large"] .wk-branch')).toHaveCount(10);
   await page.evaluate(() => document.fonts.ready.then(() => true));
+
+  const tree = await page.locator('.hq-tile svg.packed').evaluate((svg) => {
+    const stems = [...svg.querySelectorAll<SVGPathElement>('.wk-stem')];
+    return {
+      startsAtMember: stems.every((stem) => {
+        const owner = stem.closest('.hq-column');
+        const memberDot = owner?.querySelector<SVGCircleElement>('.hq-n:not(.wkr) .dot');
+        const [x, startY] = stem.getAttribute('d')!.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+        return x === Number(memberDot?.getAttribute('cx'))
+          && startY === Number(memberDot?.getAttribute('cy')) + 11;
+      }),
+      branchesEndAtWorker: [...svg.querySelectorAll<SVGPathElement>('.wk-branch')].every((branch) => {
+        const owner = branch.closest('.hq-column');
+        const worker = [...(owner?.querySelectorAll<SVGGElement>('.wkr') || [])]
+          .find((node) => node.getAttribute('data-owner') === branch.getAttribute('data-owner')
+            && node.querySelector('title')?.textContent?.startsWith(`${branch.getAttribute('data-worker')} ·`));
+        const [, y, endX] = branch.getAttribute('d')!.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+        const dot = worker?.querySelector<SVGCircleElement>('.dot');
+        return y === Number(dot?.getAttribute('cy')) && endX === Number(dot?.getAttribute('cx')) - 6;
+      }),
+      labelsStartAtText: [...svg.querySelectorAll<SVGTextElement>('.hq-n text.left')]
+        .every((label) => getComputedStyle(label).textAnchor === 'start'),
+    };
+  });
+  expect(tree.startsAtMember).toBe(true);
+  expect(tree.branchesEndAtWorker).toBe(true);
+  expect(tree.labelsStartAtText).toBe(true);
 
   for (const width of [1440, 760]) {
     await page.setViewportSize({ width, height: 1000 });

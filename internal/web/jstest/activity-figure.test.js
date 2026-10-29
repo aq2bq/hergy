@@ -25,10 +25,10 @@ const workers = [
   { name: 'template-image', from: 'webui-design', state: 'idle' },
   { name: 'html-mail', from: 'long-reviewer', state: 'active' },
   { name: 'listing', from: 'long-reviewer', state: 'active' },
-  { name: 'rules-audit', from: 'qa', state: 'active' },
+  { name: 'rules-audit', from: 'lead', state: 'active' },
   { name: 'api-contracts', from: 'lead', state: 'idle' },
   { name: 'prompt-review', from: 'webui-design', state: 'active' },
-  { name: 'visual-regression', from: 'qa', state: 'active' },
+  { name: 'visual-regression', from: 'lead', state: 'active' },
 ];
 const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 
@@ -39,14 +39,15 @@ function expectLabelsDoNotOverlap(svg) {
   for (const label of labels) {
     const row = label.getAttribute('data-label-row');
     const cells = byRow.get(row) || [];
-    cells.push({ x: Number(label.getAttribute('x')), width: Number(label.getAttribute('data-label-width')) });
+    const x = Number(label.getAttribute('x'));
+    const width = Number(label.getAttribute('data-label-width'));
+    const start = label.classList.contains('left') ? x : x - width / 2;
+    cells.push({ start, end: start + width });
     byRow.set(row, cells);
   }
   for (const cells of byRow.values()) {
-    cells.sort((a, b) => a.x - b.x);
-    for (let i = 1; i < cells.length; i++) {
-      expect(cells[i].x - cells[i - 1].x).toBeGreaterThanOrEqual((cells[i].width + cells[i - 1].width) / 2);
-    }
+    cells.sort((a, b) => a.start - b.start);
+    for (let i = 1; i < cells.length; i++) expect(cells[i].start).toBeGreaterThanOrEqual(cells[i - 1].end);
   }
 }
 
@@ -105,7 +106,8 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
   const [, width] = figure.getAttribute('viewBox').match(/^0 0 (\d+) /);
   expect(Number(width)).toBeGreaterThanOrEqual(440);
   expectLabelsDoNotOverlap(figure);
-  expect(figure.querySelectorAll('.hq-e.wk')).toHaveLength(workers.length);
+  expect(figure.querySelectorAll('.hq-e.wk-stem')).toHaveLength(members.filter((member) => workers.some((worker) => worker.from === member.name)).length);
+  expect(figure.querySelectorAll('.hq-e.wk-branch')).toHaveLength(workers.length);
   const expectedWorkerOwners = members.flatMap((member) => workers.filter((worker) => worker.from === member.name).map((worker) => worker.from));
   expect([...figure.querySelectorAll('.wkr')].map((el) => el.getAttribute('data-owner'))).toEqual(expectedWorkerOwners);
   const columns = [...figure.querySelectorAll('.hq-column[data-member]:not([data-member=""])')];
@@ -114,14 +116,53 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
     const owner = column.getAttribute('data-member');
     const left = Number(column.getAttribute('data-x-left'));
     const right = Number(column.getAttribute('data-x-right'));
-    const connectors = [...column.querySelectorAll('.hq-e.wk')];
-    expect(connectors).toHaveLength(workers.filter((worker) => worker.from === owner).length);
-    for (const connector of connectors) {
-      expect(connector.getAttribute('data-owner')).toBe(owner);
-      const values = connector.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+    const ownedWorkers = workers.filter((worker) => worker.from === owner);
+    const stem = column.querySelector('.hq-e.wk-stem');
+    const branches = [...column.querySelectorAll('.hq-e.wk-branch')];
+    expect(branches).toHaveLength(ownedWorkers.length);
+    const memberDot = column.querySelector('.hq-n:not(.wkr) .dot');
+    const ownedDots = [...column.querySelectorAll('.wkr .dot')];
+    if (ownedWorkers.length) {
+      expect(stem).not.toBe(null);
+      const stemValues = stem.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+      expect(stemValues).toEqual([
+        Number(memberDot.getAttribute('cx')),
+        Number(memberDot.getAttribute('cy')) + 11,
+        Math.max(...ownedDots.map((dot) => Number(dot.getAttribute('cy')))),
+      ]);
+    } else {
+      expect(stem).toBe(null);
+    }
+    expect(branches.map((branch) => branch.getAttribute('data-worker'))).toEqual(ownedWorkers.map((worker) => worker.name));
+    for (const branch of branches) {
+      const values = branch.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+      expect(values[0]).toBe(Number(memberDot.getAttribute('cx')));
+      expect(values[2]).toBeGreaterThan(values[0]);
       for (let i = 0; i < values.length; i += 2) {
         expect(values[i]).toBeGreaterThanOrEqual(left);
         expect(values[i]).toBeLessThanOrEqual(right);
+      }
+    }
+    const ownedNodes = [...column.querySelectorAll('.wkr')];
+    expect(ownedNodes.map((node) => node.querySelector('text').textContent)).toEqual(ownedWorkers.map((worker) => worker.name));
+    for (const node of ownedNodes) {
+      const dot = node.querySelector('.dot');
+      const label = node.querySelector('text');
+      expect(label.classList.contains('left')).toBe(true);
+      expect(Number(dot.getAttribute('cx'))).toBeGreaterThanOrEqual(left);
+      expect(Number(label.getAttribute('x')) + Number(label.getAttribute('data-label-width'))).toBeLessThanOrEqual(right);
+    }
+    const label = column.querySelector('.hq-n:not(.wkr) text.lbl');
+    expect(label.classList.contains('left')).toBe(true);
+    expect(Number(label.getAttribute('x')) + Number(label.getAttribute('data-label-width'))).toBeLessThanOrEqual(right);
+    const connectors = [...column.querySelectorAll('.hq-e.wk')];
+    for (const connector of connectors) {
+      expect(connector.getAttribute('data-owner')).toBe(owner);
+      const values = connector.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const xValues = connector.classList.contains('wk-stem') ? [values[0]] : [values[0], values[2]];
+      for (const x of xValues) {
+        expect(x).toBeGreaterThanOrEqual(left);
+        expect(x).toBeLessThanOrEqual(right);
       }
     }
   }
