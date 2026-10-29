@@ -26,7 +26,11 @@ const workers = [
   { name: 'html-mail', from: 'long-reviewer', state: 'active' },
   { name: 'listing', from: 'long-reviewer', state: 'active' },
   { name: 'rules-audit', from: 'qa', state: 'active' },
+  { name: 'api-contracts', from: 'lead', state: 'idle' },
+  { name: 'prompt-review', from: 'webui-design', state: 'active' },
+  { name: 'visual-regression', from: 'qa', state: 'active' },
 ];
+const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 
 function expectLabelsDoNotOverlap(svg) {
   const labels = [...svg.querySelectorAll('text[data-label-width]')];
@@ -46,7 +50,7 @@ function expectLabelsDoNotOverlap(svg) {
   }
 }
 
-test('four members and seven differently named workers fit both activity diagrams', async () => {
+test('AC-6e5b four member columns hold ten workers and keep turns above the members', async () => {
   history.replaceState({}, '', '/activity');
   layout();
   serve((method, url) => {
@@ -65,6 +69,15 @@ test('four members and seven differently named workers fit both activity diagram
       },
     };
     if (url === '/api/activity/idle') return { doc: { nodes: [], hired: [], question: '' } };
+    if (url === '/api/hq/teams') return {
+      groups: [{
+        project: { path: '/work/alpha', name: 'alpha' },
+        list: { items: [{ name: 'large', effective: 'project', places: { project: { doc: {
+          members: members.map((member) => ({ name: member.name })), workers: [],
+          turns: turns.map(([from, to]) => ({ from, to })),
+        } } } }] },
+      }],
+    };
     if (url === '/api/apply') return { herdr: { ok: true }, count: 1, teams: [{ team: 'large', members: [{ name: 'large-lead' }] }] };
     if (url === '/api/apply/count') return { count: 1 };
     return undefined;
@@ -78,7 +91,7 @@ test('four members and seven differently named workers fit both activity diagram
   expect(document.querySelector('.hq-detail')).toBe(null);
   expect(document.querySelectorAll('.hq-tile')).toHaveLength(2);
   expect(tile.querySelector('.hq-tc').textContent).toContain('メンバー 4人');
-  expect(tile.querySelector('.hq-tc').textContent).toContain('ワーカー 7人');
+  expect(tile.querySelector('.hq-tc').textContent).toContain('ワーカー 10人');
   expect(tile.querySelector('.hq-tactions a').textContent).toBe('チーム定義を開く');
   expect(tile.querySelector('.hq-tactions a').getAttribute('href')).toContain('/teams?open=');
   expect(tile.querySelector('[data-hq="apply"]').textContent).toContain('反映していない変更');
@@ -89,10 +102,33 @@ test('four members and seven differently named workers fit both activity diagram
   expect(idleTile.querySelector('[data-hq="stop"]').textContent).toBe('チームを終了する…');
 
   const figure = tile.querySelector('svg.hq-svg.packed');
-  expect(figure.getAttribute('viewBox')).toMatch(/^0 0 440 /);
+  const [, width] = figure.getAttribute('viewBox').match(/^0 0 (\d+) /);
+  expect(Number(width)).toBeGreaterThanOrEqual(440);
   expectLabelsDoNotOverlap(figure);
   expect(figure.querySelectorAll('.hq-e.wk')).toHaveLength(workers.length);
-  expect([...figure.querySelectorAll('.wkr')].map((el) => el.getAttribute('data-owner'))).toEqual(workers.map((worker) => worker.from));
-  expect(figure.querySelector('g.hq-n.active title').textContent).toBe('lead · 仕事中 · 設計を読む');
-  expect(figure.querySelector('g.hq-n.idle title').textContent).toBe('webui-design · 止まっている');
+  const expectedWorkerOwners = members.flatMap((member) => workers.filter((worker) => worker.from === member.name).map((worker) => worker.from));
+  expect([...figure.querySelectorAll('.wkr')].map((el) => el.getAttribute('data-owner'))).toEqual(expectedWorkerOwners);
+  const columns = [...figure.querySelectorAll('.hq-column[data-member]:not([data-member=""])')];
+  expect(columns.map((column) => column.getAttribute('data-member'))).toEqual(members.map((member) => member.name));
+  for (const column of columns) {
+    const owner = column.getAttribute('data-member');
+    const left = Number(column.getAttribute('data-x-left'));
+    const right = Number(column.getAttribute('data-x-right'));
+    const connectors = [...column.querySelectorAll('.hq-e.wk')];
+    expect(connectors).toHaveLength(workers.filter((worker) => worker.from === owner).length);
+    for (const connector of connectors) {
+      expect(connector.getAttribute('data-owner')).toBe(owner);
+      const values = connector.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+      for (let i = 0; i < values.length; i += 2) {
+        expect(values[i]).toBeGreaterThanOrEqual(left);
+        expect(values[i]).toBeLessThanOrEqual(right);
+      }
+    }
+  }
+  const memberY = Number(columns[0].querySelector('.hq-n:not(.wkr) .dot').getAttribute('cy'));
+  const memberTurns = [...figure.querySelectorAll('.hq-e.turn[data-control-y]')];
+  expect(memberTurns).toHaveLength(turns.filter(([from, to]) => from !== 'human' && to !== 'human').length);
+  for (const edge of memberTurns) expect(Number(edge.getAttribute('data-control-y'))).toBeLessThan(memberY - 15);
+  expect(figure.querySelector('.hq-column[data-member="lead"] .hq-n.active title').textContent).toBe('lead · 仕事中 · 設計を読む');
+  expect(figure.querySelector('.hq-column[data-member="webui-design"] .hq-n.idle title').textContent).toBe('webui-design · 止まっている');
 });

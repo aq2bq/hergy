@@ -16,7 +16,11 @@ const workers = [
   { name: 'html-mail', from: 'long-reviewer', state: 'active' },
   { name: 'listing', from: 'long-reviewer', state: 'active' },
   { name: 'rules-audit', from: 'qa', state: 'active' },
+  { name: 'api-contracts', from: 'lead', state: 'idle' },
+  { name: 'prompt-review', from: 'webui-design', state: 'active' },
+  { name: 'visual-regression', from: 'qa', state: 'active' },
 ];
+const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 
 test.use({ reads: 'activity' });
 
@@ -30,6 +34,14 @@ test('the activity tile and its actions fit at 1440 and 760 pixels', async ({ pa
     let body: unknown = {};
     if (pathname === '/api/activity') body = { items: [team], herdr: { ok: true, text: '' }, running: 1, waiting: 0 };
     else if (pathname === '/api/activity/large') body = { doc: { nodes: members, hired: workers, question: '' } };
+    else if (pathname === '/api/hq/teams') body = {
+      groups: [{
+        project: { path: app.proj, name: 'fixture' },
+        list: { items: [{ name: 'large', effective: 'project', places: { project: { doc: {
+          members: members.map(({ name }) => ({ name })), workers: [], turns: turns.map(([from, to]) => ({ from, to })),
+        } } } }] },
+      }],
+    };
     else if (pathname === '/api/hq/projects') body = { mode: 'listed', current: { path: app.proj, name: 'fixture' }, projects: [{ path: app.proj, name: 'fixture', listed: true, definitions: 1 }], global: { definitions: 0 } };
     else if (pathname === '/api/hq/running') body = { herdr: { ok: true, text: '' }, teams: [] };
     else if (pathname === '/api/hq/workspaces') body = { workspaces: [] };
@@ -42,6 +54,7 @@ test('the activity tile and its actions fit at 1440 and 760 pixels', async ({ pa
   await page.goto(`${app.base}/activity`);
   await expect(page.locator('.hq-tile[data-team="large"] svg.packed')).toBeVisible();
   await expect(page.locator('.hq-detail')).toHaveCount(0);
+  await expect(page.locator('.hq-tile[data-team="large"] .wkr')).toHaveCount(10);
   await page.evaluate(() => document.fonts.ready.then(() => true));
 
   for (const width of [1440, 760]) {

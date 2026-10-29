@@ -393,16 +393,10 @@ var nodeState = (state) => {
 };
 function PackedFigure({ team, turns, W }) {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
-  const memberRows = rowsOf(crew, (m) => Math.max(38, labelWidth(m.name, 11.5) + 20), W - 32, 12);
-  const memberSlots = placeRows(memberRows, W, 12, 124, 84);
-  const pos = { human: [W / 2, 30] };
-  memberSlots.forEach((slot) => {
-    pos[slot.item.name] = [slot.x, slot.y];
-  });
   const owned = new Map;
   const free = [];
   for (const worker of workers) {
-    if (!pos[worker.from]) {
+    if (!crew.some((member) => member.name === worker.from)) {
       free.push(worker);
       continue;
     }
@@ -410,24 +404,57 @@ function PackedFigure({ team, turns, W }) {
     list.push(worker);
     owned.set(worker.from, list);
   }
-  const workerItems = [];
-  for (const member of crew) {
-    for (const worker of owned.get(member.name) || [])
-      workerItems.push({ worker, owner: member.name });
-  }
-  for (const worker of free)
-    workerItems.push({ worker, owner: null });
-  const workerRows = rowsOf(workerItems, (entry) => Math.max(28, labelWidth(entry.worker.name, 10) + 16), W - 32, 12);
-  const workerTop = memberRows.length ? 188 + (memberRows.length - 1) * 84 : 104;
-  const workerSlots = placeRows(workerRows, W, 12, workerTop, 54);
-  workerSlots.forEach((slot) => {
-    if (slot.item.owner)
-      pos[`worker:${slot.item.worker.name}`] = [slot.x, slot.y];
+  const workerWidth = (worker) => Math.max(28, labelWidth(worker.name, 10) + 16);
+  const workerGap = 0;
+  const columns = crew.map((member) => {
+    const group = owned.get(member.name) || [];
+    const widest = group.map(workerWidth).sort((a, b) => b - a)[0] || 0;
+    const width = Math.max(38, labelWidth(member.name, 11.5) + 8, widest);
+    return {
+      member,
+      owner: member.name,
+      width,
+      rows: rowsOf(group, workerWidth, widest, workerGap),
+      x: 0
+    };
   });
-  const lastMemberLabel = memberRows.length ? 124 + (memberRows.length - 1) * 84 + 30 : 0;
-  const lastWorkerLabel = workerRows.length ? workerTop + (workerRows.length - 1) * 54 + 20 : 0;
-  const H = Math.max(236, lastMemberLabel + 22, lastWorkerLabel + 16);
-  const edges = [];
+  if (free.length) {
+    const width = Math.max(...free.map(workerWidth));
+    columns.push({
+      member: null,
+      owner: null,
+      width,
+      rows: rowsOf(free, workerWidth, width, workerGap),
+      x: 0
+    });
+  }
+  const columnGap = 8;
+  const contentWidth = columns.reduce((sum, column) => sum + column.width, 0) + Math.max(0, columns.length - 1) * columnGap;
+  const viewWidth = Math.max(W, contentWidth + 16);
+  let left = (viewWidth - contentWidth) / 2;
+  for (const column of columns) {
+    column.x = left + column.width / 2;
+    left += column.width + columnGap;
+  }
+  const memberY = 136;
+  const workerTop = 210;
+  const workerStep = 48;
+  const workerSlots = new Map;
+  let workerRowCount = 0;
+  for (const column of columns) {
+    const placed = placeRows(column.rows, column.width, workerGap, workerTop, workerStep).map((slot) => ({ ...slot, x: slot.x + column.x - column.width / 2 }));
+    workerSlots.set(column, placed);
+    workerRowCount = Math.max(workerRowCount, column.rows.length);
+  }
+  const lastWorkerLabel = workerRowCount ? workerTop + (workerRowCount - 1) * workerStep + 20 : 0;
+  const H = Math.max(236, memberY + 50, lastWorkerLabel + 18);
+  const pos = { human: [viewWidth / 2, 30] };
+  columns.forEach((column) => {
+    if (column.member)
+      pos[column.member.name] = [column.x, memberY];
+  });
+  const humanEdges = [];
+  const turnEdges = [];
   const seen = new Set;
   for (const [a, b] of turns || []) {
     if (!pos[a] || !pos[b])
@@ -437,10 +464,26 @@ function PackedFigure({ team, turns, W }) {
       continue;
     seen.add(key);
     const [x1, y1] = pos[a], [x2, y2] = pos[b];
-    const low = Math.max(y1, y2) + 42 + Math.abs(x2 - x1) * 0.06;
-    edges.push(/* @__PURE__ */ u("path", {
-      class: "hq-e",
-      d: `M${x1} ${y1} Q${(x1 + x2) / 2} ${low} ${x2} ${y2}`
+    if (a === "human" || b === "human") {
+      const memberX = a === "human" ? x2 : x1;
+      humanEdges.push(/* @__PURE__ */ u("line", {
+        class: "hq-e turn",
+        "data-from": a,
+        "data-to": b,
+        x1: a === "human" ? viewWidth / 2 : memberX,
+        y1: a === "human" ? 44 : memberY - 15,
+        x2: b === "human" ? viewWidth / 2 : memberX,
+        y2: b === "human" ? 44 : memberY - 15
+      }));
+      continue;
+    }
+    const archY = Math.max(58, Math.min(y1, y2) - 64 - Math.abs(x2 - x1) * 0.025);
+    turnEdges.push(/* @__PURE__ */ u("path", {
+      class: "hq-e turn",
+      "data-from": a,
+      "data-to": b,
+      "data-control-y": archY,
+      d: `M${x1} ${y1 - 15} Q${(x1 + x2) / 2} ${archY} ${x2} ${y2 - 15}`
     }));
   }
   const calls = [];
@@ -452,120 +495,137 @@ function PackedFigure({ team, turns, W }) {
       class: "hq-call",
       x1: x,
       y1: y - 14,
-      x2: W / 2,
+      x2: viewWidth / 2,
       y2: "44"
     }));
   }
-  const workerLines = [];
-  workerSlots.forEach((slot) => {
-    const owner = slot.item.owner;
-    const worker = pos[`worker:${slot.item.worker.name}`];
-    if (!owner || !worker)
-      return;
-    const [x1, y1] = pos[owner], [x2, y2] = worker;
-    const mid = (y1 + y2) / 2;
-    workerLines.push(/* @__PURE__ */ u("path", {
-      class: "hq-e wk",
-      d: `M${x1} ${y1 + 15} C${x1} ${mid} ${x2} ${mid} ${x2} ${y2 - 6}`
-    }));
+  const columnNodes = columns.map((column) => {
+    const edges = [];
+    const nodes = [];
+    const slots = workerSlots.get(column) || [];
+    const left = column.x - column.width / 2;
+    const right = column.x + column.width / 2;
+    if (column.member) {
+      const member = column.member;
+      const state = nodeState(member.state);
+      const label = Math.max(38, labelWidth(member.name, 11.5) + 8);
+      nodes.push(/* @__PURE__ */ u("g", {
+        class: "hq-n " + member.state,
+        children: [
+          /* @__PURE__ */ u("title", {
+            children: `${member.name} · ${state}${member.doing ? ` · ${member.doing}` : ""}`
+          }),
+          /* @__PURE__ */ u("circle", {
+            class: "ring",
+            cx: column.x,
+            cy: memberY,
+            r: "15"
+          }),
+          /* @__PURE__ */ u("circle", {
+            class: "dot",
+            cx: column.x,
+            cy: memberY,
+            r: "11"
+          }),
+          member.state === "blocked" ? /* @__PURE__ */ u("text", {
+            class: "bang",
+            x: column.x,
+            y: memberY + 4,
+            children: "!"
+          }) : "",
+          /* @__PURE__ */ u("text", {
+            class: "lbl",
+            x: column.x,
+            y: memberY + 30,
+            "data-label-width": label,
+            "data-label-row": "member",
+            children: member.name
+          })
+        ]
+      }));
+      if (slots.length) {
+        const gutterX = right - 3;
+        for (const slot of slots) {
+          edges.push(/* @__PURE__ */ u("path", {
+            class: "hq-e wk",
+            "data-owner": member.name,
+            d: `M${column.x + 15} ${memberY + 4} H${gutterX} V${slot.y} H${slot.x} V${slot.y - 6}`
+          }));
+        }
+      }
+    }
+    slots.forEach((slot) => {
+      const worker = slot.item;
+      const owner = column.owner;
+      const state = nodeState(worker.state);
+      const ownerText = owner ? `${owner} のワーカー` : "持ち主を特定できないワーカー";
+      nodes.push(/* @__PURE__ */ u("g", {
+        class: "hq-n wkr " + worker.state,
+        "data-owner": owner || "",
+        children: [
+          /* @__PURE__ */ u("title", {
+            children: `${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ""}`
+          }),
+          /* @__PURE__ */ u("circle", {
+            class: "dot",
+            cx: slot.x,
+            cy: slot.y,
+            r: "6"
+          }),
+          /* @__PURE__ */ u("text", {
+            class: "lbl s",
+            x: slot.x,
+            y: slot.y + 20,
+            "data-label-width": slot.width,
+            "data-label-row": `worker-${slot.row}`,
+            children: worker.name
+          })
+        ]
+      }));
+    });
+    return /* @__PURE__ */ u("g", {
+      class: "hq-column",
+      "data-member": column.owner || "",
+      "data-x-left": left,
+      "data-x-right": right,
+      children: [
+        edges,
+        nodes
+      ]
+    });
   });
   const nodes = [/* @__PURE__ */ u("g", {
     class: "hq-n human",
     children: [
       /* @__PURE__ */ u("rect", {
-        x: W / 2 - 26,
+        x: viewWidth / 2 - 26,
         y: "16",
         width: "52",
         height: "28",
         rx: "6"
       }),
       /* @__PURE__ */ u("text", {
-        x: W / 2,
+        x: viewWidth / 2,
         y: "35",
         children: "人間"
       })
     ]
   })];
-  memberSlots.forEach((slot) => {
-    const member = slot.item;
-    const state = nodeState(member.state);
-    nodes.push(/* @__PURE__ */ u("g", {
-      class: "hq-n " + member.state,
-      children: [
-        /* @__PURE__ */ u("title", {
-          children: `${member.name} · ${state}${member.doing ? ` · ${member.doing}` : ""}`
-        }),
-        /* @__PURE__ */ u("circle", {
-          class: "ring",
-          cx: slot.x,
-          cy: slot.y,
-          r: "15"
-        }),
-        /* @__PURE__ */ u("circle", {
-          class: "dot",
-          cx: slot.x,
-          cy: slot.y,
-          r: "11"
-        }),
-        member.state === "blocked" ? /* @__PURE__ */ u("text", {
-          class: "bang",
-          x: slot.x,
-          y: slot.y + 4,
-          children: "!"
-        }) : "",
-        /* @__PURE__ */ u("text", {
-          class: "lbl",
-          x: slot.x,
-          y: slot.y + 30,
-          "data-label-width": slot.width,
-          "data-label-row": `member-${slot.row}`,
-          children: member.name
-        })
-      ]
-    }));
-  });
-  workerSlots.forEach((slot) => {
-    const { worker, owner } = slot.item;
-    const state = nodeState(worker.state);
-    const ownerText = owner ? `${owner} のワーカー` : "持ち主を特定できないワーカー";
-    nodes.push(/* @__PURE__ */ u("g", {
-      class: "hq-n wkr " + worker.state,
-      "data-owner": owner || "",
-      children: [
-        /* @__PURE__ */ u("title", {
-          children: `${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ""}`
-        }),
-        /* @__PURE__ */ u("circle", {
-          class: "dot",
-          cx: slot.x,
-          cy: slot.y,
-          r: "6"
-        }),
-        /* @__PURE__ */ u("text", {
-          class: "lbl s",
-          x: slot.x,
-          y: slot.y + 20,
-          "data-label-width": slot.width,
-          "data-label-row": `worker-${slot.row}`,
-          children: worker.name
-        })
-      ]
-    }));
-  });
   const summary = [
     `メンバー: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join("、") || "なし"}`,
     `ワーカー: ${workers.map((worker) => `${worker.name}（${worker.from || "持ち主不明"}） ${nodeState(worker.state)}`).join("、") || "なし"}`
   ].join("。");
   return /* @__PURE__ */ u("svg", {
     class: "hq-svg packed",
-    viewBox: `0 0 ${W} ${H}`,
+    viewBox: `0 0 ${viewWidth} ${H}`,
     role: "img",
     "aria-label": `${t.name} のアクティビティ図。${summary}`,
     children: [
-      edges,
+      humanEdges,
+      turnEdges,
       calls,
-      workerLines,
-      nodes
+      nodes,
+      columnNodes
     ]
   });
 }
