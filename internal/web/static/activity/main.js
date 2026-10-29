@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-mvvfpxpg.js";
+} from "../chunk/nav-a69hr6d6.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-cn9ghp55.js";
+} from "../chunk/nav-2devnqmd.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -394,7 +394,7 @@ function Tile({ team: t }) {
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "st " + t.state,
-            children: ST[t.state] || ""
+            children: t.starting ? "起動の途中 · 許可待ち" : ST[t.state] || ""
           }),
           /* @__PURE__ */ u("span", {
             class: "hq-tl",

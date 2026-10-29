@@ -9,7 +9,7 @@ import { useEffect, useRef } from '../lib/preact.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES,
+  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES, HQ,
 } from './state.js';
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
@@ -336,14 +336,16 @@ export function List() {
   return (
     <>
       <Toolbar />
-      <div class="list">
-        <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
-        <div id="rows">
-          {rows.value.length === 0 ? <p class="none">プロファイルはありません</p> : ''}
-          <p class="none" id="no-match" hidden={rows.value.length === 0 || visible.length > 0}>合うプロファイルはありません</p>
-          {groupedRows(visible).map((one) => ('head' in one ? <GroupHead group={one.head} /> : <Row key={one.row.key} row={one.row} />))}
-        </div>
-      </div>
+      {HQ && HQ.error
+        ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
+        : <div class="list">
+          <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+          <div id="rows">
+            {rows.value.length === 0 ? <p class="none">プロファイルはありません</p> : ''}
+            <p class="none" id="no-match" hidden={rows.value.length === 0 || visible.length > 0}>合うプロファイルはありません</p>
+            {groupedRows(visible).map((one) => ('head' in one ? <GroupHead group={one.head} /> : <Row key={one.row.key} row={one.row} />))}
+          </div>
+        </div>}
     </>
   );
 }

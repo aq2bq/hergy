@@ -142,9 +142,19 @@ function ProjectsSheet(): JSX.Element {
     ? <div class="hq-li cand"><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">この serve を起動したプロジェクト（並んでいない）</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
     : '';
   const others = candidates.filter((x) => x.path !== current.path).map(cand);
+  // alreadyListed is the listed project a typed path names, if one: the same
+  // path, or the same ~/… the sheet shows for it. A project already in the list
+  // is said so, rather than reading the page again as though it were added
+  // (r-1db7 L6).
+  const alreadyListed = (want: string): HQProject | undefined => {
+    const trim = (one: string | undefined): string => String(one || '').replace(/\/+$/, '');
+    return listed.find((x) => (trim(x.path) === trim(want)) || (!!x.display && trim(x.display) === trim(want)));
+  };
   const add = async (): Promise<void> => {
     const want = path.trim();
     if (!want) { setError('プロジェクトのディレクトリのパスを書いてください'); return; }
+    const already = alreadyListed(want);
+    if (already) { setError(`${already.name} はもう並んでいます`); return; }
     const no = await listProject(want);
     if (no) { setError(no); return; }
     location.reload();

@@ -80,7 +80,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   return <article class={'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team={t.name}>
     <button type="button" class="hq-th" data-pick={t.name} aria-pressed={sel ? 'true' : 'false'} onClick={() => pick(t.name)}>
       <span class="hq-tn">{t.name}</span>{projectWorkspace ? <span class="hq-pw">{projectWorkspace}</span> : ''}
-      <span class={'st ' + t.state}>{ST[t.state] || ''}</span>
+      <span class={'st ' + t.state}>{t.starting ? '起動の途中 · 許可待ち' : (ST[t.state] || '')}</span>
       <span class="hq-tl">{t.since ? <><b>{t.since.len}</b> {t.since.at}</> : ''}</span>
     </button>
     <Figure team={t} />

@@ -70,6 +70,9 @@ export function App() {
 // ---- 一覧 --------------------------------------------------------------
 export function List() {
   const toolbar = <div class="toolbar"><button class="btn primary" data-act="new" onClick={() => pressNew()}>＋ チーム定義を追加</button></div>;
+  // A headquarters whose lists could not be read says why, rather than drawing
+  // the one project's lists as though the projects were not there (r-1db7 L1).
+  if (HQ && HQ.error) return <>{toolbar}<p class="hq-err" data-role="hq-error">{HQ.error}</p></>;
   const recs = allRecs();
   if (!recs.length && !GROUPED) return <>{toolbar}<div class="list"><p class="none">チーム定義はありません</p></div></>;
   const head = (

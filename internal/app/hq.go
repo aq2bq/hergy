@@ -88,12 +88,10 @@ func (a *activityRead) ProjectCatalog(path string) (*catalog.Catalog, error) {
 	if err != nil {
 		return nil, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	for _, one := range allowed {
-		if samePath(one, want) {
-			return a.hq.catalogAt(want)
-		}
+	if !a.hq.isListedProject(allowed, want) {
+		return nil, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
-	return nil, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+	return a.hq.catalogAt(want)
 }
 
 // GlobalCatalog is the global layer read once for the headquarters, with the
@@ -132,6 +130,26 @@ func (h *hqRead) listedProjects() ([]string, bool, error) {
 		return nil, false, err
 	}
 	return h.act.env.ProjectPaths(cfg)
+}
+
+// isListedProject reports whether path is one of the projects config.yaml lists.
+// A listed directory inside a git repository is that repository's project: the
+// headquarters shows the repository's root, and the screen asks for what it
+// shows, so both spellings name the listed project (r-1db7 L1).
+func (h *hqRead) isListedProject(paths []string, path string) bool {
+	want, err := team.ExpandProjectPath(path)
+	if err != nil {
+		return false
+	}
+	for _, one := range paths {
+		if samePath(one, want) {
+			return true
+		}
+		if env, err := h.act.envAt(one); err == nil && samePath(env.ProjectRoot, want) {
+			return true
+		}
+	}
+	return false
 }
 
 // allowedProjects is every project a screen may read or write: the listed ones,

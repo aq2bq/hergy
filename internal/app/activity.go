@@ -14,6 +14,7 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
@@ -741,6 +742,13 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		if text, err := a.herdrPane(main); err == nil {
 			question = askingLine(text)
 		}
+	}
+	// A member waiting for an answer whose screen herdr cannot read, or whose
+	// screen holds no line, still has a question: the row says the answer is not
+	// on this screen rather than leaving the field empty (r-1db7 L5). The screen
+	// writes no sentence of its own (spec-activity 3).
+	if question == "" && t.State == activity.WaitingAnswer {
+		question = i18n.T("web.activity.question_unread")
 	}
 
 	// What each agent's terminal says it is doing, and which member added a

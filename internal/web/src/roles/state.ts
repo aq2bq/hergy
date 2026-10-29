@@ -26,6 +26,8 @@ type HQIsland = {
   projects: components['schemas']['HQProjects'];
   roles?: components['schemas']['HQRoleGroup'][];
   teams?: components['schemas']['HQTeamGroup'][];
+  // Why the headquarters' lists could not be read; a screen says it (r-1db7 L1).
+  error?: string;
 };
 type RoleIsland = {
   role?: components['schemas']['RoleList'];

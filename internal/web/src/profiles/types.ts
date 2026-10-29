@@ -62,6 +62,8 @@ export type IslandAssign = { kinds: KindBar[]; teams: IslandTeam[]; empty: boole
 export type IslandHQ = {
   projects: HQProjects;
   profiles?: HQProfileGroup[];
+  // Why the headquarters' lists could not be read; a screen says it (r-1db7 L1).
+  error?: string;
 };
 
 export type Island = { profile?: ProfileList; assign?: IslandAssign; hq?: IslandHQ };

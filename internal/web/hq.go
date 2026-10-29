@@ -411,25 +411,30 @@ type hqScreenIsland struct {
 	Teams    []HQGroup  `json:"teams,omitempty"`
 	Roles    []HQGroup  `json:"roles,omitempty"`
 	Profiles []HQGroup  `json:"profiles,omitempty"`
+	// Error is why the headquarters' lists could not be read. A screen that gets
+	// it says the sentence rather than drawing the one-project lists as though
+	// the projects were not there (r-1db7 L1).
+	Error string `json:"error,omitempty"`
 }
 
 // hqScreenIsland reads the groups one screen draws, in the order they stand on
 // it: every listed project's own, then the global layer's once. It answers nil
-// when the headquarters cannot be read: the caller leaves the island out and the
-// screen falls back to the one project it was started in.
+// when this server has no headquarters reading at all, and an island carrying
+// the refusal's sentence when the reading failed: a screen says why rather than
+// falling back to the one project it was started in (r-1db7 L1).
 func (s *Server) hqScreenIsland(kindNames ...string) *hqScreenIsland {
 	if s.hq == nil {
 		return nil
 	}
 	projects, err := s.hq.Projects()
 	if err != nil {
-		return nil
+		return &hqScreenIsland{Error: hqRefusal(err).Text}
 	}
 	out := &hqScreenIsland{Projects: projects}
 	for _, kindName := range kindNames {
 		groups, refusal := s.hqGroupsOf(projects, kindName)
 		if refusal != nil {
-			return nil
+			return &hqScreenIsland{Projects: projects, Error: refusal.Text}
 		}
 		switch kindName {
 		case apiTeamKind:

@@ -30,8 +30,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-mvvfpxpg.js";
-import"../chunk/nav-cn9ghp55.js";
+} from "../chunk/nav-a69hr6d6.js";
+import"../chunk/nav-2devnqmd.js";
 import {
   YamlTab2
 } from "../chunk/nav-faptd0c2.js";
@@ -1731,7 +1731,11 @@ function List() {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Toolbar, {}),
-      /* @__PURE__ */ u("div", {
+      HQ && HQ.error ? /* @__PURE__ */ u("p", {
+        class: "hq-err",
+        "data-role": "hq-error",
+        children: HQ.error
+      }) : /* @__PURE__ */ u("div", {
         class: "list",
         children: [
           /* @__PURE__ */ u("div", {

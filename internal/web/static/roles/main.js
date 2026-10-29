@@ -34,8 +34,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-mvvfpxpg.js";
-import"../chunk/nav-cn9ghp55.js";
+} from "../chunk/nav-a69hr6d6.js";
+import"../chunk/nav-2devnqmd.js";
 import {
   fromJSON2,
   toDoc2,
@@ -1376,7 +1376,11 @@ function List() {
           })
         ]
       }),
-      /* @__PURE__ */ u("div", {
+      HQ && HQ.error ? /* @__PURE__ */ u("p", {
+        class: "hq-err",
+        "data-role": "hq-error",
+        children: HQ.error
+      }) : /* @__PURE__ */ u("div", {
         class: "list",
         children: [
           /* @__PURE__ */ u("div", {
@@ -1566,7 +1570,7 @@ var readersCell = (r) => {
         children: "0"
       });
     const total = [...byProject.values()].reduce((n, xs) => n + xs.length, 0);
-    const parts = [...byProject.entries()].map(([key, ids]) => key === "global" ? ids.join(" · ") : `${projectNameOf(key)}: ${ids.join(" · ")}`);
+    const parts = [...byProject.entries()].map(([key, ids]) => `${projectNameOf(key)}: ${ids.join(" · ")}`);
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u("b", {

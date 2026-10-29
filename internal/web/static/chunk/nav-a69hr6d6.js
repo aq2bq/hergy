@@ -492,10 +492,19 @@ function ProjectsSheet() {
     ]
   }) : "";
   const others = candidates.filter((x) => x.path !== current.path).map(cand);
+  const alreadyListed = (want) => {
+    const trim = (one) => String(one || "").replace(/\/+$/, "");
+    return listed.find((x) => trim(x.path) === trim(want) || !!x.display && trim(x.display) === trim(want));
+  };
   const add = async () => {
     const want = path.trim();
     if (!want) {
       setError("プロジェクトのディレクトリのパスを書いてください");
+      return;
+    }
+    const already = alreadyListed(want);
+    if (already) {
+      setError(`${already.name} はもう並んでいます`);
       return;
     }
     const no = await listProject(want);

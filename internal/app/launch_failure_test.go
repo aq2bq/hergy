@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -129,4 +130,27 @@ func TestUpThatFailsPartwaySaysTheSameThing(t *testing.T) {
 		t.Fatalf("up did not fail:\n%s", stderr)
 	}
 	wantFailedStartText(t, stderr)
+}
+
+// TestAStartSaysItsFirstLineAtOnce: the start answers with its first progress
+// line as soon as it is accepted, before herdr is read (r-1db7 L3).
+func TestAStartSaysItsFirstLineAtOnce(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	useJapanese(t)
+	withThirdMember(t, f)
+	failingThirdHerdr(t, f)
+
+	env := serveEnv(t)
+	read := newActivityRead(env)
+	launch, err := read.StartLaunch(web.HQLaunchIn{
+		Project: env.ProjectRoot, Definition: "demo", Place: "project",
+		Workspace: web.HQWorkspaceIn{ID: "w1"},
+	})
+	if err != nil {
+		t.Fatalf("StartLaunch: %v", err)
+	}
+	if len(launch.Steps) == 0 || launch.Steps[0].Text != i18n.T("progress.stage.creating_tab") {
+		t.Errorf("the accepted start says %+v, want the first line %q", launch.Steps, i18n.T("progress.stage.creating_tab"))
+	}
 }

@@ -611,3 +611,38 @@ func TestRunningNamesTheMembersNoAgentIsLiveFor(t *testing.T) {
 		t.Fatalf("core's not_up = %v, want only builder (the lead is live)", core.NotUp)
 	}
 }
+
+// TestAProjectListedByASubdirectoryIsTheRepository: a projects: entry that is a
+// directory inside a git repository names that repository's project, and the
+// screens ask for the root the headquarters shows. The read is not refused for
+// the project it lists (r-1db7 L1).
+func TestAProjectListedByASubdirectoryIsTheRepository(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	sub := filepath.Join(f.proj, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nprojects:\n  - "+sub+"\n")
+	read := newActivityRead(serveEnv(t))
+
+	projects, err := read.Projects()
+	if err != nil {
+		t.Fatalf("Projects: %v", err)
+	}
+	var listed web.HQProject
+	for _, one := range projects.Projects {
+		if one.Listed {
+			listed = one
+		}
+	}
+	if listed.Path == "" {
+		t.Fatalf("no project is listed: %+v", projects.Projects)
+	}
+	if !samePath(listed.Path, f.proj) {
+		t.Fatalf("the listed project = %q, want the repository root %q", listed.Path, f.proj)
+	}
+	if _, err := read.ProjectCatalog(listed.Path); err != nil {
+		t.Errorf("the screen's read of the listed project was refused: %v", err)
+	}
+}

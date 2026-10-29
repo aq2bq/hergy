@@ -52,6 +52,8 @@ export type HQIsland = {
   teams?: Schemas['HQTeamGroup'][] | null;
   roles?: Schemas['HQRoleGroup'][] | null;
   profiles?: Schemas['HQProfileGroup'][] | null;
+  /** Why the headquarters' lists could not be read; a screen says it. */
+  error?: string;
 };
 
 // Island is the JSON the page carries (teams_v2.go's t2Island).

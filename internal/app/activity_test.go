@@ -784,3 +784,29 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 		t.Errorf("the team runs from the definition of %q, want %q", got, want)
 	}
 }
+
+// TestActivityQuestionSaysWhenTheScreenCannotBeRead: a member waiting for an
+// answer whose screen herdr cannot read still has a question, in the server's
+// words, rather than an empty field (r-1db7 L5).
+func TestActivityQuestionSaysWhenTheScreenCannotBeRead(t *testing.T) {
+	f := newActivityFixture(t)
+	f.stateFile(t, map[string]string{"core-lead": entry(90, activityNow.Add(-160*time.Minute), false)})
+	// core-lead waits for an answer, and herdr cannot read what its screen asks.
+	f.writeHerdr(t, "agents.json", `{"result":{"agents":[
+ {"name":"core-lead","agent_status":"blocked","tab_id":"t1","state_change_seq":90},
+ {"name":"core-impl-a","agent_status":"idle","tab_id":"t1","state_change_seq":88},
+ {"name":"core-hotfix-impl-a","agent_status":"idle","tab_id":"t2","state_change_seq":30},
+ {"name":"core-deps","agent_status":"idle","tab_id":"t3","state_change_seq":80},
+ {"name":"other-lead","agent_status":"working","tab_id":"t4","state_change_seq":5},
+ {"name":"notes","agent_status":"idle","tab_id":"t5","state_change_seq":5}]}}`)
+	if err := os.Remove(filepath.Join(f.cfg, "activity-herdr", "screens", "core-lead.txt")); err != nil {
+		t.Fatal(err)
+	}
+	doc, ok := f.reader(t).One("core")
+	if !ok {
+		t.Fatal("core is running, so its opened part is there")
+	}
+	if want := i18n.T("web.activity.question_unread"); doc.Question != want {
+		t.Errorf("the waiting row question is %q, want %q", doc.Question, want)
+	}
+}

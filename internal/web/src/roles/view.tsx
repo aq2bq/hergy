@@ -48,10 +48,12 @@ export function List() {
       <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)}</span></button>)}</div>
       <input id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
-    <div class="list">
-      <div class="head"><span></span><span>ロール名</span><span>{HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
-      <div id="rows">{rowsHTML()}</div>
-    </div></>;
+    {HQ && HQ.error
+      ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
+      : <div class="list">
+        <div class="head"><span></span><span>ロール名</span><span>{HQ ? 'プロジェクト' : '置き場所'}</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
+        <div id="rows">{rowsHTML()}</div>
+      </div>}</>;
 }
 
 function rowsHTML() {
@@ -114,7 +116,7 @@ const readersCell = (r: RoleRow) => {
     });
     if (!byProject.size) return <span class="none">0</span>;
     const total = [...byProject.values()].reduce((n, xs) => n + xs.length, 0);
-    const parts = [...byProject.entries()].map(([key, ids]) => (key === 'global' ? ids.join(' · ') : `${projectNameOf(key)}: ${ids.join(' · ')}`));
+    const parts = [...byProject.entries()].map(([key, ids]) => `${projectNameOf(key)}: ${ids.join(' · ')}`);
     return <><b>{total}</b><span>{parts.join(' / ')}</span></>;
   }
   const ids = [...new Set(rs.map(({ t }) => t.id))];

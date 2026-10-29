@@ -550,5 +550,6 @@
   "launch.failed_running": "このチームは動いている扱いです。",
   "launch.failed_next": "直すには、%[1]s で %[2]s を実行してください。",
   "launch.failed_gap": "",
-  "launch.fix_boot": "hergy down %[1]s のあと %[2]s"
+  "launch.fix_boot": "hergy down %[1]s のあと %[2]s",
+  "web.activity.question_unread": "聞いていることは、画面から読めませんでした"
 }

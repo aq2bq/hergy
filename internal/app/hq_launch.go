@@ -211,12 +211,10 @@ func (h *hqRead) projectEnv(path string) (team.Env, error) {
 	if err != nil {
 		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	for _, one := range allowed {
-		if samePath(one, want) {
-			return h.act.envAt(want)
-		}
+	if !h.isListedProject(allowed, want) {
+		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
-	return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+	return h.act.envAt(want)
 }
 
 // StartLaunch is POST /api/hq/launch: the start is checked here, and goes on in
@@ -249,9 +247,13 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 		Workspace: workspace, Tab: web.HQTab{Label: name},
 		Phase: "starting", Steps: []web.HQLaunchStep{},
 	})
+	// The sheet says what it is doing from the moment the start is accepted,
+	// before herdr is read at all: the line the launcher itself writes first, so
+	// the two are the same sentence (r-1db7 L3).
 	ctx, cancel := context.WithCancel(h.context())
 	op.mu.Lock()
 	op.cancel = cancel
+	op.stepLocked("stage", i18n.T("progress.stage.creating_tab"))
 	op.mu.Unlock()
 	go h.runStart(ctx, op, env, r, in, workspace)
 	return op.snapshot(), nil
@@ -272,12 +274,10 @@ func (h *hqRead) startProjectEnv(path string) (team.Env, error) {
 	if err != nil {
 		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	for _, one := range paths {
-		if samePath(one, want) {
-			return h.act.envAt(want)
-		}
+	if !h.isListedProject(paths, want) {
+		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
-	return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+	return h.act.envAt(want)
 }
 
 // startAllowed refuses a global definition in a project whose own layer holds
