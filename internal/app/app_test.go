@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -848,6 +849,10 @@ func TestValidateShape(t *testing.T) {
 // prompt any more; while one is left, the commands that build a prompt and
 // validate stop on it, name the path and say where the rules go (d-31ad,
 // r-7de2, ac-b7b6).
+// sharedID finds the shared agreement's rule id S1 as an id of its own: hergy's
+// ids are four random characters, and one of them (MJS1) may hold S1 inside it.
+var sharedID = regexp.MustCompile(`(^|[^A-Z0-9])S1([^A-Z0-9]|$)`)
+
 func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 	shared := "version: 1\ntitle: 共通\nsections:\n  - heading: 台帳\n    rules:\n      - id: S1\n        text: 全員が読む。\n"
 	for _, place := range []string{"project", "global"} {
@@ -870,7 +875,7 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 				t.Fatalf("the definition does not read: %v", err)
 			}
 			for _, start := range r.starts {
-				if strings.Contains(start.Prompt, "S1") || strings.Contains(start.Prompt, "全員が読む") {
+				if sharedID.MatchString(start.Prompt) || strings.Contains(start.Prompt, "全員が読む") {
 					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name, start.Prompt)
 				}
 			}
@@ -917,7 +922,7 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 			if !strings.Contains(stdout, "file: "+shown+"\n") || !strings.Contains(stdout, "problems: 1\n") {
 				t.Errorf("validate does not name the file and count it:\n%s", stdout)
 			}
-			if strings.Contains(stdout, "S1") {
+			if sharedID.MatchString(stdout) {
 				t.Errorf("validate counts a rule of the shared agreement:\n%s", stdout)
 			}
 
