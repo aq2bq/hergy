@@ -1,0 +1,19 @@
+{
+  "projects": ["alpha", "beta", "gamma"],
+  "rolesByProject": {
+    "alpha": ["lead", "analyst", "builder", "reviewer"],
+    "beta": ["lead", "planner", "builder"],
+    "gamma": ["lead", "writer", "reviewer"]
+  },
+  "teams": [
+    { "project": "alpha", "name": "core", "members": 7, "workers": 6, "active": true },
+    { "project": "alpha", "name": "platform", "members": 2, "workers": 1, "active": true },
+    { "project": "beta", "name": "service", "members": 2, "workers": 1, "active": true },
+    { "project": "gamma", "name": "docs", "members": 2, "workers": 1, "active": true }
+  ],
+  "rulesPerDocument": 24,
+  "herdrDelayMs": {
+    "command": 120,
+    "socket": 2
+  }
+}
