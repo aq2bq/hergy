@@ -90,15 +90,17 @@ func TestValidateCountsTheRulesWithoutAnIDAndWritesNothing(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
-	before := readFile(t, rolePath) + "      - text: a rule with no id yet\n"
+	// One rule with no id at all, and one whose id is in an older shape: hergy
+	// did not give either, and the next write gives both its own (d-4aab).
+	before := readFile(t, rolePath) + "      - text: a rule with no id yet\n      - id: LEAD-1\n        text: a rule with an older id\n"
 	writeFile(t, rolePath, before)
 
 	out, _, code := run("validate")
 	if code != 0 {
 		t.Fatalf("validate answered %d for a rule without an id:\n%s", code, out)
 	}
-	if !strings.Contains(out, i18n.Tf("rules.ids_missing", 1)) {
-		t.Errorf("validate does not count the rule without an id:\n%s", out)
+	if !strings.Contains(out, i18n.Tf("rules.ids_missing", 2)) {
+		t.Errorf("validate does not count the rule without an id and the older id:\n%s", out)
 	}
 	if readFile(t, rolePath) != before {
 		t.Errorf("validate wrote the file")

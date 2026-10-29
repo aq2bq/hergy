@@ -155,10 +155,10 @@ func TestAssignKeepsCurrentIDsAndIsIdempotent(t *testing.T) {
 func TestMissingCountsWithoutWriting(t *testing.T) {
 	cat := testCatalog(t)
 	path := filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "lead.yaml")
-	writeFile(t, path, roleDoc+"      - text: a rule with no id\n")
+	writeFile(t, path, roleDoc+"      - text: a rule with no id\n      - id: K7QF\n        text: a rule hergy named\n")
 	before := readFile(t, path)
-	if got := Missing(cat); got != 1 {
-		t.Errorf("Missing = %d, want 1 (the old id is an id, and is not counted)", got)
+	if got := Missing(cat); got != 2 {
+		t.Errorf("Missing = %d, want 2 (the rule with no id and the old LEAD-1; not the one with hergy's id)", got)
 	}
 	if readFile(t, path) != before {
 		t.Errorf("Missing wrote the file")
