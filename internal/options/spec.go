@@ -132,8 +132,8 @@ var specs = []Spec{
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
-				"The member to restart or add, by short member name or herdr name",
-				"起動し直す、または足すメンバー（短いメンバー名か herdr 名）"),
+				"The member to restart, by short member name or herdr name",
+				"起動し直すメンバー（短いメンバー名か herdr 名）"),
 		}},
 		Flags: []Use{
 			use(flagAll, text(
