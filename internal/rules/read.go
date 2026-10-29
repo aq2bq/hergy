@@ -140,13 +140,13 @@ func readAll(text, path string) (*Document, []Problem) {
 		return nil, []Problem{newProblem(path, -1, -1, "", 0, err)}
 	}
 	if root.Kind != yaml.MappingNode {
-		p := newProblem(path, -1, -1, "", root.Line, i18n.Errorf("error.rules_not_mapping", path, "the file"))
+		p := newProblem(path, -1, -1, "", root.Line, i18n.Errorf("error.rules_not_mapping", path, path))
 		return &Document{Path: path}, []Problem{p}
 	}
 	doc := &Document{Path: path}
 	var problems []Problem
 
-	top, more := collectMapping(root, path, "the file", -1, -1, append(append([]string{}, docKeys...), "reports")...)
+	top, more := collectMapping(root, path, path, -1, -1, append(append([]string{}, docKeys...), "reports")...)
 	problems = append(problems, more...)
 
 	switch version, ok, err := top.integer("version"); {
