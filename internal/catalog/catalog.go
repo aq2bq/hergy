@@ -616,7 +616,7 @@ func (c *Catalog) ProjectProfileFile() string {
 
 // SharedProfileFile is the profiles.yaml outside the project, read by every
 // definition that the project's own does not hide (K1). A screen shows and
-// writes it as "共通".
+// writes it as "グローバル".
 func (c *Catalog) SharedProfileFile() string {
 	return filepath.Join(c.globalDir, "profiles.yaml")
 }

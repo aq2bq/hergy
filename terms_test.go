@@ -120,6 +120,16 @@ var glossary = []term{
 		},
 	},
 	{
+		id:       "global",
+		english:  "global",
+		japanese: "グローバル",
+		meaning:  "one of the two places a settings file stands in: プロジェクト (<project>/.hergy) or グローバル (~/.config/hergy). A screen writes it beside プロジェクト",
+		banned: []ban{
+			// 共通 was the older Japanese name for the place (d-04d1).
+			{lang: "ja", word: "共通", instead: "グローバル"},
+		},
+	},
+	{
 		id:       "profile",
 		english:  "profile",
 		japanese: "プロファイル",

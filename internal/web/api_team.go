@@ -446,7 +446,7 @@ func t2PlacesOf(listing catalog.Listing) []string {
 // t2PlaceWord is a place as a person reads it.
 func t2PlaceWord(place string) string {
 	if place == catalog.PlaceGlobal {
-		return "共通"
+		return "グローバル"
 	}
 	return "プロジェクト"
 }

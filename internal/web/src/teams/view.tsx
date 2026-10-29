@@ -3,7 +3,7 @@
 // 一覧の行・パネル・足・YAML のタブ・トポロジーの器を描く。class と data-* と
 // 入れ子は、移す前のマークアップから 1 つも変えない（5 章 6）。状態は state.ts の
 // signal を読み、押し込みは自分の onClick / onInput / onKeyDown から state.ts の
-// 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共通部品（lib/ruledoc.js）が描く。
+// 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共有部品（lib/ruledoc.js）が描く。
 import { useEffect, useRef } from '../lib/preact.js';
 import type { ComponentChildren, TargetedEvent } from 'preact';
 import { Measure } from '../lib/measure.js';

@@ -68,7 +68,7 @@ func (s *Server) t2Island() t2Island {
 	out := t2Island{Project: filepath.Base(s.cat.Base()), Team: s.t2List(), HQ: s.hqScreenIsland(apiTeamKind)}
 	out.Places = map[string]string{
 		catalog.PlaceProject: "プロジェクト",
-		catalog.PlaceGlobal:  "共通",
+		catalog.PlaceGlobal:  "グローバル",
 	}
 	out.Dirs = map[string]string{
 		catalog.PlaceProject: s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceProject))) + "/teams/",

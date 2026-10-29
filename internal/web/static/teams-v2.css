@@ -109,7 +109,7 @@ a { color: inherit; text-decoration: none; }
 .tab.on { color: var(--ink); border-bottom-color: var(--accent); cursor: default; }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
 
-/* 共通の部品 */
+/* 共有の部品 */
 .btn {
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   border-radius: 4px; padding: 5px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;

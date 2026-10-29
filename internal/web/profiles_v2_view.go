@@ -59,7 +59,7 @@ type p2Kind struct {
 	On        bool   `json:"on"`
 }
 
-// p2Place is one 「置き場所」 pill: プロジェクト or 共通, and whether it is the
+// p2Place is one 「置き場所」 pill: プロジェクト or グローバル, and whether it is the
 // one in effect.
 type p2Place struct {
 	Label string `json:"label"`
@@ -277,7 +277,7 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 // p2Label is the word the screen uses for one file's place.
 func p2Label(file string) string {
 	if file == p2Shared {
-		return "共通"
+		return "グローバル"
 	}
 	return "プロジェクト"
 }

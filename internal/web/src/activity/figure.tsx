@@ -1,6 +1,6 @@
 // activity/figure.tsx — チームの図（spec 6 章）。
 //
-// 図は共通部品 lib/hq/figure.tsx が描く（アクティビティのタイルと
+// 図は共有部品 lib/hq/figure.tsx が描く（アクティビティのタイルと
 // チーム定義の画面で同じ 1 つの図）。前は hq.js が SVG の文字列を返し、ここが
 // 唯一 dangerouslySetInnerHTML で流し込んでいた。hq が module になったので、
 // その例外（markup_test.go）も一緒に消えた（webui-preact-design 5 章 1）。
