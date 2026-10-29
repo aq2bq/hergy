@@ -94,6 +94,21 @@ func TestAssignGivesEveryRuleAnIDAndRewritesReferences(t *testing.T) {
 			t.Errorf("rule %q got no new-shape id", rule.Text)
 		}
 	}
+	// The rule with no id gets its id before its own keys, the way hergy writes
+	// a rule, and the text it had stays on the next line (d-4aab).
+	noID := doc.Rules()[1].ID
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "- id: "+noID) {
+			if i+1 >= len(lines) || !strings.Contains(lines[i+1], "a rule with no id") {
+				t.Errorf("the id line stands over %q, want the rule's own text", lines[min(i+1, len(lines)-1)])
+			}
+			break
+		}
+		if i == len(lines)-1 {
+			t.Errorf("the rule with no id has no line of its own:\n%s", text)
+		}
+	}
 	role, _ := rules.ReadAll(readFile(t, rolePath), rolePath)
 	newC1 := doc.Rules()[0].ID
 	if newC1 == "C1" {
@@ -140,10 +155,10 @@ func TestAssignKeepsCurrentIDsAndIsIdempotent(t *testing.T) {
 func TestMissingCountsWithoutWriting(t *testing.T) {
 	cat := testCatalog(t)
 	path := filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "lead.yaml")
-	writeFile(t, path, roleDoc)
+	writeFile(t, path, roleDoc+"      - text: a rule with no id\n")
 	before := readFile(t, path)
 	if got := Missing(cat); got != 1 {
-		t.Errorf("Missing = %d, want 1", got)
+		t.Errorf("Missing = %d, want 1 (the old id is an id, and is not counted)", got)
 	}
 	if readFile(t, path) != before {
 		t.Errorf("Missing wrote the file")

@@ -149,6 +149,13 @@ type idLine struct {
 	indent int
 	id     string
 	insert bool
+	// dash says the line stands on the item's dash ("- id: X"): the dash is
+	// the item's, and the id takes it.
+	dash bool
+	// line replaces the line at at after the id is put before it: a rule whose
+	// first key stood on the dash's line gives the dash to the id, and its own
+	// key moves to the line below, still where the item writes it.
+	line string
 }
 
 // idLineChanges says where each id of ids goes in a file's lines: on the rule's
@@ -201,8 +208,10 @@ func idKeyLine(key *yaml.Node, lines []string, id string) idLine {
 	return idLine{at: key.Line, indent: key.Column - 1, id: id}
 }
 
-// idInsertLine is the line a rule with no id gets: the first key's indentation,
-// after the dash's own line when the first key stands on it.
+// idInsertLine is the line a rule with no id gets: the item's first line, so the
+// id stands before every other key the way hergy writes a rule. When the first
+// key stood on the dash's own line ("- text: ..."), the dash goes to the id and
+// the key moves to the next line, at the same column.
 func idInsertLine(item *yaml.Node, lines []string, id, path string) (idLine, error) {
 	first := item.Content[0]
 	col := max(first.Column, 1)
@@ -210,11 +219,15 @@ func idInsertLine(item *yaml.Node, lines []string, id, path string) (idLine, err
 	if line < 1 || line > len(lines) {
 		return idLine{}, i18n.Errorf("error.edit_shape", path, "rules")
 	}
-	onDash := strings.Contains(lines[line-1][:min(col-1, len(lines[line-1]))], "-")
-	if onDash {
-		line++
+	text := lines[line-1]
+	dash := strings.Index(text[:min(col, len(text))], "-")
+	if dash < 0 {
+		return idLine{at: line, indent: col - 1, id: id, insert: true}, nil
 	}
-	return idLine{at: line, indent: col - 1, id: id, insert: true}, nil
+	return idLine{
+		at: line, indent: dash, id: id, insert: true, dash: true,
+		line: strings.Repeat(" ", col-1) + text[min(col-1, len(text)):],
+	}, nil
 }
 
 // applyLineChanges writes the id lines from the bottom of the file up, so an
@@ -226,9 +239,15 @@ func applyLineChanges(lines []string, changes []idLine) []string {
 			continue
 		}
 		value := strings.Repeat(" ", one.indent) + "id: " + one.id
+		if one.dash {
+			value = strings.Repeat(" ", one.indent) + "- id: " + one.id
+		}
 		if one.insert {
 			idx := min(one.at-1, len(lines))
 			lines = append(lines[:idx], append([]string{value}, lines[idx:]...)...)
+			if one.line != "" && one.at <= len(lines) {
+				lines[one.at] = one.line
+			}
 			continue
 		}
 		if one.at >= 1 && one.at <= len(lines) {

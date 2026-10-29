@@ -993,9 +993,20 @@ func TestTEAMS_N5_DraftDuplicateWritesTheSameFiles(t *testing.T) {
 // template and the written file are the same shape otherwise (d-4aab).
 func withoutRuleIDs(text string) string {
 	var kept []string
+	dash := -1
 	for line := range strings.SplitSeq(text, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "id: ") || strings.HasPrefix(strings.TrimSpace(line), "- id: ") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "- id: ") {
+			// The id took the item's dash: the key under it gets the dash back.
+			dash = len(line) - len(strings.TrimLeft(line, " "))
 			continue
+		}
+		if strings.HasPrefix(trim, "id: ") {
+			continue
+		}
+		if dash >= 0 {
+			line = strings.Repeat(" ", dash) + "- " + trim
+			dash = -1
 		}
 		kept = append(kept, line)
 	}

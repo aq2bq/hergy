@@ -536,5 +536,5 @@
   "apply.broken_fix": "Fix the settings file, then check it with hergy validate",
   "apply.broken_left": "%d team(s) have a definition that does not build, so hergy cannot apply their drift",
   "rules.ids_given": "%d rule(s) were given an id",
-  "rules.ids_missing": "rules without an id: %d (hergy gives them an id when it next writes)"
+  "rules.ids_missing": "%d rule(s) have no id from hergy yet (hergy gives them an id when it next writes)"
 }

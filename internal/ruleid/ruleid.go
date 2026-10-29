@@ -73,13 +73,15 @@ func read(cat *catalog.Catalog, path string) File {
 	return File{Path: path, Display: display, Screen: screen, Text: text, Saved: doc}
 }
 
-// Missing is how many rules have no id in a shape hergy writes. A read-only
-// operation says the number; the next write gives them one.
+// Missing is how many rules hergy has not given an id yet: a rule with no id at
+// all. A rule with an id in an older shape has one, and is written again with
+// hergy's on the next write without being counted here. A read-only operation
+// says the number; the next write gives them one.
 func Missing(cat *catalog.Catalog) int {
 	n := 0
 	for _, file := range Files(cat) {
 		for _, rule := range file.Saved.Rules() {
-			if rules.NeedsRuleID(rule.ID) {
+			if rule.ID == "" {
 				n++
 			}
 		}

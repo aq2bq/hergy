@@ -252,7 +252,27 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   // The role documents carry the scaffold's own lines; their ids are the ones
   // hergy gave this write, so they differ from the ids of another `hergy new`
   // in another project, and no id is shared with the project's own (d-4aab).
-  const withoutIDs = (text: string) => text.replace(/^\s*-?\s*id: [A-Z0-9]+\n/gm, '');
+  const withoutIDs = (text: string) => {
+    // An id takes the item's dash; a key that stood under it gets the dash back,
+    // so the file reads as the template does (d-4aab).
+    const kept: string[] = [];
+    let dash = -1;
+    for (const line of text.split('\n')) {
+      const trim = line.trim();
+      if (trim.startsWith('- id: ')) {
+        dash = line.length - line.trimStart().length;
+        continue;
+      }
+      if (trim.startsWith('id: ')) continue;
+      if (dash >= 0) {
+        kept.push(' '.repeat(dash) + '- ' + trim);
+        dash = -1;
+        continue;
+      }
+      kept.push(line);
+    }
+    return kept.join('\n');
+  };
   const idsIn = (text: string) => [...text.matchAll(/^\s*-?\s*id: ([A-Z0-9]+)$/gm)].map((m) => m[1]);
   for (const name of ['lead.yaml', 'builder.yaml']) {
     const shared = readFileSync(path.join(global, 'roles', name), 'utf8');
