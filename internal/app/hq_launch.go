@@ -501,7 +501,10 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		return
 	}
 	if err != nil {
-		h.finish(op, "failed", err.Error())
+		failure := l.Failure(err)
+		h.finish(op, "failed", startFailureText(failure,
+			h.projectNameIn(env.ProjectRoot),
+			failedStartCommand(failure, r.team.Name, command)))
 		return
 	}
 	label := workspace.Label

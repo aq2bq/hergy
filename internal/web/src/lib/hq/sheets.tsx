@@ -391,7 +391,9 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
         ? <><p class="hq-ok">{`${verb}しました: ${who}${doneWhere ? `（${doneWhere}）` : ''}`}</p>
         <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>アクティビティで見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
-          ? <><p class="hq-err">{launch.error || verb + 'できませんでした'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+          ? <><p class="hq-err" data-role="launch-error">{launch.error || verb + 'できませんでした'}</p>
+            {launch.tab.id ? <button type="button" class="hq-btn danger" data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>チームを終了する…</button> : ''}
+            <button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
             ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（チームを終了する欄から操作できます）。' : '作ったタブとペインは残っています（チームを終了する欄から操作できます）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
             : <button type="button" class="hq-btn danger" data-hq="abort" data-launch={id} onClick={abort}>{verb}をやめる</button>}</div>

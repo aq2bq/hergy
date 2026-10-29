@@ -179,7 +179,18 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 	}
 	if len(starts)+len(restarts) > 0 {
 		if err := l.Refresh(append(starts, restarts...), os.Getenv("HERDR_PANE_ID")); err != nil {
-			return err
+			if errors.Is(err, launcher.ErrCancelled) {
+				return err
+			}
+			// A start that stopped partway says who, why and what remains, the
+			// way a start from the team sheet does (d-5f02). An apply that never
+			// got to a start keeps the sentence it stopped with.
+			failure := l.Failure(err)
+			if failure.Member == "" && failure.Panes == 0 {
+				return err
+			}
+			return errors.New(startFailureText(failure,
+				h.projectNameIn(env.ProjectRoot), applyFixCommand(group)))
 		}
 	}
 	if len(resends) > 0 {

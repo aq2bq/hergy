@@ -539,5 +539,16 @@
   "rules.ids_given": "%d rule(s) were given an id",
   "rules.ids_missing": "%d rule(s) have no id from hergy yet (hergy gives them an id when it next writes)",
   "error.workers_purpose_one": "%s: the purpose %q holds a separator (, or 、). A worker has one purpose; write each purpose on its own line under workers: (the same profile may be written again)",
-  "rules.this_file": "this file"
+  "rules.this_file": "this file",
+  "error.herdr_no_message": "herdr failed without giving a reason",
+  "launch.failed_member": "%s failed to start: %s.",
+  "launch.failed_no_member": "The start failed: %s.",
+  "launch.failed_started": "Started: %s.",
+  "launch.failed_none_started": "No member started.",
+  "launch.failed_left": "Left behind: tab %s and %d pane(s).",
+  "launch.failed_left_none": "Nothing was left behind.",
+  "launch.failed_running": "This team counts as running.",
+  "launch.failed_next": "To fix it, run %[2]s in %[1]s.",
+  "launch.failed_gap": " ",
+  "launch.fix_boot": "hergy down %[1]s, then %[2]s"
 }

@@ -539,5 +539,16 @@
   "rules.ids_given": "%d 件のルールに ID を付けました",
   "rules.ids_missing": "hergy がまだ ID を付けていないルール: %d 件（次に書く操作で hergy が付けます）",
   "error.workers_purpose_one": "%s: 目的「%s」に区切り（, や 、）が入っています。1 つのワーカーには目的を 1 つだけ書き、複数の目的は workers: の行を 2 行に分けて書いてください（同じプロファイルでもかまいません）",
-  "rules.this_file": "このファイル"
+  "rules.this_file": "このファイル",
+  "error.herdr_no_message": "herdr が理由を言わずに失敗しました",
+  "launch.failed_member": "%s の起動が失敗しました: %s。",
+  "launch.failed_no_member": "起動が失敗しました: %s。",
+  "launch.failed_started": "起動できたメンバー: %s。",
+  "launch.failed_none_started": "起動できたメンバーはありません。",
+  "launch.failed_left": "残っているもの: タブ %s、ペイン %d 個。",
+  "launch.failed_left_none": "残っているものはありません。",
+  "launch.failed_running": "このチームは動いている扱いです。",
+  "launch.failed_next": "直すには、%[1]s で %[2]s を実行してください。",
+  "launch.failed_gap": "",
+  "launch.fix_boot": "hergy down %[1]s のあと %[2]s"
 }

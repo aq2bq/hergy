@@ -53,6 +53,11 @@ type Launcher struct {
 	// waiting is the line an interrupt prints while hergy waits on a member's
 	// question at startup, and empty when no wait is on.
 	waiting string
+	// failedMember is the member whose start was last asked for, and started the
+	// members whose start and prompt got through: a start that stops partway
+	// says both (d-5f02).
+	failedMember string
+	started      []string
 }
 
 // New builds a launcher over the members of one team: the team name, and the
@@ -1081,6 +1086,35 @@ func (l *Launcher) ReportFailure(w io.Writer) {
 	}
 }
 
+// StartFailure is a start that stopped partway: the member herdr refused, the
+// members that had started before it, what hergy left in herdr, and herdr's own
+// reason in words (d-5f02). A failure before any member is asked for has an
+// empty Member.
+type StartFailure struct {
+	Member  string
+	Started []string
+	// Tab is the team tab's label, and Panes how many panes were made.
+	Tab    string
+	Panes  int
+	Reason string
+}
+
+// Failure is the account of a failed operation from what this launcher recorded:
+// which member it stopped on, who had started, and what remains for a person to
+// put away.
+func (l *Launcher) Failure(err error) StartFailure {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	failure := StartFailure{
+		Member:  l.failedMember,
+		Started: append([]string(nil), l.started...),
+		Tab:     l.team,
+		Panes:   len(l.progress.Panes),
+		Reason:  protocol.Message(err),
+	}
+	return failure
+}
+
 // ReportInterrupted writes where an interrupted operation stopped, and, while
 // hergy was waiting on a member's question at startup, the one line that says
 // how to go on. Nothing was answered, so the member still waits and its pane
@@ -1191,6 +1225,9 @@ func (l *Launcher) namePane(member string) error {
 
 func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel string) error {
 	l.stage(i18n.Tf("progress.stage.starting", member.Name))
+	l.mu.Lock()
+	l.failedMember = member.Name
+	l.mu.Unlock()
 	l.mark(member.Name, i18n.T("progress.mark.start_requested"))
 	if err := l.herdr.Start(member, l.paneOf(member.Name), l.timeout); err != nil {
 		// A member that asks a human a question while it starts is waited on,
@@ -1204,7 +1241,13 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 		}
 	}
 	l.mark(member.Name, i18n.T("progress.mark.ready"))
-	return l.submit(member, member.Name)
+	if err := l.submit(member, member.Name); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	l.started = append(l.started, member.Name)
+	l.mu.Unlock()
+	return nil
 }
 
 func (l *Launcher) submit(member *definition.Start, target string) error {

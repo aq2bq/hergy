@@ -277,7 +277,7 @@ func Result(args []string, stdout, stderr string, exitStatus int) (map[string]an
 		return nil, i18n.Errorf("error.herdr_json", err)
 	}
 	if value, ok := data["error"]; ok && value != nil {
-		return nil, &Error{Code: replyCode(stdout), err: i18n.Errorf("error.herdr_error", value)}
+		return nil, &Error{Code: replyCode(stdout), Message: replyMessage(stdout), err: i18n.Errorf("error.herdr_error", value)}
 	}
 	result, ok := data["result"].(map[string]any)
 	if !ok {
@@ -288,24 +288,33 @@ func Result(args []string, stdout, stderr string, exitStatus int) (map[string]an
 
 // Failure is the error a Herdr command that ran and failed gives, from its exit
 // status and output. detail is the stderr, or the stdout when stderr is empty;
-// Code is Herdr's error code where the reply carries one, so a caller can tell
-// one kind of failure from another.
+// Code is Herdr's error code and Message the reason it gives in words, where the
+// reply carries them, so a caller can tell one kind of failure from another and
+// can say why without showing JSON.
 func Failure(args []string, stdout, stderr string, exitStatus int) error {
 	detail := strings.TrimSpace(stderr)
 	if detail == "" {
 		detail = strings.TrimSpace(stdout)
 	}
+	message := replyMessage(detail)
+	if message == "" && detail != "" && !json.Valid([]byte(detail)) {
+		// Not a reply at all: the command's own words are the reason.
+		message = detail
+	}
 	return &Error{
-		Code: replyCode(detail),
-		err:  i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail),
+		Code:    replyCode(detail),
+		Message: message,
+		err:     i18n.Errorf("error.herdr_failed", strings.Join(firstTwo(args), " "), exitStatus, detail),
 	}
 }
 
 // Error is a Herdr command that answered with an error. Code is Herdr's error
-// code, empty when the reply carried none.
+// code, and Message the reason herdr gave in words; both are empty when the
+// reply carried neither.
 type Error struct {
-	Code string
-	err  error
+	Code    string
+	Message string
+	err     error
 }
 
 func (e *Error) Error() string { return e.err.Error() }
@@ -316,6 +325,21 @@ func ErrorCode(err error) string {
 		return herdrErr.Code
 	}
 	return ""
+}
+
+// Message is herdr's own reason for the failure, as a person reads it: the
+// message of its JSON error reply, and her own words when the failure is not a
+// reply at all (a command that is not there, say). A reply that carries no
+// message gets the one sentence hergy has for it; the JSON itself is never
+// handed to a person (d-5f02).
+func Message(err error) string {
+	if herdrErr, ok := errors.AsType[*Error](err); ok {
+		if herdrErr.Message != "" {
+			return herdrErr.Message
+		}
+		return i18n.T("error.herdr_no_message")
+	}
+	return err.Error()
 }
 
 // replyCode reads the code of a JSON error reply, or empty.
@@ -329,6 +353,19 @@ func replyCode(reply string) string {
 		return ""
 	}
 	return data.Error.Code
+}
+
+// replyMessage reads the reason a JSON error reply gives, or empty.
+func replyMessage(reply string) string {
+	var data struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(reply), &data) != nil {
+		return ""
+	}
+	return strings.TrimSpace(data.Error.Message)
 }
 
 // Dig walks a nested object, failing when a key is missing.

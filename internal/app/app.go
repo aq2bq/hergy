@@ -1240,7 +1240,16 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, func() error { return l.Boot(hergyCommand(opts)) }); err != nil {
+	up := hergyCommand(opts)
+	// A boot that stops partway says the same thing the screen's start sheet
+	// says: the member, herdr's reason, what remains, and the command to go on
+	// with, in the project it is typed in (d-5f02).
+	say := func(err error) error {
+		failure := l.Failure(err)
+		return errors.New(startFailureText(failure, filepath.Base(env.ProjectRoot),
+			failedStartCommand(failure, r.team.Name, up)))
+	}
+	if err := runLaunch(ctx, stderr, l, say, func() error { return l.Boot(up) }); err != nil {
 		return err
 	}
 	recordLaunchIn(stderr, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{Label: l.WorkspaceLabel(), ID: l.WorkspaceID()})
@@ -1862,7 +1871,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) }); err != nil {
+	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) }); err != nil {
 		return err
 	}
 	recordLaunch(stderr, env, r, launchlog.CommandRefresh, selected)
@@ -1904,7 +1913,7 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
 	sent := promptsToResend(cat, env.ProjectRoot, r, selected)
-	if err := runLaunch(ctx, stderr, l, func() error { return l.Reprompt(sent) }); err != nil {
+	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Reprompt(sent) }); err != nil {
 		return err
 	}
 	recordLaunch(stderr, env, r, launchlog.CommandReprompt, selected)
@@ -1940,7 +1949,7 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, func() error { return l.Hire(worker) }); err != nil {
+	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Hire(worker) }); err != nil {
 		return err
 	}
 	// The worker is up, so the record says who added it (d-b4b9). The activity
@@ -1973,9 +1982,21 @@ func dryPlanWithPanes(stdout io.Writer, env team.Env, r *resolved, mode string, 
 }
 
 // runLaunch runs one Herdr operation, and on a failure prints the progress
-// record and stops.
-func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, fn func() error) error {
-	return runOperation(ctx, stderr, l.ReportFailure, l.ReportInterrupted, fn)
+// record and stops. say, when set, turns the error of a failure into the sentence
+// a person reads before the record: a boot speaks the screen's own words
+// (d-5f02), and the other operations keep their error.
+func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, say func(error) error, fn func() error) error {
+	run := fn
+	if say != nil {
+		run = func() error {
+			err := fn()
+			if err == nil {
+				return nil
+			}
+			return say(err)
+		}
+	}
+	return runOperation(ctx, stderr, l.ReportFailure, l.ReportInterrupted, run)
 }
 
 // runOperation runs one Herdr operation, and on Ctrl-C stops with 130. failure,

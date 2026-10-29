@@ -1153,8 +1153,17 @@ function RunSheet({ id, launch: first }) {
           children: [
             /* @__PURE__ */ u("p", {
               class: "hq-err",
+              "data-role": "launch-error",
               children: launch.error || verb + "できませんでした"
             }),
+            launch.tab.id ? /* @__PURE__ */ u("button", {
+              type: "button",
+              class: "hq-btn danger",
+              "data-hq": "stop",
+              "data-team": launch.team,
+              onClick: () => stopSheet2(launch.team),
+              children: "チームを終了する…"
+            }) : "",
             /* @__PURE__ */ u("button", {
               type: "button",
               class: "hq-btn",

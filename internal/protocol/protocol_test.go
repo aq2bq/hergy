@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 func TestResult(t *testing.T) {
@@ -184,5 +186,30 @@ func TestCheckHelp(t *testing.T) {
 				t.Fatalf("CheckHelp = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestMessageIsHerdrsReasonInWords: a Herdr failure gives its own message as the
+// reason a person reads, and a reply with no message does not hand the JSON on
+// (d-5f02).
+func TestMessageIsHerdrsReasonInWords(t *testing.T) {
+	if err := i18n.Init(); err != nil {
+		t.Fatal(err)
+	}
+	withReason := Failure([]string{"agent", "start"}, "",
+		`{"error":{"code":"profile_unknown","message":"the profile coder is not installed"}}`, 1)
+	if got := Message(withReason); got != "the profile coder is not installed" {
+		t.Errorf("Message = %q, want herdr's own reason", got)
+	}
+	if got := ErrorCode(withReason); got != "profile_unknown" {
+		t.Errorf("ErrorCode = %q, want profile_unknown", got)
+	}
+	withoutReason := Failure([]string{"agent", "start"}, "", `{"error":{"code":"nope"}}`, 1)
+	if got := Message(withoutReason); got != i18n.T("error.herdr_no_message") {
+		t.Errorf("Message = %q, want the sentence for a reply with no reason", got)
+	}
+	plain := Failure([]string{"agent", "start"}, "", "herdr: command not found", 127)
+	if got := Message(plain); got != "herdr: command not found" {
+		t.Errorf("Message = %q, want the command's own words", got)
 	}
 }
