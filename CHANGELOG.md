@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.3 - 2026-10-29
+
+### Changed
+
+- **`hergy serve` answers without waiting**: the screens' answers took 0.4–0.7 s,
+  and a page up to 1.3 s on a few projects with a large team (n-9be4). serve now
+  keeps what it read of the definitions under the version of their files (size
+  and time of change) and reads again only a file that changed, by hergy or by
+  hand, so the next answer always carries the change; the checks and the prompt
+  counts are worked out once per version. herdr's state is read in one call over
+  herdr's own socket instead of four `herdr` commands one after another, and the
+  five seconds serve used to remember herdr's state are gone. Measured on three
+  projects with a 13-agent team: every API answer is under 25 ms (was up to
+  650 ms). A serve started before herdr finds herdr's socket on its next read.
+  The commands that change herdr (starting, sending, closing) still run `herdr`.
+- **The activity figure shows whose worker each is**: workers stand under the
+  member that hired them, as a tree — a line down from the member and a branch to
+  each worker, the name right of its dot — so no line crosses another member's
+  column, and the turns between members run above the members (n-b82e).
+
 ## 0.9.2 - 2026-10-29
 
 ### Breaking
