@@ -1383,7 +1383,7 @@ function buildIndex() {
       const agree = doc.agreement && doc.agreement.doc;
       for (const sec of agree && agree.sections || []) {
         for (const rule of sec.rules || []) {
-          out.push({ kind: "rule", group, project: label, label: rule.id, sub: `${item.name} のルール`, text: `${rule.id} ${rule.text}`, body: rule.text, href });
+          out.push({ kind: "rule", group, project: label, label: rule.id || "", sub: `${item.name} のルール`, text: `${rule.id || ""} ${rule.text}`, body: rule.text, href });
         }
       }
     }
@@ -1396,7 +1396,7 @@ function buildIndex() {
       out.push({ kind: "role", group, project: label, label: `${item.name} ${doc.title || ""}`.trim(), sub: "", text: `${item.name} ${doc.title || ""}`, href });
       for (const sec of doc.sections || []) {
         for (const rule of sec.rules || []) {
-          out.push({ kind: "rule", group, project: label, label: rule.id, sub: `ロール ${item.name}`, text: `${rule.id} ${rule.text}`, body: rule.text, href });
+          out.push({ kind: "rule", group, project: label, label: rule.id || "", sub: `ロール ${item.name}`, text: `${rule.id || ""} ${rule.text}`, body: rule.text, href });
         }
       }
     }
