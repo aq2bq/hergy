@@ -119,7 +119,7 @@ var behavior = map[options.Kind]string{
 `,
 	options.Tell: `      Send a member a message headed by who it is from: --from names a member (short member name or herdr name), else the member whose pane you type in, else the human. It does not read the member's state, so the message reaches an agent in any state. --dry prints the message, reads nothing, and without --from shows the human as the sender.
 `,
-	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for.` + startupQuestion + `
+	options.Hire: `      Start one worker in a tab labelled worker:<team>/<name>. --purpose and --task are required. The purpose must be one the hiring member's workers: names, and the worker's profile comes from that entry; a purpose outside it is refused, naming the purposes the member may hire for. The worker's prompt tells it to send its result to the member that hired it with herdr agent prompt, and that a summary in its own pane does not reach the member.` + startupQuestion + `
       --dry plans from the team definition and reads no herdr, so a team that is not running can be planned for: --team names the team (a team name, or a team definition name the launch record does not know), and with no --team the one team in this project's launch record is used.
 `,
 	options.Ls: `      List the visible team definitions and the running team names each one booted.
