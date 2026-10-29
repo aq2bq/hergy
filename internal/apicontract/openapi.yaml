@@ -1,4 +1,4 @@
-# WebUI の API の約束（n-e3de、d-e206）。これが正で、Go の答えと TS の型がここに縛られる。
+# WebUI の API の取り決め（n-e3de、d-e206）。これが正で、Go の答えと TS の型がここに縛られる。
 # 書き方は internal/apicontract/doc.go。API の道を足すときは、同じ変更でここに形を書く。
 openapi: 3.0.3
 info:
@@ -2359,7 +2359,7 @@ components:
           type: string
           description: 変更内容を伝える文
     HQProjects:
-      description: 本部が読む現在のプロジェクト、並べたプロジェクト、共通の数
+      description: 本部が読む現在のプロジェクト、並べたプロジェクト、グローバルの数
       type: object
       additionalProperties: false
       required: [config, mode, current, projects, global]
@@ -2382,7 +2382,7 @@ components:
         global:
           allOf:
             - $ref: '#/components/schemas/HQGlobal'
-          description: 共通のチーム定義、ロール、プロファイルの数
+          description: グローバルのチーム定義、ロール、プロファイルの数
     HQProject:
       description: 本部に表示するプロジェクト
       type: object
@@ -2434,28 +2434,28 @@ components:
           type: string
           description: 並んでいないプロジェクトを候補に出す理由
     HQGlobal:
-      description: 共通の設定が持つチーム定義、ロール、プロファイルの数
+      description: グローバルの設定が持つチーム定義、ロール、プロファイルの数
       type: object
       additionalProperties: false
       required: [path, display, definitions, roles, profiles]
       properties:
         path:
           type: string
-          description: 共通の設定の場所
+          description: グローバルの設定の場所
         display:
           type: string
-          description: 画面に表示する共通の設定の場所
+          description: 画面に表示するグローバルの設定の場所
         definitions:
           type: integer
-          description: 共通のチーム定義の数
+          description: グローバルのチーム定義の数
         roles:
           type: integer
-          description: 共通のロールの数
+          description: グローバルのロールの数
         profiles:
           type: integer
-          description: 共通のプロファイルの数
+          description: グローバルのプロファイルの数
     HQTeamGroups:
-      description: プロジェクトと共通設定ごとの、チーム定義の一覧
+      description: プロジェクトとグローバル設定ごとの、チーム定義の一覧
       type: object
       additionalProperties: false
       required: [groups]
@@ -2466,7 +2466,7 @@ components:
             $ref: '#/components/schemas/HQTeamGroup'
           description: 本部に表示するチーム定義のまとまり
     HQTeamGroup:
-      description: 1 つのプロジェクトまたは共通設定の、チーム定義の一覧
+      description: 1 つのプロジェクトまたはグローバル設定の、チーム定義の一覧
       type: object
       additionalProperties: false
       required: [list]
@@ -2478,13 +2478,13 @@ components:
           description: この一覧が属するプロジェクト
         global:
           type: boolean
-          description: 共通設定の一覧か
+          description: グローバル設定の一覧か
         name:
           type: string
-          description: 画面に表示するプロジェクト名または共通設定名
+          description: 画面に表示するプロジェクト名またはグローバル設定名
         path:
           type: string
-          description: プロジェクトまたは共通設定の場所
+          description: プロジェクトまたはグローバル設定の場所
         display:
           type: string
           description: 画面に表示する場所
@@ -2498,9 +2498,9 @@ components:
             type: array
             items:
               type: string
-          description: 共通設定の名前を上書きするプロジェクト
+          description: グローバル設定の名前を上書きするプロジェクト
     HQRoleGroups:
-      description: プロジェクトと共通設定ごとの、ロールの一覧
+      description: プロジェクトとグローバル設定ごとの、ロールの一覧
       type: object
       additionalProperties: false
       required: [groups]
@@ -2511,7 +2511,7 @@ components:
             $ref: '#/components/schemas/HQRoleGroup'
           description: 本部に表示するロールのまとまり
     HQRoleGroup:
-      description: 1 つのプロジェクトまたは共通設定の、ロールの一覧
+      description: 1 つのプロジェクトまたはグローバル設定の、ロールの一覧
       type: object
       additionalProperties: false
       required: [list]
@@ -2523,13 +2523,13 @@ components:
           description: この一覧が属するプロジェクト
         global:
           type: boolean
-          description: 共通設定の一覧か
+          description: グローバル設定の一覧か
         name:
           type: string
-          description: 画面に表示するプロジェクト名または共通設定名
+          description: 画面に表示するプロジェクト名またはグローバル設定名
         path:
           type: string
-          description: プロジェクトまたは共通設定の場所
+          description: プロジェクトまたはグローバル設定の場所
         display:
           type: string
           description: 画面に表示する場所
@@ -2543,9 +2543,9 @@ components:
             type: array
             items:
               type: string
-          description: 共通設定の名前を上書きするプロジェクト
+          description: グローバル設定の名前を上書きするプロジェクト
     HQProfileGroups:
-      description: プロジェクトと共通設定ごとの、プロファイルの一覧
+      description: プロジェクトとグローバル設定ごとの、プロファイルの一覧
       type: object
       additionalProperties: false
       required: [groups]
@@ -2556,7 +2556,7 @@ components:
             $ref: '#/components/schemas/HQProfileGroup'
           description: 本部に表示するプロファイルのまとまり
     HQProfileGroup:
-      description: 1 つのプロジェクトまたは共通設定の、プロファイルの一覧
+      description: 1 つのプロジェクトまたはグローバル設定の、プロファイルの一覧
       type: object
       additionalProperties: false
       required: [list]
@@ -2568,13 +2568,13 @@ components:
           description: この一覧が属するプロジェクト
         global:
           type: boolean
-          description: 共通設定の一覧か
+          description: グローバル設定の一覧か
         name:
           type: string
-          description: 画面に表示するプロジェクト名または共通設定名
+          description: 画面に表示するプロジェクト名またはグローバル設定名
         path:
           type: string
-          description: プロジェクトまたは共通設定の場所
+          description: プロジェクトまたはグローバル設定の場所
         display:
           type: string
           description: 画面に表示する場所
@@ -2588,7 +2588,7 @@ components:
             type: array
             items:
               type: string
-          description: 共通設定の名前を上書きするプロジェクト
+          description: グローバル設定の名前を上書きするプロジェクト
     HQRef:
       description: 本部の一覧が示すプロジェクト
       type: object
@@ -2783,7 +2783,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HQLaunchProject'
-          description: 共通のチーム定義を起動できるプロジェクト
+          description: グローバルのチーム定義を起動できるプロジェクト
         clash:
           type: array
           items:
@@ -2806,7 +2806,7 @@ components:
             $ref: '#/components/schemas/HQWorkspaceChoice'
           description: 起動先に選べるワークスペース
     HQLaunchProject:
-      description: 共通のチーム定義を起動できるプロジェクト
+      description: グローバルのチーム定義を起動できるプロジェクト
       type: object
       additionalProperties: false
       required: [path, name, available, reason]
@@ -3227,7 +3227,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TeamPromptSegment'
-          description: メンバーに渡す初期プロンプトを由来ごとに分けた部分
+          description: メンバーの初期プロンプトを由来ごとに分けた部分
     TeamWorker:
       description: チーム定義に書くワーカー。
       type: object
@@ -3509,7 +3509,7 @@ components:
             $ref: '#/components/schemas/Problem'
           description: 編集で新たに見つかった問題
     TeamEffectLine:
-      description: 1 人のメンバーに渡す初期プロンプトで変わる部分。
+      description: 1 人のメンバーの初期プロンプトで変わる部分。
       type: object
       additionalProperties: false
       required: [member, part, removed, added]
@@ -3533,7 +3533,7 @@ components:
             type: string
           description: 初期プロンプトに加わる行
     TeamMemberPrompt:
-      description: 1 人のメンバーに渡す初期プロンプト。
+      description: 1 人のメンバーの初期プロンプト。
       type: object
       additionalProperties: false
       required: [name, segments]

@@ -1142,7 +1142,7 @@ export interface components {
             /** @description 変更内容を伝える文 */
             text: string;
         };
-        /** @description 本部が読む現在のプロジェクト、並べたプロジェクト、共通の数 */
+        /** @description 本部が読む現在のプロジェクト、並べたプロジェクト、グローバルの数 */
         HQProjects: {
             /** @description プロジェクト一覧を持つ設定ファイルの場所 */
             config: string;
@@ -1152,7 +1152,7 @@ export interface components {
             current: components["schemas"]["HQProject"];
             /** @description 本部に表示するプロジェクト */
             projects: components["schemas"]["HQProject"][];
-            /** @description 共通のチーム定義、ロール、プロファイルの数 */
+            /** @description グローバルのチーム定義、ロール、プロファイルの数 */
             global: components["schemas"]["HQGlobal"];
         };
         /** @description 本部に表示するプロジェクト */
@@ -1186,87 +1186,87 @@ export interface components {
             /** @description 並んでいないプロジェクトを候補に出す理由 */
             source?: string;
         };
-        /** @description 共通の設定が持つチーム定義、ロール、プロファイルの数 */
+        /** @description グローバルの設定が持つチーム定義、ロール、プロファイルの数 */
         HQGlobal: {
-            /** @description 共通の設定の場所 */
+            /** @description グローバルの設定の場所 */
             path: string;
-            /** @description 画面に表示する共通の設定の場所 */
+            /** @description 画面に表示するグローバルの設定の場所 */
             display: string;
-            /** @description 共通のチーム定義の数 */
+            /** @description グローバルのチーム定義の数 */
             definitions: number;
-            /** @description 共通のロールの数 */
+            /** @description グローバルのロールの数 */
             roles: number;
-            /** @description 共通のプロファイルの数 */
+            /** @description グローバルのプロファイルの数 */
             profiles: number;
         };
-        /** @description プロジェクトと共通設定ごとの、チーム定義の一覧 */
+        /** @description プロジェクトとグローバル設定ごとの、チーム定義の一覧 */
         HQTeamGroups: {
             /** @description 本部に表示するチーム定義のまとまり */
             groups: components["schemas"]["HQTeamGroup"][];
         };
-        /** @description 1 つのプロジェクトまたは共通設定の、チーム定義の一覧 */
+        /** @description 1 つのプロジェクトまたはグローバル設定の、チーム定義の一覧 */
         HQTeamGroup: {
             /** @description この一覧が属するプロジェクト */
             project?: components["schemas"]["HQRef"] | null;
-            /** @description 共通設定の一覧か */
+            /** @description グローバル設定の一覧か */
             global?: boolean;
-            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            /** @description 画面に表示するプロジェクト名またはグローバル設定名 */
             name?: string;
-            /** @description プロジェクトまたは共通設定の場所 */
+            /** @description プロジェクトまたはグローバル設定の場所 */
             path?: string;
             /** @description 画面に表示する場所 */
             display?: string;
             /** @description この場所にあるチーム定義 */
             list: components["schemas"]["TeamList"];
-            /** @description 共通設定の名前を上書きするプロジェクト */
+            /** @description グローバル設定の名前を上書きするプロジェクト */
             overridden_by?: {
                 [key: string]: string[];
             };
         };
-        /** @description プロジェクトと共通設定ごとの、ロールの一覧 */
+        /** @description プロジェクトとグローバル設定ごとの、ロールの一覧 */
         HQRoleGroups: {
             /** @description 本部に表示するロールのまとまり */
             groups: components["schemas"]["HQRoleGroup"][];
         };
-        /** @description 1 つのプロジェクトまたは共通設定の、ロールの一覧 */
+        /** @description 1 つのプロジェクトまたはグローバル設定の、ロールの一覧 */
         HQRoleGroup: {
             /** @description この一覧が属するプロジェクト */
             project?: components["schemas"]["HQRef"] | null;
-            /** @description 共通設定の一覧か */
+            /** @description グローバル設定の一覧か */
             global?: boolean;
-            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            /** @description 画面に表示するプロジェクト名またはグローバル設定名 */
             name?: string;
-            /** @description プロジェクトまたは共通設定の場所 */
+            /** @description プロジェクトまたはグローバル設定の場所 */
             path?: string;
             /** @description 画面に表示する場所 */
             display?: string;
             /** @description この場所にあるロール */
             list: components["schemas"]["RoleList"];
-            /** @description 共通設定の名前を上書きするプロジェクト */
+            /** @description グローバル設定の名前を上書きするプロジェクト */
             overridden_by?: {
                 [key: string]: string[];
             };
         };
-        /** @description プロジェクトと共通設定ごとの、プロファイルの一覧 */
+        /** @description プロジェクトとグローバル設定ごとの、プロファイルの一覧 */
         HQProfileGroups: {
             /** @description 本部に表示するプロファイルのまとまり */
             groups: components["schemas"]["HQProfileGroup"][];
         };
-        /** @description 1 つのプロジェクトまたは共通設定の、プロファイルの一覧 */
+        /** @description 1 つのプロジェクトまたはグローバル設定の、プロファイルの一覧 */
         HQProfileGroup: {
             /** @description この一覧が属するプロジェクト */
             project?: components["schemas"]["HQRef"] | null;
-            /** @description 共通設定の一覧か */
+            /** @description グローバル設定の一覧か */
             global?: boolean;
-            /** @description 画面に表示するプロジェクト名または共通設定名 */
+            /** @description 画面に表示するプロジェクト名またはグローバル設定名 */
             name?: string;
-            /** @description プロジェクトまたは共通設定の場所 */
+            /** @description プロジェクトまたはグローバル設定の場所 */
             path?: string;
             /** @description 画面に表示する場所 */
             display?: string;
             /** @description この場所にあるプロファイル */
             list: components["schemas"]["ProfileList"];
-            /** @description 共通設定の名前を上書きするプロジェクト */
+            /** @description グローバル設定の名前を上書きするプロジェクト */
             overridden_by?: {
                 [key: string]: string[];
             };
@@ -1375,7 +1375,7 @@ export interface components {
             project?: components["schemas"]["HQRef"] | null;
             /** @description 起動するチーム定義のメンバー */
             members: components["schemas"]["HQMember"][];
-            /** @description 共通のチーム定義を起動できるプロジェクト */
+            /** @description グローバルのチーム定義を起動できるプロジェクト */
             projects?: components["schemas"]["HQLaunchProject"][];
             /** @description 同じ名前で動いているチーム */
             clash: components["schemas"]["HQClash"][];
@@ -1388,7 +1388,7 @@ export interface components {
             /** @description 起動先に選べるワークスペース */
             workspaces: components["schemas"]["HQWorkspaceChoice"][];
         };
-        /** @description 共通のチーム定義を起動できるプロジェクト */
+        /** @description グローバルのチーム定義を起動できるプロジェクト */
         HQLaunchProject: {
             /** @description プロジェクトの場所 */
             path: string;
@@ -1623,7 +1623,7 @@ export interface components {
             role: string;
             /** @description メンバーが使うプロファイル名 */
             profile: string;
-            /** @description メンバーに渡す初期プロンプトを由来ごとに分けた部分 */
+            /** @description メンバーの初期プロンプトを由来ごとに分けた部分 */
             segments?: components["schemas"]["TeamPromptSegment"][];
         };
         /** @description チーム定義に書くワーカー。 */
@@ -1780,7 +1780,7 @@ export interface components {
             /** @description 編集で新たに見つかった問題 */
             problems: components["schemas"]["Problem"][];
         };
-        /** @description 1 人のメンバーに渡す初期プロンプトで変わる部分。 */
+        /** @description 1 人のメンバーの初期プロンプトで変わる部分。 */
         TeamEffectLine: {
             /** @description 影響を受けるメンバーの herdr 名 */
             member: string;
@@ -1791,7 +1791,7 @@ export interface components {
             /** @description 初期プロンプトに加わる行 */
             added: string[] | null;
         };
-        /** @description 1 人のメンバーに渡す初期プロンプト。 */
+        /** @description 1 人のメンバーの初期プロンプト。 */
         TeamMemberPrompt: {
             /** @description メンバー名 */
             name: string;

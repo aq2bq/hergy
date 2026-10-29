@@ -577,6 +577,9 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		{"README.ja.md", "ja"},
 		{"skills/hergy/SKILL.md", "en"},
 		{"skills/hergy-rules/SKILL.md", "en"},
+		// The API's written promise carries Japanese descriptions too, so the
+		// place words a person reads there stay in the glossary (r-dfe5).
+		{"internal/apicontract/openapi.yaml", "ja"},
 	} {
 		raw, err := os.ReadFile(src.path)
 		if err != nil {
