@@ -325,7 +325,6 @@ func (s *Server) apiSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	value, refusal := kind.Save(r.PathValue("name"), in)
-	s.deliveryChanged(refusal)
 	apiAnswer(w, value, refusal)
 }
 
@@ -351,18 +350,7 @@ func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
 		Hash:          r.URL.Query().Get("hash"),
 		AgreementHash: r.URL.Query().Get("agreement_hash"),
 	})
-	s.deliveryChanged(refusal)
 	apiAnswer(w, value, refusal)
-}
-
-// deliveryChanged drops the band's five-second answer after any successful
-// write, whatever the kind: a role, team definition, profile or YAML save all
-// change what a running member is handed. One place here keeps a new save road
-// from forgetting it (r-a8fa audit 1 B).
-func (s *Server) deliveryChanged(refusal *apiErr) {
-	if refusal == nil && s.apply != nil {
-		s.apply.InvalidateDelivery()
-	}
 }
 
 // apiRead is the guard and the payload every write but a delete carries.

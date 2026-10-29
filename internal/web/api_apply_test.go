@@ -16,9 +16,8 @@ type fakeApply struct {
 	sent   []string
 }
 
-func (f *fakeApply) Apply() ApplyList    { return f.answer }
-func (f *fakeApply) ApplyCount() int     { return f.answer.Count }
-func (f *fakeApply) InvalidateDelivery() {}
+func (f *fakeApply) Apply() ApplyList { return f.answer }
+func (f *fakeApply) ApplyCount() int  { return f.answer.Count }
 func (f *fakeApply) ApplyMembers(members []string) (HQLaunch, error) {
 	f.sent = append([]string(nil), members...)
 	return HQLaunch{Action: ActionApply, Phase: "starting", Steps: []HQLaunchStep{}, Members: []string{"lead"}}, nil

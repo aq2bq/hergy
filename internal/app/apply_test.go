@@ -13,8 +13,7 @@ import (
 
 // TestApplySaysHowEachMemberIsPutRight: a running member whose prompt moved is
 // sent its prompt again, a member the definition has and no agent is live for is
-// started, and both are counted for the band. The delivery answer keeps its own
-// count and its own rule, so the two readings do not drift apart.
+// started, and the current answer counts both for the band and the apply sheet.
 func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 	useJapanese(t)
 	f := newFixture(t)

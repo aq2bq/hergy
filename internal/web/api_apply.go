@@ -36,9 +36,6 @@ type Applier interface {
 	// ApplyMembers applies the drift to the named members, by herdr name, and
 	// answers the start whose progress the sheet reads.
 	ApplyMembers(members []string) (HQLaunch, error)
-	// InvalidateDelivery drops the held drift after a save, so the band reads
-	// the number the save made.
-	InvalidateDelivery()
 }
 
 // ApplyIn is POST /api/apply's body: the members to apply, by herdr name.

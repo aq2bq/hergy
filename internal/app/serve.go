@@ -64,6 +64,7 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	memo := source.NewMemo()
 	cat := env.Catalog(memo)
 	read := newActivityReadWith(env, memo)
+	read.port = serveHerdrPort()
 	read.ctx = ctx
 	// The screens are written in one language, and the server makes their pages
 	// and the sentences it answers them with in that language; --lang is the

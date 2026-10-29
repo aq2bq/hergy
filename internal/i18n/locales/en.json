@@ -119,6 +119,7 @@
   "error.herdr_inspect": "cannot inspect the installed Herdr %s CLI: %s; read what herdr said, fix it, and run this again",
   "error.herdr_not_advertise": "installed Herdr does not advertise %s %s; inspect `herdr %s`",
   "error.herdr_failed": "herdr %s failed (%d): %s; read what herdr said, fix it, and run this again",
+  "error.herdr_socket": "cannot read Herdr's socket: %v; check that Herdr is running",
   "error.herdr_json": "unexpected Herdr JSON: %v; the versions of herdr and hergy may not go together. Check them with `herdr --version` and `hergy version`",
   "error.herdr_error": "Herdr returned an error: %v; read what herdr said, fix it, and run this again",
   "error.herdr_no_result": "the Herdr response has no result object; the versions of herdr and hergy may not go together. Check them with `herdr --version` and `hergy version`",

@@ -119,6 +119,7 @@
   "error.herdr_inspect": "herdr %s を調べられません: %s。herdr が言った中身を読んで直してから、もう一度実行してください",
   "error.herdr_not_advertise": "インストールされている herdr に %s %s がありません。`herdr %s` で確かめてください",
   "error.herdr_failed": "herdr %s が失敗しました（終了コード %d）: %s。herdr が言った中身を読んで直してから、もう一度実行してください",
+  "error.herdr_socket": "herdr のソケットを読み取れません: %v。herdr が起動しているか確かめてください",
   "error.herdr_json": "herdr の応答を JSON として読めません: %v。herdr と hergy のバージョンの組み合わせが合っていないかもしれません。herdr --version と hergy version で確かめてください",
   "error.herdr_error": "herdr がエラーを返しました: %v。herdr が言った中身を読んで直してから、もう一度実行してください",
   "error.herdr_no_result": "herdr の応答に result がありません。herdr と hergy のバージョンの組み合わせが合っていないかもしれません。herdr --version と hergy version で確かめてください",

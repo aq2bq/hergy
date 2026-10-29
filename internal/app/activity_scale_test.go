@@ -79,6 +79,7 @@ func copyActivityFixtureAt(t *testing.T, f *fixture, cwd string, at time.Time) t
 	writeFile(t, filepath.Join(f.cfg, "hergy", "config.yaml"), "version: 1\nlang: ja\n")
 	t.Setenv("HERGY_HERDR", filepath.Join(work, "bin", "herdr"))
 	t.Setenv("HERGY_GY", filepath.Join(work, "bin", "gy"))
+	f.herdrSocket = startActivityHerdrSocket(t, work)
 	return at
 }
 
@@ -171,8 +172,15 @@ func serveEnv(t *testing.T) team.Env {
 
 // startServe runs hergy serve with --no-open on a working XDG and a made-up
 // herdr, and returns the URL it prints and a stop function.
-func startServe(t *testing.T, _ *fixture) (string, func()) {
+func startServe(t *testing.T, f *fixture) (string, func()) {
 	t.Helper()
+	if f != nil && f.herdrSocket != "" {
+		if os.Getenv("HERDR_SOCKET_PATH") == "" {
+			t.Setenv("HERDR_SOCKET_PATH", f.herdrSocket)
+		}
+	} else {
+		startHerdrCLIProxy(t)
+	}
 	env := serveEnv(t)
 	opts := options.Options{Port: 0, NoOpen: true}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -372,6 +380,7 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := newActivityRead(env)
+	r.port = serveHerdrPort()
 	r.now = func() time.Time { return at }
 
 	doc, ok := r.One("core")
@@ -435,6 +444,7 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := newActivityRead(env)
+	r.port = serveHerdrPort()
 	r.now = func() time.Time { return at }
 
 	// core: the lead handed the turn over 2 時間 40 分 ago, and the moment it
@@ -636,8 +646,7 @@ func TestACTIVITY_C2_readsOnlyTileData(t *testing.T) {
 // TestACTIVITY-E1_saysWhenHerdrIsNotThere reads GET /api/activity with a herdr
 // that cannot be read and with a herdr that reports no tab at all: the first
 // answers with herdr's own sentence and no number, the second with no row and a
-// running count of zero. Each case stands on a serve of its own, because a serve
-// keeps its reading of herdr for five seconds (3 章).
+// running count of zero. Each case stands on a serve of its own.
 func TestACTIVITY_E1_saysWhenHerdrIsNotThere(t *testing.T) {
 	useJapanese(t)
 	serveAt(t)
@@ -650,6 +659,7 @@ func TestACTIVITY_E1_saysWhenHerdrIsNotThere(t *testing.T) {
 		f := newFixture(t)
 		copyActivityFixture(t, f, cwd)
 		t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-herdr"))
+		t.Setenv("HERDR_SOCKET_PATH", filepath.Join(f.cfg, "no-herdr.sock"))
 		base, stop := startServe(t, f)
 		defer stop()
 

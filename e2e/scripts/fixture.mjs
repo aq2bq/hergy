@@ -13,6 +13,7 @@
 // project the teams were launched from.
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +22,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
@@ -148,6 +150,7 @@ export function lay(screen) {
     HERDR_ENV: '',
     HERDR_PANE_ID: '',
     HERGY_HERDR: screen === 'activity' ? path.join(work, 'bin', 'herdr') : herdr,
+    HERDR_SOCKET_PATH: path.join(root, 'herdr.sock'),
     HERGY_GY: gy,
     TZ: zone,
     // The serve's clock (d-f978) starts here and goes on; the fixture's own
@@ -155,6 +158,123 @@ export function lay(screen) {
     HERGY_E2E_NOW: clockStart,
   };
   return { root, proj, cfg, state, home, work, env };
+}
+
+// startHerdrSocket answers the four read methods Herdr serves over its local
+// JSON socket. The activity sample reads the same fixture files the former CLI
+// fake used; other screens stand on an empty running session.
+export async function startHerdrSocket(fixture) {
+  const server = createServer((connection) => {
+    let requestText = '';
+    const onData = (chunk) => {
+      requestText += chunk.toString();
+      const end = requestText.indexOf('\n');
+      if (end < 0) return;
+      connection.off('data', onData);
+      void answerHerdrRequest(fixture, requestText.slice(0, end))
+        .then((response) => connection.end(`${JSON.stringify(response)}\n`))
+        .catch((error) => connection.end(`${JSON.stringify({
+          id: safeRequestId(requestText),
+          error: { code: 'fixture_error', message: String(error) },
+        })}\n`));
+    };
+    connection.on('data', onData);
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(fixture.env.HERDR_SOCKET_PATH, resolve);
+  });
+  return () => new Promise((resolve) => server.close(resolve));
+}
+
+async function answerHerdrRequest(fixture, requestText) {
+  const request = JSON.parse(requestText);
+  const id = request.id;
+  switch (request.method) {
+    case 'session.snapshot': {
+      const { tabs, agents } = activitySnapshot(fixture);
+      return success(id, 'session_snapshot', { snapshot: {
+        version: 'test', protocol: 22, workspaces: [], tabs, panes: [], layouts: [], agents,
+      } });
+    }
+    case 'agent.get': {
+      const { agents } = activitySnapshot(fixture);
+      const target = request.params?.target;
+      const agent = agents.find((one) => one.name === target || one.pane_id === target);
+      if (!agent) return failure(id, 'agent_not_found', `agent not found: ${target}`);
+      return success(id, 'agent_info', { agent });
+    }
+    case 'agent.read': {
+      const target = String(request.params?.target ?? '');
+      const { agents } = activitySnapshot(fixture);
+      const agent = agents.find((one) => one.name === target || one.pane_id === target);
+      if (!agent) return failure(id, 'agent_not_found', `agent not found: ${target}`);
+      const screen = path.join(fixture.work, 'herdr', 'screens', `${agent.name}.txt`);
+      if (!existsSync(screen)) return failure(id, 'agent_not_found', `agent not found: ${target}`);
+      return success(id, 'pane_read', { read: {
+        pane_id: agent.pane_id,
+        workspace_id: agent.workspace_id,
+        tab_id: agent.tab_id,
+        source: request.params?.source ?? 'detection',
+        format: request.params?.format ?? 'text',
+        text: readFileSync(screen, 'utf8'),
+        revision: agent.revision,
+        truncated: false,
+      } });
+    }
+    case 'pane.process_info': {
+      const paneID = request.params?.pane_id ?? '';
+      return success(id, 'pane_process_info', { process_info: {
+        pane_id: paneID, foreground_process_group_id: 900, shell_pid: 900,
+      } });
+    }
+    default:
+      return failure(id, 'unknown_method', `unknown method: ${request.method}`);
+  }
+}
+
+function activityList(fixture, file, field) {
+  const source = path.join(fixture.work, 'herdr', file);
+  if (!existsSync(source)) return [];
+  const reply = JSON.parse(readFileSync(source, 'utf8'));
+  return reply.result?.[field] ?? [];
+}
+
+function activitySnapshot(fixture) {
+  const sourceTabs = activityList(fixture, 'tabs.json', 'tabs');
+  const sourceAgents = activityList(fixture, 'agents.json', 'agents');
+  const agents = sourceAgents.map((agent) => ({
+    ...agent,
+    terminal_id: agent.terminal_id ?? agent.pane_id,
+    workspace_id: agent.workspace_id ?? 'w1',
+    focused: agent.focused ?? false,
+    revision: agent.revision ?? agent.state_change_seq ?? 0,
+    interactive_ready: agent.interactive_ready ?? true,
+    launch_pending: agent.launch_pending ?? false,
+    screen_detection_skipped: agent.screen_detection_skipped ?? false,
+  }));
+  const tabs = sourceTabs.map((tab, index) => ({
+    ...tab,
+    workspace_id: tab.workspace_id ?? 'w1',
+    number: tab.number ?? index + 1,
+    focused: tab.focused ?? false,
+    pane_count: tab.pane_count ?? agents.filter((agent) => agent.tab_id === tab.tab_id).length,
+    agent_status: tab.agent_status ?? 'idle',
+  }));
+  return { tabs, agents };
+}
+
+function success(id, type, fields) {
+  return { id, result: { type, ...fields } };
+}
+
+function failure(id, code, message) {
+  return { id, error: { code, message } };
+}
+
+function safeRequestId(requestText) {
+  try { return JSON.parse(requestText.split('\n', 1)[0]).id; }
+  catch { return ''; }
 }
 
 // copy copies one directory tree over another, filling the activity fixture's

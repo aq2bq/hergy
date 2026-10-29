@@ -70,9 +70,8 @@ type runningTeam struct {
 // (6 A1), so the two cannot disagree about which teams are running, which
 // definition a team was booted from, or why one's definition does not read.
 //
-// The reading of herdr is handed in rather than done here, so a screen that has
-// just read herdr — the activity's band and its list share one read for five
-// seconds (spec-activity 3) — does not read it again to find the teams.
+// The reading of Herdr is handed in rather than done here, so one snapshot can
+// be used for all the team lookups in this answer.
 func readRunningTeams(env team.Env, read herdrNow) []runningTeam {
 	cat := env.Catalog(source.Disk{})
 	view := projectView{Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot), Env: env, Cat: cat}
@@ -93,9 +92,8 @@ type projectView struct {
 // record belongs to the project whose layer holds its definition. Teams outside
 // these projects are left out (d-73fc: a serve shows the projects it lists).
 //
-// The herdr read is handed in rather than done here, so a screen that has just
-// read herdr — the activity's band and its list share one read for five seconds
-// (spec-activity 3) — does not read it again to find the teams.
+// The Herdr read is handed in rather than done here, so one snapshot can be used
+// for all the team lookups in this answer.
 func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runningTeam {
 	running := team.RunningTeams(read.tabs, launchTeams(), read.agentsRead)
 	records := latestLaunches()
@@ -286,25 +284,16 @@ type herdrNow struct {
 	// and the headquarters offers them to start a team in (d-73fc).
 	spaces []herdr.Workspace
 	seen   map[string]activity.Watch
-	at     time.Time
 	err    error
 }
 
-// herdrMemory is how long one read of herdr stands (spec-activity 3): the screen
-// reads the list every ten seconds and the band reads the same numbers with every
-// page, which would otherwise run herdr's two commands for every one of them.
-const herdrMemory = 5 * time.Second
-
-// activityRead is the reading behind the activity screen. hergy serve builds one
-// and hands it to web.New, so one serve has one memory of when each agent
-// stopped (6 A2) and one 5-second memory of herdr (3 章).
-//
-// The mutex is what the HTTP handlers need: they run at the same time, and both
-// memories are read and written per request. No goroutine is added — the reading
-// happens in the request that asks for it — so nothing has to be stopped when the
-// server stops.
+// activityRead is the reading behind the activity screen. Herdr is read for each
+// request; the watcher remembers when each agent's state was first seen (6 A2).
 type activityRead struct {
 	env team.Env
+	// port is the serve's socket-backed Herdr port. Tests and CLI readers without
+	// one keep the command port.
+	port herdr.Port
 	// now is the clock: a test places the moments with it. A serve built without
 	// one reads the serve's own clock (serveClock).
 	now func() time.Time
@@ -323,15 +312,8 @@ type activityRead struct {
 	envMu sync.Mutex
 	envs  map[string]team.Env
 
-	mu      sync.Mutex
-	herdr   herdrNow
-	watcher *activity.Watcher
-
-	// deliveryMu holds the last delivery answer for five seconds, the same
-	// memory the band count reads on every page. Deliver clears it.
-	deliveryMu   sync.Mutex
-	deliveryPlan deliveryPlan
-	deliveryAt   time.Time
+	watcherMu sync.Mutex
+	watcher   *activity.Watcher
 }
 
 // newActivityRead is the reading behind one hergy serve. The watcher's memory is
@@ -408,42 +390,39 @@ func (a *activityRead) clock() time.Time {
 	return a.now()
 }
 
-// readHerdr reads herdr, or answers with the read it made less than five seconds
-// ago (3 章). The moment each agent's state was first seen is taken here too, so
-// the watcher is asked once per read and not once per team.
+func (a *activityRead) herdrPort() herdr.Port {
+	if a.port != nil {
+		return a.port
+	}
+	return herdrcli.New(os.Getenv("HERGY_HERDR"))
+}
+
+// readHerdr reads the current Herdr state. The serve's socket port reads all four
+// lists with one session.snapshot; the command-backed path remains for CLI reads.
 func (a *activityRead) readHerdr(now time.Time) herdrNow {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if !a.herdr.at.IsZero() && now.Sub(a.herdr.at) < herdrMemory {
-		return a.herdr
-	}
-	tabs, agents, agentsRead, err := herdrRead()
-	read := herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, at: now, err: err}
-	if err == nil {
+	read := herdrNow{}
+	if snapshotReader, ok := a.herdrPort().(herdr.SnapshotReader); ok {
+		snapshot, err := snapshotReader.SessionSnapshot()
+		if err != nil {
+			read.err = err
+			return read
+		}
+		read.tabs = teamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
+		read.agents = snapshot.Agents
+		read.agentsRead = true
+		read.spaces = snapshot.Workspaces
+	} else {
+		tabs, agents, agentsRead, err := herdrRead()
+		read = herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, err: err}
+		if err != nil {
+			return read
+		}
 		read.spaces, _ = herdrSpaceList()
-		read.seen = a.watcher.Observe(watchedAgents(agents), now)
 	}
-	a.herdr = read
+	a.watcherMu.Lock()
+	read.seen = a.watcher.Observe(watchedAgents(read.agents), now)
+	a.watcherMu.Unlock()
 	return read
-}
-
-// forgetHerdr drops the read held for five seconds, so the next reader sees what
-// herdr reports now. A stop and a start change herdr under hergy's feet, and the
-// screens must show the change on their next read rather than up to five seconds
-// later (r-b7e1).
-func (a *activityRead) forgetHerdr() {
-	a.mu.Lock()
-	a.herdr = herdrNow{}
-	a.mu.Unlock()
-}
-
-// readHerdrFresh reads herdr now, whatever was read less than five seconds ago.
-// The decisions a start and a stop make read through this: acting on a memory of
-// a team that has just gone, or of a workspace that has just emptied, would start
-// a team beside another or refuse to stop one that is there (r-b7e1).
-func (a *activityRead) readHerdrFresh(now time.Time) herdrNow {
-	a.forgetHerdr()
-	return a.readHerdr(now)
 }
 
 // watchedAgents is the live agents as the watcher reads them: the name herdr
@@ -759,7 +738,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	main := mainAgent(t, in.Agents)
 	question := ""
 	if main != "" && (t.State == activity.WaitingAnswer || t.State == activity.WaitingTurn) {
-		if text, err := herdrPane(main); err == nil {
+		if text, err := a.herdrPane(main); err == nil {
 			question = askingLine(text)
 		}
 	}
@@ -884,6 +863,6 @@ func hireSources(project, teamName string) map[string]string {
 // herdrPane reads what one member's terminal shows so the waiting row can keep
 // its one-line question (herdr agent read --source detection). An error leaves
 // that line empty.
-func herdrPane(name string) (string, error) {
-	return herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Read(name)
+func (a *activityRead) herdrPane(name string) (string, error) {
+	return herdr.New(a.herdrPort()).Read(name)
 }

@@ -440,10 +440,9 @@ func (f *fixture) writeHerdrState(t *testing.T, dir string, present bool) {
 	}
 }
 
-// TestStopReadsHerdrAgainAndForgetsIt: the 5-second memory of herdr must not
-// decide a stop. A team another serve has just put away is gone, not stopped
-// again; and the stop this serve makes shows in the very next read (r-b7e1).
-func TestStopReadsHerdrAgainAndForgetsIt(t *testing.T) {
+// TestStopReadsCurrentHerdrState: a team another serve has just put away is
+// gone, not stopped again; and the stop this serve makes shows in the next read.
+func TestStopReadsCurrentHerdrState(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "wave")
 	dir := f.stateHerdr(t)
@@ -457,8 +456,7 @@ func TestStopReadsHerdrAgainAndForgetsIt(t *testing.T) {
 	if got := len(read.Running().Teams); got != 1 {
 		t.Fatalf("the priming read holds %d teams, want wave", got)
 	}
-	// Another serve stops the team: herdr no longer shows it. The memory of the
-	// read above still says it is there.
+	// Another serve stops the team, so the current Herdr state no longer shows it.
 	f.writeHerdrState(t, dir, false)
 	if _, err := read.Stop("wave"); err == nil {
 		t.Fatal("stopping a team another serve put away succeeded")
@@ -468,7 +466,6 @@ func TestStopReadsHerdrAgainAndForgetsIt(t *testing.T) {
 
 	// This serve stops a team, and the next read must not show it again.
 	f.writeHerdrState(t, dir, true)
-	read.forgetHerdr()
 	if got := len(read.Running().Teams); got != 1 {
 		t.Fatalf("the second priming read holds %d teams", got)
 	}
@@ -480,9 +477,9 @@ func TestStopReadsHerdrAgainAndForgetsIt(t *testing.T) {
 	}
 }
 
-// TestAStartDecisionReadsHerdrAgain: the name, the clash and the workspace a
-// start decides on are read now, not from the 5-second memory (r-b7e1).
-func TestAStartDecisionReadsHerdrAgain(t *testing.T) {
+// TestAStartDecisionReadsCurrentHerdrState: the name, clash and workspace a
+// start decides on come from the current Herdr state (r-b7e1).
+func TestAStartDecisionReadsCurrentHerdrState(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "wave")
 	dir := f.stateHerdr(t)
@@ -529,7 +526,6 @@ func TestAnUnrecordedTeamBelongsToTheProjectItsPanesStandIn(t *testing.T) {
 	if got := len(read.Running().Teams); got != 0 {
 		t.Errorf("a team whose panes stand in another project is here: %d", got)
 	}
-	read.forgetHerdr()
 	writeState(t, dir, "stray", f.proj)
 	if got := len(read.Running().Teams); got != 1 {
 		t.Errorf("a team whose panes stand in this project is not here: %d", got)

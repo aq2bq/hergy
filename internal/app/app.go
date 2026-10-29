@@ -2186,6 +2186,10 @@ func workersText(workers []definition.WorkerNode) string {
 
 func newLauncher(r *resolved, timeout int, out io.Writer) *launcher.Launcher {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
+	return newLauncherWithPort(r, timeout, out, port)
+}
+
+func newLauncherWithPort(r *resolved, timeout int, out io.Writer, port herdr.Port) *launcher.Launcher {
 	return launcher.New(r.starts, r.team.Name, herdr.New(port), timeout, out)
 }
 

@@ -398,19 +398,17 @@ func TestActivityListLeavesGyAlone(t *testing.T) {
 	}
 }
 
-// TestActivityListRemembersHerdr: herdr is read once for the band and the list,
-// and the reading stands for five seconds, so a screen that reads every ten
-// seconds and a band on every page do not run herdr over and over (spec-activity
-// 3).
-func TestActivityListRemembersHerdr(t *testing.T) {
+// TestActivityListReadsHerdrOnEveryRequest: the current Herdr snapshot is read
+// for every request, so a later answer cannot use an old state.
+func TestActivityListReadsHerdrOnEveryRequest(t *testing.T) {
 	f := newActivityFixture(t)
 	read := f.reader(t)
 
 	read.List()
 	read.List()
 
-	if n := strings.Count(calls(t, f.herdrLog), "tab list"); n != 1 {
-		t.Errorf("herdr was asked for its tabs %d times in two reads, want 1", n)
+	if n := strings.Count(calls(t, f.herdrLog), "tab list"); n != 2 {
+		t.Errorf("herdr was asked for its tabs %d times in two reads, want 2", n)
 	}
 }
 

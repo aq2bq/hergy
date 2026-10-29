@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -48,7 +46,7 @@ func (h *hqRead) LaunchOptions(project, definitionName, place string) (web.HQLau
 	if err != nil {
 		return web.HQLaunchOptions{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	read := h.act.readHerdrFresh(h.act.clock())
+	read := h.act.readHerdr(h.act.clock())
 	out := web.HQLaunchOptions{
 		Definition: definitionName, Place: place,
 		Project:          &web.HQRef{Path: env.ProjectRoot, Name: h.projectNameIn(env.ProjectRoot), Display: h.act.env.DisplayPath(env.ProjectRoot)},
@@ -143,9 +141,9 @@ func memberOptions(def *definition.Definition) []web.HQMember {
 	return out
 }
 
-// clashesIn is the running teams already using one name, read from the herdr
-// read the caller just made: a clash is a decision, so it does not stand on the
-// five-second memory (r-b7e1).
+// clashesIn is the running teams already using one name, read from the Herdr
+// snapshot the caller just made: a clash is a decision, so it uses current state
+// (r-b7e1).
 func clashesIn(read herdrNow, act *activityRead, name, _ string) []web.HQClash {
 	out := []web.HQClash{}
 	if read.err != nil {
@@ -255,10 +253,6 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	op.mu.Lock()
 	op.cancel = cancel
 	op.mu.Unlock()
-	// A read held before this start would hide the tab for up to five seconds;
-	// the next read sees herdr as it is now, and the tab's own creation drops the
-	// cache again.
-	h.act.forgetHerdr()
 	go h.runStart(ctx, op, env, r, in, workspace)
 	return op.snapshot(), nil
 }
@@ -324,19 +318,16 @@ func (h *hqRead) startName(in web.HQLaunchIn, env team.Env) (string, error) {
 
 // nameRunning reports whether a team of this name, or an agent of it, is live.
 func (h *hqRead) nameRunning(name string) bool {
-	read := h.act.readHerdrFresh(h.act.clock())
-	if read.err == nil {
-		for _, one := range h.act.teamsOf(read) {
-			if one.Name == name {
-				return true
-			}
-		}
-	}
-	agents, err := herdrAgents()
-	if err != nil {
+	read := h.act.readHerdr(h.act.clock())
+	if read.err != nil {
 		return false
 	}
-	for _, agent := range agents {
+	for _, one := range h.act.teamsOf(read) {
+		if one.Name == name {
+			return true
+		}
+	}
+	for _, agent := range read.agents {
 		if protocol.NamedForTeam(name, agent.Name) {
 			return true
 		}
@@ -347,7 +338,7 @@ func (h *hqRead) nameRunning(name string) bool {
 // startWorkspace is the workspace a start asks for: one that is there and free,
 // or one to make with this label (spec 5 章).
 func (h *hqRead) startWorkspace(in web.HQWorkspaceIn, env team.Env) (web.HQWorkspace, error) {
-	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
+	port := h.act.herdrPort()
 	spaces, err := herdr.New(port).Workspaces()
 	if err != nil {
 		return web.HQWorkspace{}, hqRefuse(http.StatusServiceUnavailable, err.Error())
@@ -368,7 +359,7 @@ func (h *hqRead) startWorkspace(in web.HQWorkspaceIn, env team.Env) (web.HQWorks
 		if space.ID != in.ID {
 			continue
 		}
-		read := h.act.readHerdrFresh(h.act.clock())
+		read := h.act.readHerdr(h.act.clock())
 		for _, one := range h.act.teamsOf(read) {
 			if one.WorkspaceID == space.ID {
 				return web.HQWorkspace{}, hqRefuse(http.StatusConflict, i18n.Tf("web.hq.workspace_busy", space.Label, one.Name))
@@ -479,7 +470,6 @@ func (h *hqRead) CancelLaunch(id string) (web.HQLaunch, bool) {
 	out := op.launch
 	out.Steps = append([]web.HQLaunchStep{}, op.launch.Steps...)
 	op.mu.Unlock()
-	h.act.forgetHerdr()
 	return out, true
 }
 
@@ -502,7 +492,7 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 
 // runStart runs one start in the background and keeps its progress.
 func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *resolved, in web.HQLaunchIn, workspace web.HQWorkspace) {
-	l := newLauncher(r, 30000, io.Discard).WithContext(ctx)
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx)
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
 	command := startCommand(in.Definition, r.team.Name)
 	err := l.BootIn(workspace.ID, command)
@@ -555,19 +545,15 @@ func (op *launchOp) wayOn(member string) string {
 	return startCommand(op.launch.Definition, op.launch.Team)
 }
 
-// observe writes one step of the start, and where a startup question waits. The
-// first event that names the tab drops the herdr memory: the next read of the
-// activity and the headquarters sees the new tab (r-b7e1).
+// observe writes one step of the start, and where a startup question waits.
 func (h *hqRead) observe(op *launchOp, event launcher.Event) {
 	op.mu.Lock()
 	if op.launch.Phase == "cancelled" || op.launch.Phase == "done" || op.launch.Phase == "failed" {
 		op.mu.Unlock()
 		return
 	}
-	fresh := false
 	if event.TabID != "" && op.launch.Tab.ID != event.TabID {
 		op.launch.Tab.ID = event.TabID
-		fresh = true
 	}
 	if event.Waiting != nil {
 		op.launch.Phase = "awaiting"
@@ -594,9 +580,6 @@ func (h *hqRead) observe(op *launchOp, event launcher.Event) {
 		op.stepLocked("member", i18n.Tf("web.hq.member_started", event.Member))
 	}
 	op.mu.Unlock()
-	if fresh {
-		h.act.forgetHerdr()
-	}
 }
 
 // stepLocked appends one line unless it is the one it just wrote.
@@ -607,13 +590,11 @@ func (op *launchOp) stepLocked(kind, text string) {
 	op.launch.Steps = append(op.launch.Steps, web.HQLaunchStep{At: time.Now().Format(time.RFC3339), Kind: kind, Text: text})
 }
 
-// finish sets a start's last state, unless it was given up already, and drops the
-// herdr memory so the next read sees the team as it stands (r-b7e1).
+// finish sets a start's last state, unless it was given up already (r-b7e1).
 func (h *hqRead) finish(op *launchOp, phase, reason string) {
 	op.mu.Lock()
 	if op.launch.Phase == "cancelled" {
 		op.mu.Unlock()
-		h.act.forgetHerdr()
 		return
 	}
 	op.launch.Phase = phase
@@ -624,5 +605,4 @@ func (h *hqRead) finish(op *launchOp, phase, reason string) {
 		op.stepLocked("done", i18n.Tf("web.hq.started", op.subject()))
 	}
 	op.mu.Unlock()
-	h.act.forgetHerdr()
 }

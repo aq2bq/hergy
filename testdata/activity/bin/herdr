@@ -1,16 +1,15 @@
 #!/bin/sh
-# 活動の画面の作り物の herdr。答えは ../herdr/ のファイル。書く操作は何もしない
-d="$(cd "$(dirname "$0")/.." && pwd)/herdr"
+# 活動の画面の作り物の herdr。読み取りは HERDR_SOCKET_PATH のサーバー、
+# コマンドは書く操作のために残す。
 if [ -z "$2" ]; then
   echo "herdr $1"
   for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $1 $x"; done
   exit 0
 fi
 case "$1 $2" in
-  "tab list") cat "$d/tabs.json" ;;
-  "agent list") cat "$d/agents.json" ;;
-  "agent read")
-    if [ -f "$d/screens/$3.txt" ]; then cat "$d/screens/$3.txt"; else echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi ;;
+  "tab list"|"pane list"|"agent list"|"agent get"|"agent read"|"pane process-info")
+    echo '{"error":{"code":"socket_required","message":"reads use the Herdr socket"}}'
+    exit 1 ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac

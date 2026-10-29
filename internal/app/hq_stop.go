@@ -18,7 +18,7 @@ import (
 
 // Stop is POST /api/hq/stop.
 func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
-	read := h.act.readHerdrFresh(h.act.clock())
+	read := h.act.readHerdr(h.act.clock())
 	if read.err != nil {
 		return web.HQStopped{}, hqRefuse(http.StatusServiceUnavailable, read.err.Error())
 	}
@@ -35,7 +35,6 @@ func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
 		return web.HQStopped{}, hqRefuse(http.StatusInternalServerError, err.Error())
 	}
 	h.finishLaunchFor(teamName)
-	h.act.forgetHerdr()
 	return web.HQStopped{
 		Team: teamName, Definition: one.Definition, Project: one.Project,
 		Workspace: web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
@@ -62,14 +61,14 @@ func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQ
 	selfPane := os.Getenv("HERDR_PANE_ID")
 	counts := countsOf(one, read)
 	if buildErr != nil {
-		l := newLauncher(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard)
+		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort())
 		agents := team.MemberAgents(read.tabs, one.Name)
 		if _, err := l.DownByName(agents, selfPane, false); err != nil {
 			return web.HQClosed{}, err
 		}
 		return counts, nil
 	}
-	l := newLauncher(r, 30000, io.Discard)
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort())
 	if _, err := l.Down(r.starts, selfPane, false); err != nil {
 		return web.HQClosed{}, err
 	}

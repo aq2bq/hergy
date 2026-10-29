@@ -15,7 +15,7 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { hergyBin, lay, zone } from '../scripts/fixture.mjs';
+import { hergyBin, lay, startHerdrSocket, zone } from '../scripts/fixture.mjs';
 
 // Screen is the screen a walk reads: the fixture each one stands on.
 export type Screen = 'nav' | 'profiles' | 'roles' | 'teams' | 'activity';
@@ -109,22 +109,26 @@ export const test = base.extend<{ reads: Screen; app: App }>({
   reads: ['teams', { option: true }],
   app: async ({ reads, page }, use) => {
     const fixture = lay(reads);
-    const { url, child } = await startServe(fixture);
-    const said = await listen(page);
-    const app: App = {
-      base: url,
-      proj: fixture.proj,
-      cfg: fixture.cfg,
-      state: fixture.state,
-      home: fixture.home,
-      work: fixture.work,
-      env: fixture.env,
-    };
-    await use(app);
+    const stopHerdrSocket = await startHerdrSocket(fixture);
+    let child: ChildProcess | undefined;
     try {
+      const served = await startServe(fixture);
+      child = served.child;
+      const said = await listen(page);
+      const app: App = {
+        base: served.url,
+        proj: fixture.proj,
+        cfg: fixture.cfg,
+        state: fixture.state,
+        home: fixture.home,
+        work: fixture.work,
+        env: fixture.env,
+      };
+      await use(app);
       expect(said, 'the screens wrote to the console').toEqual([]);
     } finally {
-      await stopServe(child);
+      if (child) await stopServe(child);
+      await stopHerdrSocket();
       rmSync(fixture.root, { recursive: true, force: true });
     }
   },

@@ -22,7 +22,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lay, repo } from './fixture.mjs';
+import { lay, repo, startHerdrSocket } from './fixture.mjs';
 
 const samples = ['activity', 'hq', 'nav', 'profiles', 'roles', 'teams'];
 
@@ -77,19 +77,20 @@ build();
 // fixture is this run's own work directory: the sample laid out, and the
 // settings the serve reads.
 const fixture = lay(main.sample);
+const stopHerdrSocket = await startHerdrSocket(fixture);
 let child = null;
 let stopping = false;
 
-function clean() {
+async function clean() {
   if (child && child.exitCode === null) child.kill('SIGTERM');
+  await stopHerdrSocket();
   rmSync(fixture.root, { recursive: true, force: true });
 }
 
 function stop(code) {
   if (stopping) return;
   stopping = true;
-  clean();
-  process.exit(code);
+  void clean().then(() => process.exit(code));
 }
 
 process.on('SIGINT', () => stop(0));

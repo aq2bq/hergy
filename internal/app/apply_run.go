@@ -33,10 +33,6 @@ func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
 		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("apply.none_selected"))
 	}
 	now := h.act.clock()
-	read := h.act.readHerdrFresh(now)
-	if read.err != nil {
-		return web.HQLaunch{}, hqRefuse(http.StatusServiceUnavailable, read.err.Error())
-	}
 	plan := h.act.plan(now)
 	if !plan.apply.Herdr.OK {
 		return web.HQLaunch{}, hqRefuse(http.StatusServiceUnavailable, plan.apply.Herdr.Text)
@@ -55,9 +51,6 @@ func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
 	op.mu.Lock()
 	op.cancel = cancel
 	op.mu.Unlock()
-	// A read held before this apply would hide a start it makes: the next read
-	// sees herdr as it is now.
-	h.act.forgetHerdr()
 	go h.runApply(ctx, op, selected)
 	return op.snapshot(), nil
 }
@@ -166,13 +159,12 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 		}
 	}
 	// The members are on their current prompts now, so the band is read again.
-	h.act.InvalidateDelivery()
 	h.finish(op, "done", "")
 }
 
 // applyGroup applies one team's members, and records what they were handed.
 func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *resolved, group []plannedMember) error {
-	l := newLauncher(r, 30000, io.Discard).WithContext(ctx).WithoutNextHint()
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithoutNextHint()
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
 	var starts, restarts, resends []definition.Start
 	for _, member := range group {

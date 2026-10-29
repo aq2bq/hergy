@@ -116,9 +116,10 @@ esac
 // home directory, so paths inside the project go relative and paths under the
 // config directory stay absolute.
 type fixture struct {
-	proj  string
-	cfg   string
-	state string
+	proj        string
+	cfg         string
+	state       string
+	herdrSocket string
 }
 
 func newFixture(t *testing.T) *fixture {

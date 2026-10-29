@@ -67,21 +67,9 @@ func (a *activityRead) Apply() web.ApplyList {
 // ApplyCount is the light answer the band reads on every page.
 func (a *activityRead) ApplyCount() int { return a.Apply().Count }
 
-// plan is the delivery answer for one moment, or the one read less than five
-// seconds ago.
+// plan reads a current delivery answer from Herdr and the definitions.
 func (a *activityRead) plan(now time.Time) deliveryPlan {
-	a.deliveryMu.Lock()
-	if !a.deliveryAt.IsZero() && now.Sub(a.deliveryAt) < herdrMemory {
-		one := a.deliveryPlan
-		a.deliveryMu.Unlock()
-		return one
-	}
-	a.deliveryMu.Unlock()
-	one := a.computeDelivery(now)
-	a.deliveryMu.Lock()
-	a.deliveryPlan, a.deliveryAt = one, now
-	a.deliveryMu.Unlock()
-	return one
+	return a.computeDelivery(now)
 }
 
 // computeDelivery reads herdr, the launch record and the current definitions.
@@ -506,11 +494,3 @@ func currentDocs(cat *catalog.Catalog, built *prompt.Built) []deliver.Doc {
 // or one that handed the turn to the human, which is also stopped in herdr
 // (r-a8fa, d-1c07). A working or blocked member is not.
 func sendable(state string) bool { return state == "idle" || state == "handed" }
-
-// InvalidateDelivery drops the delivery answer held for the band and the sheet.
-// A save calls it from the one place every write passes.
-func (a *activityRead) InvalidateDelivery() {
-	a.deliveryMu.Lock()
-	a.deliveryAt = time.Time{}
-	a.deliveryMu.Unlock()
-}
