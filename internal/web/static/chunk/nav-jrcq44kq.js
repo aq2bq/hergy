@@ -1224,6 +1224,12 @@ function runStart(launch) {
 function StopSheet({ team }) {
   const [error, setError] = d("");
   const [busy, setBusy] = d(false);
+  const [result, setResult] = d(null);
+  if (result)
+    return /* @__PURE__ */ u(StopResult, {
+      result,
+      team
+    });
   const t = runningTeam2(team);
   if (!t) {
     readRunning2();
@@ -1252,14 +1258,14 @@ function StopSheet({ team }) {
     setBusy(true);
     try {
       const request = { team };
-      await call2("POST", "/api/hq/stop", request);
+      const answer = await call2("POST", "/api/hq/stop", request);
+      setResult(answer.json || null);
     } catch (e) {
       setBusy(false);
       setError(problemText2(e, "終了できませんでした"));
       return;
     }
     setBusy(false);
-    closeSheet2();
     await readCore2();
   };
   return /* @__PURE__ */ u(S, {
@@ -1338,6 +1344,108 @@ function StopSheet({ team }) {
             children: "やめる"
           })
         ]
+      })
+    ]
+  });
+}
+function StopResult({ result, team }) {
+  const left = result.leftovers;
+  const worktrees = left && left.worktrees || [];
+  const stashes = left && left.stashes || 0;
+  const project = projectName2(result.project);
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(Head, {
+        title: "終了しました",
+        label: team
+      }),
+      /* @__PURE__ */ u("dl", {
+        class: "hq-kv",
+        children: [
+          /* @__PURE__ */ u("dt", {
+            children: "プロジェクト"
+          }),
+          /* @__PURE__ */ u("dd", {
+            children: /* @__PURE__ */ u("code", {
+              children: project
+            })
+          }),
+          /* @__PURE__ */ u("dt", {
+            children: "閉じたペイン"
+          }),
+          /* @__PURE__ */ u("dd", {
+            children: `メンバー ${result.closed.members} 人${result.closed.workers ? `、ワーカー ${result.closed.workers} 人` : ""}`
+          })
+        ]
+      }),
+      worktrees.length || stashes ? /* @__PURE__ */ u("div", {
+        class: "hq-left",
+        "data-role": "leftovers",
+        children: [
+          /* @__PURE__ */ u("p", {
+            class: "hq-lbl",
+            children: "残っているもの（git）:"
+          }),
+          worktrees.map((w) => /* @__PURE__ */ u("div", {
+            class: "hq-wt",
+            "data-worktree": w.path,
+            children: [
+              /* @__PURE__ */ u("p", {
+                children: [
+                  /* @__PURE__ */ u("code", {
+                    children: w.path
+                  }),
+                  "（枝 ",
+                  w.branch || "なし（detached HEAD）",
+                  "、",
+                  w.dirty ? "保存していない変更あり" : "保存していない変更なし",
+                  "、",
+                  w.base ? `${w.base} に入っていないコミット ${w.ahead} 件` : "入っていないコミットは数えられません（main も upstream も無い）",
+                  "）"
+                ]
+              }),
+              /* @__PURE__ */ u("p", {
+                class: "hq-sub",
+                children: [
+                  "消すには: ",
+                  /* @__PURE__ */ u("code", {
+                    children: `git worktree remove ${w.path}`
+                  })
+                ]
+              }),
+              w.dirty || w.ahead > 0 ? /* @__PURE__ */ u("p", {
+                class: "hq-sub",
+                children: "保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください"
+              }) : ""
+            ]
+          })),
+          stashes > 0 ? /* @__PURE__ */ u("p", {
+            class: "hq-sub",
+            children: [
+              "このプロジェクトの stash: ",
+              stashes,
+              " 件（",
+              /* @__PURE__ */ u("code", {
+                children: "git stash list"
+              }),
+              " で見る）"
+            ]
+          }) : "",
+          /* @__PURE__ */ u("p", {
+            class: "hq-sub",
+            children: "hergy は消しません。消してよいかを確かめてから、上のコマンドを打ってください。"
+          })
+        ]
+      }) : "",
+      /* @__PURE__ */ u("div", {
+        class: "hq-acts",
+        children: /* @__PURE__ */ u("button", {
+          type: "button",
+          class: "hq-btn primary",
+          "data-hqx": "close",
+          onClick: closeSheet2,
+          children: "閉じる"
+        })
       })
     ]
   });

@@ -1537,6 +1537,28 @@ export interface components {
             closed: components["schemas"]["HQClosed"];
             /** @description チームを終了した時刻 */
             stopped_at: string;
+            /** @description 閉じたあとに git に残っているもの */
+            leftovers: components["schemas"]["HQLeftovers"];
+        };
+        /** @description 閉じたチームが git に残したもの。hergy は消さず、一覧と消すコマンドを示す */
+        HQLeftovers: {
+            /** @description ペインがいた、プロジェクトのルートでないワークツリー */
+            worktrees: components["schemas"]["HQWorktree"][];
+            /** @description このプロジェクトの stash の数 */
+            stashes: number;
+        };
+        /** @description 閉じたペインがいたワークツリーと、消すと失うもの */
+        HQWorktree: {
+            /** @description ワークツリーの場所 */
+            path: string;
+            /** @description ワークツリーの枝。detached のときは空 */
+            branch: string;
+            /** @description 保存していない変更があるか */
+            dirty: boolean;
+            /** @description base に入っていないコミットの数 */
+            ahead: number;
+            /** @description 入っていないコミットを数えた相手（main か upstream）。無いときは空 */
+            base: string;
         };
         /** @description 閉じたメンバーとワーカーの数 */
         HQClosed: {

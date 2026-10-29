@@ -1,6 +1,8 @@
 package app
 
 import (
+	"encoding/json"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -287,5 +289,137 @@ esac
 		if !strings.Contains(stderr, want) {
 			t.Errorf("the refusal does not say %q:\n%s", want, stderr)
 		}
+	}
+}
+
+// gitIn runs one git command in dir for a test that lays out worktrees.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// leftoversHerdr writes a fake herdr with the team draft running in one pane
+// standing in cwd. It records every call in <cfg>/herdr.log and returns the log.
+func (f *fixture) leftoversHerdr(t *testing.T, cwd string) {
+	t.Helper()
+	log := filepath.Join(f.cfg, "herdr.log")
+	f.herdr(t, `#!/bin/sh
+log='`+log+`'
+printf '%s\n' "$*" >> "$log"
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "agent list") echo '{"result":{"agents":[{"name":"draft-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"draft"}]}}' ;;
+  "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"draft-lead","tab_id":"t1","cwd":"`+cwd+`"}]}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`)
+}
+
+// TestDownListsWhatTheTeamLeftInGit: hergy down reads where the panes stood
+// before closing them, and afterwards lists the worktrees of the project they
+// stood in, the project's stashes, and the commands that remove them. hergy
+// removes nothing (r-b65e, d-778e).
+func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	gitIn(t, f.proj, "config", "user.email", "test@example.com")
+	gitIn(t, f.proj, "config", "user.name", "test")
+	writeFile(t, filepath.Join(f.proj, "base.txt"), "base\n")
+	gitIn(t, f.proj, "add", "base.txt")
+	gitIn(t, f.proj, "commit", "-q", "-m", "base")
+	gitIn(t, f.proj, "branch", "-M", "main")
+	// A worktree the pane stood in: one commit ahead of main, with an uncommitted
+	// file, and the project's stash.
+	worktree := filepath.Join(t.TempDir(), "lane-1")
+	gitIn(t, f.proj, "worktree", "add", "-q", "-b", "lane-1", worktree, "main")
+	writeFile(t, filepath.Join(worktree, "lane.txt"), "lane\n")
+	gitIn(t, worktree, "add", "lane.txt")
+	gitIn(t, worktree, "commit", "-q", "-m", "lane")
+	writeFile(t, filepath.Join(worktree, "dirty.txt"), "dirty\n")
+	if resolved, err := filepath.EvalSymlinks(worktree); err == nil {
+		worktree = resolved
+	}
+	writeFile(t, filepath.Join(f.proj, "stashed.txt"), "stash\n")
+	gitIn(t, f.proj, "add", "stashed.txt")
+	gitIn(t, f.proj, "stash", "push", "-q", "-m", "later")
+	f.leftoversHerdr(t, worktree)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	got := mustRun(t, "down", "draft", "--lang", "ja")
+	for _, want := range []string{
+		"残っているもの（git）:",
+		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）",
+		"消すには: git worktree remove " + worktree,
+		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
+		"このプロジェクトの stash: 1 件（git stash list で見る）",
+		"hergy は消しません。",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("down does not say %q:\n%s", want, got)
+		}
+	}
+	if closes := calls(t, filepath.Join(f.cfg, "herdr.log")); !strings.Contains(closes, "pane close p1") {
+		t.Fatalf("down did not close the pane:\n%s", closes)
+	}
+
+	// --dry plans the same list and closes nothing.
+	got = mustRun(t, "down", "draft", "--dry", "--lang", "ja")
+	if !strings.Contains(got, "閉じたあとに残るもの（git、予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
+		t.Errorf("down --dry does not plan the leftovers:\n%s", got)
+	}
+
+	// The JSON plan carries the same leftovers (r-b65e).
+	got = mustRun(t, "down", "draft", "--dry", "--json")
+	var plan struct {
+		Team      string `json:"team"`
+		Leftovers struct {
+			Worktrees []struct {
+				Path  string `json:"path"`
+				Basis string `json:"base"`
+				Ahead int    `json:"ahead"`
+				Dirty bool   `json:"dirty"`
+			} `json:"worktrees"`
+			Stashes int `json:"stashes"`
+		} `json:"leftovers"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("down --dry --json is not JSON: %v\n%s", err, got)
+	}
+	if plan.Team != "draft" || plan.Leftovers.Stashes != 1 || len(plan.Leftovers.Worktrees) != 1 {
+		t.Fatalf("the plan = %+v, want draft with the one worktree and stash", plan)
+	}
+	if one := plan.Leftovers.Worktrees[0]; one.Basis != "main" || one.Ahead != 1 || !one.Dirty {
+		t.Errorf("the plan's worktree = %+v, want main, 1 ahead, dirty", one)
+	}
+}
+
+// TestDownSaysNothingAboutLeftoversInTheProjectRoot: a team that worked in the
+// project itself leaves no worktree, and a project with no stash leaves nothing
+// to say (r-b65e).
+func TestDownSaysNothingAboutLeftoversInTheProjectRoot(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	gitIn(t, f.proj, "config", "user.email", "test@example.com")
+	gitIn(t, f.proj, "config", "user.name", "test")
+	writeFile(t, filepath.Join(f.proj, "base.txt"), "base\n")
+	gitIn(t, f.proj, "add", "base.txt")
+	gitIn(t, f.proj, "commit", "-q", "-m", "base")
+	f.leftoversHerdr(t, f.proj)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	got := mustRun(t, "down", "draft", "--lang", "ja")
+	if strings.Contains(got, "残っているもの") || strings.Contains(got, "git worktree remove") {
+		t.Errorf("down says something is left when the project holds nothing:\n%s", got)
 	}
 }

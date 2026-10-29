@@ -93,8 +93,8 @@ var specs = []Spec{
 		Kind: Down, Name: "down",
 		Summary: text("Stop a team, or one of its workers", "チーム、またはそのワーカーを終了する"),
 		Detail: text(
-			"With a team name, close the panes of the running team's live members and of the workers it hired.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.",
-			"チーム名なら、動いているチームのメンバーと、hire したワーカーのペインを閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。"),
+			"With a team name, close the panes of the running team's live members and of the workers it hired.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.\nAfter closing, down lists the git worktrees the panes stood in (other than the project root), with\ntheir branch, uncommitted changes and commits not in main, and the project's stashes, and the\ncommands that remove them; hergy removes nothing. Temporary documents are not listed: hergy\ncannot tell which are the team's.",
+			"チーム名なら、動いているチームのメンバーと、hire したワーカーのペインを閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。\n閉じたあと、ペインがいた git ワークツリー（プロジェクトのルートを除く）を、枝・保存していない\n変更・main に入っていないコミットの数とともに一覧にし、このプロジェクトの stash の数と、\n消すコマンドを示す。hergy は消さない。一時文書は、どれがチームのものか分からないので\n一覧に入れない。"),
 		Args: []Arg{{
 			Name: text("team|worker", "チーム|ワーカー"), Optional: true,
 			Desc: text(
@@ -105,6 +105,7 @@ var specs = []Spec{
 			use(flagDry, text(
 				"Print what would close and close nothing\nIt reads herdr's live agents and tabs",
 				"閉じる予定だけを表示し、何も閉じない\nherdr の今のエージェントとタブを読む")),
+			use(flagJSON, descJSON),
 			use(flagDir, descDir),
 		},
 	},

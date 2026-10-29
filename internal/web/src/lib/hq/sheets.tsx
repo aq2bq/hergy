@@ -420,6 +420,8 @@ export function runStart(launch: HQLaunch): void {
 function StopSheet({ team }: { team: string }): JSX.Element {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<HQStopped | null>(null);
+  if (result) return <StopResult result={result} team={team} />;
   const t: RunningTeam | null = runningTeam(team);
   if (!t) {
     readRunning();
@@ -437,14 +439,14 @@ function StopSheet({ team }: { team: string }): JSX.Element {
     setBusy(true);
     try {
       const request = { team } satisfies HQStopRequest;
-      await call<HQStopped>('POST', '/api/hq/stop', request);
+      const answer = await call<HQStopped>('POST', '/api/hq/stop', request);
+      setResult(answer.json || null);
     } catch (e) {
       setBusy(false);
       setError(problemText(e, '終了できませんでした'));
       return;
     }
     setBusy(false);
-    closeSheet();
     // The row goes at once, rather than waiting for the ten-second reading
     // (r-5b96 audit R5).
     await readCore();
@@ -456,6 +458,32 @@ function StopSheet({ team }: { team: string }): JSX.Element {
       <p class="hq-sub">{`エージェントを終了してペインを閉じます。会話は残りません。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
       <Err text={error} />
       <div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
+    </>;
+}
+
+// StopResult is what a stopped team left behind: the panes it closed, and the
+// worktrees and stashes still in git, with the commands that remove them. hergy
+// removes nothing (r-b65e).
+function StopResult({ result, team }: { result: HQStopped; team: string }): JSX.Element {
+  const left = result.leftovers;
+  const worktrees = (left && left.worktrees) || [];
+  const stashes = (left && left.stashes) || 0;
+  const project = projectName(result.project);
+  return <>
+      <Head title="終了しました" label={team} />
+      <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>
+        <dt>閉じたペイン</dt><dd>{`メンバー ${result.closed.members} 人${result.closed.workers ? `、ワーカー ${result.closed.workers} 人` : ''}`}</dd></dl>
+      {worktrees.length || stashes ? <div class="hq-left" data-role="leftovers">
+        <p class="hq-lbl">残っているもの（git）:</p>
+        {worktrees.map((w) => <div class="hq-wt" data-worktree={w.path}>
+          <p><code>{w.path}</code>（枝 {w.branch || 'なし（detached HEAD）'}、{w.dirty ? '保存していない変更あり' : '保存していない変更なし'}、{w.base ? `${w.base} に入っていないコミット ${w.ahead} 件` : '入っていないコミットは数えられません（main も upstream も無い）'}）</p>
+          <p class="hq-sub">消すには: <code>{`git worktree remove ${w.path}`}</code></p>
+          {w.dirty || w.ahead > 0 ? <p class="hq-sub">保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください</p> : ''}
+        </div>)}
+        {stashes > 0 ? <p class="hq-sub">このプロジェクトの stash: {stashes} 件（<code>git stash list</code> で見る）</p> : ''}
+        <p class="hq-sub">hergy は消しません。消してよいかを確かめてから、上のコマンドを打ってください。</p>
+      </div> : ''}
+      <div class="hq-acts"><button type="button" class="hq-btn primary" data-hqx="close" onClick={closeSheet}>閉じる</button></div>
     </>;
 }
 

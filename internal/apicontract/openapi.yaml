@@ -3044,7 +3044,7 @@ components:
       description: 終了したチームと閉じた数
       type: object
       additionalProperties: false
-      required: [team, project, workspace, closed, stopped_at]
+      required: [team, project, workspace, closed, stopped_at, leftovers]
       properties:
         team:
           type: string
@@ -3066,6 +3066,45 @@ components:
         stopped_at:
           type: string
           description: チームを終了した時刻
+        leftovers:
+          allOf:
+            - $ref: '#/components/schemas/HQLeftovers'
+          description: 閉じたあとに git に残っているもの
+    HQLeftovers:
+      description: 閉じたチームが git に残したもの。hergy は消さず、一覧と消すコマンドを示す
+      type: object
+      additionalProperties: false
+      required: [worktrees, stashes]
+      properties:
+        worktrees:
+          type: array
+          items:
+            $ref: '#/components/schemas/HQWorktree'
+          description: ペインがいた、プロジェクトのルートでないワークツリー
+        stashes:
+          type: integer
+          description: このプロジェクトの stash の数
+    HQWorktree:
+      description: 閉じたペインがいたワークツリーと、消すと失うもの
+      type: object
+      additionalProperties: false
+      required: [path, branch, dirty, ahead, base]
+      properties:
+        path:
+          type: string
+          description: ワークツリーの場所
+        branch:
+          type: string
+          description: ワークツリーの枝。detached のときは空
+        dirty:
+          type: boolean
+          description: 保存していない変更があるか
+        ahead:
+          type: integer
+          description: base に入っていないコミットの数
+        base:
+          type: string
+          description: 入っていないコミットを数えた相手（main か upstream）。無いときは空
     HQClosed:
       description: 閉じたメンバーとワーカーの数
       type: object
