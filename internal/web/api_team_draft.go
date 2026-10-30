@@ -122,8 +122,11 @@ func (s *Server) t2NameProblems(in apiIn) []apiProblem {
 // writes them (spec-teams B2): the definition's own two, the starter role
 // documents and the starter profile the person asked for and no place holds. The
 // screen shows these; it decides none of them.
-func (s *Server) t2DraftWrites(row t2DraftRow, name string) []string {
-	files := []scaffold.File{{Path: "team.yaml"}, {Path: "agreement.yaml"}}
+func (s *Server) t2DraftWrites(row t2DraftRow, name, team string) []string {
+	// The team.yaml text is the row with its ops applied, so the starter roles
+	// and profile the save would write follow the members the row now has: a
+	// starter name no member uses is not one the person chose (r-54b8, d-86b1).
+	files := []scaffold.File{{Path: "team.yaml", Data: []byte(team)}, {Path: "agreement.yaml"}}
 	written, err := newteam.Plan(newteam.In{
 		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
 		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
@@ -355,7 +358,7 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 		Doc:      s.t2DocWithAgree(cat, in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
 		Draft: &apiCheckDraft{
 			Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
-			Writes: s.t2DraftWrites(row, in.Name), HasRoles: hasRoles, HasProfiles: hasProfiles,
+			Writes: s.t2DraftWrites(row, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,
 		},
 		Preview: apiTeamPreview{
 			Lines: definition.YAMLLines(draft),

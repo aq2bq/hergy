@@ -488,6 +488,44 @@ test('TEAMS-R1 the rules tab is the same switch and the same three fields', asyn
   expect(labels, 'the team rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
 });
 
+test('TEAMS-N1c the starter roles follow the members the row has', async ({ page, app }) => {
+  // r-54b8, d-86b1, ac-ff73: the person asks for the starter roles and profile,
+  // then takes the builder away. builder is a starter name no member uses now,
+  // so the save writes lead.yaml alone and no builder.yaml; the band before the
+  // save lists the files that follow the row's own members.
+  const proj = path.join(app.proj, '.hergy');
+  const global = path.join(app.cfg, 'hergy');
+  for (const dir of [proj, global]) {
+    rmSync(path.join(dir, 'roles'), { recursive: true, force: true });
+    rmSync(path.join(dir, 'profiles.yaml'), { force: true });
+  }
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there('#view .tdef'));
+  await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
+  await wait(page, there2(draft, '.in-name'));
+  await set(page, `${draft}.querySelector('.in-name')`, 'ops');
+  await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
+  await wait(page, there2(draft, '.cv-canvas svg'));
+  await wait(page, there2(draft, '[data-act=starter-roles]'));
+  await wait(page, there2(draft, '[data-act=starter-profile]'));
+  await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);
+  await press(page, `${draft}.querySelector('[data-act=starter-profile]')`);
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===5`);
+  // builder goes: the row keeps lead alone, and the two starter documents it
+  // still names are lead.yaml and the starter profile.
+  await press(page, `${draft}.querySelector('.cv-n.member[data-cv-n=builder]')`);
+  await wait(page, there2(draft, '.cv-side [data-cv-act=del]'));
+  await press(page, `${draft}.querySelector('.cv-side [data-cv-act=del]')`);
+  await wait(page, `!${draft}.querySelector('.cv-n.member[data-cv-n=builder]')`);
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===4`);
+  await wait(page, `${draft}.querySelector('[data-act=t-save]').disabled===false`);
+  await press(page, `${draft}.querySelector('[data-act=t-save]')`);
+  await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
+  expect(roleNames(proj), "the save's role documents read").toEqual(['lead.yaml']);
+  expect(roleNames(global), 'the save wrote the shared roles/').toEqual([]);
+  expect(readFileSync(path.join(proj, 'profiles.yaml'), 'utf8'), 'the save wrote the starter profile').toContain('claude-default');
+});
+
 test('TEAMS-N1b the starter roles and profile are written only when asked', async ({ page, app }) => {
   // r-54b8: with neither place holding a role document or a profile, the new
   // row lists its own two files alone, says what is missing, and writes the

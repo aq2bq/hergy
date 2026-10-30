@@ -1493,6 +1493,59 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 	}
 }
 
+// TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas: the person asked for
+// the starter roles and profile, and then the row's members name other roles and
+// profiles. The save writes no starter document a member does not use, and the
+// band before the save lists the definition's own two files alone (r-54b8,
+// d-86b1).
+func TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	if err := os.RemoveAll(filepath.Join(f.proj, ".hergy", "roles")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "profiles.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]any{
+		"place": "project", "name": "ops", "part": "team", "new": true,
+		"starter_roles": true, "starter_profile": true,
+		"doc": map[string]any{"ops": []any{
+			map[string]any{"kind": "memberRole", "member": "lead", "role": "planner"},
+			map[string]any{"kind": "memberRole", "member": "builder", "role": "coder"},
+			map[string]any{"kind": "memberProfile", "member": "lead", "profile": "coder"},
+			map[string]any{"kind": "memberProfile", "member": "builder", "profile": "planner"},
+		}},
+	}
+	resp, answer := f.api(t, server, http.MethodPost, "/api/team/check", body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, answer)
+	}
+	draft := teamsDraft(t, answer)
+	base := filepath.Join(f.proj, ".hergy")
+	want := []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.yaml")}
+	if !slices.Equal(draft.Draft.Writes, want) {
+		t.Errorf("the writes read %v, want the definition's own two files", draft.Draft.Writes)
+	}
+	body["part"] = "folder"
+	resp, answer = f.api(t, server, http.MethodPut, "/api/team/ops", body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, answer)
+	}
+	if got := roleFiles(t, base); len(got) != 0 {
+		t.Errorf("the save wrote the project's roles/: %v", got)
+	}
+	if got := roleFiles(t, f.global); len(got) != 0 {
+		t.Errorf("the save wrote the global roles/: %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(base, "profiles.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the save wrote the project's profiles.yaml: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(f.global, "profiles.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the save wrote the global profiles.yaml: %v", err)
+	}
+}
+
 // TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem: with neither
 // place holding a role document or a profile, the starter roles and profile are
 // written only when the request asks for them (r-54b8, d-86b1).

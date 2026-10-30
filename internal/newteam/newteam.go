@@ -153,6 +153,11 @@ func Write(in In) (Written, error) {
 // resolves it and the person asked for it. A role document either place holds is
 // looked up across both places, the way a member's role is (K1), so a starter
 // team does not write over a global role into the project (r-54b8).
+//
+// A starter role document or the starter profile belongs to this write only when
+// the definition's own members name it: the person may have asked for the
+// starter roles and then named other roles, and a role no member names is one
+// the person did not choose (r-54b8, d-86b1).
 func plan(in In) (Written, error) {
 	base := in.Catalog.LayerDir(in.Layer)
 	dir := filepath.Join(base, "teams", in.Name)
@@ -163,12 +168,16 @@ func plan(in In) (Written, error) {
 	if !in.Starter {
 		return out, nil
 	}
+	namedRoles, namedProfiles, membersKnown := membersNamed(in)
 	roles, err := scaffold.Roles(in.Lang)
 	if err != nil {
 		return Written{}, err
 	}
 	for _, role := range roles {
 		name := strings.TrimSuffix(role.Path, ".yaml")
+		if membersKnown && !namedRoles[name] {
+			continue
+		}
 		if doc, ok := in.Catalog.Role(name); ok {
 			out.Kept = append(out.Kept, doc.Path)
 			continue
@@ -178,6 +187,9 @@ func plan(in In) (Written, error) {
 			continue
 		}
 		out.Missing = append(out.Missing, name)
+	}
+	if membersKnown && !namedProfiles[scaffold.ProfileName] {
+		return out, nil
 	}
 	profiles, _, err := in.Catalog.Profiles()
 	if err != nil {
@@ -192,6 +204,35 @@ func plan(in In) (Written, error) {
 		out.ProfileMissing = true
 	}
 	return out, nil
+}
+
+// membersNamed is the starter roles and profiles the definition's own team.yaml
+// says its members use. membersKnown is false when the caller gave no team.yaml
+// text or the text does not read: then the caller could not say which names the
+// members use, and the starter documents are the ones the definition starts
+// with, so plan keeps the older reading rather than writing nothing.
+func membersNamed(in In) (roles, profiles map[string]bool, membersKnown bool) {
+	var text string
+	for _, file := range in.Files {
+		if filepath.Base(file.Path) == "team.yaml" && len(file.Data) > 0 {
+			text = string(file.Data)
+			break
+		}
+	}
+	if text == "" {
+		return nil, nil, false
+	}
+	path := filepath.Join(in.Catalog.LayerDir(in.Layer), "teams", in.Name, "team.yaml")
+	def, err := in.Catalog.With(path, text).Definition(in.Name, in.Layer)
+	if err != nil || def == nil || def.Graph == nil {
+		return nil, nil, false
+	}
+	roles, profiles = map[string]bool{}, map[string]bool{}
+	for _, member := range def.Graph.Members {
+		roles[member.Role] = true
+		profiles[member.Profile] = true
+	}
+	return roles, profiles, true
 }
 
 // HasRoles reports whether either place holds a role document: a role a new

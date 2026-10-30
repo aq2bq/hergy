@@ -128,6 +128,86 @@ func TestPlanLooksForARoleInBothPlaces(t *testing.T) {
 	}
 }
 
+// TestPlanWritesOnlyTheStarterRolesTheMembersName: the person asked for the
+// starter roles, and then the definition's members name other roles. A starter
+// role no member names is not one the person chose, so the plan writes none of
+// them, and the profile is left the same way (r-54b8, d-86b1).
+func TestPlanWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
+	in, proj := starterIn(t)
+	in.StarterRoles, in.StarterProfile = true, true
+	in.Files = withTeam(t, in.Files, "version: 1\nmission: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n")
+	written, err := Plan(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(written.Roles) != 0 || len(written.Kept) != 0 || len(written.Missing) != 0 {
+		t.Errorf("the plan writes %v, leaves %v, misses %v, want none of them", written.Roles, written.Kept, written.Missing)
+	}
+	if written.Profile != "" || written.ProfileMissing {
+		t.Errorf("the plan writes the profile to %q (missing %v), want the starter profile left alone", written.Profile, written.ProfileMissing)
+	}
+	if _, err := os.Stat(filepath.Join(proj, ".hergy", "roles")); !os.IsNotExist(err) {
+		t.Errorf("the plan's writing left a roles/ directory: %v", err)
+	}
+}
+
+// TestWriteWritesOnlyTheStarterRolesTheMembersName: the same write on disk
+// leaves both places' roles/ and profiles.yaml as they were, and writes the
+// definition's own two files (r-54b8, ac-ff73).
+func TestWriteWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
+	in, proj := starterIn(t)
+	in.StarterRoles, in.StarterProfile = true, true
+	team := "version: 1\nmission: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n"
+	in.Files = withTeam(t, in.Files, team)
+	if _, err := Write(in); err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(proj, ".hergy")
+	if _, err := os.Stat(filepath.Join(base, "roles")); !os.IsNotExist(err) {
+		t.Errorf("the write made the project's roles/: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "profiles.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the write made the project's profiles.yaml: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(base, "teams", "ops", "team.yaml")); err != nil || string(got) != team {
+		t.Errorf("the written team.yaml reads\n%s\nwant\n%s\n(%v)", got, team, err)
+	}
+}
+
+// TestPlanWritesAStarterRoleAMemberNames: a starter name one member still uses
+// is written, and the one no member uses is not (r-54b8, d-86b1).
+func TestPlanWritesAStarterRoleAMemberNames(t *testing.T) {
+	in, proj := starterIn(t)
+	in.StarterRoles, in.StarterProfile = true, true
+	in.Files = withTeam(t, in.Files, "version: 1\nmission: ops\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
+	written, err := Plan(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(proj, ".hergy")
+	if want := []string{filepath.Join(base, "roles", "lead.yaml")}; !slices.Equal(written.Roles, want) {
+		t.Errorf("the plan writes %v, want %v", written.Roles, want)
+	}
+	if want := filepath.Join(base, "profiles.yaml"); written.Profile != want {
+		t.Errorf("the plan writes the profile to %q, want %q", written.Profile, want)
+	}
+}
+
+// withTeam is one starter write whose team.yaml is the text given, the way the
+// team screen hands its row to the plan.
+func withTeam(t *testing.T, files []scaffold.File, team string) []scaffold.File {
+	t.Helper()
+	out := slices.Clone(files)
+	for i, file := range out {
+		if file.Path == "team.yaml" {
+			out[i].Data = []byte(team)
+			return out
+		}
+	}
+	t.Fatal("the starter files hold no team.yaml")
+	return nil
+}
+
 // TestWriteMakesTheStarterFolder: a starter write makes the definition's files,
 // the layer's role documents, and the starter profile, and a role document the
 // layer already holds is left as it is (spec-teams C8, I7, K5).
