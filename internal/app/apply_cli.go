@@ -40,7 +40,7 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	broken := brokenTeams(plan.apply.Teams)
 	printBroken(stdout, broken)
 	if opts.Dry {
-		if err := printApplyPlan(stdout, selected, remaining, opts.JSON); err != nil {
+		if err := printApplyPlan(stdout, plan, selected, remaining, opts.JSON); err != nil {
 			return err
 		}
 		return applyBrokenError(len(broken))
@@ -206,7 +206,7 @@ func applyNow(ctx context.Context, env team.Env, selected []plannedMember, timeo
 	return nil
 }
 
-// applyHowWord is one way of applying, as a person reads it.
+// applyHowWord is one way of applying, as a person reads it after it was done.
 func applyHowWord(how string) string {
 	switch how {
 	case web.ApplyStart:
@@ -220,18 +220,54 @@ func applyHowWord(how string) string {
 	}
 }
 
+// applyPlanWord is one way of applying, as the plan says it: the words the
+// sheet's mark uses (送り直し・起動・起動し直し), because nothing is done yet
+// (d-3d30, d-7b45).
+func applyPlanWord(how string) string {
+	switch how {
+	case web.ApplyStart:
+		return i18n.T("apply.plan_start")
+	case web.ApplyRestart:
+		return i18n.T("apply.plan_restart")
+	case web.ApplyCannot:
+		return i18n.T("apply.plan_cannot")
+	default:
+		return i18n.T("apply.plan_resend")
+	}
+}
+
+// teamNotes is each team's own notes, by team name: a worker's changed profile
+// is the team's note, not a member's change (d-36ef), and the command line says
+// it where the sheet does (r-7aad).
+func teamNotes(teams []web.ApplyTeam) map[string][]string {
+	out := map[string][]string{}
+	for _, team := range teams {
+		if len(team.Notes) > 0 {
+			out[team.Team] = team.Notes
+		}
+	}
+	return out
+}
+
 // printApplyPlan is --dry: what would be applied, how, and what it would change.
-func printApplyPlan(stdout io.Writer, selected []plannedMember, remaining []chosen, asJSON bool) error {
+// The plan carries the teams' own notes the way GET /api/apply does, so the
+// command line and the sheet say the same thing.
+func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMember, remaining []chosen, asJSON bool) error {
+	notes := teamNotes(plan.apply.Teams)
 	if asJSON {
 		list := web.ApplyList{Herdr: web.ActivityNote{OK: true}, Teams: []web.ApplyTeam{}}
 		byTeam := map[string]int{}
 		add := func(member plannedMember) {
 			index, ok := byTeam[member.team.Name]
 			if !ok {
+				own := notes[member.team.Name]
+				if own == nil {
+					own = []string{}
+				}
 				list.Teams = append(list.Teams, web.ApplyTeam{
 					Team: member.team.Name, Definition: member.team.Definition,
 					Project: member.team.Project, ProjectName: member.team.ProjectName,
-					Notes: []string{}, Members: []web.ApplyMember{},
+					Notes: own, Members: []web.ApplyMember{},
 				})
 				index = len(list.Teams) - 1
 				byTeam[member.team.Name] = index
@@ -261,13 +297,33 @@ func printApplyPlan(stdout io.Writer, selected []plannedMember, remaining []chos
 		return nil
 	}
 	fmt.Fprintln(stdout, i18n.T("apply.plan"))
+	applied := map[string]bool{}
 	for _, group := range groupByTeam(selected) {
+		applied[group[0].team.Name] = true
 		fmt.Fprintf(stdout, "%s\n", group[0].team.Name)
+		for _, note := range notes[group[0].team.Name] {
+			fmt.Fprintf(stdout, "  %s\n", note)
+		}
 		for _, member := range group {
-			fmt.Fprintf(stdout, "  %s: %s\n", member.start.Short, applyHowWord(member.how))
+			fmt.Fprintf(stdout, "  %s: %s\n", member.start.Short, applyPlanWord(member.how))
 			for _, change := range member.changes {
 				fmt.Fprintf(stdout, "    - %s\n", change.Text)
 			}
+		}
+	}
+	// A team whose members are all left still shows the team's own notes: the
+	// sheet shows them beside the members it cannot apply too.
+	left := map[string]bool{}
+	for _, one := range remaining {
+		left[one.member.team.Name] = true
+	}
+	for _, team := range plan.apply.Teams {
+		if applied[team.Team] || !left[team.Team] {
+			continue
+		}
+		fmt.Fprintf(stdout, "%s\n", team.Team)
+		for _, note := range team.Notes {
+			fmt.Fprintf(stdout, "  %s\n", note)
 		}
 	}
 	printRemaining(stdout, remaining)

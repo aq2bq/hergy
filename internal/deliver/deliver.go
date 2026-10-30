@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -81,10 +83,11 @@ type Doc struct {
 }
 
 // Compare is what changed between the prompt a member last read and the prompt
-// its current definition builds. oldDocs is the launch record's documents by
-// path; current is the current Start (its prompt, segments, turns and workers)
-// and docs are the current rule documents.
-func Compare(oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
+// its current definition builds. lang is the language both prompts are written
+// in (the launch record's, which the current prompt is rebuilt with); oldDocs is
+// the launch record's documents by path; current is the current Start (its
+// prompt, segments, turns and workers) and docs are the current rule documents.
+func Compare(lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
 	if oldPrompt == "" {
 		return []Change{{Kind: "no_record", Text: i18n.T("delivery.no_record")}}
 	}
@@ -114,7 +117,7 @@ func Compare(oldPrompt string, oldDocs map[string]string, current definition.Sta
 			}
 			out = append(out, changes...)
 		case "turns":
-			out = append(out, turnChanges(current, segment.Text, oldPrompt)...)
+			out = append(out, turnChanges(current, segment.Text, oldPrompt, lang)...)
 		case "workers":
 			out = append(out, workerChanges(current, segment.Text, oldPrompt)...)
 		case "roster":
@@ -175,37 +178,81 @@ func ruleChanges(doc Doc, oldText string) []Change {
 		before, ok := oldRules[rule.ID]
 		switch {
 		case !ok:
+			// A rule a person has just written has no id until a write gives
+			// it one, so the plan names it by its own text (r-7aad).
+			if text := firstSentence(rule.Text); rule.ID == "" && text != "" {
+				out = append(out, Change{Kind: "rule", Document: doc.Display,
+					Text: i18n.Tf("delivery.rule_added_text", name, text)})
+				continue
+			}
 			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_added", name, rule.ID)})
+				Text: i18n.Tf("delivery.rule_added", name, ruleName(rule))})
 		case before.Text != rule.Text:
 			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_changed", name, rule.ID)})
+				Text: i18n.Tf("delivery.rule_changed", name, ruleName(rule))})
 		case before.Included() != rule.Included():
 			key := "delivery.rule_off"
 			if rule.Included() {
 				key = "delivery.rule_on"
 			}
 			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf(key, name, rule.ID)})
+				Text: i18n.Tf(key, name, ruleName(rule))})
 		}
 	}
 	for _, rule := range oldDoc.Rules() {
 		if _, ok := nowRules[rule.ID]; !ok {
 			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_removed", name, rule.ID)})
+				Text: i18n.Tf("delivery.rule_removed", name, ruleName(rule))})
 		}
 	}
 	return out
 }
 
+// ruleName is one rule as a change names it: the id the rule stands by, or, for
+// a rule that has none, the rule's own first sentence. A rule a person has just
+// written has no id until a write gives it one, and the plan is read before that
+// write, so the plan still has to say which rule it is (r-7aad).
+func ruleName(rule rules.Rule) string {
+	if rule.ID != "" {
+		return rule.ID
+	}
+	text := firstSentence(rule.Text)
+	if text == "" {
+		return i18n.T("delivery.rule_unnamed")
+	}
+	return i18n.Tf("delivery.rule_text", text)
+}
+
+// ruleNameLength is the most runes of a rule's text a change quotes: enough to
+// tell one rule from another, and short enough to read in one line.
+const ruleNameLength = 40
+
+// firstSentence is a rule's text up to the end of its first sentence, and no
+// more than ruleNameLength runes of it.
+func firstSentence(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	line = strings.TrimSpace(line)
+	for _, end := range []string{"。", ". "} {
+		if at := strings.Index(line, end); at >= 0 {
+			line = strings.TrimSpace(line[:at+len(end)])
+			break
+		}
+	}
+	runes := []rune(line)
+	if len(runes) > ruleNameLength {
+		return string(runes[:ruleNameLength]) + "…"
+	}
+	return line
+}
+
 // turnChanges compares the turns a member hands to, by their endpoints. The
 // current endpoints come from the definition (short member names and human);
-// the old endpoints are read from the old prompt's turns section. The summary
-// is the pair "lead → analyst", never a prompt line (r-a8fa audit 1 B).
-func turnChanges(current definition.Start, segment, oldPrompt string) []Change {
+// the old endpoints are read from the old prompt's turns note. The summary is
+// the pair "lead → analyst", never a prompt line (r-a8fa audit 1 B).
+func turnChanges(current definition.Start, segment, oldPrompt, lang string) []Change {
 	team := teamOf(current)
 	now := turnNames(current.Turns, team)
-	old := oldTurnNames(bulletLines(section(oldPrompt, firstHeading(segment))), team)
+	old := oldTurnNames(bulletLines(section(oldPrompt, firstHeading(segment))), team, lang)
 	var out []Change
 	for _, to := range now {
 		if !containsLine(old, to) {
@@ -247,22 +294,77 @@ func turnNames(turns []string, team string) []string {
 }
 
 // oldTurnNames reads the endpoints from the bullets of an old turns note. The
-// line carries the herdr name and role; only the name before the role is used.
-func oldTurnNames(lines []string, team string) []string {
+// note writes each party as the item template does ("- <name>（ロール <role>）"
+// or the human's own line); a bullet of another list that follows the note is
+// not a turn, so it is left out (r-7aad).
+func oldTurnNames(lines []string, team, lang string) []string {
+	item := turnItemOf(lang)
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		name := line
-		if i := strings.IndexAny(name, " （("); i >= 0 {
-			name = name[:i]
+		name, ok := item.nameOf(line)
+		if !ok {
+			continue
 		}
-		if name == "human" || name == "人間" {
-			name = "human"
-		} else if team != "" {
+		if name == "human" {
+			out = append(out, "human")
+			continue
+		}
+		if team != "" {
 			name = strings.TrimPrefix(name, team+"-")
 		}
 		out = append(out, name)
 	}
 	return out
+}
+
+// turnItem is the shape the turns note writes one party in, taken from the
+// locale's own item template: the words between a member's name and its role,
+// and the words after the role.
+type turnItem struct {
+	marker string
+	suffix string
+}
+
+// turnItemOf is the turns note's item shape in one language.
+func turnItemOf(lang string) turnItem {
+	member := i18n.Text(lang, "turns.member_item")
+	_, afterName, _ := strings.Cut(member, "%s")
+	marker, afterRole, _ := strings.Cut(afterName, "%s")
+	return turnItem{marker: marker, suffix: afterRole}
+}
+
+// nameOf is the party one bullet of an old turns note names. A bullet that is
+// not written as the note writes its parties (a roster line, "- lead:
+// demo-lead") is no turn and answers false.
+func (t turnItem) nameOf(line string) (string, bool) {
+	if isHumanTurn(line) {
+		return "human", true
+	}
+	name, rest, ok := strings.Cut(line, t.marker)
+	if !ok || name == "" || !strings.HasSuffix(rest, t.suffix) {
+		return "", false
+	}
+	return name, true
+}
+
+// isHumanTurn says a bullet of an old turns note names the human. The human's
+// item has no role, so it is the one party the note writes without the role
+// marker; it starts with the human's name in either language.
+func isHumanTurn(line string) bool {
+	for _, name := range []string{"human", "人間"} {
+		rest, ok := strings.CutPrefix(line, name)
+		if !ok {
+			continue
+		}
+		if rest == "" {
+			return true
+		}
+		first, _ := utf8.DecodeRuneInString(rest)
+		if !unicode.IsLetter(first) && !unicode.IsDigit(first) {
+			return true
+		}
+	}
+	return false
 }
 
 func turnPair(from, to string) string { return from + " → " + to }
@@ -352,7 +454,7 @@ func section(prompt, heading string) string {
 		return ""
 	}
 	rest := after
-	if end := strings.Index(rest, "\n## "); end >= 0 {
+	if end := strings.Index(rest, "\n#"); end >= 0 {
 		rest = rest[:end]
 	}
 	return rest

@@ -2,6 +2,7 @@ package deliver
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 		Turns:   []string{"demo-builder"},
 		Workers: []definition.WorkerNode{{From: "lead", Purpose: "校正", Profile: "cheap"}},
 	}
-	changes := Compare(oldPrompt, map[string]string{
+	changes := Compare("ja", oldPrompt, map[string]string{
 		".hergy/teams/demo/agreement.yaml": oldDoc,
 	}, current, []Doc{{
 		Path: ".hergy/teams/demo/agreement.yaml", Display: "demo/agreement.yaml", Text: nowDoc,
@@ -57,10 +58,10 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 
 func TestCompareIsEmptyForTheSamePrompt(t *testing.T) {
 	current := definition.Start{Prompt: "same"}
-	if changes := Compare("same", nil, current, nil); len(changes) != 0 {
+	if changes := Compare("ja", "same", nil, current, nil); len(changes) != 0 {
 		t.Errorf("changes = %+v, want none", changes)
 	}
-	if changes := Compare("", nil, current, nil); len(changes) != 1 || changes[0].Kind != "no_record" {
+	if changes := Compare("ja", "", nil, current, nil); len(changes) != 1 || changes[0].Kind != "no_record" {
 		t.Errorf("no record = %+v, want the no_record change", changes)
 	}
 }
@@ -82,6 +83,36 @@ func TestPreambleSaysWhatChangedAndWhatToDo(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("preamble = %q, want %q", got, want)
 		}
+	}
+}
+
+// TestCompareReadsOnlyTheTurnItemsOfTheOldNote: a team that writes its own
+// prompt can put its roster right after the turns note, with no heading between.
+// A roster line ("- lead: demo-lead") is not a turn, so changing one turn names
+// the one turn added and the one taken away, and invents none (r-7aad).
+func TestCompareReadsOnlyTheTurnItemsOfTheOldNote(t *testing.T) {
+	oldPrompt := "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-lead（ロール lead）\n" +
+		"- 人間（ターンを渡したら、止まって人の答えを待つ）\n" +
+		"- lead: demo-lead\n- builder: demo-builder（あなた）\n"
+	current := definition.Start{
+		Name: "demo-builder", Short: "builder", Prompt: "new prompt",
+		Segments: []definition.PromptSegment{{
+			Kind: "turns",
+			Text: "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-checker（ロール builder）\n" +
+				"- 人間（ターンを渡したら、止まって人の答えを待つ）\n",
+		}},
+		Turns: []string{"demo-checker", "human"},
+	}
+	changes := Compare("ja", oldPrompt, nil, current, nil)
+	var turns []string
+	for _, change := range changes {
+		if change.Kind == "turn" {
+			turns = append(turns, change.Turn)
+		}
+	}
+	want := []string{"builder → checker", "builder → lead"}
+	if !slices.Equal(turns, want) {
+		t.Errorf("turns = %v, want %v (changes %+v)", turns, want, changes)
 	}
 }
 

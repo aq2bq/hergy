@@ -188,8 +188,8 @@ var specs = []Spec{
 		Flags: []Use{
 			use(flagTeam, descTeam),
 			use(flagDry, text(
-				"Print each member's way of applying and what changed, and change nothing\nIt reads herdr's live agents and tabs",
-				"メンバーごとの反映の仕方と変わったことを表示し、何も変えない\nherdr の今の状態を読む")),
+				"Print each member's way of applying, what changed and the team's notes\nIt changes nothing; it reads herdr's live agents and tabs",
+				"メンバーごとの反映の仕方・変わったこと・チームの知らせを表示する\n何も変えない。herdr の今の状態を読む")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),

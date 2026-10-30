@@ -390,7 +390,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := deliver.Compare(string(old), oldDocs(log, record), current, currentDocs(cat, built))
+	changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record), current, currentDocs(cat, built))
 	if len(changes) == 0 {
 		changes = []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}

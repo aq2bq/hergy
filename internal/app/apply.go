@@ -38,7 +38,7 @@ func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members 
 		if err != nil {
 			continue
 		}
-		changes := deliver.Compare(string(old), oldDocs(log, record), out[i], docsOfStart(cat, out[i]))
+		changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record), out[i], docsOfStart(cat, out[i]))
 		if len(changes) == 0 {
 			continue
 		}
