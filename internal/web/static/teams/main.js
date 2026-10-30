@@ -990,7 +990,7 @@ async function saveTeam(r, over) {
   if (!json)
     return;
   setConflict(r, "t", null);
-  rebase(json);
+  rebase(json, groupOfRecord(r));
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -1001,12 +1001,14 @@ async function saveTeam(r, over) {
   cundo.delete(dkey(r));
   saved2();
 }
-function rebase(answer) {
+function rebase(answer, group) {
   for (const b of bases2(answer)) {
     if (!b.name)
       continue;
     for (const r of recs.value) {
       if (r.draftRow || b.place !== r.place.value || b.name !== r.name.value)
+        continue;
+      if (groupOfRecord(r) !== group)
         continue;
       if (b.kind === "agreement")
         r.agreeHash.value = b.hash;
@@ -1023,7 +1025,7 @@ async function saveAgree(r, over) {
   if (!json)
     return;
   setConflict(r, "a", null);
-  rebase(json);
+  rebase(json, groupOfRecord(r));
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON2(json.doc);
@@ -1460,14 +1462,14 @@ function tellDirty() {
 }
 function restore(carried) {
   (carried.teams || []).forEach((c) => {
-    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow && groupOfRecord(x) === (c.group || ""));
     if (!r || c.hash && r.hash.value !== c.hash)
       return;
     setOps(r, clone2(c.ops));
     checkTeam(r);
   });
   (carried.agrees || []).forEach((c) => {
-    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow && groupOfRecord(x) === (c.group || ""));
     if (!r || !r.agreeSaved.value || c.hash && r.agreeHash.value !== c.hash)
       return;
     const d = fromJSON2(c.doc);
@@ -1486,11 +1488,11 @@ function take() {
   const teams = [];
   for (const r of recs.value)
     if (!r.draftRow && changeCount(r) > 0)
-      teams.push({ place: r.place.value, name: r.name.value, hash: r.hash.value, ops: r.ops.value });
+      teams.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.hash.value, ops: r.ops.value });
   const agrees = [];
   for (const r of recs.value)
     if (!r.draftRow && r.agreeSaved.value && agreeDiff(r))
-      agrees.push({ place: r.place.value, name: r.name.value, hash: r.agreeHash.value, doc: toDoc2(r.agreeDraft.value, r.agreeSaved.value) });
+      agrees.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.agreeHash.value, doc: toDoc2(r.agreeDraft.value, r.agreeSaved.value) });
   const files = yfiles.value.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
   return { teams, agrees, files };
 }

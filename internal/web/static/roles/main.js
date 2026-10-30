@@ -842,11 +842,13 @@ function pressYamlRevert(r, l) {
       return next;
     });
 }
-function rebase(answer) {
+function rebase(answer, group) {
   const files = bases2(answer);
   if (!files.length)
     return;
   roles.value = roles.value.map((r) => {
+    if ((r.group || "") !== group)
+      return r;
     let row = r;
     for (const b of files) {
       const l = b.place === "project" ? "project" : b.place === "global" ? "global" : null;
@@ -925,7 +927,7 @@ async function doSave(id, l, over) {
   }
   setYchecks(l, newName, undefined);
   patch({ ok: { ...state.value.ok, [key]: 1 } });
-  rebase(json);
+  rebase(json, r.group || "");
   await askCheck(byUid(id), l, null);
   touch();
   syncURL(false);
@@ -1013,12 +1015,12 @@ function take() {
       if (!e)
         return;
       if (!e.saved) {
-        rows.push({ place: l, saved: null, name: e.draft.name, hash: e.hash || "", draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
+        rows.push({ place: l, group: r.group || "", saved: null, name: e.draft.name, hash: e.hash || "", draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
       } else if (JSON.stringify(e.draft) !== JSON.stringify(e.saved)) {
-        rows.push({ place: l, saved: e.saved.name, name: e.draft.name, hash: e.hash || "", draft: e.draft });
+        rows.push({ place: l, group: r.group || "", saved: e.saved.name, name: e.draft.name, hash: e.hash || "", draft: e.draft });
       }
       if (e.ytext !== undefined && e.ytext !== (e.text || "")) {
-        ytexts.push({ place: l, name: (e.saved || e.draft).name, hash: e.hash || "", text: e.ytext });
+        ytexts.push({ place: l, group: r.group || "", name: (e.saved || e.draft).name, hash: e.hash || "", text: e.ytext });
       }
     });
   });
@@ -1031,6 +1033,8 @@ function take() {
 function restore(carried) {
   (carried.rows || []).forEach((c) => {
     const r = roles.value.find((x) => {
+      if ((x.group || "") !== (c.group || ""))
+        return false;
       const entry = x[c.place];
       return c.saved ? !!entry?.saved && entry.saved.name === c.saved : !!entry && !entry.saved && (x.noDoc || x.isNew || entry.draft.name === c.name);
     });
@@ -1050,6 +1054,8 @@ function restore(carried) {
   });
   (carried.ytexts || []).forEach((c) => {
     const r = roles.value.find((x) => {
+      if ((x.group || "") !== (c.group || ""))
+        return false;
       const entry = x[c.place];
       return !!entry && (entry.saved || entry.draft).name === c.name;
     });

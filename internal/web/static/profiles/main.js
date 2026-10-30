@@ -153,7 +153,34 @@ var pathFor = (file, group) => {
   return `${g && g.project && g.project.display || ""}/.hergy/profiles.yaml`;
 };
 var hashes = y({ project: view.dataset.hashProject || "", global: view.dataset.hashShared || "" });
-var hashOf = (file) => file === "global" ? hashes.value.global : hashes.value.project;
+var fileKey = (group, file) => (group || "") + "|" + file;
+var fileHashes = y({});
+function fileHashOf(group, file) {
+  const g = group || "";
+  const known = fileHashes.value[fileKey(g, file)];
+  if (known)
+    return known;
+  if (file === "global")
+    return hashes.value.global;
+  if (!g || g === CURRENT)
+    return hashes.value.project;
+  return "";
+}
+function learnFiles(group, list) {
+  if (!list)
+    return;
+  const next = { ...fileHashes.value };
+  const read = list.hashes || {};
+  for (const place of PLACES) {
+    if (read[place])
+      next[fileKey(group, place)] = read[place];
+  }
+  for (const one of list.files || []) {
+    if (one.place && one.hash)
+      next[fileKey(group, placeOf(one.place))] = one.hash;
+  }
+  fileHashes.value = next;
+}
 var params = () => new URLSearchParams(location.search);
 var OPEN = (params().get("open") || "").split(",").filter(Boolean);
 var OPEN_ROWS = parseOpen2(OPEN.join(",")) || [];
@@ -227,10 +254,13 @@ function readInitial() {
     const all = [];
     (HQ.profiles || []).forEach((g) => {
       const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      learnFiles(key, g.list || null);
       all.push(...modelOf(g.list || null, key, true).rows);
     });
+    learnFiles(CURRENT, ISLAND.profile || null);
     return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
   }
+  learnFiles("", ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
   const all = [];
   for (const place of PLACES)
@@ -581,7 +611,7 @@ async function savePanel(key, over) {
       project: projectOf(panel),
       doc: draft,
       rename_users: !!panel.rename,
-      hash: over === undefined ? panel.hash || hashOf(panel.file) : over
+      hash: over === undefined ? panel.hash || fileHashOf(panel.group, panel.file) : over
     });
     patchPanel(key, { conflict: null });
     applySaved(panel, answer.json);
@@ -629,7 +659,7 @@ async function deletePanel(key) {
     return;
   patchPanel(key, { refusal: "", confirming: false });
   try {
-    const answer = await del2("profile", panel.saved.name, panel.file, panel.hash || hashOf(panel.file), undefined, projectOf(panel));
+    const answer = await del2("profile", panel.saved.name, panel.file, panel.hash || fileHashOf(panel.group, panel.file), undefined, projectOf(panel));
     applySaved(panel, answer.json);
   } catch (e) {
     patchPanel(key, { refusal: problemText2(e, "削除できませんでした") });
@@ -641,6 +671,8 @@ function applySaved(panel, answer) {
     hashes: answer && answer.hashes || {},
     files: answer && answer.files || []
   };
+  const group = panel.group || "";
+  learnFiles(group, list);
   const model = modelOf(list, panel.group, true);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
@@ -651,25 +683,27 @@ function applySaved(panel, answer) {
     const key = row.group || "";
     if (!byGroup.has(key))
       byGroup.set(key, []);
-    const group = byGroup.get(key);
-    if (group)
-      group.push(row);
+    const held = byGroup.get(key);
+    if (held)
+      held.push(row);
   });
-  byGroup.set(panel.group || "", model.rows.map(rowOf));
+  byGroup.set(group, model.rows.map(rowOf));
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
   const written = panel.saved ? panel.draft.name : panel.draft.name;
-  const found = next.find((row) => row.name === written && (row.group || "") === (panel.group || ""));
+  const found = next.find((row) => row.name === written && (row.group || "") === group);
   if (found)
     open.add(found.key);
   else if (panel.saved)
-    open.add((panel.draft.name || "") + "|" + (panel.group || ""));
+    open.add((panel.draft.name || "") + "|" + group);
   openKeys.value = open;
   const moved = new Map(bases2(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
   rows.value = next.map((row) => ({
     ...row,
     open: open.has(row.key),
     panels: row.panels.map((p) => {
+      if ((row.group || "") !== group)
+        return p;
       const hash = moved.get(p.file);
       return hash && hash !== p.hash ? { ...p, hash } : p;
     })
@@ -726,8 +760,9 @@ function take() {
       return;
     out.rows.push({
       file: panel.file,
+      group: panel.group,
       saved: panel.saved ? panel.saved.name : null,
-      hash: hashOf(panel.file),
+      hash: fileHashOf(panel.group, panel.file),
       values: { name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) }
     });
   });
@@ -838,16 +873,17 @@ function tellYaml(file, one) {
 }
 function restore(carried) {
   (carried.rows || []).forEach((c) => {
-    if (c.hash && c.hash !== hashOf(placeOf(c.file)))
+    const group = c.group || "";
+    if (c.hash && c.hash !== fileHashOf(group, placeOf(c.file)))
       return;
-    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.saved ? panel.saved.name : null) === c.saved);
+    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.group || "") === group && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
       patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
       return;
     }
     if (c.saved)
       return;
-    const row = addRow(placeOf(c.file), CURRENT);
+    const row = addRow(placeOf(c.file), group || CURRENT);
     patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
   });
   (carried.ytexts || []).forEach((c) => {

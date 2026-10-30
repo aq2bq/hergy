@@ -100,8 +100,11 @@ type CheckState = {
 type FileEntry = { r: RoleRow; l: Place; e: RoleEntry };
 export type SavedFileEntry = { r: RoleRow; l: Place; e: RoleEntry & { saved: EditableDocument } };
 type RoleCheckRequest = Request<'role', 'check'>;
-type CarriedRole = { place: Place; saved: string | null; name: string; hash: string; draft: EditableDocument; isNew?: boolean; noDoc?: boolean };
-type CarriedYaml = { place: Place; name: string; hash: string; text: string };
+// group is the project the role's file stands in (a headquarters screen's
+// group): a draft belongs to that project's file, not to another one's of the
+// same name (r-57d8).
+type CarriedRole = { place: Place; group?: string; saved: string | null; name: string; hash: string; draft: EditableDocument; isNew?: boolean; noDoc?: boolean };
+type CarriedYaml = { place: Place; group?: string; name: string; hash: string; text: string };
 type CarriedMember = { team: string; hash: string; name: string; saved: string; draft: string };
 type CarriedRoles = { rows?: CarriedRole[]; ytexts?: CarriedYaml[]; members?: CarriedMember[] };
 
@@ -972,12 +975,17 @@ export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
 // document the person did not touch can move while another one is saved: a row
 // that kept the hash it read before would be refused at its own next save as a
 // change another place made. The row's own document is the answer's, and every
-// other file takes the hash the answer read; the draft a person is writing in
-// stays where it is.
-function rebase(answer: { hashes?: Record<string, string> | null } | null): void {
+// other file of that project takes the hash the answer read; the draft a person
+// is writing in stays where it is.
+//
+// The answer names one project's files, and the screen holds several projects'
+// rows (d-73fc): a row of another project keeps its own file's hash, which the
+// answer did not read (r-57d8).
+function rebase(answer: { hashes?: Record<string, string> | null } | null, group: string): void {
   const files = bases(answer);
   if (!files.length) return;
   roles.value = roles.value.map((r) => {
+    if ((r.group || '') !== group) return r;
     let row = r;
     for (const b of files) {
       const l: Place | null = b.place === 'project' ? 'project' : b.place === 'global' ? 'global' : null;
@@ -1061,7 +1069,7 @@ export async function doSave(id: number | string, l: Place, over?: string): Prom
   }
   setYchecks(l, newName, undefined);
   patch({ ok: { ...state.value.ok, [key]: 1 } });
-  rebase(json);
+  rebase(json, r.group || '');
   await askCheck(byUid(id), l, null);
   touch();
   // A rename changes the name the address opens the row by, so the address
@@ -1158,12 +1166,12 @@ export function take(): CarriedRoles {
       const e = r[l];
       if (!e) return;
       if (!e.saved) {
-        rows.push({ place: l, saved: null, name: e.draft.name, hash: e.hash || '', draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
+        rows.push({ place: l, group: r.group || '', saved: null, name: e.draft.name, hash: e.hash || '', draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
       } else if (JSON.stringify(e.draft) !== JSON.stringify(e.saved)) {
-        rows.push({ place: l, saved: e.saved.name, name: e.draft.name, hash: e.hash || '', draft: e.draft });
+        rows.push({ place: l, group: r.group || '', saved: e.saved.name, name: e.draft.name, hash: e.hash || '', draft: e.draft });
       }
       if (e.ytext !== undefined && e.ytext !== (e.text || '')) {
-        ytexts.push({ place: l, name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext });
+        ytexts.push({ place: l, group: r.group || '', name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext });
       }
     });
   });
@@ -1178,6 +1186,7 @@ export function take(): CarriedRoles {
 export function restore(carried: CarriedRoles): void {
   (carried.rows || []).forEach((c) => {
     const r = roles.value.find((x) => {
+      if ((x.group || '') !== (c.group || '')) return false;
       const entry = x[c.place];
       return c.saved
         ? !!entry?.saved && entry.saved.name === c.saved
@@ -1194,7 +1203,7 @@ export function restore(carried: CarriedRoles): void {
     askCheck(byUid(r.uid), c.place, null);
   });
   (carried.ytexts || []).forEach((c) => {
-    const r = roles.value.find((x) => { const entry = x[c.place]; return !!entry && (entry.saved || entry.draft).name === c.name; });
+    const r = roles.value.find((x) => { if ((x.group || '') !== (c.group || '')) return false; const entry = x[c.place]; return !!entry && (entry.saved || entry.draft).name === c.name; });
     if (!r) return;
     const e = r[c.place];
     if (!e) return;

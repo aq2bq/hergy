@@ -187,7 +187,9 @@ export type YamlOne = { base?: string; text?: string; carried?: string | null };
 // ---- what one screen hands the next through the band -------------------
 // take's answer and restore's argument (lib/nav holds it between the screens).
 export type Carried = {
-  rows?: { file: string; saved: string | null; hash: string; values: Draft }[];
+  // group is the project the file stands in (a headquarters screen's group),
+  // and file the place inside it: a draft's hash is its group's file's (r-57d8).
+  rows?: { file: string; group?: string; saved: string | null; hash: string; values: Draft }[];
   ytexts?: { file: string; hash: string; text: string }[];
   picks?: { team: string; hash: string; key: string; profile: string }[];
 };

@@ -140,9 +140,48 @@ export const pathFor = (file: Place, group: string | undefined): string => {
 };
 // hashes are the two files' hashes as the newest answer left them: a save
 // answers with the list, and the hashes are the list's, so the next write
-// carries the file the page just wrote (spec-boundary 5).
+// carries the file the page just wrote (spec-boundary 5). They are this serve's
+// project's two files and the global layer's, which every project shares.
 export const hashes = signal({ project: view.dataset.hashProject || '', global: view.dataset.hashShared || '' });
 export const hashOf = (file: Place): string => (file === 'global' ? hashes.value.global : hashes.value.project);
+
+// fileHashes are the hashes of the files a write compares against, by the group
+// whose file it is and the place it stands in (r-57d8). A headquarters screen
+// holds one profiles.yaml per group, and one project's file is not another's: a
+// write to a listed project carries that project's hash, which only its own list
+// answer read.
+const fileKey = (group: string, file: Place): string => (group || '') + '|' + file;
+export const fileHashes = signal<Record<string, string>>({});
+
+// fileHashOf is the hash of one group's file of one place. This serve's project
+// and the global layer answer the page's own two hashes; another project has
+// only what its list answered. A file whose hash is not known answers nothing
+// rather than another project's hash: the server then refuses the write with its
+// own reason, and no file is compared against one it is not (r-57d8).
+export function fileHashOf(group: string | undefined, file: Place): string {
+  const g = group || '';
+  const known = fileHashes.value[fileKey(g, file)];
+  if (known) return known;
+  if (file === 'global') return hashes.value.global;
+  if (!g || g === CURRENT) return hashes.value.project;
+  return '';
+}
+
+// learnFiles keeps the hashes one list answer read, under the group the list is
+// of (r-57d8): a save's answer reads its own project's files again, and the next
+// write of that group carries what this answer read.
+function learnFiles(group: string, list: ProfileList | null): void {
+  if (!list) return;
+  const next = { ...fileHashes.value };
+  const read = list.hashes || {};
+  for (const place of PLACES) {
+    if (read[place]) next[fileKey(group, place)] = read[place];
+  }
+  for (const one of list.files || []) {
+    if (one.place && one.hash) next[fileKey(group, placeOf(one.place))] = one.hash;
+  }
+  fileHashes.value = next;
+}
 
 // ---- the address --------------------------------------------------------
 // The list carries no screen state (spec-boundary 5): the open rows, the kind
@@ -245,10 +284,15 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
     const all: ModelRow[] = [];
     (HQ.profiles || []).forEach((g) => {
       const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
+      learnFiles(key, g.list || null);
       all.push(...modelOf(g.list || null, key, true).rows);
     });
+    // The island's own list is this serve's project's: a write to its group
+    // carries the hashes that list read (r-57d8).
+    learnFiles(CURRENT, ISLAND.profile || null);
     return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
   }
+  learnFiles('', ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
   const all: ModelRow[] = [];
   for (const place of PLACES) all.push(...modelOf(ISLAND.profile || null, place === 'global' ? 'global' : '', true).rows);
@@ -533,7 +577,7 @@ export async function savePanel(key: string, over?: string): Promise<void> {
       // over is the hash the conflict's answer carried: 上書き sends the file
       // that was seen, and a file that moved again is refused the same way
       // (r-3c77).
-      hash: over === undefined ? (panel.hash || hashOf(panel.file)) : over,
+      hash: over === undefined ? (panel.hash || fileHashOf(panel.group, panel.file)) : over,
     });
     patchPanel(key, { conflict: null });
     applySaved(panel, answer.json);
@@ -590,7 +634,9 @@ export async function deletePanel(key: string): Promise<void> {
   if (!panel || !panel.saved) return;
   patchPanel(key, { refusal: '', confirming: false });
   try {
-    const answer = await apiDel('profile', panel.saved.name, panel.file, panel.hash || hashOf(panel.file), undefined, projectOf(panel));
+    // The hash is the one the file of this panel's group was read with: a listed
+    // project's file is not this serve's (r-57d8).
+    const answer = await apiDel('profile', panel.saved.name, panel.file, panel.hash || fileHashOf(panel.group, panel.file), undefined, projectOf(panel));
     applySaved(panel, answer.json);
   } catch (e) {
     patchPanel(key, { refusal: problemText(e, '削除できませんでした') });
@@ -610,6 +656,10 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
     hashes: (answer && answer.hashes) || {},
     files: (answer && answer.files) || [],
   };
+  const group = panel.group || '';
+  // The answer is the list of the group this write named: its files' hashes are
+  // that group's, and no other group's panels stand on them (r-57d8).
+  learnFiles(group, list);
   const model = modelOf(list, panel.group, true);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
@@ -619,26 +669,28 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   rows.value.forEach((row) => {
     const key = row.group || '';
     if (!byGroup.has(key)) byGroup.set(key, []);
-    const group = byGroup.get(key);
-    if (group) group.push(row);
+    const held = byGroup.get(key);
+    if (held) held.push(row);
   });
-  byGroup.set(panel.group || '', model.rows.map(rowOf));
+  byGroup.set(group, model.rows.map(rowOf));
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
   const written = panel.saved ? panel.draft.name : panel.draft.name;
-  const found = next.find((row) => row.name === written && (row.group || '') === (panel.group || ''));
+  const found = next.find((row) => row.name === written && (row.group || '') === group);
   if (found) open.add(found.key);
-  else if (panel.saved) open.add((panel.draft.name || '') + '|' + (panel.group || ''));
+  else if (panel.saved) open.add((panel.draft.name || '') + '|' + group);
   openKeys.value = open;
   // The answer read every file again, and a save gives the rules their ids
   // after it (d-4aab): each panel of a file the answer names stands on the hash
   // of the text that is there now, so the next save is not refused as a change
-  // another place made (r-b41c).
+  // another place made (r-b41c). The answer names one project's files, so only
+  // that group's panels take them (r-57d8).
   const moved = new Map(bases(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
   rows.value = next.map((row) => ({
     ...row,
     open: open.has(row.key),
     panels: row.panels.map((p) => {
+      if ((row.group || '') !== group) return p;
       const hash = moved.get(p.file);
       return hash && hash !== p.hash ? { ...p, hash } : p;
     }),
@@ -705,8 +757,11 @@ export function take(): Carried {
     if (panel.saved && changedOf(panel).count === 0) return;
     out.rows.push({
       file: panel.file,
+      group: panel.group,
       saved: panel.saved ? panel.saved.name : null,
-      hash: hashOf(panel.file),
+      // The hash is the one of the file this panel's group writes: a listed
+      // project's file is not this serve's (r-57d8).
+      hash: fileHashOf(panel.group, panel.file),
       values: { name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) },
     });
   });
@@ -835,14 +890,17 @@ export function tellYaml(file: string, one: YamlOne): void {
 // outside since the draft was made (spec-nav 1.5).
 export function restore(carried: Carried): void {
   (carried.rows || []).forEach((c) => {
-    if (c.hash && c.hash !== hashOf(placeOf(c.file))) return;
-    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.saved ? panel.saved.name : null) === c.saved);
+    // The draft's file is the one of the group it was taken from: another
+    // project's file moving is not this draft's file moving (r-57d8).
+    const group = c.group || '';
+    if (c.hash && c.hash !== fileHashOf(group, placeOf(c.file))) return;
+    const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.group || '') === group && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
       patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
       return;
     }
     if (c.saved) return;
-    const row = addRow(placeOf(c.file), CURRENT);
+    const row = addRow(placeOf(c.file), group || CURRENT);
     patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
   });
   (carried.ytexts || []).forEach((c) => {

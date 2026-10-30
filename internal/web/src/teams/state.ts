@@ -958,7 +958,7 @@ export async function saveTeam(r: Rec, over?: string) {
   const json = await answered(r, 't', apiSave('team', r.name.value, teamIn(r, { hash: over === undefined ? r.hash.value : over, doc: { ops: r.ops.value } })), '保存できませんでした');
   if (!json) return;
   setConflict(r, 't', null);
-  rebase(json);
+  rebase(json, groupOfRecord(r));
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -974,11 +974,16 @@ export async function saveTeam(r: Rec, over?: string) {
 // agreement a person did not touch can move while another file is saved: the row
 // that kept the hash it read before would be refused at its own next save as a
 // change another place made. The draft a person is writing in stays where it is.
-function rebase(answer: Answer<'team', 'save'> | null): void {
+//
+// The answer names one project's files, and a definition of the same name can
+// stand in another project: that row keeps its own file's hash, which the answer
+// did not read (r-57d8).
+function rebase(answer: Answer<'team', 'save'> | null, group: string): void {
   for (const b of bases(answer)) {
     if (!b.name) continue;
     for (const r of recs.value) {
       if (r.draftRow || b.place !== r.place.value || b.name !== r.name.value) continue;
+      if (groupOfRecord(r) !== group) continue;
       if (b.kind === 'agreement') r.agreeHash.value = b.hash;
       else if (b.kind === 'team' || b.kind === '') r.hash.value = b.hash;
     }
@@ -990,7 +995,7 @@ export async function saveAgree(r: Rec, over?: string) {
   const json = await answered(r, 'a', apiSave('team', r.name.value, agreeIn(r, { hash: over === undefined ? r.agreeHash.value : over, doc: { ops: r.ops.value, doc } })), '保存できませんでした');
   if (!json) return;
   setConflict(r, 'a', null);
-  rebase(json);
+  rebase(json, groupOfRecord(r));
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON(json.doc);
@@ -1455,19 +1460,22 @@ export function tellDirty() {
 // Carried is what the band hands back to this screen: the rows' ops, the rules
 // drafts and the YAML texts (spec-nav 1.5).
 export type Carried = {
-  teams?: { place: Place; name: string; hash: string; ops: Op[] }[];
-  agrees?: { place: Place; name: string; hash: string; doc: unknown }[];
+  // group is the project the definition's file stands in (a headquarters
+  // screen's group): a draft belongs to that project's file, not to another
+  // one's definition of the same name (r-57d8).
+  teams?: { place: Place; group?: string; name: string; hash: string; ops: Op[] }[];
+  agrees?: { place: Place; group?: string; name: string; hash: string; doc: unknown }[];
   files?: { file: string; hash: string; text: string | undefined }[];
 };
 export function restore(carried: Carried) {
   (carried.teams || []).forEach((c) => {
-    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow && groupOfRecord(x) === (c.group || ''));
     if (!r || (c.hash && r.hash.value !== c.hash)) return;
     setOps(r, clone(c.ops));
     checkTeam(r);
   });
   (carried.agrees || []).forEach((c) => {
-    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow);
+    const r = recs.value.find((x) => x.name.value === c.name && x.place.value === c.place && !x.draftRow && groupOfRecord(x) === (c.group || ''));
     if (!r || !r.agreeSaved.value || (c.hash && r.agreeHash.value !== c.hash)) return;
     const d = fromJSON(c.doc);
     d.__path = r.agreePath.value;
@@ -1483,9 +1491,9 @@ export function restore(carried: Carried) {
 
 export function take() {
   const teams = [];
-  for (const r of recs.value) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place.value, name: r.name.value, hash: r.hash.value, ops: r.ops.value });
+  for (const r of recs.value) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.hash.value, ops: r.ops.value });
   const agrees = [];
-  for (const r of recs.value) if (!r.draftRow && r.agreeSaved.value && agreeDiff(r)) agrees.push({ place: r.place.value, name: r.name.value, hash: r.agreeHash.value, doc: toDoc(r.agreeDraft.value, r.agreeSaved.value) });
+  for (const r of recs.value) if (!r.draftRow && r.agreeSaved.value && agreeDiff(r)) agrees.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.agreeHash.value, doc: toDoc(r.agreeDraft.value, r.agreeSaved.value) });
   const files = yfiles.value.filter((f: YFile) => fileDirty(f.file)).map((f: YFile) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
   return { teams, agrees, files };
 }
