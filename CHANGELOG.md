@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.5 - 2026-10-30
 
 ### Breaking
 
@@ -38,6 +38,54 @@
   description: 注文の流れを作り直す
   members: [...]
   ```
+
+### Added
+
+- **`hergy down` lists the worktrees made while the team ran**: it reads when the
+  team started (or when the worker was hired) and lists the project's worktrees
+  git made since then, not only those a pane stood in. An agent keeps its pane in
+  the project's root and works in a worktree one command at a time, so the old
+  list often came back empty.
+- **The start sheet takes the team's name**: the button reads
+  このプロジェクトで起動する for a project's definition and
+  プロジェクトを選んで起動する for a global one, and the sheet always offers チームの名前:
+  empty starts the definition's name, and a written name starts under it, as
+  `hergy up --as` does.
+- **A save refused because the file really changed keeps what was typed**: the
+  screen shows the file as it is now and lets the person choose there, rather
+  than asking them to open it again.
+
+### Changed
+
+- **`hergy apply --dry` prints the sheet's plan**: it holds the teams' own notes
+  and each member's way in the sheet's words (送り直し, 起動, 起動し直し), reads only
+  the turns that changed, and names a rule with no id yet by its first sentence.
+- **The team definitions list stands under the heads of its places**: each head's
+  button says where it adds, and a new row saves to the place it was added under.
+- **A copy stands on the side it was copied to**: copying a role, a profile or a
+  team definition closes the row it came from, opens the copy under the band and
+  puts the cursor in its name.
+- **The apply sheet separates what can be pressed from what it tells**, and a
+  member that handed the turn to the human reads 人間の返事待ち on every screen.
+- **The team figure fits the screen**: it is no longer stretched to the panel's
+  width, and it shrinks or lays out wider before it runs past the screen's height.
+
+### Fixed
+
+- **A field keeps the focus while it is typed in**: the Enter that confirms an IME
+  conversion closed the row, and a redraw could take the field away.
+- **A second save no longer stops on the first one**: a save now answers with the
+  file as written, so the next save is compared with what is on disk.
+- **保存しました stays on the role screen**: a check that answered just after the save
+  erased the notice.
+- **A write to a listed project uses that project's file's hash**: the screens
+  mixed it up with the served project's, and refused a write as changed elsewhere.
+- **Deleting a profile no longer stops on `error.internal_bug`**: the last profile
+  of a block and an entry of a flow mapping now leave a file that reads.
+- **A new definition writes no role or profile the person did not choose**: roles
+  are looked for in both places, and the starter files follow the row's members.
+- **A member with no profile is told to choose one** on the team screen, with the
+  profiles that are there.
 
 ## 0.9.4 - 2026-10-29
 
