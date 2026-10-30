@@ -4,7 +4,7 @@
 // onInput からここの関数を直接呼ぶ。だから同じ押し込みが 2 回走ることも、部品が
 // 自分の DOM を書き換えることもない（webui-preact-design 5 章 1）。
 import {
-  rows, filterKind, query, CURRENT, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
+  rows, filterKind, query, placeGroups, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
   patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL,
   syncAssignURL, saveTeam, tellDirty,
@@ -13,9 +13,13 @@ import type { Place } from '../lib/api.js';
 import type { Row } from './types.js';
 
 // ---- the toolbar --------------------------------------------------------
-export function pressNew(): Row {
+// pressNew adds a row under the place's head (r-410c): the head says the place,
+// so no row carries a switch to move it afterwards.
+export function pressNew(group?: string): Row {
   clearFilter();
-  const row = addRow('project', CURRENT);
+  const key = group === undefined ? placeGroups()[0].key : group;
+  const place: Place = key === 'global' ? 'global' : 'project';
+  const row = addRow(place, key);
   if (row && row.panels[0]) askFocus(row.panels[0].key, 'name', 0, false);
   tellDirty();
   return row;

@@ -149,15 +149,25 @@ export const currentGroupName = (): string => {
 };
 
 // ---- the model -------------------------------------------------------
-// rowsOf is every row the list draws: each group's answer read with the same
-// api.js model as the one project's, and every row given its project's key and
-// its own uid, so two projects' rows never share one.
-function rowsOf(model: RoleModel, group: string): RoleRow[] {
-  return model.roles.map((r): RoleRow => {
+// rowsOf is every row the list draws for one place: each group's answer read
+// with the same api.js model as the one project's, and every row given its
+// project's key and its own uid, so two projects' rows never share one. place
+// keeps only one side of a name (r-410c): a list always draws its places'
+// heads, so a name that stands in both is two rows.
+function rowsOf(model: RoleModel, group: string, place: Place): RoleRow[] {
+  const out: RoleRow[] = [];
+  for (const r of model.roles) {
     const row: RoleRow = { uid: r.uid, group, project: null, global: null };
-    if (r.markdown) { row.markdown = r.markdown; row.name = r.name || ''; row.project = null; row.global = null; return row; }
+    if (r.markdown) {
+      if (place !== 'project') continue;
+      row.markdown = r.markdown;
+      row.name = r.name || '';
+      out.push(row);
+      continue;
+    }
     row.paths = {};
     for (const l of PLACES) {
+      if (l !== place) { row[l] = null; continue; }
       if (r[l]) {
         const draft = fromJSON(r[l]);
         // A role no layer holds a document for opens as a new one (spec-roles
@@ -168,15 +178,60 @@ function rowsOf(model: RoleModel, group: string): RoleRow[] {
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }
+    if (!row[place]) continue;
     if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;
-    return row;
-  });
+    out.push(row);
+  }
+  return out;
 }
+
+// RoleGroup is one place the list draws a head for (r-410c, d-e77c): the
+// project's own place (its list key, which is "" without projects: listed), the
+// global layer's, or another listed project's.
+export type RoleGroup = { key: string; global: boolean; name: string; display: string; count: number };
+
+// groupList is the places the list's heads stand for. A headquarters with
+// projects: listed has its own groups; the one-project headquarters' groups
+// are read with the same shape (the project's key is ""); a page with no
+// headquarters reading still draws the project and the global layer.
+function groupList(): Omit<RoleGroup, 'count'>[] {
+  if (HQ && HQ.roles && HQ.roles.length) {
+    return HQ.roles.map((g) => ({
+      key: GROUPED ? groupKeyOf(g) : (g.global ? 'global' : ''),
+      global: !!g.global,
+      name: groupNameOf(g),
+      display: g.display || '',
+    }));
+  }
+  return [
+    { key: '', global: false, name: currentProjectName(), display: DIR.project },
+    { key: 'global', global: true, name: LNAME.global, display: DIR.global },
+  ];
+}
+
+// roleGroups is groupList with the rows each head holds now.
+export const roleGroups = (): RoleGroup[] => groupList().map((g) => ({
+  ...g, count: roles.value.filter((r) => r.group === g.key && !r.markdown).length,
+}));
+
+// groupOfRow is the key a row's head stands under. A row that came from a list
+// before r-410c (the one-project page read both places in one row) is put on
+// its document's side.
+export const groupOfRow = (r: RoleRow): string => (r.group || (r.global && !r.project ? 'global' : ''));
+
 function initialRoles(): RoleRow[] {
-  if (!GROUPED || !HQ) return rowsOf(roleModel(ISLAND.role || null), '');
   const out: RoleRow[] = [];
-  (HQ.roles || []).forEach((g) => { rowsOf(roleModel(g.list), groupKeyOf(g)).forEach((r) => out.push(r)); });
+  if (GROUPED && HQ && HQ.roles && HQ.roles.length) {
+    for (const g of HQ.roles) {
+      const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
+      out.push(...rowsOf(roleModel(g.list), key, g.global ? 'global' : 'project'));
+    }
+  } else {
+    const model = roleModel(ISLAND.role || null);
+    out.push(...rowsOf(model, '', 'project'));
+    out.push(...rowsOf(model, 'global', 'global'));
+  }
   out.forEach((r) => { r.uid = ++uid; });
   return out;
 }
@@ -639,18 +694,33 @@ export function pressFilter(f: RoleState['filter']): void {
   syncURL(false);
 }
 
-export function pressNew(): void {
+export function pressNew(group?: string): void {
   const d: EditableDocument = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
-  const nr: RoleRow = { uid: nextUid(), isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: '', text: '' }, global: null };
-  roles.value = [nr, ...roles.value];
+  // The head a person pressed says the place the row stands in (r-410c): the
+  // row is that group's, and there is no switch inside it to move it.
+  const key = group === undefined ? roleGroups()[0].key : group;
+  const place: Place = key === 'global' ? 'global' : 'project';
+  const nr: RoleRow = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
+  nr[place] = { saved: null, draft: d, hash: '', text: '' };
+  // The row stands at the top of the head it was added under.
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(key);
+  let at = roles.value.findIndex((r) => groupOfRow(r) === key);
+  if (at < 0) {
+    at = roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > rank);
+    if (at < 0) at = roles.value.length;
+  }
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: '' });
-  openRuleKey(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
+  openRuleKey(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
   touch();
-  askCheck(nr, 'project', () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
+  askCheck(nr, place, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
 
+// pressPickPlace is kept for a row that was made before r-410c and still holds
+// both places in one record: it moves the record to the place a person picked.
 export function pressPickPlace(id: number | string, l: Place, x: Place): void {
   if (x === l) return;
   withRow(id, (r) => ({ ...r, [x]: r[l], [l]: null }));
@@ -688,35 +758,36 @@ export function pressCopy(id: number | string, l: Place): void {
   if (!r || !r[l] || !r[l].saved) return;
   const to = other(l);
   const e: RoleEntry = { saved: null, draft: clone(r[l]!.saved!), base: clone(r[l]!.saved!), basePlace: { place: l, name: r[l]!.saved!.name }, hash: '', text: '' };
-  // A grouped screen draws each place as a row under its side's head: the copy
-  // stands in the side it was copied to, not in the row it came from (r-f781).
-  if (GROUPED) {
-    const nr: RoleRow = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
-    nr[to] = e;
-    roles.value = [...roles.value, nr];
-    const open = new Set(state.value.open);
-    open.add(nr.uid);
-    patch({ open });
-    touch();
-    askCheck(nr, to, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
-    return;
+  // The list draws each place as its own row under its head; the copy stands in
+  // the place it was copied to, not in the row it came from (r-f781, r-410c).
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  const nr: RoleRow = { uid: nextUid(), isNew: true, group, project: null, global: null };
+  nr[to] = e;
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(group);
+  let at = roles.value.findIndex((x) => groupOfRow(x) === group);
+  if (at < 0) {
+    at = roles.value.findIndex((x) => order.indexOf(groupOfRow(x)) > rank);
+    if (at < 0) at = roles.value.length;
   }
-  withRow(id, (old) => ({ ...old, [to]: e }));
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
+  const open = new Set(state.value.open);
+  open.add(nr.uid);
+  patch({ open });
   touch();
-  askCheck(byUid(id), to, () => touch());
+  askCheck(nr, to, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
 
 // canCopy is whether a row's document can be copied into the other place: the
-// other place must not already hold that name, in this row or, on a grouped
-// screen, in the row the copy would stand beside (r-f781).
+// other place must not already hold that name, in this row or in the row the
+// copy would stand beside (r-f781).
 export function canCopy(r: RoleRow, l: Place): boolean {
   const e = r[l];
   if (!e || !e.saved) return false;
   const to = other(l);
   if (r[to]) return false;
-  if (!GROUPED) return true;
-  const group = copyGroupOf(to, r.group, CURRENT);
-  return !roles.value.some((x) => x.group === group && x[to] && x[to]!.draft.name === e.saved!.name);
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to]!.draft.name === e.saved!.name);
 }
 
 export function pressDel(id: number | string, l: Place): void {

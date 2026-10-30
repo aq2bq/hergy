@@ -8,17 +8,18 @@
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field, inText } from '../lib/field.js';
 import {
-  rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
-  changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES, HQ, canCopy,
+  rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
+  changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
+  focusAsk, scrollAsk, panelByKey, HQ, canCopy,
 } from './state.js';
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
   pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
-  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, pressLayer, inputField,
+  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, inputField,
   reorderArgs,
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
+import type { PlaceGroup } from './state.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
 // input, a textarea or a select; anything else has no value to read.
@@ -42,13 +43,12 @@ function chipsURL(kind: string): string {
   return '/profiles' + (search ? '?' + search : '');
 }
 
-// Toolbar is the list's own: ＋プロファイルを追加, the kind filters and the
-// search. The chips' numbers are the rows', so a save that moves a kind's number
-// moves the chip with it.
+// Toolbar is the list's own: the kind filters and the search. The place heads
+// carry the add buttons (r-410c). The chips' numbers are the rows', so a save
+// that moves a kind's number moves the chip with it.
 export function Toolbar() {
   return (
     <div class="toolbar">
-      <button class="btn primary" data-act="new" onClick={pressNew}>＋ プロファイルを追加</button>
       <div class="filters">
         {chips.value.map((chip) => (
           <a class={'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k={chip.name} href={chipsURL(chip.name)} aria-pressed={chip.name === filterKind.value ? 'true' : 'false'} onClick={(e: Event) => { e.preventDefault(); pressFilter(chip.name); }}>
@@ -74,13 +74,10 @@ function PersonChip({ c }: { c: ProfileChip }) {
   );
 }
 
-// PlacePills is the row's プロジェクト column (spec 4 章): the project's name, or
-// グローバル. A project that overrides a global name carries the crossed-out
-// グローバル, and the global row says which projects override it.
+// PlacePills is the row's 置き場所 column (spec 4 章, d-e77c): the place's name.
+// A project that overrides a global name carries the crossed-out グローバル, and
+// the global row says which projects override it.
 function PlacePills({ row }: { row: Row }) {
-  if (!GROUPED) {
-    return <>{(row.places || []).map((place) => <span class={'pill ' + place.state}>{place.label === 'プロジェクト' ? currentProjectName() : place.label}</span>)}</>;
-  }
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   return (
@@ -122,7 +119,7 @@ export function Row({ row }: { row: Row }) {
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>
         <span class="c-kind">{kind ? <><i class={'sw ' + kindClass}></i>{kind}</> : ''}</span>
-        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{GROUPED ? groupName(row.group) : labelOf(first ? first.file : 'project')}</span> : <PlacePills row={row} />}</span>
+        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{groupName(row.group)}</span> : <PlacePills row={row} />}</span>
         <span class="c-args">{row.args ? row.args : <span class="none">—</span>}</span>
         <span class="c-env">{(row.env && row.env.length) ? [row.env.map((value) => <span>{value}</span>), row.more > 0 ? <span class="more">+{row.more}</span> : ''] : <span class="none">—</span>}</span>
         <span class="c-users">{row.users > 0 ? <><b>{row.users}</b><span>{row.roles}</span></> : <span class="none">0</span>}</span>
@@ -188,9 +185,7 @@ function Panel({ panel }: { panel: PanelState }) {
   return (
     <section class={'panel' + (panel.shadowed ? ' shadowed' : '')} data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.rename_targets} data-hash={panel.hash}>
       <header class="ph">
-        {panel.layerSwitch
-          ? <div class="seg small">{PLACES.map((x) => <button class={panel.file === x ? 'on' : ''} data-act="pick-layer" data-x={x} onClick={() => pressLayer(panel.key, x)}>{labelOf(x)}</button>)}</div>
-          : <span class="ln">{GROUPED && panel.group && panel.group !== 'global' ? groupName(panel.group) : panel.label}</span>}
+        <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
       </header>
@@ -330,8 +325,9 @@ function EnvRow({ index, pair, changed, bad, panelKey }: { index: number; pair: 
   );
 }
 
-// List is the tab: the toolbar, the column line, the rows in their groups, and
-// the one line a list with nothing in it carries.
+// List is the tab: the toolbar, the column line, the rows under each place's
+// head, and the button each head carries to add a profile to that place alone
+// (r-410c).
 export function List() {
   const visible = shownRows.value;
   return (
@@ -340,34 +336,32 @@ export function List() {
       {HQ && HQ.error
         ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
         : <div class="list">
-          <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+          <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>置き場所</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
           <div id="rows">
-            {rows.value.length === 0 ? <p class="none">プロファイルはありません</p> : ''}
-            <p class="none" id="no-match" hidden={rows.value.length === 0 || visible.length > 0}>合うプロファイルはありません</p>
-            {groupedRows(visible).map((one) => ('head' in one ? <GroupHead group={one.head} /> : <Row key={one.row.key} row={one.row} />))}
+            {visible.length === 0 && rows.value.length > 0 ? <p class="none" id="no-match">合うプロファイルはありません</p> : ''}
+            {placeGroups().map((g) => {
+              const list = visible.filter((row) => (row.group || '') === g.key);
+              return <>{GroupHead({ group: g })}{list.map((row) => <Row key={row.key} row={row} />)}
+                {list.length === 0 && rows.value.length === 0 ? <div class="hq-empty"><span class="none">{g.name} にはプロファイルがありません。</span></div> : null}
+              </>;
+            })}
           </div>
         </div>}
     </>
   );
 }
 
-// groupedRows puts a group's head where its first row stands (spec 4 章).
-function groupedRows(list: Row[]): ({ head: string } | { row: Row })[] {
-  if (!GROUPED) return list.map((row) => ({ row }));
-  const out: ({ head: string } | { row: Row })[] = [];
-  let last: string | null = null;
-  list.forEach((row) => {
-    const group = row.group || '';
-    if (group !== last) { out.push({ head: group }); last = group; }
-    out.push({ row });
-  });
-  return out;
-}
-
-function GroupHead({ group }: { group: string }) {
-  const g = (GROUPS || []).find((x) => (x.global ? 'global' : (x.project && x.project.path)) === group);
-  if (!g) return null;
-  if (g.global) return <div class="hq-gh global"><span class="hq-gn">グローバル</span><span class="hq-gp">{g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>;
-  const count = ((g.list && g.list.items) || []).length;
-  return <div class="hq-gh"><span class="hq-gn">{g.project ? g.project.name : ''}</span><span class="hq-gp">{g.project ? g.project.display : ''}</span><span class="hq-gc">プロファイル <b>{count}</b></span></div>;
+// GroupHead is one place's head (spec 4 章, d-e77c): its name, the file it
+// writes, and the button that adds a profile to this place alone.
+function GroupHead({ group }: { group: PlaceGroup }) {
+  const target = group.key === 'global' ? 'global' : 'project';
+  const said = group.key === 'global' ? 'グローバル' : group.name;
+  const count = rows.value.filter((row) => (row.group || '') === group.key).length;
+  return <div class={'hq-gh' + (group.global ? ' global' : '')} data-group={group.key} data-place={target} aria-label={`置き場所: ${said}`}>
+      <span class="hq-gn">{group.name}</span><span class="hq-gp">{group.display || ''}</span>
+      {group.global
+        ? <span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span>
+        : <span class="hq-gc">プロファイル <b>{count}</b></span>}
+      <button class="btn sm hq-add" data-act="new" data-group={group.key} data-place={target} onClick={() => pressNew(group.key)}>＋ {said} にプロファイルを追加</button>
+    </div>;
 }

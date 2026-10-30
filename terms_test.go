@@ -130,6 +130,17 @@ var glossary = []term{
 		},
 	},
 	{
+		id:       "place",
+		english:  "place",
+		japanese: "置き場所",
+		meaning:  "the two settings roots a person names together: プロジェクト (<project>/.hergy) and グローバル (~/.config/hergy). It is the word a person reads for what layer says inside hergy; a screen's button names the place itself (the project's name, or グローバル), and a list draws a head for each place (d-e77c)",
+		banned: []ban{
+			// ロケーション was the master's temporary name for the two places;
+			// the screen, the API's promises and the glossary say 置き場所 (d-e77c).
+			{lang: "ja", word: "ロケーション", instead: "置き場所"},
+		},
+	},
+	{
 		id:       "profile",
 		english:  "profile",
 		japanese: "プロファイル",

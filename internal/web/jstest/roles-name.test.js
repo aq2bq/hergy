@@ -70,10 +70,13 @@ test('a copied role named 進行役 shows the name problem and holds the save', 
   expect(project.querySelector('[data-act=save]').disabled, 'the save of a role named 進行役 is pressable').toBe(true);
 
   // Copy to the global layer: the copy's check answers at once, and the new
-  // panel says the same before the save is pressed.
+  // row under the global head says the same before the save is pressed (r-410c:
+  // the list draws each place's head, so the copy is a row of its own).
   click(project.querySelector('[data-act=copy]'));
   await settle();
-  const global = row.querySelector('.panel[data-l=global]');
+  const globalRow = [...document.querySelectorAll('#rows .role')].find((one) => one.querySelector('.panel[data-l=global]'));
+  expect(globalRow, 'the copy made a row under the global head').not.toBe(null);
+  const global = globalRow.querySelector('.panel[data-l=global]');
   expect(global, 'the copy made a global panel').not.toBe(null);
   const globalName = global.querySelector('.errline.name');
   expect(globalName).not.toBe(null);

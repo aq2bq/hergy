@@ -118,18 +118,24 @@ var currentGroupName = () => {
   const found = (p.projects || []).find((x) => x.path === CURRENT);
   return found ? found.name : p.current && p.current.name || "";
 };
-function rowsOf(model, group) {
-  return model.roles.map((r) => {
+function rowsOf(model, group, place) {
+  const out = [];
+  for (const r of model.roles) {
     const row = { uid: r.uid, group, project: null, global: null };
     if (r.markdown) {
+      if (place !== "project")
+        continue;
       row.markdown = r.markdown;
       row.name = r.name || "";
-      row.project = null;
-      row.global = null;
-      return row;
+      out.push(row);
+      continue;
     }
     row.paths = {};
     for (const l of PLACES) {
+      if (l !== place) {
+        row[l] = null;
+        continue;
+      }
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc ? null : draft;
@@ -140,20 +146,47 @@ function rowsOf(model, group) {
         row[l] = null;
       }
     }
+    if (!row[place])
+      continue;
     if (r.noDoc)
       row.noDoc = true;
     if (r.isNew)
       row.isNew = true;
-    return row;
-  });
+    out.push(row);
+  }
+  return out;
 }
+function groupList() {
+  if (HQ && HQ.roles && HQ.roles.length) {
+    return HQ.roles.map((g) => ({
+      key: GROUPED ? groupKeyOf(g) : g.global ? "global" : "",
+      global: !!g.global,
+      name: groupNameOf(g),
+      display: g.display || ""
+    }));
+  }
+  return [
+    { key: "", global: false, name: currentProjectName(), display: DIR.project },
+    { key: "global", global: true, name: LNAME.global, display: DIR.global }
+  ];
+}
+var roleGroups = () => groupList().map((g) => ({
+  ...g,
+  count: roles.value.filter((r) => r.group === g.key && !r.markdown).length
+}));
+var groupOfRow = (r) => r.group || (r.global && !r.project ? "global" : "");
 function initialRoles() {
-  if (!GROUPED || !HQ)
-    return rowsOf(roleModel2(ISLAND.role || null), "");
   const out = [];
-  (HQ.roles || []).forEach((g) => {
-    rowsOf(roleModel2(g.list), groupKeyOf(g)).forEach((r) => out.push(r));
-  });
+  if (GROUPED && HQ && HQ.roles && HQ.roles.length) {
+    for (const g of HQ.roles) {
+      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      out.push(...rowsOf(roleModel2(g.list), key, g.global ? "global" : "project"));
+    }
+  } else {
+    const model = roleModel2(ISLAND.role || null);
+    out.push(...rowsOf(model, "", "project"));
+    out.push(...rowsOf(model, "global", "global"));
+  }
   out.forEach((r) => {
     r.uid = ++uid;
   });
@@ -592,25 +625,30 @@ function pressFilter(f) {
   touch();
   syncURL(false);
 }
-function pressNew() {
+function pressNew(group) {
   const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "使命", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
-  const nr = { uid: nextUid(), isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: "", text: "" }, global: null };
-  roles.value = [nr, ...roles.value];
+  const key = group === undefined ? roleGroups()[0].key : group;
+  const place = key === "global" ? "global" : "project";
+  const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
+  nr[place] = { saved: null, draft: d, hash: "", text: "" };
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(key);
+  let at = roles.value.findIndex((r) => groupOfRow(r) === key);
+  if (at < 0) {
+    at = roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > rank);
+    if (at < 0)
+      at = roles.value.length;
+  }
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: "" });
-  openRuleKey2(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
+  openRuleKey2(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
   touch();
-  askCheck(nr, "project", () => {
+  askCheck(nr, place, () => {
     askFocus(nr.uid, "[data-f=name]");
     touch();
   });
-}
-function pressPickPlace(id, l, x) {
-  if (x === l)
-    return;
-  withRow(id, (r) => ({ ...r, [x]: r[l], [l]: null }));
-  touch();
 }
 function pressPmode(id, l, v) {
   patch({ pmode: { ...state.value.pmode, [id + l]: v } });
@@ -642,23 +680,26 @@ function pressCopy(id, l) {
     return;
   const to = other(l);
   const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: "", text: "" };
-  if (GROUPED) {
-    const nr = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
-    nr[to] = e;
-    roles.value = [...roles.value, nr];
-    const open = new Set(state.value.open);
-    open.add(nr.uid);
-    patch({ open });
-    touch();
-    askCheck(nr, to, () => {
-      askFocus(nr.uid, "[data-f=name]");
-      touch();
-    });
-    return;
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
+  nr[to] = e;
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(group);
+  let at = roles.value.findIndex((x) => groupOfRow(x) === group);
+  if (at < 0) {
+    at = roles.value.findIndex((x) => order.indexOf(groupOfRow(x)) > rank);
+    if (at < 0)
+      at = roles.value.length;
   }
-  withRow(id, (old) => ({ ...old, [to]: e }));
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
+  const open = new Set(state.value.open);
+  open.add(nr.uid);
+  patch({ open });
   touch();
-  askCheck(byUid(id), to, () => touch());
+  askCheck(nr, to, () => {
+    askFocus(nr.uid, "[data-f=name]");
+    touch();
+  });
 }
 function canCopy(r, l) {
   const e = r[l];
@@ -667,10 +708,8 @@ function canCopy(r, l) {
   const to = other(l);
   if (r[to])
     return false;
-  if (!GROUPED)
-    return true;
-  const group = copyGroupOf(to, r.group, CURRENT);
-  return !roles.value.some((x) => x.group === group && x[to] && x[to].draft.name === e.saved.name);
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to].draft.name === e.saved.name);
 }
 function pressDel(id, l) {
   patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
@@ -1391,12 +1430,6 @@ function List() {
       /* @__PURE__ */ u("div", {
         class: "toolbar",
         children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn primary",
-            "data-act": "new",
-            onClick: pressNew,
-            children: "＋ ロールを追加"
-          }),
           /* @__PURE__ */ u("div", {
             class: "filters",
             children: FILTERS.map(([f, label]) => /* @__PURE__ */ u("button", {
@@ -1443,7 +1476,7 @@ function List() {
                 children: "ロール名"
               }),
               /* @__PURE__ */ u("span", {
-                children: HQ ? "プロジェクト" : "置き場所"
+                children: "置き場所"
               }),
               /* @__PURE__ */ u("span", {
                 children: "規則"
@@ -1470,81 +1503,67 @@ function List() {
 }
 function rowsHTML() {
   const shown = roles.value.filter((r) => !filtering() || r.isNew || r.markdown || PLACES.some((l) => r[l] && rulesOf2(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
-  if (GROUPED && HQ) {
-    const out = (HQ.roles || []).map((g) => /* @__PURE__ */ u(S, {
+  return roleGroups().map((g) => {
+    const rows = shown.filter((r) => groupOfRow(r) === g.key);
+    return /* @__PURE__ */ u(S, {
       children: [
         groupHeader(g),
-        shown.filter((r) => r.group === groupKeyOf(g)).map((r) => /* @__PURE__ */ u(Role, {
+        rows.map((r) => /* @__PURE__ */ u(Role, {
           r
-        }, r.uid))
-      ]
-    }));
-    if (!shown.length)
-      return /* @__PURE__ */ u("div", {
-        class: "sum",
-        children: [
-          /* @__PURE__ */ u("span", {}),
-          /* @__PURE__ */ u("span", {
+        }, r.uid)),
+        rows.length === 0 && !filtering() && !state.value.q ? /* @__PURE__ */ u("div", {
+          class: "hq-empty",
+          children: /* @__PURE__ */ u("span", {
             class: "none",
-            children: roles.value.length ? "0 件" : "ロールはありません"
+            children: [
+              g.name,
+              " にはロールがありません。"
+            ]
           })
-        ]
-      });
-    return out;
-  }
-  if (!shown.length)
-    return /* @__PURE__ */ u("div", {
-      class: "sum",
-      children: [
-        /* @__PURE__ */ u("span", {}),
-        /* @__PURE__ */ u("span", {
-          class: "none",
-          children: roles.value.length ? "0 件" : "ロールはありません"
-        })
+        }) : null
       ]
     });
-  return shown.map((r) => /* @__PURE__ */ u(Role, {
-    r
-  }, r.uid));
+  });
 }
 function groupHeader(g) {
-  const rows = g.list && g.list.items || [];
-  if (g.global)
-    return /* @__PURE__ */ u("div", {
-      class: "hq-gh global",
-      children: [
-        /* @__PURE__ */ u("span", {
-          class: "hq-gn",
-          children: "グローバル"
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "hq-gp",
-          children: g.display || ""
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "hq-gc",
-          children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
-        })
-      ]
-    });
+  const target = g.key === "global" ? "global" : "project";
+  const said = g.key === "global" ? "グローバル" : g.name;
   return /* @__PURE__ */ u("div", {
-    class: "hq-gh",
+    class: "hq-gh" + (g.global ? " global" : ""),
+    "data-group": g.key,
+    "data-place": target,
+    "aria-label": `置き場所: ${said}`,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-gn",
-        children: groupNameOf(g)
+        children: g.name
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-gp",
-        children: g.project ? g.project.display : ""
+        children: g.display || ""
       }),
-      /* @__PURE__ */ u("span", {
+      g.global ? /* @__PURE__ */ u("span", {
+        class: "hq-gc",
+        children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+      }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
           "ロール ",
           /* @__PURE__ */ u("b", {
-            children: rows.length
+            children: g.count
           })
+        ]
+      }),
+      /* @__PURE__ */ u("button", {
+        class: "btn sm hq-add",
+        "data-act": "new",
+        "data-group": g.key,
+        "data-place": target,
+        onClick: () => pressNew(g.key),
+        children: [
+          "＋ ",
+          said,
+          " にロールを追加"
         ]
       })
     ]
@@ -1652,16 +1671,7 @@ var readersCell = (r) => {
   });
 };
 function placePills(r) {
-  if (!GROUPED) {
-    return PLACES.map((l) => live(r, l) ? /* @__PURE__ */ u("span", {
-      class: "pill " + (l === "global" && live(r, "project") ? "shadow" : "on"),
-      children: l === "global" ? LNAME.global : currentProjectName()
-    }) : r[l] ? /* @__PURE__ */ u("span", {
-      class: "pill pending",
-      children: l === "global" ? LNAME.global : currentProjectName()
-    }) : "");
-  }
-  const label = r.group === "global" ? "グローバル" : projectNameOf(r.group);
+  const label = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const globalGroup = (HQ && HQ.roles || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
   const shadow = r.group && r.group !== "global" && (over[curName(r)] || []).includes(r.group);
@@ -1940,7 +1950,7 @@ function Panel({ r, l }) {
   const issues = row.issues || [];
   const nread = e.saved && !r[other2(l)] ? whoReads(e.saved.name, r.group).length : 0;
   const mode = state.value.pmode[key] || "edit";
-  const placeLabel = GROUPED && r.group && r.group !== "global" ? projectNameOf(r.group) : LNAME[l];
+  const placeLabel = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const refusal = refusalOf(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
@@ -1957,16 +1967,7 @@ function Panel({ r, l }) {
       /* @__PURE__ */ u("header", {
         class: "ph",
         children: [
-          r.isNew ? /* @__PURE__ */ u("div", {
-            class: "seg",
-            children: PLACES.map((x) => /* @__PURE__ */ u("button", {
-              class: l === x ? "on" : "",
-              "data-act": "pick-place",
-              "data-x": x,
-              onClick: () => pressPickPlace(r.uid, l, x),
-              children: LNAME[x]
-            }))
-          }) : /* @__PURE__ */ u("span", {
+          /* @__PURE__ */ u("span", {
             class: "ln",
             children: placeLabel
           }),
