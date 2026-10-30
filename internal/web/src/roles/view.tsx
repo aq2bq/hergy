@@ -16,6 +16,7 @@ import {
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
+import { bringUnderBand } from '../lib/band.js';
 import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
@@ -94,6 +95,12 @@ function Role({ r }: { r: RoleRow }) {
     const one = el.current.querySelector<HTMLElement>(ask.sel);
     if (!one) return;
     one.focus({ preventScroll: true });
+    // A copy's name is chosen, so the first letter a person types replaces it
+    // rather than landing beside it (d-022a).
+    if (ask.select && (one instanceof HTMLInputElement || one instanceof HTMLTextAreaElement)) one.select();
+    // A copy brings the page to the row it made (d-022a): the row a person
+    // pressed stands in the other place, and the copy is off the screen.
+    if (ask.scroll) bringUnderBand(el.current);
   }, [focusAsk.value]);
   return <div class={'role' + (open ? ' open' : '') + (unsaved(r) ? ' unsaved' : '')} data-uid={r.uid} ref={el}>
       <div class="sum" role="button" tabIndex={0} aria-expanded={open} data-act="toggle" onClick={() => pressToggle(r.uid)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(r.uid); } }}>{sumInner(r)}</div>

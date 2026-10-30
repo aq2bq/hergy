@@ -15,4 +15,16 @@ var copyGroupOf = (to, from, current) => {
 };
 var groupPlace = (group) => group === "global" ? "global" : "project";
 
-export { copyGroupOf, groupPlace };
+// lib/band.ts
+function bringUnderBand(row) {
+  if (!row || !row.querySelector(":scope > .sum"))
+    return;
+  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
+  const delta = row.getBoundingClientRect().top - stick;
+  if (Math.abs(delta) < 2)
+    return;
+  const quiet = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollBy({ top: delta, behavior: quiet ? "auto" : "smooth" });
+}
+
+export { copyGroupOf, groupPlace, bringUnderBand };

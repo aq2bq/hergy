@@ -136,7 +136,7 @@ export type ChangeSet = {
   count: number;
 };
 
-export type FocusAsk = { key: string; field: string; index: number; select: boolean; seq: number };
+export type FocusAsk = { key: string; field: string; index: number; select: boolean; scroll?: boolean; seq: number };
 export type ScrollAsk = { key: string; seq: number };
 
 // ---- the assign tab ----------------------------------------------------

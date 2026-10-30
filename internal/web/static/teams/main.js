@@ -68,8 +68,9 @@ import {
 } from "../chunk/nav-9n0vwt3f.js";
 import {
   copyGroupOf,
-  groupPlace
-} from "../chunk/nav-ad748erm.js";
+  groupPlace,
+  bringUnderBand
+} from "../chunk/nav-9h6qyq9q.js";
 import {
   Field,
   inText
@@ -1521,7 +1522,9 @@ async function pressDup(r) {
 async function pressCopy(r) {
   const to = other(r.place.value);
   const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : "");
-  await addDraft("copy", to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  withOpen(r.dom, false);
+  const copy = await addDraft("copy", to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  focusAsk.value = { dom: copy.dom, sel: ".in-name", scroll: true };
 }
 function pressDiscard(r) {
   if (r)
@@ -4364,16 +4367,6 @@ function PlaceHead({ g }) {
     ]
   });
 }
-function bringUnderBand(row) {
-  if (!row || !row.querySelector(":scope > .sum"))
-    return;
-  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
-  const delta = row.getBoundingClientRect().top - stick;
-  if (Math.abs(delta) < 2)
-    return;
-  const quiet = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollBy({ top: delta, behavior: quiet ? "auto" : "smooth" });
-}
 function Row({ r }) {
   const open = isOpen(r.dom);
   const el = A(null);
@@ -4393,6 +4386,8 @@ function Row({ r }) {
     one.focus({ preventScroll: true });
     if (one instanceof HTMLInputElement)
       one.select();
+    if (ask.scroll)
+      bringUnderBand(el.current);
   }, [focusAsk.value]);
   return /* @__PURE__ */ u("div", {
     class: "tdef" + (open ? " open" : "") + (dirtyDef(r) ? " unsaved" : ""),
@@ -4453,7 +4448,7 @@ function NameCell({ r, open }) {
         tag
       ]
     });
-  if (r.how === "copy" || !open)
+  if (!open)
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u("span", {

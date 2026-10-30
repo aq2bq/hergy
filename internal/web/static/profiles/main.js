@@ -40,8 +40,9 @@ import {
 } from "../chunk/nav-55ktrx0j.js";
 import {
   copyGroupOf,
-  groupPlace
-} from "../chunk/nav-ad748erm.js";
+  groupPlace,
+  bringUnderBand
+} from "../chunk/nav-9h6qyq9q.js";
 import {
   Field,
   inText
@@ -282,8 +283,8 @@ var isDirtyPanel = (panel) => panel.saved === null || changedOf(panel).count > 0
 var rowUnsaved = (row) => row.panels.some(isDirtyPanel);
 var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? changedOf(panel).count === 0 : false) || panel.draft.name === "";
 var focusAsk = y(null);
-function askFocus(key, field, index, select) {
-  focusAsk.value = { key, field, index: index || 0, select: !!select, seq: (focusAsk.value && focusAsk.value.seq || 0) + 1 };
+function askFocus(key, field, index, select, scroll) {
+  focusAsk.value = { key, field, index: index || 0, select: !!select, scroll: !!scroll, seq: (focusAsk.value && focusAsk.value.seq || 0) + 1 };
 }
 var scrollAsk = y(null);
 function askScroll(rowKey) {
@@ -312,6 +313,12 @@ function toggleRow(key) {
     next.add(key);
   openKeys.value = next;
   updateRow((r) => r.key === key ? { ...r, open: next.has(key) } : r);
+}
+function closeRow(key) {
+  const next = new Set(openKeys.value);
+  next.delete(key);
+  openKeys.value = next;
+  updateRow((r) => r.key === key ? { ...r, open: false } : r);
 }
 function addRow(file, group) {
   const key = newKey();
@@ -962,10 +969,11 @@ function pressCopy(key) {
   const panel = panelByKey(key);
   if (!panel)
     return;
+  closeRow(panel.rowKey);
   const fresh = copyPanel(panel);
   if (fresh) {
     initPanel(fresh.key);
-    askFocus(fresh.key, "name", 0, true);
+    askFocus(fresh.key, "name", 0, true, true);
   }
   tellDirty();
 }
@@ -1352,6 +1360,9 @@ function Panel({ panel }) {
       nameInput.current.focus();
       if (ask.select)
         nameInput.current.select();
+      const row = ask.scroll ? nameInput.current.closest(".row") : null;
+      if (row instanceof HTMLElement)
+        bringUnderBand(row);
     }
     if (ask.field === "del-yes" && confirmButton.current)
       confirmButton.current.focus();

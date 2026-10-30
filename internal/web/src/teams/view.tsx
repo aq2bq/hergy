@@ -15,6 +15,7 @@ import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
+import { bringUnderBand } from '../lib/band.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen,
@@ -110,20 +111,6 @@ function PlaceHead({ g }: { g: TeamGroup }) {
     </div>;
 }
 
-// bringUnderBand moves the page so an opened row's head stands under the band
-// (d-943f, r-e39c): the figure under it has the room the window has, and a row
-// opened low in the list is not opened half off the screen.
-function bringUnderBand(row: HTMLElement | null): void {
-  if (!row || !row.querySelector(':scope > .sum')) return;
-  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 62;
-  // The row's own top, not its head: an open row's head is sticky, and after the
-  // browser's scroll anchoring kept another open row in place the head can sit
-  // at the band while the row itself is above the window (r-410c).
-  const delta = row.getBoundingClientRect().top - stick;
-  if (Math.abs(delta) < 2) return;
-  const quiet = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollBy({ top: delta, behavior: quiet ? 'auto' : 'smooth' });
-}
 // Row is one definition: the summary a person presses, and the detail it opens
 // under itself (spec-teams B1). The field a press asked for is put in place after
 // the draw, by the row itself (5 章 5): nobody puts the focus back later.
@@ -142,6 +129,9 @@ function Row({ r }: { r: Rec }) {
     if (!one) return;
     one.focus({ preventScroll: true });
     if (one instanceof HTMLInputElement) one.select();
+    // A copy brings the page to the row it made (d-022a): the row a person
+    // pressed stands in the other place, and the copy is off the screen.
+    if (ask.scroll) bringUnderBand(el.current);
   }, [focusAsk.value]);
   return (
     <div class={'tdef' + (open ? ' open' : '') + (dirtyDef(r) ? ' unsaved' : '')} data-name={r.dom} data-key={dkey(r)} ref={el}>
@@ -167,12 +157,13 @@ function pressSum(r: Rec, e: TargetedEvent<HTMLElement, MouseEvent>): void {
 
 // nameCell is the row's name column: a field while a definition that is not
 // there yet is being named, and the name itself otherwise. A copy keeps the
-// name it copies, so it shows the name rather than a field (spec-teams B3).
+// name it copies, and its field holds that name with all of it chosen, so typing
+// replaces it (spec-teams B3, d-022a).
 function NameCell({ r, open }: { r: Rec; open: boolean }) {
   const tag = r.draftRow ? <span class="tag">新規</span> : null;
   const name = r.name.value;
   if (!r.draftRow) return <><span class="nm">{name}</span>{tag}</>;
-  if (r.how === 'copy' || !open) return <><span class="nm">{name || <span class="none">—</span>}</span>{tag}</>;
+  if (!open) return <><span class="nm">{name || <span class="none">—</span>}</span>{tag}</>;
   return (
     <>
       <Field id={'nm-' + r.dom} class={'in-name' + ((r.nameIssues.value || []).length ? ' bad' : '')} data-f="name" value={name} placeholder="チーム定義名" spellcheck={false} autocomplete="off" aria-label="チーム定義名" onInput={(e: Event) => pressName(r, inputValue(e))} />{tag}

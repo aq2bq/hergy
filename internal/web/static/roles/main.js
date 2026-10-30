@@ -62,8 +62,9 @@ import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
 import {
-  copyGroupOf
-} from "../chunk/nav-ad748erm.js";
+  copyGroupOf,
+  bringUnderBand
+} from "../chunk/nav-9h6qyq9q.js";
 import {
   Field,
   inText
@@ -218,8 +219,14 @@ var gotoAsk = y(null);
 var patch = (part) => {
   state.value = { ...state.value, ...part };
 };
-var askFocus = (id, sel) => {
-  focusAsk.value = { uid: Number(id), sel, seq: (focusAsk.value && focusAsk.value.seq || 0) + 1 };
+var askFocus = (id, sel, opts) => {
+  focusAsk.value = {
+    uid: Number(id),
+    sel,
+    select: !!(opts && opts.select),
+    scroll: !!(opts && opts.scroll),
+    seq: (focusAsk.value && focusAsk.value.seq || 0) + 1
+  };
 };
 var askGoto = (team, member, i) => {
   gotoAsk.value = { team, member, i, seq: (gotoAsk.value && gotoAsk.value.seq || 0) + 1 };
@@ -738,11 +745,12 @@ function pressCopy(id, l) {
   }
   roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
   const open = new Set(state.value.open);
+  open.delete(Number(id));
   open.add(nr.uid);
   patch({ open });
   touch();
   askCheck(nr, to, () => {
-    askFocus(nr.uid, "[data-f=name]");
+    askFocus(nr.uid, "[data-f=name]", { select: true, scroll: true });
     touch();
   });
 }
@@ -1631,6 +1639,10 @@ function Role({ r }) {
     if (!one)
       return;
     one.focus({ preventScroll: true });
+    if (ask.select && (one instanceof HTMLInputElement || one instanceof HTMLTextAreaElement))
+      one.select();
+    if (ask.scroll)
+      bringUnderBand(el.current);
   }, [focusAsk.value]);
   return /* @__PURE__ */ u("div", {
     class: "role" + (open ? " open" : "") + (unsaved(r) ? " unsaved" : ""),

@@ -266,12 +266,15 @@ export const ychecks = signal<Record<string, components['schemas']['Problem'][] 
 export const okShowing = signal<Record<string, 1>>({});
 // focusAsk and gotoAsk are where the caret goes after a press: which row's which
 // field (5 章 5), and which member of the assign tab a chip sent it to (P11).
-export const focusAsk = signal<{ uid: number; sel: string; seq: number } | null>(null);
+export const focusAsk = signal<{ uid: number; sel: string; select?: boolean; scroll?: boolean; seq: number } | null>(null);
 export const gotoAsk = signal<{ team: string; member: string; i: number; seq: number } | null>(null);
 
 const patch = (part: Partial<RoleState>): void => { state.value = { ...state.value, ...part }; };
-export const askFocus = (id: number | string, sel: string): void => {
-  focusAsk.value = { uid: Number(id), sel, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
+export const askFocus = (id: number | string, sel: string, opts?: { select?: boolean; scroll?: boolean }): void => {
+  focusAsk.value = {
+    uid: Number(id), sel, select: !!(opts && opts.select), scroll: !!(opts && opts.scroll),
+    seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1,
+  };
 };
 export const askGoto = (team: string, member: string, i: number): void => {
   gotoAsk.value = { team, member, i, seq: ((gotoAsk.value && gotoAsk.value.seq) || 0) + 1 };
@@ -843,11 +846,16 @@ export function pressCopy(id: number | string, l: Place): void {
     if (at < 0) at = roles.value.length;
   }
   roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
+  // The row the person pressed closes, and the copy under the other place's
+  // head is the one open row they read (d-022a).
   const open = new Set(state.value.open);
+  open.delete(Number(id));
   open.add(nr.uid);
   patch({ open });
   touch();
-  askCheck(nr, to, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
+  // The copy stands off the screen when the other place's head is below it: its
+  // name comes to the band, all of it chosen (d-022a).
+  askCheck(nr, to, () => { askFocus(nr.uid, '[data-f=name]', { select: true, scroll: true }); touch(); });
 }
 
 // canCopy is whether a row's document can be copied into the other place: the

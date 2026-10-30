@@ -6,7 +6,7 @@
 import {
   rows, filterKind, query, placeGroups, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
-  patchPanel, panelByKey, toggleRow, closeAllConfirm, askFocus, askScroll, syncURL,
+  patchPanel, panelByKey, toggleRow, closeRow, closeAllConfirm, askFocus, askScroll, syncURL,
   syncAssignURL, saveTeam, tellDirty,
 } from './state.js';
 import type { Place } from '../lib/api.js';
@@ -116,10 +116,15 @@ export function pressDup(key: string): void {
 export function pressCopy(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
+  // The row the person pressed closes, and the copy under the other place's
+  // head is the one open row they read (d-022a).
+  closeRow(panel.rowKey);
   const fresh = copyPanel(panel);
   if (fresh) {
     initPanel(fresh.key);
-    askFocus(fresh.key, 'name', 0, true);
+    // The copy stands off the screen when the other place's head is below it:
+    // its name comes to the band, all of it chosen (d-022a).
+    askFocus(fresh.key, 'name', 0, true, true);
   }
   tellDirty();
 }

@@ -296,8 +296,8 @@ export const saveBlocked = (panel: Panel): boolean =>
 // the name of the copy. The ask is state, and the panel that owns the field
 // reads it after the draw.
 export const focusAsk = signal<FocusAsk | null>(null);
-export function askFocus(key: string, field: string, index: number, select: boolean): void {
-  focusAsk.value = { key, field, index: index || 0, select: !!select, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
+export function askFocus(key: string, field: string, index: number, select: boolean, scroll?: boolean): void {
+  focusAsk.value = { key, field, index: index || 0, select: !!select, scroll: !!scroll, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
 }
 export const scrollAsk = signal<ScrollAsk | null>(null);
 export function askScroll(rowKey: string): void {
@@ -332,6 +332,15 @@ export function toggleRow(key: string): void {
   if (next.has(key)) next.delete(key); else next.add(key);
   openKeys.value = next;
   updateRow((r) => (r.key === key ? { ...r, open: next.has(key) } : r));
+}
+
+// closeRow shuts one row: a copy closes the row it was pressed in, so the copy
+// under the other place's head is the one open row a person reads (d-022a).
+export function closeRow(key: string): void {
+  const next = new Set(openKeys.value);
+  next.delete(key);
+  openKeys.value = next;
+  updateRow((r) => (r.key === key ? { ...r, open: false } : r));
 }
 
 export function closeAllConfirm(): void {

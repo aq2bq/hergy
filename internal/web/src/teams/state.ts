@@ -194,8 +194,8 @@ export const state = signal<State>({
 });
 // focusAsk is the one field a person's press should land in after the draw
 // (5 章 5): a member just added, a rule just opened. The row it names puts the
-// cursor there itself.
-export const focusAsk = signal<{ dom: string; sel: string } | null>(null);
+// cursor there itself. A copy also carries the row into the screen (d-022a).
+export const focusAsk = signal<{ dom: string; sel: string; scroll?: boolean } | null>(null);
 // The screen's maps are written by the setter of the map they belong to: each
 // copies the map it is about, puts the entry in, and keeps the entry's own type.
 function setOk(key: string, on: boolean): void {
@@ -1527,7 +1527,13 @@ export async function pressCopy(r: Rec) {
   // A grouped screen draws each side as rows under its own head: the copy is a
   // row of the side it was copied to (r-f781).
   const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : '');
-  await addDraft('copy', to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  // The row the person pressed closes: the copy under the other place's head is
+  // the one open row they read (d-022a).
+  withOpen(r.dom, false);
+  const copy = await addDraft('copy', to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  // The copy is off the screen when the other place's head is below it: the row
+  // comes to the band with its name chosen (d-022a).
+  focusAsk.value = { dom: copy.dom, sel: '.in-name', scroll: true };
 }
 // pressPlace moves a definition that is not there yet to the other place. The
 // row keeps its place in the list while its place changes (spec-teams B1, N4).

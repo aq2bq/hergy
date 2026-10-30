@@ -8,6 +8,7 @@
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field, inText } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
+import { bringUnderBand } from '../lib/band.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
@@ -172,6 +173,10 @@ function Panel({ panel }: { panel: PanelState }) {
     if (ask.field === 'name' && nameInput.current) {
       nameInput.current.focus();
       if (ask.select) nameInput.current.select();
+      // A copy brings the page to the row it made (d-022a): the row a person
+      // pressed stands in the other place, and the copy is off the screen.
+      const row = ask.scroll ? nameInput.current.closest('.row') : null;
+      if (row instanceof HTMLElement) bringUnderBand(row);
     }
     if (ask.field === 'del-yes' && confirmButton.current) confirmButton.current.focus();
   }, [focusAsk.value]);
