@@ -98,7 +98,7 @@ const labelWidth = (value: string, size: number): number => Math.ceil(labelUnits
 
 const nodeState = (state: string): string => {
   const labels: Record<string, string> = {
-    active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間に渡した', absent: '動いていない',
+    active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間の返事待ち', absent: '動いていない',
   };
   return labels[state] || state || '状態不明';
 };

@@ -355,7 +355,7 @@ var nodeState = (state) => {
     active: "仕事中",
     idle: "止まっている",
     blocked: "許可待ち",
-    handed: "人間に渡した",
+    handed: "人間の返事待ち",
     absent: "動いていない"
   };
   return labels[state] || state || "状態不明";

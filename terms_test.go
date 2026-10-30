@@ -242,7 +242,7 @@ var glossary = []term{
 		id:       "apply",
 		english:  "apply",
 		japanese: "反映",
-		meaning:  "put a saved definition's drift into the teams running from it: hergy apply, the screens' 反映, POST /api/apply. hergy decides the way for each member: 送り直す (resend), 起動する (start), 起動し直す (restart), or 反映できない (cannot), where the reason and down・up are named",
+		meaning:  "put a saved definition's drift into the teams running from it: hergy apply, the screens' 反映, POST /api/apply. hergy decides the way for each member: 送り直し (reprompt), 起動 (start), 起動し直し (refresh), or 反映できない (cannot), where the reason and down・up are named",
 		banned: []ban{
 			// 変更を伝える and 伝えていない were the screens' and the prose's
 			// words for 反映, and 伝える is tell's (d-3d30, n-f894).
@@ -319,6 +319,18 @@ var glossary = []term{
 			{lang: "ja", word: "承認待ち"},
 			{lang: "ja", word: "確認待ち"},
 			{lang: "ja", word: "ブロック"},
+		},
+	},
+	{
+		id:       "handed",
+		english:  "waiting for a reply",
+		japanese: "人間の返事待ち",
+		meaning:  "a member that handed the turn to the human and waits for the answer: hergy's handed, not one of herdr's states. It stands beside 許可待ち under 人間を待っている, and the apply sheet, the activity screen and its figure say it the same way",
+		banned: []ban{
+			// 人間に渡した is the past event, and 人間の番 brings a second word
+			// for the turn: neither reads as who is waiting now (d-7b45).
+			{lang: "ja", word: "人間に渡した", instead: "人間の返事待ち"},
+			{lang: "ja", word: "人間の番", instead: "人間の返事待ち"},
 		},
 	},
 	{

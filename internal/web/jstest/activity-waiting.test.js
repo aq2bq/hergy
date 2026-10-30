@@ -48,7 +48,7 @@ test('the first tier and the figure say whose answer a person owes', async () =>
     return [row.querySelector('.st').textContent, row.querySelector('.hq-aw code').textContent];
   };
   // core's lead handed the turn over; migrate's tester waits for a permission.
-  expect(waiting('core')).toEqual(['人間の番', 'core-lead']);
+  expect(waiting('core')).toEqual(['人間の返事待ち', 'core-lead']);
   expect(waiting('migrate')).toEqual(['許可待ち', 'migrate-tester']);
   expect(document.querySelector('.hq-at[data-pick="core"] .hq-aq').textContent).toBe('Continue with the change?');
   expect(document.querySelector('.hq-at[data-pick="migrate"] .hq-aq').textContent).toBe('Trust this folder?');
@@ -56,7 +56,7 @@ test('the first tier and the figure say whose answer a person owes', async () =>
   // The team's own figure says the same state.
   const tile = document.querySelector('.hq-tile[data-team="core"] .st');
   expect(tile).not.toBe(null);
-  expect(tile.textContent).toBe('人間の番');
+  expect(tile.textContent).toBe('人間の返事待ち');
 
   const scrolled = [];
   Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value(options) { scrolled.push([this.dataset.team, options.block]); } });

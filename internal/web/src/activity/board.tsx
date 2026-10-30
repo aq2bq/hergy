@@ -1,6 +1,6 @@
 // activity/board.tsx — アクティビティの画面（spec 6 章、r-8a67、d-8a45）。
 //
-// 上から、人間を待っている（許可待ち・人間の番）と止まっているチーム、
+// 上から、人間を待っている（許可待ち・人間の返事待ち）と止まっているチーム、
 // 動いているチームの図（1 チーム 1 枚）。行の一覧は使わない。
 // ここは state.ts の signal を読んで描くだけで、DOM を自分では書かない
 // （webui-preact-design 5 章 1）。class と data-* は CSS と e2e が読むので、
@@ -35,7 +35,7 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
     for (const m of t.crew) {
       if (m.state !== 'blocked' && m.state !== 'handed') continue;
       const q = t.question || (t.starting ? '起動の途中で、このフォルダを信頼するかを聞いています' : '');
-      waiting.push(<button type="button" class="hq-at" data-pick={t.name} onClick={() => pickTile(t.name)}><span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? '許可待ち' : '人間の番'}</span>
+      waiting.push(<button type="button" class="hq-at" data-pick={t.name} onClick={() => pickTile(t.name)}><span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? '許可待ち' : ST.turn}</span>
         <span class="hq-aw"><code>{m.herdr || (t.name + '-' + m.name)}</code><span class="hq-pw">{t.projectName}</span></span>
         <span class="hq-aq">{q}</span>
         <span class="hq-where">{whereText(t, m)}</span>
@@ -70,7 +70,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(' · ');
   const stall = t.state === 'stalled'
-    ? <p class="hq-why">誰もターンを持っていません（人間の番でもない）。最後に動いたのは {lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
+    ? <p class="hq-why">誰もターンを持っていません。人間の返事待ちのメンバーもいません。最後に動いたのは {lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
     : '';
   // 定義を組み立てられないチームは、理由も直し方もこの行に出す: 本部の動きの欄と
   // 同じ文で、hergy status が書くもの（r-fc16）。

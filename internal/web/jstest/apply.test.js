@@ -69,15 +69,24 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   document.querySelector('.bar .apl-bandbtn').click();
   await settle();
 
-  // The sheet: the members a person can apply are picked; the one working is
-  // not, and says why.
+  // The sheet: the members a person can apply are picked; the one working has no
+  // check at all, and says why.
   expect(checked()).toBe('core-impl-a,core-spec2,core-lead');
-  expect(disabled()).toBe('core-busy');
+  expect(disabled()).toBe('');
+  expect(boxes().length).toBe(3);
   expect(document.querySelector('.apl-sheet .apl-why').textContent).toBe('仕事中なので、今は反映できません');
-  // Each member carries its way, and 起動し直す says the conversation is lost.
+  expect(document.querySelector('.apl-sheet .apl-m.no .apl-nopick').textContent).toBe('―');
+  // Each member carries its way as the check's own name, and 起動し直し says the
+  // conversation is lost.
   const hows = [...document.querySelectorAll('.apl-sheet .apl-how')].map((el) => el.textContent);
-  expect(hows).toEqual(['送り直す', '起動する', '起動し直す', '反映できない']);
-  expect(document.querySelector('.apl-sheet .apl-lost').textContent).toBe('会話が消えます');
+  expect(hows).toEqual(['送り直し（会話は残る）', '起動（新しいペインで始める）', '起動し直し（会話が消える）', '反映できない']);
+  expect(document.querySelector('.apl-sheet .apl-cost.lost').textContent).toBe('（会話が消える）');
+  // Each member's state is a word and a sentence, and neither is a control.
+  expect([...document.querySelectorAll('.apl-sheet .apl-st')].map((el) => el.textContent))
+    .toEqual(['止まっている', '動いていない', '止まっている', '仕事中']);
+  expect(document.querySelector('.apl-sheet .apl-state').textContent)
+    .toBe('止まっているターンを持たずに待っています。今、反映できます。');
+  expect(document.querySelector('.apl-sheet .apl-state').closest('label')).toBe(null);
   // The team's own note stands under the team's heading (a worker's profile),
   // and a team whose definition does not build says why.
   expect(document.querySelector('.apl-sheet .apl-tnote').textContent).toContain('ワーカー w-1 のプロファイル');

@@ -59,8 +59,8 @@ type ActivityWords = { none?: string };
 export const POLL = 10000;
 // The screen's fixed words (2.2, 2.5). The server's answer carries the state's
 // name (answer, idle, …) only; these are the letters a person reads.
-const ST: Record<string, string> = { answer: '許可待ち', turn: '人間の番', stalled: '止まっている', working: '仕事中' };
-const NS: Record<string, string> = { blocked: '許可待ち', handed: '人間に渡した', active: '仕事中', idle: '止まっている', absent: '動いていない' };
+const ST: Record<string, string> = { answer: '許可待ち', turn: '人間の返事待ち', stalled: '止まっている', working: '仕事中' };
+const NS: Record<string, string> = { blocked: '許可待ち', handed: '人間の返事待ち', active: '仕事中', idle: '止まっている', absent: '動いていない' };
 const RANK: Record<string, number> = { answer: 0, turn: 1, stalled: 2, working: 3 };
 
 const words = JSON.parse((document.getElementById('activity-words') || {}).textContent || '{}') as ActivityWords; // Embedded JSON is typed here at its screen boundary.

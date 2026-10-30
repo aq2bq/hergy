@@ -127,7 +127,7 @@ test('the opened team carries the count once, and the sheet applies that team', 
   expect(opened).not.toBe(null);
   expect(opened.querySelector('.apl-h b').textContent).toBe('反映: core');
   expect([...opened.querySelectorAll('[data-apl-name]')].map((el) => el.dataset.aplName)).toEqual(['core-lead', 'core-spec2']);
-  expect([...opened.querySelectorAll('.apl-how')].map((el) => el.textContent)).toEqual(['送り直す', '起動する']);
+  expect([...opened.querySelectorAll('.apl-how')].map((el) => el.textContent)).toEqual(['送り直し（会話は残る）', '起動（新しいペインで始める）']);
 
   opened.querySelector('[data-apl=send]').click();
   await settle();

@@ -32,7 +32,7 @@ import {
   token2,
   parseOpen2
 } from "../chunk/nav-qsbr5nhe.js";
-import"../chunk/nav-3jpvr4gr.js";
+import"../chunk/nav-ky5b4xn5.js";
 import {
   YamlTab2
 } from "../chunk/nav-45ah48pa.js";
