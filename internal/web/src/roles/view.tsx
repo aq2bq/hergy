@@ -11,7 +11,7 @@ import {
   live, eff, cur, curName, whoReads, projectNameOf, groupNameOf, pathOfRow, issuesOf, rowIssues, checks,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
   focusAsk, withEntry, clone, pressToggle, pressFilter, pressNew, pressPickPlace, pressPmode,
-  pressDup, pressCopy, pressDel, pressDelNo, pressDiscard, pressSearch, pressTab, pressGoto,
+  pressDup, pressCopy, pressDel, pressDelNo, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
   doSave, doDelete, syncURL,
 } from './state.js';
 import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
@@ -239,7 +239,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button><span class="errline doc" hidden={!docError}>{docError}</span><span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
         <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
-          {e.saved && !r[other(l)] ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
+          {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
           {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r.uid, l)}>取り消し</button>
             : state.value.confirm[key] ? <><button class="btn danger solid" data-act="del-yes" onClick={() => doDelete(r.uid, l)}>削除する{nread ? `（${nread} 人が読んでいる）` : ''}</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r.uid, l)}>やめる</button></>
             : <button class="btn danger" data-act="del" onClick={() => pressDel(r.uid, l)}>削除</button>}

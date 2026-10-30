@@ -64,6 +64,10 @@ import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
 import {
+  copyGroupOf,
+  groupPlace
+} from "../chunk/nav-ad748erm.js";
+import {
   resource
 } from "../chunk/nav-hqj3327q.js";
 
@@ -598,8 +602,12 @@ async function addDraft(how, place, name, base, project) {
   await checkTeam(r);
   let at = 0;
   if (base) {
-    const i = firstIndexOf((x) => x.name.value === base.name);
-    at = i >= 0 ? i + 1 : 0;
+    if (how === "copy" && GROUPED)
+      at = recs.value.length;
+    else {
+      const i = firstIndexOf((x) => x.name.value === base.name);
+      at = i >= 0 ? i + 1 : 0;
+    }
   }
   orderRows(r, at);
   withOpen(r.dom, true);
@@ -902,6 +910,15 @@ async function saveAgree(r) {
   saved2();
   checkAgree(r);
 }
+function itemInGroup(item, group) {
+  if (!GROUPED)
+    return item;
+  const place = groupPlace(group);
+  const one = item.places && item.places[place];
+  if (!one)
+    return { ...item, places: {}, effective: place, hidden: [] };
+  return { ...item, places: { [place]: one }, effective: place, hidden: [] };
+}
 async function saveFolder(r) {
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
   const body = Object.assign(teamIn(r), {
@@ -914,21 +931,22 @@ async function saveFolder(r) {
   if (!json)
     return;
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
-  const at = firstIndexOf((x) => x.dom === dom || x.name.value === name);
+  const group = groupOfRecord(r);
+  const at = firstIndexOf((x) => x === r);
   const gone = recs.value.filter((x) => x.dom === dom);
   recs.value = recs.value.filter((x) => x.dom !== dom);
   gone.forEach((x) => {
     setConfirm("del" + dkey(x), false);
     resetCanvas(x);
   });
-  setProblems(json.items, groupOfRecord(r));
-  const item = (json.items || []).find((it) => it.name === name);
-  if (!item) {
+  setProblems(json.items, group);
+  const raw = (json.items || []).find((it) => it.name === name);
+  if (!raw) {
     withOpen(dom, false);
     dropDtab(dom);
     return;
   }
-  const nr = defOf(item, groupOfRecord(r));
+  const nr = defOf(itemInGroup(raw, group), group);
   orderRows(nr, at);
   if (opens)
     withOpen(nr.dom, true);
@@ -1360,7 +1378,9 @@ async function pressDup(r) {
   await addDraft("dup", r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
 }
 async function pressCopy(r) {
-  await addDraft("copy", other(r.place.value), r.name.value, { place: r.place.value, name: r.name.value }, r.project);
+  const to = other(r.place.value);
+  const group = GROUPED ? copyGroupOf(to, r.project, CURRENT) : r.project;
+  await addDraft("copy", to, r.name.value, { place: r.place.value, name: r.name.value }, group);
 }
 async function pressPlace(r, place) {
   if (!r || !r.draftRow || r.place.value === place)
@@ -4468,7 +4488,8 @@ function Dacts({ r }) {
       children: "取り消し"
     });
   const o = other2(r.place.value);
-  const copying = allRecs().some((x) => x.draftRow && x.how === "copy" && x.name.value === r.name.value && x.place.value === o);
+  const group = GROUPED ? copyGroupOf(o, r.project, CURRENT) : r.project;
+  const copying = allRecs().some((x) => x.name.value === r.name.value && x.place.value === o && (!GROUPED || groupOfRecord(x) === group));
   const ck = "del" + dkey(r);
   return /* @__PURE__ */ u(S, {
     children: [

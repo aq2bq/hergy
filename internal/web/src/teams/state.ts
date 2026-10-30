@@ -27,6 +27,7 @@ import {
   fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
 } from '../lib/ruledoc.js';
 import { parseOpen } from '../lib/hq.js';
+import { copyGroupOf, groupPlace } from '../lib/copy';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
 import type { Positions } from './place';
@@ -571,7 +572,13 @@ export async function addDraft(how: string, place: Place, name: string, base: Te
   // first, and a duplicate or a copy stands right under the row it came from
   // (spec-teams B1, B3, B4).
   let at = 0;
-  if (base) { const i = firstIndexOf((x) => x.name.value === base.name); at = i >= 0 ? i + 1 : 0; }
+  if (base) {
+    // A copy stands at the end of the side it was copied to (the list draws a
+    // group's rows in this order). A duplicate stands right under the row it
+    // came from (r-f781).
+    if (how === 'copy' && GROUPED) at = recs.value.length;
+    else { const i = firstIndexOf((x) => x.name.value === base.name); at = i >= 0 ? i + 1 : 0; }
+  }
   orderRows(r, at);
   withOpen(r.dom, true);
   setDtab(r.dom, 'shape');
@@ -902,6 +909,19 @@ export async function saveAgree(r: Rec) {
   // panel shows is the one it now holds.
   checkAgree(r);
 }
+// itemInGroup is one item of a list answer as a grouped screen's group reads
+// it: only the place that group stands in, the way the headquarters filters a
+// group's list (web/hq.go's filterPlace). A list a save answers with holds both
+// places, and the side a person is looking at is the one the row must keep
+// (r-f781). Without projects listed the row keeps both places.
+function itemInGroup(item: DefItem, group: string): DefItem {
+  if (!GROUPED) return item;
+  const place = groupPlace(group);
+  const one = item.places && item.places[place];
+  if (!one) return { ...item, places: {}, effective: place, hidden: [] };
+  return { ...item, places: { [place]: one }, effective: place, hidden: [] };
+}
+
 // saveFolder writes a definition that is not there yet, whole (spec-teams B2,
 // B6, C8): its team.yaml and its agreement.yaml, and, for one made from the
 // scaffold, the layer's role documents and the starter profile. Either tab's
@@ -915,19 +935,20 @@ async function saveFolder(r: Rec) {
   const json = await answered(r, 't', apiSave('team', r.name.value, body), '保存できませんでした');
   if (!json) return;
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
+  const group = groupOfRecord(r);
   // The row stands where the row a person was looking at stood: the first
-  // reading of this name keeps its place, and a copy's save joins into it
-  // (spec-teams B1-B4).
-  const at = firstIndexOf((x) => x.dom === dom || x.name.value === name);
+  // reading of this name keeps its place, and a copy's save stays on the side
+  // it was copied to (spec-teams B1-B4, r-f781).
+  const at = firstIndexOf((x) => x === r);
   // Every reading of this name is taken again from the answer: a copy's save
   // joins the two places into one row (spec-teams B4).
   const gone = recs.value.filter((x) => x.dom === dom);
   recs.value = recs.value.filter((x) => x.dom !== dom);
   gone.forEach((x) => { setConfirm('del' + dkey(x), false); resetCanvas(x); });
-  setProblems(json.items, groupOfRecord(r));
-  const item = (json.items || []).find((it) => it.name === name);
-  if (!item) { withOpen(dom, false); dropDtab(dom); return; }
-  const nr = defOf(item, groupOfRecord(r));
+  setProblems(json.items, group);
+  const raw = (json.items || []).find((it) => it.name === name);
+  if (!raw) { withOpen(dom, false); dropDtab(dom); return; }
+  const nr = defOf(itemInGroup(raw, group), group);
   orderRows(nr, at);
   if (opens) withOpen(nr.dom, true);
   setDtab(nr.dom, dtab);
@@ -1378,7 +1399,11 @@ export async function pressDup(r: Rec) {
   await addDraft('dup', r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
 }
 export async function pressCopy(r: Rec) {
-  await addDraft('copy', other(r.place.value), r.name.value, { place: r.place.value, name: r.name.value }, r.project);
+  const to = other(r.place.value);
+  // A grouped screen draws each side as rows under its own head: the copy is a
+  // row of the side it was copied to (r-f781).
+  const group = GROUPED ? copyGroupOf(to, r.project, CURRENT) : r.project;
+  await addDraft('copy', to, r.name.value, { place: r.place.value, name: r.name.value }, group);
 }
 // pressPlace moves a definition that is not there yet to the other place. The
 // row keeps its place in the list while its place changes (spec-teams B1, N4).

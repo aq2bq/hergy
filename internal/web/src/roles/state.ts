@@ -10,6 +10,7 @@ import { signal } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { takeDraft, setCount, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
+import { copyGroupOf } from '../lib/copy';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, Refusal,
@@ -685,10 +686,37 @@ export function pressDup(id: number | string, l: Place): void {
 export function pressCopy(id: number | string, l: Place): void {
   const r = byUid(id);
   if (!r || !r[l] || !r[l].saved) return;
+  const to = other(l);
   const e: RoleEntry = { saved: null, draft: clone(r[l]!.saved!), base: clone(r[l]!.saved!), basePlace: { place: l, name: r[l]!.saved!.name }, hash: '', text: '' };
-  withRow(id, (old) => ({ ...old, [other(l)]: e }));
+  // A grouped screen draws each place as a row under its side's head: the copy
+  // stands in the side it was copied to, not in the row it came from (r-f781).
+  if (GROUPED) {
+    const nr: RoleRow = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
+    nr[to] = e;
+    roles.value = [...roles.value, nr];
+    const open = new Set(state.value.open);
+    open.add(nr.uid);
+    patch({ open });
+    touch();
+    askCheck(nr, to, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
+    return;
+  }
+  withRow(id, (old) => ({ ...old, [to]: e }));
   touch();
-  askCheck(byUid(id), other(l), () => touch());
+  askCheck(byUid(id), to, () => touch());
+}
+
+// canCopy is whether a row's document can be copied into the other place: the
+// other place must not already hold that name, in this row or, on a grouped
+// screen, in the row the copy would stand beside (r-f781).
+export function canCopy(r: RoleRow, l: Place): boolean {
+  const e = r[l];
+  if (!e || !e.saved) return false;
+  const to = other(l);
+  if (r[to]) return false;
+  if (!GROUPED) return true;
+  const group = copyGroupOf(to, r.group, CURRENT);
+  return !roles.value.some((x) => x.group === group && x[to] && x[to]!.draft.name === e.saved!.name);
 }
 
 export function pressDel(id: number | string, l: Place): void {

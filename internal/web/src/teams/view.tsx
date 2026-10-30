@@ -12,12 +12,13 @@ import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
+import { copyGroupOf } from '../lib/copy.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup,
   dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName, teamLabel, dtabOf, isOpen,
   rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
-  recForFile, chosenFile, scheduleAgree, syncURL, focusAsk,
+  recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressPlace, pressDiscard,
   pressDel, pressDelNo, pressDelYes, pressName, pressMission, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
@@ -248,7 +249,12 @@ function DtabsNav({ r }: { r: Rec }) {
 function Dacts({ r }: { r: Rec }) {
   if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r)}>取り消し</button>;
   const o = other(r.place.value);
-  const copying = allRecs().some((x) => x.draftRow && x.how === 'copy' && x.name.value === r.name.value && x.place.value === o);
+  const group = GROUPED ? copyGroupOf(o, r.project, CURRENT) : r.project;
+  // A name the side the copy would go to already holds is not offered again:
+  // on a grouped screen that side is the copy's own group, and a saved copy
+  // there counts as much as one that is not saved yet (r-f781).
+  const copying = allRecs().some((x) => x.name.value === r.name.value && x.place.value === o
+    && (!GROUPED || groupOfRecord(x) === group));
   const ck = 'del' + dkey(r);
   return (
     <>

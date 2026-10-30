@@ -8,6 +8,7 @@ import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
+import { copyGroupOf, groupPlace } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, EnvPair, FocusAsk, Island,
@@ -84,6 +85,10 @@ export const groupKeyOf = (g: HQProfileGroup): string => (g.global ? 'global' : 
 const groupNameOf = (g: HQProfileGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
 export const GROUPS: HQProfileGroup[] | null = GROUPED ? (HQ && HQ.profiles) || [] : null;
 const groupOrder = (): string[] => (GROUPS || []).map(groupKeyOf);
+const groupRank = (group: string): number => {
+  const at = groupOrder().indexOf(group);
+  return at < 0 ? groupOrder().length : at;
+};
 export const groupName = (key: string): string => {
   if (key === 'global') return 'グローバル';
   if (!key || key === CURRENT) {
@@ -195,12 +200,19 @@ function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
 type ModelRow = ProfileRow & { group?: string };
 type Model = { rows: ModelRow[]; files: YamlFile[] };
 
-function modelOf(list: ProfileList | null, group?: string): Model {
+function modelOf(list: ProfileList | null, group?: string, narrow = false): Model {
   const model = profileModel(list, OPEN_ROWS.map((t) => t.name));
-  const rows: ModelRow[] = model.rows.map((row) => {
-    const placed: ModelRow = { ...row, group: GROUPED ? (group || '') : '' };
-    return GROUPED ? { ...placed, open: isOpenRow(placed) } : placed;
-  });
+  // A grouped screen's group is one place's rows, not a name's reading across
+  // two (web/hq.go's filterPlace). The lists a save answers with hold both
+  // places, so the group's place is the one kept (r-f781).
+  const want = GROUPED && narrow ? groupPlace(group || '') : null;
+  const rows: ModelRow[] = model.rows
+    .map((row) => {
+      if (!GROUPED) return row;
+      const placed: ModelRow = { ...row, group: group || '', open: isOpenRow(row) };
+      return want ? { ...placed, panels: (row.panels || []).filter((p) => p.file === want) } : placed;
+    })
+    .filter((row) => !want || (row.panels || []).length > 0);
   return { rows, files: model.files };
 }
 
@@ -360,22 +372,52 @@ export function duplicateRow(panel: Panel): Row | null {
 }
 
 // copyPanel adds the other layer's panel to a row: グローバルにコピー and
-// プロジェクトにコピー, which save as a new file on that side.
+// プロジェクトにコピー, which save as a new file on that side. A grouped screen
+// draws each side as rows under its own head, so the copy is a row of the side
+// it was copied to (r-f781).
 export function copyPanel(panel: Panel): Panel | null {
   const saved = panel.saved;
   if (!saved) return null;
   const file: Place = otherOf(panel.file);
+  const group = GROUPED ? copyGroupOf(file, panel.group, CURRENT) : panel.group;
   const fresh = panelOf({
-    file, label: labelOf(file), otherLabel: labelOf(panel.file), path: pathFor(file, panel.group),
+    file, label: labelOf(file), otherLabel: labelOf(panel.file), path: pathFor(file, group),
     saved: false, name: saved.name, kind: saved.kind, args: saved.args.slice(),
     env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
     argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
     hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     shadowed: false, both: false, other: otherOf(file), savedLine: false,
-  }, panel.group, panel.rowKey);
+  }, group, panel.rowKey);
+  if (GROUPED) {
+    const row: Row = {
+      key: newKey(), name: '', group: group || '', kind: saved.kind, kindClass: classOf(saved.kind),
+      args: saved.args.join(' '), env: saved.env.map((pair) => pair.value), more: 0, users: 0, roles: '', err: 0, warn: 0,
+      chips: [], places: [], isNew: true, open: true, panels: [fresh],
+    };
+    fresh.rowKey = row.key;
+    fresh.key = row.key + ':' + file;
+    const next = new Set(openKeys.value);
+    next.add(row.key);
+    openKeys.value = next;
+    // Appending and a stable sort by the groups' own order puts the copy last
+    // in its side's block, under that side's head.
+    rows.value = [...rows.value, row].sort((a, b) => groupRank(a.group) - groupRank(b.group));
+    return fresh;
+  }
   fresh.key = panel.rowKey + ':' + file;
   updateRow((row) => (row.key === panel.rowKey ? { ...row, panels: [...row.panels, fresh].sort((a, b) => (a.file === 'project' ? 0 : 1) - (b.file === 'project' ? 0 : 1)) } : row));
   return fresh;
+}
+
+// canCopy is whether a panel can be copied into the other place: the other
+// place must not already hold that name, in this row or, on a grouped screen,
+// in the row the copy would stand beside (r-f781).
+export function canCopy(panel: Panel): boolean {
+  if (!panel.saved || panel.both) return false;
+  if (!GROUPED) return true;
+  const file = otherOf(panel.file);
+  const group = copyGroupOf(file, panel.group, CURRENT);
+  return !rows.value.some((row) => row.group === group && row.panels.some((p) => p.file === file && p.draft.name === panel.saved!.name));
 }
 
 export function discardPanel(key: string): void {
@@ -486,7 +528,7 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
     hashes: (answer && answer.hashes) || {},
     files: (answer && answer.files) || [],
   };
-  const model = modelOf(list, panel.group);
+  const model = modelOf(list, panel.group, true);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }

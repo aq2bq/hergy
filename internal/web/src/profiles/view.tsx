@@ -9,7 +9,7 @@ import { useEffect, useRef } from '../lib/preact.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
-  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES, HQ,
+  focusAsk, scrollAsk, GROUPED, panelByKey, PLACES, HQ, canCopy,
 } from './state.js';
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
@@ -180,7 +180,7 @@ function Panel({ panel }: { panel: PanelState }) {
   const acts = (
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
-      {saved && !panel.both ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
+      {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
       {saved ? <button class="btn danger" data-act="del" onClick={() => pressDel(panel.key)}>削除</button> : <button class="btn danger" data-act="discard" onClick={() => pressDiscard(panel.key)}>取り消し</button>}
     </>
   );

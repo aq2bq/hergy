@@ -59,6 +59,9 @@ import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
 import {
+  copyGroupOf
+} from "../chunk/nav-ad748erm.js";
+import {
   resource
 } from "../chunk/nav-hqj3327q.js";
 
@@ -632,10 +635,37 @@ function pressCopy(id, l) {
   const r = byUid(id);
   if (!r || !r[l] || !r[l].saved)
     return;
+  const to = other(l);
   const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: "", text: "" };
-  withRow(id, (old) => ({ ...old, [other(l)]: e }));
+  if (GROUPED) {
+    const nr = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
+    nr[to] = e;
+    roles.value = [...roles.value, nr];
+    const open = new Set(state.value.open);
+    open.add(nr.uid);
+    patch({ open });
+    touch();
+    askCheck(nr, to, () => {
+      askFocus(nr.uid, "[data-f=name]");
+      touch();
+    });
+    return;
+  }
+  withRow(id, (old) => ({ ...old, [to]: e }));
   touch();
-  askCheck(byUid(id), other(l), () => touch());
+  askCheck(byUid(id), to, () => touch());
+}
+function canCopy(r, l) {
+  const e = r[l];
+  if (!e || !e.saved)
+    return false;
+  const to = other(l);
+  if (r[to])
+    return false;
+  if (!GROUPED)
+    return true;
+  const group = copyGroupOf(to, r.group, CURRENT);
+  return !roles.value.some((x) => x.group === group && x[to] && x[to].draft.name === e.saved.name);
 }
 function pressDel(id, l) {
   patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
@@ -1995,7 +2025,7 @@ function Panel({ r, l }) {
                 onClick: () => pressDup(r.uid, l),
                 children: "複製"
               }) : "",
-              e.saved && !r[other2(l)] ? /* @__PURE__ */ u("button", {
+              canCopy(r, l) ? /* @__PURE__ */ u("button", {
                 class: "btn",
                 "data-act": "copy",
                 onClick: () => pressCopy(r.uid, l),

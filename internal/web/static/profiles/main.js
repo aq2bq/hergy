@@ -36,6 +36,10 @@ import {
   YamlTab2
 } from "../chunk/nav-faptd0c2.js";
 import {
+  copyGroupOf,
+  groupPlace
+} from "../chunk/nav-ad748erm.js";
+import {
   resource
 } from "../chunk/nav-hqj3327q.js";
 
@@ -93,6 +97,10 @@ var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
 var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
 var GROUPS = GROUPED ? HQ && HQ.profiles || [] : null;
 var groupOrder = () => (GROUPS || []).map(groupKeyOf);
+var groupRank = (group) => {
+  const at = groupOrder().indexOf(group);
+  return at < 0 ? groupOrder().length : at;
+};
 var groupName = (key) => {
   if (key === "global")
     return "グローバル";
@@ -180,12 +188,15 @@ function rowOf(row, index) {
     panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key))
   };
 }
-function modelOf(list, group) {
+function modelOf(list, group, narrow = false) {
   const model = profileModel2(list, OPEN_ROWS.map((t) => t.name));
+  const want = GROUPED && narrow ? groupPlace(group || "") : null;
   const rows = model.rows.map((row) => {
-    const placed = { ...row, group: GROUPED ? group || "" : "" };
-    return GROUPED ? { ...placed, open: isOpenRow(placed) } : placed;
-  });
+    if (!GROUPED)
+      return row;
+    const placed = { ...row, group: group || "", open: isOpenRow(row) };
+    return want ? { ...placed, panels: (row.panels || []).filter((p) => p.file === want) } : placed;
+  }).filter((row) => !want || (row.panels || []).length > 0);
   return { rows, files: model.files };
 }
 var rows = y([]);
@@ -404,11 +415,12 @@ function copyPanel(panel) {
   if (!saved)
     return null;
   const file = otherOf(panel.file);
+  const group = GROUPED ? copyGroupOf(file, panel.group, CURRENT) : panel.group;
   const fresh = panelOf({
     file,
     label: labelOf(file),
     otherLabel: labelOf(panel.file),
-    path: pathFor(file, panel.group),
+    path: pathFor(file, group),
     saved: false,
     name: saved.name,
     kind: saved.kind,
@@ -429,10 +441,47 @@ function copyPanel(panel) {
     both: false,
     other: otherOf(file),
     savedLine: false
-  }, panel.group, panel.rowKey);
+  }, group, panel.rowKey);
+  if (GROUPED) {
+    const row = {
+      key: newKey(),
+      name: "",
+      group: group || "",
+      kind: saved.kind,
+      kindClass: classOf(saved.kind),
+      args: saved.args.join(" "),
+      env: saved.env.map((pair) => pair.value),
+      more: 0,
+      users: 0,
+      roles: "",
+      err: 0,
+      warn: 0,
+      chips: [],
+      places: [],
+      isNew: true,
+      open: true,
+      panels: [fresh]
+    };
+    fresh.rowKey = row.key;
+    fresh.key = row.key + ":" + file;
+    const next = new Set(openKeys.value);
+    next.add(row.key);
+    openKeys.value = next;
+    rows.value = [...rows.value, row].sort((a, b) => groupRank(a.group) - groupRank(b.group));
+    return fresh;
+  }
   fresh.key = panel.rowKey + ":" + file;
   updateRow((row) => row.key === panel.rowKey ? { ...row, panels: [...row.panels, fresh].sort((a, b) => (a.file === "project" ? 0 : 1) - (b.file === "project" ? 0 : 1)) } : row);
   return fresh;
+}
+function canCopy(panel) {
+  if (!panel.saved || panel.both)
+    return false;
+  if (!GROUPED)
+    return true;
+  const file = otherOf(panel.file);
+  const group = copyGroupOf(file, panel.group, CURRENT);
+  return !rows.value.some((row) => row.group === group && row.panels.some((p) => p.file === file && p.draft.name === panel.saved.name));
 }
 function discardPanel(key) {
   const row = rows.value.find((r) => r.panels.some((p) => p.key === key));
@@ -523,7 +572,7 @@ function applySaved(panel, answer) {
     hashes: answer && answer.hashes || {},
     files: answer && answer.files || []
   };
-  const model = modelOf(list, panel.group);
+  const model = modelOf(list, panel.group, true);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }
@@ -1264,7 +1313,7 @@ function Panel({ panel }) {
         onClick: () => pressDup(panel.key),
         children: "複製"
       }) : "",
-      saved && !panel.both ? /* @__PURE__ */ u("button", {
+      saved && canCopy(panel) ? /* @__PURE__ */ u("button", {
         class: "btn",
         "data-act": "copy",
         onClick: () => pressCopy(panel.key),
