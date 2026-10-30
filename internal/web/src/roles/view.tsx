@@ -13,8 +13,9 @@ import {
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
   focusAsk, withEntry, clone, pressToggle, pressFilter, pressNew, pressPmode,
   pressDup, pressCopy, pressDel, pressDelNo, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
-  doSave, doDelete, syncURL,
+  doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
+import { ConflictNotice } from '../lib/conflict.js';
 import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
@@ -208,6 +209,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const mode = state.value.pmode[key] || 'edit';
   const placeLabel = r.group === 'global' ? LNAME.global : (r.group ? projectNameOf(r.group) : currentProjectName());
   const refusal = refusalOf(key);
+  const hold = conflictAt(key);
   // The name field's problem is the check's own (d-841e): the sentence stands
   // under ロール名, and while it is there the save is held. A save's refusal is the
   // same answer until the next check speaks.
@@ -232,6 +234,10 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         onChange={() => onChangeDraft(r, l)}
         onMode={(v: 'edit' | 'md') => pressPmode(r.uid, l, v)}
         onURL={() => syncURL(false)} /></div>
+      {hold ? <ConflictNotice c={hold.c} mine={e.text || ''} undone={hold.undone}
+        onOverwrite={() => pressOverwrite(r.uid, l)}
+        onRevert={() => pressRevertConflict(r.uid, l)}
+        onUndo={() => pressUndoConflict(r.uid, l)} /> : null}
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button><span class="errline doc" hidden={!docError}>{docError}</span><span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
         <span class="acts">

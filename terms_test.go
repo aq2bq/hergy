@@ -482,6 +482,14 @@ var bannedWords = []ban{
 	{lang: "ja", word: "版", instead: "バージョン"},
 	// role file was the old English name for a role document (段 7, spec/28 H3).
 	{lang: "en", word: "role file", instead: "role document"},
+	// 開き直して was how a refused save asked the person to start over (r-3c77,
+	// d-a34a): the screen keeps what they wrote, so no sentence sends them back
+	// to a fresh page.
+	{lang: "ja", word: "開き直して"},
+	// ディスク was the word the same sentences used for the file (r-3c77, d-a34a):
+	// a person reads and writes ファイル, and hergy does not say which medium it
+	// stands on.
+	{lang: "ja", word: "ディスク", instead: "ファイル"},
 }
 
 // TestGlossaryIsConsistent fails when the table contradicts itself: one name on

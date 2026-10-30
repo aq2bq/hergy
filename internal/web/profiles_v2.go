@@ -248,10 +248,13 @@ func p2FirstError(text, display string) (string, bool) {
 	return "", false
 }
 
-// p2WriteError turns a write's failure into the refusal a person reads.
-func p2WriteError(err error, display string) (any, *apiErr) {
+// p2WriteError turns a write's failure into the refusal a person reads. A write
+// that lost a race with another place is the refusal a save whose read is old
+// gets: the file as it is now, and the text the save would have written, so the
+// screen keeps the draft and lets the person choose (r-3c77).
+func (s *Server) p2WriteError(err error, display, path string, doc func(text string) any) (any, *apiErr) {
 	if errors.Is(err, source.ErrChanged) {
-		return nil, refuse(http.StatusConflict, tf("error.profiles_file_changed", display))
+		return nil, s.refuseChanged(display, path, doc, false)
 	}
 	return nil, refuse(http.StatusInternalServerError, err.Error())
 }

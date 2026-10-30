@@ -76,10 +76,13 @@ func (s *Server) r2RolesDir(place string) error {
 	return os.MkdirAll(filepath.Join(dir, "roles"), 0o755)
 }
 
-// r2WriteError turns a write's failure into the refusal a person reads.
-func r2WriteError(err error, display string) (any, *apiErr) {
+// r2WriteError turns a write's failure into the refusal a person reads. A write
+// that lost a race with another place is the refusal a save whose read is old
+// gets: the file as it is now, and the text the save would have written, so the
+// screen keeps the draft and lets the person choose (r-3c77).
+func (s *Server) r2WriteError(err error, display, path string, doc func(text string) any) (any, *apiErr) {
 	if errors.Is(err, source.ErrChanged) {
-		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", display))
+		return nil, s.refuseChanged(display, path, doc, false)
 	}
 	return nil, refuse(http.StatusInternalServerError, err.Error())
 }

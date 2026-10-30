@@ -589,8 +589,8 @@ func TestROLES_F4_RenamingWritesTheReadingTeamsRoleLine(t *testing.T) {
 }
 
 // TestROLES_F5_AStaleHashIsRefused: a save whose page read a text another place
-// has since changed is refused with error.rules_file_changed, and writes
-// nothing.
+// has since changed is refused with error.file_changed — the sentence that keeps
+// the draft and names the file — and writes nothing.
 func TestROLES_F5_AStaleHashIsRefused(t *testing.T) {
 	f := ruFixtureRoles(t)
 	server := f.server(t)
@@ -608,7 +608,11 @@ func TestROLES_F5_AStaleHashIsRefused(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("the save answered %d, want 409", resp.StatusCode)
 	}
-	if want := i18n.Tf("error.rules_file_changed", path); decoded["text"] != want {
+	got, _ := decoded["file"].(map[string]any)
+	if got == nil || got["changed"] == nil || got["changed"] == "" {
+		t.Fatalf("the refusal carries no file with a changed hour: %v", decoded["file"])
+	}
+	if want := i18n.Tf("error.file_changed", path, got["changed"]); decoded["text"] != want {
 		t.Errorf("the refusal is %q, want %q", decoded["text"], want)
 	}
 	if got := readFile(t, path); got != changed {

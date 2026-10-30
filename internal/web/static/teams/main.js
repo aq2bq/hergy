@@ -59,8 +59,10 @@ import {
   RunCell2
 } from "../chunk/nav-ky5b4xn5.js";
 import {
+  conflictOf,
+  ConflictNotice,
   YamlTab2
-} from "../chunk/nav-45ah48pa.js";
+} from "../chunk/nav-55ktrx0j.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
@@ -281,6 +283,7 @@ var state = y({
   pmode: {},
   wantRule: null,
   refusal: {},
+  conflicts: {},
   toast: null
 });
 var focusAsk = y(null);
@@ -329,6 +332,16 @@ var dtabOf = (r) => state.value.dtab[r.dom] || "shape";
 var pmodeOf = (r) => state.value.pmode[dkey(r)] || "edit";
 var okOf = (key) => !!state.value.ok[key];
 var refusalOf = (r, which) => state.value.refusal[which + dkey(r)] || "";
+var conflictAt = (r, which) => state.value.conflicts[which + dkey(r)] || null;
+function setConflict(r, which, hold) {
+  const m = { ...state.value.conflicts };
+  const key = which + dkey(r);
+  if (hold)
+    m[key] = hold;
+  else
+    delete m[key];
+  put({ conflicts: m });
+}
 var setDtab = (dom, t) => {
   put({ dtab: { ...state.value.dtab, [dom]: t } });
 };
@@ -969,12 +982,13 @@ function setOps(r, ops) {
   r.ops.value = ops;
   seedPlaces(r);
 }
-async function saveTeam(r) {
+async function saveTeam(r, over) {
   if (r.draftRow)
     return saveFolder(r);
-  const json = await answered(r, "t", save2("team", r.name.value, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } })), "保存できませんでした");
+  const json = await answered(r, "t", save2("team", r.name.value, teamIn(r, { hash: over === undefined ? r.hash.value : over, doc: { ops: r.ops.value } })), "保存できませんでした");
   if (!json)
     return;
+  setConflict(r, "t", null);
   rebase(json);
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
@@ -1000,13 +1014,14 @@ function rebase(answer) {
     }
   }
 }
-async function saveAgree(r) {
+async function saveAgree(r, over) {
   if (r.draftRow)
     return saveFolder(r);
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
-  const json = await answered(r, "a", save2("team", r.name.value, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } })), "保存できませんでした");
+  const json = await answered(r, "a", save2("team", r.name.value, agreeIn(r, { hash: over === undefined ? r.agreeHash.value : over, doc: { ops: r.ops.value, doc } })), "保存できませんでした");
   if (!json)
     return;
+  setConflict(r, "a", null);
   rebase(json);
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
@@ -1094,6 +1109,11 @@ async function answered(r, which, one, fallback) {
     const res = await one;
     return res.json;
   } catch (e) {
+    const c = conflictOf(e);
+    if (c) {
+      setConflict(r, which, { c });
+      return null;
+    }
     refuse(r, which, problemText2(e, fallback));
     return null;
   }
@@ -1276,6 +1296,7 @@ var yfiles = y((LIST.files || []).map((f) => ({
 })));
 var fileOf = (file) => yfiles.value.find((f) => f.file === file) || null;
 var fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
+var fileText = (file) => state.value.ytext[file] !== undefined ? state.value.ytext[file] : (fileOf(file) || {}).text || "";
 var fileDirty = (file) => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || "");
 var yIssues = (file) => state.value.yc[file] || (fileOf(file) || {}).problems || [];
 var recForFile = (f) => recs.value.find((x) => x.name.value === f.name && x.place.value === f.place && (x.project === CURRENT || x.project === "")) || null;
@@ -1543,6 +1564,65 @@ function pressToYaml(key) {
 }
 function pressTSave(r) {
   saveTeam(r);
+}
+function pressOverwrite(r, which) {
+  const hold = conflictAt(r, which);
+  if (!hold)
+    return;
+  if (which === "a")
+    saveAgree(r, hold.c.file.hash || "");
+  else
+    saveTeam(r, hold.c.file.hash || "");
+}
+function pressRevertConflict(r, which) {
+  const hold = conflictAt(r, which);
+  if (!hold || !hold.c.file.doc)
+    return;
+  const before = {
+    saved: cloneTeam(r.saved.value),
+    ops: cloneOps(r.ops.value),
+    agreeSaved: r.agreeSaved.value ? clone2(r.agreeSaved.value) : null,
+    agreeDraft: clone2(r.agreeDraft.value),
+    hash: r.hash.value,
+    agreeHash: r.agreeHash.value
+  };
+  if (which === "a") {
+    const doc = fromJSON2(hold.c.file.doc);
+    r.agreeSaved.value = clone2(doc);
+    r.agreeDraft.value = clone2(doc);
+    r.agreeHash.value = hold.c.file.hash || "";
+  } else {
+    r.saved.value = cloneTeam(hold.c.file.doc);
+    r.ops.value = [];
+    r.hash.value = hold.c.file.hash || "";
+    if (hold.c.file.path)
+      r.teamPath.value = hold.c.file.path;
+    r.baseFindings.value = r.findings.value;
+    seedPlaces(r);
+  }
+  setConflict(r, which, { c: hold.c, undone: true, before });
+  if (which === "a")
+    checkAgree(r);
+  else
+    checkTeam(r);
+}
+function pressUndoConflict(r, which) {
+  const hold = conflictAt(r, which);
+  const before = hold && hold.before;
+  if (!hold || !before)
+    return;
+  r.saved.value = cloneTeam(before.saved);
+  r.ops.value = cloneOps(before.ops);
+  r.agreeSaved.value = before.agreeSaved ? clone2(before.agreeSaved) : null;
+  r.agreeDraft.value = clone2(before.agreeDraft);
+  r.hash.value = before.hash;
+  r.agreeHash.value = before.agreeHash;
+  seedPlaces(r);
+  setConflict(r, which, null);
+  if (which === "a")
+    checkAgree(r);
+  else
+    checkTeam(r);
 }
 function pressTRevert(r) {
   setOps(r, []);
@@ -4865,6 +4945,16 @@ function VList({ r }) {
 }
 function Foot({ r, agree }) {
   const n = changeCount(r), k = dkey(r);
+  const hold = conflictAt(r, agree ? "a" : "t");
+  const mine = fileText(`${r.name.value}.${r.place.value}.${agree ? "agreement" : "team"}`);
+  const notice = hold ? /* @__PURE__ */ u(ConflictNotice, {
+    c: hold.c,
+    mine,
+    undone: hold.undone,
+    onOverwrite: () => pressOverwrite(r, agree ? "a" : "t"),
+    onRevert: () => pressRevertConflict(r, agree ? "a" : "t"),
+    onUndo: () => pressUndoConflict(r, agree ? "a" : "t")
+  }) : null;
   const okKey = (agree ? "a" : "t") + k, saveAct = agree ? "save" : "t-save";
   const ok = okOf(okKey) ? /* @__PURE__ */ u("span", {
     class: "ok",
@@ -4876,36 +4966,41 @@ function Foot({ r, agree }) {
   const refusal = refusalOf(r, agree ? "a" : "t");
   if (r.draftRow) {
     const named = r.seeded.value && !(r.nameIssues.value || []).length;
-    return /* @__PURE__ */ u("footer", {
-      class: "pf",
+    return /* @__PURE__ */ u(S, {
       children: [
-        /* @__PURE__ */ u("button", {
-          class: "btn primary",
-          "data-act": saveAct,
-          disabled: grew || !named,
-          onClick: () => agree ? pressSave(r) : pressTSave(r),
-          children: "保存"
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "dirty",
-          children: "新規"
-        }),
-        ok,
-        /* @__PURE__ */ u("span", {
-          class: "also",
-          children: (r.writes.value || []).map((p, i) => /* @__PURE__ */ u(S, {
-            children: [
-              i ? "・" : null,
-              /* @__PURE__ */ u("code", {
-                children: String(p).split("/").pop()
-              })
-            ]
-          }))
-        }),
-        refusal ? /* @__PURE__ */ u("span", {
-          class: "sev err refusal",
-          children: refusal
-        }) : null
+        notice,
+        /* @__PURE__ */ u("footer", {
+          class: "pf",
+          children: [
+            /* @__PURE__ */ u("button", {
+              class: "btn primary",
+              "data-act": saveAct,
+              disabled: grew || !named,
+              onClick: () => agree ? pressSave(r) : pressTSave(r),
+              children: "保存"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "dirty",
+              children: "新規"
+            }),
+            ok,
+            /* @__PURE__ */ u("span", {
+              class: "also",
+              children: (r.writes.value || []).map((p, i) => /* @__PURE__ */ u(S, {
+                children: [
+                  i ? "・" : null,
+                  /* @__PURE__ */ u("code", {
+                    children: String(p).split("/").pop()
+                  })
+                ]
+              }))
+            }),
+            refusal ? /* @__PURE__ */ u("span", {
+              class: "sev err refusal",
+              children: refusal
+            }) : null
+          ]
+        })
       ]
     });
   }
@@ -4914,74 +5009,84 @@ function Foot({ r, agree }) {
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.text));
     const blocked = !s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0;
-    return /* @__PURE__ */ u("footer", {
-      class: "pf",
+    return /* @__PURE__ */ u(S, {
       children: [
-        /* @__PURE__ */ u("button", {
-          class: "btn primary",
-          "data-act": "save",
-          disabled: blocked,
-          onClick: () => pressSave(r),
-          children: "保存"
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "errline doc",
-          hidden: !refusal,
-          children: refusal
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "dirty",
-          children: s && d ? `${d} か所` : ""
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "vcount",
-          children: /* @__PURE__ */ u(Counts2, {
-            list: messagesOf(errs)
-          })
-        }),
-        ok,
-        /* @__PURE__ */ u("span", {
-          class: "acts",
-          children: /* @__PURE__ */ u("button", {
-            class: "btn",
-            "data-act": "revert",
-            hidden: !(d > 0),
-            onClick: () => pressRevert(r),
-            children: "元に戻す"
-          })
+        notice,
+        /* @__PURE__ */ u("footer", {
+          class: "pf",
+          children: [
+            /* @__PURE__ */ u("button", {
+              class: "btn primary",
+              "data-act": "save",
+              disabled: blocked,
+              onClick: () => pressSave(r),
+              children: "保存"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "errline doc",
+              hidden: !refusal,
+              children: refusal
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "dirty",
+              children: s && d ? `${d} か所` : ""
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "vcount",
+              children: /* @__PURE__ */ u(Counts2, {
+                list: messagesOf(errs)
+              })
+            }),
+            ok,
+            /* @__PURE__ */ u("span", {
+              class: "acts",
+              children: /* @__PURE__ */ u("button", {
+                class: "btn",
+                "data-act": "revert",
+                hidden: !(d > 0),
+                onClick: () => pressRevert(r),
+                children: "元に戻す"
+              })
+            })
+          ]
         })
       ]
     });
   }
-  return /* @__PURE__ */ u("footer", {
-    class: "pf",
+  return /* @__PURE__ */ u(S, {
     children: [
-      /* @__PURE__ */ u("button", {
-        class: "btn primary",
-        "data-act": "t-save",
-        disabled: !n || grew,
-        onClick: () => pressTSave(r),
-        children: "保存"
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "dirty",
-        children: n ? `${n} か所` : ""
-      }),
-      ok,
-      /* @__PURE__ */ u("span", {
-        class: "acts",
-        children: /* @__PURE__ */ u("button", {
-          class: "btn",
-          "data-act": "t-revert",
-          hidden: !n,
-          onClick: () => pressTRevert(r),
-          children: "元に戻す"
-        })
-      }),
-      refusal ? /* @__PURE__ */ u("span", {
-        class: "sev err refusal",
-        children: refusal
-      }) : null
+      notice,
+      /* @__PURE__ */ u("footer", {
+        class: "pf",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            "data-act": "t-save",
+            disabled: !n || grew,
+            onClick: () => pressTSave(r),
+            children: "保存"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "dirty",
+            children: n ? `${n} か所` : ""
+          }),
+          ok,
+          /* @__PURE__ */ u("span", {
+            class: "acts",
+            children: /* @__PURE__ */ u("button", {
+              class: "btn",
+              "data-act": "t-revert",
+              hidden: !n,
+              onClick: () => pressTRevert(r),
+              children: "元に戻す"
+            })
+          }),
+          refusal ? /* @__PURE__ */ u("span", {
+            class: "sev err refusal",
+            children: refusal
+          }) : null
+        ]
+      })
     ]
   });
 }

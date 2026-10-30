@@ -7,11 +7,12 @@
 import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
+import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, groupPlace } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
 import type {
-  Assign, AssignRow, Carried, ChangeSet, EnvPair, FocusAsk, Island,
+  Assign, AssignRow, Carried, ChangeSet, Draft, EnvPair, FocusAsk, Island,
   IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel, ProfileCheck,
   ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
 } from './types.js';
@@ -183,6 +184,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     errors: 0,
     savedLine: !!p.savedLine,
     refusal: '',
+    conflict: null,
     confirming: false,
     rename: true,
     layerSwitch: false,
@@ -507,7 +509,7 @@ export function projectOf(panel: Panel): string | undefined {
 
 // savePanel writes one panel. The answer carries the project's list, which
 // stands in place of the rows: the counts move with it (spec-boundary 5).
-export async function savePanel(key: string): Promise<void> {
+export async function savePanel(key: string, over?: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
   const draft = panel.draft;
@@ -519,12 +521,58 @@ export async function savePanel(key: string): Promise<void> {
       project: projectOf(panel),
       doc: draft,
       rename_users: !!panel.rename,
-      hash: panel.hash || hashOf(panel.file),
+      // over is the hash the conflict's answer carried: 上書き sends the file
+      // that was seen, and a file that moved again is refused the same way
+      // (r-3c77).
+      hash: over === undefined ? (panel.hash || hashOf(panel.file)) : over,
     });
+    patchPanel(key, { conflict: null });
     applySaved(panel, answer.json);
   } catch (e) {
+    const c = conflictOf(e);
+    if (c) {
+      // The file moved: the panel keeps its draft and the notice stands above
+      // the save band (r-3c77, d-a34a).
+      patchPanel(key, { conflict: { c } });
+      return;
+    }
     patchPanel(key, { refusal: problemText(e, '保存できませんでした') });
   }
+}
+
+// pressOverwrite writes the panel's draft over the file the answer showed.
+export function pressOverwrite(key: string): void {
+  const panel = panelByKey(key);
+  const c = panel && panel.conflict;
+  if (!panel || !c) return;
+  savePanel(key, c.c.file.hash || '');
+}
+
+// pressRevertConflict reads the file the answer carried into the panel: the panel
+// then stands on the file as it is, and the panel before the read is kept for
+// 取り消す. The draft stays in the notice until the person goes back.
+export function pressRevertConflict(key: string): void {
+  const panel = panelByKey(key);
+  if (!panel || !panel.conflict || !panel.conflict.c.file.doc) return;
+  const doc = panel.conflict.c.file.doc as Draft;
+  const before = { saved: panel.saved ? { ...panel.saved, args: panel.saved.args.slice(), env: panel.saved.env.map((p) => ({ ...p })) } : null, draft: { ...panel.draft, args: panel.draft.args.slice(), env: panel.draft.env.map((p) => ({ ...p })) }, hash: panel.hash };
+  const next: Draft = { name: doc.name || '', kind: doc.kind || 'claude', args: (doc.args || []).slice(), env: (doc.env || []).map((p) => ({ key: p.key, value: p.value })) };
+  patchPanel(key, {
+    saved: { name: next.name, kind: next.kind, args: next.args.slice(), env: next.env.map((p) => ({ ...p })) },
+    draft: next,
+    hash: panel.conflict.c.file.hash || '',
+    conflict: { c: panel.conflict.c, undone: true, before },
+    savedLine: false,
+  });
+}
+
+// pressUndoConflict puts the panel back the way the person had it, over the file
+// the panel has just read: the draft stands as a change to that file.
+export function pressUndoConflict(key: string): void {
+  const panel = panelByKey(key);
+  const before = panel && panel.conflict && panel.conflict.before;
+  if (!panel || !before) return;
+  patchPanel(key, { saved: before.saved, draft: before.draft, hash: before.hash, conflict: null });
 }
 
 // deletePanel takes one document away, after the person pressed 削除する.

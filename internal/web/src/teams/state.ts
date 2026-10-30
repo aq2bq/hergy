@@ -14,6 +14,8 @@ import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave, del as apiDel, hqList, problemText as apiProblemText, bases } from '../lib/api';
 import type { Answer, ApiAnswer, Request, Schemas } from '../lib/api';
+import { conflictOf } from '../lib/conflict.js';
+import type { Conflict } from '../lib/conflict.js';
 
 // CheckAnswer is what POST /api/team/check answers with, read from the operation
 // (the saved definition's answer, or the one for a definition not there yet).
@@ -172,8 +174,15 @@ export type State = {
   pmode: Record<string, string>;
   wantRule: { name: string; k: number } | null;
   refusal: Record<string, string>;
+  // conflicts stand where a save was refused because the file moved: the file as
+  // the answer showed it, and the row as it stood before 元に戻す (r-3c77).
+  conflicts: Record<string, ConflictHold>;
   toast: { msg: string; undo: boolean } | null;
 };
+// ConflictHold is one refused save: the answer's file, whether the person has
+// read the file's own text in (undone), and the row to put back with 取り消す.
+type RowBefore = { saved: Team; ops: Op[]; agreeSaved: RuleDoc | null; agreeDraft: RuleDoc; hash: string; agreeHash: string };
+type ConflictHold = { c: Conflict; undone?: boolean; before?: RowBefore };
 const put = (patch: Partial<State>) => { state.value = { ...state.value, ...patch }; };
 export const state = signal<State>({
   tab: (view && view.dataset.tab) === 'yaml' ? 'yaml' : 'list',
@@ -181,7 +190,7 @@ export const state = signal<State>({
   ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
   // refusal is the server's sentence on one row's foot (the shape tab's or the
   // rules tab's), and toast the words the canvas says at the bottom.
-  refusal: {}, toast: null,
+  refusal: {}, conflicts: {}, toast: null,
 });
 // focusAsk is the one field a person's press should land in after the draw
 // (5 章 5): a member just added, a rule just opened. The row it names puts the
@@ -219,6 +228,13 @@ export const dtabOf = (r: Rec): string => state.value.dtab[r.dom] || 'shape';
 export const pmodeOf = (r: Rec): string => state.value.pmode[dkey(r)] || 'edit';
 export const okOf = (key: string): boolean => !!state.value.ok[key];
 export const refusalOf = (r: Rec, which: string): string => state.value.refusal[which + dkey(r)] || '';
+export const conflictAt = (r: Rec, which: string): ConflictHold | null => state.value.conflicts[which + dkey(r)] || null;
+function setConflict(r: Rec, which: string, hold: ConflictHold | null): void {
+  const m = { ...state.value.conflicts };
+  const key = which + dkey(r);
+  if (hold) m[key] = hold; else delete m[key];
+  put({ conflicts: m });
+}
 const setDtab = (dom: string, t: string) => { put({ dtab: { ...state.value.dtab, [dom]: t } }); };
 const dropDtab = (dom: string) => { const m = { ...state.value.dtab }; delete m[dom]; put({ dtab: m }); };
 const setConfirm = (key: string, on: boolean) => { const m: Record<string, number> = { ...state.value.confirm }; if (on) m[key] = 1; else delete m[key]; put({ confirm: m }); };
@@ -937,10 +953,11 @@ export function setOps(r: Rec, ops: Op[]) {
 
 // saveTeam writes the team.yaml's ops (spec-teams B6). The refusal is the
 // screen's own state: the panel's foot draws it (5 章 2).
-export async function saveTeam(r: Rec) {
+export async function saveTeam(r: Rec, over?: string) {
   if (r.draftRow) return saveFolder(r);
-  const json = await answered(r, 't', apiSave('team', r.name.value, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } })), '保存できませんでした');
+  const json = await answered(r, 't', apiSave('team', r.name.value, teamIn(r, { hash: over === undefined ? r.hash.value : over, doc: { ops: r.ops.value } })), '保存できませんでした');
   if (!json) return;
+  setConflict(r, 't', null);
   rebase(json);
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
@@ -967,11 +984,12 @@ function rebase(answer: Answer<'team', 'save'> | null): void {
     }
   }
 }
-export async function saveAgree(r: Rec) {
+export async function saveAgree(r: Rec, over?: string) {
   if (r.draftRow) return saveFolder(r);
   const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
-  const json = await answered(r, 'a', apiSave('team', r.name.value, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } })), '保存できませんでした');
+  const json = await answered(r, 'a', apiSave('team', r.name.value, agreeIn(r, { hash: over === undefined ? r.agreeHash.value : over, doc: { ops: r.ops.value, doc } })), '保存できませんでした');
   if (!json) return;
+  setConflict(r, 'a', null);
   rebase(json);
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
@@ -1071,6 +1089,13 @@ async function answered<T>(r: Rec, which: string, one: Promise<{ json: T | null 
     const res = await one;
     return res.json;
   } catch (e) {
+    const c = conflictOf(e);
+    if (c) {
+      // The file moved: the row keeps its draft and the notice stands above the
+      // save band (r-3c77, d-a34a).
+      setConflict(r, which, { c });
+      return null;
+    }
     refuse(r, which, apiProblemText(e, fallback));
     return null;
   }
@@ -1556,6 +1581,59 @@ export function pressToYaml(key: string) {
   window.scrollTo(0, 0);
 }
 export function pressTSave(r: Rec) { saveTeam(r); }
+// ---- a save refused because the file moved (r-3c77, d-a34a) ---------------
+// pressOverwrite writes what the person wrote over the file the answer showed:
+// the save carries the hash of that file, so a file that moved again is refused
+// the same way instead of being written over unseen.
+export function pressOverwrite(r: Rec, which: string) {
+  const hold = conflictAt(r, which);
+  if (!hold) return;
+  if (which === 'a') saveAgree(r, hold.c.file.hash || '');
+  else saveTeam(r, hold.c.file.hash || '');
+}
+// pressRevertConflict reads the file the answer carried into the row: the row
+// then stands on the file as it is, and the row before the read is kept for
+// 取り消す.
+export function pressRevertConflict(r: Rec, which: string) {
+  const hold = conflictAt(r, which);
+  if (!hold || !hold.c.file.doc) return;
+  const before: RowBefore = {
+    saved: cloneTeam(r.saved.value), ops: cloneOps(r.ops.value),
+    agreeSaved: r.agreeSaved.value ? clone(r.agreeSaved.value) : null, agreeDraft: clone(r.agreeDraft.value),
+    hash: r.hash.value, agreeHash: r.agreeHash.value,
+  };
+  if (which === 'a') {
+    const doc = fromJSON(hold.c.file.doc);
+    r.agreeSaved.value = clone(doc);
+    r.agreeDraft.value = clone(doc);
+    r.agreeHash.value = hold.c.file.hash || '';
+  } else {
+    r.saved.value = cloneTeam(hold.c.file.doc as Team);
+    r.ops.value = [];
+    r.hash.value = hold.c.file.hash || '';
+    if (hold.c.file.path) r.teamPath.value = hold.c.file.path;
+    r.baseFindings.value = r.findings.value;
+    seedPlaces(r);
+  }
+  setConflict(r, which, { c: hold.c, undone: true, before });
+  if (which === 'a') checkAgree(r); else checkTeam(r);
+}
+// pressUndoConflict puts the row back the way the person had it, over the file
+// the row has just read: their draft stands as a change to that file.
+export function pressUndoConflict(r: Rec, which: string) {
+  const hold = conflictAt(r, which);
+  const before = hold && hold.before;
+  if (!hold || !before) return;
+  r.saved.value = cloneTeam(before.saved);
+  r.ops.value = cloneOps(before.ops);
+  r.agreeSaved.value = before.agreeSaved ? clone(before.agreeSaved) : null;
+  r.agreeDraft.value = clone(before.agreeDraft);
+  r.hash.value = before.hash;
+  r.agreeHash.value = before.agreeHash;
+  seedPlaces(r);
+  setConflict(r, which, null);
+  if (which === 'a') checkAgree(r); else checkTeam(r);
+}
 export function pressTRevert(r: Rec) {
   setOps(r, []);
   resetCanvas(r);

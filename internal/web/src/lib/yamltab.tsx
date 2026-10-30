@@ -17,6 +17,8 @@
 import { useEffect, useRef, useState } from './preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
 import type { RawAnswer } from './api.js';
+import { ConflictNotice, conflictOf } from './conflict.js';
+import type { Conflict } from './conflict.js';
 import type { components, operations } from '../../../apicontract/api-types';
 
 type Place = operations['getTeam']['parameters']['query']['place'];
@@ -175,6 +177,11 @@ export function YamlTab(props: YamlTabProps) {
   const [laid, setLaid] = useState(text);
   const [saved, setSaved] = useState(false);
   const [refusal, setRefusal] = useState('');
+  // conflict stands where a save was refused because the file moved: the file as
+  // the answer showed it, and the text the part held before 元に戻す (r-3c77).
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [undone, setUndone] = useState(false);
+  const keep = useRef<{ text: string; base: string; hash: string } | null>(null);
 
   const dirty = now.text !== base.current;
   const errs = now.problems.filter((p: Problem) => p.sev === 'err').length;
@@ -232,15 +239,17 @@ export function YamlTab(props: YamlTabProps) {
     timer.current = window.setTimeout(() => { check(); }, 300);
   }
 
-  async function save() {
+  async function save(over?: string) {
     const el = ta.current;
     if (!el) return;
     setRefusal('');
     try {
-      const answer = await saveText(kind, name, place, el.value, mine.current, extra);
+      const answer = await saveText(kind, name, place, el.value, over === undefined ? mine.current : over, extra);
       if (!alive.current) return;
       base.current = el.value;
       if (answer.json && answer.json.hash) mine.current = answer.json.hash;
+      setConflict(null);
+      setUndone(false);
       if (onSaved) onSaved({ ok: true, status: answer.status, json: answer.json, text: answer.text });
       layout(now.problems);
       check();
@@ -249,8 +258,58 @@ export function YamlTab(props: YamlTabProps) {
       apiSaved();
     } catch (e) {
       if (!alive.current) return;
+      const c = conflictOf(e);
+      if (c) {
+        // The file moved: the text the person typed stays in the field, and the
+        // notice stands above the save band (r-3c77, d-a34a).
+        setConflict(c);
+        setUndone(false);
+        return;
+      }
       setRefusal(problemText(e, '保存できませんでした'));
     }
+  }
+
+  // overwrite writes the text the person typed over the file the answer showed:
+  // the save carries the hash of that file, so a file that moved again is
+  // refused the same way.
+  function overwrite() {
+    if (!conflict) return;
+    save(conflict.file.hash || '');
+  }
+
+  // readIn puts the file the answer carried into the field, and keeps the text
+  // the person typed for 取り消す.
+  function readIn() {
+    const el = ta.current;
+    if (!el || !conflict) return;
+    keep.current = { text: el.value, base: base.current, hash: mine.current };
+    el.value = conflict.file.text || '';
+    base.current = el.value;
+    mine.current = conflict.file.hash || '';
+    setUndone(true);
+    setRefusal('');
+    autosize(el);
+    layout(now.problems);
+    check();
+    report();
+  }
+
+  // undoRead puts the text the person typed back, over the file just read.
+  function undoRead() {
+    const el = ta.current;
+    const was = keep.current;
+    if (!el || !was) return;
+    el.value = was.text;
+    base.current = was.base;
+    mine.current = was.hash;
+    keep.current = null;
+    setConflict(null);
+    setUndone(false);
+    autosize(el);
+    layout(now.problems);
+    check();
+    report();
   }
 
   function revert() {
@@ -318,8 +377,9 @@ export function YamlTab(props: YamlTabProps) {
     <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{text}</textarea></div>
     <div class="vlist"><div class="vhead"><span class="vt">validate</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
   </div>
+  {conflict ? <ConflictNotice c={conflict} mine={base.current} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}
   <footer class="pf">
-    <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew} onClick={save}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
+    <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
     {refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
     <span class="acts"><button class="btn" data-act="yaml-revert" hidden={!dirty} onClick={revert}>元に戻す</button></span>
   </footer></>;

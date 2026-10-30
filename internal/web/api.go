@@ -70,6 +70,10 @@ type apiErr struct {
 	Text   string `json:"text"`
 	At     string `json:"at,omitempty"`
 	Hash   string `json:"hash,omitempty"`
+	// File is the file a 409 is about: what it holds now and what the save would
+	// have written, so the screen keeps the draft and lets the person choose
+	// (r-3c77, d-a34a).
+	File *apiChanged `json:"file,omitempty"`
 }
 
 // refuse is a refusal with the sentence alone.

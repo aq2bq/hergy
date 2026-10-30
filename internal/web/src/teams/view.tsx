@@ -11,6 +11,7 @@ import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
 import { Field, inText } from '../lib/field.js';
+import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
@@ -24,7 +25,8 @@ import {
   pressStarterRoles, pressStarterProfile,
   pressDel, pressDelNo, pressDelYes, pressName, pressMission, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
-  pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved,
+  pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
+  conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import type { Rec, TeamGroup, YFile } from './state.js';
 import type { Schemas } from '../lib/api';
@@ -363,6 +365,15 @@ function VList({ r }: { r: Rec }) {
 // caller's (spec-teams B6, 監査 R9).
 function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   const n = changeCount(r), k = dkey(r);
+  // A save refused because the file moved stands above this foot, and the words
+  // the person wrote stay where they are (r-3c77, d-a34a).
+  const hold = conflictAt(r, agree ? 'a' : 't');
+  // mine is the text this screen read for the file: the compare's other side.
+  const mine = fileText(`${r.name.value}.${r.place.value}.${agree ? 'agreement' : 'team'}`);
+  const notice = hold ? <ConflictNotice c={hold.c} mine={mine} undone={hold.undone}
+    onOverwrite={() => pressOverwrite(r, agree ? 'a' : 't')}
+    onRevert={() => pressRevertConflict(r, agree ? 'a' : 't')}
+    onUndo={() => pressUndoConflict(r, agree ? 'a' : 't')} /> : null;
   const okKey = (agree ? 'a' : 't') + k, saveAct = agree ? 'save' : 't-save';
   // 保存しました stays until the next change writes over it, so a check that
   // answers just after the save does not take the notice away.
@@ -384,10 +395,10 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     // (spec-teams B2, N2).
     const named = r.seeded.value && !(r.nameIssues.value || []).length;
     return (
-      <footer class="pf">
+      <>{notice}<footer class="pf">
         <button class="btn primary" data-act={saveAct} disabled={grew || !named} onClick={() => (agree ? pressSave(r) : pressTSave(r))}>保存</button><span class="dirty">新規</span>{ok}
         <span class="also">{(r.writes.value || []).map((p, i) => <>{i ? '・' : null}<code>{String(p).split('/').pop()}</code></>)}</span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
-      </footer>
+      </footer></>
     );
   }
   if (agree) {
@@ -396,17 +407,17 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
     const blocked = !s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0);
     return (
-      <footer class="pf">
+      <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span><span class="vcount"><Counts list={messagesOf(errs)} /></span>{ok}
         <span class="acts"><button class="btn" data-act="revert" hidden={!(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
-      </footer>
+      </footer></>
     );
   }
   return (
-    <footer class="pf">
+    <>{notice}<footer class="pf">
       <button class="btn primary" data-act="t-save" disabled={!n || grew} onClick={() => pressTSave(r)}>保存</button><span class="dirty">{n ? `${n} か所` : ''}</span>{ok}
       <span class="acts"><button class="btn" data-act="t-revert" hidden={!n} onClick={() => pressTRevert(r)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
-    </footer>
+    </footer></>
   );
 }
 

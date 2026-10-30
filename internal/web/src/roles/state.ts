@@ -15,6 +15,8 @@ import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, Refusal, bases,
 } from '../lib/api.js';
+import { conflictOf } from '../lib/conflict.js';
+import type { Conflict } from '../lib/conflict.js';
 import {
   fromJSON, toDoc, rulesOf, inP, nextKey, observeKeys, openRules, openRuleKey, renameCarries,
 } from '../lib/ruledoc.js';
@@ -74,6 +76,17 @@ type RoleState = {
   pmode: Record<string, string>;
   refusals: Record<string, { at: 'name' | 'doc'; text: string }>;
   teamErrors: Record<string, string>;
+  // conflicts stand where a save was refused because the file moved: the file as
+  // the answer showed it, and the draft the panel held before 元に戻す (r-3c77).
+  conflicts: Record<string, ConflictHold>;
+};
+// ConflictHold is one refused save: what the server answered, whether the person
+// has read the file's own text in (undone), and the draft to put back with
+// 取り消す.
+type ConflictHold = {
+  c: Conflict;
+  undone?: boolean;
+  before?: { draft: EditableDocument; saved: EditableDocument | null; hash: string; text: string };
 };
 type CheckState = {
   issues: RuleIssue[];
@@ -244,7 +257,7 @@ const FIRST = initialRoles();
 export const roles = signal<RoleRow[]>(FIRST);
 export const state = signal<RoleState>({
   tab: 'roles', open: new Set(), filter: null, q: '', roleHi: null,
-  confirm: {}, ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {},
+  confirm: {}, ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {}, conflicts: {},
 });
 export const checks = signal<Record<string, CheckState>>({});
 export const ychecks = signal<Record<string, components['schemas']['Problem'][] | undefined>>({});
@@ -674,6 +687,56 @@ export function clearRefusal(key: string): void {
   touch();
 }
 
+// ---- a save refused because the file moved (r-3c77, d-a34a) ---------------
+// conflictAt is the notice one panel stands under: the file as the answer showed
+// it, or null when the file is the one the panel read.
+export const conflictAt = (key: string): ConflictHold | null => state.value.conflicts[key] || null;
+export function clearConflict(key: string): void {
+  if (!state.value.conflicts[key]) return;
+  const next = { ...state.value.conflicts };
+  delete next[key];
+  patch({ conflicts: next });
+}
+
+// pressOverwrite writes what the person wrote over the file the answer showed:
+// the save carries the hash of that file, so a file that moved again is refused
+// the same way instead of being written over unseen.
+export function pressOverwrite(id: number | string, l: Place): void {
+  const hold = conflictAt(id + l);
+  if (!hold) return;
+  doSave(id, l, hold.c.file.hash || '');
+}
+
+// pressRevertConflict reads the file the answer carried into the panel: the
+// panel then stands on the file as it is, and the draft the person wrote is kept
+// for 取り消す.
+export function pressRevertConflict(id: number | string, l: Place): void {
+  const key = id + l;
+  const hold = conflictAt(key);
+  const r = byUid(id);
+  const entry = r && r[l];
+  if (!hold || !entry || !hold.c.file.doc) return;
+  const doc = fromJSON(hold.c.file.doc);
+  const before = { draft: clone(entry.draft), saved: entry.saved ? clone(entry.saved) : null, hash: entry.hash, text: entry.text };
+  withEntry(id, l, (e) => ({ ...e, draft: clone(doc), saved: clone(doc), hash: hold.c.file.hash || '', text: hold.c.file.text || '' }));
+  patch({ conflicts: { ...state.value.conflicts, [key]: { c: hold.c, undone: true, before } } });
+  askCheck(byUid(id), l, () => touch());
+  touch();
+}
+
+// pressUndoConflict puts the words the person wrote back, over the file the panel
+// has just read: their draft stands as a change to that file, ready to save.
+export function pressUndoConflict(id: number | string, l: Place): void {
+  const key = id + l;
+  const hold = conflictAt(key);
+  const before = hold && hold.before;
+  if (!hold || !before) return;
+  withEntry(id, l, (e) => ({ ...e, draft: clone(before.draft), saved: before.saved ? clone(before.saved) : null, hash: before.hash, text: before.text }));
+  clearConflict(key);
+  askCheck(byUid(id), l, () => touch());
+  touch();
+}
+
 // pressToggle opens or closes a row. A row a person presses into opens in front
 // of them; the caret goes back to the line they pressed (5 章 5).
 export function pressToggle(idPressed: number | string): void {
@@ -909,7 +972,7 @@ function rebase(answer: { hashes?: Record<string, string> | null } | null): void
   });
 }
 
-export async function doSave(id: number | string, l: Place): Promise<void> {
+export async function doSave(id: number | string, l: Place, over?: string): Promise<void> {
   const r = byUid(id);
   const e = r && r[l];
   if (!e) return;
@@ -917,17 +980,27 @@ export async function doSave(id: number | string, l: Place): Promise<void> {
   // Whether the rename carries into the teams that read the role is the rule
   // document's state, not a box the screen reads back (5 章 2).
   const keepRename = renameCarries(key);
-  const payload: components['schemas']['RoleSaveRequest'] = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: e.hash || '' };
+  // over is the hash the conflict's answer carried: 上書き sends the file that
+  // was seen, and a file that moved again is refused the same way (r-3c77).
+  const payload: components['schemas']['RoleSaveRequest'] = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? (e.hash || '') : over };
   if (r.group && r.group !== 'global') payload.project = r.group;
   if (e.basePlace) payload.base = e.basePlace;
   let res: RawAnswer<Answer<'role', 'save'>>;
   try {
     res = await apiSave('role', e.draft.name || (e.saved ? e.saved.name : '_'), payload);
   } catch (err) {
+    const c = conflictOf(err);
+    if (c) {
+      // The file moved: the panel keeps its draft and the notice stands above
+      // the save band (r-3c77, d-a34a).
+      patch({ conflicts: { ...state.value.conflicts, [key]: { c } } });
+      return;
+    }
     showRefusal(key, refusalAt(err), problemText(err, '保存できませんでした'));
     return;
   }
   clearRefusal(key);
+  clearConflict(key);
   const json = res.json;
   if (!json) return;
   const now = byUid(id);

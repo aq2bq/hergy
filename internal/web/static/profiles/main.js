@@ -34,8 +34,10 @@ import {
 } from "../chunk/nav-qsbr5nhe.js";
 import"../chunk/nav-ky5b4xn5.js";
 import {
+  conflictOf,
+  ConflictNotice,
   YamlTab2
-} from "../chunk/nav-45ah48pa.js";
+} from "../chunk/nav-55ktrx0j.js";
 import {
   copyGroupOf,
   groupPlace
@@ -180,6 +182,7 @@ function panelOf(p, group, rowKey) {
     errors: 0,
     savedLine: !!p.savedLine,
     refusal: "",
+    conflict: null,
     confirming: false,
     rename: true,
     layerSwitch: false
@@ -558,7 +561,7 @@ function projectOf(panel) {
     return;
   return group;
 }
-async function savePanel(key) {
+async function savePanel(key, over) {
   const panel = panelByKey(key);
   if (!panel)
     return;
@@ -571,12 +574,47 @@ async function savePanel(key) {
       project: projectOf(panel),
       doc: draft,
       rename_users: !!panel.rename,
-      hash: panel.hash || hashOf(panel.file)
+      hash: over === undefined ? panel.hash || hashOf(panel.file) : over
     });
+    patchPanel(key, { conflict: null });
     applySaved(panel, answer.json);
   } catch (e) {
+    const c = conflictOf(e);
+    if (c) {
+      patchPanel(key, { conflict: { c } });
+      return;
+    }
     patchPanel(key, { refusal: problemText2(e, "保存できませんでした") });
   }
+}
+function pressOverwrite(key) {
+  const panel = panelByKey(key);
+  const c = panel && panel.conflict;
+  if (!panel || !c)
+    return;
+  savePanel(key, c.c.file.hash || "");
+}
+function pressRevertConflict(key) {
+  const panel = panelByKey(key);
+  if (!panel || !panel.conflict || !panel.conflict.c.file.doc)
+    return;
+  const doc = panel.conflict.c.file.doc;
+  const before = { saved: panel.saved ? { ...panel.saved, args: panel.saved.args.slice(), env: panel.saved.env.map((p) => ({ ...p })) } : null, draft: { ...panel.draft, args: panel.draft.args.slice(), env: panel.draft.env.map((p) => ({ ...p })) }, hash: panel.hash };
+  const next = { name: doc.name || "", kind: doc.kind || "claude", args: (doc.args || []).slice(), env: (doc.env || []).map((p) => ({ key: p.key, value: p.value })) };
+  patchPanel(key, {
+    saved: { name: next.name, kind: next.kind, args: next.args.slice(), env: next.env.map((p) => ({ ...p })) },
+    draft: next,
+    hash: panel.conflict.c.file.hash || "",
+    conflict: { c: panel.conflict.c, undone: true, before },
+    savedLine: false
+  });
+}
+function pressUndoConflict(key) {
+  const panel = panelByKey(key);
+  const before = panel && panel.conflict && panel.conflict.before;
+  if (!panel || !before)
+    return;
+  patchPanel(key, { saved: before.saved, draft: before.draft, hash: before.hash, conflict: null });
 }
 async function deletePanel(key) {
   const panel = panelByKey(key);
@@ -1512,6 +1550,20 @@ function Panel({ panel }) {
           })
         ]
       }),
+      panel.conflict ? /* @__PURE__ */ u(ConflictNotice, {
+        c: panel.conflict.c,
+        mine: (files.value.find((f) => f.file === panel.file) || { text: "" }).text || "",
+        undone: panel.conflict.undone,
+        onOverwrite: () => pressOverwrite(panel.key),
+        onRevert: () => {
+          pressRevertConflict(panel.key);
+          scheduleCheck(panel.key);
+        },
+        onUndo: () => {
+          pressUndoConflict(panel.key);
+          scheduleCheck(panel.key);
+        }
+      }) : null,
       /* @__PURE__ */ u("footer", {
         class: "pf",
         children: [

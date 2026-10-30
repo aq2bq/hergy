@@ -5,6 +5,7 @@
 // 帯に渡す下書き）だけをここで名付ける。
 import type { components } from '../../../apicontract/api-types';
 import type { Place, Schemas } from '../lib/api.js';
+import type { Conflict } from '../lib/conflict.js';
 
 // ---- the API's own shapes ----------------------------------------------
 // The answers the profile screen reads are the ones openapi.yaml writes: the
@@ -94,10 +95,16 @@ export type Panel = {
   errors: number;
   savedLine: boolean;
   refusal: string;
+  // conflict stands where a save was refused because the file moved: the file as
+  // the answer showed it, and the panel before 元に戻す (r-3c77).
+  conflict: PanelConflict | null;
   confirming: boolean;
   rename: boolean;
   layerSwitch: boolean;
 };
+
+// PanelConflict is one refused save of a panel.
+export type PanelConflict = { c: Conflict; undone?: boolean; before?: { saved: SavedProfile | null; draft: Draft; hash: string } };
 
 export type ModelPlace = { label: string; state: string };
 

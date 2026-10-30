@@ -310,7 +310,11 @@ func TestProfileSaveRefusesAChangedFile(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("the save answered %d, want 409", resp.StatusCode)
 	}
-	want := i18n.Tf("error.profiles_file_changed", f.proj+"/.hergy/profiles.yaml")
+	got, _ := decoded["file"].(map[string]any)
+	if got == nil || got["changed"] == nil || got["changed"] == "" {
+		t.Fatalf("the refusal carries no file with a changed hour: %v", decoded["file"])
+	}
+	want := i18n.Tf("error.file_changed", f.proj+"/.hergy/profiles.yaml", got["changed"])
 	if decoded["text"] != want {
 		t.Errorf("the refusal is %q, want %q", decoded["text"], want)
 	}

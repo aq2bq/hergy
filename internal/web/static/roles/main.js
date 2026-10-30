@@ -54,8 +54,10 @@ import {
   observeKeys2
 } from "../chunk/nav-c1mj7qyn.js";
 import {
+  conflictOf,
+  ConflictNotice,
   YamlTab2
-} from "../chunk/nav-45ah48pa.js";
+} from "../chunk/nav-55ktrx0j.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
@@ -205,7 +207,8 @@ var state = y({
   yfile: null,
   pmode: {},
   refusals: {},
-  teamErrors: {}
+  teamErrors: {},
+  conflicts: {}
 });
 var checks = y({});
 var ychecks = y({});
@@ -603,6 +606,45 @@ function clearRefusal(key) {
   patch({ refusals: next });
   touch();
 }
+var conflictAt = (key) => state.value.conflicts[key] || null;
+function clearConflict(key) {
+  if (!state.value.conflicts[key])
+    return;
+  const next = { ...state.value.conflicts };
+  delete next[key];
+  patch({ conflicts: next });
+}
+function pressOverwrite(id, l) {
+  const hold = conflictAt(id + l);
+  if (!hold)
+    return;
+  doSave(id, l, hold.c.file.hash || "");
+}
+function pressRevertConflict(id, l) {
+  const key = id + l;
+  const hold = conflictAt(key);
+  const r = byUid(id);
+  const entry = r && r[l];
+  if (!hold || !entry || !hold.c.file.doc)
+    return;
+  const doc = fromJSON2(hold.c.file.doc);
+  const before = { draft: clone(entry.draft), saved: entry.saved ? clone(entry.saved) : null, hash: entry.hash, text: entry.text };
+  withEntry(id, l, (e) => ({ ...e, draft: clone(doc), saved: clone(doc), hash: hold.c.file.hash || "", text: hold.c.file.text || "" }));
+  patch({ conflicts: { ...state.value.conflicts, [key]: { c: hold.c, undone: true, before } } });
+  askCheck(byUid(id), l, () => touch());
+  touch();
+}
+function pressUndoConflict(id, l) {
+  const key = id + l;
+  const hold = conflictAt(key);
+  const before = hold && hold.before;
+  if (!hold || !before)
+    return;
+  withEntry(id, l, (e) => ({ ...e, draft: clone(before.draft), saved: before.saved ? clone(before.saved) : null, hash: before.hash, text: before.text }));
+  clearConflict(key);
+  askCheck(byUid(id), l, () => touch());
+  touch();
+}
 function pressToggle(idPressed) {
   const r = byUid(idPressed);
   if (!r)
@@ -805,14 +847,14 @@ function rebase(answer) {
     return row;
   });
 }
-async function doSave(id, l) {
+async function doSave(id, l, over) {
   const r = byUid(id);
   const e = r && r[l];
   if (!e)
     return;
   const key = id + l;
   const keepRename = renameCarries2(key);
-  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: e.hash || "" };
+  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? e.hash || "" : over };
   if (r.group && r.group !== "global")
     payload.project = r.group;
   if (e.basePlace)
@@ -821,10 +863,16 @@ async function doSave(id, l) {
   try {
     res = await save2("role", e.draft.name || (e.saved ? e.saved.name : "_"), payload);
   } catch (err) {
+    const c = conflictOf(err);
+    if (c) {
+      patch({ conflicts: { ...state.value.conflicts, [key]: { c } } });
+      return;
+    }
     showRefusal(key, refusalAt(err), problemText2(err, "保存できませんでした"));
     return;
   }
   clearRefusal(key);
+  clearConflict(key);
   const json = res.json;
   if (!json)
     return;
@@ -1952,6 +2000,7 @@ function Panel({ r, l }) {
   const mode = state.value.pmode[key] || "edit";
   const placeLabel = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const refusal = refusalOf(key);
+  const hold = conflictAt(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
   const docError = refusal && refusal.at === "doc" ? refusal.text : "";
@@ -2012,6 +2061,14 @@ function Panel({ r, l }) {
           onURL: () => syncURL(false)
         })
       }),
+      hold ? /* @__PURE__ */ u(ConflictNotice, {
+        c: hold.c,
+        mine: e.text || "",
+        undone: hold.undone,
+        onOverwrite: () => pressOverwrite(r.uid, l),
+        onRevert: () => pressRevertConflict(r.uid, l),
+        onUndo: () => pressUndoConflict(r.uid, l)
+      }) : null,
       /* @__PURE__ */ u("footer", {
         class: "pf",
         children: [

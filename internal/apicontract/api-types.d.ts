@@ -492,6 +492,24 @@ export interface components {
             at?: string;
             /** @description ファイルが変わっていたときの今のハッシュ */
             hash?: string;
+            file?: components["schemas"]["ChangedFile"];
+        };
+        /** @description 保存を断ったときの、そのファイルの今の様子（r-3c77）。画面は書いていた内容を持ったまま、これを見比べ・上書き・元に戻すに使う。 */
+        ChangedFile: {
+            /** @description 画面が名指すファイルの道 */
+            path: string;
+            /** @description ファイルが今もあるか。false なら消されている */
+            exists: boolean;
+            /** @description 今の文のハッシュ。上書きの保存はこれを付ける */
+            hash?: string;
+            /** @description 今の文。消えていれば空 */
+            text?: string;
+            /** @description この保存がファイルに書き込もうとした文。見比べるの右側 */
+            draft?: string;
+            /** @description 最後に書き換えられた時刻（10:42 など、今日でなければ 1/2 10:42） */
+            changed?: string;
+            /** @description ファイルを種類ごとの形で読んだもの（元に戻すで、画面の下書きの代わりに置く） */
+            doc?: components["schemas"]["RoleDoc"] | components["schemas"]["TeamDocument"] | components["schemas"]["TeamRuleDocument"] | components["schemas"]["ProfileDraft"] | components["schemas"]["ProfileFileDoc"];
         };
         /** @description 1 つの行が抱える問題の数（spec-boundary 5）。一覧の欄と、置き場所ごとの読みが答える。 */
         Counts: {

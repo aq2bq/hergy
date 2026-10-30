@@ -311,14 +311,6 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 		basePath = s.cat.RolePath(in.Base.Place, in.Base.Name)
 	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
-	switch {
-	case readErr == nil:
-		if in.Hash != source.Hash(text) {
-			return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(old)))
-		}
-	case in.Hash != "":
-		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(old)))
-	}
 	rename := doc.Name != savedName
 	if rename {
 		if _, err := os.Stat(target); err == nil {
@@ -351,18 +343,26 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	writeHash := source.Hash("")
+	readHash := ""
 	if readErr == nil {
-		writeHash = source.Hash(text)
+		writeHash, readHash = source.Hash(text), source.Hash(text)
+	}
+	// The file moved under the screen: the save is refused, and the answer
+	// carries the file as it is now and the text this save would have written
+	// over it, so the screen keeps the draft and lets the person choose
+	// (r-3c77, d-a34a). A file that is not there is read as the empty hash.
+	if in.Hash != readHash {
+		return nil, s.refuseChanged(s.cat.Display(old), old, ruleDoc(s.cat.Display(old)), false)
 	}
 	if rename {
 		if err := source.WriteIfUnchanged(target, source.Hash(""), string(edited)); err != nil {
-			return r2WriteError(err, s.cat.Display(target))
+			return s.r2WriteError(err, s.cat.Display(target), target, ruleDoc(s.cat.Display(target)))
 		}
 		if err := os.Remove(old); err != nil {
 			return nil, refuse(http.StatusInternalServerError, err.Error())
 		}
 	} else if err := source.WriteIfUnchanged(old, writeHash, string(edited)); err != nil {
-		return r2WriteError(err, s.cat.Display(old))
+		return s.r2WriteError(err, s.cat.Display(old), old, ruleDoc(s.cat.Display(old)))
 	}
 	if rename && in.RenameUsers {
 		s.r2RenameUsers(savedName, doc.Name)
@@ -394,7 +394,7 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 		hash = source.Hash(text)
 	}
 	if in.Hash != hash {
-		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", display))
+		return nil, s.refuseChanged(display, path, nil, false)
 	}
 	_, before := rules.ReadAll(text, display)
 	known := map[string]bool{}
@@ -410,7 +410,7 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 		}
 	}
 	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
-		return r2WriteError(err, display)
+		return s.r2WriteError(err, display, path, nil)
 	}
 	if refusal := s.assignRuleIDs(); refusal != nil {
 		return nil, refusal
@@ -444,7 +444,7 @@ func (k apiRole) Delete(name string, in apiIn) (any, *apiErr) {
 		pathHash = source.Hash(text)
 	}
 	if hash != pathHash {
-		return nil, refuse(http.StatusConflict, tf("error.rules_file_changed", s.cat.Display(path)))
+		return nil, s.refuseChanged(s.cat.Display(path), path, nil, true)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, refuse(http.StatusInternalServerError, err.Error())

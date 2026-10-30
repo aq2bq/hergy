@@ -221,19 +221,22 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.Errorf("error.edit_yaml", "profile", err).Error())
 	}
 	text, hash := s.p2Text(path)
-	if in.Hash != hash {
-		return nil, refuse(http.StatusConflict, tf("error.profiles_file_changed", display))
-	}
 	entries, _ := profile.ReadAll(text, display)
 	edited, err := p2EditProfile(text, display, entries, draft.profileOf(), in.Original)
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
+	// The file moved under the screen: the save is refused, and the answer
+	// carries the file as it is now and the text the panel would write over it
+	// (r-3c77, d-a34a).
+	if in.Hash != hash {
+		return nil, s.refuseChanged(display, path, profileDoc(draft.Name, display), false)
+	}
 	if problem, bad := p2FirstError(edited, display); bad {
 		return nil, refuse(http.StatusUnprocessableEntity, problem)
 	}
 	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
-		return p2WriteError(err, display)
+		return k.s.p2WriteError(err, display, path, profileDoc(draft.Name, display))
 	}
 	if in.Original != "" && in.Original != draft.Name && in.RenameUsers {
 		s.p2RenameUsers(in.Place, in.Original, draft.Name)
@@ -257,7 +260,7 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, problem)
 	}
 	if err := source.WriteIfUnchanged(path, in.Hash, in.Text); err != nil {
-		return p2WriteError(err, display)
+		return k.s.p2WriteError(err, display, path, nil)
 	}
 	list := k.s.p2List()
 	return apiSaved{
@@ -281,7 +284,7 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	}
 	text, pathHash := s.p2Text(path)
 	if hash != pathHash {
-		return nil, refuse(http.StatusConflict, tf("error.profiles_file_changed", display))
+		return nil, s.refuseChanged(display, path, nil, true)
 	}
 	entries, _ := profile.ReadAll(text, display)
 	if _, found := p2FindEntry(entries, name); !found {
@@ -292,7 +295,7 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	if err := source.WriteIfUnchanged(path, pathHash, string(edited)); err != nil {
-		return p2WriteError(err, display)
+		return k.s.p2WriteError(err, display, path, nil)
 	}
 	return k.listAnswer(), nil
 }

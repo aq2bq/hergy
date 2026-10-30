@@ -7,16 +7,18 @@
 // （ドラッグの途中の class だけは、動かしている間の印として付ける）。
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field, inText } from '../lib/field.js';
+import { ConflictNotice } from '../lib/conflict.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
-  focusAsk, scrollAsk, panelByKey, HQ, canCopy,
+  focusAsk, scrollAsk, panelByKey, HQ, canCopy, files,
+  pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
   pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
   pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, inputField,
-  reorderArgs,
+  reorderArgs, scheduleCheck,
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 import type { PlaceGroup } from './state.js';
@@ -212,6 +214,10 @@ function Panel({ panel }: { panel: PanelState }) {
         </div>
         <ul class="vm" data-for="env">{problemsOf(panel, 'env')}</ul>
       </div></div>
+      {panel.conflict ? <ConflictNotice c={panel.conflict.c} mine={(files.value.find((f) => f.file === panel.file) || { text: '' }).text || ''} undone={panel.conflict.undone}
+        onOverwrite={() => pressOverwrite(panel.key)}
+        onRevert={() => { pressRevertConflict(panel.key); scheduleCheck(panel.key); }}
+        onUndo={() => { pressUndoConflict(panel.key); scheduleCheck(panel.key); }} /> : null}
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled={saveBlocked(panel)} onClick={() => pressSave(panel.key)}>保存</button><span class="dirty">{saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">{counts(panel)}</span>{panel.savedLine ? <span class="ok">保存しました</span> : ''}{panel.refusal ? <span class="sev err refusal">{panel.refusal}</span> : ''}
         <span class="acts">{panel.confirming

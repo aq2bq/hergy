@@ -21,6 +21,180 @@ import {
   problemText2
 } from "./nav-1nz0k24n.js";
 
+// lib/conflict.tsx
+var str = (v) => typeof v === "string" ? v : "";
+function conflictOf(err) {
+  if (typeof err !== "object" || err === null || !("json" in err))
+    return null;
+  const json = err.json;
+  if (typeof json !== "object" || json === null)
+    return null;
+  const one = json;
+  const file = one.file;
+  if (typeof one.text !== "string" || typeof file !== "object" || file === null)
+    return null;
+  const f = file;
+  if (typeof f.path !== "string" || typeof f.exists !== "boolean")
+    return null;
+  return {
+    text: one.text,
+    file: {
+      path: f.path,
+      exists: f.exists,
+      hash: str(f.hash),
+      text: str(f.text),
+      changed: str(f.changed),
+      doc: f.doc
+    }
+  };
+}
+function rowsOf(file, draft) {
+  const a = lines(file), b = lines(draft);
+  const lcs = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1;i >= 0; i--) {
+    for (let j = b.length - 1;j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0, j = 0;
+  let n = 1;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      i++;
+      j++;
+      n++;
+      continue;
+    }
+    if (j < b.length && (i === a.length || lcs[i][j + 1] >= lcs[i + 1][j])) {
+      out.push({ n, file: null, draft: b[j] });
+      j++;
+      continue;
+    }
+    out.push({ n, file: a[i], draft: null });
+    i++;
+    n++;
+  }
+  return out;
+}
+function lines(text) {
+  const all = (text || "").replace(/\n$/, "");
+  return all === "" ? [] : all.split(`
+`);
+}
+function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }) {
+  const [shown, setShown] = d(false);
+  if (undone) {
+    return /* @__PURE__ */ u("section", {
+      class: "conflict",
+      "data-conflict": c.file.path,
+      "data-state": "undone",
+      role: "status",
+      children: [
+        /* @__PURE__ */ u("p", {
+          class: "cf-text",
+          children: "ファイルの今の内容を読み込みました"
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cf-acts",
+          children: /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            "data-act": "cf-undo",
+            onClick: onUndo,
+            children: "取り消す"
+          })
+        })
+      ]
+    });
+  }
+  const rows = shown ? rowsOf(c.file.text || "", mine) : [];
+  return /* @__PURE__ */ u("section", {
+    class: "conflict",
+    "data-conflict": c.file.path,
+    "data-exists": c.file.exists ? "1" : "0",
+    role: "alert",
+    children: [
+      /* @__PURE__ */ u("p", {
+        class: "cf-text",
+        children: c.text
+      }),
+      shown ? /* @__PURE__ */ u("div", {
+        class: "cf-compare",
+        children: [
+          /* @__PURE__ */ u("p", {
+            class: "cf-note",
+            children: "書いていた内容は、この画面に残っています。違う行だけを並べます"
+          }),
+          rows.length === 0 ? /* @__PURE__ */ u("p", {
+            class: "cf-none",
+            children: "この画面で読んだときと、違う行はありません"
+          }) : /* @__PURE__ */ u("table", {
+            children: [
+              /* @__PURE__ */ u("thead", {
+                children: /* @__PURE__ */ u("tr", {
+                  children: [
+                    /* @__PURE__ */ u("th", {
+                      children: "行"
+                    }),
+                    /* @__PURE__ */ u("th", {
+                      children: "ファイルの今の内容"
+                    }),
+                    /* @__PURE__ */ u("th", {
+                      children: "この画面で読んだ内容"
+                    })
+                  ]
+                })
+              }),
+              /* @__PURE__ */ u("tbody", {
+                children: rows.slice(0, 200).map((row) => /* @__PURE__ */ u("tr", {
+                  class: row.file === null ? "cf-add" : row.draft === null ? "cf-del" : "cf-both",
+                  children: [
+                    /* @__PURE__ */ u("th", {
+                      children: row.n
+                    }),
+                    /* @__PURE__ */ u("td", {
+                      children: row.file ?? ""
+                    }),
+                    /* @__PURE__ */ u("td", {
+                      children: row.draft ?? ""
+                    })
+                  ]
+                }))
+              })
+            ]
+          })
+        ]
+      }) : null,
+      /* @__PURE__ */ u("div", {
+        class: "cf-acts",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            "data-act": "cf-compare",
+            "aria-pressed": shown,
+            onClick: () => setShown(!shown),
+            children: shown ? "見比べるのをやめる" : "見比べる"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn primary sm",
+            "data-act": "cf-overwrite",
+            disabled: !!busy,
+            onClick: onOverwrite,
+            children: c.file.exists ? "書いていた内容で上書きする" : "書いていた内容で作り直して保存する"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            "data-act": "cf-revert",
+            disabled: !!busy,
+            onClick: onRevert,
+            children: "元に戻す"
+          })
+        ]
+      })
+    ]
+  });
+}
+
 // lib/yamltab.tsx
 function isProblem(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -87,6 +261,9 @@ function YamlTab2(props) {
   const [laid, setLaid] = d(text);
   const [saved, setSaved] = d(false);
   const [refusal, setRefusal] = d("");
+  const [conflict, setConflict] = d(null);
+  const [undone, setUndone] = d(false);
+  const keep = A(null);
   const dirty = now.text !== base.current;
   const errs = now.problems.filter((p) => p.sev === "err").length;
   const warns = now.problems.length - errs;
@@ -135,18 +312,20 @@ function YamlTab2(props) {
       check();
     }, 300);
   }
-  async function save() {
+  async function save(over) {
     const el = ta.current;
     if (!el)
       return;
     setRefusal("");
     try {
-      const answer = await saveText2(kind, name, place, el.value, mine.current, extra);
+      const answer = await saveText2(kind, name, place, el.value, over === undefined ? mine.current : over, extra);
       if (!alive.current)
         return;
       base.current = el.value;
       if (answer.json && answer.json.hash)
         mine.current = answer.json.hash;
+      setConflict(null);
+      setUndone(false);
       if (onSaved)
         onSaved({ ok: true, status: answer.status, json: answer.json, text: answer.text });
       layout(now.problems);
@@ -157,8 +336,50 @@ function YamlTab2(props) {
     } catch (e) {
       if (!alive.current)
         return;
+      const c = conflictOf(e);
+      if (c) {
+        setConflict(c);
+        setUndone(false);
+        return;
+      }
       setRefusal(problemText2(e, "保存できませんでした"));
     }
+  }
+  function overwrite() {
+    if (!conflict)
+      return;
+    save(conflict.file.hash || "");
+  }
+  function readIn() {
+    const el = ta.current;
+    if (!el || !conflict)
+      return;
+    keep.current = { text: el.value, base: base.current, hash: mine.current };
+    el.value = conflict.file.text || "";
+    base.current = el.value;
+    mine.current = conflict.file.hash || "";
+    setUndone(true);
+    setRefusal("");
+    autosize2(el);
+    layout(now.problems);
+    check();
+    report();
+  }
+  function undoRead() {
+    const el = ta.current;
+    const was = keep.current;
+    if (!el || !was)
+      return;
+    el.value = was.text;
+    base.current = was.base;
+    mine.current = was.hash;
+    keep.current = null;
+    setConflict(null);
+    setUndone(false);
+    autosize2(el);
+    layout(now.problems);
+    check();
+    report();
   }
   function revert() {
     const el = ta.current;
@@ -338,6 +559,14 @@ function YamlTab2(props) {
           })
         ]
       }),
+      conflict ? /* @__PURE__ */ u(ConflictNotice, {
+        c: conflict,
+        mine: base.current,
+        undone,
+        onOverwrite: overwrite,
+        onRevert: readIn,
+        onUndo: undoRead
+      }) : null,
       /* @__PURE__ */ u("footer", {
         class: "pf",
         children: [
@@ -345,7 +574,7 @@ function YamlTab2(props) {
             class: "btn primary",
             "data-act": "yaml-save",
             disabled: !dirty || grew,
-            onClick: save,
+            onClick: () => save(),
             children: "保存"
           }),
           /* @__PURE__ */ u("span", {
@@ -376,4 +605,4 @@ function YamlTab2(props) {
   });
 }
 
-export { checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };
+export { conflictOf, ConflictNotice, checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };
