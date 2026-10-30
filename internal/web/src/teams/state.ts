@@ -84,6 +84,24 @@ export const HQ: HQIsland | null = DATA.hq || null;
 // the way it always was (d-73fc: the old use is not broken).
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
 export const GROUPS: Schemas['HQTeamGroup'][] | null = GROUPED && HQ ? (HQ.teams || []) : null;
+
+// TeamGroup is one place the list draws a head for (r-410c, d-e77c): the
+// project's own place (its key is "" without projects: listed), the global
+// layer's, or another listed project's. The one-project headquarters' groups
+// are read with the same shape.
+export type TeamGroup = { key: string; global: boolean; name: string; display: string; count: number };
+export const placeGroups = (): TeamGroup[] => {
+  if (HQ && HQ.teams && HQ.teams.length) {
+    return HQ.teams.map((g) => {
+      const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
+      return { key, global: !!g.global, name: groupNameOf(g), display: g.display || '', count: 0 };
+    });
+  }
+  return [
+    { key: '', global: false, name: currentProjectName() || 'プロジェクト', display: DIR.project, count: 0 },
+    { key: 'global', global: true, name: 'グローバル', display: DIR.global, count: 0 },
+  ];
+};
 // currentGroup is the key of the project this serve was started in: a row the
 // screen adds goes there, and a row without a group is its own.
 export const CURRENT = HQ && HQ.projects && HQ.projects.current ? (HQ.projects.current.path || '') : '';
@@ -444,10 +462,12 @@ export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number];
 // no hash, no document, and no rule (n-e3de).
 const NO_AGREEMENT: Schemas['TeamAgreement'] = { path: '', hash: '', has: false, rules: 0 };
 
-function defOf(item: DefItem, project?: string): Rec {
+function defOf(item: DefItem, project?: string, only?: Place): Rec {
   const group = project || '';
   const places = item.places || {};
-  const eff: Place = item.effective || (places.project ? 'project' : 'global');
+  // only keeps one side of a name: a list draws a head for each place, so a
+  // definition that stands in both is two rows (r-410c).
+  const eff: Place = only || item.effective || (places.project ? 'project' : 'global');
   const place = places[eff];
   const doc = place?.doc;
   const agree = doc?.agreement || NO_AGREEMENT;
@@ -460,11 +480,11 @@ function defOf(item: DefItem, project?: string): Rec {
     saved = fromJSON(agree.doc);
     saved.__path = agree.path;
   }
-  const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
+  const hidden = (only ? [] : (item.hidden || [])).filter((p) => places[p]).map((p) => ({
     place: p, path: places[p]?.path, hash: places[p]?.hash,
   }));
   const r = recOf({
-    name: item.name || '', dom, project: group, place: eff, places: PLACES.filter((p) => places[p]),
+    name: item.name || '', dom, project: group, place: eff, places: only ? [only] : PLACES.filter((p) => places[p]),
     teamPath: place?.path || '', agreePath: agree.path || '',
     hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken,
     hidden, ops: [],
@@ -508,7 +528,7 @@ const byRealName = (name: string): Rec | null => recs.value.find((r: Rec) => r.n
 // groupOfRecord is the group a writable row belongs to: its own project, the
 // global layer, or, for a row that is not there yet, this serve's project.
 // Without projects: the screen writes to the one project, as it always did.
-export const groupOfRecord = (r: Rec) => (GROUPED ? (r.project || (r.place.value === 'global' ? 'global' : CURRENT)) : '');
+export const groupOfRecord = (r: Rec) => (r.project || (r.place.value === 'global' ? 'global' : (GROUPED ? CURRENT : '')));
 // The list is drawn in the order the records stand in, so a row that is added
 // or read again is put back where a person was looking: firstIndexOf is the
 // place of the first record one rule names, and orderRows puts one row there
@@ -519,7 +539,7 @@ export function orderRows(r: Rec, at: number): void {
   all.splice(Math.max(0, Math.min(at < 0 ? 0 : at, all.length)), 0, r);
   recs.value = all;
 }
-export const rowsOfGroup = (key: string) => recs.value.filter((r: Rec) => (r.project ? r.project === key : key === (r.place.value === 'global' ? 'global' : CURRENT)));
+export const rowsOfGroup = (key: string) => recs.value.filter((r: Rec) => groupOfRecord(r) === key);
 
 // ---- まだ無い定義（B2, B3） --------------------------------------------
 // A definition that is not there yet is one row the screen holds rather than a
@@ -590,6 +610,17 @@ export function theName(base: string): string {
   }
   return base;
 }
+// groupStart is where a row added under one place's head stands: the first row
+// of that head, or before the next head's rows when it holds none.
+function groupStart(group: string): number {
+  const order = placeGroups().map((g) => g.key);
+  const rank = order.indexOf(group);
+  const i = recs.value.findIndex((r) => groupOfRecord(r) === group);
+  if (i >= 0) return i;
+  const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
+  return j >= 0 ? j : recs.value.length;
+}
+
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own
 // reading of the base (spec-teams B2).
@@ -599,13 +630,12 @@ export async function addDraft(how: string, place: Place, name: string, base: Te
   // The row stands where the mock draws it: one added from the scaffold stands
   // first, and a duplicate or a copy stands right under the row it came from
   // (spec-teams B1, B3, B4).
-  let at = 0;
-  if (base) {
-    // A copy stands at the end of the side it was copied to (the list draws a
-    // group's rows in this order). A duplicate stands right under the row it
-    // came from (r-f781).
-    if (how === 'copy' && GROUPED) at = recs.value.length;
-    else { const i = firstIndexOf((x) => x.name.value === base.name); at = i >= 0 ? i + 1 : 0; }
+  // A row stands at the top of the head it was added under; a duplicate stands
+  // right under the row it came from (r-410c, r-f781).
+  let at = groupStart(project || (place === 'global' ? 'global' : ''));
+  if (base && how !== 'copy') {
+    const i = firstIndexOf((x) => x.name.value === base.name);
+    at = i >= 0 ? i + 1 : at;
   }
   orderRows(r, at);
   withOpen(r.dom, true);
@@ -964,7 +994,6 @@ export async function saveAgree(r: Rec) {
 // places, and the side a person is looking at is the one the row must keep
 // (r-f781). Without projects listed the row keeps both places.
 function itemInGroup(item: DefItem, group: string): DefItem {
-  if (!GROUPED) return item;
   const place = groupPlace(group);
   const one = item.places && item.places[place];
   if (!one) return { ...item, places: {}, effective: place, hidden: [] };
@@ -1446,8 +1475,11 @@ export function pressToggle(r: Rec) {
   withOpen(r.dom, !isOpen(r.dom));
   syncURL();
 }
-export async function pressNew() {
-  await addDraft('new', 'project', '', null, GROUPED ? CURRENT : '');
+export async function pressNew(group?: string) {
+  // The head a person pressed says the place the row stands in (r-410c): the
+  // row is that group's, and there is no switch inside it to move it.
+  const key = group === undefined ? placeGroups()[0].key : group;
+  await addDraft('new', key === 'global' ? 'global' : 'project', '', null, key);
 }
 // pressStarterRoles asks for the starter role documents, or drops the ask: the
 // server writes them only when the person pressed this, and only the ones no
@@ -1469,7 +1501,7 @@ export async function pressCopy(r: Rec) {
   const to = other(r.place.value);
   // A grouped screen draws each side as rows under its own head: the copy is a
   // row of the side it was copied to (r-f781).
-  const group = GROUPED ? copyGroupOf(to, r.project, CURRENT) : r.project;
+  const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : '');
   await addDraft('copy', to, r.name.value, { place: r.place.value, name: r.name.value }, group);
 }
 // pressPlace moves a definition that is not there yet to the other place. The
@@ -1586,8 +1618,16 @@ export function selectPick(r: Rec, sel: CanvasPick | null, side?: string) {
 
 // ---- 立ち上げ ----------------------------------------------------------
 export function boot() {
-  if (GROUPS) GROUPS.forEach((g) => rowsIn(g).forEach((item) => defOf(item, groupKeyOf(g))));
-  else (LIST.items || []).forEach((item) => defOf(item));
+  if (HQ && HQ.teams && HQ.teams.length) {
+    HQ.teams.forEach((g) => {
+      const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
+      rowsIn(g).forEach((item) => defOf(item, key, g.global ? 'global' : 'project'));
+    });
+  } else {
+    (LIST.items || []).forEach((item) => {
+      for (const place of PLACES) if (item.places && item.places[place]) defOf(item, place === 'global' ? 'global' : '', place);
+    });
+  }
   readURL();
   pickFile();
   // What the band carried here from this screen is put back once, before the

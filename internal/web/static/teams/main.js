@@ -219,6 +219,18 @@ var PROFILES = DATA.profiles || [];
 var HQ = DATA.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
 var GROUPS = GROUPED && HQ ? HQ.teams || [] : null;
+var placeGroups = () => {
+  if (HQ && HQ.teams && HQ.teams.length) {
+    return HQ.teams.map((g) => {
+      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      return { key, global: !!g.global, name: groupNameOf(g), display: g.display || "", count: 0 };
+    });
+  }
+  return [
+    { key: "", global: false, name: currentProjectName() || "プロジェクト", display: DIR.project, count: 0 },
+    { key: "global", global: true, name: "グローバル", display: DIR.global, count: 0 }
+  ];
+};
 var CURRENT = HQ && HQ.projects && HQ.projects.current ? HQ.projects.current.path || "" : "";
 var rowsIn = (g) => g.list && g.list.items || [];
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
@@ -508,10 +520,10 @@ function setWide(r) {
 var recs = y([]);
 var uids = 0;
 var NO_AGREEMENT = { path: "", hash: "", has: false, rules: 0 };
-function defOf(item, project) {
+function defOf(item, project, only) {
   const group = project || "";
   const places = item.places || {};
-  const eff = item.effective || (places.project ? "project" : "global");
+  const eff = only || item.effective || (places.project ? "project" : "global");
   const place = places[eff];
   const doc = place?.doc;
   const agree = doc?.agreement || NO_AGREEMENT;
@@ -525,7 +537,7 @@ function defOf(item, project) {
     saved = fromJSON2(agree.doc);
     saved.__path = agree.path;
   }
-  const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
+  const hidden = (only ? [] : item.hidden || []).filter((p) => places[p]).map((p) => ({
     place: p,
     path: places[p]?.path,
     hash: places[p]?.hash
@@ -535,7 +547,7 @@ function defOf(item, project) {
     dom,
     project: group,
     place: eff,
-    places: PLACES.filter((p) => places[p]),
+    places: only ? [only] : PLACES.filter((p) => places[p]),
     teamPath: place?.path || "",
     agreePath: agree.path || "",
     hash: place?.hash || "",
@@ -584,14 +596,14 @@ var byKey = (k) => recs.value.find((r) => r.key.value === k) || null;
 var byName = (n) => recs.value.find((r) => r.dom === n) || null;
 var byRef = (name, group) => group ? byName(domOf(name, group)) : byName(name) || byRealName(name);
 var byRealName = (name) => recs.value.find((r) => r.name.value === name && (r.project === CURRENT || r.project === "")) || recs.value.find((r) => r.name.value === name) || null;
-var groupOfRecord = (r) => GROUPED ? r.project || (r.place.value === "global" ? "global" : CURRENT) : "";
+var groupOfRecord = (r) => r.project || (r.place.value === "global" ? "global" : GROUPED ? CURRENT : "");
 var firstIndexOf = (want) => recs.value.findIndex((x) => want(x));
 function orderRows(r, at) {
   const all = recs.value.filter((x) => x !== r);
   all.splice(Math.max(0, Math.min(at < 0 ? 0 : at, all.length)), 0, r);
   recs.value = all;
 }
-var rowsOfGroup = (key) => recs.value.filter((r) => r.project ? r.project === key : key === (r.place.value === "global" ? "global" : CURRENT));
+var rowsOfGroup = (key) => recs.value.filter((r) => groupOfRecord(r) === key);
 function draftRecord(how, place, name, base, project) {
   const r = recOf({
     dom: "~new" + ++uids,
@@ -673,17 +685,22 @@ function theName(base) {
   }
   return base;
 }
+function groupStart(group) {
+  const order = placeGroups().map((g) => g.key);
+  const rank = order.indexOf(group);
+  const i = recs.value.findIndex((r) => groupOfRecord(r) === group);
+  if (i >= 0)
+    return i;
+  const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
+  return j >= 0 ? j : recs.value.length;
+}
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
-  let at = 0;
-  if (base) {
-    if (how === "copy" && GROUPED)
-      at = recs.value.length;
-    else {
-      const i = firstIndexOf((x) => x.name.value === base.name);
-      at = i >= 0 ? i + 1 : 0;
-    }
+  let at = groupStart(project || (place === "global" ? "global" : ""));
+  if (base && how !== "copy") {
+    const i = firstIndexOf((x) => x.name.value === base.name);
+    at = i >= 0 ? i + 1 : at;
   }
   orderRows(r, at);
   withOpen(r.dom, true);
@@ -1005,8 +1022,6 @@ async function saveAgree(r) {
   checkAgree(r);
 }
 function itemInGroup(item, group) {
-  if (!GROUPED)
-    return item;
   const place = groupPlace(group);
   const one = item.places && item.places[place];
   if (!one)
@@ -1467,8 +1482,9 @@ function pressToggle(r) {
   withOpen(r.dom, !isOpen(r.dom));
   syncURL();
 }
-async function pressNew() {
-  await addDraft("new", "project", "", null, GROUPED ? CURRENT : "");
+async function pressNew(group) {
+  const key = group === undefined ? placeGroups()[0].key : group;
+  await addDraft("new", key === "global" ? "global" : "project", "", null, key);
 }
 function pressStarterRoles(r) {
   r.starterRoles.value = !r.starterRoles.value;
@@ -1483,21 +1499,8 @@ async function pressDup(r) {
 }
 async function pressCopy(r) {
   const to = other(r.place.value);
-  const group = GROUPED ? copyGroupOf(to, r.project, CURRENT) : r.project;
+  const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : "");
   await addDraft("copy", to, r.name.value, { place: r.place.value, name: r.name.value }, group);
-}
-async function pressPlace(r, place) {
-  if (!r || !r.draftRow || r.place.value === place)
-    return;
-  const at = firstIndexOf((x) => x === r);
-  r.place.value = place;
-  orderRows(r, at);
-  resetCanvas(r);
-  r.seeded.value = false;
-  r.saved.value = cloneTeam(null);
-  r.agreeSaved.value = null;
-  await checkTeam(r);
-  focusAsk.value = { dom: r.dom, sel: `[data-act=pick-place][data-x="${place}"]` };
 }
 function pressDiscard(r) {
   if (r)
@@ -1602,10 +1605,18 @@ function selectPick(r, sel, side) {
     r.side.value = side;
 }
 function boot() {
-  if (GROUPS)
-    GROUPS.forEach((g) => rowsIn(g).forEach((item) => defOf(item, groupKeyOf(g))));
-  else
-    (LIST.items || []).forEach((item) => defOf(item));
+  if (HQ && HQ.teams && HQ.teams.length) {
+    HQ.teams.forEach((g) => {
+      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      rowsIn(g).forEach((item) => defOf(item, key, g.global ? "global" : "project"));
+    });
+  } else {
+    (LIST.items || []).forEach((item) => {
+      for (const place of PLACES)
+        if (item.places && item.places[place])
+          defOf(item, place === "global" ? "global" : "", place);
+    });
+  }
   readURL();
   pickFile();
   const carried = takeDraft2("teams");
@@ -4152,39 +4163,11 @@ function App() {
   });
 }
 function List() {
-  const toolbar = /* @__PURE__ */ u("div", {
-    class: "toolbar",
-    children: /* @__PURE__ */ u("button", {
-      class: "btn primary",
-      "data-act": "new",
-      onClick: () => pressNew(),
-      children: "＋ チーム定義を追加"
-    })
-  });
   if (HQ && HQ.error)
-    return /* @__PURE__ */ u(S, {
-      children: [
-        toolbar,
-        /* @__PURE__ */ u("p", {
-          class: "hq-err",
-          "data-role": "hq-error",
-          children: HQ.error
-        })
-      ]
-    });
-  const recs = allRecs();
-  if (!recs.length && !GROUPED)
-    return /* @__PURE__ */ u(S, {
-      children: [
-        toolbar,
-        /* @__PURE__ */ u("div", {
-          class: "list",
-          children: /* @__PURE__ */ u("p", {
-            class: "none",
-            children: "チーム定義はありません"
-          })
-        })
-      ]
+    return /* @__PURE__ */ u("p", {
+      class: "hq-err",
+      "data-role": "hq-error",
+      children: HQ.error
     });
   const head = /* @__PURE__ */ u("div", {
     class: "head",
@@ -4197,7 +4180,7 @@ function List() {
         children: "使命"
       }),
       /* @__PURE__ */ u("span", {
-        children: HQ ? "プロジェクト" : "置き場所"
+        children: "置き場所"
       }),
       /* @__PURE__ */ u("span", {
         children: "メンバー"
@@ -4217,112 +4200,95 @@ function List() {
       }) : null
     ]
   });
-  if (!GROUPED) {
+  const body = placeGroups().map((g) => {
+    const rows = rowsOfGroup(g.key);
     return /* @__PURE__ */ u(S, {
       children: [
-        toolbar,
-        /* @__PURE__ */ u("div", {
-          class: "list",
-          children: [
-            head,
-            recs.map((r) => /* @__PURE__ */ u(Row, {
-              r
-            }, r.key.value))
-          ]
-        })
-      ]
-    });
-  }
-  let any = false;
-  const body = (GROUPS || []).map((g) => {
-    const rows = rowsOfGroup(groupKeyOf(g));
-    if (rows.length)
-      any = true;
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u(GroupHead, {
-          g
-        }, "g" + groupKeyOf(g)),
+        PlaceHead({ g }),
         rows.map((r) => /* @__PURE__ */ u(Row, {
           r
-        }, r.key.value))
+        }, r.key.value)),
+        rows.length === 0 ? /* @__PURE__ */ u("div", {
+          class: "hq-empty",
+          children: /* @__PURE__ */ u("span", {
+            class: "none",
+            children: [
+              g.name,
+              " にはチーム定義がありません。"
+            ]
+          })
+        }) : null
       ]
     });
   });
-  return /* @__PURE__ */ u(S, {
+  return /* @__PURE__ */ u("div", {
+    class: "list hq-grouped",
     children: [
-      toolbar,
-      /* @__PURE__ */ u("div", {
-        class: "list hq-grouped",
-        children: [
-          head,
-          body,
-          any ? null : /* @__PURE__ */ u("p", {
-            class: "none",
-            children: "チーム定義はありません"
-          })
-        ]
-      })
+      head,
+      body
     ]
   });
 }
-function GroupHead({ g }) {
-  const key = groupKeyOf(g);
-  if (g.global) {
-    return /* @__PURE__ */ u("div", {
-      class: "hq-gh global",
-      "data-group": "global",
-      children: [
-        /* @__PURE__ */ u("span", {
-          class: "hq-gn",
-          children: "グローバル"
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "hq-gp",
-          children: g.display || ""
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "hq-gc",
-          children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
-        })
-      ]
-    });
-  }
+function PlaceHead({ g }) {
+  const key = g.key;
+  const target = key === "global" ? "global" : "project";
+  const said = key === "global" ? "グローバル" : g.name;
+  const count = rowsOfGroup(key).length;
   const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === key).length;
   return /* @__PURE__ */ u("div", {
-    class: "hq-gh",
+    class: "hq-gh" + (g.global ? " global" : ""),
     "data-group": key,
+    "data-place": target,
+    "aria-label": `置き場所: ${said}`,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-gn",
-        children: groupNameOf(g)
+        children: g.name
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-gp",
-        children: g.project ? g.project.display : ""
+        children: g.display || ""
       }),
-      /* @__PURE__ */ u("span", {
+      g.global ? /* @__PURE__ */ u("span", {
+        class: "hq-gc",
+        children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+      }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
           "チーム定義 ",
           /* @__PURE__ */ u("b", {
-            children: rowsIn(g).length
+            children: count
           }),
-          " · 動いているチーム ",
-          /* @__PURE__ */ u("b", {
-            children: live
-          })
+          HQ ? /* @__PURE__ */ u(S, {
+            children: [
+              " · 動いているチーム ",
+              /* @__PURE__ */ u("b", {
+                children: live
+              })
+            ]
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ u("button", {
+        class: "btn sm hq-add",
+        "data-act": "new",
+        "data-group": key,
+        "data-place": target,
+        onClick: () => pressNew(key),
+        children: [
+          "＋ ",
+          said,
+          " にチーム定義を追加"
         ]
       })
     ]
   });
 }
 function bringUnderBand(row) {
-  const head = row ? row.querySelector(":scope > .sum") : null;
-  if (!head)
+  if (!row || !row.querySelector(":scope > .sum"))
     return;
   const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
-  const delta = head.getBoundingClientRect().top - stick;
+  const delta = row.getBoundingClientRect().top - stick;
   if (Math.abs(delta) < 2)
     return;
   const quiet = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -4437,15 +4403,9 @@ function NameCell({ r, open }) {
     ]
   });
 }
+var groupLabel = (r) => r.project === "global" ? "グローバル" : r.project ? projectName2(r.project) : currentProjectName();
 function placePills(r) {
-  const place = r.place.value;
-  if (!GROUPED) {
-    return (r.places || []).map((p) => /* @__PURE__ */ u("span", {
-      class: "pill " + (p === place ? "on" : "shadow"),
-      children: p === "global" ? "グローバル" : currentProjectName()
-    }));
-  }
-  const label = r.project === "global" ? "グローバル" : projectName2(r.project);
+  const label = groupLabel(r);
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
   const name = r.name.value;
@@ -4475,28 +4435,10 @@ var runProject = (r) => r.place.value === "global" ? "" : r.project || CURRENT;
 function Sum({ r, open }) {
   const t = r.draft.value, saved = r.saved.value, rules = rulesOf2(r.agreeDraft.value);
   const broken = r.broken.value;
-  let pills;
-  if (r.draftRow && r.how === "copy")
-    pills = /* @__PURE__ */ u("span", {
-      class: "pill pending",
-      children: PLACE[r.place.value]
-    });
-  else if (r.draftRow) {
-    pills = /* @__PURE__ */ u("span", {
-      class: "seg",
-      role: "group",
-      "aria-label": "置き場所",
-      children: PLACES.map((p) => /* @__PURE__ */ u("button", {
-        class: p === r.place.value ? "on" : "",
-        "data-act": "pick-place",
-        "data-x": p,
-        "aria-pressed": p === r.place.value,
-        onClick: () => pressPlace(r, p),
-        children: PLACE[p]
-      }))
-    });
-  } else
-    pills = placePills(r);
+  const pills = r.draftRow ? /* @__PURE__ */ u("span", {
+    class: "pill pending",
+    children: groupLabel(r)
+  }) : placePills(r);
   const cell = broken ? "—" : open ? /* @__PURE__ */ u(Field, {
     id: "m-" + r.dom,
     class: "in-mission" + (t.mission !== saved.mission ? " changed" : ""),
@@ -4676,7 +4618,7 @@ function Dacts({ r }) {
       children: "取り消し"
     });
   const o = other2(r.place.value);
-  const group = GROUPED ? copyGroupOf(o, r.project, CURRENT) : r.project;
+  const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : "");
   const copying = allRecs().some((x) => x.name.value === r.name.value && x.place.value === o && (!GROUPED || groupOfRecord(x) === group));
   const ck = "del" + dkey(r);
   return /* @__PURE__ */ u(S, {

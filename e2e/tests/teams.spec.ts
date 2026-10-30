@@ -212,7 +212,7 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   // (N8), and a delete taking one definition away (N7).
   await page.goto(`${app.base}/teams`);
   await wait(page, there('#view .tdef'));
-  await wait(page, `document.querySelectorAll('#view .tdef').length===6`);
+  await wait(page, `document.querySelectorAll('#view .tdef').length===7`);
   // list is how many rows the list holds; the number itself is read where a
   // walk counts from it.
   const list = `document.querySelectorAll('#view .tdef').length`;
@@ -225,7 +225,7 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   const globalProfileFile = path.join(global, 'profiles.yaml');
   const beforeGlobalProfile = readFileSync(globalProfileFile, 'utf8');
 
-  await press(page, q('.toolbar [data-act=new]'));
+  await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
   await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
@@ -261,21 +261,16 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   await readTo<string>(
     page,
     `document.querySelector('.screens .scr[data-screen=teams] .n').textContent`,
-    'the band counts the saved definition, want 7',
-  ).toBe('7');
+    'the band counts the saved definition, want 8',
+  ).toBe('8');
 
   // N4: the same name saved into グローバル writes that place's own files; the
   // roles and profiles both places hold are chosen, not written (B2, Y3,
   // r-54b8).
-  await press(page, q('.toolbar [data-act=new]'));
+  // The head says the place: the global head adds the same name into グローバル
+  // (the project's is taken by the save above).
+  await press(page, q('#view .list .hq-gh[data-place=global] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
-  // The place comes first: the same name in プロジェクト is taken by the save
-  // above.
-  await press(page, `${draft}.querySelector('.c-place .seg button[data-x=global]')`);
-  await wait(
-    page,
-    `${draft}.querySelector('.c-place .seg button[data-x=global]').classList.contains('on')`,
-  );
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
   await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
   await wait(page, there2(draft, '.cv-canvas svg'));
@@ -291,7 +286,7 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
 
   // N8: 取り消し takes a row that is not there yet out and writes nothing.
   let before = await read<number>(page, list);
-  await press(page, q('.toolbar [data-act=new]'));
+  await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   await press(page, `${draft}.querySelector('[data-act=discard]')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
@@ -505,7 +500,7 @@ test('TEAMS-N1b the starter roles and profile are written only when asked', asyn
   }
   await page.goto(`${app.base}/teams`);
   await wait(page, there('#view .tdef'));
-  await press(page, q('.toolbar [data-act=new]'));
+  await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
   await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);

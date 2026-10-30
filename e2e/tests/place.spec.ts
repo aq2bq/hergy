@@ -12,17 +12,20 @@ import { press, read, readTo, set, there, wait } from './helpers';
 
 const ROLES = '#rows .role';
 const PROFILES = '#rows .row';
+// The teams list has no #rows: its rows and heads stand directly under .list.
+const TEAMS = '#view .list .tdef';
+const rootOf = (sel: string) => (sel === TEAMS ? '#view .list' : '#rows');
 
 // headOf is one place's head: the first head with that data-place.
-const headOf = (place: string) => `document.querySelector('#rows .hq-gh[data-place="${place}"]')`;
-const headCount = () => `document.querySelectorAll('#rows .hq-gh').length`;
+const headOf = (place: string, root = '#rows') => `document.querySelector('${root} .hq-gh[data-place="${place}"]')`;
+const headCount = (root = '#rows') => `document.querySelectorAll('${root} .hq-gh').length`;
 
 // rowsIn is the rows one place's head stands over: a head and the rows under it
 // until the next head.
 const rowsIn = (sel: string, place: string) => `(() => {
   const out = [];
   let on = null;
-  for (const el of document.querySelectorAll('#rows > *')) {
+  for (const el of document.querySelector(${JSON.stringify(rootOf(sel))}).children) {
     if (el.classList.contains('hq-gh')) { on = el.dataset.place || null; continue; }
     if (on === ${JSON.stringify(place)} && el.matches(${JSON.stringify(sel)})) out.push(el);
   }
@@ -38,7 +41,7 @@ const byName = (sel: string, place: string, name: string) => `(${rowsIn(sel, pla
 // addUnder presses one place's head button and answers the row it put at the
 // top of that head.
 async function addUnder(page: Page, sel: string, place: string): Promise<string> {
-  await press(page, `${headOf(place)}.querySelector('[data-act=new]')`);
+  await press(page, `${headOf(place, rootOf(sel))}.querySelector('[data-act=new]')`);
   const row = firstIn(sel, place);
   await wait(page, `!!${row}`);
   return row;
@@ -277,5 +280,119 @@ test.describe('the headquarters', () => {
     await page.reload();
     await wait(page, there(PROFILES));
     await readTo<number>(page, countIn(PROFILES, 'global'), 'the added profile stands under the global layer after opening the page again').toBe(beforeGlobal + 1);
+  });
+});
+
+test.describe('the one project, teams', () => {
+  test.use({ reads: 'teams' });
+
+  test('PLACE-T1 a team definition added under the project head', async ({ page, app }) => {
+    const file = path.join(app.proj, '.hergy', 'teams', 'place-t1', 'team.yaml');
+    const global = path.join(app.cfg, 'hergy', 'teams', 'place-t1', 'team.yaml');
+    await page.goto(`${app.base}/teams`);
+    await wait(page, there(TEAMS));
+    const beforeGlobal = await read<number>(page, countIn(TEAMS, 'global'));
+    const beforeProject = await read<number>(page, countIn(TEAMS, 'project'));
+    await readTo<boolean>(page, `!document.querySelector('.toolbar [data-act=new]')`, 'the list above has no add button').toBe(true);
+    await readTo<number>(page, headCount(rootOf(TEAMS)), 'the list draws the project and the global layer heads').toBe(2);
+    const said = await read<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('.hq-gn').textContent`, 'the project head name');
+    await readTo<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
+    expect(existsSync(file), 'the project holds no place-t1 before the add').toBe(false);
+
+    const row = await addUnder(page, TEAMS, 'project');
+    await noPlaceSwitch(page, row);
+    await readTo<string>(page, `${row}.querySelector('.pill.pending').textContent`, 'the new row says the project').toBe(said);
+    await set(page, `${row}.querySelector('.in-name')`, 'place-t1');
+    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
+    await wait(page, `!!(${byName(TEAMS, 'project', 'place-t1')}).querySelector('.ok')`);
+
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head holds the added definition').toBe(beforeProject + 1);
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head keeps its definitions').toBe(beforeGlobal);
+    expect(existsSync(file), 'the save wrote the project file').toBe(true);
+    expect(existsSync(global), 'the save wrote no global file').toBe(false);
+    await page.reload();
+    await wait(page, there(TEAMS));
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the added definition stands under the project after opening the page again').toBe(beforeProject + 1);
+  });
+
+  test('PLACE-T2 a team definition added under the global head', async ({ page, app }) => {
+    const file = path.join(app.cfg, 'hergy', 'teams', 'place-t2', 'team.yaml');
+    const project = path.join(app.proj, '.hergy', 'teams', 'place-t2', 'team.yaml');
+    await page.goto(`${app.base}/teams`);
+    await wait(page, there(TEAMS));
+    const beforeProject = await read<number>(page, countIn(TEAMS, 'project'));
+    const beforeGlobal = await read<number>(page, countIn(TEAMS, 'global'));
+    await readTo<boolean>(page, `!document.querySelector('.toolbar [data-act=new]')`, 'the list above has no add button').toBe(true);
+    await readTo<string>(page, `${headOf('global', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
+    expect(existsSync(file), 'the global layer holds no place-t2 before the add').toBe(false);
+
+    const row = await addUnder(page, TEAMS, 'global');
+    await noPlaceSwitch(page, row);
+    await set(page, `${row}.querySelector('.in-name')`, 'place-t2');
+    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
+    await wait(page, `!!(${byName(TEAMS, 'global', 'place-t2')}).querySelector('.ok')`);
+
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head holds the added definition').toBe(beforeGlobal + 1);
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head keeps its definitions').toBe(beforeProject);
+    expect(existsSync(file), 'the save wrote the global file').toBe(true);
+    expect(existsSync(project), 'the save wrote no project file').toBe(false);
+    await page.reload();
+    await wait(page, there(TEAMS));
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the added definition stands under the global layer after opening the page again').toBe(beforeGlobal + 1);
+  });
+});
+
+test.describe('the headquarters, teams', () => {
+  test.use({ reads: 'hq' });
+
+  test('PLACE-T3 a team definition added under a listed project head', async ({ page, app }) => {
+    const file = path.join(app.proj, '.hergy', 'teams', 'place-t3', 'team.yaml');
+    const global = path.join(app.cfg, 'hergy', 'teams', 'place-t3', 'team.yaml');
+    await page.goto(`${app.base}/teams`);
+    await wait(page, there(TEAMS));
+    const beforeProject = await read<number>(page, countIn(TEAMS, 'project'));
+    const beforeGlobal = await read<number>(page, countIn(TEAMS, 'global'));
+    await readTo<boolean>(page, `!document.querySelector('.toolbar [data-act=new]')`, 'the list above has no add button').toBe(true);
+    await readTo<number>(page, headCount(rootOf(TEAMS)), 'the list draws a head for every listed project and the global layer').toBe(4);
+    const said = await read<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('.hq-gn').textContent`, 'the first project head name');
+    await readTo<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
+
+    const row = await addUnder(page, TEAMS, 'project');
+    await noPlaceSwitch(page, row);
+    await set(page, `${row}.querySelector('.in-name')`, 'place-t3');
+    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
+    await wait(page, `!!(${byName(TEAMS, 'project', 'place-t3')}).querySelector('.ok')`);
+
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head holds the added definition').toBe(beforeProject + 1);
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head keeps its definitions').toBe(beforeGlobal);
+    expect(existsSync(file), 'the save wrote the listed project file').toBe(true);
+    expect(existsSync(global), 'the save wrote no global file').toBe(false);
+    await page.reload();
+    await wait(page, there(TEAMS));
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the added definition stands under the project after opening the page again').toBe(beforeProject + 1);
+  });
+
+  test('PLACE-T4 a team definition added under the global head', async ({ page, app }) => {
+    const file = path.join(app.cfg, 'hergy', 'teams', 'place-t4', 'team.yaml');
+    const project = path.join(app.proj, '.hergy', 'teams', 'place-t4', 'team.yaml');
+    await page.goto(`${app.base}/teams`);
+    await wait(page, there(TEAMS));
+    const beforeProject = await read<number>(page, countIn(TEAMS, 'project'));
+    const beforeGlobal = await read<number>(page, countIn(TEAMS, 'global'));
+    await readTo<string>(page, `${headOf('global', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
+
+    const row = await addUnder(page, TEAMS, 'global');
+    await noPlaceSwitch(page, row);
+    await set(page, `${row}.querySelector('.in-name')`, 'place-t4');
+    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
+    await wait(page, `!!(${byName(TEAMS, 'global', 'place-t4')}).querySelector('.ok')`);
+
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head holds the added definition').toBe(beforeGlobal + 1);
+    await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head keeps its definitions').toBe(beforeProject);
+    expect(existsSync(file), 'the save wrote the global file').toBe(true);
+    expect(existsSync(project), 'the save wrote no project file').toBe(false);
+    await page.reload();
+    await wait(page, there(TEAMS));
+    await readTo<number>(page, countIn(TEAMS, 'global'), 'the added definition stands under the global layer after opening the page again').toBe(beforeGlobal + 1);
   });
 });

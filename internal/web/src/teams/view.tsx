@@ -15,18 +15,18 @@ import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
 import {
-  PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup,
-  dkey, groupKeyOf, groupNameOf, rowsIn, currentProjectName, teamLabel, dtabOf, isOpen,
+  PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup, placeGroups,
+  dkey, currentProjectName, teamLabel, dtabOf, isOpen,
   rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
-  pressTab, pressToggle, pressNew, pressDup, pressCopy, pressPlace, pressDiscard,
+  pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile,
   pressDel, pressDelNo, pressDelYes, pressName, pressMission, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved,
 } from './state.js';
-import type { Rec, YFile } from './state.js';
+import type { Rec, TeamGroup, YFile } from './state.js';
 import type { Schemas } from '../lib/api';
 
 // messagesOf is the sentences a part draws its count from: the server's
@@ -71,50 +71,53 @@ export function App() {
 }
 
 // ---- 一覧 --------------------------------------------------------------
+// List is the team definitions under one head per place, each head carrying the
+// button that adds a definition to that place alone (r-410c, d-e77c). The list
+// above carries no add button.
 export function List() {
-  const toolbar = <div class="toolbar"><button class="btn primary" data-act="new" onClick={() => pressNew()}>＋ チーム定義を追加</button></div>;
   // A headquarters whose lists could not be read says why, rather than drawing
   // the one project's lists as though the projects were not there (r-1db7 L1).
-  if (HQ && HQ.error) return <>{toolbar}<p class="hq-err" data-role="hq-error">{HQ.error}</p></>;
-  const recs = allRecs();
-  if (!recs.length && !GROUPED) return <>{toolbar}<div class="list"><p class="none">チーム定義はありません</p></div></>;
+  if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>使命</span><span>{HQ ? 'プロジェクト' : '置き場所'}</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">動き</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">動き</span> : null}</div>
   );
-  if (!GROUPED) {
-    return <>{toolbar}<div class="list">{head}{recs.map((r) => <Row key={r.key.value} r={r} />)}</div></>;
-  }
-  // The rows stand in groups: every listed project in the config's order, then
-  // the global layer once (spec 4 章).
-  let any = false;
-  const body = (GROUPS || []).map((g) => {
-    const rows = rowsOfGroup(groupKeyOf(g));
-    if (rows.length) any = true;
-    return <><GroupHead key={'g' + groupKeyOf(g)} g={g} />{rows.map((r) => <Row key={r.key.value} r={r} />)}</>;
+  const body = placeGroups().map((g) => {
+    const rows = rowsOfGroup(g.key);
+    return <>{PlaceHead({ g })}{rows.map((r) => <Row key={r.key.value} r={r} />)}
+      {rows.length === 0 ? <div class="hq-empty"><span class="none">{g.name} にはチーム定義がありません。</span></div> : null}
+    </>;
   });
-  return <>{toolbar}<div class="list hq-grouped">{head}{body}{any ? null : <p class="none">チーム定義はありません</p>}</div></>;
+  return <div class="list hq-grouped">{head}{body}</div>;
 }
 
-// groupHeader is one project's group's head (spec 4 章): its name, where it
-// is, and how many definitions and running teams it holds. The global layer
-// comes last, with the one sentence about being used from every project.
-function GroupHead({ g }: { g: Schemas['HQTeamGroup'] }) {
-  const key = groupKeyOf(g);
-  if (g.global) {
-    return <div class="hq-gh global" data-group="global"><span class="hq-gn">グローバル</span><span class="hq-gp">{g.display || ''}</span><span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span></div>;
-  }
+// PlaceHead is one place's head (spec 4 章, d-e77c): its name, where it is,
+// how many definitions and running teams it holds, and the button that adds a
+// definition to this place alone.
+function PlaceHead({ g }: { g: TeamGroup }) {
+  const key = g.key;
+  const target = key === 'global' ? 'global' : 'project';
+  const said = key === 'global' ? 'グローバル' : g.name;
+  const count = rowsOfGroup(key).length;
   const live = ((hq.running.value && hq.running.value.teams) || []).filter((t: { project?: string }) => t.project === key).length;
-  return <div class="hq-gh" data-group={key}><span class="hq-gn">{groupNameOf(g)}</span><span class="hq-gp">{g.project ? g.project.display : ''}</span><span class="hq-gc">チーム定義 <b>{rowsIn(g).length}</b> · 動いているチーム <b>{live}</b></span></div>;
+  return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`置き場所: ${said}`}>
+      <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
+      {g.global
+        ? <span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span>
+        : <span class="hq-gc">チーム定義 <b>{count}</b>{HQ ? <> · 動いているチーム <b>{live}</b></> : null}</span>}
+      <button class="btn sm hq-add" data-act="new" data-group={key} data-place={target} onClick={() => pressNew(key)}>＋ {said} にチーム定義を追加</button>
+    </div>;
 }
 
 // bringUnderBand moves the page so an opened row's head stands under the band
 // (d-943f, r-e39c): the figure under it has the room the window has, and a row
 // opened low in the list is not opened half off the screen.
 function bringUnderBand(row: HTMLElement | null): void {
-  const head = row ? row.querySelector<HTMLElement>(':scope > .sum') : null;
-  if (!head) return;
+  if (!row || !row.querySelector(':scope > .sum')) return;
   const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 62;
-  const delta = head.getBoundingClientRect().top - stick;
+  // The row's own top, not its head: an open row's head is sticky, and after the
+  // browser's scroll anchoring kept another open row in place the head can sit
+  // at the band while the row itself is above the window (r-410c).
+  const delta = row.getBoundingClientRect().top - stick;
   if (Math.abs(delta) < 2) return;
   const quiet = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   window.scrollBy({ top: delta, behavior: quiet ? 'auto' : 'smooth' });
@@ -175,17 +178,15 @@ function NameCell({ r, open }: { r: Rec; open: boolean }) {
   );
 }
 
-// placePills is the row's プロジェクト column (spec 4 章): the project's name,
-// or グローバル. A project that overrides a global name carries the crossed-out
-// グローバル, and the global row says which projects override it.
+// groupLabel is the name a place is drawn by inside a row: the project's name
+// (proj), グローバル, or プロジェクト when no headquarters reading names it.
+const groupLabel = (r: Rec): string => (r.project === 'global' ? 'グローバル' : (r.project ? hqProjectName(r.project) : currentProjectName()));
+
+// placePills is the row's 置き場所 column (spec 4 章, d-e77c): the place's name.
+// A project that overrides a global name carries the crossed-out グローバル, and
+// the global row says which projects override it.
 function placePills(r: Rec): ComponentChildren {
-  // Without projects: the list stays one, and its プロジェクト column still
-  // names the project or グローバル (d-8a45, r-5b96 audit 5).
-  const place = r.place.value;
-  if (!GROUPED) {
-    return (r.places || []).map((p) => <span class={'pill ' + (p === place ? 'on' : 'shadow')}>{p === 'global' ? 'グローバル' : currentProjectName()}</span>);
-  }
-  const label = r.project === 'global' ? 'グローバル' : hqProjectName(r.project);
+  const label = groupLabel(r);
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   const name = r.name.value;
@@ -204,16 +205,12 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   // its row says 使命 —, keeps the problems validate named, and leaves the
   // counts blank (spec-teams 1.9). It is fixed in the YAML tab.
   const broken = r.broken.value;
-  // A definition that is not there yet chooses its place: a row added from the
-  // scaffold can go either way, and a copy is bound to the place it goes to
-  // (spec-teams B2, B3). A saved row says which project it is (spec 4 章).
-  let pills: ComponentChildren;
-  if (r.draftRow && r.how === 'copy') pills = <span class="pill pending">{PLACE[r.place.value]}</span>;
-  else if (r.draftRow) {
-    pills = (
-      <span class="seg" role="group" aria-label="置き場所">{PLACES.map((p) => <button class={p === r.place.value ? 'on' : ''} data-act="pick-place" data-x={p} aria-pressed={p === r.place.value} onClick={() => pressPlace(r, p)}>{PLACE[p]}</button>)}</span>
-    );
-  } else pills = placePills(r);
+  // A definition that is not there yet stands in the head it was added under:
+  // the head, not a switch inside the row, says the place (r-410c). A saved row
+  // says which place it is (spec 4 章).
+  const pills: ComponentChildren = r.draftRow
+    ? <span class="pill pending">{groupLabel(r)}</span>
+    : placePills(r);
   const cell = broken ? '—'
     : open
       ? <Field id={'m-' + r.dom} class={'in-mission' + (t.mission !== saved.mission ? ' changed' : '')} data-f="mission" value={t.mission} autocomplete="off" aria-label={`${teamLabel(r)} の使命`} onInput={(e: Event) => pressMission(r, inputValue(e))} />
@@ -268,7 +265,7 @@ function DtabsNav({ r }: { r: Rec }) {
 function Dacts({ r }: { r: Rec }) {
   if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r)}>取り消し</button>;
   const o = other(r.place.value);
-  const group = GROUPED ? copyGroupOf(o, r.project, CURRENT) : r.project;
+  const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : '');
   // A name the side the copy would go to already holds is not offered again:
   // on a grouped screen that side is the copy's own group, and a saved copy
   // there counts as much as one that is not saved yet (r-f781).
