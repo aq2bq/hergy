@@ -36,7 +36,7 @@ import {
   token2,
   parseOpen2
 } from "../chunk/nav-qsbr5nhe.js";
-import"../chunk/nav-ky5b4xn5.js";
+import"../chunk/nav-3jpvr4gr.js";
 import {
   fromJSON2,
   toDoc2,
@@ -118,24 +118,18 @@ var currentGroupName = () => {
   const found = (p.projects || []).find((x) => x.path === CURRENT);
   return found ? found.name : p.current && p.current.name || "";
 };
-function rowsOf(model, group, place) {
-  const out = [];
-  for (const r of model.roles) {
+function rowsOf(model, group) {
+  return model.roles.map((r) => {
     const row = { uid: r.uid, group, project: null, global: null };
     if (r.markdown) {
-      if (place !== "project")
-        continue;
       row.markdown = r.markdown;
       row.name = r.name || "";
-      out.push(row);
-      continue;
+      row.project = null;
+      row.global = null;
+      return row;
     }
     row.paths = {};
     for (const l of PLACES) {
-      if (l !== place) {
-        row[l] = null;
-        continue;
-      }
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc ? null : draft;
@@ -146,47 +140,20 @@ function rowsOf(model, group, place) {
         row[l] = null;
       }
     }
-    if (!row[place])
-      continue;
     if (r.noDoc)
       row.noDoc = true;
     if (r.isNew)
       row.isNew = true;
-    out.push(row);
-  }
-  return out;
+    return row;
+  });
 }
-function groupList() {
-  if (HQ && HQ.roles && HQ.roles.length) {
-    return HQ.roles.map((g) => ({
-      key: GROUPED ? groupKeyOf(g) : g.global ? "global" : "",
-      global: !!g.global,
-      name: groupNameOf(g),
-      display: g.display || ""
-    }));
-  }
-  return [
-    { key: "", global: false, name: currentProjectName(), display: DIR.project },
-    { key: "global", global: true, name: LNAME.global, display: DIR.global }
-  ];
-}
-var roleGroups = () => groupList().map((g) => ({
-  ...g,
-  count: roles.value.filter((r) => r.group === g.key && !r.markdown).length
-}));
-var groupOfRow = (r) => r.group || (r.global && !r.project ? "global" : "");
 function initialRoles() {
+  if (!GROUPED || !HQ)
+    return rowsOf(roleModel2(ISLAND.role || null), "");
   const out = [];
-  if (HQ && HQ.roles && HQ.roles.length) {
-    for (const g of HQ.roles) {
-      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
-      out.push(...rowsOf(roleModel2(g.list), key, g.global ? "global" : "project"));
-    }
-  } else {
-    const model = roleModel2(ISLAND.role || null);
-    out.push(...rowsOf(model, "", "project"));
-    out.push(...rowsOf(model, "global", "global"));
-  }
+  (HQ.roles || []).forEach((g) => {
+    rowsOf(roleModel2(g.list), groupKeyOf(g)).forEach((r) => out.push(r));
+  });
   out.forEach((r) => {
     r.uid = ++uid;
   });
@@ -625,27 +592,16 @@ function pressFilter(f) {
   touch();
   syncURL(false);
 }
-function pressNew(group) {
+function pressNew() {
   const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "使命", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
-  const key = group === undefined ? roleGroups()[0].key : group;
-  const place = key === "global" ? "global" : "project";
-  const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
-  nr[place] = { saved: null, draft: d, hash: "", text: "" };
-  const order = roleGroups().map((g) => g.key);
-  const rank = order.indexOf(key);
-  let at = roles.value.findIndex((r) => groupOfRow(r) === key);
-  if (at < 0) {
-    at = roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > rank);
-    if (at < 0)
-      at = roles.value.length;
-  }
-  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
+  const nr = { uid: nextUid(), isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: "", text: "" }, global: null };
+  roles.value = [nr, ...roles.value];
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: "" });
-  openRuleKey2(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
+  openRuleKey2(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
   touch();
-  askCheck(nr, place, () => {
+  askCheck(nr, "project", () => {
     askFocus(nr.uid, "[data-f=name]");
     touch();
   });
@@ -686,26 +642,23 @@ function pressCopy(id, l) {
     return;
   const to = other(l);
   const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: "", text: "" };
-  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
-  const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
-  nr[to] = e;
-  const order = roleGroups().map((g) => g.key);
-  const rank = order.indexOf(group);
-  let at = roles.value.findIndex((x) => groupOfRow(x) === group);
-  if (at < 0) {
-    at = roles.value.findIndex((x) => order.indexOf(groupOfRow(x)) > rank);
-    if (at < 0)
-      at = roles.value.length;
-  }
-  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
-  const open = new Set(state.value.open);
-  open.add(nr.uid);
-  patch({ open });
-  touch();
-  askCheck(nr, to, () => {
-    askFocus(nr.uid, "[data-f=name]");
+  if (GROUPED) {
+    const nr = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
+    nr[to] = e;
+    roles.value = [...roles.value, nr];
+    const open = new Set(state.value.open);
+    open.add(nr.uid);
+    patch({ open });
     touch();
-  });
+    askCheck(nr, to, () => {
+      askFocus(nr.uid, "[data-f=name]");
+      touch();
+    });
+    return;
+  }
+  withRow(id, (old) => ({ ...old, [to]: e }));
+  touch();
+  askCheck(byUid(id), to, () => touch());
 }
 function canCopy(r, l) {
   const e = r[l];
@@ -714,8 +667,10 @@ function canCopy(r, l) {
   const to = other(l);
   if (r[to])
     return false;
-  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
-  return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to].draft.name === e.saved.name);
+  if (!GROUPED)
+    return true;
+  const group = copyGroupOf(to, r.group, CURRENT);
+  return !roles.value.some((x) => x.group === group && x[to] && x[to].draft.name === e.saved.name);
 }
 function pressDel(id, l) {
   patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
