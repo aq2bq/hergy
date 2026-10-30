@@ -181,13 +181,13 @@ func r2DocOf(doc *rules.Document) *r2Doc {
 }
 
 // r2NewRole is the content of a new role a screen opens (spec-roles 1.2.4):
-// revision 1, one section 使命, and one empty rule. The name is the caller's.
+// revision 1, one section 責務, and one empty rule. The name is the caller's.
 func r2NewRole(name string) *r2Doc {
 	revision := 1
 	return &r2Doc{
 		Name: name, Revision: &revision,
 		Sections: []r2Section{{
-			Heading: "使命",
+			Heading: "責務",
 			Rules:   []r2Rule{{InPrompt: true}},
 		}},
 	}

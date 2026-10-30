@@ -24,7 +24,7 @@ import {
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile,
-  pressDel, pressDelNo, pressDelYes, pressName, pressMission, pressDtab, pressPmode,
+  pressDel, pressDelNo, pressDelYes, pressName, pressDescription, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -82,7 +82,7 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>使命</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">動き</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">動き</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = rowsOfGroup(g.key);
@@ -147,7 +147,7 @@ function Row({ r }: { r: Rec }) {
 function pressSum(r: Rec, e: TargetedEvent<HTMLElement, MouseEvent>): void {
   const target = e.target instanceof Element ? e.target : null;
   if (!target) return;
-  if (target.closest('[data-hq], .in-mission, .in-name')) return;
+  if (target.closest('[data-hq], .in-description, .in-name')) return;
   // A press on another control inside the row (the place's buttons) is that
   // control's, not the row's: only a press on the row itself opens or closes it.
   const own = target.closest('button, a, input, select, [data-act]');
@@ -195,7 +195,7 @@ const runProject = (r: Rec): string => (r.place.value === 'global' ? '' : (r.pro
 function Sum({ r, open }: { r: Rec; open: boolean }) {
   const t = r.draft.value, saved = r.saved.value, rules = rulesOf(r.agreeDraft.value);
   // A team.yaml that does not read has no figure and no numbers to count, so
-  // its row says 使命 —, keeps the problems validate named, and leaves the
+  // its row says 説明 —, keeps the problems validate named, and leaves the
   // counts blank (spec-teams 1.9). It is fixed in the YAML tab.
   const broken = r.broken.value;
   // A definition that is not there yet stands in the head it was added under:
@@ -206,13 +206,13 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
     : placePills(r);
   const cell = broken ? '—'
     : open
-      ? <Field id={'m-' + r.dom} class={'in-mission' + (t.mission !== saved.mission ? ' changed' : '')} data-f="mission" value={t.mission} autocomplete="off" aria-label={`${teamLabel(r)} の使命`} onInput={(e: Event) => pressMission(r, inputValue(e))} />
-      : t.mission ? t.mission : '—';
+      ? <Field id={'m-' + r.dom} class={'in-description' + (t.description !== saved.description ? ' changed' : '')} data-f="description" value={t.description} autocomplete="off" aria-label={`${teamLabel(r)} の説明`} onInput={(e: Event) => pressDescription(r, inputValue(e))} />
+      : t.description ? t.description : '—';
   return (
     <>
       <span class="chev"></span>
       <span class="c-name"><NameCell r={r} open={open} /><span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
-      <span class={'c-mission' + (broken || !(t.mission || open) ? ' none' : '')}>{cell}</span>
+      <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
@@ -228,7 +228,7 @@ function Detail({ r }: { r: Rec }) {
   const hidden = r.hidden.value || [];
   return (
     <div class="detail">
-      <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'mission')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
+      <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'description')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
       <nav class="dtabs"><DtabsNav r={r} /></nav>
       {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       {hidden.map((h) => (

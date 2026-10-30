@@ -49,7 +49,7 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int, t
 	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
+		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, role, roleText)
 	teamDoc, err := rules.Parse(readRule(t, agreement), agreement)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestValidateSizesADefinitionThatDoesNotRead(t *testing.T) {
 	initLocales(t)
 	team := writeSizedTeam(t, f, false, "broken", 2, "short")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
+		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
 
 	got, _, code := run("validate")
 	if code == 0 {
@@ -230,7 +230,7 @@ func TestValidateHidesWarningsOfAnUnusedDefinition(t *testing.T) {
 	writeFile(t, global.agreement, "version: 1\nsections:\n  - rules:\n"+
 		"      - id: G-1\n        text: a → b\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "dup", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
+		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
 
 	got, _, code := run("validate")
 	if code == 0 {

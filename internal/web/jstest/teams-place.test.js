@@ -11,7 +11,7 @@ import { layout, serve, settle } from './page.js';
 import { click, island } from './teams-page.js';
 
 const draft = (over) => ({
-  mission: '注文 API を作り直す',
+  description: '注文 API を作り直す',
   members: [{ name: 'lead', role: 'lead', profile: 'coder' }, { name: 'builder', role: 'builder', profile: 'coder' }],
   workers: [{ from: 'lead', purpose: '実装', profile: 'coder' }],
   turns: [['human', 'lead']],

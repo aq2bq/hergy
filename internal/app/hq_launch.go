@@ -49,7 +49,7 @@ func (h *hqRead) LaunchOptions(project, definitionName, place string) (web.HQLau
 	}
 	read := h.act.readHerdr(h.act.clock())
 	out := web.HQLaunchOptions{
-		Definition: definitionName, Place: place,
+		Definition: definitionName, Place: place, Description: def.Description,
 		Project:          &web.HQRef{Path: env.ProjectRoot, Name: h.projectNameIn(env.ProjectRoot), Display: h.act.env.DisplayPath(env.ProjectRoot)},
 		Members:          memberOptions(def),
 		Clash:            clashesIn(read, h.act, definitionName, env.ProjectRoot),
@@ -80,14 +80,20 @@ func placeLayer(place string) (string, error) {
 
 // globalOptions is the start sheet before a global definition's project is
 // chosen: the projects that can take it. A project that defines the same name
-// itself cannot (spec 5 章).
+// itself cannot (spec 5 章). The description is read from the global definition
+// itself, so the sheet names the case the team is meant for before a project is
+// picked (d-5f55).
 func (h *hqRead) globalOptions(definitionName string) web.HQLaunchOptions {
-	return web.HQLaunchOptions{
+	out := web.HQLaunchOptions{
 		Definition: definitionName, Place: source.LayerGlobal,
 		Members: []web.HQMember{}, Clash: []web.HQClash{}, Workspaces: []web.HQWorkspaceChoice{},
 		SuggestedName: definitionName, NewWorkspaceName: definitionName,
 		Projects: h.projectChoices(definitionName),
 	}
+	if def, err := h.act.env.Catalog(h.act.fileReader()).Definition(definitionName, source.LayerGlobal); err == nil && def != nil {
+		out.Description = def.Description
+	}
+	return out
 }
 
 // projectChoices is the projects a global definition can be started in: one that

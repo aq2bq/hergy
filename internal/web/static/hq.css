@@ -130,7 +130,7 @@
 @media (min-width: 1181px) {
   .hq-teams .list .head, .hq-teams .list .sum {
     grid-template-columns: 14px minmax(9rem, .8fr) minmax(0, 1.6fr) 9rem 4rem 4rem 4rem 11.5rem 12.5rem;
-    grid-template-areas: "chev name mission place members turns agree size run";
+    grid-template-areas: "chev name description place members turns agree size run";
   }
   .hq-teams .list .head > .hq-runh { grid-area: run; }
   .hq-teams .list .sum > .hq-runc { grid-area: run; }

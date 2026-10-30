@@ -4,8 +4,8 @@ import "testing"
 
 func TestYAMLLinesSaysWhatEachLineStandsFor(t *testing.T) {
 	text := `version: 1
-# mission は必須。
-mission: このチームの使命を 1 行で
+# description は必須。
+description: このチームの説明を 1 行で
 members:
   - name: lead
     role: lead
@@ -24,8 +24,8 @@ turns:
 	got := YAMLLines(text)
 	want := []YAMLLine{
 		{Text: "version: 1", At: ""},
-		{Text: "# mission は必須。", At: ""},
-		{Text: "mission: このチームの使命を 1 行で", At: "mission"},
+		{Text: "# description は必須。", At: ""},
+		{Text: "description: このチームの説明を 1 行で", At: "description"},
 		{Text: "members:", At: ""},
 		{Text: "  - name: lead", At: "node:lead"},
 		{Text: "    role: lead", At: "node:lead"},
@@ -52,8 +52,8 @@ turns:
 }
 
 func TestYAMLLinesOfTextThatDoesNotRead(t *testing.T) {
-	got := YAMLLines("mission: [oops\n")
-	if len(got) != 1 || got[0].Text != "mission: [oops" || got[0].At != "" {
+	got := YAMLLines("description: [oops\n")
+	if len(got) != 1 || got[0].Text != "description: [oops" || got[0].At != "" {
 		t.Fatalf("got %+v, want the line with no at", got)
 	}
 	if lines := YAMLLines(""); len(lines) != 0 {

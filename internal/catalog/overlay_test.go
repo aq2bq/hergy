@@ -16,22 +16,22 @@ func TestWithReadsATeamYAMLThatIsNotWritten(t *testing.T) {
 	l.writeFullTeam(t, source.LayerLocal, "t", "before")
 
 	path := filepath.Join(l.local, "teams", "t", "team.yaml")
-	after := strings.Replace(readFile(t, path), "mission: before", "mission: after", 1)
+	after := strings.Replace(readFile(t, path), "description: before", "description: after", 1)
 	overlaid := l.catalog().With(path, after)
 
 	def, err := overlaid.Read("t")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.Mission != "after" {
-		t.Errorf("mission = %q, want the edit's", def.Mission)
+	if def.Description != "after" {
+		t.Errorf("description = %q, want the edit's", def.Description)
 	}
 	onDisk, err := l.catalog().Read("t")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if onDisk.Mission != "before" {
-		t.Errorf("mission = %q, want the file's", onDisk.Mission)
+	if onDisk.Description != "before" {
+		t.Errorf("description = %q, want the file's", onDisk.Description)
 	}
 }
 
@@ -62,25 +62,25 @@ func TestWithReadsAProfilesYAMLThatIsNotThere(t *testing.T) {
 func TestWithLeavesOtherPathsToDisk(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "before")
-	l.writeFullTeam(t, source.LayerGlobal, "other", "the other mission")
+	l.writeFullTeam(t, source.LayerGlobal, "other", "the other description")
 
 	path := filepath.Join(l.local, "teams", "t", "team.yaml")
-	after := strings.Replace(readFile(t, path), "mission: before", "mission: after", 1)
+	after := strings.Replace(readFile(t, path), "description: before", "description: after", 1)
 	overlaid := l.catalog().With(path, after)
 
 	def, err := overlaid.Read("t")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.Mission != "after" {
-		t.Errorf("t = %q, want the edit's", def.Mission)
+	if def.Description != "after" {
+		t.Errorf("t = %q, want the edit's", def.Description)
 	}
 	other, err := overlaid.Read("other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if other.Mission != "the other mission" {
-		t.Errorf("other = %q, want the file's", other.Mission)
+	if other.Description != "the other description" {
+		t.Errorf("other = %q, want the file's", other.Description)
 	}
 }
 

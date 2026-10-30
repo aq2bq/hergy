@@ -25,7 +25,7 @@ func cacheCatalog(t *testing.T) (*Catalog, *source.Memo) {
 	local := filepath.Join(root, "proj", ".hergy")
 	global := filepath.Join(root, "cfg", "hergy")
 	cacheWrite(t, filepath.Join(local, "teams", "demo", "team.yaml"),
-		"version: 1\nmission: demo's mission\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+		"version: 1\ndescription: demo's description\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
 	cacheWrite(t, filepath.Join(local, "roles", "lead.yaml"),
 		"version: 1\nsections:\n  - rules:\n      - id: K7QF\n        text: lead moves first.\n")
 	cacheWrite(t, filepath.Join(local, "profiles.yaml"),
@@ -50,14 +50,14 @@ func TestADefinitionIsParsedOnceAndAgainWhenAFileChanges(t *testing.T) {
 		t.Errorf("the second read opened %d file(s) and listed %d directory(ies), want none", reads, lists)
 	}
 	path := cat.TeamYAML("demo", source.LayerLocal)
-	cacheWrite(t, path, "version: 1\nmission: a new mission\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+	cacheWrite(t, path, "version: 1\ndescription: a new description\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
 	memo.ResetStats()
 	def, err := cat.Definition("demo", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.Mission != "a new mission" {
-		t.Errorf("mission = %q, want the written one", def.Mission)
+	if def.Description != "a new description" {
+		t.Errorf("description = %q, want the written one", def.Description)
 	}
 	if reads, _, _ := memo.Stats(); reads != 1 {
 		t.Errorf("reads = %d, want only the team.yaml read again", reads)

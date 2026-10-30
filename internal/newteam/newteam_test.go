@@ -135,7 +135,7 @@ func TestPlanLooksForARoleInBothPlaces(t *testing.T) {
 func TestPlanWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
 	in, proj := starterIn(t)
 	in.StarterRoles, in.StarterProfile = true, true
-	in.Files = withTeam(t, in.Files, "version: 1\nmission: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n")
+	in.Files = withTeam(t, in.Files, "version: 1\ndescription: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n")
 	written, err := Plan(in)
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestPlanWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
 func TestWriteWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
 	in, proj := starterIn(t)
 	in.StarterRoles, in.StarterProfile = true, true
-	team := "version: 1\nmission: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n"
+	team := "version: 1\ndescription: ops\nmembers:\n  - name: planner\n    role: planner\n    profile: coder\nturns:\n  - human -> planner\n  - planner -> human\n"
 	in.Files = withTeam(t, in.Files, team)
 	if _, err := Write(in); err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestWriteWritesOnlyTheStarterRolesTheMembersName(t *testing.T) {
 func TestPlanWritesAStarterRoleAMemberNames(t *testing.T) {
 	in, proj := starterIn(t)
 	in.StarterRoles, in.StarterProfile = true, true
-	in.Files = withTeam(t, in.Files, "version: 1\nmission: ops\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
+	in.Files = withTeam(t, in.Files, "version: 1\ndescription: ops\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	written, err := Plan(in)
 	if err != nil {
 		t.Fatal(err)

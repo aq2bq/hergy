@@ -1,5 +1,5 @@
 version: 1
-mission: "利用者向けの文書を整える"
+description: "利用者向けの文書を整える"
 members:
   - name: lead
     role: lead

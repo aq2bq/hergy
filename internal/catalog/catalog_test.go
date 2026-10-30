@@ -39,7 +39,7 @@ func (l layers) writeTeam(t *testing.T, layer, name string) {
 	profiles := "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n"
 	write(t, filepath.Join(l.dir(layer), "profiles.yaml"), profiles)
 	write(t, filepath.Join(l.dir(layer), "teams", name, "team.yaml"),
-		"version: 1\nmission: a mission for the test\nteam: "+name+"\nturns:\n  - human -> a\n  - a -> human\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
+		"version: 1\ndescription: a description for the test\nteam: "+name+"\nturns:\n  - human -> a\n  - a -> human\nmembers:\n  - name: a\n    role: r\n    profile: claude-default\n")
 }
 
 func (l layers) dir(layer string) string {
@@ -173,7 +173,7 @@ func TestGlobalDefinitionReadsTheProjectProfile(t *testing.T) {
 	write(t, filepath.Join(l.global, "profiles.yaml"), "version: 1\nprofiles:\n  globalprof:\n    kind: claude\n")
 	write(t, filepath.Join(l.local, "profiles.yaml"), "version: 1\nprofiles:\n  localprof:\n    kind: codex\n")
 	write(t, filepath.Join(l.global, "teams", "g", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nteam: g\nmembers:\n  - name: a\n    role: r\n    profile: localprof\nturns:\n  - human -> a\n  - a -> human\n")
+		"version: 1\ndescription: a description for the test\nteam: g\nmembers:\n  - name: a\n    role: r\n    profile: localprof\nturns:\n  - human -> a\n  - a -> human\n")
 
 	def, err := l.catalog().Definition("g", "")
 	if err != nil {

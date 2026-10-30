@@ -773,7 +773,7 @@ export function pressFilter(f: RoleState['filter']): void {
 }
 
 export function pressNew(group?: string): void {
-  const d: EditableDocument = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '使命', level: 0, intro: '', rules: [{ _k: nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
+  const d: EditableDocument = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '責務', level: 0, intro: '', rules: [{ _k: nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
   // The head a person pressed says the place the row stands in (r-410c): the
   // row is that group's, and there is no switch inside it to move it.
   const key = group === undefined ? roleGroups()[0].key : group;

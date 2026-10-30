@@ -12,7 +12,7 @@ const agreement = (name) => ({
   path: `.hergy/teams/${name}/agreement.yaml`, hash: 'a1', has: true,
   doc: {
     name: '', title: `${name} チームのルール`, revision: 1,
-    sections: [{ heading: '使命', rules: [{
+    sections: [{ heading: '責務', rules: [{
       id: 'TEAM-1', text: 'このチームの約束。', why: 'だから。',
       send_why: true, in_prompt: true, note: '', report: '', tests: [], origin: [],
     }] }],
@@ -27,7 +27,7 @@ const teams = {
       {
         name: 'core', effective: 'project',
         places: { project: { path: '.hergy/teams/core/team.yaml', hash: 'h1', doc: {
-          mission: '注文 API を作り直す',
+          description: '注文 API を作り直す',
           members: [{ name: 'lead', role: 'lead', profile: 'coder' }, { name: 'builder', role: 'builder', profile: 'coder' }],
           workers: [{ from: 'lead', purpose: '実装', profile: 'coder' }],
           turns: [['human', 'lead'], ['lead', 'human']],
@@ -37,7 +37,7 @@ const teams = {
       {
         name: 'docs', effective: 'project',
         places: { project: { path: '.hergy/teams/docs/team.yaml', hash: 'h2', doc: {
-          mission: '利用者向けの文書を整える',
+          description: '利用者向けの文書を整える',
           members: [{ name: 'lead', role: 'lead', profile: 'coder' }, { name: 'writer', role: 'writer', profile: 'coder' }],
           // 翻訳 names a profile profiles.yaml does not hold: the definition is
           // still drawn, and its one problem stands on this worker (R10).

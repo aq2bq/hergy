@@ -612,7 +612,7 @@ func TestAssignSaveRefusesAnOpTheTeamDoesNotKnow(t *testing.T) {
 	resp, _ := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "hash": source.Hash(before),
 		"doc": map[string]any{
-			"ops": []map[string]string{{"kind": "nosuch", "text": "別の使命"}},
+			"ops": []map[string]string{{"kind": "nosuch", "text": "別の説明"}},
 		},
 	})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
@@ -872,7 +872,7 @@ func TestTheAssignCardSavesThePlaceItStandsIn(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(shared), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	text := "version: 1\nmission: 共通のチーム\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n"
+	text := "version: 1\ndescription: 共通のチーム\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n"
 	if err := os.WriteFile(shared, []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}

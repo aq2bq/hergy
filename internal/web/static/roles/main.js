@@ -35,8 +35,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-0s6nyjhb.js";
-import"../chunk/nav-b72etme1.js";
+} from "../chunk/nav-ffaq8wz1.js";
+import"../chunk/nav-bvvpz2s6.js";
 import {
   fromJSON2,
   toDoc2,
@@ -678,7 +678,7 @@ function pressFilter(f) {
   syncURL(false);
 }
 function pressNew(group) {
-  const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "使命", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
+  const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "責務", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
   const key = group === undefined ? roleGroups()[0].key : group;
   const place = key === "global" ? "global" : "project";
   const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };

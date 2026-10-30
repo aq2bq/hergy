@@ -11,7 +11,7 @@ import (
 // writeFullTeam writes a team definition with everything a reverse lookup can
 // name: two members with their own role documents, a worker one of them may
 // hire, the team's own agreement, and the profiles all three name.
-func (l layers) writeFullTeam(t *testing.T, layer, name, mission string) {
+func (l layers) writeFullTeam(t *testing.T, layer, name, description string) {
 	t.Helper()
 	dir := l.dir(layer)
 	write(t, filepath.Join(dir, "profiles.yaml"), `version: 1
@@ -24,7 +24,7 @@ profiles:
     kind: opencode
 `)
 	write(t, filepath.Join(dir, "teams", name, "team.yaml"), `version: 1
-mission: `+mission+`
+description: `+description+`
 team: `+name+`
 turns:
   - human -> a
@@ -63,8 +63,8 @@ func readFile(t *testing.T, path string) string {
 // project marked as such (I11).
 func TestEntriesAreOneRowPerName(t *testing.T) {
 	l := newLayers(t)
-	l.writeFullTeam(t, source.LayerGlobal, "t", "the global mission")
-	l.writeFullTeam(t, source.LayerLocal, "t", "the local mission")
+	l.writeFullTeam(t, source.LayerGlobal, "t", "the global description")
+	l.writeFullTeam(t, source.LayerLocal, "t", "the local description")
 	l.writeFullTeam(t, source.LayerGlobal, "only-global", "outside")
 
 	entries := l.catalog().Entries()
@@ -84,7 +84,7 @@ func TestEntriesAreOneRowPerName(t *testing.T) {
 	if outside.UnusedPath != "" {
 		t.Errorf("outside UnusedPath = %q, want none", outside.UnusedPath)
 	}
-	if outside.Mission != "outside" || outside.Err != nil {
+	if outside.Description != "outside" || outside.Err != nil {
 		t.Errorf("outside row = %+v", outside)
 	}
 
@@ -98,8 +98,8 @@ func TestEntriesAreOneRowPerName(t *testing.T) {
 	if want := filepath.Join(l.global, "teams", "t", "team.yaml"); local.UnusedPath != want {
 		t.Errorf("UnusedPath = %q, want %q", local.UnusedPath, want)
 	}
-	if local.Mission != "the local mission" {
-		t.Errorf("mission = %q, want the local one", local.Mission)
+	if local.Description != "the local description" {
+		t.Errorf("description = %q, want the local one", local.Description)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestEntriesAreOneRowPerName(t *testing.T) {
 // it from the list.
 func TestEntriesKeepABrokenDefinitionAsARow(t *testing.T) {
 	l := newLayers(t)
-	write(t, filepath.Join(l.local, "teams", "broken", "team.yaml"), "version: 1\nmission:\nmembers: []\n")
+	write(t, filepath.Join(l.local, "teams", "broken", "team.yaml"), "version: 1\ndescription:\nmembers: []\n")
 
 	entries := l.catalog().Entries()
 	if len(entries) != 1 {
@@ -117,8 +117,8 @@ func TestEntriesKeepABrokenDefinitionAsARow(t *testing.T) {
 	if entries[0].Err == nil {
 		t.Fatal("a definition that does not read has no reason")
 	}
-	if entries[0].Mission != "" {
-		t.Errorf("mission = %q, want none", entries[0].Mission)
+	if entries[0].Description != "" {
+		t.Errorf("description = %q, want none", entries[0].Description)
 	}
 	if entries[0].Path == "" {
 		t.Error("the row has no path")
@@ -129,23 +129,23 @@ func TestEntriesKeepABrokenDefinitionAsARow(t *testing.T) {
 // the one outside it, with no layer for a screen to pass.
 func TestReadTakesNoLayer(t *testing.T) {
 	l := newLayers(t)
-	l.writeFullTeam(t, source.LayerGlobal, "t", "the global mission")
-	l.writeFullTeam(t, source.LayerLocal, "t", "the local mission")
+	l.writeFullTeam(t, source.LayerGlobal, "t", "the global description")
+	l.writeFullTeam(t, source.LayerLocal, "t", "the local description")
 	l.writeFullTeam(t, source.LayerGlobal, "only-global", "outside")
 
 	got, err := l.catalog().Read("t")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Layer != source.LayerLocal || got.Mission != "the local mission" {
-		t.Errorf("t = %q in %q, want the project's own", got.Mission, got.Layer)
+	if got.Layer != source.LayerLocal || got.Description != "the local description" {
+		t.Errorf("t = %q in %q, want the project's own", got.Description, got.Layer)
 	}
 	only, err := l.catalog().Read("only-global")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if only.Layer != source.LayerGlobal || only.Mission != "outside" {
-		t.Errorf("only-global = %q in %q, want the one outside", only.Mission, only.Layer)
+	if only.Layer != source.LayerGlobal || only.Description != "outside" {
+		t.Errorf("only-global = %q in %q, want the one outside", only.Description, only.Layer)
 	}
 	if _, err := l.catalog().Read("absent"); err == nil {
 		t.Error("reading an unknown name succeeded, want an error")
@@ -156,7 +156,7 @@ func TestReadTakesNoLayer(t *testing.T) {
 // is given, the way the older read does.
 func TestReadWithNoNameIsTheOneDefinition(t *testing.T) {
 	l := newLayers(t)
-	l.writeFullTeam(t, source.LayerLocal, "only", "the only mission")
+	l.writeFullTeam(t, source.LayerLocal, "only", "the only description")
 
 	got, err := l.catalog().Read("")
 	if err != nil {
@@ -165,7 +165,7 @@ func TestReadWithNoNameIsTheOneDefinition(t *testing.T) {
 	if got.Name != "only" {
 		t.Errorf("Read(\"\") = %q, want the single definition", got.Name)
 	}
-	l.writeFullTeam(t, source.LayerLocal, "second", "another mission")
+	l.writeFullTeam(t, source.LayerLocal, "second", "another description")
 	if _, err := l.catalog().Read(""); err == nil {
 		t.Error("reading no name with two definitions succeeded, want the candidates")
 	}

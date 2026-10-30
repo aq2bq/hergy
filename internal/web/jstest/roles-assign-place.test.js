@@ -28,7 +28,7 @@ const island = {
         global: {
           path: '~/.config/hergy/teams/shared/team.yaml',
           hash: 'hg1',
-          doc: { mission: '共通のチーム', turns: [['human', 'lead'], ['lead', 'human']] },
+          doc: { description: '共通のチーム', turns: [['human', 'lead'], ['lead', 'human']] },
         },
       },
       summary: { members: [{ name: 'lead', role: 'lead' }] },

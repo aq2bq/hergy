@@ -1387,6 +1387,8 @@ export interface components {
         HQLaunchOptions: {
             /** @description 起動するチーム定義名 */
             definition: string;
+            /** @description チーム定義の説明（このチームが想定するケース） */
+            description: string;
             /** @description チーム定義を読む場所 */
             place: string;
             /** @description チーム定義が属するプロジェクト */
@@ -1640,10 +1642,10 @@ export interface components {
             /** @description 読めるが直したほうがよい問題の数 */
             warn: number;
         };
-        /** @description チーム定義の一覧に出す使命、メンバー、ワーカー、チームのルールの集計。 */
+        /** @description チーム定義の一覧に出す説明、メンバー、ワーカー、チームのルールの集計。 */
         TeamSummary: {
-            /** @description チーム定義の使命 */
-            mission: string;
+            /** @description チーム定義の説明 */
+            description: string;
             /** @description チーム定義のメンバー */
             members: components["schemas"]["TeamMember"][] | null;
             /** @description チーム定義のワーカー数 */
@@ -1681,8 +1683,8 @@ export interface components {
         };
         /** @description team.yaml から読むチーム定義。 */
         TeamDocument: {
-            /** @description チーム定義の使命 */
-            mission: string;
+            /** @description チーム定義の説明 */
+            description: string;
             /** @description チーム定義のメンバー */
             members: components["schemas"]["TeamMember"][] | null;
             /** @description チーム定義のワーカー */
@@ -2033,7 +2035,7 @@ export interface components {
         TeamOperation: {
             /** @description 編集の種類 */
             kind?: string;
-            /** @description 使命の文 */
+            /** @description 説明の文 */
             text?: string;
             /** @description 編集するメンバー名 */
             member?: string;

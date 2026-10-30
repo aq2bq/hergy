@@ -87,14 +87,14 @@ func TestWithOnTheSamePathTakesTheLaterText(t *testing.T) {
 	teamYAML := filepath.Join(l.local, "teams", "t", "team.yaml")
 	onDisk := readFile(t, teamYAML)
 
-	cat := l.catalog().With(teamYAML, strings.Replace(onDisk, "mission: m", "mission: first", 1)).
-		With(teamYAML, strings.Replace(onDisk, "mission: m", "mission: second", 1))
+	cat := l.catalog().With(teamYAML, strings.Replace(onDisk, "description: m", "description: first", 1)).
+		With(teamYAML, strings.Replace(onDisk, "description: m", "description: second", 1))
 	def, err := cat.Read("t")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.Mission != "second" {
-		t.Errorf("mission = %q, want the later text", def.Mission)
+	if def.Description != "second" {
+		t.Errorf("description = %q, want the later text", def.Description)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestRolesTakesTheDocumentsTheLayersHold(t *testing.T) {
 	write(t, filepath.Join(l.local, "roles", "watched.yaml"), "the project's one\n")
 	write(t, filepath.Join(l.global, "profiles.yaml"), "version: 1\nprofiles:\n  p:\n    kind: claude\n")
 	write(t, filepath.Join(l.local, "teams", "t", "team.yaml"), `version: 1
-mission: m
+description: m
 turns:
   - human -> a
 members:

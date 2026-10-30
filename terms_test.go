@@ -29,9 +29,12 @@ type ban struct {
 	// rules the wording; a ban with no instead says the word is out and leaves
 	// the way to say it to whoever rewrites the sentence.
 	instead string
-	// except is a locale key prefix left unchecked. Nothing uses it now: the
-	// Web UI's own strings (web.*) name no layer either (設計 6 節).
+	// except is a locale key prefix left unchecked. It is how a refusal may
+	// name the old key it tells the person to remove (error.mission_gone).
 	except string
+	// whole says the word is checked as a whole word, not as any part of a
+	// longer one: mission: is a ban that must not catch "permission".
+	whole bool
 }
 
 // term is one thing hergy names, in both languages.
@@ -71,10 +74,19 @@ var glossary = []term{
 		meaning:  "one group started from a team definition; it goes by the team name, and it is what runs on herdr",
 	},
 	{
-		id:       "mission",
-		english:  "mission",
-		japanese: "使命",
-		meaning:  "what team.yaml's mission: says the team is for: one line, shown first by the commands and the screens",
+		id:       "description",
+		english:  "description",
+		japanese: "説明",
+		meaning:  "what team.yaml's description: says: which case the team is meant for. It is one line and required. The team list, a definition's screen, the start sheet and hergy show read it; a team command's header, a running team's tiles, a member's prompt and hergy apply's drift do not",
+		banned: []ban{
+			// mission: was the old key on team.yaml and the old word for this
+			// line (d-5f55): a definition that still writes it is stopped with
+			// the sentence that says how to rewrite it, and no other sentence
+			// names it. The refusal's own message is the one place the old key
+			// is written, because it is what a person has to remove.
+			{lang: "en", word: "mission", except: "error.mission_gone", whole: true},
+			{lang: "ja", word: "使命", except: "error.mission_gone"},
+		},
 	},
 	{
 		id:       "member",
@@ -541,6 +553,32 @@ func TestGlossaryIsConsistent(t *testing.T) {
 	}
 }
 
+// banHits reports whether one ban finds its word in a text. A whole-word ban
+// looks for the word with no ASCII letter on either side, so mission: does not
+// catch "permission"; every other ban is a plain part of the text.
+func banHits(text string, b ban) bool {
+	if !b.whole {
+		return strings.Contains(text, b.word)
+	}
+	for i := 0; i+len(b.word) <= len(text); {
+		at := strings.Index(text[i:], b.word)
+		if at < 0 {
+			return false
+		}
+		from, to := i+at, i+at+len(b.word)
+		if (from == 0 || !asciiLetter(text[from-1])) && (to == len(text) || !asciiLetter(text[to])) {
+			return true
+		}
+		i = from + 1
+	}
+	return false
+}
+
+// asciiLetter reports whether one byte is an ASCII letter.
+func asciiLetter(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+}
+
 // TestGlossaryBannedWordsStayOut fails when a forbidden word turns up in the
 // strings a person or an agent reads. Each hit names the file and key (or line),
 // the word, and the term to write instead.
@@ -554,7 +592,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	var hits []hit
 
 	add := func(where, lang, text, termID, termName string, b ban) {
-		if b.lang != lang || !strings.Contains(text, b.word) {
+		if b.lang != lang || !banHits(text, b) {
 			return
 		}
 		want := b.instead

@@ -119,17 +119,17 @@ test.describe('the team screen', () => {
   // shape is the row's topology panel: the save that writes team.yaml.
   const shape = '.tdef[data-name="core"] .panel.team-p';
 
-  test('RB41C-3 a team definition’s mission is saved three times in a row', async ({ page, app }) => {
+  test('RB41C-3 a team definition’s description is saved three times in a row', async ({ page, app }) => {
     const file = path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml');
     await page.goto(`${app.base}/teams?open=core`);
     await wait(page, there(`${shape} [data-act=t-save]`));
-    const missions = ['使命を 1 度書き直した。', '使命を 2 度書き直した。', '使命を 3 度書き直した。'];
-    for (const [i, mission] of missions.entries()) {
-      await set(page, q('.tdef[data-name="core"] .in-mission'), mission);
+    const descriptions = ['説明を 1 度書き直した。', '説明を 2 度書き直した。', '説明を 3 度書き直した。'];
+    for (const [i, description] of descriptions.entries()) {
+      await set(page, q('.tdef[data-name="core"] .in-description'), description);
       await wait(page, `!${q(`${shape} [data-act=t-save]`)}.disabled`);
       await save(page, q(`${shape} [data-act=t-save]`), '/api/team/core');
       await wait(page, there(`${shape} .ok`));
-      expect(readFileSync(file, 'utf8'), `the save ${i + 1} did not write the mission`).toContain(`mission: "${mission}"`);
+      expect(readFileSync(file, 'utf8'), `the save ${i + 1} did not write the description`).toContain(`description: "${description}"`);
     }
   });
 

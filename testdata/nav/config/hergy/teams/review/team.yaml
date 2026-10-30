@@ -1,5 +1,5 @@
 version: 1
-mission: "外から来た差分を読んで返す"
+description: "外から来た差分を読んで返す"
 members:
   - name: reader
     role: reviewer

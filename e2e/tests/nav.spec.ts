@@ -65,7 +65,7 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   await press(page, q('a.scr[data-screen="roles"]'));
   await waitPath(page, '/roles');
   const team = path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml');
-  writeFileSync(team, readFileSync(team, 'utf8').replace('注文 API を作り直す', '外で書き換えた使命'));
+  writeFileSync(team, readFileSync(team, 'utf8').replace('注文 API を作り直す', '外で書き換えた説明'));
   await press(page, q('a.scr[data-screen="profiles"]'));
   await waitPath(page, '/profiles/assign');
   await wait(page, there('.team[data-g="core"]'));
@@ -95,21 +95,21 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
   ).toBe('false');
 });
 
-test('NAV-N10 the team definition carries the mission a person did not save', async ({ page, app }) => {
+test('NAV-N10 the team definition carries the description a person did not save', async ({ page, app }) => {
   // ac-afc9: the changes a person made on the team definition screen are carried
   // by the band like the roles screen's and the profiles screen's (spec-nav
-  // 1.5). The mission is typed and not saved, the band walks to the roles screen
+  // 1.5). The description is typed and not saved, the band walks to the roles screen
   // and back, and the field holds the typed text — with no exception on the way
   // (the screen used to answer dirty with a word the band then called as a
   // function, so the walk threw and the draft was lost).
-  const mission = '帯が運ぶ、保存していない使命';
+  const description = '帯が運ぶ、保存していない説明';
   await page.goto(`${app.base}/teams?open=core`);
-  await wait(page, there('.tdef.open .in-mission'));
-  await set(page, q('.tdef.open .in-mission'), mission);
+  await wait(page, there('.tdef.open .in-description'));
+  await set(page, q('.tdef.open .in-description'), description);
   await readTo<string>(
     page,
     `String(!!${q('.scr.on[data-screen="teams"] .dot')})`,
-    'the band marks no dot while the mission is changed',
+    'the band marks no dot while the description is changed',
   ).toBe('true');
   await press(page, q('a.scr[data-screen="roles"]'));
   await waitPath(page, '/roles');
@@ -118,12 +118,12 @@ test('NAV-N10 the team definition carries the mission a person did not save', as
   await waitPath(page, '/teams');
   await wait(page, there('.tdef[data-name="core"] .sum'));
   await press(page, q('.tdef[data-name="core"] .sum'));
-  await wait(page, there('.tdef.open .in-mission'));
+  await wait(page, there('.tdef.open .in-description'));
   await readTo<string>(
     page,
-    `${q('.tdef.open .in-mission')}.value`,
-    'ac-afc9: the mission the band carried back does not hold what was typed',
-  ).toBe(mission);
+    `${q('.tdef.open .in-description')}.value`,
+    'ac-afc9: the description the band carried back does not hold what was typed',
+  ).toBe(description);
 });
 
 test('NAV-F1 Find picks a row with the arrows and Enter opens it', async ({ page, app }) => {

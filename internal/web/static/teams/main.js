@@ -54,10 +54,10 @@ import {
   st,
   parseOpen2,
   projectName2
-} from "../chunk/nav-0s6nyjhb.js";
+} from "../chunk/nav-ffaq8wz1.js";
 import {
   RunCell2
-} from "../chunk/nav-b72etme1.js";
+} from "../chunk/nav-bvvpz2s6.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -371,7 +371,7 @@ var projectIn = (project) => project && project !== "global" ? { project } : {};
 var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
 var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
 var cloneTeam = (t) => ({
-  mission: t && t.mission || "",
+  description: t && t.description || "",
   members: (t && t.members || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
   workers: (t && t.workers || []).map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })),
   turns: (t && t.turns || []).map((x) => ("from" in x) ? [x.from, x.to] : [x[0], x[1]])
@@ -380,8 +380,8 @@ function applyOps(saved, ops) {
   const t = cloneTeam(saved);
   for (const op of ops) {
     switch (op.kind) {
-      case "mission":
-        t.mission = op.text;
+      case "description":
+        t.description = op.text;
         break;
       case "addTurn":
         if (!hasTurn(t, op.from, op.to))
@@ -768,8 +768,8 @@ function figFindings(r, problems) {
     } else if (at.startsWith("node:")) {
       node = at.slice("node:".length);
       field = "node";
-    } else if (at === "mission") {
-      field = "mission";
+    } else if (at === "description") {
+      field = "description";
     } else if (at === "name") {
       field = "name";
     } else if (at.startsWith("rule:")) {
@@ -807,7 +807,7 @@ function workerOrigin(w, ops) {
 }
 function changeCount(r) {
   const t = r.draft.value, s = r.saved.value, ops = r.ops.value || [];
-  let n = t.mission !== s.mission ? 1 : 0;
+  let n = t.description !== s.description ? 1 : 0;
   const key = (a, b) => a + "\x00" + b;
   const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
   const wasT = new Set((s.turns || []).map(([a, b]) => key(a, b)));
@@ -876,8 +876,8 @@ var vlistParts = (r) => {
       return nodeName(m.node);
     if (m.worker != null && m.worker >= 0)
       return purposeOf(m.worker);
-    if (m.field === "mission")
-      return "使命";
+    if (m.field === "description")
+      return "説明";
     if (m.field === "name")
       return "チーム定義名";
     return "";
@@ -1190,7 +1190,7 @@ function canvasTyping(r, op, field) {
   r.promptsReady.value = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { mission: "使命を戻した", "m-name": "メンバー名を戻した", "w-purpose": "目的を戻した" }[field] || "元に戻した";
+    const label = { description: "説明を戻した", "m-name": "メンバー名を戻した", "w-purpose": "目的を戻した" }[field] || "元に戻した";
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -1546,11 +1546,11 @@ function pressName(r, value) {
   r.name.value = value;
   debounce("n" + r.dom, () => checkTeam(r));
 }
-function pressMission(r, value) {
+function pressDescription(r, value) {
   const text = value.replace(/\n/g, " ");
-  r.ops.value = r.ops.value.filter((o) => o.kind !== "mission");
-  if (text !== r.saved.value.mission)
-    pushOp(r, { kind: "mission", text });
+  r.ops.value = r.ops.value.filter((o) => o.kind !== "description");
+  if (text !== r.saved.value.description)
+    pushOp(r, { kind: "description", text });
   checkTeam(r);
 }
 function pressDtab(r, t) {
@@ -1669,9 +1669,9 @@ function pressVpick(r, m) {
     selectPick(r, { type: "worker", i: m.worker }, "attr");
 }
 function pressLine(r, p) {
-  if (p.f === "mission") {
+  if (p.f === "description") {
     selectPick(r, null, "attr");
-    focusAsk.value = { dom: r.dom, sel: '[data-cv-f="mission"]' };
+    focusAsk.value = { dom: r.dom, sel: '[data-cv-f="description"]' };
     return;
   }
   if (p.node)
@@ -1894,7 +1894,7 @@ function TPrev({ r }) {
         class: "ybox",
         children: at.map((z, i) => {
           const p = atParts(z.at);
-          const go = !!p.node || p.worker != null || !!p.a || p.f === "mission";
+          const go = !!p.node || p.worker != null || !!p.a || p.f === "description";
           const cls = [marks[z.at] === "err" ? "err" : marks[z.at] ? "warn" : "", added.includes(i) ? "ins" : "", removed.includes(i) ? "del" : "", lastDel && i === n - 1 ? "dele" : "", isCurLine(z, cur) ? "cur" : "", step.has(i) ? "step" : "", go ? "go" : ""].filter(Boolean).join(" ");
           return /* @__PURE__ */ u("div", {
             class: "yl " + cls,
@@ -1972,8 +1972,8 @@ var atParts = (at) => {
     const [a, b] = at.slice(5).split("->");
     return { a, b };
   }
-  if (at === "mission")
-    return { f: "mission" };
+  if (at === "description")
+    return { f: "description" };
   return {};
 };
 function isCurLine(z, cur) {
@@ -2012,7 +2012,7 @@ function lineMarks(r) {
   return out;
 }
 function markAt(m) {
-  return m.field === "mission" ? "mission" : m.node ? "node:" + m.node : m.worker != null && m.worker >= 0 ? "worker:" + m.worker : "";
+  return m.field === "description" ? "description" : m.node ? "node:" + m.node : m.worker != null && m.worker >= 0 ? "worker:" + m.worker : "";
 }
 function fitYbox(panel) {
   const box = panel.querySelector(".tprev");
@@ -2909,8 +2909,8 @@ function Opt({ v, on, children }) {
 function diffList(r) {
   const s = r.saved.value, t = r.draft.value, out = [];
   const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
-  if (s.mission !== t.mission)
-    out.push(["c", `使命: ${t.mission}`]);
+  if (s.description !== t.description)
+    out.push(["c", `説明: ${t.description}`]);
   cm.forEach((m, n) => {
     if (!sm.has(n))
       out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
@@ -3037,13 +3037,13 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("label", {
               for: `cv-mi-${team}`,
-              children: "使命"
+              children: "説明"
             }),
             /* @__PURE__ */ u(Field, {
               id: `cv-mi-${team}`,
               class: "cv-body",
-              "data-cv-f": "mission",
-              value: t.mission,
+              "data-cv-f": "description",
+              value: t.description,
               autocomplete: "off",
               spellcheck: false
             })
@@ -3940,8 +3940,8 @@ function onInput(r, e) {
     return;
   if (e.type === "input" && el.tagName === "SELECT")
     return;
-  if (f === "mission") {
-    canvasTyping(r, { kind: "mission", text: v }, "mission");
+  if (f === "description") {
+    canvasTyping(r, { kind: "description", text: v }, "description");
     return;
   }
   if (f === "m-name") {
@@ -4065,7 +4065,7 @@ function mountCanvas(el) {
   el.addEventListener("focusout", (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
     const f = target ? target.dataset.cvF : undefined;
-    if (f === "m-name" || f === "w-purpose" || f === "mission") {
+    if (f === "m-name" || f === "w-purpose" || f === "description") {
       const r = rowOf(target);
       if (r)
         canvasEndTyping(r);
@@ -4262,7 +4262,7 @@ function List() {
         children: "チーム定義名"
       }),
       /* @__PURE__ */ u("span", {
-        children: "使命"
+        children: "説明"
       }),
       /* @__PURE__ */ u("span", {
         children: "置き場所"
@@ -4427,7 +4427,7 @@ function pressSum(r, e) {
   const target = e.target instanceof Element ? e.target : null;
   if (!target)
     return;
-  if (target.closest("[data-hq], .in-mission, .in-name"))
+  if (target.closest("[data-hq], .in-description, .in-name"))
     return;
   const own = target.closest("button, a, input, select, [data-act]");
   if (own && own !== e.currentTarget)
@@ -4518,13 +4518,13 @@ function Sum({ r, open }) {
   }) : placePills(r);
   const cell = broken ? "—" : open ? /* @__PURE__ */ u(Field, {
     id: "m-" + r.dom,
-    class: "in-mission" + (t.mission !== saved.mission ? " changed" : ""),
-    "data-f": "mission",
-    value: t.mission,
+    class: "in-description" + (t.description !== saved.description ? " changed" : ""),
+    "data-f": "description",
+    value: t.description,
     autocomplete: "off",
-    "aria-label": `${teamLabel(r)} の使命`,
-    onInput: (e) => pressMission(r, inputValue(e))
-  }) : t.mission ? t.mission : "—";
+    "aria-label": `${teamLabel(r)} の説明`,
+    onInput: (e) => pressDescription(r, inputValue(e))
+  }) : t.description ? t.description : "—";
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("span", {
@@ -4546,7 +4546,7 @@ function Sum({ r, open }) {
         ]
       }),
       /* @__PURE__ */ u("span", {
-        class: "c-mission" + (broken || !(t.mission || open) ? " none" : ""),
+        class: "c-description" + (broken || !(t.description || open) ? " none" : ""),
         children: cell
       }),
       /* @__PURE__ */ u("span", {
@@ -4599,7 +4599,7 @@ function Detail({ r }) {
       /* @__PURE__ */ u("ul", {
         class: "vm mvm",
         children: /* @__PURE__ */ u(Vm2, {
-          list: [...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "mission")].map((m) => ({ sev: m.sev, text: m.text }))
+          list: [...r.nameIssues.value || [], ...r.findings.value.filter((m) => m.field === "description")].map((m) => ({ sev: m.sev, text: m.text }))
         })
       }),
       /* @__PURE__ */ u("nav", {

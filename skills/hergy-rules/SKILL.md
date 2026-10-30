@@ -26,7 +26,7 @@ A rule holds four things you write: its body (`text`), whether it is on (`in_pro
 ### Write a new team
 
 1. Write the starter files with `hergy new <team>` (inside a git repository it writes into the project's `.hergy/`; outside one, into `~/.config/hergy/`; start in the project). You get the team's `team.yaml` and `agreement.yaml`, and `roles/lead.yaml` and `roles/builder.yaml`.
-2. Ask, one at a time: what is this team for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`, and what the team is for as its `mission:` — one line, near the top of the file.
+2. Ask, one at a time: which case is this team meant for; who are its members and what is each one's role; what does each role do that no other role does. Write the members and the roles into `team.yaml`, and the case the team is meant for as its `description:` — one line, near the top of the file.
 3. For each rule, ask in this order:
    - the text: you draft one or two sentences from what they said, and read it back for a yes or a correction. When the rule hands the turn between two of the team — a member name, a role name, or the human — write it as `<name> → <name>`, or `<name> ⇄ <name>` when the turn goes both ways: `hergy validate` checks every such arrow against `turns:`. A rule like this usually belongs in the team's agreement, not in a role (item 5 of "What you keep to");
    - whether the rule is on: does every member need to read it now? If not, write `in_prompt: false` and offer to switch it on later; a rule added for a rare case may still be on, because a rule a member does not read is a rule nobody follows;

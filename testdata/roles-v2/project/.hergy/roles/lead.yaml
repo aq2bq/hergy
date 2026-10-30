@@ -2,7 +2,7 @@ version: 1
 title: 進行管理
 revision: 3
 sections:
-  - heading: 使命
+  - heading: 責務
     rules:
       - id: PAAF
         text: 人間と話すのは lead だけにする（lead ⇄ 人間）。人間に伝えるのは、人間が決めることと、人間の番が回ってきたことの 2 つだけにする。 進行の中身をそのまま人間に伝えて、人間が何を決めればよいのか分からなくなった。

@@ -126,7 +126,7 @@ func memberID(name string) definition.NodeID {
 // teamText is the test team: two members, one worker lead may hire, and the
 // shortest valid turns graph (段 5).
 func teamText() string {
-	return "version: 1\nmission: a mission for the test\nteam: demo\n" +
+	return "version: 1\ndescription: a description for the test\nteam: demo\n" +
 		"members:\n" +
 		"  - name: lead\n    role: lead\n    profile: claude-default\n" +
 		"  - name: spec\n    role: spec\n    profile: claude-default\n" +
@@ -731,7 +731,7 @@ func TestPreviewSaysWhatAHumanTurnDoes(t *testing.T) {
 // it. A profile a member runs says nothing here.
 func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	l := newLayer(t)
-	text := "version: 1\nmission: a mission for the test\nteam: demo\n" +
+	text := "version: 1\ndescription: a description for the test\nteam: demo\n" +
 		"members:\n" +
 		"  - name: lead\n    role: lead\n    profile: claude-default\n" +
 		"  - name: spec\n    role: spec\n    profile: claude-default\n" +

@@ -190,6 +190,7 @@ type HQWorkspaces struct {
 // the definition's name is taken.
 type HQLaunchOptions struct {
 	Definition       string              `json:"definition"`
+	Description      string              `json:"description"`
 	Place            string              `json:"place"`
 	Project          *HQRef              `json:"project,omitempty"`
 	Members          []HQMember          `json:"members"`

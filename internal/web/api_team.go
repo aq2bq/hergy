@@ -49,16 +49,16 @@ type apiTeamIn struct {
 	Workers []apiTeamDraftRow `json:"workers"`
 }
 
-// apiTeamSummary is the team list's columns: the mission, who is on the team,
+// apiTeamSummary is the team list's columns: the description, who is on the team,
 // and how much the team's own agreement holds. The per-member amount is gone
 // (d-b87a); the definition's own size and budget are below.
 type apiTeamSummary struct {
-	Mission  string          `json:"mission"`
-	Members  []apiTeamMember `json:"members"`
-	Workers  int             `json:"workers"`
-	Rules    int             `json:"rules"`
-	Excluded int             `json:"excluded,omitempty"`
-	Broken   bool            `json:"broken,omitempty"`
+	Description string          `json:"description"`
+	Members     []apiTeamMember `json:"members"`
+	Workers     int             `json:"workers"`
+	Rules       int             `json:"rules"`
+	Excluded    int             `json:"excluded,omitempty"`
+	Broken      bool            `json:"broken,omitempty"`
 	// Size is the definition's own size, counted the way d-00a9 says: the part
 	// of its rules that goes into the prompt and the words of its templates.
 	// Limit is the provisional budget it is shown against. The figure's check
@@ -86,17 +86,17 @@ type apiTeamWorker struct {
 	Profile string `json:"profile"`
 }
 
-// apiTeamDoc is one team definition as the screen reads it: the mission, the
+// apiTeamDoc is one team definition as the screen reads it: the description, the
 // members, the workers, the turns of the draft, the prompt's own lines, and the
 // team's own agreement.
 type apiTeamDoc struct {
-	Mission   string          `json:"mission"`
-	Members   []apiTeamMember `json:"members"`
-	Workers   []apiTeamWorker `json:"workers"`
-	Turns     []t2Turn        `json:"turns"`
-	Prompt    t2Prompt        `json:"prompt"`
-	Agreement *apiTeamAgree   `json:"agreement,omitempty"`
-	Broken    bool            `json:"broken,omitempty"`
+	Description string          `json:"description"`
+	Members     []apiTeamMember `json:"members"`
+	Workers     []apiTeamWorker `json:"workers"`
+	Turns       []t2Turn        `json:"turns"`
+	Prompt      t2Prompt        `json:"prompt"`
+	Agreement   *apiTeamAgree   `json:"agreement,omitempty"`
+	Broken      bool            `json:"broken,omitempty"`
 }
 
 // apiTeamDraft is the doc a 割り当て tab that still sends rows writes: the picks
@@ -227,7 +227,7 @@ func (s *Server) t2DocWithAgree(cat *catalog.Catalog, name string, def *definiti
 		out.Broken = true
 		return out
 	}
-	out.Mission = def.Mission
+	out.Description = def.Description
 	run := prompt.Run{
 		Team: name, Executable: promptExecutable(), Base: cat.Base(),
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
@@ -276,7 +276,7 @@ func (s *Server) t2SummaryOf(name, layer string, def *definition.Definition, ver
 func (s *Server) buildSummaryOf(name, layer string, def *definition.Definition) apiTeamSummary {
 	out := apiTeamSummary{}
 	if def == nil || def.Graph == nil {
-		// The team screen draws 使命 — and no numbers for a file that does not
+		// The team screen draws 説明 — and no numbers for a file that does not
 		// read (spec-teams 1.9), but the role screen's 割り当て tab still counts
 		// the people the file names: the roles a member plays stand in the text
 		// whether or not the definition reads (roles_v2_data.go did the same).
@@ -285,7 +285,7 @@ func (s *Server) buildSummaryOf(name, layer string, def *definition.Definition) 
 			out.Members = t2MembersOfText(text)
 		}
 	} else {
-		out.Mission = def.Mission
+		out.Description = def.Description
 		out.Workers = len(def.Graph.Workers)
 		for _, m := range def.Graph.Members {
 			out.Members = append(out.Members, apiTeamMember{Name: m.Name, Role: m.Role, Profile: m.Profile})

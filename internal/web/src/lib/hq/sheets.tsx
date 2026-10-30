@@ -304,6 +304,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       <Head title={title} label={definition} />
       <dl class="hq-kv">
         <dt>チーム定義</dt><dd><code>{definition}</code>（{isGlobal ? 'グローバル' : projectName(chosen)}）</dd>
+        <dt>説明</dt><dd data-role="description">{options.description || '—'}</dd>
         <dt>プロジェクト</dt><dd>{isGlobal
           ? <><select id="hq-proj" class="hq-sel" onChange={(e) => pickProject(e.currentTarget.value)}><option value="">選んでください</option>{(options.projects || []).map((x: HQLaunchProject) => (x.available
             ? <option value={x.path} selected={x.path === chosen}>{x.name}</option>
@@ -560,7 +561,7 @@ const profileDoc = (item: ProfileItem): Partial<ProfileDoc> => {
   return (place && place.doc) || {};
 };
 
-// index builds the rows the search reads: names, missions, rules' ids and texts,
+// index builds the rows the search reads: names, descriptions, rules' ids and texts,
 // kinds and args — the fields api.md 3.5 names (spec 3 章).
 function buildIndex(): SearchEntry[] {
   const out: SearchEntry[] = [];
@@ -569,7 +570,7 @@ function buildIndex(): SearchEntry[] {
     for (const item of ((g.list && g.list.items) || [])) {
       const doc = teamDoc(item);
       const href = `/teams?open=${encodeURIComponent(token(item.name, group))}`;
-      out.push({ kind: 'def', group, project: label, label: item.name, sub: doc.mission || '', text: `${item.name} ${doc.mission || ''}`, href });
+      out.push({ kind: 'def', group, project: label, label: item.name, sub: doc.description || '', text: `${item.name} ${doc.description || ''}`, href });
       for (const m of doc.members || []) {
         out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ''} · プロファイル ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
       }

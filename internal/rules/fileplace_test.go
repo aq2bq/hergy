@@ -12,7 +12,7 @@ import (
 // place-word in a Japanese sentence (d-46b9).
 func TestAWholeFileProblemNamesTheFile(t *testing.T) {
 	cases := []struct{ name, text string }{
-		{"an unknown key", "version: 1\nmission: x\nsections:\n  - rules:\n      - text: a rule\n"},
+		{"an unknown key", "version: 1\ndescription: x\nsections:\n  - rules:\n      - text: a rule\n"},
 		{"a key twice", "version: 1\nversion: 1\nsections:\n  - rules:\n      - text: a rule\n"},
 		{"not a mapping", "- a rule\n"},
 	}
@@ -37,7 +37,7 @@ func TestAWholeFileProblemNamesTheFile(t *testing.T) {
 // language it was read in, so the same text read again in another language is
 // read again rather than answered from the first reading.
 func TestAProblemIsReadInTheLanguageInUse(t *testing.T) {
-	text := "version: 1\nmission: x\nsections:\n  - rules:\n      - text: a rule\n"
+	text := "version: 1\ndescription: x\nsections:\n  - rules:\n      - text: a rule\n"
 	_, ja := ReadAll(text, "roles/lead.yaml")
 	if err := i18n.Use("en"); err != nil {
 		t.Fatal(err)

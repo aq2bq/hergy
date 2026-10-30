@@ -147,7 +147,7 @@ async function graphProblems(page: Parameters<typeof read>[0], base: string): Pr
   ).toBe(true);
 }
 
-// saveShape is e2eTeamsSaveShape's browser-only part: the mission alone moves and
+// saveShape is e2eTeamsSaveShape's browser-only part: the description alone moves and
 // the check rides on the typing, and one turn goes with its card's own words —
 // the line the change would take away standing once (R6), and the save writing
 // that one line (F1・F2, P2・P6・P7).
@@ -155,11 +155,11 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
   const file = path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml');
   let before = readFileSync(file, 'utf8');
 
-  // F2: the mission alone moves, and the check rides on the typing (P2).
+  // F2: the description alone moves, and the check rides on the typing (P2).
   await page.goto(`${app.base}/teams?open=core`);
   await wait(page, there('.tdef[data-name="core"] .panel.team-p footer.pf [data-act=t-save]'));
-  const mission = 'E2E が書き換えた使命。';
-  await set(page, q('.in-mission'), mission);
+  const description = 'E2E が書き換えた説明。';
+  await set(page, q('.in-description'), description);
   await wait(
     page,
     `document.querySelectorAll('.tdef[data-name="core"] .dtabs .dtab[data-t=shape] .dot').length>0`,
@@ -169,8 +169,8 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
   await wait(page, there2(shape('core'), '.ok'));
   let { added, removed } = diff(before, readFileSync(file, 'utf8'));
   expect(
-    added.length === 1 && removed.length === 1 && added[0] === `mission: "${mission}"` && removed[0].startsWith('mission: '),
-    `the mission save wrote ${JSON.stringify(added)} and lost ${JSON.stringify(removed)}, want the mission line alone`,
+    added.length === 1 && removed.length === 1 && added[0] === `description: "${description}"` && removed[0].startsWith('description: '),
+    `the description save wrote ${JSON.stringify(added)} and lost ${JSON.stringify(removed)}, want the description line alone`,
   ).toBe(true);
   before = readFileSync(file, 'utf8');
 
@@ -196,6 +196,23 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
     `the turn save wrote ${JSON.stringify(added)} and lost ${JSON.stringify(removed)}, want the turn's own line alone`,
   ).toBe(true);
 }
+
+test('TEAMS-D1 the description is read where a definition is picked', async ({ page, app }) => {
+  // d-5f55: the description is the line the places a person picks or reads a
+  // definition show. The list names its column 説明, the row carries the saved
+  // line, and the opened row writes it in the same place.
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there('#view .tdef'));
+  await readTo<string>(page, `document.querySelector('#view .head').textContent`, 'the list does not name the 説明 column').toContain('説明');
+  await readTo<string>(page, `${tRow('core')}.querySelector('.c-description').textContent`, 'the row does not show the saved description').toBe('注文 API を作り直す');
+
+  await press(page, `${tRow('core')}.querySelector('.sum')`);
+  await wait(page, `!!(${tRow('core')} && ${tRow('core')}.querySelector('.in-description'))`);
+  await readTo<string>(page, `${tRow('core')}.querySelector('.in-description').value`, 'the opened row does not carry the description').toBe('注文 API を作り直す');
+  // The definition's own name is a column of its own: the description does not
+  // take its place.
+  await readTo<string>(page, `${tRow('core')}.querySelector('.c-name .nm').textContent`, 'the row lost its name').toBe('core');
+});
 
 test('TEAMS-P5 the definition a person edits', async ({ page, app }) => {
   // The edit walk's save writes the file, so the Go run stood it in a project of

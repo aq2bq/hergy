@@ -25,7 +25,7 @@ function page() {
         project: { path: '/work/alpha', name: 'alpha', display: '注文 API' },
         list: { items: [{
           name: 'core', effective: 'project',
-          places: { project: { path: '.hergy/teams/core/team.yaml', hash: 'h1', doc: { mission: '注文 API を作り直す', members: [], workers: [], turns: [] } } },
+          places: { project: { path: '.hergy/teams/core/team.yaml', hash: 'h1', doc: { description: '注文 API を作り直す', members: [], workers: [], turns: [] } } },
         }] },
       }],
       roles: [], profiles: [],

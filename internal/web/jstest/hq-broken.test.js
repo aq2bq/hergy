@@ -23,7 +23,7 @@ function page() {
         list: { items: [{
           name: 'core', effective: 'project',
           places: { project: { path: '.hergy/teams/core/team.yaml', hash: 'h1', doc: {
-            mission: '注文 API を作り直す',
+            description: '注文 API を作り直す',
             members: [
               { name: 'lead', role: 'lead', profile: 'coder' },
               { name: 'spec2', role: '進行管理', profile: 'coder' },

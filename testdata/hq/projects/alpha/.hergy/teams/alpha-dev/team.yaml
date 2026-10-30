@@ -1,5 +1,5 @@
 version: 1
-mission: "注文の流れを作り直す"
+description: "注文の流れを作り直す"
 members:
   - name: lead
     role: lead

@@ -93,8 +93,8 @@ type t2TestItem struct {
 	Hidden    []string                `json:"hidden"`
 	Problems  struct{ Err, Warn int } `json:"problems"`
 	Summary   struct {
-		Mission string `json:"mission"`
-		Members []struct {
+		Description string `json:"description"`
+		Members     []struct {
 			Name    string `json:"name"`
 			Role    string `json:"role"`
 			Profile string `json:"profile"`
@@ -110,8 +110,8 @@ type t2TestItem struct {
 		Hash string `json:"hash"`
 		Path string `json:"path"`
 		Doc  struct {
-			Mission string `json:"mission"`
-			Members []struct {
+			Description string `json:"description"`
+			Members     []struct {
 				Name     string                     `json:"name"`
 				Role     string                     `json:"role"`
 				Profile  string                     `json:"profile"`
@@ -204,8 +204,8 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	if item.Effective != "project" || len(item.Hidden) != 0 {
 		t.Errorf("the item stands in %q with hidden %v, want the project", item.Effective, item.Hidden)
 	}
-	if item.Summary.Mission != "demo の使命" {
-		t.Errorf("the mission reads %q", item.Summary.Mission)
+	if item.Summary.Description != "demo の説明" {
+		t.Errorf("the description reads %q", item.Summary.Description)
 	}
 	if len(item.Summary.Members) != 2 || item.Summary.Workers != 3 {
 		t.Errorf("the summary reads %d members, %d workers", len(item.Summary.Members), item.Summary.Workers)
@@ -214,7 +214,7 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 		t.Errorf("the agreement's rules read %d, want one", item.Summary.Rules)
 	}
 	place := item.Places["project"]
-	if place.Doc.Mission != "demo の使命" || len(place.Doc.Members) != 2 || len(place.Doc.Workers) != 3 || len(place.Doc.Turns) != 3 {
+	if place.Doc.Description != "demo の説明" || len(place.Doc.Members) != 2 || len(place.Doc.Workers) != 3 || len(place.Doc.Turns) != 3 {
 		t.Errorf("the project's reading reads %+v", place.Doc)
 	}
 	if len(place.Doc.Members) == 0 || len(place.Doc.Members[0].Segments) == 0 {
@@ -501,21 +501,21 @@ func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
 // as it was (spec-teams 1.3, X1).
 func TestTEAMS_F1_FigureSaveWritesTheOneLine(t *testing.T) {
 	f := newFixture(t)
-	f.write(t, "teams/demo/team.yaml", "version: 1\n# a comment a person wrote\nmission: demo の使命\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
+	f.write(t, "teams/demo/team.yaml", "version: 1\n# a comment a person wrote\ndescription: demo の説明\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
 	server := f.server(t)
 	before := readFile(t, f.teamYAML())
 
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "part": "team", "hash": source.Hash(before),
-		"doc": map[string]any{"ops": []map[string]any{{"kind": "mission", "text": "新しい使命"}}},
+		"doc": map[string]any{"ops": []map[string]any{{"kind": "description", "text": "新しい説明"}}},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT /api/team/demo answers %d: %s", resp.StatusCode, body)
 	}
 	after := readFile(t, f.teamYAML())
 	changed := changedLines(before, after)
-	if len(changed) != 1 || !strings.Contains(after, "mission: 新しい使命") {
-		t.Errorf("the save changed %d lines, want the mission's one:\n%s", len(changed), after)
+	if len(changed) != 1 || !strings.Contains(after, "description: 新しい説明") {
+		t.Errorf("the save changed %d lines, want the description's one:\n%s", len(changed), after)
 	}
 	if !strings.Contains(after, "# a comment a person wrote") {
 		t.Errorf("the save dropped the comment:\n%s", after)
@@ -567,7 +567,7 @@ func TestTeamsAgreementCheckSharesThePart(t *testing.T) {
 	server := f.server(t)
 	doc := map[string]any{
 		"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "使命", "rules": []map[string]any{{
+		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{{
 			"id": "TEAM-1", "text": "このチームの約束。", "why": "だから。",
 			"send_why": true, "in_prompt": true, "note": "", "report": "", "tests": []any{}, "origin": []any{},
 		}}}},
@@ -597,7 +597,7 @@ func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 	before := readFile(t, path)
 	doc := map[string]any{
 		"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "使命", "rules": []map[string]any{{
+		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{{
 			"id": "TEAM-1", "text": "このチームの約束を変えた。", "why": "だから。",
 			"send_why": true, "in_prompt": true, "note": "", "report": "", "tests": []any{}, "origin": []any{},
 		}}}},
@@ -624,7 +624,7 @@ func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 func TestTeamsYamlCheckFindsTheLine(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	text := "version: 1\nmission: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: lead\n    profile: nosuch\n"
+	text := "version: 1\ndescription: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: lead\n    profile: nosuch\n"
 	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
 		"place": "project", "name": "demo", "part": "team", "text": text,
 	})
@@ -660,7 +660,7 @@ func TestTEAMS_P11_YamlSaveRefusesANewError(t *testing.T) {
 		t.Errorf("the refused YAML save wrote the file:\n%s", got)
 	}
 	// A text the file's own errors do not grow is written as typed.
-	ok := strings.Replace(before, "mission: demo の使命", "mission: 変えた使命", 1)
+	ok := strings.Replace(before, "description: demo の説明", "description: 変えた説明", 1)
 	resp, body = f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "part": "team", "hash": source.Hash(before), "text": ok,
 	})
@@ -696,12 +696,12 @@ func TestTeamsNoLayerStopsAWrite(t *testing.T) {
 // TestTeamsYamlLine: the line of a team.yaml field reads, the forms check uses
 // among them (spec-teams 1.8).
 func TestTeamsYamlLine(t *testing.T) {
-	text := "version: 1\nmission: demo\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\nturns:\n  - human -> lead\n"
+	text := "version: 1\ndescription: demo\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\nturns:\n  - human -> lead\n"
 	for _, tc := range []struct {
 		field string
 		want  int
 	}{
-		{"mission", 2},
+		{"description", 2},
 		{"members[0].profile", 6},
 		{"members[1].role", 8},
 		{"turns[0]", 10},
@@ -729,8 +729,8 @@ type t2TestDraft struct {
 	} `json:"draft"`
 	Problems []t2TestProblem `json:"problems"`
 	Doc      struct {
-		Mission string `json:"mission"`
-		Members []struct {
+		Description string `json:"description"`
+		Members     []struct {
 			Name string `json:"name"`
 		} `json:"members"`
 		Agreement struct {
@@ -782,7 +782,7 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 
 	// An empty name is the name's problem, and it is about the name; the
 	// figure's own sentences stand beside it all the same — a row that was just
-	// added shows the mission's warning while the name is being typed (B2, N1).
+	// added shows the description's warning while the name is being typed (B2, N1).
 	empty := checkOne("")
 	if len(empty.Problems) < 2 || empty.Problems[0].At != "name" {
 		t.Fatalf("an empty name answers %+v, want the name's problem first and the figure's own beside it", empty.Problems)
@@ -793,17 +793,17 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	// The starter's members name a profile the fixture does not hold: the person
 	// chooses one from what is there, so the row keeps saying so (r-54b8).
 	profiles := 0
-	mission := false
+	description := false
 	for _, p := range empty.Problems[1:] {
-		if p.At == "mission" {
-			mission = true
+		if p.At == "description" {
+			description = true
 		}
 		if strings.HasSuffix(p.At, ".profile") {
 			profiles++
 		}
 	}
-	if !mission || profiles != 2 {
-		t.Errorf("an empty name answers %+v, want the mission's warning and 2 profile problems", empty.Problems)
+	if !description || profiles != 2 {
+		t.Errorf("an empty name answers %+v, want the description's warning and 2 profile problems", empty.Problems)
 	}
 
 	// A name the place already holds is a name problem too, in the words the
@@ -844,13 +844,13 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	if !draft.Draft.HasRoles || !draft.Draft.HasProfiles {
 		t.Errorf("the draft reads has_roles %v has_profiles %v, want both true", draft.Draft.HasRoles, draft.Draft.HasProfiles)
 	}
-	// The starter's own figure: two members, and the mission placeholder
+	// The starter's own figure: two members, and the description placeholder
 	// validate warns about (B2).
 	if len(draft.Doc.Members) != 2 {
 		t.Errorf("the starter's figure holds %d members, want 2", len(draft.Doc.Members))
 	}
-	if draft.Doc.Mission == "" {
-		t.Error("the starter's figure carries no mission")
+	if draft.Doc.Description == "" {
+		t.Error("the starter's figure carries no description")
 	}
 	if !draft.Doc.Agreement.Has {
 		t.Error("the starter's own agreement is not read")
@@ -860,17 +860,17 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	if len(draft.Preview.Lines) == 0 {
 		t.Fatal("the draft answers no preview lines")
 	}
-	var atMission, atNode bool
+	var atDescription, atNode bool
 	for _, line := range draft.Preview.Lines {
-		if line.At == "mission" {
-			atMission = true
+		if line.At == "description" {
+			atDescription = true
 		}
 		if strings.HasPrefix(line.At, "node:") {
 			atNode = true
 		}
 	}
-	if !atMission || !atNode {
-		t.Errorf("the preview lines name no mission (%v) or member (%v): %+v", atMission, atNode, draft.Preview.Lines)
+	if !atDescription || !atNode {
+		t.Errorf("the preview lines name no description (%v) or member (%v): %+v", atDescription, atNode, draft.Preview.Lines)
 	}
 	// No ops: nothing the row writes differs from the base it stands on.
 	if len(draft.Preview.Diff.Added) != 0 || len(draft.Preview.Diff.RemovedBefore) != 0 || draft.Preview.Diff.RemovedAtEnd {
@@ -1232,7 +1232,7 @@ func TestTEAMS_SaveKeepsAHumanTurnProblemForTheDefinition(t *testing.T) {
 // with the file's own text.
 func TestTEAMS_Y6_ThePreviewIsTheSavedFile(t *testing.T) {
 	f := newFixture(t)
-	text := "version: 1\n# a comment a person wrote\nmission: demo の使命\n\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: analyst\n    role: analyst\n    profile: coder\nturns:\n  - human -> lead\n  - analyst -> lead\n"
+	text := "version: 1\n# a comment a person wrote\ndescription: demo の説明\n\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: analyst\n    role: analyst\n    profile: coder\nturns:\n  - human -> lead\n  - analyst -> lead\n"
 	f.write(t, "teams/demo/team.yaml", text)
 	server := f.server(t)
 
@@ -1363,7 +1363,7 @@ func TestTEAMS_CopyMemberThroughTheAPI(t *testing.T) {
 func TestTeamsSayARoleNameThatIsNotOne(t *testing.T) {
 	f := newFixture(t)
 	f.write(t, filepath.Join("roles", "進行管理.yaml"), "version: 1\nsections:\n  - rules:\n      - id: SPEC-1\n        text: 何かをする。\n")
-	text := "version: 1\nmission: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: 進行管理\n    profile: coder\n"
+	text := "version: 1\ndescription: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: 進行管理\n    profile: coder\n"
 	f.write(t, filepath.Join("teams", "demo", "team.yaml"), text)
 	server := f.server(t)
 

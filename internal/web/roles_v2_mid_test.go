@@ -795,7 +795,7 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		team := "version: 1\nmission: \"文書の無いロールを読む\"\n" +
+		team := "version: 1\ndescription: \"文書の無いロールを読む\"\n" +
 			"members:\n  - name: lead\n    role: lead\n    profile: opus-deep\n" +
 			"  - name: ghost-writer\n    role: ghost\n    profile: gemini-pro\n" +
 			"turns:\n  - human -> lead\n  - lead -> ghost-writer\n  - ghost-writer -> lead\n"

@@ -14,8 +14,8 @@ import (
 type OpKind int
 
 const (
-	// OpSetMission writes team.yaml's mission.
-	OpSetMission OpKind = iota
+	// OpSetDescription writes team.yaml's description.
+	OpSetDescription OpKind = iota
 	// OpSetMemberRole changes one member's role.
 	OpSetMemberRole
 	// OpSetMemberProfile changes one member's profile.
@@ -51,14 +51,14 @@ const (
 // error rather than a silent no-op, so a screen that acts on a stale row is
 // told rather than writing nothing (I12).
 type Op struct {
-	Kind    OpKind
-	Mission string // OpSetMission
-	Member  string // OpSetMemberRole, OpSetMemberProfile
-	Role    string // OpSetMemberRole
-	Profile string // OpSetMemberProfile, OpAddWorker, OpSetWorkerProfile
-	Turn    Edge   // OpAddTurn, OpRemoveTurn
-	From    string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose
-	Purpose string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose (the worker's identity)
+	Kind        OpKind
+	Description string // OpSetDescription
+	Member      string // OpSetMemberRole, OpSetMemberProfile
+	Role        string // OpSetMemberRole
+	Profile     string // OpSetMemberProfile, OpAddWorker, OpSetWorkerProfile
+	Turn        Edge   // OpAddTurn, OpRemoveTurn
+	From        string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose
+	Purpose     string // OpAddWorker, OpRemoveWorker, OpSetWorkerProfile, OpSetWorkerPurpose (the worker's identity)
 	// NewPurpose is the purpose an OpSetWorkerPurpose writes in place of the
 	// worker's own.
 	NewPurpose string // OpSetWorkerPurpose
@@ -69,8 +69,8 @@ type Op struct {
 	To string // OpMoveWorker
 }
 
-// Mission is the op that writes team.yaml's mission.
-func Mission(text string) Op { return Op{Kind: OpSetMission, Mission: text} }
+// Description is the op that writes team.yaml's description.
+func Description(text string) Op { return Op{Kind: OpSetDescription, Description: text} }
 
 // MemberRole is the op that changes one member's role.
 func MemberRole(member, role string) Op {
@@ -209,8 +209,8 @@ func teamSaveBug() yamledit.Bug {
 // lines have to read back as. It is the tree edit C3 was first written with.
 func applyTree(root *yaml.Node, op Op) error {
 	switch op.Kind {
-	case OpSetMission:
-		putKey(root, "mission", op.Mission)
+	case OpSetDescription:
+		putKey(root, "description", op.Description)
 		return nil
 	case OpSetMemberRole:
 		return editMember(root, op.Member, "role", op.Role)
@@ -245,8 +245,8 @@ func applyTree(root *yaml.Node, op Op) error {
 // line left as it was.
 func applyLines(src *yamledit.Source, root *yaml.Node, op Op, path string) error {
 	switch op.Kind {
-	case OpSetMission:
-		return setMissionLines(src, root, op.Mission)
+	case OpSetDescription:
+		return setDescriptionLines(src, root, op.Description)
 	case OpSetMemberRole:
 		return setMemberLines(src, root, op.Member, "role", op.Role)
 	case OpSetMemberProfile:
@@ -276,21 +276,21 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op, path string) error
 	}
 }
 
-// setMissionLines writes the mission on its own line, or, when the file has no
-// mission:, inserts the line after version: (at the head when there is none
-// either).
-func setMissionLines(src *yamledit.Source, root *yaml.Node, value string) error {
-	if v := yamledit.MappingValue(root, "mission"); v != nil {
-		return yamledit.ReplaceScalar(src, v, value, "mission", false)
+// setDescriptionLines writes the description on its own line, or, when the file
+// has no description:, inserts the line after version: (at the head when there
+// is none either).
+func setDescriptionLines(src *yamledit.Source, root *yaml.Node, value string) error {
+	if v := yamledit.MappingValue(root, "description"); v != nil {
+		return yamledit.ReplaceScalar(src, v, value, "description", false)
 	}
-	if err := src.Writable(value, "mission"); err != nil {
+	if err := src.Writable(value, "description"); err != nil {
 		return err
 	}
 	at := 0
 	if key := yamledit.MappingKeyNode(root, "version"); key != nil {
 		at = key.Line
 	}
-	src.Insert(at, "mission: "+yamledit.ScalarLiteral(value, 0))
+	src.Insert(at, "description: "+yamledit.ScalarLiteral(value, 0))
 	return nil
 }
 

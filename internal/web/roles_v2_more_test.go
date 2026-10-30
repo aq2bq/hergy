@@ -475,7 +475,7 @@ func TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole(t *tes
 	// role no layer holds a document for.
 	f.write(t, filepath.Join("roles", "mdonly.md"), "# mdonly\n\n- 何かをする。\n")
 	f.write(t, filepath.Join("teams", "ghost", "team.yaml"),
-		"version: 1\nmission: 幽霊の確認\nmembers:\n  - name: ghost\n    role: nosuch\n    profile: sonnet-fast\nturns:\n  - human -> ghost\n")
+		"version: 1\ndescription: 幽霊の確認\nmembers:\n  - name: ghost\n    role: nosuch\n    profile: sonnet-fast\nturns:\n  - human -> ghost\n")
 	server := f.server(t)
 
 	resp, body := f.api(t, server, http.MethodGet, "/api/role", nil)
@@ -511,8 +511,8 @@ func TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole(t *tes
 	if !ok {
 		t.Fatalf("the new role does not stand in the project: %+v", fresh.Places)
 	}
-	if len(place.Doc.Sections) != 1 || place.Doc.Sections[0].Heading != "使命" {
-		t.Fatalf("the new role's document is %+v, want one section 使命", place.Doc.Sections)
+	if len(place.Doc.Sections) != 1 || place.Doc.Sections[0].Heading != "責務" {
+		t.Fatalf("the new role's document is %+v, want one section 責務", place.Doc.Sections)
 	}
 	if n := len(place.Doc.Sections[0].Rules); n != 1 {
 		t.Fatalf("the new role holds %d rules, want one empty rule", n)

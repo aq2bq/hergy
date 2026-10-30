@@ -71,7 +71,7 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 		"doc": map[string]any{
 			"name": "nav-one", "revision": 1,
 			"sections": []map[string]any{{
-				"heading": "使命",
+				"heading": "責務",
 				"rules":   []map[string]any{{"id": "NAV-1", "text": "帯の数のために足した規則。", "in_prompt": true}},
 			}},
 		},

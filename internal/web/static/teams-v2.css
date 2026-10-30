@@ -152,11 +152,11 @@ a { color: inherit; text-decoration: none; }
 .head, .sum {
   display: grid; align-items: center; column-gap: 18px;
   grid-template-columns: 14px minmax(10rem, .9fr) minmax(0, 2fr) 10rem 4.5rem 4.5rem 4.5rem 12.5rem;
-  grid-template-areas: "chev name mission place members turns agree size";
+  grid-template-areas: "chev name description place members turns agree size";
   padding: 0 10px;
 }
 .head { font-size: 12px; color: var(--faint); padding-block: 8px; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
-.head > :nth-child(2) { grid-area: name; } .head > :nth-child(3) { grid-area: mission; } .head > :nth-child(4) { grid-area: place; }
+.head > :nth-child(2) { grid-area: name; } .head > :nth-child(3) { grid-area: description; } .head > :nth-child(4) { grid-area: place; }
 .head > :nth-child(5) { grid-area: members; } .head > :nth-child(6) { grid-area: turns; } .head > :nth-child(7) { grid-area: agree; }
 .head > :nth-child(8) { grid-area: size; }
 .tdef { border-bottom: 1px solid var(--line); }
@@ -168,14 +168,14 @@ a { color: inherit; text-decoration: none; }
 .c-name { grid-area: name; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .c-name .nm { font-family: var(--f-mono); font-weight: 600; font-size: 14.5px; white-space: nowrap; }
 .tdef.unsaved > .sum .nm::after, .rule.unsaved > .rsum .rid b::after { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--changed); margin-left: 6px; vertical-align: middle; }
-.c-mission { grid-area: mission; font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.c-mission:has(.in-mission) { overflow: visible; }
-.in-mission {
+.c-description { grid-area: description; font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.c-description:has(.in-description) { overflow: visible; }
+.in-description {
   width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
   border-radius: 4px; padding: 4px 9px; margin-block: -5px; font-family: var(--f-body); font-weight: 700; font-size: 14.5px; cursor: text;
 }
-.in-mission:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
-.in-mission.changed { border-color: var(--changed); border-style: dashed; background: var(--changed-soft); }
+.in-description:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.in-description.changed { border-color: var(--changed); border-style: dashed; background: var(--changed-soft); }
 .c-place { grid-area: place; display: flex; gap: 4px; flex-wrap: wrap; }
 .pill { font-size: 11.5px; line-height: 1; padding: 4px 6px 3px; border-radius: 3px; border: 1px solid var(--ink); white-space: nowrap; }
 .pill.on { background: var(--ink); color: var(--bg); }
@@ -605,11 +605,11 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
   .head { display: none; }
   .sum {
     grid-template-columns: 14px minmax(0, 1fr) auto;
-    grid-template-areas: "chev name place" ". mission size";
+    grid-template-areas: "chev name place" ". description size";
     row-gap: 4px;
   }
-  .c-mission { white-space: normal; }
-  .in-mission { margin-block: 0; }
+  .c-description { white-space: normal; }
+  .in-description { margin-block: 0; }
   .c-size { justify-self: end; }
   .c-members, .c-turns, .c-agree { display: none; }
   /* 幅の狭い所では、定義の操作はタブの下に 1 行（バージョン 7 B5） */

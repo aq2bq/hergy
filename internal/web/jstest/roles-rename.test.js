@@ -25,7 +25,7 @@ const island = {
   team: {
     items: [{
       name: 'core', effective: 'project', summary: { members: [{ name: 'impl', role: 'builder' }] },
-      places: { project: { doc: { mission: '注文 API を作り直す', members: [{ name: 'impl', role: 'builder', profile: 'coder' }], workers: [], turns: [] } } },
+      places: { project: { doc: { description: '注文 API を作り直す', members: [{ name: 'impl', role: 'builder', profile: 'coder' }], workers: [], turns: [] } } },
     }],
   },
 };

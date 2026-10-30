@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// TestMissionPlaceholderIsWhatTheStarterWrites: the placeholder hergy validate
-// warns about (d-3cae) is the mission line the starter team actually writes, so
+// TestDescriptionPlaceholderIsWhatTheStarterWrites: the placeholder hergy validate
+// warns about (d-3cae) is the description line the starter team actually writes, so
 // the warning cannot drift from the file.
-func TestMissionPlaceholderIsWhatTheStarterWrites(t *testing.T) {
-	for lang, example := range MissionPlaceholder {
+func TestDescriptionPlaceholderIsWhatTheStarterWrites(t *testing.T) {
+	for lang, example := range DescriptionPlaceholder {
 		files, err := Team(lang)
 		if err != nil {
 			t.Fatalf("Team(%q): %v", lang, err)
@@ -20,19 +20,19 @@ func TestMissionPlaceholderIsWhatTheStarterWrites(t *testing.T) {
 				continue
 			}
 			for line := range strings.SplitSeq(string(file.Data), "\n") {
-				if line == "mission: "+example {
+				if line == "description: "+example {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Errorf("the starter team of %s does not write the mission placeholder %q", lang, example)
+			t.Errorf("the starter team of %s does not write the description placeholder %q", lang, example)
 		}
-		if !IsPlaceholderMission(example) {
-			t.Errorf("IsPlaceholderMission(%q) = false", example)
+		if !IsPlaceholderDescription(example) {
+			t.Errorf("IsPlaceholderDescription(%q) = false", example)
 		}
 	}
-	if IsPlaceholderMission("a mission of one's own") {
-		t.Error("IsPlaceholderMission accepted a mission that is not an example")
+	if IsPlaceholderDescription("a description of one's own") {
+		t.Error("IsPlaceholderDescription accepted a description that is not an example")
 	}
 }

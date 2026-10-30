@@ -26,7 +26,7 @@ func ledgerProject(t *testing.T, script string) *fixture {
 			"version: 1\nsections:\n  - rules:\n      - id: R1\n        text: one\n")
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n"+
+		"version: 1\ndescription: a description for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: claude-default\n"+
 			"  - name: designer\n    role: designer\n    profile: claude-default\n"+
 			"turns:\n  - human -> lead\n  - lead -> designer\n  - designer -> lead\n  - lead -> human\n"+
@@ -141,7 +141,7 @@ func TestValidateSaysNothingAboutALedgerNoDefinitionWrites(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
 		"version: 1\nsections:\n  - rules:\n      - id: R1\n        text: one\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n"+
+		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n"+
 			"turns:\n  - human -> lead\n  - lead -> human\n")
 
 	stdout, _, code := run("validate")

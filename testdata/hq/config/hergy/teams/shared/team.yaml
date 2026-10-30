@@ -1,5 +1,5 @@
 version: 1
-mission: "どのプロジェクトでも使う、困りごとの相談"
+description: "どのプロジェクトでも使う、困りごとの相談"
 members:
   - name: lead
     role: lead

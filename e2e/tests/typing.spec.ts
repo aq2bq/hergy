@@ -70,38 +70,38 @@ async function typist(page: Page, find: string, text: string, gap = 25): Promise
 test.describe('the team screen’s text fields', () => {
   test.use({ reads: 'teams' });
 
-  test('TYPING-1 the mission and the name hold every letter with the focus', async ({ page, app }) => {
+  test('TYPING-1 the description and the name hold every letter with the focus', async ({ page, app }) => {
     await page.route('**/api/hq/running', (route) => route.fulfill({ json: { herdr: { ok: true, text: '' }, teams: [] } }));
     await page.goto(`${app.base}/teams?open=core`);
-    await wait(page, there('.tdef[data-name="core"] .in-mission'));
+    await wait(page, there('.tdef[data-name="core"] .in-description'));
 
-    // The row's own mission, in the list: the check rides on every letter and
+    // The row's own description, in the list: the check rides on every letter and
     // the preview, the figure and the counts are drawn again under the typing.
-    const mission = q('.tdef[data-name="core"] .in-mission');
-    await page.click('.tdef[data-name="core"] .in-mission');
-    const before = Number(await page.evaluate(held(mission)));
-    const missionProblems = await typist(page, mission, SIXTY);
-    expect(missionProblems, 'the mission lost the focus or a letter').toEqual([]);
-    await readTo<number>(page, held(mission), 'the mission does not hold the sixty letters').toBe(before + [...SIXTY].length);
+    const description = q('.tdef[data-name="core"] .in-description');
+    await page.click('.tdef[data-name="core"] .in-description');
+    const before = Number(await page.evaluate(held(description)));
+    const descriptionProblems = await typist(page, description, SIXTY);
+    expect(descriptionProblems, 'the description lost the focus or a letter').toEqual([]);
+    await readTo<number>(page, held(description), 'the description does not hold the sixty letters').toBe(before + [...SIXTY].length);
     // Enter is how an IME confirms the word it is making: the row the field
     // stands in does not shut under the person, and the field keeps the focus.
     await page.keyboard.press('Enter');
     await page.waitForTimeout(150);
     await readTo<string>(
       page,
-      `(function(){var el=${mission};return JSON.stringify([document.activeElement===el,!!document.querySelector('.tdef[data-name="core"].open'),el?el.value.length:-1]);})()`,
-      'Enter in the mission shut the row or left the field',
+      `(function(){var el=${description};return JSON.stringify([document.activeElement===el,!!document.querySelector('.tdef[data-name="core"].open'),el?el.value.length:-1]);})()`,
+      'Enter in the description shut the row or left the field',
     ).toBe(`[true,true,${before + [...SIXTY].length}]`);
 
     // The same field in the topology's 属性 column: nothing is picked, so the
     // column stands on the team.
-    const side = q('.tdef[data-name="core"] .cv-side [data-cv-f=mission]');
+    const side = q('.tdef[data-name="core"] .cv-side [data-cv-f=description]');
     await wait(page, `!!${side}`);
-    await page.click('.tdef[data-name="core"] .cv-side [data-cv-f=mission]');
+    await page.click('.tdef[data-name="core"] .cv-side [data-cv-f=description]');
     const sideBefore = Number(await page.evaluate(held(side)));
     const sideProblems = await typist(page, side, SIXTY);
-    expect(sideProblems, 'the 属性 mission lost the focus or a letter').toEqual([]);
-    await readTo<number>(page, held(side), 'the 属性 mission does not hold the sixty letters').toBe(sideBefore + [...SIXTY].length);
+    expect(sideProblems, 'the 属性 description lost the focus or a letter').toEqual([]);
+    await readTo<number>(page, held(side), 'the 属性 description does not hold the sixty letters').toBe(sideBefore + [...SIXTY].length);
   });
 
   test('TYPING-2 a definition being named holds every letter with the focus', async ({ page, app }) => {
@@ -128,12 +128,12 @@ test.describe('the team screen’s text fields', () => {
       'Enter in the name shut the row or left the field',
     ).toBe(`[true,true,${before + [...SIXTY].length}]`);
 
-    const mission = q('.tdef[data-name^="~new"] .in-mission');
-    await page.click('.tdef[data-name^="~new"] .in-mission');
-    const missionBefore = Number(await page.evaluate(held(mission)));
-    const missionProblems = await typist(page, mission, SIXTY);
-    expect(missionProblems, 'the new definition’s mission lost the focus or a letter').toEqual([]);
-    await readTo<number>(page, held(mission), 'the new definition’s mission does not hold the sixty letters').toBe(missionBefore + [...SIXTY].length);
+    const description = q('.tdef[data-name^="~new"] .in-description');
+    await page.click('.tdef[data-name^="~new"] .in-description');
+    const descriptionBefore = Number(await page.evaluate(held(description)));
+    const descriptionProblems = await typist(page, description, SIXTY);
+    expect(descriptionProblems, 'the new definition’s description lost the focus or a letter').toEqual([]);
+    await readTo<number>(page, held(description), 'the new definition’s description does not hold the sixty letters').toBe(descriptionBefore + [...SIXTY].length);
   });
 });
 

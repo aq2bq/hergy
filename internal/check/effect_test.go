@@ -46,7 +46,7 @@ func TestTeamEffectTakesATurnAway(t *testing.T) {
 // coming in.
 func TestTeamEffectChangesAWorkersPurpose(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+specMember+
 		"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\n"+
 		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")

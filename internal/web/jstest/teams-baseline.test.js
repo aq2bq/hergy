@@ -19,7 +19,7 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
       items: [{
         name: 'docs', effective: 'project',
         places: { project: { path: '.hergy/teams/docs/team.yaml', hash: 'h1', doc: {
-          mission: '文書を書く', members: [{ name: 'writer', role: 'writer', profile: 'gemini-flash' }], workers: [], turns: [],
+          description: '文書を書く', members: [{ name: 'writer', role: 'writer', profile: 'gemini-flash' }], workers: [], turns: [],
         } } },
       }],
       files: [],
@@ -40,9 +40,9 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
   await import('../src/teams/main');
   await settle();
 
-  const mission = document.querySelector('.tdef.open .in-mission');
-  expect(mission).not.toBe(null);
-  type(mission, '書きかけの使命');
+  const description = document.querySelector('.tdef.open .in-description');
+  expect(description).not.toBe(null);
+  type(description, '書きかけの説明');
   await settle();
   // The edit's check is debounced; its answer comes before the file's.
   await new Promise((resolve) => setTimeout(resolve, 300));
@@ -50,7 +50,7 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
   fileCheck.resolve({ problems: [fileError] });
   await settle();
 
-  expect(document.querySelector('.tdef.open .in-mission').value).toBe('書きかけの使命');
+  expect(document.querySelector('.tdef.open .in-description').value).toBe('書きかけの説明');
   expect(document.querySelector('.tdef.open .panel.team-p .vlist').textContent).toContain('gemini-flash');
   expect(document.querySelector('.tdef.open .panel.team-p [data-act=t-save]').disabled).toBe(false);
 });

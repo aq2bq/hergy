@@ -23,7 +23,7 @@ type Change = ['a' | 'c' | 'd', string];
 function diffList(r: Rec): Change[] {
   const s = r.saved.value, t = r.draft.value, out: Change[] = [];
   const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
-  if (s.mission !== t.mission) out.push(['c', `使命: ${t.mission}`]);
+  if (s.description !== t.description) out.push(['c', `説明: ${t.description}`]);
   cm.forEach((m, n) => {
     if (!sm.has(n)) out.push(['a', `メンバー ${n}（${m.role} · ${m.profile}）`]);
     else {
@@ -94,7 +94,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{team}</code><span class="cv-k">チーム定義</span></div>
-        <div class="cv-f"><label for={`cv-mi-${team}`}>使命</label><Field id={`cv-mi-${team}`} class="cv-body" data-cv-f="mission" value={t.mission} autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-f"><label for={`cv-mi-${team}`}>説明</label><Field id={`cv-mi-${team}`} class="cv-body" data-cv-f="description" value={t.description} autocomplete="off" spellcheck={false} /></div>
         <div class="cv-note">メンバー {t.members.length} · ワーカー {t.workers.length} · ターン {t.turns.length}</div>
         {humanIn ? '' : <div class="cv-warn">人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください</div>}
         <div class="cv-sec">

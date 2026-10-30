@@ -1,5 +1,5 @@
 version: 1
-mission: "文書を書いて読み合わせる"
+description: "文書を書いて読み合わせる"
 members:
   - name: writer
     role: writer

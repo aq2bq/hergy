@@ -55,7 +55,7 @@ func TestTEAMS_B41C_TheAgreementAnswerIsTheFileTheWriteLeft(t *testing.T) {
 	before := readFile(t, path)
 	hash := source.Hash(before)
 	doc := map[string]any{"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "使命", "rules": []map[string]any{
+		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{
 			{"id": "", "text": "足した約束。", "in_prompt": true},
 		}}}}
 	for i := 1; i <= 3; i++ {

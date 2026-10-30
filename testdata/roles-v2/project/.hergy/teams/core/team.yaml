@@ -1,5 +1,5 @@
 version: 1
-mission: "注文 API を作り直す"
+description: "注文 API を作り直す"
 members:
   - name: lead
     role: lead

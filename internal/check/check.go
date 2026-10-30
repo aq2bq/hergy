@@ -28,7 +28,7 @@ type Finding struct {
 	// screen can put it next to what the person writes. The form is the same in
 	// both languages (N2):
 	//
-	//	mission, team, prompt, docs, roles, members  a top-level key
+	//	description, team, prompt, docs, roles, members  a top-level key
 	//	members[i]                                   the member at i (0-based)
 	//	members[i].name  .role  .profile  .prompt    one of the member's keys
 	//	members[i].kind  .args  .env                 the engine the member writes
@@ -86,9 +86,9 @@ const (
 	// KindOldFile is the warning about a file hergy no longer reads a team's
 	// rules from (段 4).
 	KindOldFile
-	// KindMission is the warning about a mission still written as the starter's
-	// example (d-3cae).
-	KindMission
+	// KindDescription is the warning about a description still written as the
+	// starter's example (d-3cae).
+	KindDescription
 	// KindTurn is the warning about a turn a rule's text writes and turns: does
 	// not hold (段 5, spec/33 H2).
 	KindTurn
@@ -183,7 +183,7 @@ func Definition(in Input) []Finding {
 	breaks = append(breaks, agreementBreaks...)
 	breaks = append(breaks, betweenBreaks...)
 	breaks = dropPromptDuplicates(in, breaks)
-	warnings = append(warnings, missionPlaceholderFindings(def)...)
+	warnings = append(warnings, descriptionPlaceholderFindings(def)...)
 	warnings = append(warnings, TurnFindings(in, def)...)
 	warnings = append(warnings, agreementWarnings...)
 	warnings = append(warnings, betweenWarnings...)
@@ -524,7 +524,7 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 
 // profileFindings names a profile a member or a worker writes and profiles.yaml
 // does not hold (spec-teams 1.9): the definition reads — a screen draws it, with
-// the mission, the numbers and the figure, so a person can fix the name — but
+// the description, the numbers and the figure, so a person can fix the name — but
 // hergy does not start the member from it. The reading no longer refuses this
 // name, so the sentence is written here, and it is the same sentence the reading
 // used to stop with.
@@ -666,14 +666,14 @@ func resolvedLayer(in Input) string {
 	return source.LayerGlobal
 }
 
-// missionPlaceholderFindings is the one warning a starter team gets: hergy new
-// writes an example mission, and a definition that still writes it has not said
-// what its team is for (d-3cae). It moves no exit code.
-func missionPlaceholderFindings(def *definition.Definition) []Finding {
-	if !scaffold.IsPlaceholderMission(def.Mission) {
+// descriptionPlaceholderFindings is the one warning a starter team gets: hergy
+// new writes an example description, and a definition that still writes it has
+// not said which case its team is meant for (d-3cae). It moves no exit code.
+func descriptionPlaceholderFindings(def *definition.Definition) []Finding {
+	if !scaffold.IsPlaceholderDescription(def.Description) {
 		return nil
 	}
-	return []Finding{{Field: "mission", Text: i18n.T("validate.mission_placeholder"), Kind: KindMission}}
+	return []Finding{{Field: "description", Text: i18n.T("validate.description_placeholder"), Kind: KindDescription}}
 }
 
 // hiddenGlobalFindings says that a global definition of this name is hidden by

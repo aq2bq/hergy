@@ -222,6 +222,35 @@ func TestLaunchOptionsOffersTheLastWorkspaceThenTheFreeOnes(t *testing.T) {
 	}
 }
 
+// TestLaunchOptionsCarriesTheDescription: the start sheet is one of the places a
+// person picks a definition, so it reads the definition's description (d-5f55).
+// A global definition carries it before a project is picked, too.
+func TestLaunchOptionsCarriesTheDescription(t *testing.T) {
+	f, env, _ := hqFixture(t)
+	read := newActivityRead(env)
+	read.now = func() time.Time { return activityNow }
+
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"),
+		"version: 1\ndescription: 注文の流れを作り直す\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+	options, err := read.LaunchOptions(env.ProjectRoot, "core", "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Description != "注文の流れを作り直す" {
+		t.Errorf("the project start's description = %q", options.Description)
+	}
+
+	writeFile(t, filepath.Join(env.GlobalDir, "teams", "world", "team.yaml"),
+		"version: 1\ndescription: どのプロジェクトでも使う相談\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+	options, err = read.LaunchOptions("", "world", "global")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Description != "どのプロジェクトでも使う相談" {
+		t.Errorf("the global start's description = %q", options.Description)
+	}
+}
+
 // catGlobalDefs is how many team definitions the global layer holds, for a test
 // that does not want to write the number down.
 func catGlobalDefs(t *testing.T, env team.Env) []string {

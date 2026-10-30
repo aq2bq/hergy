@@ -1,5 +1,5 @@
 version: 1
-mission: "見積もりの計算をそろえる"
+description: "見積もりの計算をそろえる"
 members:
   - name: lead
     role: lead

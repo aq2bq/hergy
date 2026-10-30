@@ -19,8 +19,9 @@ import (
 type Definition struct {
 	// Name is the directory name under teams/.
 	Name string
-	// Mission is one line: what the team is for. 段 6 makes it required.
-	Mission string
+	// Description is one line: which case the team is meant for (d-5f55). It is
+	// required, and the team's behaviour does not read it.
+	Description string
 	// Graph is the nodes and the edges.
 	Graph *Graph
 	// Version is the format version team.yaml wrote.

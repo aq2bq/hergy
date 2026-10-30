@@ -289,7 +289,7 @@ func TestTheHashFollowsTheProfilesTheMembersRead(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n"+
+		"version: 1\ndescription: a description for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: fast\n"+
 			"  - name: builder\n    role: builder\n    profile: fast\n"+
 			"turns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\n")
@@ -346,7 +346,7 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
-		"version: 1\nmission: a mission for the test\nmembers:\n"+
+		"version: 1\ndescription: a description for the test\nmembers:\n"+
 			"  - name: lead\n    role: lead\n    profile: dev\n"+
 			"workers:\n  - from: lead\n    purpose: research\n    profile: dev\n"+
 			"turns:\n  - human -> lead\n  - lead -> human\n")

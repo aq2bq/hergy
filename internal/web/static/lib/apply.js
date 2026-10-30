@@ -33,7 +33,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-0s6nyjhb.js";
+} from "../chunk/nav-ffaq8wz1.js";
 
 // lib/apply/view.tsx
 var STATE = {
@@ -45,7 +45,7 @@ var STATE = {
 };
 var HOW = { resend: "送り直し", start: "起動", restart: "起動し直し" };
 var COST = { resend: "（会話は残る）", start: "（新しいペインで始める）", restart: "（会話が消える）" };
-var INTRO = "チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。";
+var INTRO = "チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。チーム定義の説明だけを変えたときは、ずれが出ないので、ここには出ません。";
 var press = (fn) => (e) => {
   e.preventDefault();
   fn();

@@ -18,7 +18,7 @@ const projects = {
 const team = (name) => ({
   name, effective: 'project',
   places: { project: { path: `.hergy/teams/${name}/team.yaml`, hash: 'h1', doc: {
-    mission: `${name} の使命`, members: [], workers: [], turns: [],
+    description: `${name} の説明`, members: [], workers: [], turns: [],
   } } },
 });
 

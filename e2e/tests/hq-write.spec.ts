@@ -90,7 +90,7 @@ function listedFiles(beta: string): { profiles: string; role: string; team: stri
   const team = path.join(dir, 'teams', `${BETA}-dev`, 'team.yaml');
   writeFileSync(profiles, 'version: 1\nprofiles:\n  beta-fast:\n    kind: claude\n    args: ["--model", "claude-haiku-5-5"]\n  beta-slow:\n    kind: codex\n    args: ["-m", "gpt-5-5"]\n');
   writeFileSync(role, 'version: 1\ntitle: 見積もりを組む\nsections:\n  - heading: 作り方\n    rules:\n      - id: DBAA\n        text: 見積もりは、前提を 1 つ書いてから出す。\n');
-  writeFileSync(team, 'version: 1\nmission: "見積もりの計算をそろえる"\nmembers:\n  - name: lead\n    role: lead\n    profile: beta-fast\n  - name: builder\n    role: builder\n    profile: beta-fast\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\n');
+  writeFileSync(team, 'version: 1\ndescription: "見積もりの計算をそろえる"\nmembers:\n  - name: lead\n    role: lead\n    profile: beta-fast\n  - name: builder\n    role: builder\n    profile: beta-fast\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\n');
   return { profiles, role, team };
 }
 
@@ -208,7 +208,7 @@ test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with
   // project's own, and a save of one is not a save of the other.
   const shared = path.join(betaDir, '.hergy', 'teams', 'alpha-dev', 'team.yaml');
   mkdirSync(path.dirname(shared), { recursive: true });
-  writeFileSync(shared, 'version: 1\nmission: "beta 側の同じ名前"\nmembers:\n  - name: lead\n    role: lead\n    profile: beta-fast\nturns:\n  - human -> lead\n  - lead -> human\n');
+  writeFileSync(shared, 'version: 1\ndescription: "beta 側の同じ名前"\nmembers:\n  - name: lead\n    role: lead\n    profile: beta-fast\nturns:\n  - human -> lead\n  - lead -> human\n');
 
   // The list names a definition by its name and the project it stands in.
   const alphaName = `alpha-dev|${alpha}`;
@@ -219,8 +219,8 @@ test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with
 
   // This serve's own definition moves first.
   await press(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-mission')`));
-  await set(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-mission')`, 'served の使命。');
+  await wait(page, drawn(`${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-description')`));
+  await set(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-description')`, 'served の説明。');
   await press(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.panel.team-p [data-act=t-save]')`);
   await wait(page, drawn(`${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.panel.team-p .ok')`));
   const before = { profiles: read(served.profiles), role: read(served.role), team: read(served.team) };
@@ -228,11 +228,11 @@ test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with
   // The listed project's definition of the same name saves with its own file's
   // hash and then goes.
   await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-mission')`));
-  await set(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-mission')`, 'listed の使命。');
+  await wait(page, drawn(`${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-description')`));
+  await set(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-description')`, 'listed の説明。');
   await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.panel.team-p [data-act=t-save]')`);
   await wait(page, drawn(`${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.panel.team-p .ok')`));
-  expect(read(shared), 'the listed project’s team.yaml does not hold the mission the save wrote').toContain('listed の使命。');
+  expect(read(shared), 'the listed project’s team.yaml does not hold the description the save wrote').toContain('listed の説明。');
 
   await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('nav.dtabs .dacts [data-act=del]')`);
   await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('nav.dtabs .dacts [data-act=del-yes]')`);

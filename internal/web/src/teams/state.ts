@@ -42,7 +42,7 @@ import type { Reading } from '../lib/resource';
 // cloneTeam makes this from it).
 export type Member = { name: string; role: string; profile: string };
 export type Worker = { from: string; purpose: string; profile: string };
-export type Team = { mission: string; members: Member[]; workers: Worker[]; turns: [string, string][] };
+export type Team = { description: string; members: Member[]; workers: Worker[]; turns: [string, string][] };
 
 // Op is one edit the row holds until it is saved: the kinds applyOps knows, and
 // the words each kind carries (the API's TeamOperation takes the same fields).
@@ -332,13 +332,13 @@ const agreeIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ 
 // TeamLike is a definition as either entrance answers it: a saved document
 // (the project's own or the headquarters'), or the row's own draft.
 type TeamLike = {
-  mission?: string;
+  description?: string;
   members?: { name: string; role: string; profile: string }[] | null;
   workers?: { from: string; purpose: string; profile: string }[] | null;
   turns?: ([string, string] | { from: string; to: string })[] | null;
 };
 export const cloneTeam = (t: TeamLike | null | undefined): Team => ({
-  mission: (t && t.mission) || '',
+  description: (t && t.description) || '',
   members: ((t && t.members) || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
   workers: ((t && t.workers) || []).map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })),
   turns: ((t && t.turns) || []).map((x): [string, string] => ('from' in x ? [x.from, x.to] : [x[0], x[1]])),
@@ -347,7 +347,7 @@ export function applyOps(saved: Team, ops: Op[]): Team {
   const t = cloneTeam(saved);
   for (const op of ops) {
     switch (op.kind) {
-      case 'mission': t.mission = op.text; break;
+      case 'description': t.description = op.text; break;
       case 'addTurn': if (!hasTurn(t, op.from, op.to)) t.turns.push([op.from, op.to]); break;
       case 'removeTurn': t.turns = t.turns.filter(([a, b]) => !(a === op.from && b === op.to)); break;
       case 'addWorker': t.workers.push({ from: op.from, purpose: op.purpose, profile: op.profile }); break;
@@ -697,7 +697,7 @@ const buildCheck = (doc: RuleDoc, json: CheckAnswer): Check => {
 };
 
 // figFindings is the figure's problems as the panel draws them: the field the
-// server names ("mission", "members[1].profile", "workers[0]", "turns[2]", a
+// server names ("description", "members[1].profile", "workers[0]", "turns[2]", a
 // rule) becomes the node, the worker or the word a row stands by. The server
 // writes every sentence; this only says where it goes (spec-teams X1).
 function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined): Finding[] {
@@ -710,7 +710,7 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
     // A sentence about a node ("node:analyst") stands beside that point: the
     // graph's own problems reach the card and the figure that way (監査 R9).
     else if (at.startsWith('node:')) { node = at.slice('node:'.length); field = 'node'; }
-    else if (at === 'mission') { field = 'mission'; }
+    else if (at === 'description') { field = 'description'; }
     else if (at === 'name') { field = 'name'; }
     else if (at.startsWith('rule:')) {
       field = at;
@@ -751,12 +751,12 @@ function workerOrigin(w: Worker, ops: Op[]): Worker | null {
   return { from, purpose, profile };
 }
 
-// changeCount is 1.4.6's `N か所`: the mission once, each turn that came in or
+// changeCount is 1.4.6's `N か所`: the description once, each turn that came in or
 // left, each worker added or taken away, and each worker whose purpose or
 // profile changed — one apiece, however many keystrokes wrote it.
 export function changeCount(r: Rec): number {
   const t = r.draft.value, s = r.saved.value, ops = r.ops.value || [];
-  let n = t.mission !== s.mission ? 1 : 0;
+  let n = t.description !== s.description ? 1 : 0;
   const key = (a: string, b: string): string => a + '\x00' + b;
   const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
   const wasT = new Set((s.turns || []).map(([a, b]) => key(a, b)));
@@ -807,7 +807,7 @@ export const vlistParts = (r: Rec) => {
   const where = (m: Finding): string => {
     if (m.node) return nodeName(m.node);
     if (m.worker != null && m.worker >= 0) return purposeOf(m.worker);
-    if (m.field === 'mission') return '使命';
+    if (m.field === 'description') return '説明';
     if (m.field === 'name') return 'チーム定義名';
     return '';
   };
@@ -1177,7 +1177,7 @@ export function canvasTyping(r: Rec, op: Op, field: string) {
   r.promptsReady.value = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { mission: '使命を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
+    const label = { description: '説明を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -1573,12 +1573,12 @@ export function pressName(r: Rec, value: string) {
   r.name.value = value;
   debounce('n' + r.dom, () => checkTeam(r));
 }
-// pressMission is the row's own mission field: it writes one operation and asks
+// pressDescription is the row's own description field: it writes one operation and asks
 // the check again (spec-teams 1.4.6).
-export function pressMission(r: Rec, value: string) {
+export function pressDescription(r: Rec, value: string) {
   const text = value.replace(/\n/g, ' ');
-  r.ops.value = r.ops.value.filter((o) => o.kind !== 'mission');
-  if (text !== r.saved.value.mission) pushOp(r, { kind: 'mission', text });
+  r.ops.value = r.ops.value.filter((o) => o.kind !== 'description');
+  if (text !== r.saved.value.description) pushOp(r, { kind: 'description', text });
   checkTeam(r);
 }
 export function pressDtab(r: Rec, t: string) {
@@ -1687,12 +1687,12 @@ export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {
 }
 // pressLine is a press on one line of the topology tab's YAML preview: it picks
 // what the line stands for, the way a press on the canvas's own point does
-// (spec-teams B7). A mission line puts the cursor in the mission field.
+// (spec-teams B7). A description line puts the cursor in the description field.
 export type LinePress = { f?: string; node?: string; worker?: number; a?: string; b?: string };
 export function pressLine(r: Rec, p: LinePress) {
-  if (p.f === 'mission') {
+  if (p.f === 'description') {
     selectPick(r, null, 'attr');
-    focusAsk.value = { dom: r.dom, sel: '[data-cv-f="mission"]' };
+    focusAsk.value = { dom: r.dom, sel: '[data-cv-f="description"]' };
     return;
   }
   if (p.node) selectPick(r, { type: 'node', id: p.node }, 'attr');

@@ -317,7 +317,7 @@ export function onInput(r: Rec, e: Event): void {
   }
   if (e.type === 'change' && el.tagName !== 'SELECT') return;
   if (e.type === 'input' && el.tagName === 'SELECT') return;
-  if (f === 'mission') { canvasTyping(r, { kind: 'mission', text: v }, 'mission'); return; }
+  if (f === 'description') { canvasTyping(r, { kind: 'description', text: v }, 'description'); return; }
   if (f === 'm-name') {
     const node = sel && sel.type === 'node' ? sel : null;
     const m = node ? memberOf(t, node.id) : null;
@@ -417,7 +417,7 @@ export function mountCanvas(el: HTMLElement): void {
   el.addEventListener('focusout', (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
     const f = target ? target.dataset.cvF : undefined;
-    if (f === 'm-name' || f === 'w-purpose' || f === 'mission') {
+    if (f === 'm-name' || f === 'w-purpose' || f === 'description') {
       const r = rowOf(target); if (r) canvasEndTyping(r);
     }
   });

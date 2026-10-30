@@ -171,7 +171,7 @@ func TestHQTeamsGroupsTheProjectAndTheGlobalLayer(t *testing.T) {
 	if err := os.MkdirAll(global, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(global, "team.yaml"), []byte("version: 1\nmission: global docs\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(global, "team.yaml"), []byte("version: 1\ndescription: global docs\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	resp, body := f.get(t, f.hqServer(t), "/api/hq/teams")
@@ -207,7 +207,7 @@ func TestAScreenReadsOneProjectWithProject(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(other, ".hergy", "teams", "ledger"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(other, ".hergy", "teams", "ledger", "team.yaml"), []byte("version: 1\nmission: ledger\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(other, ".hergy", "teams", "ledger", "team.yaml"), []byte("version: 1\ndescription: ledger\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	server := f.hqServer(t)
@@ -287,7 +287,7 @@ func TestHQBandCountsEveryGroup(t *testing.T) {
 	if err := os.MkdirAll(global, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(global, "team.yaml"), []byte("version: 1\nmission: global docs\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(global, "team.yaml"), []byte("version: 1\ndescription: global docs\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	server := f.hqServer(t)
@@ -320,7 +320,7 @@ func writeOtherTeam(t *testing.T, dir string) {
 	if err := os.MkdirAll(team, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(team, "team.yaml"), []byte("version: 1\nmission: ledger\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(team, "team.yaml"), []byte("version: 1\ndescription: ledger\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

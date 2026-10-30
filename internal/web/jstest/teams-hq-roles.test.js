@@ -17,7 +17,7 @@ const projects = {
 const definition = {
   name: 'core', effective: 'project',
   places: { project: { path: '.hergy/teams/core/team.yaml', hash: 'h1', doc: {
-    mission: '注文 API を作り直す',
+    description: '注文 API を作り直す',
     members: [{ name: 'lead', role: 'lead', profile: 'coder' }],
     workers: [], turns: [['human', 'lead'], ['lead', 'human']],
   } } },

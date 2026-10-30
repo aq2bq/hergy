@@ -88,7 +88,7 @@ func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
 // checked: the catalog reads a definition's file by its name, and a row that was
 // just added has no name yet — its name is what the person is typing. The check
 // stands the row's text at a name of its own so the figure's sentences are read
-// all the same (spec-teams B2, N1: a new row shows the mission's warning). The
+// all the same (spec-teams B2, N1: a new row shows the description's warning). The
 // name is the server's own; nothing a person reads names it.
 const t2CheckName = "t2draft"
 

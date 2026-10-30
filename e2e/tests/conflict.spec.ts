@@ -86,23 +86,23 @@ test.describe('the role screen', () => {
 test.describe('the team screen', () => {
   test.use({ reads: 'teams' });
 
-  test('R3C77-3 the definition’s mission is kept and written over', async ({ page, app }) => {
+  test('R3C77-3 the definition’s description is kept and written over', async ({ page, app }) => {
     const file = path.join(app.proj, '.hergy', 'teams', 'core', 'team.yaml');
     const shape = '.tdef[data-name="core"] .panel.team-p';
     await page.goto(`${app.base}/teams?open=core`);
     await wait(page, there(`${shape} [data-act=t-save]`));
-    const typed = 'ほかのところと重ならない使命の書き直し。';
-    await set(page, q('.tdef[data-name="core"] .in-mission'), typed);
+    const typed = 'ほかのところと重ならない説明の書き直し。';
+    await set(page, q('.tdef[data-name="core"] .in-description'), typed);
     appendFileSync(file, '\n# ほかのところが書いた行\n');
     const theirs = readFileSync(file, 'utf8');
     await press(page, q(`${shape} [data-act=t-save]`));
     await wait(page, there(`${shape} .conflict`));
     expect(readFileSync(file, 'utf8'), 'the refused save wrote the file').toBe(theirs);
-    await readTo<string>(page, `${q('.tdef[data-name="core"] .in-mission')}.value`, 'the refused save lost the mission').toBe(typed);
+    await readTo<string>(page, `${q('.tdef[data-name="core"] .in-description')}.value`, 'the refused save lost the description').toBe(typed);
     await press(page, q(`${shape} [data-act=cf-overwrite]`));
     await wait(page, there(`${shape} .ok`));
     await readTo<boolean>(page, `${q(`${shape} .conflict`)}===null`, 'the notice stayed after the overwrite').toBe(true);
-    expect(readFileSync(file, 'utf8'), 'the overwrite did not write the mission').toContain(typed);
+    expect(readFileSync(file, 'utf8'), 'the overwrite did not write the description').toContain(typed);
   });
 
   test('R3C77-4 the team’s rules are kept and read in', async ({ page, app }) => {

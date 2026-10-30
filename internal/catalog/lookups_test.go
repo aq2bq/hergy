@@ -70,7 +70,7 @@ func TestReadersOfAnAgreement(t *testing.T) {
 func TestReadersAcrossDefinitions(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	l.writeFullTeam(t, source.LayerLocal, "second", "another mission")
+	l.writeFullTeam(t, source.LayerLocal, "second", "another description")
 	cat := l.catalog()
 
 	sameRefs(t, "readers of the shared role document",
@@ -83,7 +83,7 @@ func TestReadersAcrossDefinitions(t *testing.T) {
 func TestReadersLeaveOutADefinitionThatDoesNotRead(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	write(t, filepath.Join(l.local, "teams", "broken", "team.yaml"), "version: 1\nmission:\nmembers: []\n")
+	write(t, filepath.Join(l.local, "teams", "broken", "team.yaml"), "version: 1\ndescription:\nmembers: []\n")
 	cat := l.catalog()
 
 	sameRefs(t, "readers of the shared role document",

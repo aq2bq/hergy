@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **A team definition's `mission:` is now `description:`**: the one line a team
+  definition writes is its description — which case the team is meant for — and
+  it is read where a person picks or reads a definition: the web UI's team list
+  and team definition screen, the start sheet, and `hergy show`. It is still
+  required and still one line, and `hergy validate` still warns while it is the
+  starter's example. A definition that writes `mission:` does not read: `hergy
+  validate`, `hergy up` and the screens' checks stop and say to remove
+  `mission:` and write the line as `description:`, rather than reading one as
+  the other (d-5f55).
+
+  The description no longer shows in a team command's header (`hergy status`,
+  `hergy up`, `hergy down`, `hergy apply`, `hergy hire`) or on the tiles of the
+  teams that are running; a member's prompt never held it, and changing only the
+  description is not a drift for `hergy apply` to put right.
+
+  A role document's starter section `使命` is now `責務`; a role document that
+  writes `使命` as a heading still reads, since a heading is the document's own
+  text.
+
+  Before:
+
+  ```yaml
+  version: 1
+  mission: 注文の流れを作り直す
+  members: [...]
+  ```
+
+  After:
+
+  ```yaml
+  version: 1
+  description: 注文の流れを作り直す
+  members: [...]
+  ```
+
 ## 0.9.4 - 2026-10-29
 
 ### Breaking

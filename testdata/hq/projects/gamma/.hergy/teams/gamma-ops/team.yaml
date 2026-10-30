@@ -1,5 +1,5 @@
 version: 1
-mission: "日々の運用を静かに回す"
+description: "日々の運用を静かに回す"
 members:
   - name: lead
     role: lead

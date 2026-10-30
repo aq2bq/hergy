@@ -1,5 +1,5 @@
 version: 1
-mission: "文書の下書きを作って読み合わせる"
+description: "文書の下書きを作って読み合わせる"
 members:
   - name: writer
     role: writer

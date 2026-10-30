@@ -102,7 +102,7 @@ Common options: `-C <dir>` (pick the project), `--lang ja` (the command line's o
 
 ```yaml
 version: 1              # required
-mission: "what this team is for"  # required; one line, shown first by the commands that handle a team and by the web UI
+description: "which case this team is meant for"  # required; one line, read where a person picks or reads a definition (the team list, a definition's screen, the start sheet, hergy show)
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
                         # no key points at the documents: teams/<definition>/agreement.yaml

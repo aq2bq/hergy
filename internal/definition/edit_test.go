@@ -44,14 +44,14 @@ type editCase struct {
 func editCases() []editCase {
 	return []editCase{
 		{
-			name:   "mission",
-			op:     definition.Mission("あたらしい使命"),
-			golden: "mission.yaml",
+			name:   "description",
+			op:     definition.Description("あたらしい説明"),
+			golden: "description.yaml",
 			removed: []string{
-				`mission: "いまの使命" # 使命は 1 行`,
+				`description: "いまの説明" # 説明は 1 行`,
 			},
 			added: []string{
-				`mission: "あたらしい使命" # 使命は 1 行`,
+				`description: "あたらしい説明" # 説明は 1 行`,
 			},
 		},
 		{
@@ -198,14 +198,14 @@ func editCases() []editCase {
 func handCases() []editCase {
 	return []editCase{
 		{
-			name:   "mission",
-			op:     definition.Mission("あたらしい使命"),
-			golden: "hand_mission.yaml",
+			name:   "description",
+			op:     definition.Description("あたらしい説明"),
+			golden: "hand_description.yaml",
 			removed: []string{
-				`mission: "いまの使命" # 使命は 1 行`,
+				`description: "いまの説明" # 説明は 1 行`,
 			},
 			added: []string{
-				`mission: "あたらしい使命" # 使命は 1 行`,
+				`description: "あたらしい説明" # 説明は 1 行`,
 			},
 		},
 		{
@@ -328,12 +328,12 @@ func TestEditYAMLKeepsEveryLineItDoesNotTouch(t *testing.T) {
 // line the op does not touch can come back unchanged.
 func TestEditYAMLLeavesAFileInItsOwnForm(t *testing.T) {
 	before := editGolden(t, "before.yaml")
-	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Mission("いまの使命"))
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Description("いまの説明"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(got) != before {
-		t.Errorf("writing the same mission rewrote the file:\n--- got ---\n%s", got)
+		t.Errorf("writing the same description rewrote the file:\n--- got ---\n%s", got)
 	}
 }
 
@@ -485,12 +485,12 @@ func TestEditYAMLKeepsTheLinesOfAHandWrittenFile(t *testing.T) {
 // a person wrote it in.
 func TestEditYAMLLeavesAHandWrittenFileInItsOwnForm(t *testing.T) {
 	before := editGolden(t, "before_hand.yaml")
-	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Mission("いまの使命"))
+	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.Description("いまの説明"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(got) != before {
-		t.Errorf("writing the same mission rewrote the file:\n--- got ---\n%s", got)
+		t.Errorf("writing the same description rewrote the file:\n--- got ---\n%s", got)
 	}
 }
 
@@ -509,40 +509,40 @@ func TestEditYAMLRefusesAShapeItCannotRewrite(t *testing.T) {
 		label  string
 	}{
 		{
-			name:   "a block mission",
-			before: "version: 1\nmission: |\n  いまの使命\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
-			op:     definition.Mission("あたらしい使命"),
-			label:  "mission",
+			name:   "a block description",
+			before: "version: 1\ndescription: |\n  いまの説明\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Description("あたらしい説明"),
+			label:  "description",
 		},
 		{
 			name:   "a block role",
-			before: "version: 1\nmission: m\nmembers:\n  - name: lead\n    role: |\n      lead\n    profile: planner\n",
+			before: "version: 1\ndescription: m\nmembers:\n  - name: lead\n    role: |\n      lead\n    profile: planner\n",
 			op:     definition.MemberRole("lead", "spec"),
 			label:  "role",
 		},
 		{
 			name:   "a merge key",
-			before: "base: &b\n  role: lead\nversion: 1\nmission: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n",
+			before: "base: &b\n  role: lead\nversion: 1\ndescription: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n",
 			op:     definition.MemberRole("lead", "spec"),
 			label:  "members",
 		},
 		{
 			name:   "an anchored value",
-			before: "version: 1\nmission: &m いまの使命\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
-			op:     definition.Mission("あたらしい使命"),
-			label:  "mission",
+			before: "version: 1\ndescription: &m いまの説明\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Description("あたらしい説明"),
+			label:  "description",
 		},
 		{
 			name:   "an alias elsewhere",
-			before: "version: 1\nmission: m\nanchor: &a x\nother: *a\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
-			op:     definition.Mission("あたらしい使命"),
+			before: "version: 1\ndescription: m\nanchor: &a x\nother: *a\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Description("あたらしい説明"),
 			label:  "other",
 		},
 		{
 			name:   "a value with a line break",
-			before: "version: 1\nmission: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
-			op:     definition.Mission("one\ntwo"),
-			label:  "mission",
+			before: "version: 1\ndescription: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n",
+			op:     definition.Description("one\ntwo"),
+			label:  "description",
 		},
 	}
 	for _, tc := range cases {
@@ -563,7 +563,7 @@ func TestEditYAMLRefusesAShapeItCannotRewrite(t *testing.T) {
 // file, so the line is read off the text; the LF and the CRLF file come out the
 // same except for the line ending.
 func TestEditYAMLRemovesAnItemsCommentWhateverTheLineEnding(t *testing.T) {
-	lf := "version: 1\nmission: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n  - name: spec\n    role: spec\n    profile: reviewer\n" +
+	lf := "version: 1\ndescription: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n  - name: spec\n    role: spec\n    profile: reviewer\n" +
 		"turns:\n  - human -> lead\n  # このターンは残す\n  - lead -> spec\n  - lead -> human\n"
 	want := strings.Replace(lf, "  # このターンは残す\n  - lead -> spec\n", "", 1)
 	cases := []struct {
@@ -600,7 +600,7 @@ func TestEditShapeNamesAYAMLKey(t *testing.T) {
 	if err := i18n.Use("en"); err != nil {
 		t.Fatal(err)
 	}
-	before := "base: &b\n  role: lead\nversion: 1\nmission: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n"
+	before := "base: &b\n  role: lead\nversion: 1\ndescription: m\nmembers:\n  - <<: *b\n    name: lead\n    profile: planner\n"
 	got, err := definition.EditYAML([]byte(before), "team.yaml", definition.MemberRole("lead", "spec"))
 	if err == nil {
 		t.Fatalf("EditYAML wrote %q, want an error", got)
@@ -616,7 +616,7 @@ func TestEditShapeNamesAYAMLKey(t *testing.T) {
 	}
 }
 
-// TestEditYAMLAddsAKeyTheFileDoesNotHave: a file without mission:, turns: or a
+// TestEditYAMLAddsAKeyTheFileDoesNotHave: a file without description:, turns: or a
 // member's role: gets the key on the line it belongs on, and the rest of the
 // file keeps its lines.
 func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
@@ -628,16 +628,16 @@ func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "mission after version",
+			name:   "description after version",
 			before: "version: 1\n" + members,
-			op:     definition.Mission("あたらしい使命"),
-			want:   "version: 1\nmission: あたらしい使命\n" + members,
+			op:     definition.Description("あたらしい説明"),
+			want:   "version: 1\ndescription: あたらしい説明\n" + members,
 		},
 		{
-			name:   "mission at the head",
+			name:   "description at the head",
 			before: members,
-			op:     definition.Mission("あたらしい使命"),
-			want:   "mission: あたらしい使命\n" + members,
+			op:     definition.Description("あたらしい説明"),
+			want:   "description: あたらしい説明\n" + members,
 		},
 		{
 			name:   "turns at the end",
@@ -653,9 +653,9 @@ func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
 		},
 		{
 			name:   "a member's role",
-			before: "version: 1\nmission: m\nmembers:\n  - name: lead\n    profile: planner\n",
+			before: "version: 1\ndescription: m\nmembers:\n  - name: lead\n    profile: planner\n",
 			op:     definition.MemberRole("lead", "lead"),
-			want:   "version: 1\nmission: m\nmembers:\n  - name: lead\n    profile: planner\n    role: lead\n",
+			want:   "version: 1\ndescription: m\nmembers:\n  - name: lead\n    profile: planner\n    role: lead\n",
 		},
 	}
 	for _, tc := range cases {
@@ -676,7 +676,7 @@ func TestEditYAMLAddsAKeyTheFileDoesNotHave(t *testing.T) {
 // byte of a file with several workers comes back as it was (C3). A pair the file
 // does not hold is refused rather than written.
 func TestEditYAMLChangesOneWorkersPurposeOnly(t *testing.T) {
-	before := "version: 1\nmission: m\nmembers:\n" +
+	before := "version: 1\ndescription: m\nmembers:\n" +
 		"  - name: lead\n    role: lead\n    profile: planner\n" +
 		"  - name: spec\n    role: spec\n    profile: reviewer\n" +
 		"workers:\n" +
@@ -721,7 +721,7 @@ func TestEditYAMLChangesOneWorkersPurposeOnly(t *testing.T) {
 // a flow sequence) is written as a block when it is added to, and stays a flow
 // sequence when one is taken out of it.
 func TestEditYAMLKeepsTheShapeTheFileWroteASequenceIn(t *testing.T) {
-	head := "version: 1\nmission: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n  - name: spec\n    role: spec\n    profile: reviewer\n"
+	head := "version: 1\ndescription: m\nmembers:\n  - name: lead\n    role: lead\n    profile: planner\n  - name: spec\n    role: spec\n    profile: reviewer\n"
 	cases := []struct {
 		name   string
 		before string

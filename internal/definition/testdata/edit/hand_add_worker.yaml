@@ -2,7 +2,7 @@
 ---
 version: 1
 
-mission: "いまの使命" # 使命は 1 行
+description: "いまの説明" # 説明は 1 行
 
 members:
     # 進行を見る lead

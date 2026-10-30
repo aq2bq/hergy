@@ -96,7 +96,7 @@ function teamYAML(team) {
   const workers = workersFor(team);
   const lines = [
     'version: 1',
-    `mission: ${yamlString(`${team.name} の作業を進める`)}`,
+    `description: ${yamlString(`${team.name} の作業を進める`)}`,
     'members:',
     ...members.flatMap((member) => [
       `  - name: ${member.name}`,

@@ -91,7 +91,7 @@ func newActivityFixture(t *testing.T) *activityFixture {
 	// core's definition: two members, one of them handing the turn to the human,
 	// and one worker a member hired (its agent runs in a tab of its own).
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"), "version: 1\n"+
-		"mission: 注文 API を作り直す\n"+
+		"description: 注文 API を作り直す\n"+
 		"members:\n"+
 		"  - name: lead\n    role: lead\n    profile: fast\n"+
 		"  - name: impl-a\n    role: builder\n    profile: fast\n"+
@@ -496,7 +496,7 @@ func TestActivityOneIsNotFoundForATeamThatIsNotRunning(t *testing.T) {
 func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	f := newActivityFixture(t)
 	// A team running from a definition this project does not have.
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"), "version: 1\nmission: \n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"), "version: 1\ndescription: \n")
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
@@ -720,7 +720,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	if err := copyTree(filepath.Join(alpha, ".hergy"), filepath.Join(beta, ".hergy")); err != nil {
 		t.Fatal(err)
 	}
-	for _, one := range []struct{ dir, mission string }{{alpha, "alpha の使命"}, {beta, "beta の使命"}} {
+	for _, one := range []struct{ dir, description string }{{alpha, "alpha の説明"}, {beta, "beta の説明"}} {
 		path := filepath.Join(one.dir, ".hergy", "teams", "core", "team.yaml")
 		raw, err := os.ReadFile(path)
 		if err != nil {
@@ -728,12 +728,12 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 		}
 		mine := ""
 		for line := range strings.SplitSeq(string(raw), "\n") {
-			if strings.HasPrefix(line, "mission:") {
+			if strings.HasPrefix(line, "description:") {
 				mine = line
 				break
 			}
 		}
-		writeFile(t, path, strings.Replace(string(raw), mine, "mission: "+one.mission, 1))
+		writeFile(t, path, strings.Replace(string(raw), mine, "description: "+one.description, 1))
 	}
 
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
@@ -780,7 +780,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	if one.Built == nil {
 		t.Fatalf("the team's definition did not read: %q", one.Broken)
 	}
-	if got, want := one.Built.team.Definition.Mission, "alpha の使命"; got != want {
+	if got, want := one.Built.team.Definition.Description, "alpha の説明"; got != want {
 		t.Errorf("the team runs from the definition of %q, want %q", got, want)
 	}
 }

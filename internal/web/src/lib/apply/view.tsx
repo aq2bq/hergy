@@ -30,7 +30,7 @@ const STATE: Record<string, { word: string; why: string }> = {
 // (d-7b45). The parenthesis says what happens to the conversation.
 const HOW: Record<string, string> = { resend: '送り直し', start: '起動', restart: '起動し直し' };
 const COST: Record<string, string> = { resend: '（会話は残る）', start: '（新しいペインで始める）', restart: '（会話が消える）' };
-const INTRO = 'チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。';
+const INTRO = 'チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。チーム定義の説明だけを変えたときは、ずれが出ないので、ここには出ません。';
 
 // press keeps a press out of the page underneath and calls the action.
 const press = (fn: () => unknown) => (e: { preventDefault: () => void }): void => { e.preventDefault(); fn(); };

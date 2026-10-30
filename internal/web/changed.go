@@ -108,7 +108,7 @@ func ruleDoc(display string) func(text string) any {
 	}
 }
 
-// teamDoc is the team.yaml as the team screen keeps its draft in (the mission,
+// teamDoc is the team.yaml as the team screen keeps its draft in (the description,
 // the members, the workers and the turns), with the team's own rules under it.
 func (s *Server) teamDoc(name, layer string) func(text string) any {
 	return func(string) any {

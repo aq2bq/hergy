@@ -386,10 +386,12 @@ func (r *resolved) selectStarts(name string) ([]definition.Start, error) {
 	return []definition.Start{*member}, nil
 }
 
-// missionLine is the mission as one line. It is required, so it is never empty
-// for a definition that read.
-func (r *resolved) missionLine() string {
-	line, _, _ := strings.Cut(r.team.Definition.Mission, "\n")
+// descriptionLine is the description as one line. It is required, so it is
+// never empty for a definition that read. Only the places a person picks or
+// reads a definition print it (hergy show and the screens): a team command's
+// header leaves it out (d-5f55).
+func (r *resolved) descriptionLine() string {
+	line, _, _ := strings.Cut(r.team.Definition.Description, "\n")
 	return strings.TrimSpace(line)
 }
 
@@ -751,6 +753,11 @@ func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.As)
 	if err != nil {
 		return err
+	}
+	// show is where a person reads a definition, so it prints the description
+	// the team list and the start sheet read (d-5f55).
+	if description := r.descriptionLine(); description != "" {
+		field(stdout, label("description"), description)
 	}
 	printHeader(stdout, r, env, false)
 	docs := agreementDocs(r)
@@ -2280,17 +2287,14 @@ func runOperation(ctx context.Context, stderr io.Writer, failure, interrupted fu
 	}
 }
 
-// printHeader is the short provenance every team command shows: the team's
-// mission, the team it runs as, its version, and the files the effective values
-// came from. show prints the definition alone; a team command prints the team
-// name, and the definition behind it only when the two differ (I2). The mission
-// is first: it is the one line that says what the team is for, and it is
-// required.
+// printHeader is the short provenance every team command shows: the team it
+// runs as, its version, and the files the effective values came from. show
+// prints the definition alone; a team command prints the team name, and the
+// definition behind it only when the two differ (I2). The description is not
+// here: a team command shows a running team, and the description is read where
+// a person picks or reads a definition (d-5f55).
 func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	def := r.team.Definition
-	if mission := r.missionLine(); mission != "" {
-		field(w, label("mission"), mission)
-	}
 	if withTeam {
 		// A team is called by its name. The definition it was booted from is
 		// named only when the two differ (I2).

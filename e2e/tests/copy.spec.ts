@@ -240,7 +240,7 @@ test('COPY-P5 a team definition copied from the project to the global layer', as
   await readTo<number>(page, countIn(TEAMS, GLOBAL), 'the copy stands under the global layer').toBe(dstCount + 1);
   await readTo<number>(page, countIn(TEAMS, ALPHA), 'the project holds the definitions it had').toBe(srcCount);
   expect(existsSync(dstFile), 'the copy made the definition on the global side').toBe(true);
-  expect(readFileSync(dstFile, 'utf8'), 'the global team.yaml holds the copied mission').toContain('注文の流れを作り直す');
+  expect(readFileSync(dstFile, 'utf8'), 'the global team.yaml holds the copied description').toContain('注文の流れを作り直す');
   expect(readFileSync(srcFile, 'utf8'), 'copying left the project file alone').toBe(before);
   await countsAfterReload(page, TEAMS, ALPHA, GLOBAL, srcCount, dstCount + 1);
   expect(readFileSync(dstFile, 'utf8'), 'the global file is still the copy after opening the page again').toContain('注文の流れを作り直す');
@@ -266,7 +266,7 @@ test('COPY-P6 a team definition copied from the global layer to the project', as
   await readTo<number>(page, countIn(TEAMS, ALPHA), 'the copy stands under the project').toBe(dstCount + 1);
   await readTo<number>(page, countIn(TEAMS, GLOBAL), 'the global layer holds the definitions it had').toBe(srcCount);
   expect(existsSync(dstFile), 'the copy made the definition on the project side').toBe(true);
-  expect(readFileSync(dstFile, 'utf8'), 'the project team.yaml holds the copied mission').toContain('困りごとの相談');
+  expect(readFileSync(dstFile, 'utf8'), 'the project team.yaml holds the copied description').toContain('困りごとの相談');
   expect(readFileSync(srcFile, 'utf8'), 'copying left the global file alone').toBe(before);
   await countsAfterReload(page, TEAMS, GLOBAL, ALPHA, srcCount, dstCount + 1);
   expect(readFileSync(dstFile, 'utf8'), 'the project file is still the copy after opening the page again').toContain('困りごとの相談');

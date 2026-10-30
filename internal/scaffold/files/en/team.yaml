@@ -1,7 +1,8 @@
 version: 1
-# mission is required: one line saying what this team is for. The commands that
-# handle a team print it first, and so does the web UI. Write your own here.
-mission: what this team is for, in one line
+# description is required: one line saying which case this team is meant for. The
+# places a person picks a definition (the team list, a definition's screen, the
+# start sheet and hergy show) read it. Write your own here.
+description: which case this team is meant for, in one line
 members:
   - name: lead
     role: lead

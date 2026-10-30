@@ -35,8 +35,8 @@ type t2Op struct {
 // op is the op in the model's words.
 func (o t2Op) op() (definition.Op, error) {
 	switch o.Kind {
-	case "mission":
-		return definition.Mission(o.Text), nil
+	case "description":
+		return definition.Description(o.Text), nil
 	case "addTurn":
 		return definition.AddTurn(t2Node(o.From), t2Node(o.To)), nil
 	case "removeTurn":

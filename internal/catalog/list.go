@@ -18,9 +18,9 @@ type Entry struct {
 	// UnusedPath is the path of the same name that is not used: the other
 	// layer's team.yaml when both hold the name, and "" when they do not.
 	UnusedPath string
-	// Mission is the one line saying what the team is for. It is "" when the
-	// definition does not read, and Err says why.
-	Mission string
+	// Description is the one line saying which case the team is meant for. It
+	// is "" when the definition does not read, and Err says why.
+	Description string
 	// Err is why the definition does not read, and nil when it does.
 	Err error
 }
@@ -49,7 +49,7 @@ func (c *Catalog) Entries() []Entry {
 		if err != nil {
 			entry.Err = err
 		} else {
-			entry.Mission = def.Mission
+			entry.Description = def.Description
 		}
 		out = append(out, entry)
 	}

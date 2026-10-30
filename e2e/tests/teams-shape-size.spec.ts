@@ -16,7 +16,7 @@ test.use({ reads: 'teams' });
 // eight is the large team: eight members and ten turns. It is written into this
 // walk's own project, so the fixture the other walks read keeps its list.
 const eight = `version: 1
-mission: "注文を 8 人で回す"
+description: "注文を 8 人で回す"
 members:
   - name: lead
     role: lead

@@ -14,7 +14,7 @@ import (
 
 // FieldError is a reading error that knows which field of team.yaml it is about:
 // the key a screen puts the sentence beside, as a person editing the file reads
-// it ("mission", "members[1].profile", a turns: line). The error's own sentence
+// it ("description", "members[1].profile", a turns: line). The error's own sentence
 // is what a person reads; the field is for placing it (C2).
 type FieldError struct {
 	Field string
@@ -86,19 +86,22 @@ func (s *stringList) UnmarshalYAML(value *yaml.Node) error {
 //
 // docs: and roles: are gone (段 4). They are still read, only so that a file
 // which writes one is stopped with the sentence that says where the documents
-// went, rather than with an unknown-key complaint.
+// went, rather than with an unknown-key complaint. mission: is the same: the
+// team's one line is description: now (d-5f55), and a file that still writes
+// the old key is stopped with the sentence that says so.
 type rawTeam struct {
-	Version *int        `yaml:"version"`
-	Mission *string     `yaml:"mission"`
-	Team    string      `yaml:"team"`
-	Cwd     string      `yaml:"cwd"`
-	Prompt  *string     `yaml:"prompt"`
-	Docs    *stringList `yaml:"docs"`
-	Roles   *stringList `yaml:"roles"`
-	Members []rawMember `yaml:"members"`
-	Workers []rawWorker `yaml:"workers"`
-	Turns   *stringList `yaml:"turns"`
-	Ledger  *stringList `yaml:"ledger"`
+	Version     *int        `yaml:"version"`
+	Description *string     `yaml:"description"`
+	Mission     *string     `yaml:"mission"`
+	Team        string      `yaml:"team"`
+	Cwd         string      `yaml:"cwd"`
+	Prompt      *string     `yaml:"prompt"`
+	Docs        *stringList `yaml:"docs"`
+	Roles       *stringList `yaml:"roles"`
+	Members     []rawMember `yaml:"members"`
+	Workers     []rawWorker `yaml:"workers"`
+	Turns       *stringList `yaml:"turns"`
+	Ledger      *stringList `yaml:"ledger"`
 }
 
 // rawWorker is one worker a member may hire: who hires it, what it is for, and
@@ -150,10 +153,6 @@ func Read(in Input) (*Definition, error) {
 	if raw.Team != "" && raw.Team != in.Name {
 		return nil, field("team", i18n.Errorf("error.team_name_mismatch", in.TeamYAMLPath, raw.Team, in.Name))
 	}
-	mission, err := missionOf(raw.Mission, in.TeamYAMLPath)
-	if err != nil {
-		return nil, err
-	}
 	if len(raw.Members) == 0 {
 		return nil, field("members", i18n.Errorf("error.members_empty", in.TeamYAMLPath))
 	}
@@ -162,6 +161,13 @@ func Read(in Input) (*Definition, error) {
 	}
 	if raw.Roles != nil {
 		return nil, field("roles", i18n.Errorf("error.roles_gone"))
+	}
+	if raw.Mission != nil {
+		return nil, field("mission", i18n.Errorf("error.mission_gone", in.TeamYAMLPath))
+	}
+	description, err := descriptionOf(raw.Description, in.TeamYAMLPath)
+	if err != nil {
+		return nil, err
 	}
 	agreement := teamAgreement(in)
 	prompt, err := promptOf(raw.Prompt)
@@ -187,7 +193,7 @@ func Read(in Input) (*Definition, error) {
 	graph := NewGraph(members, workers, turns)
 	def := &Definition{
 		Name:         in.Name,
-		Mission:      mission,
+		Description:  description,
 		Graph:        graph,
 		Dir:          in.TeamDir,
 		TeamYAML:     in.TeamYAMLPath,
@@ -235,23 +241,23 @@ func promptOf(raw *string) (string, error) {
 	return *raw, nil
 }
 
-// missionOf is the mission team.yaml writes: one line saying what the team is
-// for (I15). It is required, so a file that writes none, writes an empty one, or
-// writes one over more than one line is stopped here, with the file's path the
-// way the other reading errors carry it. The ends are trimmed first, so a block
-// scalar's trailing newline is not a second line.
-func missionOf(raw *string, path string) (string, error) {
+// descriptionOf is the description team.yaml writes: one line saying which case
+// the team is meant for (I15). It is required, so a file that writes none,
+// writes an empty one, or writes one over more than one line is stopped here,
+// with the file's path the way the other reading errors carry it. The ends are
+// trimmed first, so a block scalar's trailing newline is not a second line.
+func descriptionOf(raw *string, path string) (string, error) {
 	if raw == nil {
-		return "", field("mission", i18n.Errorf("error.mission_missing", path))
+		return "", field("description", i18n.Errorf("error.description_missing", path))
 	}
-	mission := strings.TrimSpace(*raw)
-	if mission == "" {
-		return "", field("mission", i18n.Errorf("error.mission_missing", path))
+	description := strings.TrimSpace(*raw)
+	if description == "" {
+		return "", field("description", i18n.Errorf("error.description_missing", path))
 	}
-	if strings.Contains(mission, "\n") {
-		return "", field("mission", i18n.Errorf("error.mission_multiline", path))
+	if strings.Contains(description, "\n") {
+		return "", field("description", i18n.Errorf("error.description_multiline", path))
 	}
-	return mission, nil
+	return description, nil
 }
 
 // parseMembers builds the member frames, refusing the ways a member breaks. Each

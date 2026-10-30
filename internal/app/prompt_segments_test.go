@@ -55,7 +55,7 @@ func TestUpDrySegmentsJoinThePrompt(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
-mission: a mission for the test
+description: a description for the test
 prompt: |
   Team template for %{team} / %{name}.
   %{role_doc}
@@ -133,7 +133,7 @@ func TestHireDrySegmentsJoinThePrompt(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
-mission: a mission for the test
+description: a description for the test
 members:
   - name: lead
     role: lead
@@ -365,8 +365,8 @@ func TestPROMPT_SEGMENTS(t *testing.T) {
 	// team's for research (every member reads it), and writer's own in docs.
 	research := filepath.Join(f.proj, ".hergy", "teams", "research", "team.yaml")
 	writeFile(t, research, strings.Replace(readFile(t, research),
-		"mission: \"検索の改善案を調べる\"\n",
-		"mission: \"検索の改善案を調べる\"\nprompt: |\n  あなたは %{team} チームの %{name} です。調べ始める前に、問いを 1 文で書き、答えが出たら何が決まるかも書いてください。\n\n  %{actor}\n\n  %{role_doc}\n  %{docs}\n  ## 名簿\n  %{roster}\n\n  ## 連絡\n  %{herdr}\n  %{turns}%{workers}\n", 1))
+		"description: \"検索の改善案を調べる\"\n",
+		"description: \"検索の改善案を調べる\"\nprompt: |\n  あなたは %{team} チームの %{name} です。調べ始める前に、問いを 1 文で書き、答えが出たら何が決まるかも書いてください。\n\n  %{actor}\n\n  %{role_doc}\n  %{docs}\n  ## 名簿\n  %{roster}\n\n  ## 連絡\n  %{herdr}\n  %{turns}%{workers}\n", 1))
 	docs := filepath.Join(f.proj, ".hergy", "teams", "docs", "team.yaml")
 	writeFile(t, docs, strings.Replace(readFile(t, docs),
 		"  - name: writer\n    role: writer\n    profile: opus-deep\n",

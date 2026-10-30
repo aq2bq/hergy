@@ -15,7 +15,7 @@ func TestATurnProblemStopsUpDryAndShowsInValidate(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), `version: 1
-mission: a mission for the test
+description: a description for the test
 members:
   - name: lead
     role: lead

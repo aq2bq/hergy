@@ -14,7 +14,7 @@ func TestFigureProblemsNameThePlaceAndTheField(t *testing.T) {
 	problems := t2FigureProblems([]check.Finding{
 		{Field: "members[2].role", Text: "role?", Stops: true},
 		{Field: "members[2]", Text: "member?"},
-		{Field: "mission", Text: "mission?"},
+		{Field: "description", Text: "description?"},
 		{Field: "workers[0]", Text: "worker?"},
 		{Field: "node:lead", Text: "node?"},
 		{Field: "rule:demo/agreement.yaml#C1", Text: "rule?"},
@@ -22,7 +22,7 @@ func TestFigureProblemsNameThePlaceAndTheField(t *testing.T) {
 	want := []struct{ at, field string }{
 		{"members[2].role", "role"},
 		{"members[2]", "members"},
-		{"mission", "mission"},
+		{"description", "description"},
 		{"workers[0]", "workers"},
 		{"node:lead", "node:lead"},
 		{"rule:demo/agreement.yaml#C1", "rule:demo/agreement.yaml#C1"},

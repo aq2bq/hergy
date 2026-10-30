@@ -2796,11 +2796,14 @@ components:
       description: チーム定義を起動する欄の選択肢
       type: object
       additionalProperties: false
-      required: [definition, place, members, clash, suggested_name, new_workspace_name, workspaces]
+      required: [definition, description, place, members, clash, suggested_name, new_workspace_name, workspaces]
       properties:
         definition:
           type: string
           description: 起動するチーム定義名
+        description:
+          type: string
+          description: チーム定義の説明（このチームが想定するケース）
         place:
           type: string
           description: チーム定義を読む場所
@@ -3251,14 +3254,14 @@ components:
           minimum: 0
           description: 読めるが直したほうがよい問題の数
     TeamSummary:
-      description: チーム定義の一覧に出す使命、メンバー、ワーカー、チームのルールの集計。
+      description: チーム定義の一覧に出す説明、メンバー、ワーカー、チームのルールの集計。
       type: object
       additionalProperties: false
-      required: [mission, members, workers, rules, size, limit]
+      required: [description, members, workers, rules, size, limit]
       properties:
-        mission:
+        description:
           type: string
-          description: チーム定義の使命
+          description: チーム定義の説明
         members:
           type: array
           nullable: true
@@ -3327,11 +3330,11 @@ components:
       description: team.yaml から読むチーム定義。
       type: object
       additionalProperties: false
-      required: [mission, members, workers, turns, prompt]
+      required: [description, members, workers, turns, prompt]
       properties:
-        mission:
+        description:
           type: string
-          description: チーム定義の使命
+          description: チーム定義の説明
         members:
           type: array
           nullable: true
@@ -3983,7 +3986,7 @@ components:
           description: 編集の種類
         text:
           type: string
-          description: 使命の文
+          description: 説明の文
         member:
           type: string
           description: 編集するメンバー名

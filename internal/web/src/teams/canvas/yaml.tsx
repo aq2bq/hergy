@@ -51,7 +51,7 @@ export function TPrev({ r }: { r: Rec }): JSX.Element {
       <div class="ybox">
         {at.map((z, i) => {
           const p = atParts(z.at);
-          const go = !!p.node || p.worker != null || !!p.a || p.f === 'mission';
+          const go = !!p.node || p.worker != null || !!p.a || p.f === 'description';
           const cls = [marks[z.at] === 'err' ? 'err' : marks[z.at] ? 'warn' : '', added.includes(i) ? 'ins' : '', removed.includes(i) ? 'del' : '', lastDel && i === n - 1 ? 'dele' : '', isCurLine(z, cur) ? 'cur' : '', step.has(i) ? 'step' : '', go ? 'go' : ''].filter(Boolean).join(' ');
           return (
             <div class={'yl ' + cls} data-act={go ? 'tyline' : null} data-node={p.node || null} data-worker={p.worker != null ? p.worker : null} data-a={p.a || null} data-b={p.b || null} data-f={p.f || null} onClick={go ? () => pressLine(r, { ...z, ...p }) : undefined}>
@@ -84,7 +84,7 @@ const atParts = (at: string): LineAt => {
   if (at.startsWith('node:')) return { node: at.slice(5) };
   if (at.startsWith('worker:')) return { worker: Number(at.slice(7)) };
   if (at.startsWith('turn:')) { const [a, b] = at.slice(5).split('->'); return { a, b }; }
-  if (at === 'mission') return { f: 'mission' };
+  if (at === 'description') return { f: 'description' };
   return {};
 };
 
@@ -125,10 +125,10 @@ function lineMarks(r: Rec): Record<string, string> {
   return out;
 }
 
-// markAt is the preview line a finding stands beside: the mission, a point, or
+// markAt is the preview line a finding stands beside: the description, a point, or
 // a worker.
 function markAt(m: Finding): string {
-  return m.field === 'mission' ? 'mission' : m.node ? 'node:' + m.node : m.worker != null && m.worker >= 0 ? 'worker:' + m.worker : '';
+  return m.field === 'description' ? 'description' : m.node ? 'node:' + m.node : m.worker != null && m.worker >= 0 ? 'worker:' + m.worker : '';
 }
 
 // fitYbox caps the topology tab's YAML box at the room between the box's top

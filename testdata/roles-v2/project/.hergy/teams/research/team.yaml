@@ -1,5 +1,5 @@
 version: 1
-mission: "検索の改善案を調べる"
+description: "検索の改善案を調べる"
 members:
   - name: lead
     role: lead

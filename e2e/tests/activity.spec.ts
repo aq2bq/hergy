@@ -7,7 +7,7 @@
 // The run's clock and zone are its own (r-f647): the serve reads its moment from
 // HERGY_E2E_NOW (d-f978), and the fixture's times are counted back from the same
 // moment, so what the rows say does not depend on when or where the run happens.
-import { test } from './fixtures';
+import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -65,6 +65,13 @@ function agentState(cfg: string, name: string, state: string): void {
   if (!found) throw new Error(`the fixture has no agent ${name}`);
   writeFileSync(at, JSON.stringify(doc));
 }
+
+test('ACTIVITY-D1 a running team carries no description', async ({ page, app }) => {
+  // d-5f55: the description is read where a person picks or reads a definition,
+  // not on the tiles of the teams that are running.
+  await open(page, app.base, '');
+  await expect(page.locator('body')).not.toContainText('注文 API を作り直す');
+});
 
 test('ACTIVITY-P4 reading again', async ({ page, app }) => {
   // P4: the screen reads again every ten seconds (2.6), and the re-reading

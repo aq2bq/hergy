@@ -192,7 +192,7 @@ func TestTEAMS_3C77_TheAgreementAndItsTextAnswerWhatChanged(t *testing.T) {
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
 	before := readFile(t, path)
 	doc := map[string]any{"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "使命", "rules": []map[string]any{
+		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{
 			{"id": "", "text": "足したルール。", "in_prompt": true},
 		}}}}
 	changed := before + "\n# ほかの所で変わった\n"

@@ -70,7 +70,7 @@ func (f *fixture) leadRolePath() string {
 
 // teamHead is the part of a team.yaml before its members: everything the
 // fixture's definitions share.
-const teamHead = "version: 1\nmission: a team for the test\nmembers:\n"
+const teamHead = "version: 1\ndescription: a team for the test\nmembers:\n"
 
 // team writes the definition: members lead and spec, both on the claude profile.
 // turns is written as it stands (a test writes turns: itself, or none).
@@ -114,22 +114,22 @@ const (
 	specMember = "  - name: spec\n    role: spec\n    profile: claude\n"
 )
 
-// TestDefinitionWarnsAboutTheStarterMission: a definition whose mission is still
-// the starter's example reads, and warns once. The finding names the mission
+// TestDefinitionWarnsAboutTheStarterDescription: a definition whose description is still
+// the starter's example reads, and warns once. The finding names the description
 // field, so a screen can put the sentence beside what the person writes.
-func TestDefinitionWarnsAboutTheStarterMission(t *testing.T) {
+func TestDefinitionWarnsAboutTheStarterDescription(t *testing.T) {
 	f := newFixture(t)
 	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: "+scaffold.MissionPlaceholder[i18n.Fallback]+"\nmembers:\n"+
+		"version: 1\ndescription: "+scaffold.DescriptionPlaceholder[i18n.Fallback]+"\nmembers:\n"+
 			leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
 	got := f.findings()
 	if len(got) != 1 {
-		t.Fatalf("findings = %+v, want the one mission warning", got)
+		t.Fatalf("findings = %+v, want the one description warning", got)
 	}
-	want := Finding{Field: "mission", Text: i18n.T("validate.mission_placeholder"), Kind: KindMission}
+	want := Finding{Field: "description", Text: i18n.T("validate.description_placeholder"), Kind: KindDescription}
 	if got[0] != want {
 		t.Fatalf("finding = %+v, want %+v", got[0], want)
 	}
@@ -162,8 +162,8 @@ func TestDefinitionStopsOnAGraphProblem(t *testing.T) {
 			t.Errorf("finding %+v has no sentence", finding)
 		}
 	}
-	if strings.Contains(got[0].Text, "mission") {
-		t.Errorf("the break names the mission: %q", got[0].Text)
+	if strings.Contains(got[0].Text, "description") {
+		t.Errorf("the break names the description: %q", got[0].Text)
 	}
 }
 
@@ -176,7 +176,7 @@ func TestTurnFindings(t *testing.T) {
 	// lead may hire a worker whose purpose is 実装: workers: ties that worker to
 	// lead, so the arrow RAAF writes is not a name without a node.
 	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\nmission: a team for the test\nmembers:\n"+leadMember+specMember+
+		"version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
 			"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\nturns:\n"+
 			"  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 	f.role("lead", strings.Join([]string{
@@ -243,7 +243,7 @@ func TestDefinitionSaysWhenTheGlobalOneIsHidden(t *testing.T) {
 	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	global := filepath.Join(f.global, "teams", "demo", "team.yaml")
-	f.write(global, "version: 1\nmission: a team for the test\nmembers:\n"+leadMember+specMember+
+	f.write(global, "version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
 		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 
 	got := Definition(Input{Catalog: f.cat, Name: "demo", Layer: source.LayerGlobal})
@@ -320,9 +320,9 @@ func TestTheHumanIsReadInBothWords(t *testing.T) {
 // rather than one more sentence per fixing (N1).
 func TestDefinitionReportsEveryMemberThatCannotBeBuilt(t *testing.T) {
 	f := newFixture(t)
-	// The mission is still the starter's example: a warning that must be there
+	// The description is still the starter's example: a warning that must be there
 	// even though a prompt cannot be built.
-	f.write(f.teamPath(), "version: 1\nmission: "+scaffold.MissionPlaceholder[i18n.Fallback]+
+	f.write(f.teamPath(), "version: 1\ndescription: "+scaffold.DescriptionPlaceholder[i18n.Fallback]+
 		"\nmembers:\n"+leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
 
 	got := f.findings()
@@ -343,8 +343,8 @@ func TestDefinitionReportsEveryMemberThatCannotBeBuilt(t *testing.T) {
 	if stops[0].Kind != KindPrompt {
 		t.Errorf("kind = %v, want a prompt that cannot be built", stops[0].Kind)
 	}
-	if len(warnings) != 1 || warnings[0].Kind != KindMission {
-		t.Errorf("warnings = %+v, want the mission warning with the two stops", warnings)
+	if len(warnings) != 1 || warnings[0].Kind != KindDescription {
+		t.Errorf("warnings = %+v, want the description warning with the two stops", warnings)
 	}
 }
 
@@ -361,17 +361,17 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		want  func(f *fixture) []string
 	}{
 		{
-			name: "mission, a top-level key",
+			name: "description, a top-level key",
 			write: func(f *fixture) {
 				f.write(f.teamPath(), "version: 1\nmembers:\n"+leadMember+specMember+teamTurns)
 				f.roles()
 			},
-			want: func(*fixture) []string { return []string{"mission"} },
+			want: func(*fixture) []string { return []string{"description"} },
 		},
 		{
 			name: "team, a top-level key",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nteam: another\nmission: a team for the test\nmembers:\n"+leadMember+specMember+teamTurns)
+				f.write(f.teamPath(), "version: 1\nteam: another\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+teamTurns)
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"team"} },
@@ -379,7 +379,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "prompt, a top-level key",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nprompt: \"\"\nmembers:\n"+leadMember+specMember+teamTurns)
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nprompt: \"\"\nmembers:\n"+leadMember+specMember+teamTurns)
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"prompt"} },
@@ -387,7 +387,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "docs, a top-level key",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\ndocs:\n  - old\nmembers:\n"+leadMember+specMember+teamTurns)
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\ndocs:\n  - old\nmembers:\n"+leadMember+specMember+teamTurns)
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"docs"} },
@@ -395,7 +395,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "roles, a top-level key",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nroles:\n  - old\nmembers:\n"+leadMember+specMember+teamTurns)
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nroles:\n  - old\nmembers:\n"+leadMember+specMember+teamTurns)
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"roles"} },
@@ -403,7 +403,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "members, a top-level key",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nturns:\n  - human -> lead\n")
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nturns:\n  - human -> lead\n")
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"members"} },
@@ -479,7 +479,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "turns[i], the i-th line",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+leadMember+specMember+
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
 					"turns:\n  - human -> lead\n  - nobody talks\n  - spec -> human\n")
 				f.roles()
 			},
@@ -496,7 +496,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "node:human and node:<member>",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+leadMember+specMember+"turns:\n")
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+"turns:\n")
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"node:human", "node:lead", "node:spec"} },
@@ -513,7 +513,7 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 		{
 			name: "the file as a whole",
 			write: func(f *fixture) {
-				f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers: 3\n")
+				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers: 3\n")
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{""} },
@@ -744,12 +744,12 @@ func TestTheStyleWarningStaysInItsOwnUnit(t *testing.T) {
 
 // TestUnknownProfileIsAProblemNotABreak: a profile profiles.yaml does not hold
 // no longer stops the file reading (spec-teams 1.9). The definition reads — a
-// screen draws its figure, its mission and its numbers — and the check names the
+// screen draws its figure, its description and its numbers — and the check names the
 // profile at the member and at the worker that write it, as a problem that stops
 // hergy from starting them (監査 R10).
 func TestUnknownProfileIsAProblemNotABreak(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		"  - name: lead\n    role: lead\n    profile: absent\n"+
 		specMember+
 		"workers:\n  - from: spec\n    purpose: 調査\n    profile: gone\n"+

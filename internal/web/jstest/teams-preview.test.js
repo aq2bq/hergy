@@ -14,7 +14,7 @@ import { choose, click, island } from './teams-page.js';
 
 const file = [
   'version: 1',
-  'mission: 注文 API を作り直す',
+  'description: 注文 API を作り直す',
   '# a comment a person wrote',
   'members:',
   '  - name: lead',
@@ -33,7 +33,7 @@ const file = [
 ];
 
 // linesOfFile is the preview's answer for the file as it stands: every line,
-// and what it stands for (definition.YAMLLines: the mission, each member's own
+// and what it stands for (definition.YAMLLines: the description, each member's own
 // entry, each turn).
 const linesOfFile = [];
 let member = '';
@@ -42,7 +42,7 @@ for (const text of file) {
   if (named) member = named[1];
   else if (text.startsWith('turns:')) member = '';
   const turn = /^\s+- (\w+) -> (\w+)/.exec(text);
-  const at = text.startsWith('mission:') ? 'mission'
+  const at = text.startsWith('description:') ? 'description'
     : turn ? `turn:${turn[1]}->${turn[2]}`
       : member ? `node:${member}` : '';
   linesOfFile.push({ text, at });

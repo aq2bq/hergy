@@ -52,7 +52,7 @@ func overlayOfFixture(t *testing.T, f *fixture, ops ...definition.Op) *catalog.C
 // (X1, V2), and the figure's numbers are the definition's own.
 func TestTeamMatchesTheDefinitionsFindings(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+specMember+
 		"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\n"+
 		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
@@ -210,7 +210,7 @@ func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
 // the team's save and the roles screen use, and it says how to fix the name.
 func TestTeamSaysARoleNameThatIsNotOne(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.teamPath(), "version: 1\nmission: a team for the test\nmembers:\n"+
+	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+
 		"  - name: spec-2\n    role: 進行管理\n    profile: claude\n"+
 		"turns:\n  - human -> lead\n  - lead -> human\n  - spec-2 -> human\n")

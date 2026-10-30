@@ -812,6 +812,13 @@ function StartSheet({ definition, place, project }) {
             ]
           }),
           /* @__PURE__ */ u("dt", {
+            children: "説明"
+          }),
+          /* @__PURE__ */ u("dd", {
+            "data-role": "description",
+            children: options.description || "—"
+          }),
+          /* @__PURE__ */ u("dt", {
             children: "プロジェクト"
           }),
           /* @__PURE__ */ u("dd", {
@@ -1538,7 +1545,7 @@ function buildIndex() {
     for (const item of g.list && g.list.items || []) {
       const doc = teamDoc(item);
       const href = `/teams?open=${encodeURIComponent(token2(item.name, group))}`;
-      out.push({ kind: "def", group, project: label, label: item.name, sub: doc.mission || "", text: `${item.name} ${doc.mission || ""}`, href });
+      out.push({ kind: "def", group, project: label, label: item.name, sub: doc.description || "", text: `${item.name} ${doc.description || ""}`, href });
       for (const m of doc.members || []) {
         out.push({ kind: "member", group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ""} · プロファイル ${m.profile || ""}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ""} ${m.profile || ""}`, href });
       }

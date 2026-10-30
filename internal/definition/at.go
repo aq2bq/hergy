@@ -12,7 +12,7 @@ import (
 // YAMLLine is one line of a team.yaml as the topology tab's preview shows it
 // (spec-teams B7, C10): the line's own text, and what the line stands for.
 //
-// At is "mission" for the mission's lines, "node:<member>" for the lines of one
+// At is "description" for the description's lines, "node:<member>" for the lines of one
 // members[] entry, "worker:<index>" for the lines of one workers[] entry (the
 // index is the entry's place in the sequence), and "turn:<a>-><b>" for one
 // turns[] line. Every other line — the version, the keys themselves, a blank
@@ -43,8 +43,8 @@ func YAMLLines(text string) []YAMLLine {
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(text), &doc); err == nil && len(doc.Content) > 0 && doc.Content[0].Kind == yaml.MappingNode {
 		root := doc.Content[0]
-		if value := yamledit.MappingValue(root, "mission"); value != nil {
-			mark(value.Line, yamledit.NodeEndLine(value), "mission")
+		if value := yamledit.MappingValue(root, "description"); value != nil {
+			mark(value.Line, yamledit.NodeEndLine(value), "description")
 		}
 		for _, item := range sequenceOf(root, "members") {
 			name := ""

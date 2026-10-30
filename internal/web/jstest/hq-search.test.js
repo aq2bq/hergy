@@ -9,10 +9,10 @@ function page() {
   document.body.innerHTML = '<div class="wrap"><div class="bar"><div class="hq-search"><input id="hq-q" /></div></div></div>';
 }
 
-const team = (name, mission) => ({
+const team = (name, description) => ({
   name, effective: 'project',
   places: { project: { path: `.hergy/teams/${name}/team.yaml`, doc: {
-    mission, members: [], workers: [], turns: [],
+    description, members: [], workers: [], turns: [],
     agreement: { doc: { sections: [{ rules: [{ id: '', text: `${name} の ID がない規則` }] }] } },
   } } },
 });

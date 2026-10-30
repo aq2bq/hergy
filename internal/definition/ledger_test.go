@@ -13,7 +13,7 @@ import (
 // and the shortest turn graph, then the ledger: lines a test writes. The worker's
 // name is a/build, which is what a ledger: line must not name.
 func ledgerTeam(ledger string) string {
-	return "version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n" +
+	return "version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n" +
 		"  - name: a\n    role: r\n    profile: claude-default\n" +
 		"  - name: b\n    role: r\n    profile: claude-default\n" +
 		"workers:\n  - from: a\n    purpose: build\n    profile: claude-default\n" +
@@ -97,7 +97,7 @@ func TestLedgerBrokenLineNamesTheLine(t *testing.T) {
 func TestLedgerReadsTheUnknownProfile(t *testing.T) {
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{"claude-default": {Name: "claude-default", Kind: "claude"}}
-	got, err := parse("version: 1\nmission: a mission for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: absent\n"+
+	got, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: absent\n"+
 		"turns:\n  - human -> a\n  - a -> human\nledger:\n  - req approve by a\n", "t", "", l, profiles)
 	if err != nil {
 		t.Fatalf("a profile that does not exist stopped the parse: %v", err)

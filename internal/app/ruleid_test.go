@@ -154,7 +154,7 @@ func TestValidateNamesAWholeFileProblemOnce(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "builder.yaml")
-	writeFile(t, rolePath, "version: 1\nmission: not a rule key\nsections:\n  - rules:\n      - text: a rule\n")
+	writeFile(t, rolePath, "version: 1\ndescription: not a rule key\nsections:\n  - rules:\n      - text: a rule\n")
 	out, _, code := run("validate", "--lang", "ja")
 	if code == 0 {
 		t.Fatalf("validate accepted an unknown key:\n%s", out)
