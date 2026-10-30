@@ -67,8 +67,19 @@ test.describe('the role screen', () => {
     await save(page, q(`${builder} [data-act=save]`), '/api/role/builder');
 
     // lead moved with that save: its own save is the next one, on the row the
-    // list already holds.
-    const row = `[...document.querySelectorAll('#rows .role')].find((r)=>r.querySelector('.nm')&&r.querySelector('.nm').textContent.trim()==='lead')`;
+    // list already holds. The list draws a head per place and a row per place
+    // (r-410c), so the row is the one under the project's head, not the first row
+    // named lead.
+    const row = `(() => {
+      let on = null;
+      for (const el of document.querySelector('#rows').children) {
+        if (el.classList.contains('hq-gh')) { on = el.dataset.place || null; continue; }
+        if (on !== 'project' || !el.classList.contains('role')) continue;
+        const n = el.querySelector('.nm');
+        if (n && n.textContent.trim() === 'lead') return el;
+      }
+      return null;
+    })()`;
     await wait(page, `!!${row}`);
     await press(page, `${row}.querySelector('.sum')`);
     const leadPanel = `${row}.querySelector('.panel[data-l=project]')`;

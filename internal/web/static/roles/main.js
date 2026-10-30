@@ -275,6 +275,9 @@ function touch() {
   okShowing.value = { ...state.value.ok };
   if (Object.keys(state.value.ok).length)
     patch({ ok: {} });
+  redraw();
+}
+function redraw() {
   roles.value = roles.value.slice();
   tellDirty();
   setCount2("roles", savedRoles().length);
@@ -416,7 +419,7 @@ function scheduleCheck(r, l) {
   clearTimeout(timers[k]);
   timers[k] = setTimeout(() => askCheck(r, l, () => {
     updateRowSummary(r.uid);
-    touch();
+    redraw();
   }), 300);
 }
 var clearTimer = (r, l) => clearTimeout(timers[keyOf(r, l)]);

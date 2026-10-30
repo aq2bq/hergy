@@ -340,6 +340,15 @@ export const withEntry = (id: number | string, l: Place, fn: (entry: RoleEntry) 
 export function touch(): void {
   okShowing.value = { ...state.value.ok };
   if (Object.keys(state.value.ok).length) patch({ ok: {} });
+  redraw();
+}
+// redraw draws the rows and the band again without moving the 保存しました the
+// drawing already shows. A check that answers is not a change the person made
+// (scheduleCheck, r-b41c): a save's notice stands until the person's next change,
+// and a check answering a beat after the save must not take it away — the notice
+// was drawn and erased a few milliseconds later, and a walk that waits for it
+// then never saw it (RB41C-5).
+function redraw(): void {
   roles.value = roles.value.slice();
   tellDirty();
   setCount('roles', savedRoles().length);
@@ -512,7 +521,7 @@ export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (()
 export function scheduleCheck(r: RoleRow, l: Place): void {
   const k = keyOf(r, l);
   clearTimeout(timers[k]);
-  timers[k] = setTimeout(() => askCheck(r, l, () => { updateRowSummary(r.uid); touch(); }), 300);
+  timers[k] = setTimeout(() => askCheck(r, l, () => { updateRowSummary(r.uid); redraw(); }), 300);
 }
 export const clearTimer = (r: RoleRow, l: Place): void => clearTimeout(timers[keyOf(r, l)]);
 
