@@ -1,12 +1,13 @@
-// PROFILES-P1, PROFILES-P11 and PROFILES-C1 — walked in a
+// PROFILES-P1, PROFILES-P11, PROFILES-C1 and PROFILES-ADB6 — walked in a
 // browser. Only what the browser alone can see is compared here (d-3e43): the
 // row a person presses opens inside the view (d-d475), the box that rewrites the
 // people using a renamed profile is ticked from the start, a person's chip puts
-// the cursor on the person's row of the assign tab, and the YAML text a person
-// types is still theirs after the check answered.
+// the cursor on the person's row of the assign tab, the YAML text a person
+// types is still theirs after the check answered, and the delete of a profile
+// goes through whatever shape the file wrote profiles: in (ac-adb6).
 import { test } from './fixtures';
 import { press, q, read, readTo, set, there, wait } from './helpers';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 test.use({ reads: 'profiles' });
@@ -91,5 +92,39 @@ test('PROFILES-C1 typing in the YAML tab survives the check, and the save writes
   const written = readFileSync(path.join(app.proj, file), 'utf8');
   if (!written.endsWith('# a line the check takes\n')) {
     throw new Error(`the save did not write the file: ${JSON.stringify(written.slice(-40))}`);
+  }
+});
+
+test('PROFILES-ADB6 a profile is deleted from a file hergy could not rewrite', async ({ page, app }) => {
+  // ac-adb6, r-430b: the master deleted a profile and hergy stopped with its own
+  // bug, so the profile stayed. The file wrote profiles: in a shape the line edit
+  // could not take an entry out of: the only profile of a block mapping (the
+  // lines left a bare `profiles:`, which reads as a null value and not as the
+  // empty mapping the delete means), and a flow mapping on the key's own line
+  // (the entry stands on the line the key stands on, so the line edit took the
+  // key's line). Both deletes go through, and the file keeps every line the
+  // delete did not have to change.
+  const file = path.join(app.proj, '.hergy', 'profiles.yaml');
+  const cases = [
+    { name: 'adb6-one', text: 'version: 1\nprofiles:\n  adb6-one:\n    kind: claude\n', want: 'version: 1\nprofiles: {}\n' },
+    { name: 'adb6-doc', text: '---\nversion: 1\nprofiles:\n  adb6-doc:\n    kind: claude\n', want: '---\nversion: 1\nprofiles: {}\n' },
+    { name: 'adb6-flow', text: 'version: 1\nprofiles: {adb6-flow: {kind: claude}, adb6-keep: {kind: codex}}\n', want: 'version: 1\nprofiles: {adb6-keep: {kind: codex}}\n' },
+  ];
+  for (const one of cases) {
+    writeFileSync(file, one.text, 'utf8');
+    await page.goto(`${app.base}/profiles?open=${one.name}`);
+    const panel = `${row(one.name)} .panel[data-file=project]`;
+    await wait(page, there(`${panel} [data-act=del]`));
+    await press(page, q(`${panel} [data-act=del]`));
+    const answer = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes(`/api/profile/${one.name}`));
+    await press(page, q(`${panel} [data-act=del-yes]`));
+    const res = await answer;
+    if (res.status() !== 200) {
+      throw new Error(`the delete of ${one.name} was refused (${res.status()}): ${await res.text()}`);
+    }
+    if (readFileSync(file, 'utf8') !== one.want) {
+      throw new Error(`the delete of ${one.name} wrote ${JSON.stringify(readFileSync(file, 'utf8'))}`);
+    }
+    await wait(page, `!${q(row(one.name))}`);
   }
 });

@@ -911,3 +911,77 @@ func TestTheAssignCardSavesThePlaceItStandsIn(t *testing.T) {
 		t.Errorf("the save made a project definition of the global name: %v", err)
 	}
 }
+
+// TestPROFILES_R430B_ADeleteWorksForEveryShapeTheFileWrites: DELETE
+// /api/profile takes one profile out of a profiles.yaml written the two ways the
+// line edit could not rewrite — the last profile of a block mapping, and a flow
+// mapping on the key's own line — and answers the list with the profile gone. The
+// file keeps every line the delete did not have to change, and no sentence about
+// hergy's own bug is said (ac-adb6, r-430b).
+func TestPROFILES_R430B_ADeleteWorksForEveryShapeTheFileWrites(t *testing.T) {
+	cases := []struct{ name, text, target, want string }{
+		{
+			name:   "the only profile of a block mapping",
+			text:   "version: 1\nprofiles:\n  coder:\n    kind: claude\n",
+			target: "coder",
+			want:   "version: 1\nprofiles: {}\n",
+		},
+		{
+			name:   "the only profile, with a document start and a comment",
+			text:   "---\nversion: 1\nprofiles: # 使うエンジン\n  coder:\n    kind: claude\n",
+			target: "coder",
+			want:   "---\nversion: 1\nprofiles: {} # 使うエンジン\n",
+		},
+		{
+			name:   "a flow mapping on the key's line",
+			text:   "version: 1\nprofiles: {coder: {kind: claude}, planner: {kind: codex}}\n",
+			target: "coder",
+			want:   "version: 1\nprofiles: {planner: {kind: codex}}\n",
+		},
+		{
+			name:   "the last of a flow mapping",
+			text:   "version: 1\nprofiles: {planner: {kind: codex}, coder: {kind: claude}}\n",
+			target: "coder",
+			want:   "version: 1\nprofiles: {planner: {kind: codex}}\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.write(t, "profiles.yaml", tc.text)
+			server := f.server(t)
+			path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
+			resp, decoded := f.apiJSON(t, server, http.MethodDelete,
+				"/api/profile/"+tc.target+"?place=project&hash="+source.Hash(tc.text), nil)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("the delete answered %d: %v", resp.StatusCode, decoded)
+			}
+			if got := readFile(t, path); got != tc.want {
+				t.Errorf("the delete wrote\n%q\nwant\n%q", got, tc.want)
+			}
+			if names := pv2ItemNames(t, decoded); names[tc.target] {
+				t.Errorf("the list the delete answered still holds %s: %v", tc.target, names)
+			}
+		})
+	}
+}
+
+// pv2ItemNames is the names one list answer holds.
+func pv2ItemNames(t *testing.T, decoded map[string]any) map[string]bool {
+	t.Helper()
+	raw, err := json.Marshal(decoded["items"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &items); err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[string]bool, len(items))
+	for _, item := range items {
+		out[item.Name] = true
+	}
+	return out
+}

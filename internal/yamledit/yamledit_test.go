@@ -86,9 +86,60 @@ func TestRemoveNodeTakesTheCommentWithIt(t *testing.T) {
 	}
 }
 
+// TestRemoveFlowKeyLinesTakesOneEntryOut: a flow mapping loses the entry's own
+// text and one of the commas beside it, not the line the key stands on, whether
+// the entries share the key's line or each stands on its own; a line the entry
+// stood alone on goes with it, and a mapping left with no entry keeps its braces
+// (ac-adb6).
+func TestRemoveFlowKeyLinesTakesOneEntryOut(t *testing.T) {
+	cases := []struct{ name, text, key, want string }{
+		{
+			name: "two entries on the key's line",
+			text: "version: 1\nprofiles: {a: {kind: claude}, b: {kind: codex}}\n",
+			key:  "a",
+			want: "version: 1\nprofiles: {b: {kind: codex}}\n",
+		},
+		{
+			name: "the entry alone on its line",
+			text: "version: 1\nprofiles: {\n  a: {kind: claude},\n  b: {kind: codex},\n}\n",
+			key:  "a",
+			want: "version: 1\nprofiles: {\n  b: {kind: codex},\n}\n",
+		},
+		{
+			name: "the first entry on the key's line",
+			text: "version: 1\nprofiles: {a: {kind: claude},\n  b: {kind: codex}}\n",
+			key:  "a",
+			want: "version: 1\nprofiles: {\n  b: {kind: codex}}\n",
+		},
+		{
+			name: "a value that holds a comma and a collection",
+			text: "version: 1\nprofiles: {a: {kind: claude, args: [--x, --y]}, b: {kind: codex}}\n",
+			key:  "a",
+			want: "version: 1\nprofiles: {b: {kind: codex}}\n",
+		},
+		{
+			name: "the only entry",
+			text: "version: 1\nprofiles: {a: {kind: claude}}\n",
+			key:  "a",
+			want: "version: 1\nprofiles: {}\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := nodes(t, tc.text)
+			src := New([]byte(tc.text), "x.yaml")
+			RemoveFlowKeyLines(src, MappingValue(root, "profiles"), tc.key)
+			if got := string(src.Bytes()); got != tc.want {
+				t.Errorf("RemoveFlowKeyLines wrote\n%q\nwant\n%q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestNodeRangeIsTheNodesOwnLines: a mapping item's range starts at its first
 // key's line and ends at the last line of the node's own text, so a block value
 // under it is inside the range.
+
 func TestNodeRangeIsTheNodesOwnLines(t *testing.T) {
 	const text = "a:\n  - id: T1\n    text: |-\n      1 行目\n      2 行目\n  - id: T2\n"
 	root := nodes(t, text)

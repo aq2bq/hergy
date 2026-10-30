@@ -149,7 +149,7 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		if yamledit.MappingKeyNode(profiles, op.Name) == nil {
 			return i18n.Errorf("error.edit_no_profile", op.Name)
 		}
-		yamledit.RemoveKeyLines(src, profiles, op.Name)
+		removeProfileLines(src, root, profiles, op.Name)
 		return nil
 	case OpRename:
 		return renameLines(src, profiles, op)
@@ -172,6 +172,41 @@ func applyLines(src *yamledit.Source, root *yaml.Node, op Op) error {
 		}
 		return yamledit.ReplaceMap(src, item, "env", envPairs(item, op.Env))
 	}
+}
+
+// removeProfileLines takes one profile out of the profiles: mapping. A file that
+// wrote the mapping as a flow collection ({a: …, b: …}) loses the entry's own
+// text; a file whose mapping held no other entry says the mapping is empty on
+// the key's own line (`profiles: {}`), since a bare `profiles:` reads as a null
+// value and not as the empty mapping the op means (ac-adb6). Every other line
+// stays as it was.
+func removeProfileLines(src *yamledit.Source, root, profiles *yaml.Node, name string) {
+	if profiles.Style&yaml.FlowStyle != 0 {
+		yamledit.RemoveFlowKeyLines(src, profiles, name)
+		return
+	}
+	yamledit.RemoveKeyLines(src, profiles, name)
+	if len(profiles.Content) == 2 {
+		emptyMappingLine(src, root, "profiles")
+	}
+}
+
+// emptyMappingLine writes `{}` on a key's own line, keeping the indent and any
+// comment the file had after the key, so the key reads as the empty mapping it
+// now holds.
+func emptyMappingLine(src *yamledit.Source, root *yaml.Node, key string) {
+	keyNode := yamledit.MappingKeyNode(root, key)
+	if keyNode == nil {
+		return
+	}
+	line := src.Line(keyNode.Line)
+	start := yamledit.ByteColumn(line, keyNode.Column)
+	colon := start + strings.IndexByte(line[start:], ':')
+	if colon < start {
+		return
+	}
+	rest := strings.TrimRight(line[colon+1:], " \t")
+	src.ReplaceLine(keyNode.Line, []string{line[:colon+1] + " {}" + rest})
 }
 
 // renameLines writes another name on one profile's key, on the key's own line,

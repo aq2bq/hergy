@@ -127,18 +127,36 @@ func datesAsText(n *yaml.Node) {
 
 // encode writes the document the way hergy writes its own settings: a
 // two-space indent, so a file already in that form is not re-indented. It is
-// used to compare values, not to write the file.
+// used to compare values, not to write the file, so the comments are left off:
+// they are not values, and yaml.v3 writes a key's comment and an empty value
+// under it in an order that does not read back (`profiles: # エンジン` with `{}`
+// on the line after it).
 func encode(doc *yaml.Node, path string) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
-	if err := enc.Encode(doc); err != nil {
+	if err := enc.Encode(withoutComments(doc)); err != nil {
 		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	if err := enc.Close(); err != nil {
 		return nil, i18n.Errorf("error.edit_yaml", path, err)
 	}
 	return buf.Bytes(), nil
+}
+
+// withoutComments is the document's tree with the comments taken off: the tree
+// the written lines are compared with holds the values alone.
+func withoutComments(n *yaml.Node) *yaml.Node {
+	if n == nil {
+		return nil
+	}
+	out := *n
+	out.HeadComment, out.LineComment, out.FootComment = "", "", ""
+	out.Content = make([]*yaml.Node, 0, len(n.Content))
+	for _, child := range n.Content {
+		out.Content = append(out.Content, withoutComments(child))
+	}
+	return &out
 }
 
 // ReplaceScalar writes a new value over the value on a line, keeping the
@@ -352,6 +370,158 @@ func RemoveKeyLines(src *Source, root *yaml.Node, key string) {
 		}
 	}
 	src.Remove(src.ItemStartLine(keyNode), end)
+}
+
+// RemoveFlowKeyLines takes one key and its value out of a flow mapping — one
+// written between braces, on the key's line or over several lines — and leaves
+// the braces, the entries beside it and every line outside it as they were. The
+// comma that joined the entry to its neighbour goes with it, and so does a line
+// the removal leaves as spaces only (a line the entry stood alone on), so a
+// mapping written one entry per line keeps one entry per line. A mapping left
+// with no entry keeps its braces (`{}`), which read as the empty mapping it is.
+//
+// A block mapping is not this shape: RemoveKeyLines takes one entry out of it.
+func RemoveFlowKeyLines(src *Source, mapping *yaml.Node, key string) {
+	keyNode := MappingKeyNode(mapping, key)
+	value := MappingValue(mapping, key)
+	if keyNode == nil || value == nil {
+		return
+	}
+	text := strings.Join(src.lines, "\n")
+	start := textOffset(text, keyNode.Line, keyNode.Column)
+	end := flowValueEnd(text, textOffset(text, value.Line, value.Column))
+	from, to := start, end
+	// The comma joining the entry to the one after it goes, or, when it is the
+	// last of the mapping, the comma before it.
+	if after := skipSpaces(text, end); after < len(text) && text[after] == ',' {
+		to = skipSpaces(text, after+1)
+	} else if before := skipBlankBack(text, start); before > 0 && text[before-1] == ',' {
+		from = skipBlankBack(text, before-1)
+	}
+	// A line the entry stood alone on is the entry's own, and goes with it.
+	lineFrom := strings.LastIndexByte(text[:from], '\n') + 1
+	lineTo := len(text)
+	if i := strings.IndexByte(text[to:], '\n'); i >= 0 {
+		lineTo = to + i
+	}
+	if strings.TrimSpace(text[lineFrom:from]) == "" && strings.TrimSpace(text[to:lineTo]) == "" {
+		from = lineFrom
+		if lineTo < len(text) {
+			to = lineTo + 1
+		} else {
+			to = lineTo
+		}
+	}
+	src.setText(text[:from] + text[to:])
+}
+
+// textOffset is where a 1-based line and column of the source's text starts, as
+// a byte index.
+func textOffset(text string, line, col int) int {
+	start := 0
+	for n := 1; n < line; n++ {
+		i := strings.IndexByte(text[start:], '\n')
+		if i < 0 {
+			return len(text)
+		}
+		start += i + 1
+	}
+	end := len(text)
+	if i := strings.IndexByte(text[start:], '\n'); i >= 0 {
+		end = start + i
+	}
+	return start + ByteColumn(text[start:end], col)
+}
+
+// flowValueEnd is where the value that starts at start ends in a flow
+// collection: past a braced or bracketed value, past a quoted scalar, or up to
+// the comma or the brace that closes a plain one.
+func flowValueEnd(text string, start int) int {
+	if start >= len(text) {
+		return len(text)
+	}
+	switch text[start] {
+	case '{', '[':
+		depth := 0
+		for i := start; i < len(text); {
+			switch text[i] {
+			case '#':
+				if i == start || text[i-1] == ' ' || text[i-1] == '\t' || text[i-1] == '\n' {
+					if j := strings.IndexByte(text[i:], '\n'); j >= 0 {
+						i += j
+						continue
+					}
+					return len(text)
+				}
+			case '"', '\'':
+				i = quotedEnd(text, i)
+				continue
+			case '{', '[':
+				depth++
+			case '}', ']':
+				depth--
+				if depth == 0 {
+					return i + 1
+				}
+			}
+			i++
+		}
+		return len(text)
+	case '"', '\'':
+		return quotedEnd(text, start)
+	default:
+		i := start
+		for i < len(text) && !strings.ContainsRune(",}]\n", rune(text[i])) {
+			i++
+		}
+		for i > start && (text[i-1] == ' ' || text[i-1] == '\t') {
+			i--
+		}
+		return i
+	}
+}
+
+// quotedEnd is where the quoted scalar that starts at start ends, past its
+// closing quote.
+func quotedEnd(text string, start int) int {
+	quote := text[start]
+	for i := start + 1; i < len(text); i++ {
+		if quote == '"' && text[i] == '\\' {
+			i++
+			continue
+		}
+		if text[i] != quote {
+			continue
+		}
+		if quote == '\'' && i+1 < len(text) && text[i+1] == '\'' {
+			i++
+			continue
+		}
+		return i + 1
+	}
+	return len(text)
+}
+
+// skipSpaces is where the spaces and tabs after i end.
+func skipSpaces(text string, i int) int {
+	for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
+		i++
+	}
+	return i
+}
+
+// skipBlankBack is where the spaces, tabs and line breaks before i start.
+func skipBlankBack(text string, i int) int {
+	for i > 0 && (text[i-1] == ' ' || text[i-1] == '\t' || text[i-1] == '\n') {
+		i--
+	}
+	return i
+}
+
+// setText is the file as text says it, with the line ending and the closing
+// line break the file came with.
+func (s *Source) setText(text string) {
+	s.lines = strings.Split(text, "\n")
 }
 
 // MappingValue is the value a mapping writes for a key, or nil. The first key

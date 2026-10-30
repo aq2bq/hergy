@@ -116,8 +116,99 @@ func TestEditYAMLRefusesAProfileAlreadyThere(t *testing.T) {
 	}
 }
 
+// TestEditYAMLRemovesAProfileFromEveryShapeTheFileWrites: taking one profile out
+// writes the file the file wrote, whatever shape that is (ac-adb6, r-430b). The
+// last profile of a block mapping leaves `profiles: {}` on the key's own line,
+// because a bare `profiles:` reads as a null value and not as the empty mapping
+// the op means; a flow mapping loses the entry's own text and one of the commas
+// beside it, not the line the key stands on. Every other line comes back byte
+// for byte, and what is written reads back as the profile less.
+func TestEditYAMLRemovesAProfileFromEveryShapeTheFileWrites(t *testing.T) {
+	cases := []struct{ name, text, target, want string }{
+		{
+			name:   "the only profile of a block mapping",
+			text:   "version: 1\nprofiles:\n  a:\n    kind: claude\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {}\n",
+		},
+		{
+			name:   "the only profile, with a document start and a comment above it",
+			text:   "---\nversion: 1\nprofiles:\n  # 使うエンジン\n  a:\n    kind: claude\n",
+			target: "a",
+			want:   "---\nversion: 1\nprofiles: {}\n",
+		},
+		{
+			name:   "the only profile, and the comment after the key stays",
+			text:   "version: 1\nprofiles: # 使うエンジン\n  a:\n    kind: claude\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {} # 使うエンジン\n",
+		},
+		{
+			name:   "one of two block profiles",
+			text:   "version: 1\nprofiles:\n  a:\n    kind: claude\n  b:\n    kind: codex\n",
+			target: "b",
+			want:   "version: 1\nprofiles:\n  a:\n    kind: claude\n",
+		},
+		{
+			name:   "a flow mapping on the key's line",
+			text:   "version: 1\nprofiles: {a: {kind: claude}, b: {kind: codex}}\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {b: {kind: codex}}\n",
+		},
+		{
+			name:   "the last of a flow mapping",
+			text:   "version: 1\nprofiles: {a: {kind: claude}, b: {kind: codex}}\n",
+			target: "b",
+			want:   "version: 1\nprofiles: {a: {kind: claude}}\n",
+		},
+		{
+			name:   "the only entry of a flow mapping",
+			text:   "version: 1\nprofiles: {a: {kind: claude}}\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {}\n",
+		},
+		{
+			name:   "a flow mapping written one entry per line",
+			text:   "version: 1\nprofiles: {\n  a: {kind: claude},\n  b: {kind: codex},\n}\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {\n  b: {kind: codex},\n}\n",
+		},
+		{
+			name:   "an entry whose args are a flow list",
+			text:   "version: 1\nprofiles: {a: {kind: claude, args: [--x, --y]}, b: {kind: codex}}\n",
+			target: "a",
+			want:   "version: 1\nprofiles: {b: {kind: codex}}\n",
+		},
+		{
+			name:   "a CRLF file",
+			text:   "version: 1\r\nprofiles: {a: {kind: claude}, b: {kind: codex}}\r\n",
+			target: "a",
+			want:   "version: 1\r\nprofiles: {b: {kind: codex}}\r\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := profile.EditYAML([]byte(tc.text), "profiles.yaml", profile.Remove(tc.target))
+			if err != nil {
+				t.Fatalf("the delete stopped: %v", err)
+			}
+			if string(got) != tc.want {
+				t.Errorf("EditYAML wrote\n%q\nwant\n%q", got, tc.want)
+			}
+			profiles, err := profile.ParseProfiles(string(got), "profiles.yaml")
+			if err != nil {
+				t.Fatalf("what it wrote does not read: %v\n%s", err, got)
+			}
+			if _, there := profiles[tc.target]; there {
+				t.Errorf("what it wrote still reads %s", tc.target)
+			}
+		})
+	}
+}
+
 // TestEditYAMLTakesAnEmptyArgsAndEnvOut: a profile with no args and no env has
 // neither key, the way hergy writes a file (設計 3.7).
+
 func TestEditYAMLTakesAnEmptyArgsAndEnvOut(t *testing.T) {
 	out, err := profile.EditYAML([]byte(hand), "profiles.yaml", profile.SetArgs("coder", nil))
 	if err != nil {
