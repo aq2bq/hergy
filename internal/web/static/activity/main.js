@@ -31,11 +31,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-jgxtsngw.js";
+} from "../chunk/nav-0s6nyjhb.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-rxj1mvhv.js";
+} from "../chunk/nav-b72etme1.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -138,7 +138,7 @@ async function readBoard(stop) {
 var reading = resource(readBoard);
 var teams = O(() => reading.value.value ? reading.value.value.teams : []);
 var note = O(() => reading.value.value && reading.value.value.note || { ok: true, text: "" });
-var noneText = words.none || "並べたプロジェクトに、動いているチームはありません。チーム定義の画面の「起動…」で起動できます。";
+var noneText = words.none || "並べたプロジェクトに、動いているチームはありません。チーム定義の画面で起動できます。";
 var current = O(() => {
   const rows = teams.value;
   return rows.find((t) => t.name === selected.value) || rows[0] || null;

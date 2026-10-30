@@ -3072,6 +3072,9 @@ components:
         text:
           type: string
           description: チーム名が重なった理由
+        at:
+          type: string
+          description: 文が指す欄（name）
         suggested_name:
           type: string
           description: 重ならない名前の案

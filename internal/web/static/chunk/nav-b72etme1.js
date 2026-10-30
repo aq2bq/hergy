@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-jgxtsngw.js";
+} from "./nav-0s6nyjhb.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -77,6 +77,7 @@ __export(exports_hq, {
 });
 
 // lib/hq/run.tsx
+var startLabel = (place) => place === "global" ? "プロジェクトを選んで起動する" : "このプロジェクトで起動する";
 function RunCell2({ definition, place, project }) {
   const live = runningFor(definition, place, project || "");
   return /* @__PURE__ */ u(S, {
@@ -92,6 +93,11 @@ function RunCell2({ definition, place, project }) {
               class: "hq-on" + (t.starting || (t.waiting || []).length ? " wait" : ""),
               children: label
             }),
+            t.team !== definition ? /* @__PURE__ */ u("code", {
+              class: "hq-tn",
+              "data-role": "team-name",
+              children: t.team
+            }) : "",
             where ? /* @__PURE__ */ u("span", {
               class: "hq-wsn",
               children: where
@@ -145,7 +151,7 @@ function RunCell2({ definition, place, project }) {
             "data-place": place || "project",
             "data-project": place === "global" ? "" : project || "",
             onClick: () => startSheet2(definition, place || "project", place === "global" ? "" : project || ""),
-            children: "起動…"
+            children: startLabel(place || "project")
           }),
           !live.length && lastWorkspaceOf(definition) ? /* @__PURE__ */ u("span", {
             class: "hq-last",

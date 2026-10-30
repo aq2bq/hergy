@@ -1538,6 +1538,8 @@ export interface components {
         HQLaunchNameTaken: {
             /** @description チーム名が重なった理由 */
             text: string;
+            /** @description 文が指す欄（name） */
+            at?: string;
             /** @description 重ならない名前の案 */
             suggested_name: string;
         };

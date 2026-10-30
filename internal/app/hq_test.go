@@ -281,6 +281,38 @@ func TestStartLaunchRefusesANameThatIsRunning(t *testing.T) {
 	}
 }
 
+// TestStartNameFollowsUpAs: an empty name is the definition's name, and the
+// shape of a written name is the check hergy up --as makes, with the refusal
+// saying it belongs to the name field (r-df61, d-b023).
+func TestStartNameFollowsUpAs(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "wave")
+	f.herdr(t, hqHerdr)
+	env, err := team.NewEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := newActivityRead(env)
+	read.now = func() time.Time { return activityNow }
+
+	if name, err := read.hq.startName(web.HQLaunchIn{Definition: "wave"}, env); err != nil || name != "wave" {
+		t.Errorf("an empty name = %q, %v; want the definition's name", name, err)
+	}
+	if name, err := read.hq.startName(web.HQLaunchIn{Definition: "wave", Name: "dev2"}, env); err != nil || name != "dev2" {
+		t.Errorf("a written name = %q, %v; want dev2", name, err)
+	}
+	_, err = read.hq.startName(web.HQLaunchIn{Definition: "wave", Name: "Bad Name"}, env)
+	hq, ok := errors.AsType[*web.HQError](err)
+	if !ok || hq.Status != http.StatusUnprocessableEntity || hq.At != "name" {
+		t.Errorf("a name hergy up --as refuses = %#v, %v; want a 422 at name", hq, err)
+	}
+	_, err = read.hq.startName(web.HQLaunchIn{Definition: "wave", Name: "core"}, env)
+	hq, ok = errors.AsType[*web.HQError](err)
+	if !ok || hq.Status != http.StatusConflict || hq.At != "name" {
+		t.Errorf("a running name = %#v, %v; want a 409 at name", hq, err)
+	}
+}
+
 // TestStartLaunchRefusesABusyWorkspace: one workspace holds one team (d-73fc).
 func TestStartLaunchRefusesABusyWorkspace(t *testing.T) {
 	_, env, _ := hqFixture(t)

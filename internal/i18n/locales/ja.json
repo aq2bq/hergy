@@ -532,6 +532,7 @@
   "web.hq.raise_running": "%s はもう動いています。画面を読み直してください",
   "web.hq.raise_command": "hergy refresh %s",
   "web.hq.name_taken": "%s という名前のチームがすでに動いています。別の名前で起動してください",
+  "web.hq.name_pattern": "チームの名前は [a-z][a-z0-9_-]{0,24} の形にしてください: %q",
   "web.hq.workspace_taken": "ワークスペース %s はすでにあります。別の名前を書いてください",
   "web.hq.workspace_busy": "ワークスペース %s では %s が動いています（1 つのワークスペースにチームは 1 つ）",
   "web.hq.workspace_missing": "ワークスペース %s はありません。画面を読み直してから、もう一度選んでください",

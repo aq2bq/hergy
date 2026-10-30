@@ -65,7 +65,7 @@ test('a reading that comes later draws the 動き column again, and the band hol
   const A = await import('../src/lib/hq');
   await settle();
 
-  // Nothing is running yet: the row offers 起動….
+  // Nothing is running yet: the row offers the start button.
   const cell = () => document.querySelector('.tdef[data-name="core|/work/alpha"] .hq-runc');
   expect(cell()).not.toBe(null);
   expect(cell().querySelector('[data-hq=start]')).not.toBe(null);

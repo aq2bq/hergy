@@ -635,12 +635,15 @@ function StartSheet({ definition, place, project }) {
   const [asName, setAsName] = d("");
   const [wsName, setWsName] = d("");
   const [error, setError] = d("");
+  const [nameError, setNameError] = d("");
   const [busy, setBusy] = d(false);
+  const title = isGlobal ? "プロジェクトを選んで起動する" : "このプロジェクトで起動する";
+  const seedName = (next) => (next.clash || []).length ? next.suggested_name || "" : "";
   const take = (next) => {
     setOptions(next);
     setChosen(next.project ? next.project.path : "");
     setPicked(next.last_workspace ? next.last_workspace.id : "");
-    setAsName(next.suggested_name || "");
+    setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
   h(() => {
@@ -668,6 +671,7 @@ function StartSheet({ definition, place, project }) {
     setChosen(path);
     setPicked("");
     setError("");
+    setNameError("");
     if (!path) {
       setOptions((was) => Object.assign({}, was, { members: [], clash: [], suggested_name: "", new_workspace_name: definition, workspaces: [] }));
       setAsName("");
@@ -685,14 +689,14 @@ function StartSheet({ definition, place, project }) {
       workspaces: next.workspaces || []
     }));
     setPicked(next.last_workspace ? next.last_workspace.id : "");
-    setAsName(next.suggested_name || "");
+    setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
   if (!options) {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(Head, {
-          title: "起動する",
+          title,
           label: definition
         }),
         error ? /* @__PURE__ */ u("p", {
@@ -714,7 +718,8 @@ function StartSheet({ definition, place, project }) {
   const members = membersOf();
   const clash = options.clash || [];
   const same = (as) => {
-    const asPart = clash.length > 0 && as ? ` --as ${as}` : "";
+    const written = as.trim();
+    const asPart = written ? ` --as ${written}` : "";
     return chosen ? /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u("code", {
@@ -758,8 +763,11 @@ function StartSheet({ definition, place, project }) {
     } else
       workspace = { id: picked };
     const body = { project: proj, definition, place: place || "project", workspace };
-    if (asName.trim())
-      body.name = asName.trim();
+    const name = asName.trim();
+    if (name)
+      body.name = name;
+    setError("");
+    setNameError("");
     setBusy(true);
     let launchAnswer = null;
     try {
@@ -767,7 +775,11 @@ function StartSheet({ definition, place, project }) {
       launchAnswer = answer.json;
     } catch (e) {
       setBusy(false);
-      setError(problemText2(e, "起動できませんでした"));
+      const text = problemText2(e, "起動できませんでした");
+      if (refusedAt(e) === "name")
+        setNameError(text);
+      else
+        setError(text);
       return;
     }
     setBusy(false);
@@ -780,7 +792,7 @@ function StartSheet({ definition, place, project }) {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
-        title: "起動する",
+        title,
         label: definition
       }),
       /* @__PURE__ */ u("dl", {
@@ -847,38 +859,55 @@ function StartSheet({ definition, place, project }) {
                 })))
               ]
             }) : "—"
+          }),
+          /* @__PURE__ */ u("dt", {
+            children: "チームの名前"
+          }),
+          /* @__PURE__ */ u("dd", {
+            "data-role": "team-name",
+            children: [
+              /* @__PURE__ */ u(Seeded, {
+                id: "hq-as",
+                class: "hq-sel",
+                value: asName,
+                onInput: (e) => {
+                  setAsName(e.currentTarget.value);
+                  setNameError("");
+                },
+                "aria-label": "チームの名前"
+              }),
+              /* @__PURE__ */ u("p", {
+                class: "hq-sub",
+                children: [
+                  "空なら、チームの名前はチーム定義の名前 ",
+                  /* @__PURE__ */ u("code", {
+                    children: definition
+                  }),
+                  " です。書けば、その名前で起動します（",
+                  /* @__PURE__ */ u("code", {
+                    children: "hergy up --as"
+                  }),
+                  " と同じ）。"
+                ]
+              }),
+              clash.length ? /* @__PURE__ */ u("p", {
+                class: "hq-sub",
+                "data-role": "clash",
+                children: [
+                  definition,
+                  " という名前のチームが ",
+                  clash.map((c) => projectName2(c.project)).join(" · "),
+                  " で動いています。この名前で起動します（hergy up --as と同じ）。"
+                ]
+              }) : "",
+              nameError ? /* @__PURE__ */ u("p", {
+                class: "hq-err",
+                "data-role": "name-error",
+                children: nameError
+              }) : ""
+            ]
           })
         ]
-      }),
-      /* @__PURE__ */ u("dl", {
-        class: "hq-kv",
-        "data-role": "clash",
-        children: clash.length ? /* @__PURE__ */ u(S, {
-          children: [
-            /* @__PURE__ */ u("dt", {
-              children: "チームの名前"
-            }),
-            /* @__PURE__ */ u("dd", {
-              children: [
-                /* @__PURE__ */ u(Seeded, {
-                  id: "hq-as",
-                  class: "hq-sel",
-                  value: asName,
-                  onInput: (e) => setAsName(e.currentTarget.value)
-                }),
-                /* @__PURE__ */ u("p", {
-                  class: "hq-sub",
-                  children: [
-                    definition,
-                    " という名前のチームが ",
-                    clash.map((c) => projectName2(c.project)).join(" · "),
-                    " で動いています。この名前で起動します（hergy up --as と同じ）。"
-                  ]
-                })
-              ]
-            })
-          ]
-        }) : ""
       }),
       /* @__PURE__ */ u("div", {
         class: "hq-sec",
@@ -996,6 +1025,12 @@ function StartSheet({ definition, place, project }) {
     ]
   });
 }
+var refusedAt = (refusal) => {
+  const json = refusal?.json;
+  if (typeof json !== "object" || json === null || !("at" in json))
+    return "";
+  return typeof json.at === "string" ? json.at : "";
+};
 var watched = y({});
 var watching = {};
 function watchLaunch(id) {

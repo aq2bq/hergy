@@ -490,6 +490,10 @@ var bannedWords = []ban{
 	// a person reads and writes ファイル, and hergy does not say which medium it
 	// stands on.
 	{lang: "ja", word: "ディスク", instead: "ファイル"},
+	// 起動… was the start button's word (r-df61, d-b023): the dots are the
+	// convention that a press asks first, and a person who does not know it
+	// cannot read what the button does. The button names its act.
+	{lang: "ja", word: "起動…"},
 }
 
 // TestGlossaryIsConsistent fails when the table contradicts itself: one name on

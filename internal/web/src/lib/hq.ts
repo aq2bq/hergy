@@ -4,7 +4,7 @@
 //   - 帯の「プロジェクト N」と、その欄（並べる・外す・候補・パスで並べる）
 //   - 帯の「探す」（/ キー）。並べたプロジェクトとグローバルのチーム・
 //     ワークスペース・メンバー・ロール・規則・プロファイルを一度に探す
-//   - チーム定義の一覧の「動き」の欄（起動…・動いている・終了する）と、
+//   - チーム定義の一覧の「動き」の欄（起動のボタン・動いている・終了する）と、
 //     起動・起動している・終了するの欄
 //   - 動いているチームの読み。一覧とアクティビティは、この読みから同じ状態を出す
 //
@@ -32,7 +32,7 @@ declare global {
 }
 
 // ---- 押す（画面から出るもの） -------------------------------------------
-// The lists' 起動… and 終了する are the parts' own presses now (lib/hq/run.js,
+// The lists' start button and 終了する are the parts' own presses now (lib/hq/run.js,
 // activity/board.js). The band's プロジェクト N is the server's markup, written
 // once, so this part answers that one button where it stands.
 document.querySelectorAll('[data-hq="projects"]').forEach((b) => {

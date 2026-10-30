@@ -41,6 +41,7 @@ type HQ interface {
 type HQError struct {
 	Status        int
 	Text          string
+	At            string
 	SuggestedName string
 }
 
@@ -399,6 +400,9 @@ func answerHQ(w http.ResponseWriter, value any, err error) {
 	}
 	if hq, ok := errors.AsType[*HQError](err); ok {
 		body := map[string]any{"text": hq.Text}
+		if hq.At != "" {
+			body["at"] = hq.At
+		}
 		if hq.SuggestedName != "" {
 			body["suggested_name"] = hq.SuggestedName
 		}

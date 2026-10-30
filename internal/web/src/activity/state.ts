@@ -175,7 +175,7 @@ export const reading = resource(readBoard);
 
 export const teams = computed<ActivityTeam[]>(() => (reading.value.value ? reading.value.value.teams : []));
 export const note = computed<ActivityNote>(() => (reading.value.value && reading.value.value.note) || { ok: true, text: '' });
-export const noneText = words.none || '並べたプロジェクトに、動いているチームはありません。チーム定義の画面の「起動…」で起動できます。';
+export const noneText = words.none || '並べたプロジェクトに、動いているチームはありません。チーム定義の画面で起動できます。';
 // current is the opened team: the pick, or the first team while the pick is not
 // in the reading.
 export const current = computed<ActivityTeam | null>(() => {

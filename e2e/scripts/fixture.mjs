@@ -79,6 +79,9 @@ case "$g $s" in
   "tab list")     echo '{"result":{"tabs":[]}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
+  "workspace list") echo '{"result":{"workspaces":[{"workspace_id":"w1","label":"main","focused":false}]}}' ;;
+  "workspace create") echo '{"result":{"workspace":{"workspace_id":"w2","label":"made","focused":false}}}' ;;
+  "workspace get") echo '{"result":{"workspace":{"workspace_id":"w1","label":"main","focused":false}}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   *) echo '{"result":{}}' ;;

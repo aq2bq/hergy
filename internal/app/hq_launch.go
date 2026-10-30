@@ -17,6 +17,7 @@ import (
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -299,16 +300,25 @@ func (h *hqRead) startAllowed(in web.HQLaunchIn, env team.Env) error {
 
 // startName is the name the team runs under, checked against the agents and
 // teams that are live: a name taken is refused with the name hergy suggests
-// (hergy up --as).
+// (hergy up --as). The name's shape is the check hergy up --as makes, so the
+// sheet writes no rule of its own (r-df61).
 func (h *hqRead) startName(in web.HQLaunchIn, env team.Env) (string, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		name = in.Definition
 	}
+	if strings.TrimSpace(in.Name) != "" && !scaffold.NamePattern.MatchString(name) {
+		return "", &web.HQError{
+			Status: http.StatusUnprocessableEntity,
+			At:     "name",
+			Text:   i18n.Tf("web.hq.name_pattern", name),
+		}
+	}
 	suggested := in.Definition + "-" + h.projectNameIn(env.ProjectRoot)
 	if h.nameRunning(name) {
 		return "", &web.HQError{
 			Status:        http.StatusConflict,
+			At:            "name",
 			Text:          i18n.Tf("web.hq.name_taken", name),
 			SuggestedName: suggested,
 		}

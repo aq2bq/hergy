@@ -183,13 +183,20 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   const [asName, setAsName] = useState('');
   const [wsName, setWsName] = useState('');
   const [error, setError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [busy, setBusy] = useState(false);
+  const title = isGlobal ? 'プロジェクトを選んで起動する' : 'このプロジェクトで起動する';
+
+  // A name is seeded only when the definition's own name is taken: the sheet's
+  // team name is empty otherwise, so the start uses the definition's name
+  // (hergy up <定義> と同じ。r-df61).
+  const seedName = (next: HQLaunchOptions): string => ((next.clash || []).length ? (next.suggested_name || '') : '');
 
   const take = (next: HQLaunchOptions): void => {
     setOptions(next);
     setChosen(next.project ? next.project.path : '');
     setPicked(next.last_workspace ? next.last_workspace.id : '');
-    setAsName(next.suggested_name || '');
+    setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
   useEffect(() => {
@@ -210,8 +217,10 @@ function StartSheet({ definition, place, project }: { definition: string; place:
     setChosen(path);
     setPicked('');
     // The refusal for a missing project is about the pick before this one: it
-    // goes as soon as one is picked (r-5b96 audit R2).
+    // goes as soon as one is picked (r-5b96 audit R2). A name refused by the
+    // server is about the project it was refused for, so it goes too.
     setError('');
+    setNameError('');
     if (!path) {
       setOptions((was) => Object.assign({}, was, { members: [], clash: [], suggested_name: '', new_workspace_name: definition, workspaces: [] }));
       setAsName('');
@@ -225,12 +234,12 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       new_workspace_name: next.new_workspace_name || definition, workspaces: next.workspaces || [],
     }));
     setPicked(next.last_workspace ? next.last_workspace.id : '');
-    setAsName(next.suggested_name || '');
+    setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
 
   if (!options) {
-    return <><Head title="起動する" label={definition} />{error
+    return <><Head title={title} label={definition} />{error
       ? <p class="hq-err">{error}</p>
       : <p class="hq-sub">読み込んでいます…</p>}</>;
   }
@@ -246,7 +255,8 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   const members = membersOf();
   const clash = options.clash || [];
   const same = (as: string): JSX.Element => {
-    const asPart = clash.length > 0 && as ? ` --as ${as}` : '';
+    const written = as.trim();
+    const asPart = written ? ` --as ${written}` : '';
     return chosen
       ? <><code>{projectName(chosen)}</code> で <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>
       : <>選んだプロジェクトで <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>;
@@ -265,7 +275,10 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       workspace = { new: name };
     } else workspace = { id: picked };
     const body: HQLaunchRequest = { project: proj, definition, place: place || 'project', workspace };
-    if (asName.trim()) body.name = asName.trim();
+    const name = asName.trim();
+    if (name) body.name = name;
+    setError('');
+    setNameError('');
     setBusy(true);
     let launchAnswer: HQLaunchEnvelope | null = null;
     try {
@@ -273,7 +286,11 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       launchAnswer = answer.json;
     } catch (e) {
       setBusy(false);
-      setError(problemText(e, '起動できませんでした'));
+      const text = problemText(e, '起動できませんでした');
+      // The server says which field its refusal is about. A refused name stands
+      // beside the name's own field, not with the sheet's other refusals
+      // (r-df61: 画面で決まりを作り直さない).
+      if (refusedAt(e) === 'name') setNameError(text); else setError(text);
       return;
     }
     setBusy(false);
@@ -284,7 +301,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   };
 
   return <>
-      <Head title="起動する" label={definition} />
+      <Head title={title} label={definition} />
       <dl class="hq-kv">
         <dt>チーム定義</dt><dd><code>{definition}</code>（{isGlobal ? 'グローバル' : projectName(chosen)}）</dd>
         <dt>プロジェクト</dt><dd>{isGlobal
@@ -293,10 +310,13 @@ function StartSheet({ definition, place, project }: { definition: string; place:
             : <option value="" disabled>{`${x.name}（${x.reason}）`}</option>))}</select><div class="hq-sub">グローバルのチーム定義は、どのプロジェクトで起動するかを選びます</div></>
           : <code>{projectName(chosen)}</code>}</dd>
         <dt>メンバー</dt><dd data-role="members">{members.length ? <>{`${members.length} 人: `}{spaced(members.map((m) => <code>{m.name}</code>))}</> : '—'}</dd>
+        <dt>チームの名前</dt><dd data-role="team-name">
+          <Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => { setAsName(e.currentTarget.value); setNameError(''); }} aria-label="チームの名前" />
+          <p class="hq-sub">空なら、チームの名前はチーム定義の名前 <code>{definition}</code> です。書けば、その名前で起動します（<code>hergy up --as</code> と同じ）。</p>
+          {clash.length ? <p class="hq-sub" data-role="clash">{definition} という名前のチームが {clash.map((c) => projectName(c.project)).join(' · ')} で動いています。この名前で起動します（hergy up --as と同じ）。</p> : ''}
+          {nameError ? <p class="hq-err" data-role="name-error">{nameError}</p> : ''}
+        </dd>
       </dl>
-      <dl class="hq-kv" data-role="clash">{clash.length
-        ? <><dt>チームの名前</dt><dd><Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => setAsName(e.currentTarget.value)} /><p class="hq-sub">{definition} という名前のチームが {clash.map((c) => projectName(c.project)).join(' · ')} で動いています。この名前で起動します（hergy up --as と同じ）。</p></dd></>
-        : ''}</dl>
       <div class="hq-sec"><span class="hq-lbl">ワークスペース</span><div class="hq-ws" data-role="wslist">{isGlobal && !chosen
         ? <p class="hq-sub">プロジェクトを選ぶと、ワークスペースが出ます</p>
         : <>{(options.workspaces || []).map((w) => (w.selectable
@@ -307,6 +327,15 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       <span class="hq-sub" data-role="same">{same(asName)}</span></div>
     </>;
 }
+
+// refusedAt is the field a refusal says its sentence belongs to (Refusal's at).
+// The sheet puts a refused name beside the name's field and every other refusal
+// where the sheet keeps them (r-df61).
+const refusedAt = (refusal: unknown): string => {
+  const json = (refusal as { json?: unknown } | null)?.json;
+  if (typeof json !== 'object' || json === null || !('at' in json)) return '';
+  return typeof (json as { at?: unknown }).at === 'string' ? (json as { at: string }).at : '';
+};
 
 // ---- 起動の途中（spec 5 章） -------------------------------------------
 // watched holds every start being watched: one entry per launch id. The watching
