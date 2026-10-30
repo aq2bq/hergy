@@ -30,6 +30,7 @@
 // handed and says so through onChange.
 import type { components, operations } from '../../../apicontract/api-types';
 import { signal, useLayoutEffect, useRef } from './preact.js';
+import { Field } from './field.js';
 
 export type EditableRule = {
   _k: number;
@@ -149,7 +150,6 @@ type Message = Pick<RuleIssue, 'sev' | 'text'>;
 type Piece = { text?: string; node?: unknown };
 type EditProps = { row: RulePanel; issues: RuleIssue[]; nameError?: string; h: InternalRuleDocProps };
 type PreviewProps = { row: RulePanel; issues: RuleIssue[] };
-type FieldProps = { as?: 'input' | 'textarea'; value?: string | number | null; [key: string]: unknown };
 type DragTarget = { si: number; k: number | null; before?: boolean };
 type DragState = { row: RulePanel; key: string; k: number; to: DragTarget | null };
 
@@ -447,25 +447,6 @@ function snippet(t: string, q: string): string {
   const hit = t.split(/(?<=。)/).find((x) => x.toLowerCase().includes(want));
   return hit ? `${f} … ${hit}` : f;
 }
-
-// Field is an input or a textarea whose value the part keeps in the draft. The
-// value goes in only when the field stands somewhere else than the draft says —
-// a rule put back with 元に戻す, a section drawn anew — and never while a person
-// types: the field itself holds what was typed, the draft was written from it,
-// and writing the same words back is what moves a caret and ends an IME's
-// composition (webui-preact-design 5 章 1, 引き継ぎ 4 章 1).
-function Field({ as: Tag = 'input', value, ...rest }: FieldProps) {
-  const input = useRef<HTMLInputElement | null>(null);
-  const textarea = useRef<HTMLTextAreaElement | null>(null);
-  useLayoutEffect(() => {
-    const field = Tag === 'textarea' ? textarea.current : input.current;
-    if (!field) return;
-    const want = value === null || value === undefined ? '' : String(value);
-    if (field.value !== want) field.value = want;
-  });
-  return Tag === 'textarea' ? <textarea {...rest} ref={textarea} /> : <input {...rest} ref={input} />;
-}
-
 
 // ---- the edit --------------------------------------------------------
 // Edit is the document's fields and rules; Preview is the Markdown beside it.

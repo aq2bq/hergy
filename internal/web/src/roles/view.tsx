@@ -6,6 +6,7 @@
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
+import { Field, inText } from '../lib/field.js';
 import {
   PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, groupKeyOf, CURRENT,
   live, eff, cur, curName, whoReads, projectNameOf, groupNameOf, pathOfRow, issuesOf, rowIssues, checks,
@@ -46,7 +47,7 @@ export function List() {
   return <><div class="toolbar">
       <button class="btn primary" data-act="new" onClick={pressNew}>＋ ロールを追加</button>
       <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)}</span></button>)}</div>
-      <input id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
+      <Field id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     {HQ && HQ.error
       ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
@@ -91,7 +92,7 @@ function Role({ r }: { r: RoleRow }) {
     one.focus({ preventScroll: true });
   }, [focusAsk.value]);
   return <div class={'role' + (open ? ' open' : '') + (unsaved(r) ? ' unsaved' : '')} data-uid={r.uid} ref={el}>
-      <div class="sum" role="button" tabIndex={0} aria-expanded={open} data-act="toggle" onClick={() => pressToggle(r.uid)} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(r.uid); } }}>{sumInner(r)}</div>
+      <div class="sum" role="button" tabIndex={0} aria-expanded={open} data-act="toggle" onClick={() => pressToggle(r.uid)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(r.uid); } }}>{sumInner(r)}</div>
       {open ? detail(r) : ''}
     </div>;
 }

@@ -14,6 +14,9 @@ import {
   y,
   u
 } from "./nav-fa78a466.js";
+import {
+  Field
+} from "./nav-3qezehpb.js";
 
 // lib/ruledoc.tsx
 var clone2 = (o) => structuredClone(o);
@@ -310,25 +313,6 @@ function snippet(t, q) {
     return f;
   const hit = t.split(/(?<=。)/).find((x) => x.toLowerCase().includes(want));
   return hit ? `${f} … ${hit}` : f;
-}
-function Field({ as: Tag = "input", value, ...rest }) {
-  const input = A(null);
-  const textarea = A(null);
-  _(() => {
-    const field = Tag === "textarea" ? textarea.current : input.current;
-    if (!field)
-      return;
-    const want = value === null || value === undefined ? "" : String(value);
-    if (field.value !== want)
-      field.value = want;
-  });
-  return Tag === "textarea" ? /* @__PURE__ */ u("textarea", {
-    ...rest,
-    ref: textarea
-  }) : /* @__PURE__ */ u("input", {
-    ...rest,
-    ref: input
-  });
 }
 function Edit({ row, issues, nameError, h }) {
   if (!row)

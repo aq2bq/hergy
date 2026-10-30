@@ -27,15 +27,16 @@ import {
   save2,
   del2,
   saved2,
+  bases2,
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-cve7m3v6.js";
+} from "../chunk/nav-1nz0k24n.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-jrcq44kq.js";
-import"../chunk/nav-8swpdwz3.js";
+} from "../chunk/nav-qsbr5nhe.js";
+import"../chunk/nav-ky5b4xn5.js";
 import {
   fromJSON2,
   toDoc2,
@@ -51,16 +52,20 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-n77v2jr6.js";
+} from "../chunk/nav-c1mj7qyn.js";
 import {
   YamlTab2
-} from "../chunk/nav-faptd0c2.js";
+} from "../chunk/nav-45ah48pa.js";
 import {
   Measure
 } from "../chunk/nav-9n0vwt3f.js";
 import {
   copyGroupOf
 } from "../chunk/nav-ad748erm.js";
+import {
+  Field,
+  inText
+} from "../chunk/nav-3qezehpb.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -113,18 +118,24 @@ var currentGroupName = () => {
   const found = (p.projects || []).find((x) => x.path === CURRENT);
   return found ? found.name : p.current && p.current.name || "";
 };
-function rowsOf(model, group) {
-  return model.roles.map((r) => {
+function rowsOf(model, group, place) {
+  const out = [];
+  for (const r of model.roles) {
     const row = { uid: r.uid, group, project: null, global: null };
     if (r.markdown) {
+      if (place !== "project")
+        continue;
       row.markdown = r.markdown;
       row.name = r.name || "";
-      row.project = null;
-      row.global = null;
-      return row;
+      out.push(row);
+      continue;
     }
     row.paths = {};
     for (const l of PLACES) {
+      if (l !== place) {
+        row[l] = null;
+        continue;
+      }
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc ? null : draft;
@@ -135,20 +146,47 @@ function rowsOf(model, group) {
         row[l] = null;
       }
     }
+    if (!row[place])
+      continue;
     if (r.noDoc)
       row.noDoc = true;
     if (r.isNew)
       row.isNew = true;
-    return row;
-  });
+    out.push(row);
+  }
+  return out;
 }
+function groupList() {
+  if (HQ && HQ.roles && HQ.roles.length) {
+    return HQ.roles.map((g) => ({
+      key: GROUPED ? groupKeyOf(g) : g.global ? "global" : "",
+      global: !!g.global,
+      name: groupNameOf(g),
+      display: g.display || ""
+    }));
+  }
+  return [
+    { key: "", global: false, name: currentProjectName(), display: DIR.project },
+    { key: "global", global: true, name: LNAME.global, display: DIR.global }
+  ];
+}
+var roleGroups = () => groupList().map((g) => ({
+  ...g,
+  count: roles.value.filter((r) => r.group === g.key && !r.markdown).length
+}));
+var groupOfRow = (r) => r.group || (r.global && !r.project ? "global" : "");
 function initialRoles() {
-  if (!GROUPED || !HQ)
-    return rowsOf(roleModel2(ISLAND.role || null), "");
   const out = [];
-  (HQ.roles || []).forEach((g) => {
-    rowsOf(roleModel2(g.list), groupKeyOf(g)).forEach((r) => out.push(r));
-  });
+  if (HQ && HQ.roles && HQ.roles.length) {
+    for (const g of HQ.roles) {
+      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      out.push(...rowsOf(roleModel2(g.list), key, g.global ? "global" : "project"));
+    }
+  } else {
+    const model = roleModel2(ISLAND.role || null);
+    out.push(...rowsOf(model, "", "project"));
+    out.push(...rowsOf(model, "global", "global"));
+  }
   out.forEach((r) => {
     r.uid = ++uid;
   });
@@ -587,16 +625,27 @@ function pressFilter(f) {
   touch();
   syncURL(false);
 }
-function pressNew() {
+function pressNew(group) {
   const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "使命", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
-  const nr = { uid: nextUid(), isNew: true, group: currentGroup(), project: { saved: null, draft: d, hash: "", text: "" }, global: null };
-  roles.value = [nr, ...roles.value];
+  const key = group === undefined ? roleGroups()[0].key : group;
+  const place = key === "global" ? "global" : "project";
+  const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
+  nr[place] = { saved: null, draft: d, hash: "", text: "" };
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(key);
+  let at = roles.value.findIndex((r) => groupOfRow(r) === key);
+  if (at < 0) {
+    at = roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > rank);
+    if (at < 0)
+      at = roles.value.length;
+  }
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: "" });
-  openRuleKey2(`${nr.uid}project:${d.sections[0].rules[0]._k}`);
+  openRuleKey2(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
   touch();
-  askCheck(nr, "project", () => {
+  askCheck(nr, place, () => {
     askFocus(nr.uid, "[data-f=name]");
     touch();
   });
@@ -637,23 +686,26 @@ function pressCopy(id, l) {
     return;
   const to = other(l);
   const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: "", text: "" };
-  if (GROUPED) {
-    const nr = { uid: nextUid(), isNew: true, group: copyGroupOf(to, r.group, CURRENT), project: null, global: null };
-    nr[to] = e;
-    roles.value = [...roles.value, nr];
-    const open = new Set(state.value.open);
-    open.add(nr.uid);
-    patch({ open });
-    touch();
-    askCheck(nr, to, () => {
-      askFocus(nr.uid, "[data-f=name]");
-      touch();
-    });
-    return;
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
+  nr[to] = e;
+  const order = roleGroups().map((g) => g.key);
+  const rank = order.indexOf(group);
+  let at = roles.value.findIndex((x) => groupOfRow(x) === group);
+  if (at < 0) {
+    at = roles.value.findIndex((x) => order.indexOf(groupOfRow(x)) > rank);
+    if (at < 0)
+      at = roles.value.length;
   }
-  withRow(id, (old) => ({ ...old, [to]: e }));
+  roles.value = [...roles.value.slice(0, at), nr, ...roles.value.slice(at)];
+  const open = new Set(state.value.open);
+  open.add(nr.uid);
+  patch({ open });
   touch();
-  askCheck(byUid(id), to, () => touch());
+  askCheck(nr, to, () => {
+    askFocus(nr.uid, "[data-f=name]");
+    touch();
+  });
 }
 function canCopy(r, l) {
   const e = r[l];
@@ -662,10 +714,8 @@ function canCopy(r, l) {
   const to = other(l);
   if (r[to])
     return false;
-  if (!GROUPED)
-    return true;
-  const group = copyGroupOf(to, r.group, CURRENT);
-  return !roles.value.some((x) => x.group === group && x[to] && x[to].draft.name === e.saved.name);
+  const group = copyGroupOf(to, groupOfRow(r), CURRENT);
+  return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to].draft.name === e.saved.name);
 }
 function pressDel(id, l) {
   patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
@@ -745,6 +795,22 @@ function pressYamlRevert(r, l) {
       return next;
     });
 }
+function rebase(answer) {
+  const files = bases2(answer);
+  if (!files.length)
+    return;
+  roles.value = roles.value.map((r) => {
+    let row = r;
+    for (const b of files) {
+      const l = b.place === "project" ? "project" : b.place === "global" ? "global" : null;
+      const e = l ? row[l] : null;
+      if (!l || !e || !e.saved || e.saved.name !== b.name || e.hash === b.hash)
+        continue;
+      row = { ...row, [l]: { ...e, hash: b.hash } };
+    }
+    return row;
+  });
+}
 async function doSave(id, l) {
   const r = byUid(id);
   const e = r && r[l];
@@ -806,6 +872,7 @@ async function doSave(id, l) {
   }
   setYchecks(l, newName, undefined);
   patch({ ok: { ...state.value.ok, [key]: 1 } });
+  rebase(json);
   await askCheck(byUid(id), l, null);
   touch();
   syncURL(false);
@@ -1392,7 +1459,7 @@ function List() {
               ]
             }))
           }),
-          /* @__PURE__ */ u("input", {
+          /* @__PURE__ */ u(Field, {
             id: "q",
             class: "search",
             type: "search",
@@ -1553,6 +1620,8 @@ function Role({ r }) {
         "data-act": "toggle",
         onClick: () => pressToggle(r.uid),
         onKeyDown: (e) => {
+          if (inText(e))
+            return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             pressToggle(r.uid);

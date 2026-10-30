@@ -16,7 +16,7 @@ import {
 } from "../chunk/nav-fa78a466.js";
 import {
   read2
-} from "../chunk/nav-cve7m3v6.js";
+} from "../chunk/nav-1nz0k24n.js";
 import {
   setActivity2
 } from "../chunk/nav-vyr0f22b.js";
@@ -31,19 +31,19 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-jrcq44kq.js";
+} from "../chunk/nav-qsbr5nhe.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-8swpdwz3.js";
+} from "../chunk/nav-ky5b4xn5.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
 
 // activity/state.ts
 var POLL = 1e4;
-var ST = { answer: "許可待ち", turn: "人間の番", stalled: "止まっている", working: "仕事中" };
-var NS = { blocked: "許可待ち", handed: "人間に渡した", active: "仕事中", idle: "止まっている", absent: "動いていない" };
+var ST = { answer: "許可待ち", turn: "人間の返事待ち", stalled: "止まっている", working: "仕事中" };
+var NS = { blocked: "許可待ち", handed: "人間の返事待ち", active: "仕事中", idle: "止まっている", absent: "動いていない" };
 var RANK = { answer: 0, turn: 1, stalled: 2, working: 3 };
 var words = JSON.parse((document.getElementById("activity-words") || {}).textContent || "{}");
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -199,7 +199,7 @@ function Attention({ rows }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "st " + (m.state === "blocked" ? "answer" : "turn"),
-            children: m.state === "blocked" ? "許可待ち" : "人間の番"
+            children: m.state === "blocked" ? "許可待ち" : ST.turn
           }),
           /* @__PURE__ */ u("span", {
             class: "hq-aw",
@@ -357,7 +357,7 @@ function Tile({ team: t }) {
   const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
     class: "hq-why",
     children: [
-      "誰もターンを持っていません（人間の番でもない）。最後に動いたのは ",
+      "誰もターンを持っていません。人間の返事待ちのメンバーもいません。最後に動いたのは ",
       lastMoment(t) || t.since && t.since.at || "",
       "。lead に続きを渡すか、",
       /* @__PURE__ */ u("code", {

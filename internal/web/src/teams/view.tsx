@@ -10,6 +10,7 @@ import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
+import { Field, inText } from '../lib/field.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
@@ -121,7 +122,7 @@ function Row({ r }: { r: Rec }) {
   }, [focusAsk.value]);
   return (
     <div class={'tdef' + (open ? ' open' : '') + (dirtyDef(r) ? ' unsaved' : '')} data-name={r.dom} data-key={dkey(r)} ref={el}>
-      <div class="sum" role="button" tabindex={0} aria-expanded={open} data-act="toggle" onClick={(e) => pressSum(r, e)} onKeyDown={(e) => { if (keyOf(e) === 'Enter' || keyOf(e) === ' ') { e.preventDefault(); pressToggle(r); } }}><Sum r={r} open={open} /></div>
+      <div class="sum" role="button" tabindex={0} aria-expanded={open} data-act="toggle" onClick={(e) => pressSum(r, e)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (keyOf(e) === 'Enter' || keyOf(e) === ' ') { e.preventDefault(); pressToggle(r); } }}><Sum r={r} open={open} /></div>
       {open ? <Detail r={r} /> : null}</div>
   );
 }
@@ -151,7 +152,7 @@ function NameCell({ r, open }: { r: Rec; open: boolean }) {
   if (r.how === 'copy' || !open) return <><span class="nm">{name || <span class="none">—</span>}</span>{tag}</>;
   return (
     <>
-      <input id={'nm-' + r.dom} class={'in-name' + ((r.nameIssues.value || []).length ? ' bad' : '')} data-f="name" value={name} placeholder="チーム定義名" spellcheck={false} autocomplete="off" aria-label="チーム定義名" onInput={(e) => pressName(r, inputValue(e))} onKeyDown={(e) => { if (keyOf(e) === 'Enter') e.preventDefault(); }} />{tag}
+      <Field id={'nm-' + r.dom} class={'in-name' + ((r.nameIssues.value || []).length ? ' bad' : '')} data-f="name" value={name} placeholder="チーム定義名" spellcheck={false} autocomplete="off" aria-label="チーム定義名" onInput={(e: Event) => pressName(r, inputValue(e))} />{tag}
     </>
   );
 }
@@ -197,7 +198,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   } else pills = placePills(r);
   const cell = broken ? '—'
     : open
-      ? <input id={'m-' + r.dom} class={'in-mission' + (t.mission !== saved.mission ? ' changed' : '')} data-f="mission" value={t.mission} autocomplete="off" aria-label={`${teamLabel(r)} の使命`} onInput={(e) => pressMission(r, inputValue(e))} onKeyDown={(e) => { if (keyOf(e) === 'Enter') e.preventDefault(); }} />
+      ? <Field id={'m-' + r.dom} class={'in-mission' + (t.mission !== saved.mission ? ' changed' : '')} data-f="mission" value={t.mission} autocomplete="off" aria-label={`${teamLabel(r)} の使命`} onInput={(e: Event) => pressMission(r, inputValue(e))} />
       : t.mission ? t.mission : '—';
   return (
     <>

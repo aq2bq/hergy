@@ -14,7 +14,7 @@ import {
   A,
   u
 } from "../chunk/nav-fa78a466.js";
-import"../chunk/nav-cve7m3v6.js";
+import"../chunk/nav-1nz0k24n.js";
 import"../chunk/nav-vyr0f22b.js";
 import {
   POLL,
@@ -33,12 +33,19 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-jrcq44kq.js";
+} from "../chunk/nav-qsbr5nhe.js";
 
 // lib/apply/view.tsx
-var STATE = { idle: "止まっている", handed: "人間に渡した", active: "仕事中", blocked: "許可待ち", absent: "動いていない" };
-var HOW = { resend: "送り直す", start: "起動する", restart: "起動し直す", cannot: "反映できない" };
-var INTRO = "チェックした人に、定義の変更を反映します。送り直すは会話が残り、起動し直すは会話が消えます。仕事中と許可待ちの人には、今は反映できません。";
+var STATE = {
+  idle: { word: "止まっている", why: "ターンを持たずに待っています。今、反映できます。" },
+  handed: { word: "人間の返事待ち", why: "ターンを人間に渡して、返事を待っています。今、反映できます。" },
+  active: { word: "仕事中", why: "仕事が終わると、反映できます。" },
+  blocked: { word: "許可待ち", why: "ペインで許可を求めています。答えると、反映できます。" },
+  absent: { word: "動いていない", why: "このメンバーのペインがありません。起動すると、定義のとおりに加わります。" }
+};
+var HOW = { resend: "送り直し", start: "起動", restart: "起動し直し" };
+var COST = { resend: "（会話は残る）", start: "（新しいペインで始める）", restart: "（会話が消える）" };
+var INTRO = "チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。";
 var press = (fn) => (e) => {
   e.preventDefault();
   fn();
@@ -214,38 +221,65 @@ function Team({ group }) {
 }
 function Member({ m, group }) {
   const can = !!m.can_apply;
-  const how = HOW[m.how] || m.how;
-  return /* @__PURE__ */ u("label", {
-    class: can ? "apl-mm" : "apl-mm no",
+  const st = STATE[m.state] || { word: m.state, why: "" };
+  const how = HOW[m.how] || "";
+  const pick = /* @__PURE__ */ u("span", {
+    class: "apl-pick",
     children: [
-      /* @__PURE__ */ u("input", {
-        type: "checkbox",
-        "data-apl-name": m.name,
-        checked: can && chosen.value.has(m.name),
-        disabled: !can,
-        onChange: () => toggle(m.name)
+      /* @__PURE__ */ u("code", {
+        children: m.name
       }),
-      /* @__PURE__ */ u("span", {
-        class: "apl-who",
+      can ? /* @__PURE__ */ u("span", {
+        class: "apl-how " + m.how,
         children: [
-          /* @__PURE__ */ u("code", {
-            children: m.name
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "apl-st",
-            children: STATE[m.state] || m.state
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "apl-how " + m.how,
-            children: how
-          }),
-          m.conversation_lost ? /* @__PURE__ */ u("span", {
-            class: "apl-lost",
-            children: "会話が消えます"
+          how,
+          COST[m.how] ? /* @__PURE__ */ u("span", {
+            class: "apl-cost" + (m.how === "restart" ? " lost" : ""),
+            children: COST[m.how]
           }) : null
         ]
+      }) : /* @__PURE__ */ u("span", {
+        class: "apl-how cannot",
+        children: "反映できない"
+      })
+    ]
+  });
+  return /* @__PURE__ */ u("div", {
+    class: "apl-m" + (can ? "" : " no"),
+    children: [
+      can ? /* @__PURE__ */ u("label", {
+        class: "apl-mm",
+        children: [
+          /* @__PURE__ */ u("input", {
+            type: "checkbox",
+            "data-apl-name": m.name,
+            checked: chosen.value.has(m.name),
+            onChange: () => toggle(m.name)
+          }),
+          pick
+        ]
+      }) : /* @__PURE__ */ u("div", {
+        class: "apl-mm no",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "apl-nopick",
+            "aria-hidden": "true",
+            children: "―"
+          }),
+          pick
+        ]
       }),
-      m.how === "cannot" && m.why_not ? /* @__PURE__ */ u("span", {
+      /* @__PURE__ */ u("p", {
+        class: "apl-state " + m.state,
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "apl-st",
+            children: st.word
+          }),
+          st.why
+        ]
+      }),
+      m.how === "cannot" && m.why_not ? /* @__PURE__ */ u("p", {
         class: "apl-why",
         children: m.why_not
       }) : null,

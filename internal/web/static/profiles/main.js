@@ -24,21 +24,26 @@ import {
   check2,
   save2,
   del2,
+  bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-cve7m3v6.js";
+} from "../chunk/nav-1nz0k24n.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-jrcq44kq.js";
-import"../chunk/nav-8swpdwz3.js";
+} from "../chunk/nav-qsbr5nhe.js";
+import"../chunk/nav-ky5b4xn5.js";
 import {
   YamlTab2
-} from "../chunk/nav-faptd0c2.js";
+} from "../chunk/nav-45ah48pa.js";
 import {
   copyGroupOf,
   groupPlace
 } from "../chunk/nav-ad748erm.js";
+import {
+  Field,
+  inText
+} from "../chunk/nav-3qezehpb.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -92,11 +97,25 @@ var otherOf = (file) => file === "global" ? "project" : "global";
 var pathOf = (file) => (file === "global" ? view.dataset.pathShared : view.dataset.pathProject) || "";
 var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
-var CURRENT = GROUPED ? HQ && HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
+var CURRENT = HQ ? HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
 var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
-var GROUPS = GROUPED ? HQ && HQ.profiles || [] : null;
-var groupOrder = () => (GROUPS || []).map(groupKeyOf);
+var GROUPS = HQ ? HQ.profiles || [] : null;
+var placeGroups = () => {
+  if (HQ && HQ.profiles && HQ.profiles.length) {
+    return HQ.profiles.map((g) => ({
+      key: GROUPED ? groupKeyOf(g) : g.global ? "global" : "",
+      global: !!g.global,
+      name: groupNameOf(g),
+      display: g.display || ""
+    }));
+  }
+  return [
+    { key: "", global: false, name: currentProjectName(), display: pathOf("project") },
+    { key: "global", global: true, name: "グローバル", display: pathOf("global") }
+  ];
+};
+var groupOrder = () => placeGroups().map((g) => g.key);
 var groupRank = (group) => {
   const at = groupOrder().indexOf(group);
   return at < 0 ? groupOrder().length : at;
@@ -105,7 +124,7 @@ var groupName = (key) => {
   if (key === "global")
     return "グローバル";
   if (!key || key === CURRENT) {
-    if (!GROUPED || !HQ)
+    if (!HQ)
       return "プロジェクト";
     const p = HQ.projects;
     if (p.mode === "current")
@@ -123,7 +142,7 @@ var currentProjectName = () => {
   return p.current && p.current.name || "";
 };
 var pathFor = (file, group) => {
-  if (!GROUPED || !group || group === CURRENT)
+  if (!group || group === CURRENT)
     return pathOf(file);
   if (group === "global")
     return "~/.config/hergy/profiles.yaml";
@@ -190,11 +209,9 @@ function rowOf(row, index) {
 }
 function modelOf(list, group, narrow = false) {
   const model = profileModel2(list, OPEN_ROWS.map((t) => t.name));
-  const want = GROUPED && narrow ? groupPlace(group || "") : null;
+  const want = narrow ? groupPlace(group || "") : null;
   const rows = model.rows.map((row) => {
-    if (!GROUPED)
-      return row;
-    const placed = { ...row, group: group || "", open: isOpenRow(row) };
+    const placed = { ...row, group: group || "", open: isOpenRow({ ...row, group }) };
     return want ? { ...placed, panels: (row.panels || []).filter((p) => p.file === want) } : placed;
   }).filter((row) => !want || (row.panels || []).length > 0);
   return { rows, files: model.files };
@@ -202,15 +219,19 @@ function modelOf(list, group, narrow = false) {
 var rows = y([]);
 var files = y([]);
 function readInitial() {
-  if (!GROUPED) {
-    const model = modelOf(ISLAND.profile || null);
-    return { rows: model.rows.map(rowOf), files: model.files || [] };
+  if (HQ && HQ.profiles && HQ.profiles.length) {
+    const all = [];
+    (HQ.profiles || []).forEach((g) => {
+      const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
+      all.push(...modelOf(g.list || null, key, true).rows);
+    });
+    return { rows: all.map(rowOf), files: [] };
   }
+  const model = modelOf(ISLAND.profile || null);
   const all = [];
-  (GROUPS || []).forEach((g) => {
-    all.push(...modelOf(g.list || null, groupKeyOf(g)).rows);
-  });
-  return { rows: all.map(rowOf), files: [] };
+  for (const place of PLACES)
+    all.push(...modelOf(ISLAND.profile || null, place === "global" ? "global" : "", true).rows);
+  return { rows: all.map(rowOf), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -291,11 +312,12 @@ function toggleRow(key) {
 }
 function addRow(file, group) {
   const key = newKey();
+  const g = group || (file === "global" ? "global" : "");
   const panel = panelOf({
     file,
     label: labelOf(file),
     otherLabel: labelOf(otherOf(file)),
-    path: pathFor(file, group),
+    path: pathFor(file, g),
     saved: false,
     name: "",
     kind: "claude",
@@ -316,12 +338,11 @@ function addRow(file, group) {
     both: false,
     other: otherOf(file),
     savedLine: false
-  }, group, key);
-  panel.layerSwitch = true;
+  }, g, key);
   const row = {
     key,
     name: "",
-    group: group || "",
+    group: g,
     kind: "claude",
     kindClass: classOf("claude"),
     args: "",
@@ -340,11 +361,14 @@ function addRow(file, group) {
   const next = new Set(openKeys.value);
   next.add(key);
   openKeys.value = next;
-  const list = rows.value.slice();
-  const same = list.findIndex((r) => (r.group || "") === (group || ""));
-  const at = same >= 0 ? same + list.filter((r) => (r.group || "") === (group || "")).length : list.length;
-  list.splice(at, 0, row);
-  rows.value = list;
+  const rank = groupRank(g);
+  let at = rows.value.findIndex((r) => (r.group || "") === g);
+  if (at < 0) {
+    at = rows.value.findIndex((r) => groupRank(r.group || "") > rank);
+    if (at < 0)
+      at = rows.value.length;
+  }
+  rows.value = [...rows.value.slice(0, at), row, ...rows.value.slice(at)];
   return row;
 }
 function duplicateRow(panel) {
@@ -415,7 +439,7 @@ function copyPanel(panel) {
   if (!saved)
     return null;
   const file = otherOf(panel.file);
-  const group = GROUPED ? copyGroupOf(file, panel.group, CURRENT) : panel.group;
+  const group = copyGroupOf(file, panel.group, CURRENT);
   const fresh = panelOf({
     file,
     label: labelOf(file),
@@ -442,43 +466,43 @@ function copyPanel(panel) {
     other: otherOf(file),
     savedLine: false
   }, group, panel.rowKey);
-  if (GROUPED) {
-    const row = {
-      key: newKey(),
-      name: "",
-      group: group || "",
-      kind: saved.kind,
-      kindClass: classOf(saved.kind),
-      args: saved.args.join(" "),
-      env: saved.env.map((pair) => pair.value),
-      more: 0,
-      users: 0,
-      roles: "",
-      err: 0,
-      warn: 0,
-      chips: [],
-      places: [],
-      isNew: true,
-      open: true,
-      panels: [fresh]
-    };
-    fresh.rowKey = row.key;
-    fresh.key = row.key + ":" + file;
-    const next = new Set(openKeys.value);
-    next.add(row.key);
-    openKeys.value = next;
-    rows.value = [...rows.value, row].sort((a, b) => groupRank(a.group) - groupRank(b.group));
-    return fresh;
+  const row = {
+    key: newKey(),
+    name: "",
+    group,
+    kind: saved.kind,
+    kindClass: classOf(saved.kind),
+    args: saved.args.join(" "),
+    env: saved.env.map((pair) => pair.value),
+    more: 0,
+    users: 0,
+    roles: "",
+    err: 0,
+    warn: 0,
+    chips: [],
+    places: [],
+    isNew: true,
+    open: true,
+    panels: [fresh]
+  };
+  fresh.rowKey = row.key;
+  fresh.key = row.key + ":" + file;
+  const next = new Set(openKeys.value);
+  next.add(row.key);
+  openKeys.value = next;
+  const rank = groupRank(group);
+  let at = rows.value.findIndex((r) => (r.group || "") === group);
+  if (at < 0) {
+    at = rows.value.findIndex((r) => groupRank(r.group || "") > rank);
+    if (at < 0)
+      at = rows.value.length;
   }
-  fresh.key = panel.rowKey + ":" + file;
-  updateRow((row) => row.key === panel.rowKey ? { ...row, panels: [...row.panels, fresh].sort((a, b) => (a.file === "project" ? 0 : 1) - (b.file === "project" ? 0 : 1)) } : row);
+  rows.value = [...rows.value.slice(0, at), row, ...rows.value.slice(at)];
   return fresh;
 }
 function canCopy(panel) {
   if (!panel.saved || panel.both)
     return false;
-  if (!GROUPED)
-    return true;
   const file = otherOf(panel.file);
   const group = copyGroupOf(file, panel.group, CURRENT);
   return !rows.value.some((row) => row.group === group && row.panels.some((p) => p.file === file && p.draft.name === panel.saved.name));
@@ -576,7 +600,7 @@ function applySaved(panel, answer) {
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }
-  const order = GROUPED ? groupOrder() : [""];
+  const order = groupOrder();
   const byGroup = new Map;
   rows.value.forEach((row) => {
     const key = row.group || "";
@@ -596,7 +620,15 @@ function applySaved(panel, answer) {
   else if (panel.saved)
     open.add((panel.draft.name || "") + "|" + (panel.group || ""));
   openKeys.value = open;
-  rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  const moved = new Map(bases2(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
+  rows.value = next.map((row) => ({
+    ...row,
+    open: open.has(row.key),
+    panels: row.panels.map((p) => {
+      const hash = moved.get(p.file);
+      return hash && hash !== p.hash ? { ...p, hash } : p;
+    })
+  }));
   if (TAB === "profiles")
     syncURL();
   tellDirty();
@@ -798,14 +830,6 @@ function restore(carried) {
 }
 
 // profiles/actions.ts
-function pressNew() {
-  clearFilter();
-  const row = addRow("project", CURRENT);
-  if (row && row.panels[0])
-    askFocus(row.panels[0].key, "name", 0, false);
-  tellDirty();
-  return row;
-}
 function pressFilter(kind) {
   filterKind.value = kind || "";
   syncURL();
@@ -815,11 +839,6 @@ function pressQuery(value) {
   query.value = value || "";
   syncURL();
   tellDirty();
-}
-function clearFilter() {
-  filterKind.value = "";
-  query.value = "";
-  syncURL();
 }
 function pressToggle(key) {
   toggleRow(key);
@@ -923,14 +942,6 @@ function pressDelYes(key) {
 function pressRename(key, on) {
   patchPanel(key, { rename: !!on });
 }
-function pressLayer(key, file) {
-  const panel = panelByKey(key);
-  if (!panel || panel.file === file)
-    return;
-  patchPanel(key, { file, path: pathFor(file, panel.group) });
-  scheduleCheck(key);
-  tellDirty();
-}
 function pressKind(kind) {
   assignKind.value = assignKind.value === kind ? null : kind;
   syncAssignURL();
@@ -994,12 +1005,6 @@ function Toolbar() {
   return /* @__PURE__ */ u("div", {
     class: "toolbar",
     children: [
-      /* @__PURE__ */ u("button", {
-        class: "btn primary",
-        "data-act": "new",
-        onClick: pressNew,
-        children: "＋ プロファイルを追加"
-      }),
       /* @__PURE__ */ u("div", {
         class: "filters",
         children: chips.value.map((chip) => /* @__PURE__ */ u("a", {
@@ -1028,7 +1033,7 @@ function Toolbar() {
           ]
         }))
       }),
-      /* @__PURE__ */ u("input", {
+      /* @__PURE__ */ u(Field, {
         id: "q",
         class: "search",
         type: "search",
@@ -1077,14 +1082,6 @@ function PersonChip({ c }) {
   });
 }
 function PlacePills({ row }) {
-  if (!GROUPED) {
-    return /* @__PURE__ */ u(S, {
-      children: (row.places || []).map((place) => /* @__PURE__ */ u("span", {
-        class: "pill " + place.state,
-        children: place.label === "プロジェクト" ? currentProjectName() : place.label
-      }))
-    });
-  }
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
   return /* @__PURE__ */ u(S, {
@@ -1139,6 +1136,8 @@ function Row({ row }) {
         ref: sum,
         onClick: () => pressToggle(row.key),
         onKeyDown: (e) => {
+          if (inText(e))
+            return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             pressToggle(row.key);
@@ -1192,7 +1191,7 @@ function Row({ row }) {
             class: "c-place",
             children: row.isNew && (row.places || []).length === 0 ? /* @__PURE__ */ u("span", {
               class: "pill pending",
-              children: GROUPED ? groupName(row.group) : labelOf(first ? first.file : "project")
+              children: groupName(row.group)
             }) : /* @__PURE__ */ u(PlacePills, {
               row
             })
@@ -1379,13 +1378,13 @@ function Panel({ panel }) {
           }),
           /* @__PURE__ */ u("div", {
             children: [
-              /* @__PURE__ */ u("input", {
+              /* @__PURE__ */ u(Field, {
                 class: "in-name" + (changed.name ? " changed" : "") + (bad.name ? " bad" : ""),
                 "data-f": "name",
                 value: panel.draft.name,
                 spellcheck: false,
                 autocomplete: "off",
-                ref: nameInput,
+                fieldRef: nameInput,
                 onInput: (e) => inputField(panel.key, "name", 0, inputValue(e))
               }),
               /* @__PURE__ */ u("label", {
@@ -1701,14 +1700,14 @@ function ArgChip({ index, arg, changed, bad, panelKey }) {
         "aria-hidden": "true",
         children: "⋮"
       }),
-      /* @__PURE__ */ u("input", {
+      /* @__PURE__ */ u(Field, {
         "data-f": "arg",
         "data-i": index,
         value: arg,
         size,
         spellcheck: false,
         autocomplete: "off",
-        ref: input,
+        fieldRef: input,
         onInput: (e) => inputField(panelKey, "arg", index, inputValue(e))
       }),
       /* @__PURE__ */ u("button", {
@@ -1740,28 +1739,29 @@ function EnvRow({ index, pair, changed, bad, panelKey }) {
     class: "envrow",
     "data-i": index,
     children: [
-      /* @__PURE__ */ u("input", {
+      /* @__PURE__ */ u(Field, {
         class: (changed.key ? "changed" : "") + (bad.key ? " bad" : ""),
         "data-f": "ek",
         "data-i": index,
         value: pair.key,
         spellcheck: false,
         autocomplete: "off",
-        ref: key,
+        fieldRef: key,
         onInput: (e) => inputField(panelKey, "ek", index, inputValue(e))
       }),
       /* @__PURE__ */ u("span", {
         class: "eq",
         children: "="
       }),
-      /* @__PURE__ */ u("textarea", {
+      /* @__PURE__ */ u(Field, {
+        as: "textarea",
         class: (changed.value ? "changed" : "") + (bad.value ? " bad" : ""),
         "data-f": "ev",
         "data-i": index,
         rows: 1,
         spellcheck: false,
         value: pair.value,
-        ref: val,
+        fieldRef: val,
         onInput: (e) => inputField(panelKey, "ev", index, inputValue(e))
       }),
       /* @__PURE__ */ u("button", {

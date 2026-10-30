@@ -81,6 +81,18 @@ async function applyMembers2(members, opts) {
 }
 var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
 var saved2 = () => document.dispatchEvent(new CustomEvent("hergy:saved"));
+function bases2(answer) {
+  const out = [];
+  const hashes = answer && answer.hashes || {};
+  for (const key of Object.keys(hashes)) {
+    const at = key.indexOf(".");
+    out.push(at > 0 ? { place: key.slice(0, at), name: key.slice(at + 1), kind: "", hash: hashes[key] } : { place: key, name: "", kind: "", hash: hashes[key] });
+  }
+  for (const one of answer && answer.files || []) {
+    out.push({ place: one.place || "", name: one.name || "", kind: one.kind || "", hash: one.hash || "" });
+  }
+  return out;
+}
 var problemText2 = (refusal, fallback) => {
   if (refusal instanceof Refusal2 && refusal.text)
     return refusal.text;
@@ -208,4 +220,4 @@ function teamModel2(list) {
   };
 }
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };

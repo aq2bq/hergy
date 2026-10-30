@@ -7,6 +7,7 @@ import { hasTurn, memberOf, nodeName, profilesFor, rolesFor, teamIssues } from '
 import type { Finding, Member, Rec, RoleName, Team, Worker } from '../state.js';
 import { NAME, selOf, typedOf } from './shared.js';
 import { MemberPrompt, WorkerPromptSection } from './prompt.js';
+import { Field } from '../../lib/field.js';
 
 // Opt is one choice of a select: the option carries the selected attribute a
 // person (and the walks) read, and the property the browser picks by, so the two
@@ -93,7 +94,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{team}</code><span class="cv-k">チーム定義</span></div>
-        <div class="cv-f"><label for={`cv-mi-${team}`}>使命</label><input id={`cv-mi-${team}`} class="cv-body" data-cv-f="mission" value={t.mission} autocomplete="off" /></div>
+        <div class="cv-f"><label for={`cv-mi-${team}`}>使命</label><Field id={`cv-mi-${team}`} class="cv-body" data-cv-f="mission" value={t.mission} autocomplete="off" spellcheck={false} /></div>
         <div class="cv-note">メンバー {t.members.length} · ワーカー {t.workers.length} · ターン {t.turns.length}</div>
         {humanIn ? '' : <div class="cv-warn">人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください</div>}
         <div class="cv-sec">
@@ -124,7 +125,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{w.purpose || '（目的）'}</code><span class="cv-k">ワーカー</span></div>
-        <div class="cv-f"><label for={`cv-wp-${team}`}>目的</label><input id={`cv-wp-${team}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-f"><label for={`cv-wp-${team}`}>目的</label><Field id={`cv-wp-${team}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
         <div class="cv-f">
           <label for={`cv-wf-${team}`}>追加するメンバー</label>
           <span class="sel"><select id={`cv-wf-${team}`} data-cv-f="w-from">{t.members.map((m) => <Opt v={m.name} on={m.name === w.from}>{m.name}</Opt>)}</select></span>
@@ -166,7 +167,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
       <div class="cv-t"><code>{m.name}</code><span class="cv-k">メンバー{role && role.title ? ` · ${role.title}` : ''}</span></div>
       <div class="cv-f">
         <label for={`cv-mn-${team}`}>メンバー名</label>
-        <input id={`cv-mn-${team}`} data-cv-f="m-name" value={mine ? mine.value : m.name} spellcheck={false} autocomplete="off" />
+        <Field id={`cv-mn-${team}`} data-cv-f="m-name" value={mine ? mine.value : m.name} spellcheck={false} autocomplete="off" />
         {msgs.map((x) => <span class="cv-msg">{x}</span>)}
         <span class="cv-sub">herdr 名 {`${team}-${m.name}`}</span>
       </div>

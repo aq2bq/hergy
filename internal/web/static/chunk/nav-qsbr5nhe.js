@@ -26,7 +26,7 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-cve7m3v6.js";
+} from "./nav-1nz0k24n.js";
 import {
   setCount2,
   setActivity2

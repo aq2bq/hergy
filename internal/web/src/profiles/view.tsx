@@ -6,6 +6,7 @@
 // onInput から actions.ts の関数を直接呼ぶ（5 章 1）。DOM は自分では書かない
 // （ドラッグの途中の class だけは、動かしている間の印として付ける）。
 import { useEffect, useRef } from '../lib/preact.js';
+import { Field, inText } from '../lib/field.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, currentProjectName, GROUPS,
   changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS, labelOf,
@@ -14,7 +15,7 @@ import {
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
   pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
-  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, pressLayer, inputField,
+  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, inputField,
   reorderArgs,
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
@@ -41,13 +42,12 @@ function chipsURL(kind: string): string {
   return '/profiles' + (search ? '?' + search : '');
 }
 
-// Toolbar is the list's own: ＋プロファイルを追加, the kind filters and the
-// search. The chips' numbers are the rows', so a save that moves a kind's number
-// moves the chip with it.
+// Toolbar is the list's own: the kind filters and the search. The place heads
+// carry the add buttons (r-410c). The chips' numbers are the rows', so a save
+// that moves a kind's number moves the chip with it.
 export function Toolbar() {
   return (
     <div class="toolbar">
-      <button class="btn primary" data-act="new" onClick={pressNew}>＋ プロファイルを追加</button>
       <div class="filters">
         {chips.value.map((chip) => (
           <a class={'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k={chip.name} href={chipsURL(chip.name)} aria-pressed={chip.name === filterKind.value ? 'true' : 'false'} onClick={(e: Event) => { e.preventDefault(); pressFilter(chip.name); }}>
@@ -55,7 +55,7 @@ export function Toolbar() {
           </a>
         ))}
       </div>
-      <input id="q" class="search" type="search" placeholder="プロファイル名" value={query.value} autocomplete="off" onInput={(e: Event) => pressQuery(inputValue(e))} />
+      <Field id="q" class="search" type="search" placeholder="プロファイル名" value={query.value} autocomplete="off" onInput={(e: Event) => pressQuery(inputValue(e))} />
     </div>
   );
 }
@@ -73,13 +73,10 @@ function PersonChip({ c }: { c: ProfileChip }) {
   );
 }
 
-// PlacePills is the row's プロジェクト column (spec 4 章): the project's name, or
-// グローバル. A project that overrides a global name carries the crossed-out
-// グローバル, and the global row says which projects override it.
+// PlacePills is the row's 置き場所 column (spec 4 章, d-e77c): the place's name.
+// A project that overrides a global name carries the crossed-out グローバル, and
+// the global row says which projects override it.
 function PlacePills({ row }: { row: Row }) {
-  if (!GROUPED) {
-    return <>{(row.places || []).map((place) => <span class={'pill ' + place.state}>{place.label === 'プロジェクト' ? currentProjectName() : place.label}</span>)}</>;
-  }
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   return (
@@ -113,7 +110,7 @@ export function Row({ row }: { row: Row }) {
   const kindClass = row.isNew && first ? classOf(first.draft.kind) : row.kindClass;
   return (
     <div class={'row' + (row.open ? ' open' : '') + (rowUnsaved(row) ? ' unsaved' : '')} data-key={row.key} data-name={row.name} data-group={row.group || ''} data-kind={row.isNew ? 'claude' : kind}>
-      <div class="sum" role="button" tabindex={0} aria-expanded={row.open ? 'true' : 'false'} data-act="toggle" ref={sum} onClick={() => pressToggle(row.key)} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(row.key); } }}>
+      <div class="sum" role="button" tabindex={0} aria-expanded={row.open ? 'true' : 'false'} data-act="toggle" ref={sum} onClick={() => pressToggle(row.key)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(row.key); } }}>
         <span class="chev"></span>
         <span class="c-name">
           <span class="nm">{name ? name : <span class="none">—</span>}</span>
@@ -121,7 +118,7 @@ export function Row({ row }: { row: Row }) {
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>
         <span class="c-kind">{kind ? <><i class={'sw ' + kindClass}></i>{kind}</> : ''}</span>
-        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{GROUPED ? groupName(row.group) : labelOf(first ? first.file : 'project')}</span> : <PlacePills row={row} />}</span>
+        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{groupName(row.group)}</span> : <PlacePills row={row} />}</span>
         <span class="c-args">{row.args ? row.args : <span class="none">—</span>}</span>
         <span class="c-env">{(row.env && row.env.length) ? [row.env.map((value) => <span>{value}</span>), row.more > 0 ? <span class="more">+{row.more}</span> : ''] : <span class="none">—</span>}</span>
         <span class="c-users">{row.users > 0 ? <><b>{row.users}</b><span>{row.roles}</span></> : <span class="none">0</span>}</span>
@@ -194,7 +191,7 @@ function Panel({ panel }: { panel: PanelState }) {
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
       </header>
       <div class="field"><label>プロファイル名</label><div>
-        <input class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" ref={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
+        <Field class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
         <label class="rename" hidden={!hints}><input type="checkbox" data-f="rename" checked={panel.rename} onChange={(e: Event) => pressRename(panel.key, checkedOf(e))} /><span>{hints ? `使っている ${panel.rename_targets} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
         <ul class="vm" data-for="name">{problemsOf(panel, 'name')}</ul>
       </div></div>
@@ -300,7 +297,7 @@ function ArgChip({ index, arg, changed, bad, panelKey }: { index: number; arg: s
   return (
     <span class={'arg' + (String(arg).startsWith('-') ? ' flag' : '') + (changed ? ' changed' : '') + (bad ? ' bad' : '')} data-i={index} onPointerDown={(e: PointerEvent) => { if (e.target instanceof Element && e.target.closest('.grip') && e.currentTarget instanceof HTMLElement) e.currentTarget.setAttribute('draggable', 'true'); }} onDragStart={(e: DragEvent) => { if (e.currentTarget instanceof HTMLElement) e.currentTarget.classList.add('dragging'); }} onDragEnd={(e: DragEvent) => { if (e.currentTarget instanceof HTMLElement) { e.currentTarget.classList.remove('dragging'); e.currentTarget.removeAttribute('draggable'); } }}>
       <span class="grip" aria-hidden="true">⋮</span>
-      <input data-f="arg" data-i={index} value={arg} size={size} spellcheck={false} autocomplete="off" ref={input} onInput={(e: Event) => inputField(panelKey, 'arg', index, inputValue(e))} />
+      <Field data-f="arg" data-i={index} value={arg} size={size} spellcheck={false} autocomplete="off" fieldRef={input} onInput={(e: Event) => inputField(panelKey, 'arg', index, inputValue(e))} />
       <button class="x" data-act="arg-del" data-i={index} aria-label={`${arg} を消す`} onClick={() => pressArgDel(panelKey, index)}>×</button>
     </span>
   );
@@ -321,9 +318,9 @@ function EnvRow({ index, pair, changed, bad, panelKey }: { index: number; pair: 
   }, [pair.value]);
   return (
     <div class="envrow" data-i={index}>
-      <input class={(changed.key ? 'changed' : '') + (bad.key ? ' bad' : '')} data-f="ek" data-i={index} value={pair.key} spellcheck={false} autocomplete="off" ref={key} onInput={(e: Event) => inputField(panelKey, 'ek', index, inputValue(e))} />
+      <Field class={(changed.key ? 'changed' : '') + (bad.key ? ' bad' : '')} data-f="ek" data-i={index} value={pair.key} spellcheck={false} autocomplete="off" fieldRef={key} onInput={(e: Event) => inputField(panelKey, 'ek', index, inputValue(e))} />
       <span class="eq">=</span>
-      <textarea class={(changed.value ? 'changed' : '') + (bad.value ? ' bad' : '')} data-f="ev" data-i={index} rows={1} spellcheck={false} value={pair.value} ref={val} onInput={(e: Event) => inputField(panelKey, 'ev', index, inputValue(e))}></textarea>
+      <Field as="textarea" class={(changed.value ? 'changed' : '') + (bad.value ? ' bad' : '')} data-f="ev" data-i={index} rows={1} spellcheck={false} value={pair.value} fieldRef={val} onInput={(e: Event) => inputField(panelKey, 'ev', index, inputValue(e))} />
       <button class="x" data-act="env-del" data-i={index} aria-label={`${pair.key} を消す`} onClick={() => pressEnvDel(panelKey, index)}>×</button>
     </div>
   );
