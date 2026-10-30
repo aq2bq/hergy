@@ -96,6 +96,8 @@
   "error.no_role_doc": "member %s has no document for the role %s (looked in: %s); write the role document as roles/<role>.yaml",
   "error.role_to_choose": "member %s: choose a role (the roles there are: %s)",
   "error.role_to_choose_none": "member %s: choose a role (there is no role yet)",
+  "error.profile_to_choose": "member %s: choose a profile (the profiles there are: %s)",
+  "error.profile_to_choose_none": "member %s: choose a profile (there is no profile yet)",
   "error.role_markdown": "no .yaml role document for %s (%s is still Markdown); write the rules as YAML (the team-building skill can move the file over)",
   "error.profiles_moved": " (team.yaml no longer has profiles; profiles live in profiles.yaml)",
   "error.unknown_placeholder": "unknown prompt placeholder: %%{%s}; take it out or write one the prompt knows",

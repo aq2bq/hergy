@@ -515,6 +515,9 @@ test('TEAMS-N1b the starter roles and profile are written only when asked', asyn
   await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===2`);
   await wait(page, there2(draft, '[data-act=starter-roles]'));
   await wait(page, there2(draft, '[data-act=starter-profile]'));
+  // The member is told to choose the profile the way it is told to choose the
+  // role, not how to write profiles.yaml (d-86b1).
+  await wait(page, `(function(){var want=${JSON.stringify('メンバー lead: プロファイルを選んでください（今あるプロファイルはありません）')};return [...${draft}.querySelectorAll('.vlist .vitem')].some(function(b){return b.textContent.indexOf(want)>=0})})()`);
   // Pressing the starter roles adds the two role documents to the band, and
   // pressing again takes them away: nothing is written before the press.
   await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);

@@ -1459,6 +1459,21 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 	if !found {
 		t.Errorf("the draft's problems read %+v, want %q among them", draft.Problems, want)
 	}
+	// The profile is said the way the role is: choose one of the profiles that
+	// are here, not how to write profiles.yaml (d-86b1).
+	wantProfile := i18n.Tf("error.profile_to_choose", "lead", "coder"+i18n.T("list.separator")+"planner")
+	found = false
+	for _, p := range draft.Problems {
+		if p.Text == wantProfile {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the draft's problems read %+v, want %q among them", draft.Problems, wantProfile)
+	}
+	if strings.Contains(body, i18n.T("error.no_profile")) {
+		t.Errorf("the draft still says how to write profiles.yaml:\n%s", body)
+	}
 
 	resp, body = f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
 		"place": "project", "name": "ops", "part": "folder", "new": true,
@@ -1504,6 +1519,18 @@ func TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem(t *testing.T)
 	}
 	if len(none.Draft.Writes) != 2 {
 		t.Errorf("the writes read %v, want the definition's own two files before the person chooses", none.Draft.Writes)
+	}
+	// Neither is there, so the member is told to choose, in the same shape the
+	// role sentence has (d-86b1).
+	wantProfile := i18n.Tf("error.profile_to_choose_none", "lead")
+	found := false
+	for _, p := range none.Problems {
+		if p.Text == wantProfile {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the draft's problems read %+v, want %q among them", none.Problems, wantProfile)
 	}
 	// The person asks for both: the starter role documents and profile join.
 	resp, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{

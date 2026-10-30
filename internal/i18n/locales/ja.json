@@ -96,6 +96,8 @@
   "error.no_role_doc": "メンバー %s のロール %s の文書が見つかりません（探した場所: %s）。roles/ の下に、ロール名をファイル名にした .yaml を作ってください",
   "error.role_to_choose": "メンバー %s: ロールを選んでください（今あるロール: %s）",
   "error.role_to_choose_none": "メンバー %s: ロールを選んでください（今あるロールはありません）",
+  "error.profile_to_choose": "メンバー %s: プロファイルを選んでください（今あるプロファイル: %s）",
+  "error.profile_to_choose_none": "メンバー %s: プロファイルを選んでください（今あるプロファイルはありません）",
   "error.role_markdown": "ロール %s の .yaml がありません（%s は Markdown のままです）。規則は .yaml で書いてください（移行はチーム構築スキルで行えます）",
   "error.profiles_moved": "（プロファイルは team.yaml ではなく profiles.yaml に書きます）",
   "error.unknown_placeholder": "初期プロンプトに不明な置き換えがあります: %%{%s}。この置き換えを消すか、正しい置き換えに直してください",

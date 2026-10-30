@@ -146,11 +146,12 @@ func (s *Server) t2DraftWrites(row t2DraftRow, name string) []string {
 
 // t2StarterFindings is the draft's findings with what the write settles taken
 // out, and what the person has to choose said as a choice (spec-teams B2,
-// r-54b8): a member whose role document no place holds is told to choose one of
-// the roles that are there, and a starter role or profile the person asked for
-// is not reported missing, because the save writes it.
+// r-54b8, d-86b1): a member whose role document or profile no place holds is
+// told to choose one of the ones that are there, and a starter role or profile
+// the person asked for is not reported missing, because the save writes it.
 func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *definition.Definition, findings []check.Finding) []check.Finding {
 	roles := t2RoleNames(cat)
+	profiles := t2ProfileNames(cat)
 	out := make([]check.Finding, 0, len(findings))
 	for _, finding := range findings {
 		if member := t2MemberAt(def, finding.Field); member != nil {
@@ -165,9 +166,15 @@ func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *de
 					}
 				}
 			}
-			if row.StarterProfile && finding.Stops && strings.HasSuffix(finding.Field, ".profile") && member.Profile == scaffold.ProfileName {
-				// The save adds the starter profile; it is not missing.
-				continue
+			if finding.Stops && strings.HasSuffix(finding.Field, ".profile") {
+				if row.StarterProfile && member.Profile == scaffold.ProfileName {
+					// The save adds the starter profile; it is not missing.
+					continue
+				}
+				// The person picks a profile where the member stands, so the
+				// sentence says which profiles are there rather than how to
+				// write the file (d-86b1).
+				finding.Text = t2ChooseProfile(member.Name, profiles)
 			}
 		}
 		out = append(out, finding)
@@ -187,6 +194,21 @@ func t2RoleNames(cat *catalog.Catalog) []string {
 	return out
 }
 
+// t2ProfileNames is the profiles either place defines, by name: what a member
+// chooses from (r-54b8, d-86b1).
+func t2ProfileNames(cat *catalog.Catalog) []string {
+	profiles, _, err := cat.Profiles()
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
 // t2ChooseRole is the sentence a member without a role document gets: the person
 // chooses one of the roles that are there, and the sentence says which (r-54b8).
 func t2ChooseRole(member string, roles []string) string {
@@ -194,6 +216,15 @@ func t2ChooseRole(member string, roles []string) string {
 		return i18n.Tf("error.role_to_choose_none", member)
 	}
 	return i18n.Tf("error.role_to_choose", member, strings.Join(roles, i18n.T("list.separator")))
+}
+
+// t2ChooseProfile is t2ChooseRole for a member without a profile: the person
+// chooses one of the profiles that are there (d-86b1).
+func t2ChooseProfile(member string, profiles []string) string {
+	if len(profiles) == 0 {
+		return i18n.Tf("error.profile_to_choose_none", member)
+	}
+	return i18n.Tf("error.profile_to_choose", member, strings.Join(profiles, i18n.T("list.separator")))
 }
 
 // t2MemberAt is the member one finding is about: "members[2].role" is the third
