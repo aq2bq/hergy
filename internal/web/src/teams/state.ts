@@ -12,7 +12,7 @@
 // 作らない（spec-boundary 3）。
 import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
-import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave, del as apiDel, hqList, problemText as apiProblemText } from '../lib/api';
+import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave, del as apiDel, hqList, problemText as apiProblemText, bases } from '../lib/api';
 import type { Answer, ApiAnswer, Request, Schemas } from '../lib/api';
 
 // CheckAnswer is what POST /api/team/check answers with, read from the operation
@@ -879,6 +879,7 @@ export async function saveTeam(r: Rec) {
   if (r.draftRow) return saveFolder(r);
   const json = await answered(r, 't', apiSave('team', r.name.value, teamIn(r, { hash: r.hash.value, doc: { ops: r.ops.value } })), '保存できませんでした');
   if (!json) return;
+  rebase(json);
   r.hash.value = json.hash || r.hash.value;
   r.saved.value = cloneTeam(r.draft.value);
   r.ops.value = [];
@@ -889,11 +890,27 @@ export async function saveTeam(r: Rec) {
   cundo.delete(dkey(r));
   apiSaved();
 }
+// rebase puts the files a save's answer read again under the rows' feet
+// (r-b41c). A save gives the rules their ids after it writes (d-4aab), so the
+// agreement a person did not touch can move while another file is saved: the row
+// that kept the hash it read before would be refused at its own next save as a
+// change another place made. The draft a person is writing in stays where it is.
+function rebase(answer: Answer<'team', 'save'> | null): void {
+  for (const b of bases(answer)) {
+    if (!b.name) continue;
+    for (const r of recs.value) {
+      if (r.draftRow || b.place !== r.place.value || b.name !== r.name.value) continue;
+      if (b.kind === 'agreement') r.agreeHash.value = b.hash;
+      else if (b.kind === 'team' || b.kind === '') r.hash.value = b.hash;
+    }
+  }
+}
 export async function saveAgree(r: Rec) {
   if (r.draftRow) return saveFolder(r);
   const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
   const json = await answered(r, 'a', apiSave('team', r.name.value, agreeIn(r, { hash: r.agreeHash.value, doc: { ops: r.ops.value, doc } })), '保存できませんでした');
   if (!json) return;
+  rebase(json);
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON(json.doc);

@@ -6,7 +6,7 @@
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
-import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
+import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, groupPlace } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
@@ -548,7 +548,19 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   if (found) open.add(found.key);
   else if (panel.saved) open.add((panel.draft.name || '') + '|' + (panel.group || ''));
   openKeys.value = open;
-  rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  // The answer read every file again, and a save gives the rules their ids
+  // after it (d-4aab): each panel of a file the answer names stands on the hash
+  // of the text that is there now, so the next save is not refused as a change
+  // another place made (r-b41c).
+  const moved = new Map(bases(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
+  rows.value = next.map((row) => ({
+    ...row,
+    open: open.has(row.key),
+    panels: row.panels.map((p) => {
+      const hash = moved.get(p.file);
+      return hash && hash !== p.hash ? { ...p, hash } : p;
+    }),
+  }));
   // A rename can split one row into two; the counts and the address follow.
   if (TAB === 'profiles') syncURL();
   tellDirty();

@@ -992,7 +992,8 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	if one, refusal := k.Get(name, in.Place); refusal == nil {
 		if got, ok := one.(apiTeamGet); ok {
 			agree := got.Doc.Agreement
-			out.Doc, out.Text, out.Hash, out.Path = agree.Doc, edited, source.Hash(edited), agree.Path
+			text := s.writtenText(path, edited)
+			out.Doc, out.Text, out.Hash, out.Path = agree.Doc, text, source.Hash(text), agree.Path
 		}
 	}
 	return out, nil
@@ -1037,9 +1038,7 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 	if refusal := s.assignRuleIDs(); refusal != nil {
 		return nil, refusal
 	}
-	if kind == "agreement" {
-		written, _ = s.cat.Reader().Read(source.Doc{Path: path})
-	}
+	written = s.writtenText(path, written)
 	out := k.savedAnswer(name, place)
 	out.Text, out.Hash, out.Path = written, source.Hash(written), display
 	return out, nil

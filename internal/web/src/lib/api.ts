@@ -183,6 +183,36 @@ export const hqList = <K extends HQKind>(kind: K, opts?: CallOptions): Promise<A
 // band reads its number again (lib/apply.tsx).
 export const saved = (): boolean => document.dispatchEvent(new CustomEvent('hergy:saved'));
 
+// ---- 保存のあとの基準（r-b41c）--------------------------------------------
+// A save's answer carries the list as the write left it, and hergy writes the
+// rules' ids after the person's own lines (d-4aab): a file the person did not
+// touch can move when another file is saved. Base is one file the answer read
+// again — the place it stands in, the name it holds, the kind of file it is, and
+// the hash of the text that is there now — so a screen puts its own files on the
+// answer and its next save is not refused as a change another place made.
+export type Base = { place: string; name: string; kind: string; hash: string };
+
+// bases is every file one save's answer read again: the hashes map names a file
+// <place>.<name> (the role kind), and the files list names one by place, name
+// and kind (the team and profile kinds).
+export function bases(answer: {
+  hashes?: Record<string, string> | null;
+  files?: { place?: string; name?: string; kind?: string; hash?: string }[] | null;
+} | null | undefined): Base[] {
+  const out: Base[] = [];
+  const hashes = (answer && answer.hashes) || {};
+  for (const key of Object.keys(hashes)) {
+    const at = key.indexOf('.');
+    out.push(at > 0
+      ? { place: key.slice(0, at), name: key.slice(at + 1), kind: '', hash: hashes[key] }
+      : { place: key, name: '', kind: '', hash: hashes[key] });
+  }
+  for (const one of (answer && answer.files) || []) {
+    out.push({ place: one.place || '', name: one.name || '', kind: one.kind || '', hash: one.hash || '' });
+  }
+  return out;
+}
+
 // problemText is the sentence one refusal carries, or the fallback word. The
 // refusal is what call threw, and a screen holds it as a resource's error.
 export const problemText = (refusal: unknown, fallback: string): string => {

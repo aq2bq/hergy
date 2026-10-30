@@ -375,7 +375,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if got == nil {
 		got = &rules.Document{Path: target}
 	}
-	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got), string(edited)), nil
+	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got), s.writtenText(target, string(edited))), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old

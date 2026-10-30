@@ -13,7 +13,7 @@ import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
-  roleModel, teamModel, problemText, Refusal,
+  roleModel, teamModel, problemText, Refusal, bases,
 } from '../lib/api.js';
 import {
   fromJSON, toDoc, rulesOf, inP, nextKey, observeKeys, openRules, openRuleKey, renameCarries,
@@ -816,6 +816,28 @@ export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
 }
 
 // ---- writes ----------------------------------------------------------
+// rebase puts the files a save's answer read again under the rows' feet
+// (r-b41c). A save gives the rules their ids after it writes (d-4aab), so a
+// document the person did not touch can move while another one is saved: a row
+// that kept the hash it read before would be refused at its own next save as a
+// change another place made. The row's own document is the answer's, and every
+// other file takes the hash the answer read; the draft a person is writing in
+// stays where it is.
+function rebase(answer: { hashes?: Record<string, string> | null } | null): void {
+  const files = bases(answer);
+  if (!files.length) return;
+  roles.value = roles.value.map((r) => {
+    let row = r;
+    for (const b of files) {
+      const l: Place | null = b.place === 'project' ? 'project' : b.place === 'global' ? 'global' : null;
+      const e = l ? row[l] : null;
+      if (!l || !e || !e.saved || e.saved.name !== b.name || e.hash === b.hash) continue;
+      row = { ...row, [l]: { ...e, hash: b.hash } };
+    }
+    return row;
+  });
+}
+
 export async function doSave(id: number | string, l: Place): Promise<void> {
   const r = byUid(id);
   const e = r && r[l];
@@ -878,6 +900,7 @@ export async function doSave(id: number | string, l: Place): Promise<void> {
   }
   setYchecks(l, newName, undefined);
   patch({ ok: { ...state.value.ok, [key]: 1 } });
+  rebase(json);
   await askCheck(byUid(id), l, null);
   touch();
   // A rename changes the name the address opens the row by, so the address
