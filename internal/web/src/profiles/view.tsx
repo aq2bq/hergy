@@ -15,7 +15,7 @@ import {
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
   pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
-  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, inputField,
+  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, pressLayer, inputField,
   reorderArgs,
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
@@ -42,12 +42,13 @@ function chipsURL(kind: string): string {
   return '/profiles' + (search ? '?' + search : '');
 }
 
-// Toolbar is the list's own: the kind filters and the search. The place heads
-// carry the add buttons (r-410c). The chips' numbers are the rows', so a save
-// that moves a kind's number moves the chip with it.
+// Toolbar is the list's own: ＋プロファイルを追加, the kind filters and the
+// search. The chips' numbers are the rows', so a save that moves a kind's number
+// moves the chip with it.
 export function Toolbar() {
   return (
     <div class="toolbar">
+      <button class="btn primary" data-act="new" onClick={pressNew}>＋ プロファイルを追加</button>
       <div class="filters">
         {chips.value.map((chip) => (
           <a class={'fchip' + (chip.name === filterKind.value ? ' on' : '')} data-act="kind-filter" data-k={chip.name} href={chipsURL(chip.name)} aria-pressed={chip.name === filterKind.value ? 'true' : 'false'} onClick={(e: Event) => { e.preventDefault(); pressFilter(chip.name); }}>
@@ -73,10 +74,13 @@ function PersonChip({ c }: { c: ProfileChip }) {
   );
 }
 
-// PlacePills is the row's 置き場所 column (spec 4 章, d-e77c): the place's name.
-// A project that overrides a global name carries the crossed-out グローバル, and
-// the global row says which projects override it.
+// PlacePills is the row's プロジェクト column (spec 4 章): the project's name, or
+// グローバル. A project that overrides a global name carries the crossed-out
+// グローバル, and the global row says which projects override it.
 function PlacePills({ row }: { row: Row }) {
+  if (!GROUPED) {
+    return <>{(row.places || []).map((place) => <span class={'pill ' + place.state}>{place.label === 'プロジェクト' ? currentProjectName() : place.label}</span>)}</>;
+  }
   const globalGroup = (GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   return (
@@ -118,7 +122,7 @@ export function Row({ row }: { row: Row }) {
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>
         <span class="c-kind">{kind ? <><i class={'sw ' + kindClass}></i>{kind}</> : ''}</span>
-        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{groupName(row.group)}</span> : <PlacePills row={row} />}</span>
+        <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{GROUPED ? groupName(row.group) : labelOf(first ? first.file : 'project')}</span> : <PlacePills row={row} />}</span>
         <span class="c-args">{row.args ? row.args : <span class="none">—</span>}</span>
         <span class="c-env">{(row.env && row.env.length) ? [row.env.map((value) => <span>{value}</span>), row.more > 0 ? <span class="more">+{row.more}</span> : ''] : <span class="none">—</span>}</span>
         <span class="c-users">{row.users > 0 ? <><b>{row.users}</b><span>{row.roles}</span></> : <span class="none">0</span>}</span>
