@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func gitRun(t *testing.T, dir string, args ...string) {
@@ -59,7 +60,7 @@ func TestGitLeftoversReadsThePanesWorktrees(t *testing.T) {
 	gitRun(t, other, "add", "other.txt")
 	gitRun(t, other, "commit", "-q", "-m", "other")
 
-	left := GitLeftovers(root, []string{root, worktree, other, filepath.Join(worktree, "..")})
+	left := GitLeftovers(root, time.Time{}, []string{root, worktree, other, filepath.Join(worktree, "..")})
 	if len(left.Worktrees) != 1 {
 		t.Fatalf("leftovers = %+v, want the one worktree", left)
 	}
@@ -86,7 +87,71 @@ func TestGitLeftoversIsEmptyForTheProjectRoot(t *testing.T) {
 	gitRun(t, root, "add", "only.txt")
 	gitRun(t, root, "commit", "-q", "-m", "only")
 
-	if left := GitLeftovers(root, []string{root, filepath.Join(root, "sub")}); !left.Empty() {
+	if left := GitLeftovers(root, time.Time{}, []string{root, filepath.Join(root, "sub")}); !left.Empty() {
 		t.Errorf("leftovers = %+v, want none", left)
+	}
+}
+
+// TestGitLeftoversReadsTheWorktreesThatCameWhileTheTeamRan: hergy cannot tell
+// which worktree a team made, so it reads when each one was made — from git's
+// own .git/worktrees/<id>/gitdir — and lists the ones that came at or after the
+// team started, whether or not a pane stood in them. A worktree that was there
+// before the start is not the team's leftover; one a pane stood in is marked
+// (d-970c).
+func TestGitLeftoversReadsTheWorktreesThatCameWhileTheTeamRan(t *testing.T) {
+	root := t.TempDir()
+	gitRun(t, root, "init", "-q", "-b", "main")
+	gitRun(t, root, "config", "user.email", "test@example.com")
+	gitRun(t, root, "config", "user.name", "test")
+	writeLeftover(t, filepath.Join(root, "base.txt"), "base\n")
+	gitRun(t, root, "add", "base.txt")
+	gitRun(t, root, "commit", "-q", "-m", "base")
+
+	// A worktree that was there before the team started: git made it, and the
+	// time of its gitdir says so.
+	before := filepath.Join(t.TempDir(), "before")
+	gitRun(t, root, "worktree", "add", "-q", "-b", "before", before, "main")
+	made := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, ".git", "worktrees", "before", "gitdir"), made, made); err != nil {
+		t.Fatal(err)
+	}
+	// A worktree that came while it ran, with a pane standing in it.
+	after := filepath.Join(t.TempDir(), "after")
+	gitRun(t, root, "worktree", "add", "-q", "-b", "after", after, "main")
+
+	left := GitLeftovers(root, time.Now().Add(-time.Hour), []string{before, after})
+	if len(left.Worktrees) != 1 {
+		t.Fatalf("leftovers = %+v, want only the worktree that came after the start", left)
+	}
+	one := left.Worktrees[0]
+	if resolvePath(one.Path) != resolvePath(after) {
+		t.Fatalf("worktree path = %q, want %q", one.Path, after)
+	}
+	if !one.PaneCwd {
+		t.Errorf("worktree = %+v, want the pane's working directory marked", one)
+	}
+}
+
+// TestGitLeftoversMarksAWorktreeAPaneStoodIn: a worktree that came while the
+// team ran but no pane stood in is still listed, without the mark: an agent cds
+// into a worktree for one command, so its pane's directory is only one way to
+// know (d-970c).
+func TestGitLeftoversMarksAWorktreeAPaneStoodIn(t *testing.T) {
+	root := t.TempDir()
+	gitRun(t, root, "init", "-q", "-b", "main")
+	gitRun(t, root, "config", "user.email", "test@example.com")
+	gitRun(t, root, "config", "user.name", "test")
+	writeLeftover(t, filepath.Join(root, "base.txt"), "base\n")
+	gitRun(t, root, "add", "base.txt")
+	gitRun(t, root, "commit", "-q", "-m", "base")
+	lane := filepath.Join(t.TempDir(), "lane")
+	gitRun(t, root, "worktree", "add", "-q", "-b", "lane", lane, "main")
+
+	left := GitLeftovers(root, time.Now().Add(-time.Hour), []string{root})
+	if len(left.Worktrees) != 1 {
+		t.Fatalf("leftovers = %+v, want the worktree no pane stood in", left)
+	}
+	if left.Worktrees[0].PaneCwd {
+		t.Errorf("worktree = %+v, want no pane mark: the panes stood in the project root", left.Worktrees[0])
 	}
 }

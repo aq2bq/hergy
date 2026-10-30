@@ -1384,7 +1384,7 @@ function StopResult({ result, team }) {
         children: [
           /* @__PURE__ */ u("p", {
             class: "hq-lbl",
-            children: "残っているもの（git）:"
+            children: `${team} が動いている間にできたワークツリー（git）:`
           }),
           worktrees.map((w) => /* @__PURE__ */ u("div", {
             class: "hq-wt",
@@ -1401,7 +1401,8 @@ function StopResult({ result, team }) {
                   w.dirty ? "保存していない変更あり" : "保存していない変更なし",
                   "、",
                   w.base ? `${w.base} に入っていないコミット ${w.ahead} 件` : "入っていないコミットは数えられません（main も upstream も無い）",
-                  "）"
+                  "）",
+                  w.pane_cwd ? "（ペインの作業ディレクトリがここにあった）" : ""
                 ]
               }),
               /* @__PURE__ */ u("p", {

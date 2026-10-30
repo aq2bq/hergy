@@ -3115,15 +3115,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HQWorktree'
-          description: ペインがいた、プロジェクトのルートでないワークツリー
+          description: チームが動いていた間にできた、プロジェクトのルートでないワークツリー
         stashes:
           type: integer
           description: このプロジェクトの stash の数
     HQWorktree:
-      description: 閉じたペインがいたワークツリーと、消すと失うもの
+      description: チームが動いていた間にできたワークツリーと、消すと失うもの
       type: object
       additionalProperties: false
-      required: [path, branch, dirty, ahead, base]
+      required: [path, branch, dirty, ahead, base, pane_cwd]
       properties:
         path:
           type: string
@@ -3140,6 +3140,9 @@ components:
         base:
           type: string
           description: 入っていないコミットを数えた相手（main か upstream）。無いときは空
+        pane_cwd:
+          type: boolean
+          description: 閉じたペインの作業ディレクトリがこのワークツリーにあったか
     HQClosed:
       description: 閉じたメンバーとワーカーの数
       type: object

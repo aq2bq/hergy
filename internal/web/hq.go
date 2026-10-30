@@ -300,21 +300,23 @@ type HQStopped struct {
 	Leftovers HQLeftovers `json:"leftovers"`
 }
 
-// HQLeftovers is what a stopped team left in git: the worktrees its panes stood
-// in (other than the project's own root), and the project's stash count.
+// HQLeftovers is what a stopped team left in git: the worktrees that came while
+// it ran (other than the project's own root), and the project's stash count.
 type HQLeftovers struct {
 	Worktrees []HQWorktree `json:"worktrees"`
 	Stashes   int          `json:"stashes"`
 }
 
-// HQWorktree is one worktree a stopped pane stood in, with what removing it would
-// lose.
+// HQWorktree is one worktree of the stopped team's project that came while the
+// team ran, with what removing it would lose.
 type HQWorktree struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
 	Dirty  bool   `json:"dirty"`
 	Ahead  int    `json:"ahead"`
 	Base   string `json:"base"`
+	// PaneCwd says a closed pane's working directory was this worktree (d-970c).
+	PaneCwd bool `json:"pane_cwd"`
 }
 
 // HQClosed is how many members and workers a stop put away.

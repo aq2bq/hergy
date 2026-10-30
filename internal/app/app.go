@@ -1432,13 +1432,14 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 			projectRoot = one.Project
 		}
 		dirs := workerPaneDirs(tabs, worker.Label)
+		owner := workerLeftovers(projectRoot, worker.Team, worker.Herdr)
 		if opts.JSON {
 			return writeDownPlan(stdout, downPlan{
 				Team: worker.Team, Workers: []string{worker.Herdr},
-				Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, dirs)),
+				Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 			})
 		}
-		return downOneWorker(ctx, opts, *worker, projectRoot, dirs, stdout, stderr)
+		return downOneWorker(ctx, opts, *worker, projectRoot, dirs, owner, stdout, stderr)
 	}
 	if !hasLiveMemberAgent(chosen.Team) && hasNamedPane(chosen.Team) {
 		// A team d-da92 now finds by its named panes alone prints what a stopped
@@ -1461,6 +1462,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		projectRoot = chosen.Project
 	}
 	dirs := teamPaneDirs(tabs, chosen.Team)
+	owner := teamLeftovers(projectRoot, chosen.Team)
 	if opts.JSON {
 		members := make([]string, 0, len(r.starts))
 		for _, start := range r.starts {
@@ -1468,7 +1470,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		}
 		return writeDownPlan(stdout, downPlan{
 			Team: chosen.Team, Members: members, Workers: workerNamesOf(tabs, chosen.Team),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, dirs)),
+			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 		})
 	}
 	// The pane hergy runs in is the member that must be closed last.
@@ -1479,7 +1481,7 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		if err != nil {
 			return err
 		}
-		printLeftovers(stdout, projectRoot, dirs, true)
+		printLeftovers(stdout, projectRoot, dirs, owner, true)
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
 			printNext(stdout, "down "+r.team.Name)
@@ -1497,14 +1499,14 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}); err != nil {
 		return err
 	}
-	printLeftovers(stdout, projectRoot, dirs, false)
+	printLeftovers(stdout, projectRoot, dirs, owner, false)
 	return nil
 }
 
 // downOneWorker closes one worker of a running team and nothing else: the pane
 // it stands in, and its own tab when that pane was the last one there (d-fa05).
 // The team definition is not read: closing a worker needs no prompt.
-func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker, projectRoot string, dirs []string, stdout, stderr io.Writer) error {
+func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker, projectRoot string, dirs []string, owner leftoverOwner, stdout, stderr io.Writer) error {
 	field(stdout, label("worker"), worker.Herdr)
 	indentField(stdout, 1, label("team"), worker.Team)
 	l := newLauncher(&resolved{team: team.Team{Name: worker.Team}}, opts.Timeout, stdout)
@@ -1512,7 +1514,7 @@ func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker
 		if _, err := l.DownWorker(worker.Label, os.Getenv("HERDR_PANE_ID"), true); err != nil {
 			return err
 		}
-		printLeftovers(stdout, projectRoot, dirs, true)
+		printLeftovers(stdout, projectRoot, dirs, owner, true)
 		printNext(stdout, "down "+worker.Herdr)
 		return nil
 	}
@@ -1525,7 +1527,7 @@ func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker
 	}); err != nil {
 		return err
 	}
-	printLeftovers(stdout, projectRoot, dirs, false)
+	printLeftovers(stdout, projectRoot, dirs, owner, false)
 	return nil
 }
 
@@ -1551,10 +1553,11 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		projectRoot = chosen.Project
 	}
 	dirs := teamPaneDirs(tabs, chosen.Team)
+	owner := teamLeftovers(projectRoot, chosen.Team)
 	if opts.JSON {
 		return writeDownPlan(stdout, downPlan{
 			Team: chosen.Team, Members: team.MemberAgents(tabs, chosen.Team), Workers: workerNamesOf(tabs, chosen.Team),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, dirs)),
+			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 		})
 	}
 	selfPane := os.Getenv("HERDR_PANE_ID")
@@ -1564,7 +1567,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		if err != nil {
 			return err
 		}
-		printLeftovers(stdout, projectRoot, dirs, true)
+		printLeftovers(stdout, projectRoot, dirs, owner, true)
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
 			printNext(stdout, "down "+chosen.Team)
@@ -1580,7 +1583,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 	}); err != nil {
 		return err
 	}
-	printLeftovers(stdout, projectRoot, dirs, false)
+	printLeftovers(stdout, projectRoot, dirs, owner, false)
 	return nil
 }
 
@@ -1639,10 +1642,11 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 		return err
 	}
 	dirs := teamPaneDirs(tabs, name)
+	owner := teamLeftovers(projectRoot, name)
 	if opts.JSON {
 		return writeDownPlan(stdout, downPlan{
 			Team: name, Members: team.MemberPanes(tabs, name), Workers: workerNamesOf(tabs, name),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, dirs)),
+			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 		})
 	}
 	selfPane := os.Getenv("HERDR_PANE_ID")
@@ -1653,7 +1657,7 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 		if err != nil {
 			return err
 		}
-		printLeftovers(stdout, projectRoot, dirs, true)
+		printLeftovers(stdout, projectRoot, dirs, owner, true)
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
 			printNext(stdout, "down "+name)
@@ -1670,7 +1674,7 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 	}); err != nil {
 		return err
 	}
-	printLeftovers(stdout, projectRoot, dirs, false)
+	printLeftovers(stdout, projectRoot, dirs, owner, false)
 	return nil
 }
 

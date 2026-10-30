@@ -1,5 +1,5 @@
 // r-b65e: the stop sheet's result says what the team left in git — the
-// worktrees its panes stood in, the project's stashes, and the commands that
+// worktrees that came while it ran, the project's stashes, and the commands that
 // remove them. hergy removes nothing.
 import { expect, test } from 'bun:test';
 import { serve, settle } from './page.js';
@@ -21,7 +21,7 @@ test('the stop result lists the worktrees and stashes the team left in git', asy
     workspace: { id: 'w1', label: '本体' },
     closed: { members: 1, workers: 1 }, stopped_at: '2026-10-29T00:00:00Z',
     leftovers: {
-      worktrees: [{ path: '/work/atlas/.worktrees/lane-1', branch: 'lane-1', dirty: true, ahead: 1, base: 'main' }],
+      worktrees: [{ path: '/work/atlas/.worktrees/lane-1', branch: 'lane-1', dirty: true, ahead: 1, base: 'main', pane_cwd: true }],
       stashes: 1,
     },
   };
@@ -44,7 +44,9 @@ test('the stop result lists the worktrees and stashes the team left in git', asy
   const left = sheet.querySelector('[data-role=leftovers]');
   expect(left).not.toBe(null);
   for (const want of [
+    'draft が動いている間にできたワークツリー（git）:',
     '/work/atlas/.worktrees/lane-1',
+    '（ペインの作業ディレクトリがここにあった）',
     '枝 lane-1',
     '保存していない変更あり',
     'main に入っていないコミット 1 件',

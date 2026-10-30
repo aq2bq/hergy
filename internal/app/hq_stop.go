@@ -30,9 +30,11 @@ func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
 	if err != nil {
 		return web.HQStopped{}, hqError(err)
 	}
-	// The panes' working directories are read before they close, so the worktrees
-	// they stood in can be listed afterwards (r-b65e).
+	// The panes' working directories are read before they close, and the launch
+	// record says when the team was started, so the worktrees that came while it
+	// ran can be listed afterwards (r-b65e, d-970c).
 	dirs := teamPaneDirs(read.tabs, one.Name)
+	owner := teamLeftovers(one.Project, one.Name)
 	closed, err := h.closeTeam(env, one, read)
 	if err != nil {
 		return web.HQStopped{}, hqRefuse(http.StatusInternalServerError, err.Error())
@@ -42,7 +44,7 @@ func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
 		Team: teamName, Definition: one.Definition, Project: one.Project,
 		Workspace: web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		Closed:    closed, StoppedAt: clockText(time.Now()),
-		Leftovers: hqLeftoversOf(team.GitLeftovers(env.ProjectRoot, dirs)),
+		Leftovers: hqLeftoversOf(team.GitLeftovers(env.ProjectRoot, owner.Since, dirs)),
 	}, nil
 }
 
@@ -121,6 +123,7 @@ func hqLeftoversOf(left team.Leftovers) web.HQLeftovers {
 	for _, one := range left.Worktrees {
 		out.Worktrees = append(out.Worktrees, web.HQWorktree{
 			Path: one.Path, Branch: one.Branch, Dirty: one.Dirty, Ahead: one.Ahead, Base: one.Base,
+			PaneCwd: one.PaneCwd,
 		})
 	}
 	return out

@@ -474,9 +474,9 @@ function StopResult({ result, team }: { result: HQStopped; team: string }): JSX.
       <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>
         <dt>閉じたペイン</dt><dd>{`メンバー ${result.closed.members} 人${result.closed.workers ? `、ワーカー ${result.closed.workers} 人` : ''}`}</dd></dl>
       {worktrees.length || stashes ? <div class="hq-left" data-role="leftovers">
-        <p class="hq-lbl">残っているもの（git）:</p>
+        <p class="hq-lbl">{`${team} が動いている間にできたワークツリー（git）:`}</p>
         {worktrees.map((w) => <div class="hq-wt" data-worktree={w.path}>
-          <p><code>{w.path}</code>（枝 {w.branch || 'なし（detached HEAD）'}、{w.dirty ? '保存していない変更あり' : '保存していない変更なし'}、{w.base ? `${w.base} に入っていないコミット ${w.ahead} 件` : '入っていないコミットは数えられません（main も upstream も無い）'}）</p>
+          <p><code>{w.path}</code>（枝 {w.branch || 'なし（detached HEAD）'}、{w.dirty ? '保存していない変更あり' : '保存していない変更なし'}、{w.base ? `${w.base} に入っていないコミット ${w.ahead} 件` : '入っていないコミットは数えられません（main も upstream も無い）'}）{w.pane_cwd ? '（ペインの作業ディレクトリがここにあった）' : ''}</p>
           <p class="hq-sub">消すには: <code>{`git worktree remove ${w.path}`}</code></p>
           {w.dirty || w.ahead > 0 ? <p class="hq-sub">保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください</p> : ''}
         </div>)}

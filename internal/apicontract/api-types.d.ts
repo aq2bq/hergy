@@ -1560,12 +1560,12 @@ export interface components {
         };
         /** @description 閉じたチームが git に残したもの。hergy は消さず、一覧と消すコマンドを示す */
         HQLeftovers: {
-            /** @description ペインがいた、プロジェクトのルートでないワークツリー */
+            /** @description チームが動いていた間にできた、プロジェクトのルートでないワークツリー */
             worktrees: components["schemas"]["HQWorktree"][];
             /** @description このプロジェクトの stash の数 */
             stashes: number;
         };
-        /** @description 閉じたペインがいたワークツリーと、消すと失うもの */
+        /** @description チームが動いていた間にできたワークツリーと、消すと失うもの */
         HQWorktree: {
             /** @description ワークツリーの場所 */
             path: string;
@@ -1577,6 +1577,8 @@ export interface components {
             ahead: number;
             /** @description 入っていないコミットを数えた相手（main か upstream）。無いときは空 */
             base: string;
+            /** @description 閉じたペインの作業ディレクトリがこのワークツリーにあったか */
+            pane_cwd: boolean;
         };
         /** @description 閉じたメンバーとワーカーの数 */
         HQClosed: {

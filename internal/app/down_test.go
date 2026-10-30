@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // stoppedTeamHerdr writes a fake herdr of a team that stopped before any agent
@@ -324,10 +325,10 @@ esac
 `)
 }
 
-// TestDownListsWhatTheTeamLeftInGit: hergy down reads where the panes stood
-// before closing them, and afterwards lists the worktrees of the project they
-// stood in, the project's stashes, and the commands that remove them. hergy
-// removes nothing (r-b65e, d-778e).
+// TestDownListsWhatTheTeamLeftInGit: hergy down reads when the team was started
+// and where the panes stood before closing them, and afterwards lists the
+// worktrees of the project that came while it ran, the project's stashes, and the
+// commands that remove them. hergy removes nothing (r-b65e, d-778e, d-970c).
 func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "draft")
@@ -337,6 +338,7 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	gitIn(t, f.proj, "add", "base.txt")
 	gitIn(t, f.proj, "commit", "-q", "-m", "base")
 	gitIn(t, f.proj, "branch", "-M", "main")
+	recordStart(t, f, "draft", time.Now().Add(-time.Hour))
 	// A worktree the pane stood in: one commit ahead of main, with an uncommitted
 	// file, and the project's stash.
 	worktree := filepath.Join(t.TempDir(), "lane-1")
@@ -357,8 +359,8 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 
 	got := mustRun(t, "down", "draft", "--lang", "ja")
 	for _, want := range []string{
-		"残っているもの（git）:",
-		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）",
+		"draft が動いている間にできたワークツリー（git）:",
+		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）（ペインの作業ディレクトリがここにあった）",
 		"消すには: git worktree remove " + worktree,
 		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
 		"このプロジェクトの stash: 1 件（git stash list で見る）",
@@ -374,7 +376,7 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 
 	// --dry plans the same list and closes nothing.
 	got = mustRun(t, "down", "draft", "--dry", "--lang", "ja")
-	if !strings.Contains(got, "閉じたあとに残るもの（git、予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
+	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
 		t.Errorf("down --dry does not plan the leftovers:\n%s", got)
 	}
 
@@ -388,6 +390,7 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 				Basis string `json:"base"`
 				Ahead int    `json:"ahead"`
 				Dirty bool   `json:"dirty"`
+				Pane  bool   `json:"pane_cwd"`
 			} `json:"worktrees"`
 			Stashes int `json:"stashes"`
 		} `json:"leftovers"`
@@ -398,8 +401,8 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	if plan.Team != "draft" || plan.Leftovers.Stashes != 1 || len(plan.Leftovers.Worktrees) != 1 {
 		t.Fatalf("the plan = %+v, want draft with the one worktree and stash", plan)
 	}
-	if one := plan.Leftovers.Worktrees[0]; one.Basis != "main" || one.Ahead != 1 || !one.Dirty {
-		t.Errorf("the plan's worktree = %+v, want main, 1 ahead, dirty", one)
+	if one := plan.Leftovers.Worktrees[0]; one.Basis != "main" || one.Ahead != 1 || !one.Dirty || !one.Pane {
+		t.Errorf("the plan's worktree = %+v, want main, 1 ahead, dirty, the pane's directory", one)
 	}
 }
 
