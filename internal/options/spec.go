@@ -346,10 +346,24 @@ var specs = []Spec{
 		Kind: New, Name: "new",
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
-			"Write team.yaml and agreement.yaml, and the roles/ folder. An existing team is never overwritten.\n"+
-				"It writes into the project's .hergy/ inside a git repository, and into ~/.config/hergy/ outside one.\n"+
+			"Write team.yaml and agreement.yaml.\n"+
+				"The members' roles and profiles are the ones either place already holds:\n"+
+				"hergy writes no role document and no profile the person did not choose.\n"+
+				"While neither place holds a role document, it writes the starter roles\n"+
+				"lead and builder into roles/; while neither defines a profile, it writes\n"+
+				"claude-default into profiles.yaml. Otherwise it names the roles and\n"+
+				"profiles to write in team.yaml, and the next step is hergy validate.\n"+
+				"An existing team is never overwritten. It writes into the project's .hergy/\n"+
+				"inside a git repository, and into ~/.config/hergy/ outside one.\n"+
 				"If the global config.yaml (version and lang) is missing, it is written too.",
-			"team.yaml・agreement.yaml と roles/ を書き出す。既にあるチーム定義は上書きしない。\n"+
+			"team.yaml・agreement.yaml を書き出す。メンバーのロールとプロファイルは、\n"+
+				"プロジェクトかグローバルのどちらかに今あるものから選ぶ。\n"+
+				"人が選んでいないロールの文書とプロファイルは書かない。\n"+
+				"どちらにもロールの文書が 1 つも無いときだけ、ひな形のロール lead・builder を\n"+
+				"roles/ に書く。プロファイルも、どちらにも 1 つも無いときだけ claude-default を\n"+
+				"profiles.yaml に書く。あるときは、team.yaml に書くロールとプロファイルを名指し、\n"+
+				"次の一手を hergy validate にする。\n"+
+				"既にあるチーム定義は上書きしない。\n"+
 				"書く先は、git の中ならプロジェクトの .hergy/、外なら ~/.config/hergy/。\n"+
 				"グローバルの config.yaml（version と lang）は、無いときだけ作る。"),
 		Args: []Arg{{

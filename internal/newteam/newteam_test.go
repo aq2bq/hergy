@@ -35,11 +35,20 @@ func starterIn(t *testing.T) (In, string) {
 	return In{Catalog: cat, Layer: source.LayerLocal, Name: "ops", Lang: "ja", Files: files, Starter: true}, proj
 }
 
+// starterAll is starterIn, with the person having asked for the starter roles
+// and the starter profile: the write a person chose in full.
+func starterAll(t *testing.T) (In, string) {
+	t.Helper()
+	in, proj := starterIn(t)
+	in.StarterRoles, in.StarterProfile = true, true
+	return in, proj
+}
+
 // TestPlanSaysWhatAWriteWouldMake: the plan names the definition's own files, the
 // layer's role documents it would write, the ones it would leave, and the starter
 // profile (spec-teams B2, C8, I7, K5).
 func TestPlanSaysWhatAWriteWouldMake(t *testing.T) {
-	in, proj := starterIn(t)
+	in, proj := starterAll(t)
 	written, err := Plan(in)
 	if err != nil {
 		t.Fatal(err)
@@ -57,9 +66,65 @@ func TestPlanSaysWhatAWriteWouldMake(t *testing.T) {
 	if want := filepath.Join(base, "profiles.yaml"); written.Profile != want {
 		t.Errorf("the plan adds the starter profile to %q, want %q", written.Profile, want)
 	}
+	if len(written.Missing) != 0 || written.ProfileMissing {
+		t.Errorf("the plan misses %v / %v, want nothing when the person asked for the starter ones", written.Missing, written.ProfileMissing)
+	}
 	// The plan writes nothing (B2: the screen shows it before a person saves).
 	if _, err := os.Stat(filepath.Join(base, "teams", "ops", "team.yaml")); !os.IsNotExist(err) {
 		t.Error("the plan wrote the definition")
+	}
+}
+
+// TestPlanWritesNothingThePersonDidNotChoose: a starter row a person did not
+// choose roles or a profile for writes its own two files alone, and says which
+// starter roles and profile a place does not hold (r-54b8, d-86b1).
+func TestPlanWritesNothingThePersonDidNotChoose(t *testing.T) {
+	in, proj := starterIn(t)
+	written, err := Plan(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(written.Files) != 2 {
+		t.Errorf("the plan names %v, want the definition's own two files", written.Files)
+	}
+	if len(written.Roles) != 0 || len(written.Kept) != 0 {
+		t.Errorf("the plan writes roles %v and leaves %v, want neither", written.Roles, written.Kept)
+	}
+	if want := []string{"lead", "builder"}; !slices.Equal(written.Missing, want) {
+		t.Errorf("the plan misses %v, want %v", written.Missing, want)
+	}
+	if written.Profile != "" || !written.ProfileMissing {
+		t.Errorf("the plan writes the profile to %q (missing %v), want it left for the person", written.Profile, written.ProfileMissing)
+	}
+	if _, err := os.Stat(filepath.Join(proj, ".hergy", "roles")); !os.IsNotExist(err) {
+		t.Errorf("the plan's writing left a roles/ directory: %v", err)
+	}
+}
+
+// TestPlanLooksForARoleInBothPlaces: a role document the global place holds is
+// the one a definition reads, so a starter team added to the project writes no
+// copy of it (r-54b8, K1).
+func TestPlanLooksForARoleInBothPlaces(t *testing.T) {
+	in, proj := starterIn(t)
+	global := in.Catalog.LayerDir(source.LayerGlobal)
+	if err := os.MkdirAll(filepath.Join(global, "roles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "roles", "lead.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	written, err := Plan(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(global, "roles", "lead.yaml"); len(written.Kept) != 1 || written.Kept[0] != want {
+		t.Errorf("the plan leaves %v, want the global lead.yaml alone", written.Kept)
+	}
+	if want := []string{"builder"}; !slices.Equal(written.Missing, want) {
+		t.Errorf("the plan misses %v, want %v", written.Missing, want)
+	}
+	if slices.Contains(written.Roles, filepath.Join(proj, ".hergy", "roles", "lead.yaml")) {
+		t.Errorf("the plan writes the project's lead.yaml over the global one: %v", written.Roles)
 	}
 }
 
@@ -67,7 +132,7 @@ func TestPlanSaysWhatAWriteWouldMake(t *testing.T) {
 // the layer's role documents, and the starter profile, and a role document the
 // layer already holds is left as it is (spec-teams C8, I7, K5).
 func TestWriteMakesTheStarterFolder(t *testing.T) {
-	in, proj := starterIn(t)
+	in, proj := starterAll(t)
 	base := filepath.Join(proj, ".hergy")
 	// The layer's own lead.yaml, with a rule of its own.
 	if err := os.MkdirAll(filepath.Join(base, "roles"), 0o755); err != nil {
@@ -111,7 +176,7 @@ func TestWriteMakesTheStarterFolder(t *testing.T) {
 // TestWriteTakesBackWhatItCouldNotFinish: a write that cannot finish removes what
 // it wrote, so a refused save leaves the layer as it was (spec-teams B6).
 func TestWriteTakesBackWhatItCouldNotFinish(t *testing.T) {
-	in, proj := starterIn(t)
+	in, proj := starterAll(t)
 	base := filepath.Join(proj, ".hergy")
 	// A profiles.yaml that cannot be read stops the last step, after the
 	// definition's files and the role documents are written.
@@ -140,7 +205,7 @@ func TestWriteTakesBackWhatItCouldNotFinish(t *testing.T) {
 // makes, so every other line — the order of the profiles, a comment, the way a
 // person wrote a value — comes back as it was (spec-boundary 5, 監査 R3).
 func TestWriteAddsTheStarterProfileLineByLine(t *testing.T) {
-	in, proj := starterIn(t)
+	in, proj := starterAll(t)
 	base := filepath.Join(proj, ".hergy")
 	before := "version: 1\n" +
 		"# a comment a person wrote\n" +
@@ -166,5 +231,42 @@ func TestWriteAddsTheStarterProfileLineByLine(t *testing.T) {
 	want := before + "  " + scaffold.ProfileName + ":\n    kind: " + scaffold.ProfileKind + "\n"
 	if string(after) != want {
 		t.Errorf("the write left the profiles.yaml as\n%s\nwant only the starter profile added:\n%s", after, want)
+	}
+}
+
+// TestWriteLeavesTheRolesAndProfileThePersonDidNotChoose: a starter write the
+// person asked nothing more for writes the definition's own files alone, so the
+// two places' roles/ and profiles.yaml stand as they were (r-54b8, ac-ff73).
+func TestWriteLeavesTheRolesAndProfileThePersonDidNotChoose(t *testing.T) {
+	in, proj := starterIn(t)
+	base := filepath.Join(proj, ".hergy")
+	// The global place holds a role of its own: it is not the project's to copy.
+	global := in.Catalog.LayerDir(source.LayerGlobal)
+	if err := os.MkdirAll(filepath.Join(global, "roles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "roles", "analyst.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	written, err := Write(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.yaml")} {
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("the write did not make %s: %v", want, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(base, "roles")); !os.IsNotExist(err) {
+		t.Errorf("the write made the project's roles/: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "profiles.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the write made the project's profiles.yaml: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(global, "roles", "analyst.yaml")); err != nil || !strings.Contains(string(got), "sections: []") {
+		t.Errorf("the write changed the global place's role document: %v\n%s", err, got)
+	}
+	if len(written.Roles) != 0 || len(written.Kept) != 0 || written.Profile != "" {
+		t.Errorf("the write made %v, left %v, wrote the profile to %q, want none of them", written.Roles, written.Kept, written.Profile)
 	}
 }

@@ -256,6 +256,8 @@ export type Rec = {
   size: Sig<number>; limit: Sig<number>;
   drawMark: Sig<number>; seeded: Sig<boolean>;
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
+  hasRoles: Sig<boolean>; hasProfiles: Sig<boolean>;
+  starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
   preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
   prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
   sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
@@ -280,9 +282,11 @@ export const domOf = (name: string, group?: string): string => (GROUPED ? name +
 
 // ---- サーバとのやり取りの形 ---------------------------------------------
 // A definition that is not there yet carries how it was made: the starter's own
-// files (new), or the definition it stands on (base). The server reads the base
-// from there and checks the row as if it were saved (spec-teams B2, B3).
-const draftIn = (r: Rec): { new?: boolean; base?: TeamBase | null } => (!r.draftRow ? {} : r.how === 'new' ? { new: true } : { base: r.base });
+// files (new), or the definition it stands on (base). A row made from the
+// scaffold also carries whether the person asked for the starter roles and
+// profile: the server writes them only when asked (r-54b8). The server reads the
+// base from there and checks the row as if it were saved (spec-teams B2, B3).
+const draftIn = (r: Rec): { new?: boolean; starter_roles?: boolean; starter_profile?: boolean; base?: TeamBase | null } => (!r.draftRow ? {} : r.how === 'new' ? { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value } : { base: r.base });
 // projectIn is the project a write names: a listed project's path, and nothing
 // for the global layer (which the server writes without being told) or for this
 // serve's own project.
@@ -358,6 +362,7 @@ type RecInit = {
   findings: Finding[]; problems: Schemas['TeamCounts']; check: Check | null;
   size: number; limit: number; drawMark: number; seeded: boolean;
   writes: string[]; nameIssues: Schemas['Problem'][];
+  hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
   preview: TeamPreview; baseFindings: Finding[];
   prompts: MemberPrompt[]; promptsReady?: boolean;
   sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
@@ -381,6 +386,8 @@ function recOf(init: RecInit): Rec {
     findings: signal(init.findings), problems: signal(init.problems), check: signal(init.check),
     size: signal(init.size), limit: signal(init.limit), drawMark: signal(init.drawMark), seeded: signal(init.seeded),
     writes: signal(init.writes), nameIssues: signal(init.nameIssues),
+    hasRoles: signal(init.hasRoles), hasProfiles: signal(init.hasProfiles),
+    starterRoles: signal(init.starterRoles), starterProfile: signal(init.starterProfile),
     preview: signal(init.preview), baseFindings: signal(init.baseFindings),
     prompts: signal(init.prompts), promptsReady: signal(init.promptsReady),
     sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
@@ -475,6 +482,7 @@ function defOf(item: DefItem, project?: string): Rec {
     size: (sum && sum.size) || 0, limit: (sum && sum.limit) || 0,
     problems: item.problems || { err: 0, warn: 0 }, check: null, drawMark: 0,
     draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
+    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
@@ -532,6 +540,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     findings: [], problems: { err: 0, warn: 0 }, check: null,
     size: 0, limit: 0,
     drawMark: 0, seeded: false, writes: [], nameIssues: [],
+    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     sel: null, side: 'attr', menu: null, typed: null, flash: null,
     lastAct: 0,
@@ -820,6 +829,10 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
   const draft = json.draft;
   if (r.draftRow && draft) {
     r.writes.value = draft.writes || r.writes.value;
+    // What the places hold says which starter roles and profile the person has
+    // to choose from rather than write (r-54b8).
+    r.hasRoles.value = !!draft.has_roles;
+    r.hasProfiles.value = !!draft.has_profiles;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
     // The paths the row would be written to are the server's, and they move
     // with the name a person is typing: both panels' heads follow the check
@@ -1183,12 +1196,16 @@ export function workerPrompt(r: Rec, i: number) {
 // rolesFor and profilesFor are the documents one row's member 属性 offers: the
 // row's own project's and the global layer's, so another project's definition
 // chooses from its own names (spec 4 章). Without a headquarters they are the
-// one list the island carries. ROLES_REV is read so a list that comes after the
-// first frame draws the columns again.
+// one list the island carries. A row that is not there yet stands in the place
+// it would be written to, so it offers that place's names too (r-54b8). ROLES_REV
+// is read so a list that comes after the first frame draws the columns again.
+// rowGroup is the group a row's names are read from: a listed project's own, the
+// global layer's, or this project's.
+const rowGroup = (r: Rec | null): string => (r ? (r.project || (r.place.value === 'global' ? 'global' : CURRENT)) : CURRENT);
 export function rolesFor(r: Rec) {
   ROLES_REV.value;
   if (!HQ) return ROLES.value;
-  const key = r ? groupOfRecord(r) : CURRENT;
+  const key = rowGroup(r);
   const all = key === 'global'
     ? Object.values(ROLES_BY).flat()
     : (ROLES_BY[key] || []).concat(ROLES_BY.global || []);
@@ -1198,7 +1215,7 @@ export function rolesFor(r: Rec) {
 export function profilesFor(r: Rec) {
   ROLES_REV.value;
   if (!HQ) return PROFILES;
-  const key = r ? groupOfRecord(r) : CURRENT;
+  const key = rowGroup(r);
   const all = key === 'global'
     ? Object.values(PROFILES_BY).flat()
     : (PROFILES_BY[key] || []).concat(PROFILES_BY.global || []);
@@ -1431,6 +1448,19 @@ export function pressToggle(r: Rec) {
 }
 export async function pressNew() {
   await addDraft('new', 'project', '', null, GROUPED ? CURRENT : '');
+}
+// pressStarterRoles asks for the starter role documents, or drops the ask: the
+// server writes them only when the person pressed this, and only the ones no
+// place holds (r-54b8). The check is asked again, so the files a save would
+// write follow the press.
+export function pressStarterRoles(r: Rec) {
+  r.starterRoles.value = !r.starterRoles.value;
+  checkTeam(r);
+}
+// pressStarterProfile is pressStarterRoles for the starter profile.
+export function pressStarterProfile(r: Rec) {
+  r.starterProfile.value = !r.starterProfile.value;
+  checkTeam(r);
 }
 export async function pressDup(r: Rec) {
   await addDraft('dup', r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);

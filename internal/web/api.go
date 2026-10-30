@@ -48,6 +48,12 @@ type apiIn struct {
 	AgreementHash string `json:"agreement_hash"`
 	// Members is the herdr names a POST /api/delivery hands the prompt to.
 	Members []string `json:"members"`
+	// StarterRoles says the person chose the starter roles for a definition that
+	// is not there yet: a starter role document neither place holds is written
+	// (r-54b8, d-86b1).
+	StarterRoles bool `json:"starter_roles"`
+	// StarterProfile says the same for the starter profile.
+	StarterProfile bool `json:"starter_profile"`
 }
 
 // apiBase is the file a duplicate or a copy stands on (spec-roles 1.2.9).
@@ -156,14 +162,18 @@ type apiProblem struct {
 
 // apiCheckDraft is what a check of a definition that is not there yet knows
 // about the row it would make: its name and place, whether it is a starter, the
-// files it would write, and the hash of the empty files it stands on.
+// files it would write, and the hash of the empty files it stands on. HasRoles
+// and HasProfiles say which of the starter roles and the starter profile a
+// person has to choose instead of write (r-54b8).
 type apiCheckDraft struct {
-	Name    string   `json:"name"`
-	Place   string   `json:"place"`
-	Starter bool     `json:"starter"`
-	Path    string   `json:"path"`
-	Hash    string   `json:"hash"`
-	Writes  []string `json:"writes"`
+	Name        string   `json:"name"`
+	Place       string   `json:"place"`
+	Starter     bool     `json:"starter"`
+	Path        string   `json:"path"`
+	Hash        string   `json:"hash"`
+	Writes      []string `json:"writes"`
+	HasRoles    bool     `json:"has_roles"`
+	HasProfiles bool     `json:"has_profiles"`
 }
 
 // apiCheck is the answer of POST /api/{kind}/check (spec-boundary 5): what is

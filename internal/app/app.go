@@ -813,14 +813,19 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// The folder, the layer's role documents a starter team reads, and the
-	// starter profile go in one write, which hergy new and the team screen both
-	// call (C8). A role document is the layer's, not the team's (K5), so it goes
-	// into the layer's roles/ directory and one that is already there is left
-	// alone.
+	// A starter team's roles and profile are the ones the person uses only when
+	// neither place holds any: a role or profile a place already holds is chosen
+	// from, not written again into the place the definition goes to (r-54b8,
+	// d-86b1). The role documents are the layer's, not the team's (K5), so one
+	// that is written goes into the layer's roles/ directory.
+	hasRoles := newteam.HasRoles(cat)
+	hasProfiles, err := newteam.HasProfiles(cat)
+	if err != nil {
+		return err
+	}
 	written, err := newteam.Write(newteam.In{
 		Catalog: cat, Layer: layer, Name: name, Lang: i18n.Language(),
-		Files: files, Starter: true,
+		Files: files, Starter: true, StarterRoles: !hasRoles, StarterProfile: !hasProfiles,
 	})
 	if err != nil {
 		return err
@@ -851,12 +856,59 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 		field(stdout, label("profile"), scaffold.ProfileName)
 		field(stdout, label("file"), env.Display(written.Profile))
 	}
+	// A definition whose members name a role or profile no place holds is kept as
+	// it stands: the files are the person's to write, and the sentence says which
+	// member keys to fill from what the places hold (r-54b8).
+	missing := false
+	if len(written.Missing) > 0 {
+		field(stdout, label("note"), i18n.Tf("new.roles_missing", joinNames(written.Missing), joinNames(existingRoleNames(cat))))
+		missing = true
+	}
+	if written.ProfileMissing {
+		field(stdout, label("note"), i18n.Tf("new.profile_missing", scaffold.ProfileName, joinNames(existingProfileNames(cat))))
+		missing = true
+	}
 	if madeConfig {
 		field(stdout, label("config"), env.Display(configPath))
 	}
 	ruleid.Print(stdout, given)
-	printNext(stdout, "up "+name+" --dry")
+	if missing {
+		printNext(stdout, "validate")
+	} else {
+		printNext(stdout, "up "+name+" --dry")
+	}
 	return nil
+}
+
+// joinNames writes the names one sentence lists, in the language in use.
+func joinNames(names []string) string {
+	return strings.Join(names, i18n.T("list.separator"))
+}
+
+// existingRoleNames is the role documents either place holds, by name: what a
+// definition's members choose from (r-54b8).
+func existingRoleNames(cat *catalog.Catalog) []string {
+	var out []string
+	for _, role := range cat.Roles() {
+		if role.HasDocument {
+			out = append(out, role.Name)
+		}
+	}
+	return out
+}
+
+// existingProfileNames is the profiles either place defines, by name, sorted.
+func existingProfileNames(cat *catalog.Catalog) []string {
+	profiles, _, err := cat.Profiles()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(profiles))
+	for name := range profiles {
+		out = append(out, name)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // effectiveLayer is the place a definition's name resolves to: the project's

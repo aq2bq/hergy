@@ -719,11 +719,13 @@ func TestTeamsYamlLine(t *testing.T) {
 // (spec-teams B2, B7), as the tests look at it.
 type t2TestDraft struct {
 	Draft struct {
-		Name    string   `json:"name"`
-		Place   string   `json:"place"`
-		Starter bool     `json:"starter"`
-		Path    string   `json:"path"`
-		Writes  []string `json:"writes"`
+		Name        string   `json:"name"`
+		Place       string   `json:"place"`
+		Starter     bool     `json:"starter"`
+		Path        string   `json:"path"`
+		Writes      []string `json:"writes"`
+		HasRoles    bool     `json:"has_roles"`
+		HasProfiles bool     `json:"has_profiles"`
 	} `json:"draft"`
 	Problems []t2TestProblem `json:"problems"`
 	Doc      struct {
@@ -782,11 +784,26 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	// figure's own sentences stand beside it all the same — a row that was just
 	// added shows the mission's warning while the name is being typed (B2, N1).
 	empty := checkOne("")
-	if len(empty.Problems) != 2 || empty.Problems[0].At != "name" || empty.Problems[1].At != "mission" {
-		t.Fatalf("an empty name answers %+v, want the name's problem and the mission's warning", empty.Problems)
+	if len(empty.Problems) < 2 || empty.Problems[0].At != "name" {
+		t.Fatalf("an empty name answers %+v, want the name's problem first and the figure's own beside it", empty.Problems)
 	}
 	if want := i18n.T("error.team_name_needed"); empty.Problems[0].Text != want {
 		t.Errorf("the empty name's problem reads %q, want %q", empty.Problems[0].Text, want)
+	}
+	// The starter's members name a profile the fixture does not hold: the person
+	// chooses one from what is there, so the row keeps saying so (r-54b8).
+	profiles := 0
+	mission := false
+	for _, p := range empty.Problems[1:] {
+		if p.At == "mission" {
+			mission = true
+		}
+		if strings.HasSuffix(p.At, ".profile") {
+			profiles++
+		}
+	}
+	if !mission || profiles != 2 {
+		t.Errorf("an empty name answers %+v, want the mission's warning and 2 profile problems", empty.Problems)
 	}
 
 	// A name the place already holds is a name problem too, in the words the
@@ -814,11 +831,18 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	for _, want := range []string{
 		filepath.Join(dir, "team.yaml"),
 		filepath.Join(dir, "agreement.yaml"),
-		filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 	} {
 		if !slices.Contains(draft.Draft.Writes, want) {
 			t.Errorf("the writes read %v, want %s among them", draft.Draft.Writes, want)
 		}
+	}
+	// The fixture holds the starter roles and profiles already, so the row writes
+	// neither: the person chooses from what is there (r-54b8).
+	if len(draft.Draft.Writes) != 2 {
+		t.Errorf("the writes read %v, want the definition's own two files", draft.Draft.Writes)
+	}
+	if !draft.Draft.HasRoles || !draft.Draft.HasProfiles {
+		t.Errorf("the draft reads has_roles %v has_profiles %v, want both true", draft.Draft.HasRoles, draft.Draft.HasProfiles)
 	}
 	// The starter's own figure: two members, and the mission placeholder
 	// validate warns about (B2).
@@ -856,10 +880,12 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 
 // TestTEAMS_N3_DraftSaveWritesTheStarterFolder: saving a definition that is not there
 // yet writes hergy new's own files, so the screen and the command cannot drift
-// (spec-teams B2, C8, N3).
+// (spec-teams B2, C8, N3). The fixture holds the starter roles and a
+// profiles.yaml already, so the save writes neither (r-54b8).
 func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
+	profilesBefore := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
 		"place": "project", "name": "ops", "part": "folder", "new": true,
 		"doc": map[string]any{"ops": []any{}},
@@ -895,9 +921,10 @@ func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !strings.Contains(got, "PAAF") {
 		t.Errorf("the layer's own lead.yaml was written over:\n%s", got)
 	}
-	// The starter profile went into the layer's profiles.yaml.
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); !strings.Contains(got, scaffold.ProfileName) {
-		t.Errorf("profiles.yaml does not hold the starter profile:\n%s", got)
+	// The profiles a place already defines are the ones the members choose from,
+	// so the starter profile is not written (r-54b8).
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); got != profilesBefore {
+		t.Errorf("the save rewrote the profiles.yaml:\n%s\nwant it as it was:\n%s", got, profilesBefore)
 	}
 	// The definition is in the list now, and the answer carries it (B4).
 	if !strings.Contains(body, `"ops"`) {
@@ -1369,4 +1396,147 @@ func TestTeamsSayARoleNameThatIsNotOne(t *testing.T) {
 		return
 	}
 	t.Fatal("the list holds no demo")
+}
+
+// roleFiles is the role document names under one place, sorted.
+func roleFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(dir, "roles"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, entry := range entries {
+		out = append(out, entry.Name())
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose: a new definition
+// whose members' roles and profile the person did not choose writes its own two
+// files alone, and both places' roles/ and the profiles.yaml stand as they were
+// (r-54b8, ac-ff73). The check says which roles the person picks from.
+func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	// This project holds no role of its own; the global place holds one.
+	if err := os.RemoveAll(filepath.Join(f.proj, ".hergy", "roles")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(f.global, "roles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.global, "roles", "analyst.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	profilesBefore := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
+
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "ops", "part": "team", "new": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	draft := teamsDraft(t, body)
+	if !draft.Draft.HasRoles || !draft.Draft.HasProfiles {
+		t.Errorf("the draft reads has_roles %v has_profiles %v, want both true", draft.Draft.HasRoles, draft.Draft.HasProfiles)
+	}
+	if len(draft.Draft.Writes) != 2 {
+		t.Errorf("the writes read %v, want the definition's own two files", draft.Draft.Writes)
+	}
+	want := i18n.Tf("error.role_to_choose", "lead", "analyst")
+	found := false
+	for _, p := range draft.Problems {
+		if p.Text == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the draft's problems read %+v, want %q among them", draft.Problems, want)
+	}
+
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
+		"place": "project", "name": "ops", "part": "folder", "new": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	if got := roleFiles(t, filepath.Join(f.proj, ".hergy")); len(got) != 0 {
+		t.Errorf("the save wrote the project's roles/: %v", got)
+	}
+	if got := roleFiles(t, f.global); !slices.Equal(got, []string{"analyst.yaml"}) {
+		t.Errorf("the save changed the global roles/: %v", got)
+	}
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); got != profilesBefore {
+		t.Errorf("the save rewrote the profiles.yaml:\n%s\nwant it as it was:\n%s", got, profilesBefore)
+	}
+}
+
+// TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem: with neither
+// place holding a role document or a profile, the starter roles and profile are
+// written only when the request asks for them (r-54b8, d-86b1).
+func TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	if err := os.RemoveAll(filepath.Join(f.proj, ".hergy", "roles")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(f.proj, ".hergy", "profiles.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing is there: the two starters are what a person can choose.
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "ops", "part": "team", "new": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	none := teamsDraft(t, body)
+	if none.Draft.HasRoles || none.Draft.HasProfiles {
+		t.Errorf("the draft reads has_roles %v has_profiles %v, want both false", none.Draft.HasRoles, none.Draft.HasProfiles)
+	}
+	if len(none.Draft.Writes) != 2 {
+		t.Errorf("the writes read %v, want the definition's own two files before the person chooses", none.Draft.Writes)
+	}
+	// The person asks for both: the starter role documents and profile join.
+	resp, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+		"place": "project", "name": "ops", "part": "team", "new": true,
+		"starter_roles": true, "starter_profile": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/team/check answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	chosen := teamsDraft(t, body)
+	base := filepath.Join(f.proj, ".hergy")
+	for _, want := range []string{
+		filepath.Join(base, "roles", "lead.yaml"),
+		filepath.Join(base, "roles", "builder.yaml"),
+		filepath.Join(base, "profiles.yaml"),
+	} {
+		if !slices.Contains(chosen.Draft.Writes, want) {
+			t.Errorf("the writes read %v, want %s among them", chosen.Draft.Writes, want)
+		}
+	}
+	resp, body = f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
+		"place": "project", "name": "ops", "part": "folder", "new": true,
+		"starter_roles": true, "starter_profile": true,
+		"doc": map[string]any{"ops": []any{}},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
+	}
+	if got := roleFiles(t, base); !slices.Equal(got, []string{"builder.yaml", "lead.yaml"}) {
+		t.Errorf("the project's roles/ read %v, want the starter's two", got)
+	}
+	if got := readFile(t, filepath.Join(base, "profiles.yaml")); !strings.Contains(got, scaffold.ProfileName) {
+		t.Errorf("profiles.yaml does not hold the starter profile:\n%s", got)
+	}
 }

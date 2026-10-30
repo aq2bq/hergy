@@ -8,10 +8,10 @@
 // is the module's: the preview and the line a turn adds
 // (internal/web/jstest/teams-preview.test.js, TestTEAMS_Y6), and a definition
 // whose names do not resolve (internal/web/jstest/teams-names.test.js).
-import { test, expect, hergyNew } from './fixtures';
-import { realpathSync, readdirSync, readFileSync } from 'node:fs';
+import { test, expect } from './fixtures';
+import { realpathSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { diff, press, q, read, readTo, set, there, wait } from './helpers';
+import { choose, diff, press, q, read, readTo, set, there, wait } from './helpers';
 
 test.use({ reads: 'teams' });
 
@@ -47,6 +47,26 @@ const draft = q('.tdef[data-name^="~new"]');
 
 // there2 is whether one element stands inside one panel expression.
 const there2 = (panel: string, find: string) => `!!${panel}.querySelector(${JSON.stringify(find)})`;
+
+// roleNames is the role documents one place holds, sorted: what a new
+// definition must not add to (r-54b8).
+const roleNames = (dir: string): string[] => {
+  try {
+    return readdirSync(path.join(dir, 'roles')).sort();
+  } catch {
+    return [];
+  }
+};
+
+// pickProfile picks one profile for one member of a definition a person is
+// making: the card's select holds the profiles the places hold, and a starter
+// name no place holds says to choose one (r-54b8).
+async function pickProfile(page: Parameters<typeof read>[0], panel: string, member: string, profile: string): Promise<void> {
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=${member}]')`);
+  await wait(page, there2(panel, '.cv-side [data-cv-f=m-profile]'));
+  await choose(page, `${panel}.querySelector('.cv-side [data-cv-f=m-profile]')`, profile);
+  await wait(page, `${panel}.querySelector('.cv-side [data-cv-f=m-profile]').value===${JSON.stringify(profile)}`);
+}
 
 // workerPurpose is e2eTeamsWorkerPurpose's browser-only part: the worker a
 // person hires takes its purpose one letter at a time without the cursor leaving
@@ -186,11 +206,10 @@ test('TEAMS-P5 the definition a person edits', async ({ page, app }) => {
 });
 
 test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
-  // B1: a new definition saved from the ルール tab (監査 R9), the starter
-  // profile added to the project's profiles.yaml with one edit (R3), the band
-  // following the save (R7), the shared place's role documents written and its
-  // profiles.yaml not written, 取り消し writing nothing (N8), and a delete taking
-  // one definition away (N7).
+  // B1: a new definition saved from the ルール tab (監査 R9), the roles and
+  // profiles both places hold left as they are (r-54b8), the band following the
+  // save (R7), the shared place's own files written, 取り消し writing nothing
+  // (N8), and a delete taking one definition away (N7).
   await page.goto(`${app.base}/teams`);
   await wait(page, there('#view .tdef'));
   await wait(page, `document.querySelectorAll('#view .tdef').length===6`);
@@ -198,13 +217,27 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   // walk counts from it.
   const list = `document.querySelectorAll('#view .tdef').length`;
 
-  const scaffold = hergyNew('ops');
-  const profileFile = path.join(app.proj, '.hergy', 'profiles.yaml');
+  const proj = path.join(app.proj, '.hergy');
+  const global = path.join(app.cfg, 'hergy');
+  const projRoles = roleNames(proj), globalRoles = roleNames(global);
+  const profileFile = path.join(proj, 'profiles.yaml');
   const beforeProfile = readFileSync(profileFile, 'utf8');
+  const globalProfileFile = path.join(global, 'profiles.yaml');
+  const beforeGlobalProfile = readFileSync(globalProfileFile, 'utf8');
+
   await press(page, q('.toolbar [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
   await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
+  // The project holds the starter roles, so the members' roles are the ones
+  // there; the starter profile is not there, so each member picks one from the
+  // profiles the places hold (r-54b8).
+  await wait(page, there2(draft, '.cv-canvas svg'));
+  await pickProfile(page, draft, 'lead', 'sonnet-fast');
+  await pickProfile(page, draft, 'builder', 'sonnet-fast');
+  // The band lists the definition's own two files alone: no role document, no
+  // profiles.yaml (r-54b8).
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===2`);
   await wait(page, `${draft}.querySelector('[data-act=t-save]').disabled===false`);
   // 監査 R9: the row that is not there yet is saved from the ルール tab.
   await press(page, `${draft}.querySelector('.dtabs .dtab[data-t=agree]')`);
@@ -218,12 +251,12 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
     `${q('#view .tdef')}.dataset.name`,
     'the saved row stands first as, want ops',
   ).toBe('ops');
-  // R3: the starter profile is added to the project's profiles.yaml with one
-  // edit, so every other line a person wrote comes back as it was.
-  expect(
-    readFileSync(profileFile, 'utf8'),
-    "the save rewrote the project's profiles.yaml, want only the starter profile added",
-  ).toBe(`${beforeProfile}  claude-default:\n    kind: claude\n`);
+  // R3/r-54b8: the save wrote the definition's own files alone, so both places'
+  // roles/ and profiles.yaml stand as they were.
+  expect(roleNames(proj), "the project's save wrote role documents").toEqual(projRoles);
+  expect(roleNames(global), "the project's save wrote the shared role documents").toEqual(globalRoles);
+  expect(readFileSync(profileFile, 'utf8'), "the project's save wrote profiles.yaml").toBe(beforeProfile);
+  expect(readFileSync(globalProfileFile, 'utf8'), "the project's save wrote the shared profiles.yaml").toBe(beforeGlobalProfile);
   // R7: the band's number follows the save.
   await readTo<string>(
     page,
@@ -231,8 +264,9 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
     'the band counts the saved definition, want 7',
   ).toBe('7');
 
-  // N4: the same name saved into 共通 writes the shared place, with the role
-  // documents and the profile that place does not hold (B2, Y3).
+  // N4: the same name saved into グローバル writes that place's own files; the
+  // roles and profiles both places hold are chosen, not written (B2, Y3,
+  // r-54b8).
   await press(page, q('.toolbar [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   // The place comes first: the same name in プロジェクト is taken by the save
@@ -243,52 +277,17 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
     `${draft}.querySelector('.c-place .seg button[data-x=global]').classList.contains('on')`,
   );
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
+  await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
+  await wait(page, there2(draft, '.cv-canvas svg'));
+  await pickProfile(page, draft, 'lead', 'sonnet-fast');
+  await pickProfile(page, draft, 'builder', 'sonnet-fast');
   await wait(page, `${draft}.querySelector('[data-act=t-save]').disabled===false`);
   await press(page, `${draft}.querySelector('[data-act=t-save]')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
-  // The two role documents the shared place lacks are written; the 中 test sees
-  // the project's side alone.
-  const global = path.join(app.cfg, 'hergy');
-  // The role documents carry the scaffold's own lines; their ids are the ones
-  // hergy gave this write, so they differ from the ids of another `hergy new`
-  // in another project, and no id is shared with the project's own (d-4aab).
-  const withoutIDs = (text: string) => {
-    // An id takes the item's dash; a key that stood under it gets the dash back,
-    // so the file reads as the template does (d-4aab).
-    const kept: string[] = [];
-    let dash = -1;
-    for (const line of text.split('\n')) {
-      const trim = line.trim();
-      if (trim.startsWith('- id: ')) {
-        dash = line.length - line.trimStart().length;
-        continue;
-      }
-      if (trim.startsWith('id: ')) continue;
-      if (dash >= 0) {
-        kept.push(' '.repeat(dash) + '- ' + trim);
-        dash = -1;
-        continue;
-      }
-      kept.push(line);
-    }
-    return kept.join('\n');
-  };
-  const idsIn = (text: string) => [...text.matchAll(/^\s*-?\s*id: ([A-Z0-9]+)$/gm)].map((m) => m[1]);
-  for (const name of ['lead.yaml', 'builder.yaml']) {
-    const shared = readFileSync(path.join(global, 'roles', name), 'utf8');
-    const own = scaffold.roles.get(name) || '';
-    expect(withoutIDs(shared), `the shared roles/${name} reads, want the scaffold's own`).toBe(withoutIDs(own));
-    const sharedIDs = idsIn(shared);
-    expect(sharedIDs.length, `the shared roles/${name} has no rule`).toBeGreaterThan(0);
-    for (const id of sharedIDs) {
-      expect(id, `the shared roles/${name} has an id hergy does not write`).toMatch(/^[A-HJKMNP-TV-Z][A-HJKMNP-TV-Z0-9]{3}$/);
-      expect(idsIn(own), `the shared roles/${name} shares an id with the project's own`).not.toContain(id);
-    }
-  }
-  expect(
-    readFileSync(path.join(global, 'profiles.yaml'), 'utf8'),
-    "the shared profiles.yaml was written although the project's own resolves the starter profile",
-  ).not.toContain('claude-default');
+  expect(roleNames(global), "the shared place's save wrote role documents").toEqual(globalRoles);
+  expect(roleNames(proj), "the shared place's save wrote the project's role documents").toEqual(projRoles);
+  expect(readFileSync(globalProfileFile, 'utf8'), "the shared place's save wrote its profiles.yaml").toBe(beforeGlobalProfile);
+  expect(readFileSync(profileFile, 'utf8'), "the shared place's save wrote the project's profiles.yaml").toBe(beforeProfile);
 
   // N8: 取り消し takes a row that is not there yet out and writes nothing.
   let before = await read<number>(page, list);
@@ -492,4 +491,43 @@ test('TEAMS-R1 the rules tab is the same switch and the same three fields', asyn
   await wait(page, there('.tdef[data-name="core"] .panel.agree-p .rule.open .redit'));
   const labels = await page.$$eval('.tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > label, .tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > .fl', (els) => els.map((e) => (e.textContent || '').trim()));
   expect(labels, 'the team rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
+});
+
+test('TEAMS-N1b the starter roles and profile are written only when asked', async ({ page, app }) => {
+  // r-54b8: with neither place holding a role document or a profile, the new
+  // row lists its own two files alone, says what is missing, and writes the
+  // starter roles and profile only when the person presses their buttons.
+  const proj = path.join(app.proj, '.hergy');
+  const global = path.join(app.cfg, 'hergy');
+  for (const dir of [proj, global]) {
+    rmSync(path.join(dir, 'roles'), { recursive: true, force: true });
+    rmSync(path.join(dir, 'profiles.yaml'), { force: true });
+  }
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there('#view .tdef'));
+  await press(page, q('.toolbar [data-act=new]'));
+  await wait(page, there2(draft, '.in-name'));
+  await set(page, `${draft}.querySelector('.in-name')`, 'ops');
+  await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
+  await wait(page, there2(draft, '.cv-canvas svg'));
+  // The band lists team.yaml and agreement.yaml; the notice says both are
+  // missing.
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===2`);
+  await wait(page, there2(draft, '[data-act=starter-roles]'));
+  await wait(page, there2(draft, '[data-act=starter-profile]'));
+  // Pressing the starter roles adds the two role documents to the band, and
+  // pressing again takes them away: nothing is written before the press.
+  await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===4`);
+  await wait(page, `${draft}.querySelector('[data-act=starter-roles]').textContent.indexOf('使わない')>=0`);
+  await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===2`);
+  // Asking for both writes the starter roles and the starter profile.
+  await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);
+  await press(page, `${draft}.querySelector('[data-act=starter-profile]')`);
+  await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===5`);
+  await press(page, `${draft}.querySelector('[data-act=t-save]')`);
+  await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
+  expect(roleNames(proj), "the save's role documents read").toEqual(['builder.yaml', 'lead.yaml']);
+  expect(readFileSync(path.join(proj, 'profiles.yaml'), 'utf8'), 'the save wrote the starter profile').toContain('claude-default');
 });

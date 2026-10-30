@@ -1907,6 +1907,10 @@ export interface components {
             hash: string;
             /** @description 保存で書き込むファイルのパス */
             writes: string[];
+            /** @description どちらかの置き場所にロールの文書があるか。無ければ、メンバーのロールはひな形のロールから選ぶ（r-54b8） */
+            has_roles: boolean;
+            /** @description どちらかの置き場所にプロファイルがあるか。無ければ、メンバーのプロファイルはひな形のプロファイルから選ぶ（r-54b8） */
+            has_profiles: boolean;
         };
         /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
         TeamSaved: {
@@ -1943,6 +1947,10 @@ export interface components {
             part?: string;
             /** @description 雛形から作るチーム定義か */
             new?: boolean;
+            /** @description ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8） */
+            starter_roles?: boolean;
+            /** @description ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8） */
+            starter_profile?: boolean;
             /** @description 複製またはコピー元のチーム定義 */
             base?: components["schemas"]["TeamBase"] | null;
             /** @description YAML 全文を入力するときの文 */
@@ -1966,6 +1974,10 @@ export interface components {
             agreement_hash?: string;
             /** @description 雛形から作るチーム定義か */
             new?: boolean;
+            /** @description ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8） */
+            starter_roles?: boolean;
+            /** @description ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8） */
+            starter_profile?: boolean;
             /** @description 複製またはコピー元のチーム定義 */
             base?: components["schemas"]["TeamBase"] | null;
             /** @description YAML 全文を保存するときの文 */

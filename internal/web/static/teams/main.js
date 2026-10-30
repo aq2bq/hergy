@@ -340,7 +340,7 @@ var debounce = (k, fn, ms = 260) => {
 };
 var dkey = (d) => d.dom + "." + d.place.value;
 var domOf = (name, group) => GROUPED ? name + "|" + (group || "") : name;
-var draftIn = (r) => !r.draftRow ? {} : r.how === "new" ? { new: true } : { base: r.base };
+var draftIn = (r) => !r.draftRow ? {} : r.how === "new" ? { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value } : { base: r.base };
 var projectIn = (project) => project && project !== "global" ? { project } : {};
 var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
 var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
@@ -465,6 +465,10 @@ function recOf(init) {
     seeded: y(init.seeded),
     writes: y(init.writes),
     nameIssues: y(init.nameIssues),
+    hasRoles: y(init.hasRoles),
+    hasProfiles: y(init.hasProfiles),
+    starterRoles: y(init.starterRoles),
+    starterProfile: y(init.starterProfile),
     preview: y(init.preview),
     baseFindings: y(init.baseFindings),
     prompts: y(init.prompts),
@@ -555,6 +559,10 @@ function defOf(item, project) {
     seeded: true,
     writes: [],
     nameIssues: [],
+    hasRoles: false,
+    hasProfiles: false,
+    starterRoles: false,
+    starterProfile: false,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
@@ -614,6 +622,10 @@ function draftRecord(how, place, name, base, project) {
     seeded: false,
     writes: [],
     nameIssues: [],
+    hasRoles: false,
+    hasProfiles: false,
+    starterRoles: false,
+    starterProfile: false,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
@@ -875,6 +887,8 @@ function applyTeamAnswer(r, json, findings) {
   const draft = json.draft;
   if (r.draftRow && draft) {
     r.writes.value = draft.writes || r.writes.value;
+    r.hasRoles.value = !!draft.has_roles;
+    r.hasProfiles.value = !!draft.has_profiles;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === "name" || p.field === "name");
     if (draft.path)
       r.teamPath.value = draft.path;
@@ -1211,11 +1225,12 @@ function workerPrompt(r, i) {
   });
   return null;
 }
+var rowGroup = (r) => r ? r.project || (r.place.value === "global" ? "global" : CURRENT) : CURRENT;
 function rolesFor(r) {
   ROLES_REV.value;
   if (!HQ)
     return ROLES.value;
-  const key = r ? groupOfRecord(r) : CURRENT;
+  const key = rowGroup(r);
   const all = key === "global" ? Object.values(ROLES_BY).flat() : (ROLES_BY[key] || []).concat(ROLES_BY.global || []);
   const seen = new Set;
   return all.filter((x) => !seen.has(x.name) && seen.add(x.name));
@@ -1224,7 +1239,7 @@ function profilesFor(r) {
   ROLES_REV.value;
   if (!HQ)
     return PROFILES;
-  const key = r ? groupOfRecord(r) : CURRENT;
+  const key = rowGroup(r);
   const all = key === "global" ? Object.values(PROFILES_BY).flat() : (PROFILES_BY[key] || []).concat(PROFILES_BY.global || []);
   const seen = new Set;
   return all.filter((x) => !seen.has(x) && seen.add(x));
@@ -1454,6 +1469,14 @@ function pressToggle(r) {
 }
 async function pressNew() {
   await addDraft("new", "project", "", null, GROUPED ? CURRENT : "");
+}
+function pressStarterRoles(r) {
+  r.starterRoles.value = !r.starterRoles.value;
+  checkTeam(r);
+}
+function pressStarterProfile(r) {
+  r.starterProfile.value = !r.starterProfile.value;
+  checkTeam(r);
 }
 async function pressDup(r) {
   await addDraft("dup", r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
@@ -3287,14 +3310,22 @@ function SideAttr({ r }) {
             children: /* @__PURE__ */ u("select", {
               id: `cv-mr-${team}`,
               "data-cv-f": "m-role",
-              children: (rolesFor(r) || []).map((x) => /* @__PURE__ */ u(Opt, {
-                v: x.name,
-                on: x.name === m.role,
-                children: [
-                  x.name,
-                  x.title ? ` · ${x.title}` : ""
-                ]
-              }))
+              children: [
+                role ? null : /* @__PURE__ */ u("option", {
+                  value: "",
+                  disabled: true,
+                  selected: true,
+                  children: "ロールを選ぶ"
+                }),
+                (rolesFor(r) || []).map((x) => /* @__PURE__ */ u(Opt, {
+                  v: x.name,
+                  on: x.name === m.role,
+                  children: [
+                    x.name,
+                    x.title ? ` · ${x.title}` : ""
+                  ]
+                }))
+              ]
             })
           }),
           /* @__PURE__ */ u("span", {
@@ -3322,11 +3353,19 @@ function SideAttr({ r }) {
             children: /* @__PURE__ */ u("select", {
               id: `cv-mp-${team}`,
               "data-cv-f": "m-profile",
-              children: profilesFor(r).map((p) => /* @__PURE__ */ u(Opt, {
-                v: p,
-                on: p === m.profile,
-                children: p
-              }))
+              children: [
+                profilesFor(r).includes(m.profile) ? null : /* @__PURE__ */ u("option", {
+                  value: "",
+                  disabled: true,
+                  selected: true,
+                  children: "プロファイルを選ぶ"
+                }),
+                profilesFor(r).map((p) => /* @__PURE__ */ u(Opt, {
+                  v: p,
+                  on: p === m.profile,
+                  children: p
+                }))
+              ]
             })
           })
         ]
@@ -4723,6 +4762,9 @@ function TeamPanel({ r }) {
     "data-key": k,
     children: [
       head,
+      /* @__PURE__ */ u(StarterNote, {
+        r
+      }),
       /* @__PURE__ */ u(Canvas, {
         r,
         vlist: /* @__PURE__ */ u(VList, {
@@ -4732,6 +4774,50 @@ function TeamPanel({ r }) {
       /* @__PURE__ */ u(Foot, {
         r
       })
+    ]
+  });
+}
+function StarterNote({ r }) {
+  if (!r.draftRow)
+    return null;
+  const roles = !r.hasRoles.value, profiles = !r.hasProfiles.value;
+  if (!roles && !profiles)
+    return null;
+  return /* @__PURE__ */ u("div", {
+    class: "starter",
+    children: [
+      roles ? /* @__PURE__ */ u("div", {
+        class: "st-item",
+        children: [
+          /* @__PURE__ */ u("span", {
+            children: "プロジェクトにもグローバルにも、ロールがありません。メンバーのロールを選ぶには、ロールが要ります。"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            "data-act": "starter-roles",
+            "aria-pressed": r.starterRoles.value,
+            onClick: () => pressStarterRoles(r),
+            children: r.starterRoles.value ? "ひな形のロールを使わない" : "ひな形のロール lead と builder を使う"
+          })
+        ]
+      }) : null,
+      profiles ? /* @__PURE__ */ u("div", {
+        class: "st-item",
+        children: [
+          /* @__PURE__ */ u("span", {
+            children: "プロジェクトにもグローバルにも、プロファイルがありません。メンバーのプロファイルを選ぶには、プロファイルが要ります。"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            "data-act": "starter-profile",
+            "aria-pressed": r.starterProfile.value,
+            onClick: () => pressStarterProfile(r),
+            children: r.starterProfile.value ? "ひな形のプロファイルを使わない" : "ひな形のプロファイル claude-default を使う"
+          })
+        ]
+      }) : null
     ]
   });
 }

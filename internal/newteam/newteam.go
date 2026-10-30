@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -33,10 +34,19 @@ type In struct {
 	Lang string
 	// Files are the definition's own files, in the order they are written.
 	Files []scaffold.File
-	// Starter says this definition is made from the scaffold, so the layer's
-	// role documents and the starter profile go with it. A copy of another
-	// definition writes only Files (spec-teams B3).
+	// Starter says this definition is made from the scaffold, so the starter
+	// roles and the starter profile may go with it. A copy of another definition
+	// writes only Files (spec-teams B3).
 	Starter bool
+	// StarterRoles says this definition's members use the starter roles, so a
+	// starter role document no place holds is written. hergy new asks for them
+	// only when neither place holds a role document at all; the team screen asks
+	// when the person pressed the starter-roles button (r-54b8, d-86b1).
+	StarterRoles bool
+	// StarterProfile says the starter profile goes with this definition: it is
+	// added to the layer's profiles.yaml when neither place defines it. hergy
+	// new and the team screen ask for it the way they ask for StarterRoles.
+	StarterProfile bool
 }
 
 // Written is what one write makes, as paths, in the order they are written.
@@ -45,12 +55,20 @@ type Written struct {
 	Files []string
 	// Roles are the layer's role documents hergy wrote.
 	Roles []string
-	// Kept are the layer's role documents already there, left as they are
-	// (K5).
+	// Kept are the role documents already there — in either place — left as
+	// they are (K5).
 	Kept []string
 	// Profile is the layer's profiles.yaml, when the starter profile was added
-	// to it; "" when the layer already resolved the name.
+	// to it; "" when a place already resolved the name or the person did not ask
+	// for it.
 	Profile string
+	// Missing are the starter roles the definition's members name that no place
+	// holds and this write does not write, in the scaffold's order. hergy new
+	// and the team screen say what to choose instead (r-54b8).
+	Missing []string
+	// ProfileMissing says the starter profile the definition's members name is
+	// held by neither place and this write does not add it.
+	ProfileMissing bool
 }
 
 // Plan is what a write would make, without writing: the same paths Write
@@ -131,8 +149,10 @@ func Write(in In) (Written, error) {
 }
 
 // plan is what a write would make: the paths, and, for a starter write, the role
-// documents to write and to leave, and the starter profile when the layer cannot
-// resolve it.
+// documents to write and to leave, and the starter profile when no place
+// resolves it and the person asked for it. A role document either place holds is
+// looked up across both places, the way a member's role is (K1), so a starter
+// team does not write over a global role into the project (r-54b8).
 func plan(in In) (Written, error) {
 	base := in.Catalog.LayerDir(in.Layer)
 	dir := filepath.Join(base, "teams", in.Name)
@@ -148,24 +168,53 @@ func plan(in In) (Written, error) {
 		return Written{}, err
 	}
 	for _, role := range roles {
-		path := filepath.Join(base, "roles", role.Path)
-		switch _, err := os.Stat(path); {
-		case err == nil:
-			out.Kept = append(out.Kept, path)
-		case errors.Is(err, os.ErrNotExist):
-			out.Roles = append(out.Roles, path)
-		default:
-			return Written{}, err
+		name := strings.TrimSuffix(role.Path, ".yaml")
+		if doc, ok := in.Catalog.Role(name); ok {
+			out.Kept = append(out.Kept, doc.Path)
+			continue
 		}
+		if in.StarterRoles {
+			out.Roles = append(out.Roles, filepath.Join(base, "roles", role.Path))
+			continue
+		}
+		out.Missing = append(out.Missing, name)
 	}
 	profiles, _, err := in.Catalog.Profiles()
 	if err != nil {
 		return Written{}, err
 	}
-	if _, ok := profiles[scaffold.ProfileName]; !ok {
+	if _, ok := profiles[scaffold.ProfileName]; ok {
+		return out, nil
+	}
+	if in.StarterProfile {
 		out.Profile = filepath.Join(base, "profiles.yaml")
+	} else {
+		out.ProfileMissing = true
 	}
 	return out, nil
+}
+
+// HasRoles reports whether either place holds a role document: a role a new
+// definition's members can choose. A name only a definition writes, with no
+// document behind it, is not one (r-54b8).
+func HasRoles(cat *catalog.Catalog) bool {
+	for _, role := range cat.Roles() {
+		if role.HasDocument {
+			return true
+		}
+	}
+	return false
+}
+
+// HasProfiles reports whether either place defines a profile, so a new
+// definition's members choose from them rather than the starter profile
+// (r-54b8). A profiles.yaml that does not read is the error it is.
+func HasProfiles(cat *catalog.Catalog) (bool, error) {
+	profiles, _, err := cat.Profiles()
+	if err != nil {
+		return false, err
+	}
+	return len(profiles) > 0, nil
 }
 
 // writeFile writes one file, making the directories it needs.

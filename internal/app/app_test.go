@@ -405,6 +405,49 @@ func TestNewShape(t *testing.T) {
 	)
 }
 
+// TestNewUpDryPassesWithNoRoleAnywhere: with neither place holding a role or a
+// profile, hergy new writes the starter ones, and the definition it wrote runs
+// through up --dry as it is (ac-b0ca, r-54b8).
+func TestNewUpDryPassesWithNoRoleAnywhere(t *testing.T) {
+	newFixture(t)
+	mustRun(t, "new", "demo")
+	if got := mustRun(t, "up", "demo", "--dry"); !strings.HasSuffix(got, "next: up demo\n") {
+		t.Fatalf("up --dry of the definition new wrote does not end with its next step:\n%s", got)
+	}
+}
+
+// TestNewLeavesTheRolesAndProfilesAlreadyThere: a role document or a profile
+// either place already holds is chosen from, not written again into the place
+// the definition goes to: hergy new says which roles and profiles to write in
+// team.yaml, and the next step is validate (r-54b8, d-86b1).
+func TestNewLeavesTheRolesAndProfilesAlreadyThere(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "analyst.yaml"), "version: 1\nsections: []\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  coder:\n    kind: claude\n")
+	got := mustRun(t, "new", "demo")
+	for _, line := range []string{
+		"note: " + i18n.Tf("new.roles_missing", "lead, builder", "analyst"),
+		"note: " + i18n.Tf("new.profile_missing", "claude-default", "coder"),
+		"next: validate",
+	} {
+		if !strings.Contains(got, line+"\n") {
+			t.Errorf("new does not say %q:\n%s", line, got)
+		}
+	}
+	if strings.Contains(got, "role document:") || strings.Contains(got, "profile: claude-default") {
+		t.Errorf("new reports role documents or the starter profile it did not write:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !os.IsNotExist(err) {
+		t.Errorf("new wrote the project's lead.yaml over the global role: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "profiles.yaml")); !os.IsNotExist(err) {
+		t.Errorf("new wrote the project's profiles.yaml: %v", err)
+	}
+	if strings.Contains(got, "next: up demo --dry") {
+		t.Errorf("new names up --dry although the members' roles and profile are not resolved:\n%s", got)
+	}
+}
+
 // TestNewCreatesTheGlobalConfigWhenMissing: a first new writes the global
 // config.yaml (and the hergy/ directory) with version: 1 and the run's language,
 // and reports the file as one more output line.

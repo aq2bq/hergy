@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get the team's `team.yaml` and `agreement.yaml` (its agreements), and `roles/lead.yaml` and `roles/builder.yaml`. A rule file is YAML: each rule has its body, whether it is on, the day it was switched off and a note for people. hergy writes the rule's id itself — four characters such as `K7QF`, with no meaning — when it writes the file; do not write one, and do not change one already there. Only the body of a rule that is on is sent to the agent; a note is never sent.
+You get the team's `team.yaml` and `agreement.yaml` (its agreements). The members' roles and profile are picked from what the project or the global settings already hold: a role document or a profile that is there is not written again. Only when neither place holds a role document does `hergy new` write `roles/lead.yaml` and `roles/builder.yaml`, and only when neither defines a profile does it write `claude-default` into `profiles.yaml`. Otherwise it names the roles and profiles to write in `team.yaml`, and `hergy validate` is the next step. A rule file is YAML: each rule has its body, whether it is on, the day it was switched off and a note for people. hergy writes the rule's id itself — four characters such as `K7QF`, with no meaning — when it writes the file; do not write one, and do not change one already there. Only the body of a rule that is on is sent to the agent; a note is never sent.
 
 Run it in a herdr shell pane.
 
@@ -62,7 +62,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 
 | Command | What it does |
 |---|---|
-| `hergy new <definition>` | Write out a starter team definition of two, a lead and a worker |
+| `hergy new <definition>` | Write out a starter team definition of two, a lead and a worker; roles and profiles either place already holds are picked, not written |
 | `hergy up [definition]` | Start a team from a team definition, named by `--as` (the definition name by default). `--dry` prints the plan (each member's prompt as text) without touching herdr; `--json` prints the plan as JSON instead |
 | `hergy down [team]` / `hergy down [worker]` | Close the live panes of the running team's members and the workers the team hired. A name that is not a running team is looked for as a worker of one (short or herdr name), and only that worker's pane is closed; its own tab goes when that pane was the last one in it. After closing, down lists the git worktrees the panes stood in (other than the project root), with their branch, uncommitted changes and commits not in main, and the project's stashes, with the commands that remove them — hergy removes nothing, and temporary documents are not listed. `--dry` prints what would close; a team's tab is never closed as a unit |
 | `hergy status [team]` | With a team name: one line per member and per worker, the live `agent_status` (working/idle/done/blocked), or `not present` when the member is not live; a worker carries `(worker)`. Then who is waiting on the human (`blocked`), or that nobody is working. With no team name: every running team, with its team definition, its counts and the same judgement. Reads herdr only |

@@ -21,6 +21,7 @@ import {
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressPlace, pressDiscard,
+  pressStarterRoles, pressStarterProfile,
   pressDel, pressDelNo, pressDelYes, pressName, pressMission, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved,
@@ -310,9 +311,36 @@ function TeamPanel({ r }: { r: Rec }) {
   return (
     <section class="panel team-p" data-key={k}>
       {head}
+      <StarterNote r={r} />
       <Canvas r={r} vlist={<VList r={r} />} />
       <Foot r={r} />
     </section>
+  );
+}
+
+// StarterNote is what a new definition says when no place holds the role
+// documents or the profiles its members need: the person chooses from what is
+// there, or asks for the starter ones, which the save writes only then
+// (r-54b8, d-86b1). A row with nothing missing says nothing.
+function StarterNote({ r }: { r: Rec }) {
+  if (!r.draftRow) return null;
+  const roles = !r.hasRoles.value, profiles = !r.hasProfiles.value;
+  if (!roles && !profiles) return null;
+  return (
+    <div class="starter">
+      {roles ? (
+        <div class="st-item">
+          <span>プロジェクトにもグローバルにも、ロールがありません。メンバーのロールを選ぶには、ロールが要ります。</span>
+          <button class="btn sm" type="button" data-act="starter-roles" aria-pressed={r.starterRoles.value} onClick={() => pressStarterRoles(r)}>{r.starterRoles.value ? 'ひな形のロールを使わない' : 'ひな形のロール lead と builder を使う'}</button>
+        </div>
+      ) : null}
+      {profiles ? (
+        <div class="st-item">
+          <span>プロジェクトにもグローバルにも、プロファイルがありません。メンバーのプロファイルを選ぶには、プロファイルが要ります。</span>
+          <button class="btn sm" type="button" data-act="starter-profile" aria-pressed={r.starterProfile.value} onClick={() => pressStarterProfile(r)}>{r.starterProfile.value ? 'ひな形のプロファイルを使わない' : 'ひな形のプロファイル claude-default を使う'}</button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

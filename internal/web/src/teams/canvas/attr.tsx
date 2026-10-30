@@ -173,12 +173,12 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
       </div>
       <div class="cv-f">
         <label for={`cv-mr-${team}`}>ロール</label>
-        <span class="sel"><select id={`cv-mr-${team}`} data-cv-f="m-role">{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
+        <span class="sel"><select id={`cv-mr-${team}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>ロールを選ぶ</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
         <span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span>
       </div>
       <div class="cv-f">
         <label for={`cv-mp-${team}`}>プロファイル</label>
-        <span class="sel"><select id={`cv-mp-${team}`} data-cv-f="m-profile">{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
+        <span class="sel"><select id={`cv-mp-${team}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>プロファイルを選ぶ</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
       </div>
       <div class="cv-sec">
         <span class="cv-sl">ターンを渡す相手</span>{turnRows(t, s, id, 'out')}

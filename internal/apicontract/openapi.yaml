@@ -3728,7 +3728,7 @@ components:
       description: まだ保存していないチーム定義だけが持つ欄。
       type: object
       additionalProperties: false
-      required: [name, place, starter, path, hash, writes]
+      required: [name, place, starter, path, hash, writes, has_roles, has_profiles]
       properties:
         name:
           type: string
@@ -3751,6 +3751,12 @@ components:
           items:
             type: string
           description: 保存で書き込むファイルのパス
+        has_roles:
+          type: boolean
+          description: どちらかの置き場所にロールの文書があるか。無ければ、メンバーのロールはひな形のロールから選ぶ（r-54b8）
+        has_profiles:
+          type: boolean
+          description: どちらかの置き場所にプロファイルがあるか。無ければ、メンバーのプロファイルはひな形のプロファイルから選ぶ（r-54b8）
     TeamSaved:
       description: 保存したチーム定義またはチームのルールと、保存後の一覧。
       type: object
@@ -3815,6 +3821,12 @@ components:
         new:
           type: boolean
           description: 雛形から作るチーム定義か
+        starter_roles:
+          type: boolean
+          description: ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8）
+        starter_profile:
+          type: boolean
+          description: ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8）
         base:
           allOf:
             - $ref: '#/components/schemas/TeamBase'
@@ -3855,6 +3867,12 @@ components:
         new:
           type: boolean
           description: 雛形から作るチーム定義か
+        starter_roles:
+          type: boolean
+          description: ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8）
+        starter_profile:
+          type: boolean
+          description: ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8）
         base:
           allOf:
             - $ref: '#/components/schemas/TeamBase'

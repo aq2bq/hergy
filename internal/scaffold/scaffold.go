@@ -25,8 +25,9 @@ var Names = []string{"team.yaml", "agreement.yaml"}
 
 // RoleNames are the role documents the starter team's members read. They are not
 // the team's own files: a role document lives once per layer, at
-// <layer>/roles/<role>.yaml (K5), so hergy new writes them there and leaves one
-// that is already there alone.
+// <layer>/roles/<role>.yaml (K5), so hergy new writes them there only when
+// neither place holds a role document, and the team screen only when the person
+// presses the starter-roles button (r-54b8).
 var RoleNames = []string{"lead.yaml", "builder.yaml"}
 
 // The profile the starter team's members name, and the engine it picks. hergy
