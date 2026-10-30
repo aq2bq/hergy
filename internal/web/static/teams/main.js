@@ -126,8 +126,52 @@ function ring(t, narrowPage) {
   });
   return out;
 }
-function place(t, placed, narrowPage) {
+function pack(t) {
+  const ids = t.members.map((m) => m.name);
+  const n = ids.length;
+  if (!n)
+    return { human: [0, 0] };
+  const rows = Math.ceil(n / 4);
+  const cols = Math.ceil(n / rows);
+  const colW = Math.max(96, ...ids.map((id) => boxOf(id, t).w)) + 56;
+  const rowY = [];
+  const rowH = [];
+  let y = 84;
+  for (let r = 0;r < rows; r++) {
+    const row = ids.slice(r * cols, (r + 1) * cols);
+    const memberH = Math.max(...row.map((id) => boxOf(id, t).h));
+    const workers = Math.max(0, ...row.map((id) => t.workers.filter((w) => w.from === id).length));
+    const workerH = workers ? Math.max(...t.workers.map((_w, i) => boxOf("w" + i, t).h)) : 0;
+    rowH[r] = memberH + (workers ? 26 + workers * (workerH + 8) : 0) + 26;
+    rowY[r] = y + memberH / 2;
+    y += rowH[r];
+  }
+  const out = { human: [0, 0] };
+  ids.forEach((id, i) => {
+    const r = Math.floor(i / cols), c = i % cols;
+    const inRow = Math.min(cols, n - r * cols);
+    out[id] = [(c - (inRow - 1) / 2) * colW, rowY[r]];
+  });
+  t.workers.forEach((w, i) => {
+    const from = out[w.from], id = "w" + i;
+    if (!from)
+      return;
+    const b = boxOf(id, t), hb = boxOf(w.from, t);
+    const k = t.workers.slice(0, i).filter((x) => x.from === w.from).length;
+    out[id] = [from[0], from[1] + hb.h / 2 + 26 + k * (b.h + 8)];
+  });
+  return out;
+}
+function place(t, placed, narrowPage, wide) {
   const put = placed || {};
+  if (wide) {
+    const base = pack(t);
+    Object.keys(put).forEach((id) => {
+      if (base[id])
+        base[id] = [put[id][0], put[id][1]];
+    });
+    return base;
+  }
   const ids = ["human", ...t.members.map((m) => m.name), ...(t.workers || []).map((_worker, i) => "w" + i)];
   const out = {};
   ids.forEach((id) => {
@@ -434,14 +478,28 @@ function recOf(init) {
     wprompts: y({}),
     wpromptReq: {},
     placed: y({}),
+    wide: y(false),
+    moved: new Set,
     draft: O(() => applyOps(r.saved.value, r.ops.value)),
     key: O(() => dkey(r)),
-    layout: O(() => place(r.draft.value, r.placed.value, thin.value))
+    layout: O(() => place(r.draft.value, r.placed.value, thin.value, r.wide.value))
   };
   return r;
 }
 function seedPlaces(r) {
-  r.placed.value = place(r.draft.value, r.placed.value, thin.value);
+  r.placed.value = place(r.draft.value, r.placed.value, thin.value, r.wide.value);
+}
+function setWide(r) {
+  if (r.wide.value)
+    return;
+  r.wide.value = true;
+  const kept = {};
+  r.moved.forEach((id) => {
+    const q = r.placed.value[id];
+    if (q)
+      kept[id] = [q[0], q[1]];
+  });
+  r.placed.value = place(r.draft.value, kept, thin.value, true);
 }
 var recs = y([]);
 var uids = 0;
@@ -578,6 +636,7 @@ function seedDraft(r, json) {
   const agree = doc.agreement || NO_AGREEMENT;
   r.seeded.value = true;
   r.placed.value = {};
+  r.moved.clear();
   r.saved.value = cloneTeam(doc);
   r.broken.value = !!doc.broken;
   r.teamPath.value = draft.path || "";
@@ -1120,6 +1179,7 @@ function resetCanvas(r) {
   r.typed.value = null;
   r.flash.value = null;
   r.placed.value = {};
+  r.moved.clear();
   seedPlaces(r);
 }
 var WRK_NAME = "zz-worker-name-0";
@@ -1627,10 +1687,13 @@ var selOf = (r) => livePick(r, r.sel.value);
 var sideOf = (r) => r.side.value || "attr";
 var layoutOf = (r) => r.layout.value;
 function putPlace(r, id, at) {
+  r.moved.add(id);
   r.placed.value = { ...r.placed.value, [id]: [at[0], at[1]] };
 }
 function renamePlace(r, from, to) {
   const { [from]: was, ...rest } = r.placed.value;
+  if (r.moved.delete(from))
+    r.moved.add(to);
   r.placed.value = was ? { ...rest, [to]: was } : rest;
 }
 var edgePt = (a, box, b) => {
@@ -1915,8 +1978,8 @@ function Bdg({ m, b }) {
     ]
   });
 }
-function Figure({ r }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+function frameOf(r) {
+  const t = r.draft.value, p = layoutOf(r);
   const ids = ["human", ...t.members.map((m) => m.name)];
   const all = ids.concat(t.workers.map((_w, i) => "w" + i));
   const boxes = {};
@@ -1926,6 +1989,12 @@ function Figure({ r }) {
   const xs = all.flatMap((id) => [p[id][0] - boxes[id].w / 2, p[id][0] + boxes[id].w / 2]);
   const ys = all.flatMap((id) => [p[id][1] - boxes[id].h / 2, p[id][1] + boxes[id].h / 2]);
   const pad = 40, vx = Math.min(...xs) - pad, vy = Math.min(...ys) - pad, vw = Math.max(...xs) - vx + pad, vh = Math.max(...ys) - vy + pad;
+  return { boxes, vx, vy, vw, vh };
+}
+function Figure({ r }) {
+  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const { boxes, vx, vy, vw, vh } = frameOf(r);
+  const ids = ["human", ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, "_");
   const turns = new Map;
   t.turns.forEach(([a, b]) => {
@@ -2136,7 +2205,11 @@ function Figure({ r }) {
     })
   });
   return /* @__PURE__ */ u("svg", {
+    width: Math.round(vw),
+    height: Math.round(vh),
     viewBox: `${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`,
+    "data-vw": Math.round(vw),
+    "data-vh": Math.round(vh),
     role: "group",
     "aria-label": `${r.name.value} のトポロジー`,
     children: [
@@ -3865,13 +3938,56 @@ function mountCanvas(el) {
   });
 }
 // teams/canvas.tsx
+var MIN_SCALE = 0.8;
+function fitFigure(main, r, f) {
+  const cv = main.querySelector(".cv-canvas");
+  const svg = cv ? cv.querySelector("svg") : null;
+  if (!cv || !svg || !f.vw || !f.vh)
+    return;
+  const panel = main.closest(".panel.team-p");
+  const row = panel ? panel.closest(".tdef") : null;
+  const head = row ? row.querySelector(":scope > .sum") : null;
+  const foot = panel ? panel.querySelector("footer.pf") : null;
+  const vlist = main.querySelector(".vlist");
+  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
+  const fromPanel = panel ? cv.getBoundingClientRect().top - panel.getBoundingClientRect().top : cv.getBoundingClientRect().top;
+  const top = stick + (head ? head.offsetHeight : 0) + fromPanel;
+  const below = (vlist ? vlist.offsetHeight : 0) + (foot ? foot.offsetHeight : 0) + 12;
+  const room = Math.max(160, Math.floor(window.innerHeight - top - below));
+  const across = Math.max(160, cv.clientWidth - 2);
+  let scale = Math.min(1, across / f.vw, room / f.vh);
+  if (scale < MIN_SCALE && !r.wide.value) {
+    setWide(r);
+    return;
+  }
+  scale = Math.max(MIN_SCALE, scale);
+  const w = `${Math.round(f.vw * scale)}px`, h = `${Math.round(f.vh * scale)}px`;
+  if (svg.style.width !== w || svg.style.height !== h) {
+    svg.style.width = w;
+    svg.style.height = h;
+  }
+}
+function fitFigures() {
+  Array.from(document.querySelectorAll(".panel.team-p")).forEach((panel) => {
+    const main = panel.querySelector(".cv-main"), svg = panel.querySelector(".cv-canvas svg");
+    if (!main || !svg)
+      return;
+    const r = recs.value.find((x) => dkey(x) === panel.dataset.key);
+    if (!r)
+      return;
+    fitFigure(main, r, { vw: Number(svg.dataset.vw) || 0, vh: Number(svg.dataset.vh) || 0 });
+  });
+}
 function Canvas({ r, vlist }) {
   const box = A(null);
+  const frame = frameOf(r);
   _(() => {
     const el = box.current;
     if (el)
       fitYbox(el);
     afterTPrev(r);
+    if (el)
+      fitFigure(el, r, frame);
   });
   const sel = selOf(r);
   const cur = sel, side = sideOf(r);
@@ -4162,9 +4278,26 @@ function GroupHead({ g }) {
     ]
   });
 }
+function bringUnderBand(row) {
+  const head = row ? row.querySelector(":scope > .sum") : null;
+  if (!head)
+    return;
+  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
+  const delta = head.getBoundingClientRect().top - stick;
+  if (Math.abs(delta) < 2)
+    return;
+  const quiet = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollBy({ top: delta, behavior: quiet ? "auto" : "smooth" });
+}
 function Row({ r }) {
   const open = isOpen(r.dom);
   const el = A(null);
+  const wasOpen = A(false);
+  h(() => {
+    if (open && !wasOpen.current)
+      bringUnderBand(el.current);
+    wasOpen.current = open;
+  }, [open]);
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.dom !== r.dom || !el.current)
@@ -5058,6 +5191,7 @@ if (view) {
       } else {
         fitYboxes();
       }
+      fitFigures();
     }, 160);
   });
   let ft = false;

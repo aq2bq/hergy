@@ -77,13 +77,58 @@ function ring(t: Figure, narrowPage: boolean): Positions {
   return out;
 }
 
+// pack lays the points in rows under the human: the members across, and each
+// member's workers stacked under it in the same column. It is the shape a ring
+// too tall for the screen is drawn in (d-943f): wide and short, so a team of
+// eight fits at a readable size.
+function pack(t: Figure): Positions {
+  const ids = t.members.map((m) => m.name);
+  const n = ids.length;
+  if (!n) return { human: [0, 0] };
+  const rows = Math.ceil(n / 4);
+  const cols = Math.ceil(n / rows);
+  const colW = Math.max(96, ...ids.map((id) => boxOf(id, t).w)) + 56;
+  const rowY: number[] = [];
+  const rowH: number[] = [];
+  let y = 84;
+  for (let r = 0; r < rows; r++) {
+    const row = ids.slice(r * cols, (r + 1) * cols);
+    const memberH = Math.max(...row.map((id) => boxOf(id, t).h));
+    const workers = Math.max(0, ...row.map((id) => t.workers.filter((w) => w.from === id).length));
+    const workerH = workers ? Math.max(...t.workers.map((_w, i) => boxOf('w' + i, t).h)) : 0;
+    rowH[r] = memberH + (workers ? 26 + workers * (workerH + 8) : 0) + 26;
+    rowY[r] = y + memberH / 2;
+    y += rowH[r];
+  }
+  const out: Positions = { human: [0, 0] };
+  ids.forEach((id, i) => {
+    const r = Math.floor(i / cols), c = i % cols;
+    const inRow = Math.min(cols, n - r * cols);
+    out[id] = [(c - (inRow - 1) / 2) * colW, rowY[r]];
+  });
+  t.workers.forEach((w, i) => {
+    const from = out[w.from], id = 'w' + i;
+    if (!from) return;
+    const b = boxOf(id, t), hb = boxOf(w.from, t);
+    const k = t.workers.slice(0, i).filter((x) => x.from === w.from).length;
+    out[id] = [from[0], from[1] + hb.h / 2 + 26 + k * (b.h + 8)];
+  });
+  return out;
+}
+
 // place is every point's place as the figure draws it: the places already in the
 // record, and, for a point the record does not hold yet, a place in the nearest
 // room no other point holds. With no place at all it lays the row out afresh:
 // the human, the members round it, and their workers beside them. The places of
-// points the draft no longer holds are left out.
-export function place(t: Figure, placed?: Positions | null, narrowPage?: boolean): Positions {
+// points the draft no longer holds are left out. wide lays the automatic places
+// in rows instead, keeping the places a person put down (r-e39c).
+export function place(t: Figure, placed?: Positions | null, narrowPage?: boolean, wide?: boolean): Positions {
   const put = placed || {};
+  if (wide) {
+    const base = pack(t);
+    Object.keys(put).forEach((id) => { if (base[id]) base[id] = [put[id][0], put[id][1]]; });
+    return base;
+  }
   const ids = ['human', ...t.members.map((m) => m.name), ...(t.workers || []).map((_worker, i) => 'w' + i)];
   const out: Positions = {};
   ids.forEach((id) => { if (put[id]) out[id] = [put[id][0], put[id][1]]; });

@@ -106,12 +106,29 @@ function GroupHead({ g }: { g: Schemas['HQTeamGroup'] }) {
   return <div class="hq-gh" data-group={key}><span class="hq-gn">{groupNameOf(g)}</span><span class="hq-gp">{g.project ? g.project.display : ''}</span><span class="hq-gc">チーム定義 <b>{rowsIn(g).length}</b> · 動いているチーム <b>{live}</b></span></div>;
 }
 
+// bringUnderBand moves the page so an opened row's head stands under the band
+// (d-943f, r-e39c): the figure under it has the room the window has, and a row
+// opened low in the list is not opened half off the screen.
+function bringUnderBand(row: HTMLElement | null): void {
+  const head = row ? row.querySelector<HTMLElement>(':scope > .sum') : null;
+  if (!head) return;
+  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 62;
+  const delta = head.getBoundingClientRect().top - stick;
+  if (Math.abs(delta) < 2) return;
+  const quiet = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollBy({ top: delta, behavior: quiet ? 'auto' : 'smooth' });
+}
 // Row is one definition: the summary a person presses, and the detail it opens
 // under itself (spec-teams B1). The field a press asked for is put in place after
 // the draw, by the row itself (5 章 5): nobody puts the focus back later.
 function Row({ r }: { r: Rec }) {
   const open = isOpen(r.dom);
   const el = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) bringUnderBand(el.current);
+    wasOpen.current = open;
+  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.dom !== r.dom || !el.current) return;

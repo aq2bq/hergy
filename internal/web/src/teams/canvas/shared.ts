@@ -47,12 +47,14 @@ export const layoutOf = (r: Rec): Positions => r.layout.value;
 // putPlace puts one point down where a person put it (a double press's menu, or
 // a drag that was let go).
 export function putPlace(r: Rec, id: string, at: Spot): void {
+  r.moved.add(id);
   r.placed.value = { ...r.placed.value, [id]: [at[0], at[1]] };
 }
 
 // renamePlace carries the place of a member the person renamed.
 export function renamePlace(r: Rec, from: string, to: string): void {
   const { [from]: was, ...rest } = r.placed.value;
+  if (r.moved.delete(from)) r.moved.add(to);
   r.placed.value = was ? { ...rest, [to]: was } : rest;
 }
 

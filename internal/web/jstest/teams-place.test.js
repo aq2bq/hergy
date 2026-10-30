@@ -67,6 +67,34 @@ test('a reading writes nothing, and a point the draft no longer has is left out'
   expect(Object.keys(gone).sort()).toEqual(['human', 'lead']);
 });
 
+// wide is the shape a ring too tall for the screen is drawn in (r-e39c): the
+// human on top, the members in rows across, and each member's workers stacked
+// under it. It is shorter than the ring, and a place a person put down stays.
+test('a ring too tall for the window is laid out in rows', () => {
+  const members = Array.from({ length: 8 }, (_, i) => ({ name: `m${i}`, role: 'builder', profile: 'coder' }));
+  const t = draft({
+    members,
+    workers: [{ from: 'm0', purpose: '実装', profile: 'coder' }, { from: 'm0', purpose: '試験', profile: 'coder' }],
+  });
+  const wide = place(t, null, false, true);
+  // The human stands above every member, in rows of four.
+  expect(wide.human).toEqual([0, 0]);
+  members.forEach((m) => expect(wide[m.name][1]).toBeGreaterThan(wide.human[1]));
+  expect(wide.m0[1]).toBe(wide.m3[1]);
+  expect(wide.m4[1]).toBe(wide.m7[1]);
+  expect(wide.m4[1]).toBeGreaterThan(wide.m0[1]);
+  // A member's workers stand under it, in its own column.
+  expect(wide.w0[0]).toBe(wide.m0[0]);
+  expect(wide.w1[0]).toBe(wide.m0[0]);
+  expect(wide.w1[1]).toBeGreaterThan(wide.w0[1]);
+  expect(overlap(t, wide)).toBe('');
+  // The rows are shorter than the ring, which is what they are for.
+  const span = (p) => Math.max(...Object.values(p).map((q) => q[1])) - Math.min(...Object.values(p).map((q) => q[1]));
+  expect(span(wide)).toBeLessThan(span(place(t, null, false)));
+  // The place a person put a point down at is kept in the new shape.
+  expect(place(t, { m3: [-300, 40] }, false, true).m3).toEqual([-300, 40]);
+});
+
 test('a point added on the canvas is drawn where the record holds it', async () => {
   history.replaceState({}, '', '/teams?open=core');
   layout('teams-data', island());

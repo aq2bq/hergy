@@ -11,7 +11,7 @@ import {
   narrow, thin,
 } from './state.js';
 import { Tabs, App } from './view.js';
-import { mountCanvas, fitYboxes } from './canvas.js';
+import { mountCanvas, fitYboxes, fitFigures } from './canvas.js';
 
 if (view) {
   // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
@@ -41,6 +41,7 @@ if (view) {
       setStick();
       if (narrow() !== wasNarrow) { wasNarrow = narrow(); thin.value = wasNarrow; }
       else { fitYboxes(); }
+      fitFigures();
     }, 160);
   });
   // Where the save's band stands is a matter of where the page is, so the box

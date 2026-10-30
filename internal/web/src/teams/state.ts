@@ -262,6 +262,11 @@ export type Rec = {
   lastAct: Sig<number>;
   wprompts: Sig<Record<string, WorkerPrompt>>; wpromptReq: Record<string, boolean>;
   placed: Sig<Positions>; layout: Sig<Positions>;
+  // wide is the figure laid out in rows rather than round the human: a ring too
+  // tall for the screen is drawn this way (r-e39c). moved is the points a person
+  // put down by hand, so a new shape leaves them where they are (not a signal:
+  // it is read while the places are laid out).
+  wide: Sig<boolean>; moved: Set<string>;
   draft: Sig<Team>; key: Sig<string>;
 };
 // TeamBase is the definition a duplicate or a copy stands on.
@@ -388,9 +393,10 @@ function recOf(init: RecInit): Rec {
     // places above and an automatic place for the rest. The drawing reads layout
     // and writes nothing (webui-components 1 章).
     placed: signal<Positions>({}),
+    wide: signal(false), moved: new Set<string>(),
     draft: computed(() => applyOps(r.saved.value, r.ops.value)),
     key: computed(() => dkey(r)),
-    layout: computed(() => place(r.draft.value, r.placed.value, thin.value)),
+    layout: computed(() => place(r.draft.value, r.placed.value, thin.value, r.wide.value)),
   };
   return r;
 }
@@ -400,7 +406,19 @@ function recOf(init: RecInit): Rec {
 // figure draws what stands there and writes nothing, and a point that was laid
 // out does not move when another is added (webui-components 1 章).
 export function seedPlaces(r: Rec): void {
-  r.placed.value = place(r.draft.value, r.placed.value, thin.value);
+  r.placed.value = place(r.draft.value, r.placed.value, thin.value, r.wide.value);
+}
+// setWide lays the figure out in rows, for a ring too tall to draw at the
+// smallest size (r-e39c): every automatic place is taken again in that shape,
+// and the points a person put down stay where they are. The shape stays while
+// the row is open, so a window dragged near the edge does not swing between the
+// two shapes.
+export function setWide(r: Rec): void {
+  if (r.wide.value) return;
+  r.wide.value = true;
+  const kept: Positions = {};
+  r.moved.forEach((id) => { const q = r.placed.value[id]; if (q) kept[id] = [q[0], q[1]]; });
+  r.placed.value = place(r.draft.value, kept, thin.value, true);
 }
 export const recs = signal<Rec[]>([]);
 let uids = 0;
@@ -536,6 +554,7 @@ function seedDraft(r: Rec, json: CheckAnswer): void {
   // The base the row stands on is a draft of its own: its points are laid out
   // afresh, not kept from the empty one the row was made with.
   r.placed.value = {};
+  r.moved.clear();
   r.saved.value = cloneTeam(doc);
   r.broken.value = !!doc.broken;
   r.teamPath.value = draft.path || '';
@@ -1125,6 +1144,7 @@ export function resetCanvas(r: Rec): void {
   r.typed.value = null;
   r.flash.value = null;
   r.placed.value = {};
+  r.moved.clear();
   seedPlaces(r);
 }
 

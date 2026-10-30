@@ -22,8 +22,14 @@ function Bdg({ m, b }: { m: Finding; b: Box }) {
 }
 
 // ---- 図 --------------------------------------------------------------
-export function Figure({ r }: { r: Rec }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+// Frame is the room the figure is drawn in: the box of every point, and the
+// box the viewBox shows (the points' outline with a margin).
+export type Frame = { boxes: Record<string, Box>; vx: number; vy: number; vw: number; vh: number };
+
+// frameOf is the figure's own frame, read by the drawing and by the screen that
+// gives it the room it has (r-e39c).
+export function frameOf(r: Rec): Frame {
+  const t = r.draft.value, p = layoutOf(r);
   const ids = ['human', ...t.members.map((m) => m.name)];
   const all = ids.concat(t.workers.map((_w, i) => 'w' + i));
   const boxes: Record<string, Box> = {};
@@ -31,6 +37,13 @@ export function Figure({ r }: { r: Rec }) {
   const xs = all.flatMap((id) => [p[id][0] - boxes[id].w / 2, p[id][0] + boxes[id].w / 2]);
   const ys = all.flatMap((id) => [p[id][1] - boxes[id].h / 2, p[id][1] + boxes[id].h / 2]);
   const pad = 40, vx = Math.min(...xs) - pad, vy = Math.min(...ys) - pad, vw = Math.max(...xs) - vx + pad, vh = Math.max(...ys) - vy + pad;
+  return { boxes, vx, vy, vw, vh };
+}
+
+export function Figure({ r }: { r: Rec }) {
+  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const { boxes, vx, vy, vw, vh } = frameOf(r);
+  const ids = ['human', ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, '_');
 
   const turns = new Map<string, [string, string][]>();
@@ -114,7 +127,7 @@ export function Figure({ r }: { r: Rec }) {
     </marker>
   );
   return (
-    <svg viewBox={`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} role="group" aria-label={`${r.name.value} のトポロジー`}>
+    <svg width={Math.round(vw)} height={Math.round(vh)} viewBox={`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} data-vw={Math.round(vw)} data-vh={Math.round(vh)} role="group" aria-label={`${r.name.value} のトポロジー`}>
       <defs>{marker('n', 'n')}{marker('a', 'a')}{marker('c', 'c')}</defs>
       {wedges}{edges}{t.workers.map(wnode)}{ids.map(node)}{handles}<path class="cv-ghost" d="" hidden="hidden"></path><text class="cv-gl" x={0} y={0} hidden="hidden"></text>
     </svg>

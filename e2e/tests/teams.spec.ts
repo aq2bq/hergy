@@ -372,8 +372,10 @@ test('TEAMS-C1 the canvas adds a member, removes it, and adds a worker', async (
   await press(page, `${panel}.querySelector('.cv-menu [data-cv-act=menu-w]')`);
   await wait(page, there2(panel, '.cv-side [data-cv-f=w-purpose]'));
 
-  const box = await page.locator(`${css} .cv-canvas`).boundingBox();
-  expect(box, 'the canvas has no box').not.toBeNull();
+  // The blank space is the figure's own: the canvas around it is room, and a
+  // press there is not a press on the figure (r-e39c).
+  const box = await page.locator(`${css} .cv-canvas svg`).boundingBox();
+  expect(box, 'the figure has no box').not.toBeNull();
   const x = box!.x + 10, y = box!.y + 10;
   await page.mouse.dblclick(x, y);
   await wait(page, there2(panel, '.cv-menu'));
@@ -415,8 +417,8 @@ test('TEAMS-C3 ＋メンバー waits for the roles a new member is named after',
   await page.goto(`${app.base}/teams?open=core`);
   await page.waitForFunction(`!!(${panel}) && !!${panel}.querySelector('.cv-canvas svg')`);
   await page.waitForFunction(`${panel}.querySelector('[data-cv-act=m-add]').disabled===true`);
-  const box = await page.locator(`${css} .cv-canvas`).boundingBox();
-  expect(box, 'the canvas has no box').not.toBeNull();
+  const box = await page.locator(`${css} .cv-canvas svg`).boundingBox();
+  expect(box, 'the figure has no box').not.toBeNull();
   await page.mouse.dblclick(box!.x + 10, box!.y + 10);
   await page.waitForFunction(`!!${panel}.querySelector('.cv-menu [data-cv-act=menu-m]') && ${panel}.querySelector('.cv-menu [data-cv-act=menu-m]').disabled===true`);
   await page.keyboard.press('Escape');
