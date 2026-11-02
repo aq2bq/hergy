@@ -179,8 +179,10 @@ The default template is provisional.
 
 ## Contributing
 
-Before you send a change, run `go run ./tools/check`. It runs every quality
-gate CI runs (`go run ./tools/check -h` lists them).
+Before you send a change, run `go run ./tools/check diff` once. It selects
+checks for the changes since the upstream; CI runs every quality gate.
+After fixing a failed gate, rerun that gate only, unless the fix affects other
+gates. `go run ./tools/check -h` lists the checks.
 
 ## License
 
