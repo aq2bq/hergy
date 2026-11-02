@@ -222,10 +222,19 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   // same answer until the next check speaks.
   const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
   const nameError = nameIssue ? nameIssue.text : (refusal && refusal.at === 'name' ? refusal.text : '');
-  const docError = refusal && refusal.at === 'doc' ? refusal.text : '';
   const n = diffCount(e);
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.text));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (issues.some((m) => m.sev === 'err' && !before.has(m.text)) || n === 0));
+  const grew = issues.filter((m) => m.sev === 'err' && !before.has(m.text));
+  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (grew.length > 0 || n === 0));
+  // held is why 保存 is shut, in the server's own sentences (ac-456e): the save's
+  // refusal, the name's problem, and the errors the row grew over the document it
+  // reads. A rule's problem is drawn where the rule stands and a folded rule shows
+  // its count alone, so the way to fix a shut save stands beside the save too.
+  const held: string[] = [];
+  const say = (text: string | undefined) => { if (text && !held.includes(text)) held.push(text); };
+  say(refusal ? refusal.text : '');
+  say(nameIssue ? nameIssue.text : '');
+  (e.saved ? grew : issues.filter((m) => m.sev === 'err')).forEach((m) => say(m.text));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
       <header class="ph">
         <span class="ln">{placeLabel}</span>
@@ -246,7 +255,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         onRevert={() => pressRevertConflict(r.uid, l)}
         onUndo={() => pressUndoConflict(r.uid, l)} /> : null}
       <footer class="pf">
-        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button><span class="errline doc" hidden={!docError}>{docError}</span><span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
+        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button>{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}<span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
         <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}

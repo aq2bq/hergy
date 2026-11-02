@@ -435,7 +435,7 @@ func (k apiTeam) checkDraftAgreement(in apiIn) (any, *apiErr) {
 func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	s := k.s
 	if problems := s.t2NameProblems(in); len(problems) > 0 {
-		return nil, refuseAt(http.StatusUnprocessableEntity, "name", problems[0].Text)
+		return nil, refuseAt("name", problems[0].Text)
 	}
 	if err := s.t2LayerDir(in.Place); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())

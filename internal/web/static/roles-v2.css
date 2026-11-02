@@ -117,6 +117,10 @@ button { font: inherit; color: inherit; }
 .sev { font-size: 11px; line-height: 1.5; padding: 0 6px; border-radius: 3px; flex: none; font-weight: 500; white-space: nowrap; font-family: var(--f-body); }
 .sev.err { background: var(--danger); color: var(--danger-ink); }
 .sev.warn { background: var(--warn); color: var(--on-warn); }
+/* The sentence that says why 保存 is shut takes a line of the foot for itself
+   and wraps there, so the way to fix it is read to its last word at any window
+   width, and the page never scrolls sideways to show it (ac-456e). */
+.pf .sev.refusal { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .vm { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .vm:empty { display: none; }
 .vm li { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }

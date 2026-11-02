@@ -1385,6 +1385,13 @@ function badOf(panel) {
 function Panel({ panel }) {
   const changed = changedOf(panel);
   const bad = badOf(panel);
+  const held = [];
+  const say = (text) => {
+    if (text && !held.includes(text))
+      held.push(text);
+  };
+  say(panel.refusal);
+  (panel.problems || []).filter((p) => p.sev === "err").forEach((p) => say(p.text));
   const nameInput = A(null);
   const confirmButton = A(null);
   const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
@@ -1633,10 +1640,10 @@ function Panel({ panel }) {
             class: "ok",
             children: "保存しました"
           }) : "",
-          panel.refusal ? /* @__PURE__ */ u("span", {
+          held.length ? /* @__PURE__ */ u("span", {
             class: "sev err refusal",
-            children: panel.refusal
-          }) : "",
+            children: held.join(" ")
+          }) : null,
           /* @__PURE__ */ u("span", {
             class: "acts",
             children: panel.confirming ? /* @__PURE__ */ u(S, {

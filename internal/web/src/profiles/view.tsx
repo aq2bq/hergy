@@ -161,6 +161,13 @@ function badOf(panel: PanelState): { name: boolean; kind: boolean; args: Set<num
 function Panel({ panel }: { panel: PanelState }) {
   const changed = changedOf(panel);
   const bad = badOf(panel);
+  // held is why 保存 is shut, in the server's own sentences (ac-456e): the save's
+  // refusal and the errors the check named. Each problem stands beside its field,
+  // and the way to fix a shut save stands beside the save too.
+  const held: string[] = [];
+  const say = (text: string | undefined) => { if (text && !held.includes(text)) held.push(text); };
+  say(panel.refusal);
+  (panel.problems || []).filter((p) => p.sev === 'err').forEach((p) => say(p.text));
   const nameInput = useRef<HTMLInputElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
@@ -224,7 +231,7 @@ function Panel({ panel }: { panel: PanelState }) {
         onRevert={() => { pressRevertConflict(panel.key); scheduleCheck(panel.key); }}
         onUndo={() => { pressUndoConflict(panel.key); scheduleCheck(panel.key); }} /> : null}
       <footer class="pf">
-        <button class="btn primary" data-act="save" disabled={saveBlocked(panel)} onClick={() => pressSave(panel.key)}>保存</button><span class="dirty">{saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">{counts(panel)}</span>{panel.savedLine ? <span class="ok">保存しました</span> : ''}{panel.refusal ? <span class="sev err refusal">{panel.refusal}</span> : ''}
+        <button class="btn primary" data-act="save" disabled={saveBlocked(panel)} onClick={() => pressSave(panel.key)}>保存</button><span class="dirty">{saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">{counts(panel)}</span>{panel.savedLine ? <span class="ok">保存しました</span> : ''}{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}
         <span class="acts">{panel.confirming
           ? <>
             <button class="btn danger solid" data-act="del-yes" ref={confirmButton} onClick={() => pressDelYes(panel.key)}>削除する{panel.users ? `（${panel.users} 人が使っている）` : ''}</button>

@@ -2028,10 +2028,18 @@ function Panel({ r, l }) {
   const hold = conflictAt(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
-  const docError = refusal && refusal.at === "doc" ? refusal.text : "";
   const n = diffCount2(e);
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.text));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : issues.some((m) => m.sev === "err" && !before.has(m.text)) || n === 0);
+  const grew = issues.filter((m) => m.sev === "err" && !before.has(m.text));
+  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : grew.length > 0 || n === 0);
+  const held = [];
+  const say = (text) => {
+    if (text && !held.includes(text))
+      held.push(text);
+  };
+  say(refusal ? refusal.text : "");
+  say(nameIssue ? nameIssue.text : "");
+  (e.saved ? grew : issues.filter((m) => m.sev === "err")).forEach((m) => say(m.text));
   return /* @__PURE__ */ u("section", {
     class: "panel" + (shadowed ? " shadowed" : ""),
     "data-uid": r.uid,
@@ -2104,11 +2112,10 @@ function Panel({ r, l }) {
             onClick: () => doSave(r.uid, l),
             children: "保存"
           }),
-          /* @__PURE__ */ u("span", {
-            class: "errline doc",
-            hidden: !docError,
-            children: docError
-          }),
+          held.length ? /* @__PURE__ */ u("span", {
+            class: "sev err refusal",
+            children: held.join(" ")
+          }) : null,
           /* @__PURE__ */ u("span", {
             class: "dirty",
             children: e.saved && n ? `${n} か所` : ""

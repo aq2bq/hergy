@@ -91,9 +91,12 @@ type apiErr struct {
 // refuse is a refusal with the sentence alone.
 func refuse(status int, text string) *apiErr { return &apiErr{status: status, Text: text} }
 
-// refuseAt is a refusal that names the field the sentence belongs to.
-func refuseAt(status int, at, text string) *apiErr {
-	return &apiErr{status: status, At: at, Text: text}
+// refuseAt is a refusal that names the field the sentence belongs to: the
+// screen draws it beside that field, so the sentence is never a page's alone
+// (spec-boundary 3). Every name a kind refuses is one the person fixes in the
+// field it stands on, which is why the status is not the caller's to pass.
+func refuseAt(at, text string) *apiErr {
+	return &apiErr{status: http.StatusUnprocessableEntity, At: at, Text: text}
 }
 
 // apiList is the answer of GET /api/{kind} (spec-boundary 5): one item per name

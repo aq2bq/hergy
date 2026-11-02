@@ -453,36 +453,51 @@ const whyIn = (row: string) => `(${row}.querySelector('.pf .refusal') || null)`;
 // without pushing it left and right.
 const across = () => '(() => { const d = document.documentElement; return Math.max(d.scrollWidth, document.body.scrollWidth) - d.clientWidth; })()';
 
+// lastText is the last run of text one sentence holds: the sentence may stand in
+// a span inside the element, and the last character of the way to fix it is the
+// end of that run.
+const lastText = (el: string) => `(() => {
+  const w = ${el};
+  if (!w) return null;
+  const walk = document.createTreeWalker(w, NodeFilter.SHOW_TEXT);
+  let node = null;
+  while (walk.nextNode()) { if (walk.currentNode.length) node = walk.currentNode; }
+  return node; })()`;
+
 // whyWhole is whether the whole sentence stands inside the window.
-const whyWhole = (row: string) => `(() => { const w = ${whyIn(row)}; if (!w) return false; w.scrollIntoView({ block: 'center' });
+const whyWhole = (el: string) => `(() => { const w = ${el}; if (!w) return false; w.scrollIntoView({ block: 'center' });
   const r = w.getBoundingClientRect();
   return r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5 && r.bottom <= innerHeight + 0.5; })()`;
 
 // whyLast is whether the sentence's last character stands inside the window: the
 // way to fix it is the end of the sentence.
-const whyLast = (row: string) => `(() => { const w = ${whyIn(row)}; if (!w) return false; w.scrollIntoView({ block: 'center' });
-  const n = w.firstChild;
-  if (!n || n.nodeType !== 3 || !n.length) return false;
+const whyLast = (el: string) => `(() => { const w = ${el}; if (!w) return false; w.scrollIntoView({ block: 'center' });
+  const n = ${lastText(el)};
+  if (!n) return false;
   const g = document.createRange(); g.setStart(n, n.length - 1); g.setEnd(n, n.length);
   const r = g.getBoundingClientRect();
   return r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5 && r.bottom <= innerHeight + 0.5; })()`;
 
 // whyCut is whether the sentence is cut inside its own box.
-const whyCut = (row: string) => `(() => { const w = ${whyIn(row)}; return !w || w.scrollWidth > w.clientWidth + 1; })()`;
+const whyCut = (el: string) => `(() => { const w = ${el}; return !w || w.scrollWidth > w.clientWidth + 1; })()`;
 
-// reasonRead reads one row's reason at 1520 and at 500: the whole sentence and
-// its last character inside the window, nothing cut, no sideways scroll, and the
-// way to fix it still in the sentence.
-async function reasonRead(page: Page, row: string, tail: string, what: string): Promise<void> {
+// sentenceRead reads one sentence a screen shows about a save it does not offer,
+// at 1520 and at 500: the whole sentence and its last character inside the
+// window, nothing cut, no sideways scroll, and the way to fix it still in the
+// sentence. el is an expression for the sentence's element.
+async function sentenceRead(page: Page, el: string, tail: string, what: string): Promise<void> {
   for (const width of [1520, 500]) {
     await viewport(page, width, 900);
     await readTo<number>(page, across(), `the page of ${what} does not scroll sideways at ${width}`).toBeLessThanOrEqual(0);
-    await readTo<boolean>(page, whyWhole(row), `the whole reason of ${what} stands inside the window at ${width}`).toBe(true);
-    await readTo<boolean>(page, whyLast(row), `the last character of the reason of ${what} stands inside the window at ${width}`).toBe(true);
-    await readTo<boolean>(page, whyCut(row), `the reason of ${what} is not cut at ${width}`).toBe(false);
-    await readTo<string>(page, `${whyIn(row)}.textContent`, `the reason of ${what} still says how to fix it at ${width}`).toContain(tail);
+    await readTo<boolean>(page, whyWhole(el), `the whole reason of ${what} stands inside the window at ${width}`).toBe(true);
+    await readTo<boolean>(page, whyLast(el), `the last character of the reason of ${what} stands inside the window at ${width}`).toBe(true);
+    await readTo<boolean>(page, whyCut(el), `the reason of ${what} is not cut at ${width}`).toBe(false);
+    await readTo<string>(page, `${el}.textContent`, `the reason of ${what} still says how to fix it at ${width}`).toContain(tail);
   }
 }
+
+// reasonRead is sentenceRead for one row's foot.
+const reasonRead = (page: Page, row: string, tail: string, what: string) => sentenceRead(page, whyIn(row), tail, what);
 
 test('COPY-S1 a team definition copied from another listed project to the global layer saves', async ({ page, app }) => {
   const srcFile = betaFile(app, path.join('teams', 'beta-dev', 'team.yaml'));
@@ -796,4 +811,104 @@ test('COPY-C4 a name the global layer holds when the save comes is not written o
   await press(page, saveOfCopy('beta-dev'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
   expect(readFileSync(dstRole, 'utf8'), 'the copy wrote over the global layer’s own role document').toBe(mine);
+});
+
+// ---- COPY-R1 .. R3 and COPY-F1 .. F3 — r-a028, ac-456e, the role and profile
+// copies -------------------------------------------------------------------
+//
+// A copy of a role or a profile that cannot be saved must say why and what to
+// fix, the way a team definition's copy does. The sentence is read the same way:
+// the whole of it, its last character too, inside the window at 1520 and at 500,
+// with nothing cut and the page standing still sideways.
+// copyRowIn is the row under one head that is not there yet: the one whose panel
+// carries a name field. A walk keeps hold of a copy by it once its name changes,
+// because the name it is found by is the name being typed.
+const copyRowIn = (sel: string, group: string) => `(${rowsIn(rootOf(sel), sel, group)}.find((el) => el.querySelector('.panel .in-name')) || null)`;
+const rolePanel = () => `${copyRowIn(ROLES, GLOBAL)}.querySelector('.panel[data-l=global]')`;
+const profilePanel = () => `${copyRowIn(PROFILES, GLOBAL)}.querySelector('.panel[data-file=global]')`;
+const footOf = (panel: string) => `${panel}.querySelector('.pf .refusal')`;
+const saveOf = (panel: string) => `${panel}.querySelector('.pf [data-act=save]')`;
+
+test('COPY-R1 a copied role whose name is not a role name says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/roles`);
+  await wait(page, there(ROLES));
+  await open(page, ROLES, ALPHA, 'builder');
+  await press(page, copyButton(ROLES, ALPHA, 'builder', 'project'));
+  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}`);
+
+  // The name a person types is not one a role goes by.
+  await set(page, `${rolePanel()}.querySelector('.in-name')`, 'Builder');
+  await readTo<boolean>(page, `${saveOf(rolePanel())}.disabled`, 'the save of the copied role is shut').toBe(true);
+  await sentenceRead(page, footOf(rolePanel()), 'ロール名は英小文字で始め', 'a copied role whose name is not a role name');
+});
+
+test('COPY-R2 a copied role whose rule has no text says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/roles`);
+  await wait(page, there(ROLES));
+  await open(page, ROLES, ALPHA, 'builder');
+  await press(page, copyButton(ROLES, ALPHA, 'builder', 'project'));
+  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}`);
+
+  // The copy's one rule loses its text: the check names it, and the save shuts.
+  await press(page, `${rolePanel()}.querySelector('.rule .rsum')`);
+  await wait(page, `!!${rolePanel()}.querySelector('.redit [data-f=text]')`);
+  await set(page, `${rolePanel()}.querySelector('.redit [data-f=text]')`, '');
+  await readTo<boolean>(page, `${saveOf(rolePanel())}.disabled`, 'the save of the copied role is shut by its rule').toBe(true);
+  await sentenceRead(page, footOf(rolePanel()), '規則の本文を書いてください', 'a copied role whose rule has no text');
+});
+
+test('COPY-R3 a copied role saved on a name the global layer holds says why it was not written', async ({ page, app }) => {
+  await page.goto(`${app.base}/roles`);
+  await wait(page, there(ROLES));
+  await open(page, ROLES, ALPHA, 'builder');
+  await press(page, copyButton(ROLES, ALPHA, 'builder', 'project'));
+  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}`);
+
+  // The name the global layer holds: the save is refused, and the sentence says
+  // what happened and what to do (the check itself has nothing to say about a
+  // name another place holds).
+  await set(page, `${rolePanel()}.querySelector('.in-name')`, 'lead');
+  await press(page, saveOf(rolePanel()));
+  await readTo<string>(page, `${footOf(rolePanel())}.textContent`, 'the foot says the name is taken, and what to do').toContain('別のロール名を指定してください');
+  await sentenceRead(page, footOf(rolePanel()), '別のロール名を指定してください', 'a copied role saved on a name the global layer holds');
+});
+
+test('COPY-F1 a copied profile whose name is not a profile name says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/profiles`);
+  await wait(page, there(PROFILES));
+  await open(page, PROFILES, ALPHA, 'alpha-fast');
+  await press(page, copyButton(PROFILES, ALPHA, 'alpha-fast', 'project'));
+  await wait(page, `!!${rowIn(PROFILES, GLOBAL, 'alpha-fast')}`);
+
+  await set(page, `${profilePanel()}.querySelector('.in-name')`, 'Alpha Fast');
+  await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut').toBe(true);
+  await sentenceRead(page, footOf(profilePanel()), 'の形にしてください', 'a copied profile whose name is not a profile name');
+});
+
+test('COPY-F2 a copied profile whose name the global layer holds says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/profiles`);
+  await wait(page, there(PROFILES));
+  await open(page, PROFILES, ALPHA, 'alpha-fast');
+  await press(page, copyButton(PROFILES, ALPHA, 'alpha-fast', 'project'));
+  await wait(page, `!!${rowIn(PROFILES, GLOBAL, 'alpha-fast')}`);
+
+  await set(page, `${profilePanel()}.querySelector('.in-name')`, 'coder');
+  await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut by the name').toBe(true);
+  await sentenceRead(page, footOf(profilePanel()), 'はすでにあります', 'a copied profile whose name the global layer holds');
+});
+
+test('COPY-F3 a copied profile whose variable name is not a name says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/profiles`);
+  await wait(page, there(PROFILES));
+  await open(page, PROFILES, ALPHA, 'alpha-fast');
+  await press(page, copyButton(PROFILES, ALPHA, 'alpha-fast', 'project'));
+  await wait(page, `!!${rowIn(PROFILES, GLOBAL, 'alpha-fast')}`);
+
+  // The copy gains a variable whose name hergy cannot pass on: the check names
+  // it, and the save shuts.
+  await press(page, `${profilePanel()}.querySelector('[data-act=env-add]')`);
+  await wait(page, `!!${profilePanel()}.querySelector('.envrow [data-f=ek]')`);
+  await set(page, `${profilePanel()}.querySelector('.envrow [data-f=ek]')`, '1BAD');
+  await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut by its variable').toBe(true);
+  await sentenceRead(page, footOf(profilePanel()), '環境変数の名前として使えません', 'a copied profile whose variable name is not a name');
 });

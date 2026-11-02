@@ -301,7 +301,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	}
 	old := s.cat.RolePath(in.Place, savedName)
 	if err := catalog.RoleNameProblem(doc.Name); err != nil {
-		return nil, refuseAt(http.StatusUnprocessableEntity, "name", err.Error())
+		return nil, refuseAt("name", err.Error())
 	}
 	// The text the draft stands on: the file being replaced, or the file a
 	// duplicate or a copy is based on. A row with neither stands on nothing and
@@ -320,9 +320,13 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
 	rename := doc.Name != savedName
-	if rename {
+	// A name this place already holds is the name's problem, whether the document
+	// is being renamed or is not written yet (a duplicate or a copy). Such a row
+	// read no file at that name, so its own empty hash would otherwise read as a
+	// change another place made (r-a028, ac-456e).
+	if rename || in.Original == "" {
 		if _, err := os.Stat(target); err == nil {
-			return nil, refuseAt(http.StatusUnprocessableEntity, "name", tf("error.role_name_taken", doc.Name, s.cat.Display(target)))
+			return nil, refuseAt("name", tf("error.role_name_taken", doc.Name, s.cat.Display(target)))
 		}
 	}
 	base, baseErr := text, readErr
