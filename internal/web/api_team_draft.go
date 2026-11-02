@@ -131,7 +131,7 @@ func (s *Server) t2NameProblems(in apiIn) []apiProblem {
 // writes them (spec-teams B2): the definition's own two, the starter role
 // documents and the starter profile the person asked for and no place holds. The
 // screen shows these; it decides none of them.
-func (s *Server) t2DraftWrites(row t2DraftRow, name, team string) []string {
+func (s *Server) t2DraftWrites(row t2DraftRow, in apiIn, name, team string) []string {
 	// The team.yaml text is the row with its ops applied, so the starter roles
 	// and profile the save would write follow the members the row now has: a
 	// starter name no member uses is not one the person chose (r-54b8, d-86b1).
@@ -139,19 +139,22 @@ func (s *Server) t2DraftWrites(row t2DraftRow, name, team string) []string {
 	written, err := newteam.Plan(newteam.In{
 		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
 		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
+		Carry: s.carryIn(in),
 	})
 	if err != nil {
 		return nil
 	}
-	out := make([]string, 0, len(written.Files)+len(written.Roles)+1)
-	for _, path := range written.Files {
-		out = append(out, s.cat.Display(path))
-	}
-	for _, path := range written.Roles {
-		out = append(out, s.cat.Display(path))
+	out := make([]string, 0, len(written.Files)+len(written.Roles)+2)
+	for _, paths := range [][]string{written.Files, written.Roles, written.CarryRoles} {
+		for _, path := range paths {
+			out = append(out, s.cat.Display(path))
+		}
 	}
 	if written.Profile != "" {
 		out = append(out, s.cat.Display(written.Profile))
+	}
+	if written.CarryProfileFile != "" {
+		out = append(out, s.cat.Display(written.CarryProfileFile))
 	}
 	return out
 }
@@ -342,19 +345,33 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 		return nil, refusal
 	}
 	name := t2DraftCheckName(in.Name)
-	path := s.cat.TeamYAML(name, row.Layer)
-	display := s.cat.Display(s.cat.TeamYAML(in.Name, row.Layer))
 	// The row's own agreement is laid over beside its team.yaml, so the check
 	// reads the draft's rules rather than the rules of a definition that already
 	// holds the name: a row named after a saved definition is not told about
 	// that definition's rules (spec-teams B2, 監査 R6).
-	cat := s.cat.With(path, row.Team).With(s.t2AgreeFile(name, row.Layer), row.Agree)
+	//
+	// A copy of a project's definition reads the global layer alone: the copy
+	// would stand there, so what the global layer does not hold is what the row
+	// has to bring, and a role document or profile this serve's own project
+	// happens to hold is not the copy's (r-7e4a, d-dc81).
+	base := s.cat
+	if t2IsCopyToGlobal(in, row) {
+		base = s.globalCatalog()
+	}
+	path := base.TeamYAML(name, row.Layer)
+	display := base.Display(base.TeamYAML(in.Name, row.Layer))
+	cat := base.With(path, row.Team).With(s.t2AgreeFile(name, row.Layer), row.Agree)
 	report := check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: row.Layer, Ops: body.ops})
 	def, _ := cat.Definition(name, row.Layer)
 	findings := report.Problems
 	if row.Starter {
 		findings = s.t2StarterFindings(row, cat, def, findings)
 	}
+	// A copy of a project's definition brings its own two files alone: a name the
+	// global layer does not hold is said as one this row can bring, and a name the
+	// person chose is not reported, because the save writes it (r-7e4a, d-dc81).
+	carry := s.t2CarryOf(in, row, def)
+	findings = s.carryFindings(carry, t2ChosenOf(in), def, findings)
 	draft, err := t2ApplyOps(row.Team, display, body.ops)
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
@@ -362,12 +379,17 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 	problems := append(s.t2NameProblems(in), t2FigureProblems(findings, display)...)
 	hasRoles := newteam.HasRoles(cat)
 	hasProfiles, _ := newteam.HasProfiles(cat)
+	var apiCarry *apiCheckCarry
+	if carry != nil {
+		apiCarry = carry.answer()
+	}
 	return apiCheck{
 		Problems: problems,
 		Doc:      s.t2DocWithAgree(cat, in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
 		Draft: &apiCheckDraft{
 			Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
-			Writes: s.t2DraftWrites(row, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,
+			Writes: s.t2DraftWrites(row, in, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,
+			Carry: apiCarry,
 		},
 		Preview: apiTeamPreview{
 			Lines: definition.YAMLLines(draft),
@@ -442,6 +464,7 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	if _, err := newteam.Write(newteam.In{
 		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
 		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
+		Carry: s.carryIn(in),
 	}); err != nil {
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}

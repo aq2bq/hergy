@@ -8,6 +8,7 @@ package newteam
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -47,6 +48,26 @@ type In struct {
 	// added to the layer's profiles.yaml when neither place defines it. hergy
 	// new and the team screen ask for it the way they ask for StarterRoles.
 	StarterProfile bool
+	// Carry is what a copy of another layer's definition brings with it: the
+	// role documents and profiles the person chose, written into this layer as
+	// the layer they stand in holds them (r-7e4a). A copy writes the definition
+	// alone when nothing was chosen, and a name this layer already holds is left
+	// as it is.
+	Carry *Carry
+}
+
+// Carry is the layer a copy's documents are read from, and the names the person
+// chose to bring with it (r-7e4a, d-dc81).
+type Carry struct {
+	// Catalog reads the layer the definition the row stands on reads, so the
+	// carried documents are the ones that definition uses.
+	Catalog *catalog.Catalog
+	// Layer is that layer: source.LayerLocal or source.LayerGlobal.
+	Layer string
+	// Roles and Profiles are the names the person chose, in the order they are
+	// written.
+	Roles    []string
+	Profiles []string
 }
 
 // Written is what one write makes, as paths, in the order they are written.
@@ -69,6 +90,14 @@ type Written struct {
 	// ProfileMissing says the starter profile the definition's members name is
 	// held by neither place and this write does not add it.
 	ProfileMissing bool
+	// CarryRoles are the role documents this write copies into the layer from
+	// the layer the definition it copies stands in (r-7e4a).
+	CarryRoles []string
+	// CarryProfiles are the profile names this write adds to the layer's
+	// profiles.yaml from the same place, and CarryProfileFile is that
+	// profiles.yaml when any was added.
+	CarryProfiles    []string
+	CarryProfileFile string
 }
 
 // Plan is what a write would make, without writing: the same paths Write
@@ -89,12 +118,17 @@ func Write(in In) (Written, error) {
 		return Written{}, err
 	}
 	var made []string
-	// The profiles.yaml the starter profile goes into is put back as it was:
-	// the write may have made the file.
+	// The profiles.yaml this write adds to is put back as it was: the write may
+	// have made the file. The starter profile and the carried ones are added to
+	// the same file.
+	profilesFile := written.Profile
+	if profilesFile == "" {
+		profilesFile = written.CarryProfileFile
+	}
 	var before []byte
 	hadProfile := false
-	if written.Profile != "" {
-		if text, readErr := os.ReadFile(written.Profile); readErr == nil {
+	if profilesFile != "" {
+		if text, readErr := os.ReadFile(profilesFile); readErr == nil {
 			before, hadProfile = text, true
 		}
 	}
@@ -102,11 +136,11 @@ func Write(in In) (Written, error) {
 		for _, m := range slices.Backward(made) {
 			_ = os.Remove(m)
 		}
-		if written.Profile != "" {
+		if profilesFile != "" {
 			if hadProfile {
-				_ = source.WriteBeside(written.Profile, string(before))
+				_ = source.WriteBeside(profilesFile, string(before))
 			} else {
-				_ = os.Remove(written.Profile)
+				_ = os.Remove(profilesFile)
 			}
 		}
 		return Written{}, err
@@ -118,6 +152,9 @@ func Write(in In) (Written, error) {
 			return fail(err)
 		}
 		made = append(made, path)
+	}
+	if err := writeCarry(in, written, &made); err != nil {
+		return fail(err)
 	}
 	if !in.Starter {
 		return written, nil
@@ -148,6 +185,51 @@ func Write(in In) (Written, error) {
 	return written, nil
 }
 
+// writeCarry copies the documents a person chose into this layer: a role
+// document's own bytes, and a profile's kind, args and env as the layer it
+// stands in writes them (r-7e4a). The names were settled by plan: a document
+// this layer holds is not among them, so a copy never writes over the layer's
+// own.
+func writeCarry(in In, written Written, made *[]string) error {
+	if in.Carry == nil {
+		return nil
+	}
+	for _, path := range written.CarryRoles {
+		name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+		doc, held := in.Carry.Catalog.LayerRole(in.Carry.Layer, name)
+		if !held {
+			return fmt.Errorf("newteam: no role document for %s in that layer", name)
+		}
+		text, err := in.Carry.Catalog.Reader().Read(doc)
+		if err != nil {
+			return err
+		}
+		if err := writeFile(path, []byte(text)); err != nil {
+			return err
+		}
+		*made = append(*made, path)
+	}
+	if len(written.CarryProfiles) == 0 {
+		return nil
+	}
+	from, err := in.Carry.Catalog.LayerProfiles(in.Carry.Layer)
+	if err != nil {
+		return err
+	}
+	add := make([]profile.Profile, 0, len(written.CarryProfiles))
+	for _, name := range written.CarryProfiles {
+		one, ok := from[name]
+		if !ok {
+			return fmt.Errorf("newteam: no profile for %s in that layer", name)
+		}
+		add = append(add, one)
+	}
+	if err := addProfiles(written.CarryProfileFile, add); err != nil {
+		return err
+	}
+	return nil
+}
+
 // plan is what a write would make: the paths, and, for a starter write, the role
 // documents to write and to leave, and the starter profile when no place
 // resolves it and the person asked for it. A role document either place holds is
@@ -164,6 +246,9 @@ func plan(in In) (Written, error) {
 	out := Written{}
 	for _, file := range in.Files {
 		out.Files = append(out.Files, filepath.Join(dir, file.Path))
+	}
+	if err := planCarry(in, base, &out); err != nil {
+		return Written{}, err
 	}
 	if !in.Starter {
 		return out, nil
@@ -204,6 +289,53 @@ func plan(in In) (Written, error) {
 		out.ProfileMissing = true
 	}
 	return out, nil
+}
+
+// planCarry is what a copy brings with it: the role documents and profiles the
+// person chose, less the ones this layer already holds. A document this layer
+// holds is left as it is (r-7e4a): a copy never writes over the layer's own.
+func planCarry(in In, base string, out *Written) error {
+	if in.Carry == nil {
+		return nil
+	}
+	for _, name := range in.Carry.Roles {
+		// A name the layer this copy reads no longer holds is not carried: the
+		// person chose it from an answer that read a file which has moved since,
+		// and the row's next check says what the definition still misses.
+		if _, there := in.Carry.Catalog.LayerRole(in.Carry.Layer, name); !there {
+			continue
+		}
+		path := filepath.Join(base, "roles", name+".yaml")
+		if _, held := in.Catalog.LayerRole(in.Layer, name); held {
+			out.Kept = append(out.Kept, path)
+			continue
+		}
+		out.CarryRoles = append(out.CarryRoles, path)
+	}
+	if len(in.Carry.Profiles) == 0 {
+		return nil
+	}
+	from, err := in.Carry.Catalog.LayerProfiles(in.Carry.Layer)
+	if err != nil {
+		return err
+	}
+	held, err := in.Catalog.LayerProfiles(in.Layer)
+	if err != nil {
+		return err
+	}
+	for _, name := range in.Carry.Profiles {
+		if _, there := from[name]; !there {
+			continue
+		}
+		if _, ok := held[name]; ok {
+			continue
+		}
+		out.CarryProfiles = append(out.CarryProfiles, name)
+	}
+	if len(out.CarryProfiles) > 0 {
+		out.CarryProfileFile = filepath.Join(base, "profiles.yaml")
+	}
+	return nil
 }
 
 // membersNamed is the starter roles and profiles the definition's own team.yaml
@@ -264,6 +396,49 @@ func writeFile(path string, data []byte) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// addProfiles adds the profiles a copy brings to the profiles.yaml at path,
+// each with the kind, args and env the layer it stands in writes, in the order
+// the person chose them (r-7e4a). The file is read and written by the edit the
+// profiles screen makes, so every other line it holds comes back as it was, and
+// a file that cannot be read is an error rather than something to write over
+// (I7). The names were settled by plan: this layer holds none of them.
+func addProfiles(path string, add []profile.Profile) error {
+	for _, one := range add {
+		text, err := os.ReadFile(path)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				return err
+			}
+			text = []byte("version: 1\n")
+		}
+		edited, err := profile.EditYAML(text, path, profile.Add(one.Name, one.Kind))
+		if err != nil {
+			return err
+		}
+		if len(one.Args) > 0 {
+			if edited, err = profile.EditYAML(edited, path, profile.SetArgs(one.Name, one.Args)); err != nil {
+				return err
+			}
+		}
+		if len(one.Env) > 0 {
+			pairs := make([]profile.EnvPair, 0, len(one.Env))
+			for _, key := range slices.Sorted(maps.Keys(one.Env)) {
+				pairs = append(pairs, profile.EnvPair{Key: key, Value: one.Env[key]})
+			}
+			if edited, err = profile.EditYAML(edited, path, profile.SetEnvInOrder(one.Name, pairs)); err != nil {
+				return err
+			}
+		}
+		if err := source.WriteBeside(path, string(edited)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // addStarterProfile adds the starter profile to the profiles.yaml at path,

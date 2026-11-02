@@ -292,6 +292,7 @@ export type Rec = {
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
   hasRoles: Sig<boolean>; hasProfiles: Sig<boolean>;
   starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
+  carry: Sig<Carry | null>;
   preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
   prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
   sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
@@ -305,6 +306,13 @@ export type Rec = {
   wide: Sig<boolean>; moved: Set<string>;
   draft: Sig<Team>; key: Sig<string>;
 };
+// Carry is what a copy into the global layer brings with it (r-7e4a, d-dc81):
+// the role documents and profiles the global layer does not hold and the project
+// the row copies from does, and the names the person picked to write with it. A
+// row that is not a project's definition copied into the global layer carries
+// nothing: its carry is null.
+export type Carry = { roles: string[]; profiles: string[]; chosenRoles: string[]; chosenProfiles: string[] };
+
 // TeamBase is the definition a duplicate or a copy stands on. Project names the
 // listed project the base stands in: a row under a project's head is that
 // project's file, and a copy of it must read that file rather than the one this
@@ -323,7 +331,14 @@ export const domOf = (name: string, group?: string): string => (GROUPED ? name +
 // scaffold also carries whether the person asked for the starter roles and
 // profile: the server writes them only when asked (r-54b8). The server reads the
 // base from there and checks the row as if it were saved (spec-teams B2, B3).
-const draftIn = (r: Rec): { new?: boolean; starter_roles?: boolean; starter_profile?: boolean; base?: TeamBase | null } => (!r.draftRow ? {} : r.how === 'new' ? { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value } : { base: r.base });
+const draftIn = (r: Rec): { new?: boolean; starter_roles?: boolean; starter_profile?: boolean; base?: TeamBase | null; carry_roles?: string[]; carry_profiles?: string[] } => {
+  if (!r.draftRow) return {};
+  if (r.how === 'new') return { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value };
+  const c = r.carry.value;
+  // The names the person chose go with the check and the save: only those are
+  // written with the copy (r-7e4a).
+  return c ? { base: r.base, carry_roles: c.chosenRoles, carry_profiles: c.chosenProfiles } : { base: r.base };
+};
 // projectIn is the project a write names: a listed project's path, and nothing
 // for the global layer (which the server writes without being told) or for this
 // serve's own project.
@@ -400,6 +415,7 @@ type RecInit = {
   size: number; limit: number; drawMark: number; seeded: boolean;
   writes: string[]; nameIssues: Schemas['Problem'][];
   hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
+  carry: Carry | null;
   preview: TeamPreview; baseFindings: Finding[];
   prompts: MemberPrompt[]; promptsReady?: boolean;
   sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
@@ -425,6 +441,7 @@ function recOf(init: RecInit): Rec {
     writes: signal(init.writes), nameIssues: signal(init.nameIssues),
     hasRoles: signal(init.hasRoles), hasProfiles: signal(init.hasProfiles),
     starterRoles: signal(init.starterRoles), starterProfile: signal(init.starterProfile),
+    carry: signal(init.carry),
     preview: signal(init.preview), baseFindings: signal(init.baseFindings),
     prompts: signal(init.prompts), promptsReady: signal(init.promptsReady),
     sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
@@ -521,7 +538,7 @@ function defOf(item: DefItem, project?: string, only?: Place): Rec {
     size: (sum && sum.size) || 0, limit: (sum && sum.limit) || 0,
     problems: item.problems || { err: 0, warn: 0 }, check: null, drawMark: 0,
     draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
-    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false,
+    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false, carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
@@ -579,7 +596,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     findings: [], problems: { err: 0, warn: 0 }, check: null,
     size: 0, limit: 0,
     drawMark: 0, seeded: false, writes: [], nameIssues: [],
-    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false,
+    hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false, carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
     sel: null, side: 'attr', menu: null, typed: null, flash: null,
     lastAct: 0,
@@ -879,6 +896,17 @@ function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
     // to choose from rather than write (r-54b8).
     r.hasRoles.value = !!draft.has_roles;
     r.hasProfiles.value = !!draft.has_profiles;
+    // What this copy can bring, and the names the person already chose that the
+    // answer still names: a name that is gone is no longer chosen (r-7e4a).
+    const was = r.carry.value;
+    const carry = draft.carry;
+    r.carry.value = carry
+      ? {
+        roles: carry.roles || [], profiles: carry.profiles || [],
+        chosenRoles: (was ? was.chosenRoles : []).filter((n) => (carry.roles || []).includes(n)),
+        chosenProfiles: (was ? was.chosenProfiles : []).filter((n) => (carry.profiles || []).includes(n)),
+      }
+      : null;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === 'name' || p.field === 'name');
     // The paths the row would be written to are the server's, and they move
     // with the name a person is typing: both panels' heads follow the check
@@ -1537,6 +1565,18 @@ export function pressStarterRoles(r: Rec) {
 // pressStarterProfile is pressStarterRoles for the starter profile.
 export function pressStarterProfile(r: Rec) {
   r.starterProfile.value = !r.starterProfile.value;
+  checkTeam(r);
+}
+// pressCarry asks for one of the names a copy can bring, or drops the ask: only
+// the chosen ones are written with the definition (r-7e4a, d-dc81). The check is
+// asked again, so the sentence about a name the global layer does not hold goes
+// once the person chose it.
+export function pressCarry(r: Rec, kind: 'role' | 'profile', name: string) {
+  const c = r.carry.value;
+  if (!c) return;
+  const key = kind === 'role' ? 'chosenRoles' : 'chosenProfiles';
+  const next = c[key].includes(name) ? c[key].filter((n) => n !== name) : [...c[key], name];
+  r.carry.value = { ...c, [key]: next };
   checkTeam(r);
 }
 // baseOf is the definition a duplicate or a copy stands on, named the way the

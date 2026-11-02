@@ -54,6 +54,12 @@ type apiIn struct {
 	StarterRoles bool `json:"starter_roles"`
 	// StarterProfile says the same for the starter profile.
 	StarterProfile bool `json:"starter_profile"`
+	// CarryRoles and CarryProfiles are the names a person chose to write into
+	// this place with a copy: the role documents and profiles the place does not
+	// hold, read from the layer the definition the row stands on reads (r-7e4a,
+	// d-dc81). A name not here is not written.
+	CarryRoles    []string `json:"carry_roles"`
+	CarryProfiles []string `json:"carry_profiles"`
 }
 
 // apiBase is the file a duplicate or a copy stands on (spec-roles 1.2.9).
@@ -184,6 +190,20 @@ type apiCheckDraft struct {
 	Writes      []string `json:"writes"`
 	HasRoles    bool     `json:"has_roles"`
 	HasProfiles bool     `json:"has_profiles"`
+	// Carry is what this copy can bring with it (r-7e4a): the role documents and
+	// profiles the definition's members name that the place it would be written
+	// to does not hold. It stands only for a copy of a project's definition into
+	// the global layer, which is the one copy that carries nothing by itself; a
+	// copy that needs nothing carries an empty list, and a row that is not a copy
+	// of that kind has none at all.
+	Carry *apiCheckCarry `json:"carry,omitempty"`
+}
+
+// apiCheckCarry is what one copy brings with it, by name (r-7e4a, d-dc81): the
+// person chooses, and only what is chosen is written.
+type apiCheckCarry struct {
+	Roles    []string `json:"roles"`
+	Profiles []string `json:"profiles"`
 }
 
 // apiCheck is the answer of POST /api/{kind}/check (spec-boundary 5): what is

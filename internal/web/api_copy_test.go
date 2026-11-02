@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -43,6 +44,11 @@ func newCopyFixture(t *testing.T) copyFixture {
 	if err := os.WriteFile(filepath.Join(dir, "agreement.yaml"), []byte(agree), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The other project holds a role document and a profile of its own: what a
+	// copy of its definition can bring into the global layer (r-7e4a).
+	writeUnder(t, other, ".hergy/roles/lead.yaml", "version: 1\ntitle: 仕切る\nsections:\n  - rules:\n      - id: PAAF\n        text: ほかのプロジェクトの lead。\n")
+	writeUnder(t, other, ".hergy/profiles.yaml", "version: 1\nprofiles:\n  planner:\n    kind: codex\n")
+
 	// The other project's builder says something this project's builder does
 	// not: a copy that reads the wrong file writes the copy from the wrong
 	// lines.
@@ -129,8 +135,22 @@ func TestCopyReadsTheBaseFromItsOwnProject(t *testing.T) {
 	if got.Doc == nil || got.Doc.Description != "ほかのプロジェクトの定義" {
 		t.Errorf("the copy stands on %+v, want the other project's definition", got.Doc)
 	}
-	if len(got.Problems) != 0 {
-		t.Errorf("the copy of a sound definition has problems: %+v", got.Problems)
+	// The copy is read as the global layer holds it: the role and the profile
+	// the project holds are what it can bring, and the sentences say where they
+	// are rather than that there is none (r-7e4a).
+	if got.Draft.Carry == nil {
+		t.Fatal("the copy of a project's definition answers no carry")
+	}
+	if want := []string{"lead"}; !slices.Equal(got.Draft.Carry.Roles, want) {
+		t.Errorf("the copy can bring roles %v, want %v", got.Draft.Carry.Roles, want)
+	}
+	if want := []string{"planner"}; !slices.Equal(got.Draft.Carry.Profiles, want) {
+		t.Errorf("the copy can bring profiles %v, want %v", got.Draft.Carry.Profiles, want)
+	}
+	for _, problem := range got.Problems {
+		if strings.Contains(problem.Text, "というプロファイルはありません") || strings.Contains(problem.Text, "文書が見つかりません") {
+			t.Errorf("the problem does not say where the name is: %q", problem.Text)
+		}
 	}
 }
 
@@ -209,4 +229,133 @@ func TestRoleCopyReadsTheBaseFromItsOwnProject(t *testing.T) {
 	if !strings.Contains(written, "ほかのプロジェクトでは、作る前に見積もりを書く。") {
 		t.Errorf("the copy does not hold the source's rule:\n%s", written)
 	}
+}
+
+// TestCopyCarriesOnlyWhatThePersonChose: a copy of a project's definition into
+// the global layer writes the definition alone; a profile or a role the person
+// chose is written with it, as the project it came from holds it, and a name the
+// global layer already holds is not written over (r-7e4a, d-dc81).
+func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
+	c := newCopyFixture(t)
+	server := c.twoProjects(t)
+
+	// The other project's definition names its own profile and the role only it
+	// holds: both are what the person may bring to the global layer.
+	builder := "# ほかのプロジェクトだけが書いているメモ\nversion: 1\ntitle: 作る\nsections:\n  - heading: 作り方\n    rules:\n      - id: DAAA\n        text: ほかのプロジェクトでは、作る前に見積もりを書く。\n"
+	profiles := "version: 1\nprofiles:\n  other-fast:\n    kind: claude\n    args: [\"--model\", \"claude-haiku-5-5\"]\n    env:\n      A: one\n"
+	// The definition names the two, so the copy is what may bring them.
+	team := "version: 1\ndescription: \"ほかのプロジェクトの定義\"\nmembers:\n  - name: lead\n    role: builder\n    profile: other-fast\nturns:\n  - human -> lead\n  - lead -> human\n"
+	writeUnder(t, c.other, ".hergy/roles/builder.yaml", builder)
+	writeUnder(t, c.other, ".hergy/profiles.yaml", profiles)
+	writeUnder(t, c.other, ".hergy/teams/other-dev/team.yaml", team)
+
+	base := `"base":{"place":"project","name":"other-dev","project":` + strconvQuote(c.other) + `}`
+	check := `{"place":"global","name":"other-dev","part":"team","doc":{"ops":[]},` + base + `}`
+	status, said := post(t, server, "/api/team/check", check)
+	if status != http.StatusOK {
+		t.Fatalf("check of a copy answers %d: %s", status, said)
+	}
+	var got struct {
+		Problems []apiProblem `json:"problems"`
+		Draft    struct {
+			Carry *apiCheckCarry `json:"carry"`
+		} `json:"draft"`
+	}
+	if err := json.Unmarshal([]byte(said), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Draft.Carry == nil {
+		t.Fatal("the copy of a project's definition answers no carry")
+	}
+	if want := []string{"builder"}; !slices.Equal(got.Draft.Carry.Roles, want) {
+		t.Errorf("the copy can bring roles %v, want %v", got.Draft.Carry.Roles, want)
+	}
+	if want := []string{"other-fast"}; !slices.Equal(got.Draft.Carry.Profiles, want) {
+		t.Errorf("the copy can bring profiles %v, want %v", got.Draft.Carry.Profiles, want)
+	}
+	// The problem says where the profile is, rather than that there is none.
+	text := problemTextOf(got.Problems, "members[0].profile")
+	if !strings.Contains(text, "グローバルにありません") || !strings.Contains(text, ".hergy にあります") {
+		t.Errorf("the profile's sentence says %q, want the global layer and the project named", text)
+	}
+
+	// Nothing chosen: the global layer's profiles and roles are as they were.
+	globalProfiles := filepath.Join(c.global, "profiles.yaml")
+	globalRole := filepath.Join(c.global, "roles", "builder.yaml")
+	wasProfiles, hadProfiles := readFileIfThere(t, globalProfiles)
+	save := `{"place":"global","name":"other-dev","part":"folder","doc":{"ops":[]},` + base + `}`
+	if status, said := put(t, server, "/api/team/other-dev", save); status != http.StatusOK {
+		t.Fatalf("save of a copy answers %d: %s", status, said)
+	}
+	if now, _ := readFileIfThere(t, globalProfiles); now != wasProfiles {
+		t.Errorf("a copy a person chose nothing for wrote profiles.yaml:\n%s", now)
+	}
+	if _, there := readFileIfThere(t, globalRole); there {
+		t.Error("a copy a person chose nothing for wrote the role document")
+	}
+	if _, err := os.Stat(filepath.Join(c.global, "teams", "other-dev", "team.yaml")); err != nil {
+		t.Errorf("the copy did not write the definition: %v", err)
+	}
+	_ = hadProfiles
+
+	// The same copy again, with the two names chosen: they are written, the
+	// definition alone is replaced, and the profile keeps the project's own words.
+	if err := os.RemoveAll(filepath.Join(c.global, "teams", "other-dev")); err != nil {
+		t.Fatal(err)
+	}
+	saveCarry := `{"place":"global","name":"other-dev","part":"folder","carry_roles":["builder"],"carry_profiles":["other-fast"],"doc":{"ops":[]},` + base + `}`
+	if status, said := put(t, server, "/api/team/other-dev", saveCarry); status != http.StatusOK {
+		t.Fatalf("save of a copy with what the person chose answers %d: %s", status, said)
+	}
+	written, _ := readFileIfThere(t, globalProfiles)
+	if !strings.Contains(written, "other-fast:") || !strings.Contains(written, "claude-haiku-5-5") || !strings.Contains(written, "A: one") {
+		t.Errorf("the carried profile is not the project's own:\n%s", written)
+	}
+	if role, _ := readFileIfThere(t, globalRole); role != builder {
+		t.Errorf("the carried role document is %q, want the project's own", role)
+	}
+
+	// A name the global layer already holds is not written over.
+	writeUnder(t, c.global, "roles/builder.yaml", "version: 1\ntitle: グローバルのもの\nsections: []\n")
+	if err := os.RemoveAll(filepath.Join(c.global, "teams", "other-dev")); err != nil {
+		t.Fatal(err)
+	}
+	if status, said := put(t, server, "/api/team/other-dev", saveCarry); status != http.StatusOK {
+		t.Fatalf("save over a name the global layer holds answers %d: %s", status, said)
+	}
+	if role, _ := readFileIfThere(t, globalRole); role != "version: 1\ntitle: グローバルのもの\nsections: []\n" {
+		t.Errorf("the copy wrote over the global layer's own role document: %q", role)
+	}
+}
+
+// writeUnder writes one file under a project's .hergy.
+func writeUnder(t *testing.T, project, rel, text string) {
+	t.Helper()
+	path := filepath.Join(project, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// readFileIfThere is one file as written, and whether it is there.
+func readFileIfThere(t *testing.T, path string) (string, bool) {
+	t.Helper()
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	return string(text), true
+}
+
+// problemTextOf is the sentence one problem carries, by where it stands.
+func problemTextOf(problems []apiProblem, at string) string {
+	for _, one := range problems {
+		if one.At == at {
+			return one.Text
+		}
+	}
+	return ""
 }

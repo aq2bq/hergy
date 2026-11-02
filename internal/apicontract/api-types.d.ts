@@ -1937,6 +1937,15 @@ export interface components {
             has_roles: boolean;
             /** @description どちらかの置き場所にプロファイルがあるか。無ければ、メンバーのプロファイルはひな形のプロファイルから選ぶ（r-54b8） */
             has_profiles: boolean;
+            /** @description グローバルへのコピーが一緒に持って行けるもの。グローバルに無く、コピー元のプロジェクトにあるロールの文書とプロファイルの名前。この欄が無い行はコピーではない（r-7e4a） */
+            carry?: components["schemas"]["TeamCarry"];
+        };
+        /** @description グローバルへのコピーが一緒に持って行けるものの名前（r-7e4a、d-dc81）。人が選んだものだけを保存で書く。 */
+        TeamCarry: {
+            /** @description グローバルに無く、コピー元のプロジェクトにあるロールの文書の名前 */
+            roles: string[];
+            /** @description グローバルに無く、コピー元のプロジェクトにあるプロファイルの名前 */
+            profiles: string[];
         };
         /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
         TeamSaved: {
@@ -1977,6 +1986,10 @@ export interface components {
             starter_roles?: boolean;
             /** @description ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8） */
             starter_profile?: boolean;
+            /** @description コピーで一緒にグローバルに書くロールの文書の名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_roles?: string[];
+            /** @description コピーで一緒にグローバルに書くプロファイルの名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_profiles?: string[];
             /** @description 複製またはコピー元のチーム定義 */
             base?: components["schemas"]["TeamBase"] | null;
             /** @description YAML 全文を入力するときの文 */
@@ -1986,6 +1999,10 @@ export interface components {
         };
         /** @description チーム定義またはチームのルールを保存する本文。 */
         TeamSaveRequest: {
+            /** @description コピーで一緒にグローバルに書くロールの文書の名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_roles?: string[];
+            /** @description コピーで一緒にグローバルに書くプロファイルの名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_profiles?: string[];
             /** @description 保存先を持つ、並べたプロジェクトのパス */
             project?: string;
             /** @description 保存する場所。project または global。 */

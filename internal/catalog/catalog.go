@@ -675,6 +675,41 @@ func (c *Catalog) fileText(path string) (text string, ok bool, err error) {
 	return text, true, nil
 }
 
+// LayerProfiles is one layer's own profiles.yaml, read alone: what the layer
+// holds, rather than what a team definition sees of both. A copy into the global
+// layer asks it so the names only the project holds can be named (r-7e4a).
+func (c *Catalog) LayerProfiles(layer string) (map[string]profile.Profile, error) {
+	path := filepath.Join(c.LayerDir(layer), "profiles.yaml")
+	text, ok, err := c.fileText(path)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return map[string]profile.Profile{}, nil
+	}
+	out, err := profile.ParseProfiles(text, c.Display(path))
+	if err != nil {
+		return nil, err
+	}
+	for name, one := range out {
+		one.Path = path
+		out[name] = one
+	}
+	return out, nil
+}
+
+// LayerRole is one layer's own role document: roles/<name>.yaml in that layer
+// alone, not the document a name resolves to across both (K1). A copy into the
+// global layer asks whether the global layer holds the document itself
+// (r-7e4a).
+func (c *Catalog) LayerRole(layer, name string) (source.Doc, bool) {
+	doc := source.Doc{Layer: layer, Path: filepath.Join(c.LayerDir(layer), "roles", name+".yaml")}
+	if c.reader.IsFile(doc) {
+		return doc, true
+	}
+	return source.Doc{}, false
+}
+
 // Profile returns the named profile, and whether a team definition sees it.
 func (c *Catalog) Profile(name string) (profile.Profile, bool) {
 	profiles, _, err := c.Profiles()

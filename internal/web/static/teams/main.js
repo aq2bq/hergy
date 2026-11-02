@@ -366,7 +366,14 @@ var debounce = (k, fn, ms = 260) => {
 };
 var dkey = (d) => d.dom + "." + d.place.value;
 var domOf = (name, group) => GROUPED ? name + "|" + (group || "") : name;
-var draftIn = (r) => !r.draftRow ? {} : r.how === "new" ? { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value } : { base: r.base };
+var draftIn = (r) => {
+  if (!r.draftRow)
+    return {};
+  if (r.how === "new")
+    return { new: true, starter_roles: r.starterRoles.value, starter_profile: r.starterProfile.value };
+  const c = r.carry.value;
+  return c ? { base: r.base, carry_roles: c.chosenRoles, carry_profiles: c.chosenProfiles } : { base: r.base };
+};
 var projectIn = (project) => project && project !== "global" ? { project } : {};
 var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
 var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
@@ -495,6 +502,7 @@ function recOf(init) {
     hasProfiles: y(init.hasProfiles),
     starterRoles: y(init.starterRoles),
     starterProfile: y(init.starterProfile),
+    carry: y(init.carry),
     preview: y(init.preview),
     baseFindings: y(init.baseFindings),
     prompts: y(init.prompts),
@@ -589,6 +597,7 @@ function defOf(item, project, only) {
     hasProfiles: false,
     starterRoles: false,
     starterProfile: false,
+    carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
@@ -652,6 +661,7 @@ function draftRecord(how, place, name, base, project) {
     hasProfiles: false,
     starterRoles: false,
     starterProfile: false,
+    carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
     prompts: [],
@@ -916,6 +926,14 @@ function applyTeamAnswer(r, json, findings) {
     r.writes.value = draft.writes || r.writes.value;
     r.hasRoles.value = !!draft.has_roles;
     r.hasProfiles.value = !!draft.has_profiles;
+    const was = r.carry.value;
+    const carry = draft.carry;
+    r.carry.value = carry ? {
+      roles: carry.roles || [],
+      profiles: carry.profiles || [],
+      chosenRoles: (was ? was.chosenRoles : []).filter((n) => (carry.roles || []).includes(n)),
+      chosenProfiles: (was ? was.chosenProfiles : []).filter((n) => (carry.profiles || []).includes(n))
+    } : null;
     r.nameIssues.value = (json.problems || []).filter((p) => p.at === "name" || p.field === "name");
     if (draft.path)
       r.teamPath.value = draft.path;
@@ -1517,6 +1535,15 @@ function pressStarterRoles(r) {
 }
 function pressStarterProfile(r) {
   r.starterProfile.value = !r.starterProfile.value;
+  checkTeam(r);
+}
+function pressCarry(r, kind, name) {
+  const c = r.carry.value;
+  if (!c)
+    return;
+  const key = kind === "role" ? "chosenRoles" : "chosenProfiles";
+  const next = c[key].includes(name) ? c[key].filter((n) => n !== name) : [...c[key], name];
+  r.carry.value = { ...c, [key]: next };
   checkTeam(r);
 }
 var baseOf = (r, place) => {
@@ -4794,6 +4821,9 @@ function TeamPanel({ r }) {
       /* @__PURE__ */ u(StarterNote, {
         r
       }),
+      /* @__PURE__ */ u(CarryNote, {
+        r
+      }),
       /* @__PURE__ */ u(Canvas, {
         r,
         vlist: /* @__PURE__ */ u(VList, {
@@ -4847,6 +4877,68 @@ function StarterNote({ r }) {
           })
         ]
       }) : null
+    ]
+  });
+}
+function CarryNote({ r }) {
+  const c = r.carry.value;
+  if (!r.draftRow || !c)
+    return null;
+  const missing = c.roles.length + c.profiles.length;
+  return /* @__PURE__ */ u("div", {
+    class: "carry",
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "st-item",
+        children: /* @__PURE__ */ u("span", {
+          children: [
+            "グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです。",
+            missing ? "メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。" : "メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。"
+          ]
+        })
+      }),
+      c.roles.map((name) => /* @__PURE__ */ u("div", {
+        class: "st-item",
+        children: [
+          /* @__PURE__ */ u("span", {
+            children: [
+              "ロール ",
+              name,
+              " の文書はグローバルにありません。"
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            "data-act": "carry-role",
+            "data-name": name,
+            "aria-pressed": c.chosenRoles.includes(name),
+            onClick: () => pressCarry(r, "role", name),
+            children: c.chosenRoles.includes(name) ? `ロール ${name} を書かない` : `ロール ${name} をグローバルに書く`
+          })
+        ]
+      })),
+      c.profiles.map((name) => /* @__PURE__ */ u("div", {
+        class: "st-item",
+        children: [
+          /* @__PURE__ */ u("span", {
+            children: [
+              "プロファイル ",
+              name,
+              " はグローバルにありません。"
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            "data-act": "carry-profile",
+            "data-name": name,
+            "aria-pressed": c.chosenProfiles.includes(name),
+            onClick: () => pressCarry(r, "profile", name),
+            children: c.chosenProfiles.includes(name) ? `プロファイル ${name} を書かない` : `プロファイル ${name} をグローバルに書く`
+          })
+        ]
+      }))
     ]
   });
 }

@@ -23,7 +23,7 @@ import {
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
-  pressStarterRoles, pressStarterProfile,
+  pressStarterRoles, pressStarterProfile, pressCarry,
   pressDel, pressDelNo, pressDelYes, pressName, pressDescription, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
@@ -307,6 +307,7 @@ function TeamPanel({ r }: { r: Rec }) {
     <section class="panel team-p" data-key={k}>
       {head}
       <StarterNote r={r} />
+      <CarryNote r={r} />
       <Canvas r={r} vlist={<VList r={r} />} />
       <Foot r={r} />
     </section>
@@ -338,6 +339,36 @@ function StarterNote({ r }: { r: Rec }) {
           <button class="btn sm" type="button" data-act="starter-profile" aria-pressed={r.starterProfile.value} onClick={() => pressStarterProfile(r)}>{r.starterProfile.value ? 'ひな形のプロファイルを使わない' : 'ひな形のプロファイル claude-default を使う'}</button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// CarryNote is what a copy of a project's definition says about what it brings
+// with it (r-7e4a, d-dc81): the copy is the definition's two files alone, and the
+// role documents and profiles the global layer does not hold are the person's to
+// choose. A name that is chosen is written with the definition, and a name the
+// global layer already holds is not offered, because a copy writes over nothing.
+function CarryNote({ r }: { r: Rec }) {
+  const c = r.carry.value;
+  if (!r.draftRow || !c) return null;
+  const missing = c.roles.length + c.profiles.length;
+  return (
+    <div class="carry">
+      <div class="st-item"><span>グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです。{missing
+        ? 'メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。'
+        : 'メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。'}</span></div>
+      {c.roles.map((name) => (
+        <div class="st-item">
+          <span>ロール {name} の文書はグローバルにありません。</span>
+          <button class="btn sm" type="button" data-act="carry-role" data-name={name} aria-pressed={c.chosenRoles.includes(name)} onClick={() => pressCarry(r, 'role', name)}>{c.chosenRoles.includes(name) ? `ロール ${name} を書かない` : `ロール ${name} をグローバルに書く`}</button>
+        </div>
+      ))}
+      {c.profiles.map((name) => (
+        <div class="st-item">
+          <span>プロファイル {name} はグローバルにありません。</span>
+          <button class="btn sm" type="button" data-act="carry-profile" data-name={name} aria-pressed={c.chosenProfiles.includes(name)} onClick={() => pressCarry(r, 'profile', name)}>{c.chosenProfiles.includes(name) ? `プロファイル ${name} を書かない` : `プロファイル ${name} をグローバルに書く`}</button>
+        </div>
+      ))}
     </div>
   );
 }

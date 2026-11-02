@@ -683,3 +683,117 @@ test('COPY-S7 a team definition with its own rules is copied with the rules of i
   expect(readFileSync(dstTeam, 'utf8'), 'the global team.yaml is beta’s document').toBe(srcTeam);
   expect(readFileSync(dstAgree, 'utf8'), 'the other project’s rule is not mixed in').not.toContain('alpha の相談');
 });
+
+// ---- COPY-C1 .. COPY-C4 — r-7e4a (ac-8ae7, ac-2a35, d-dc81) --------------
+//
+// A copy of a project's definition into the global layer writes the definition's
+// two files alone. The role documents and profiles the definition's members use,
+// which the global layer does not hold, are the person's to choose, and only what
+// is chosen is written with it. Each walk stands on beta-dev, whose members use
+// the profile beta-fast and the role builder: both stand in beta alone.
+const CARRY_ROLE = (name: string) => `${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.detail [data-act=carry-role][data-name=${name}]')`;
+const CARRY_PROFILE = (name: string) => `${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.detail [data-act=carry-profile][data-name=${name}]')`;
+const CARRY_NOTE = (name: string) => `${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.detail .carry')`;
+const CARRY_PROBLEMS = (name: string) => `${rowIn(TEAMS, GLOBAL, name)}.querySelector('.detail .vlist').textContent`;
+// writesOfCopy is the files the copy's save would write, as the foot names them.
+const writesOfCopy = (name: string) => `[...${rowIn(TEAMS, GLOBAL, name)}.querySelectorAll('.detail .pf .also code')].map((el) => el.textContent).join(' ')`;
+
+
+test('COPY-C1 the copy says it brings the definition alone, and names what the global layer does not hold', async ({ page, app }) => {
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+
+  // The row says what the copy is: the definition's two files alone, and the
+  // names it can bring, listed one by one (ac-8ae7, d-dc81).
+  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです');
+  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the role the global layer does not hold').toContain('ロール builder');
+  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the profile the global layer does not hold').toContain('プロファイル beta-fast');
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml agreement.yaml');
+
+  // The problems say where the name is, rather than that there is none: the team
+  // can be started from beta, and not from a project that has no beta-fast.
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it is missing from').toContain('グローバルにありません');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it stands in').toContain('~/src/beta/.hergy にあります');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the role problem names the place it is missing from').toContain('ロール builder の文書はグローバルにありません');
+});
+
+test('COPY-C2 a copy with nothing chosen writes the definition alone', async ({ page, app }) => {
+  const profiles = path.join(app.cfg, 'hergy', 'profiles.yaml');
+  const role = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const beforeProfiles = readFileSync(profiles, 'utf8');
+  expect(existsSync(role), 'the global layer holds no builder before the copy').toBe(false);
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+  await press(page, saveOfCopy('beta-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
+
+  // The definition is there, and the global layer's own profiles and roles are
+  // as they were, byte for byte (ac-2a35).
+  expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'the copy wrote the definition').toBe(true);
+  expect(readFileSync(profiles, 'utf8'), 'nothing chosen left the global profiles.yaml as it was').toBe(beforeProfiles);
+  expect(existsSync(role), 'nothing chosen wrote no role document into the global layer').toBe(false);
+});
+
+test('COPY-C3 the names a person chooses are written with the copy, as the project holds them', async ({ page, app }) => {
+  const profiles = path.join(app.cfg, 'hergy', 'profiles.yaml');
+  const srcRole = betaFile(app, path.join('roles', 'builder.yaml'));
+  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const beforeProfiles = readFileSync(profiles, 'utf8');
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+
+  // The two names are chosen: the foot says they go with the definition, and the
+  // sentences about them go (ac-2a35).
+  await press(page, CARRY_ROLE('builder'));
+  await press(page, CARRY_PROFILE('beta-fast'));
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen names go with the definition').toContain('builder.yaml');
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen profile goes with the definition').toContain('profiles.yaml');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the sentence about the role is gone once it is chosen').not.toContain('グローバルにありません');
+
+  await press(page, saveOfCopy('beta-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
+
+  // The role document is the project's own, byte for byte, and the profile is
+  // the project's entry with the profiles the global layer already held.
+  expect(readFileSync(dstRole, 'utf8'), 'the copied role document is beta’s own').toBe(readFileSync(srcRole, 'utf8'));
+  const written = readFileSync(profiles, 'utf8');
+  // The entry is the project's own: the same kind and the same arguments, in the
+  // file the global layer already had. The args stand one to a line here, which
+  // is the form the profiles screen writes; what the copy keeps is the content.
+  expect(written, 'the copied profile is the project’s own').toContain('beta-fast:');
+  expect(written, 'the copied profile keeps the project’s kind').toMatch(/beta-fast:\n\s+kind: claude/);
+  expect(written, 'the copied profile keeps the project’s args').toContain('- claude-haiku-5-5');
+  expect(written, 'the profiles the global layer held are still there').toContain('coder:');
+  expect(written, 'choosing the two wrote nothing else').not.toContain('alpha-fast');
+});
+
+test('COPY-C4 a name the global layer holds when the save comes is not written over', async ({ page, app }) => {
+  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const mine = 'version: 1\ntitle: グローバルの builder\nsections:\n  - heading: 作り方\n    rules:\n      - id: DAAA\n        text: グローバルが持っている文書。\n';
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+  await press(page, CARRY_ROLE('builder'));
+
+  // The global layer gets a builder of its own after the person chose the name:
+  // the save leaves it as it is (ac-2a35).
+  mkdirSync(path.dirname(dstRole), { recursive: true });
+  writeFileSync(dstRole, mine);
+  await press(page, saveOfCopy('beta-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
+  expect(readFileSync(dstRole, 'utf8'), 'the copy wrote over the global layer’s own role document').toBe(mine);
+});
