@@ -82,7 +82,10 @@ test('ROLES-R1 the switch, the day a rule went off, and the memo', async ({ page
   const ruleCount = await page.$eval('#rows .role.open .c-count', (el) => el.textContent || '');
   expect(ruleCount, 'the rules column does not repeat the off count').not.toContain('オフ');
   const day = /off_since: "(\d{4})-(\d{2})-(\d{2})"/.exec(block);
-  await readTo<string>(page, `${rule('PAAF')}.querySelector('.since').textContent`, 'the off day after the save').toBe(`${Number(day![2])}/${Number(day![3])} から`);
+  // The screen shows the file's own day, as the file writes it: M/D is read
+  // from the text rather than counted from a number, so a day or a month under
+  // 10 does not read as another day (r-a028's CI red on 11/02).
+  await readTo<string>(page, `${rule('PAAF')}.querySelector('.since').textContent`, 'the off day after the save').toBe(`${day![2]}/${day![3]} から`);
 
   // Back on: the save drops the day.
   await press(page, `${rule('PAAF')}.querySelector('.onsw')`);
