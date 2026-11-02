@@ -1,4 +1,5 @@
 // lib/copy.ts — where a copy into the other place stands (r-f781).
+// The project selector contract is tested in jstest/copy-project.test.js.
 //
 // A document stands in the project's place or in the global layer. Copying it
 // into the other place writes a new file there and leaves the original alone;
@@ -22,3 +23,9 @@ export const copyGroupOf = (to: CopyPlace, from: string, current: string): strin
 // groupPlace is the place a group's rows stand in: the global group reads the
 // global layer, and every project's group reads its own project.
 export const groupPlace = (group: string): CopyPlace => (group === 'global' ? 'global' : 'project');
+
+// projectOfGroup is the API's project selector. The global group is a layer,
+// never a project path. Keep every known project path, including this serve's
+// project; only an empty group falls back to the server's current project.
+export const projectOfGroup = (group: string | undefined): string | undefined =>
+  !group || group === 'global' ? undefined : group;

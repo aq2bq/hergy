@@ -63,8 +63,9 @@ import {
 } from "../chunk/nav-9n0vwt3f.js";
 import {
   copyGroupOf,
+  projectOfGroup,
   bringUnderBand
-} from "../chunk/nav-9h6qyq9q.js";
+} from "../chunk/nav-y4vzs6yk.js";
 import {
   Field,
   inText
@@ -393,7 +394,7 @@ async function askCheck(r, l, cb) {
   const answer = await checkerFor(k).run({
     place: l,
     original: e.saved ? e.saved.name : null,
-    project: r.group && r.group !== "global" ? r.group : undefined,
+    project: projectOfGroup(r.group),
     doc: toDoc2(e.draft, e.saved || e.base || null)
   });
   const c = answer && answer.json;
@@ -708,7 +709,7 @@ function pressPmode(id, l, v) {
 }
 var basePlaceOf = (r, l) => {
   const group = groupOfRow(r);
-  return l === "global" || !group || group === "global" ? { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "" } : { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "", project: group };
+  return { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "", project: projectOfGroup(l === "global" ? "global" : group) };
 };
 function pressDup(id, l) {
   const r = byUid(id);
@@ -872,8 +873,7 @@ async function doSave(id, l, over) {
   const key = id + l;
   const keepRename = renameCarries2(key);
   const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? e.hash || "" : over };
-  if (r.group && r.group !== "global")
-    payload.project = r.group;
+  payload.project = projectOfGroup(r.group);
   if (e.basePlace)
     payload.base = e.basePlace;
   let res;
@@ -943,7 +943,7 @@ async function doDelete(id, l) {
   if (!e || !e.saved)
     return;
   try {
-    await del2("role", e.saved.name, l, e.hash || "", undefined, r.group && r.group !== "global" ? r.group : undefined);
+    await del2("role", e.saved.name, l, e.hash || "", undefined, projectOfGroup(r.group));
   } catch (err) {
     showRefusal(id + l, refusalAt(err), problemText2(err, "削除できませんでした"));
     return;

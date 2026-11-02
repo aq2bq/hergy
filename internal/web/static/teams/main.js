@@ -69,8 +69,9 @@ import {
 import {
   copyGroupOf,
   groupPlace,
+  projectOfGroup,
   bringUnderBand
-} from "../chunk/nav-9h6qyq9q.js";
+} from "../chunk/nav-y4vzs6yk.js";
 import {
   Field,
   inText
@@ -374,7 +375,7 @@ var draftIn = (r) => {
   const c = r.carry.value;
   return c ? { base: r.base, carry_roles: c.chosenRoles, carry_profiles: c.chosenProfiles } : { base: r.base };
 };
-var projectIn = (project) => project && project !== "global" ? { project } : {};
+var projectIn = (project) => ({ project: projectOfGroup(project) });
 var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
 var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
 var cloneTeam = (t) => ({
@@ -1105,7 +1106,7 @@ async function saveFolder(r) {
   saved2();
 }
 async function doDelete(r) {
-  const json = await answered(r, "t", del2("team", r.name.value, r.place.value, r.hash.value, r.agreeHash.value, r.project && r.project !== "global" ? r.project : undefined), "削除できませんでした");
+  const json = await answered(r, "t", del2("team", r.name.value, r.place.value, r.hash.value, r.agreeHash.value, projectOfGroup(r.project)), "削除できませんでした");
   if (!json)
     return;
   const name = r.name.value;
@@ -1266,7 +1267,7 @@ function workerPrompt(r, i) {
   if (r.wpromptReq[k])
     return null;
   r.wpromptReq[k] = true;
-  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...r.project && r.project !== "global" ? { project: r.project } : {}, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {
@@ -1548,9 +1549,7 @@ function pressCarry(r, kind, name) {
 }
 var baseOf = (r, place) => {
   const group = groupOfRecord(r);
-  if (place === "global" || !group || group === "global")
-    return { place, name: r.name.value };
-  return { place, name: r.name.value, project: group };
+  return { place, name: r.name.value, project: projectOfGroup(place === "global" ? "global" : group) };
 };
 async function pressDup(r) {
   await addDraft("dup", r.place.value, theName(r.name.value), baseOf(r, r.place.value), r.project);

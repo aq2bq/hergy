@@ -14,6 +14,7 @@ var copyGroupOf = (to, from, current) => {
   return from && from !== "global" ? from : current;
 };
 var groupPlace = (group) => group === "global" ? "global" : "project";
+var projectOfGroup = (group) => !group || group === "global" ? undefined : group;
 
 // lib/band.ts
 function bringUnderBand(row) {
@@ -27,4 +28,4 @@ function bringUnderBand(row) {
   window.scrollBy({ top: delta, behavior: quiet ? "auto" : "smooth" });
 }
 
-export { copyGroupOf, groupPlace, bringUnderBand };
+export { copyGroupOf, groupPlace, projectOfGroup, bringUnderBand };

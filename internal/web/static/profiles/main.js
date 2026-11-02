@@ -41,8 +41,9 @@ import {
 import {
   copyGroupOf,
   groupPlace,
+  projectOfGroup,
   bringUnderBand
-} from "../chunk/nav-9h6qyq9q.js";
+} from "../chunk/nav-y4vzs6yk.js";
 import {
   Field,
   inText
@@ -576,27 +577,21 @@ async function checkPanel(key) {
   const panel = panelByKey(key);
   if (!panel)
     return;
-  let answer;
-  try {
-    answer = await checkerFor(key).run({
-      place: panel.file,
-      original: panel.saved ? panel.saved.name : "",
-      project: projectOf(panel),
-      doc: panel.draft
-    });
-  } catch {
+  const answer = await checkerFor(key).run({
+    place: panel.file,
+    original: panel.saved ? panel.saved.name : "",
+    project: projectOf(panel),
+    doc: panel.draft
+  });
+  if (!answer?.json)
     return;
-  }
-  const problems = answer && answer.json && answer.json.problems || [];
+  const problems = answer.json.problems || [];
   if (!panelByKey(key))
     return;
   patchPanel(key, { problems, errors: problems.filter((p) => p.sev === "err").length });
 }
 function projectOf(panel) {
-  const group = panel.group || "";
-  if (!group || group === "global" || group === CURRENT)
-    return;
-  return group;
+  return projectOfGroup(panel.group);
 }
 async function savePanel(key, over) {
   const panel = panelByKey(key);

@@ -10,7 +10,7 @@ import { signal } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { takeDraft, setCount, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
-import { copyGroupOf } from '../lib/copy';
+import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
   check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, Refusal, bases,
@@ -498,7 +498,7 @@ export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (()
   // it), so only the newest reading reaches the panel.
   const answer = await checkerFor(k).run({
     place: l, original: e.saved ? e.saved.name : null,
-    project: r.group && r.group !== 'global' ? r.group : undefined,
+    project: projectOfGroup(r.group),
     doc: toDoc(e.draft, e.saved || e.base || null),
   });
   const c = answer && answer.json;
@@ -819,9 +819,7 @@ export function pressPmode(id: number | string, l: Place, v: string): void {
 // written from another project's lines (r-a028).
 const basePlaceOf = (r: RoleRow, l: Place): NonNullable<components['schemas']['RoleSaveRequest']['base']> => {
   const group = groupOfRow(r);
-  return l === 'global' || !group || group === 'global'
-    ? { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : '') }
-    : { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : ''), project: group };
+  return { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : ''), project: projectOfGroup(l === 'global' ? 'global' : group) };
 };
 
 export function pressDup(id: number | string, l: Place): void {
@@ -1020,7 +1018,7 @@ export async function doSave(id: number | string, l: Place, over?: string): Prom
   // over is the hash the conflict's answer carried: 上書き sends the file that
   // was seen, and a file that moved again is refused the same way (r-3c77).
   const payload: components['schemas']['RoleSaveRequest'] = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? (e.hash || '') : over };
-  if (r.group && r.group !== 'global') payload.project = r.group;
+  payload.project = projectOfGroup(r.group);
   if (e.basePlace) payload.base = e.basePlace;
   let res: RawAnswer<Answer<'role', 'save'>>;
   try {
@@ -1095,7 +1093,7 @@ export async function doDelete(id: number | string, l: Place): Promise<void> {
   const e = r && r[l];
   if (!e || !e.saved) return;
   try {
-    await apiDel('role', e.saved.name, l, e.hash || '', undefined, r.group && r.group !== 'global' ? r.group : undefined);
+    await apiDel('role', e.saved.name, l, e.hash || '', undefined, projectOfGroup(r.group));
   } catch (err) {
     showRefusal(id + l, refusalAt(err), problemText(err, '削除できませんでした'));
     return;

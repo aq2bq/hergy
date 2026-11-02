@@ -1,4 +1,6 @@
-// lib/resource.ts — サーバーへの読み込みの共有部品（webui-preact-design 5 章 3）。
+// lib/resource.ts — サーバーへの読み込みの共有部品。
+// The request ordering contract is tested in jstest/resource.test.js and
+// jstest/profiles-check-order.test.js.
 //
 // 画面は、読み込みを自分で並べない。resource に「どう読むか」を渡し、
 // `value` / `loading` / `error` を signal として受け取る。要求は後から出した

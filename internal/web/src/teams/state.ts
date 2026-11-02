@@ -29,7 +29,7 @@ import {
   fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
 } from '../lib/ruledoc.js';
 import { parseOpen } from '../lib/hq.js';
-import { copyGroupOf, groupPlace } from '../lib/copy';
+import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
 import type { Positions } from './place';
@@ -342,7 +342,7 @@ const draftIn = (r: Rec): { new?: boolean; starter_roles?: boolean; starter_prof
 // projectIn is the project a write names: a listed project's path, and nothing
 // for the global layer (which the server writes without being told) or for this
 // serve's own project.
-const projectIn = (project: string): { project?: string } => (project && project !== 'global' ? { project } : {});
+const projectIn = (project: string): { project?: string } => ({ project: projectOfGroup(project) });
 const teamIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'team', ...projectIn(r.project), ...draftIn(r), ...extra });
 const agreeIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'agreement', ...projectIn(r.project), ...draftIn(r), ...extra });
 
@@ -1108,7 +1108,7 @@ async function saveFolder(r: Rec) {
 // were all it held. Every record of that name is read again from the answer,
 // because the other place's reading may be the one in effect now.
 export async function doDelete(r: Rec) {
-  const json = await answered(r, 't', apiDel('team', r.name.value, r.place.value, r.hash.value, r.agreeHash.value, r.project && r.project !== 'global' ? r.project : undefined), '削除できませんでした');
+  const json = await answered(r, 't', apiDel('team', r.name.value, r.place.value, r.hash.value, r.agreeHash.value, projectOfGroup(r.project)), '削除できませんでした');
   if (!json) return;
   const name = r.name.value;
   // The row keeps its place in the list: taking one place's folder away leaves
@@ -1276,7 +1276,7 @@ export function workerPrompt(r: Rec, i: number) {
   // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...(r.project && r.project !== 'global' ? { project: r.project } : {}), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {
@@ -1586,8 +1586,7 @@ export function pressCarry(r: Rec, kind: 'role' | 'profile', name: string) {
 // project's row would have no base (r-a028).
 const baseOf = (r: Rec, place: Place): TeamBase => {
   const group = groupOfRecord(r);
-  if (place === 'global' || !group || group === 'global') return { place, name: r.name.value };
-  return { place, name: r.name.value, project: group };
+  return { place, name: r.name.value, project: projectOfGroup(place === 'global' ? 'global' : group) };
 };
 export async function pressDup(r: Rec) {
   await addDraft('dup', r.place.value, theName(r.name.value), baseOf(r, r.place.value), r.project);

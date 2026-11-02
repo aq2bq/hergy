@@ -9,7 +9,7 @@ import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
-import { copyGroupOf, groupPlace } from '../lib/copy';
+import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, Draft, EnvPair, FocusAsk, Island,
@@ -537,27 +537,21 @@ function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
 export async function checkPanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
-  let answer: CheckAnswer | undefined;
-  try {
-    answer = await checkerFor(key).run({
-      place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
-    });
-  } catch {
-    // A refusal is not a check answer: it names no problems (n-3f6c).
-    return;
-  }
-  const problems: Problem[] = (answer && answer.json && answer.json.problems) || [];
+  const answer = await checkerFor(key).run({
+    place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
+  });
+  // resource returns no answer for a superseded request or a failure. Neither
+  // means the draft passed its check; keep the last accepted problems.
+  if (!answer?.json) return;
+  const problems: Problem[] = answer.json.problems || [];
   if (!panelByKey(key)) return;
   patchPanel(key, { problems, errors: problems.filter((p) => p.sev === 'err').length });
 }
 
 // projectOf is the listed project a panel writes to: the group the row stands
-// in, and nothing for the global layer or this serve's own project (whose files
-// the API writes without being told).
+// in. All screens keep a known project path, including this serve's own project.
 export function projectOf(panel: Panel): string | undefined {
-  const group = panel.group || '';
-  if (!group || group === 'global' || group === CURRENT) return undefined;
-  return group;
+  return projectOfGroup(panel.group);
 }
 
 // savePanel writes one panel. The answer carries the project's list, which
