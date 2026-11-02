@@ -898,12 +898,8 @@ function checkersFor(r) {
   if (had)
     return had;
   const load = async (signal, payload) => {
-    try {
-      const res = await check2("team", payload, { signal });
-      return res.json;
-    } catch {
-      return null;
-    }
+    const res = await check2("team", payload, { signal });
+    return res.json;
   };
   const one = { draft: resource(load), base: resource(load), agree: resource(load) };
   teamChecks.set(k, one);
@@ -942,10 +938,15 @@ async function checkTeam(r) {
   if (!r.ops.value.length) {
     const at = r.drawMark.value || 0;
     const json = await one.base.run(payload);
-    if (!json)
+    if (!json) {
+      if (r.draftRow && !r.seeded.value)
+        refuse(r, "t", problemText2(one.base.error.value, "元にしたチーム定義を読めませんでした"));
       return;
+    }
     if (r.draftRow && !r.seeded.value)
       seedDraft(r, json);
+    if (r.draftRow && r.seeded.value)
+      setRefusal("t" + dkey(r), "");
     const findings = figFindings(r, json.problems || []);
     r.baseFindings.value = findings;
     if ((r.drawMark.value || 0) !== at)
@@ -1518,14 +1519,20 @@ function pressStarterProfile(r) {
   r.starterProfile.value = !r.starterProfile.value;
   checkTeam(r);
 }
+var baseOf = (r, place) => {
+  const group = groupOfRecord(r);
+  if (place === "global" || !group || group === "global")
+    return { place, name: r.name.value };
+  return { place, name: r.name.value, project: group };
+};
 async function pressDup(r) {
-  await addDraft("dup", r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
+  await addDraft("dup", r.place.value, theName(r.name.value), baseOf(r, r.place.value), r.project);
 }
 async function pressCopy(r) {
   const to = other(r.place.value);
   const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : "");
   withOpen(r.dom, false);
-  const copy = await addDraft("copy", to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  const copy = await addDraft("copy", to, r.name.value, baseOf(r, r.place.value), group);
   focusAsk.value = { dom: copy.dom, sel: ".in-name", scroll: true };
 }
 function pressDiscard(r) {
@@ -4772,7 +4779,10 @@ function TeamPanel({ r }) {
               r
             })
           })
-        })
+        }),
+        r.draftRow ? /* @__PURE__ */ u(Foot, {
+          r
+        }) : null
       ]
     });
   }
@@ -4797,7 +4807,7 @@ function TeamPanel({ r }) {
   });
 }
 function StarterNote({ r }) {
-  if (!r.draftRow)
+  if (!r.draftRow || !r.seeded.value)
     return null;
   const roles = !r.hasRoles.value, profiles = !r.hasProfiles.value;
   if (!roles && !profiles)
@@ -4959,10 +4969,20 @@ function Foot({ r, agree }) {
   }) : null;
   const issues = teamIssues(r);
   const before = new Set((r.baseFindings.value || []).filter((m) => m.sev === "err").map((m) => m.text));
-  const grew = issues.some((m) => m.sev === "err" && m.field !== "node" && !before.has(m.text));
+  const grown = issues.filter((m) => m.sev === "err" && m.field !== "node" && !before.has(m.text));
+  const grew = grown.length > 0;
   const refusal = refusalOf(r, agree ? "a" : "t");
   if (r.draftRow) {
     const named = r.seeded.value && !(r.nameIssues.value || []).length;
+    const held = [];
+    const say = (text) => {
+      if (text && !held.includes(text))
+        held.push(text);
+    };
+    if (refusal)
+      say(refusal);
+    (r.nameIssues.value || []).forEach((m) => say(m.text));
+    grown.forEach((m) => say(m.text));
     return /* @__PURE__ */ u(S, {
       children: [
         notice,
@@ -4992,9 +5012,9 @@ function Foot({ r, agree }) {
                 ]
               }))
             }),
-            refusal ? /* @__PURE__ */ u("span", {
+            held.length ? /* @__PURE__ */ u("span", {
               class: "sev err refusal",
-              children: refusal
+              children: held.join(" ")
             }) : null
           ]
         })

@@ -812,6 +812,18 @@ export function pressPmode(id: number | string, l: Place, v: string): void {
   touch();
 }
 
+// basePlaceOf is the document a duplicate or a copy of one row stands on, named
+// the way the server reads it: the place the document stands in, its name, and,
+// for a row under a listed project's head, that project. Without the project
+// the server reads the file of the project it was started in, and the copy is
+// written from another project's lines (r-a028).
+const basePlaceOf = (r: RoleRow, l: Place): NonNullable<components['schemas']['RoleSaveRequest']['base']> => {
+  const group = groupOfRow(r);
+  return l === 'global' || !group || group === 'global'
+    ? { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : '') }
+    : { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : ''), project: group };
+};
+
 export function pressDup(id: number | string, l: Place): void {
   // The copy keeps the places its rules stood in (their _k), so the server
   // writes the new file from the original's own lines (spec-roles 1.2.9).
@@ -821,7 +833,7 @@ export function pressDup(id: number | string, l: Place): void {
   const d = clone(src);
   d.name += '-2';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
-  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: { place: l, name: src.name }, hash: '', text: '' };
+  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: '', text: '' };
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -835,7 +847,7 @@ export function pressCopy(id: number | string, l: Place): void {
   const r = byUid(id);
   if (!r || !r[l] || !r[l].saved) return;
   const to = other(l);
-  const e: RoleEntry = { saved: null, draft: clone(r[l]!.saved!), base: clone(r[l]!.saved!), basePlace: { place: l, name: r[l]!.saved!.name }, hash: '', text: '' };
+  const e: RoleEntry = { saved: null, draft: clone(r[l]!.saved!), base: clone(r[l]!.saved!), basePlace: basePlaceOf(r, l), hash: '', text: '' };
   // The list draws each place as its own row under its head; the copy stands in
   // the place it was copied to, not in the row it came from (r-f781, r-410c).
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);

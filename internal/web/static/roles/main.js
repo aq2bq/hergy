@@ -706,6 +706,10 @@ function pressPmode(id, l, v) {
   patch({ pmode: { ...state.value.pmode, [id + l]: v } });
   touch();
 }
+var basePlaceOf = (r, l) => {
+  const group = groupOfRow(r);
+  return l === "global" || !group || group === "global" ? { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "" } : { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "", project: group };
+};
 function pressDup(id, l) {
   const r = byUid(id);
   const src = r && r[l] && r[l].saved;
@@ -714,7 +718,7 @@ function pressDup(id, l) {
   const d = clone(src);
   d.name += "-2";
   const nr = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
-  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: { place: l, name: src.name }, hash: "", text: "" };
+  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: "", text: "" };
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -731,7 +735,7 @@ function pressCopy(id, l) {
   if (!r || !r[l] || !r[l].saved)
     return;
   const to = other(l);
-  const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: { place: l, name: r[l].saved.name }, hash: "", text: "" };
+  const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: basePlaceOf(r, l), hash: "", text: "" };
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
   nr[to] = e;

@@ -57,9 +57,15 @@ type apiIn struct {
 }
 
 // apiBase is the file a duplicate or a copy stands on (spec-roles 1.2.9).
+//
+// Project names the listed project the base stands in, when it is not the one
+// serve was started in: the headquarters draws the rows of every listed
+// project, and a copy of one of them stands in that project's place (r-a028,
+// d-73fc). Empty keeps the old reading, which is serve's own project.
 type apiBase struct {
-	Place string `json:"place"`
-	Name  string `json:"name"`
+	Place   string `json:"place"`
+	Name    string `json:"name"`
+	Project string `json:"project,omitempty"`
 }
 
 // apiErr is a refusal: the status, the sentence a person reads, and, when the

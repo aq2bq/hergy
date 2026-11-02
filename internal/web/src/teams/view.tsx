@@ -287,14 +287,19 @@ function TeamPanel({ r }: { r: Rec }) {
     <header class="ph"><code class="path">{r.teamPath.value}</code>
       <span class="phr">{both ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}</span></header>
   );
-  // A team.yaml that does not read draws no figure and offers no shape save:
-  // the check column alone says what stopped it, and the YAML tab is where the
-  // text is put right (spec-teams 1.9).
+  // A team.yaml that does not read draws no figure, and a saved one offers no
+  // shape save: the check column alone says what stopped it, and the YAML tab is
+  // where the text is put right (spec-teams 1.9). A row that is not there yet is
+  // the exception: it stands in no file, so the YAML tab holds nothing to put
+  // right, and its save is the only place that row can be kept. Such a row keeps
+  // its save, beside the sentence that says what stopped the figure (r-a028,
+  // d-9abb).
   if (r.broken.value) {
     return (
       <section class="panel team-p" data-key={k}>
         {head}
         <div class="gbody"><div class="vlist"><VList r={r} /></div></div>
+        {r.draftRow ? <Foot r={r} /> : null}
       </section>
     );
   }
@@ -313,7 +318,10 @@ function TeamPanel({ r }: { r: Rec }) {
 // there, or asks for the starter ones, which the save writes only then
 // (r-54b8, d-86b1). A row with nothing missing says nothing.
 function StarterNote({ r }: { r: Rec }) {
-  if (!r.draftRow) return null;
+  // The note is about what a save would write, and only an answer that read the
+  // row's base says that. A row whose base was refused offers no save, so it
+  // asks for no choice either (r-a028).
+  if (!r.draftRow || !r.seeded.value) return null;
   const roles = !r.hasRoles.value, profiles = !r.hasProfiles.value;
   if (!roles && !profiles) return null;
   return (
@@ -377,7 +385,8 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   // still save (r-df77, d-9abb): they stay as the definition's problem and
   // stop up, but a save is where work in progress is kept. Those findings
   // stand on a node (field 'node'); every other new error stops the save.
-  const grew = issues.some((m) => m.sev === 'err' && m.field !== 'node' && !before.has(m.text));
+  const grown = issues.filter((m) => m.sev === 'err' && m.field !== 'node' && !before.has(m.text));
+  const grew = grown.length > 0;
   const refusal = refusalOf(r, agree ? 'a' : 't');
   if (r.draftRow) {
     // A row that is not there yet is saved only when its name is one the
@@ -385,10 +394,19 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     // the first answer is still out nothing is written from the row
     // (spec-teams B2, N2).
     const named = r.seeded.value && !(r.nameIssues.value || []).length;
+    // held is why 保存 is shut, in the server's own sentences (ac-456e): the
+    // save's refusal, the name's problems, and the errors the row grew since
+    // the base it stands on. Every state that shuts the save has one, so a row
+    // never stands with its save off and nothing said (r-a028).
+    const held: string[] = [];
+    const say = (text: string) => { if (text && !held.includes(text)) held.push(text); };
+    if (refusal) say(refusal);
+    (r.nameIssues.value || []).forEach((m) => say(m.text));
+    grown.forEach((m) => say(m.text));
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act={saveAct} disabled={grew || !named} onClick={() => (agree ? pressSave(r) : pressTSave(r))}>保存</button><span class="dirty">新規</span>{ok}
-        <span class="also">{(r.writes.value || []).map((p, i) => <>{i ? '・' : null}<code>{String(p).split('/').pop()}</code></>)}</span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
+        <span class="also">{(r.writes.value || []).map((p, i) => <>{i ? '・' : null}<code>{String(p).split('/').pop()}</code></>)}</span>{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}
       </footer></>
     );
   }

@@ -1747,6 +1747,9 @@ components:
             name:
               type: string
               description: 元の文書のロール名
+            project:
+              type: string
+              description: 元の文書があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
     ProfileList:
       description: GET /api/profile の答え（spec-boundary 5）。プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み。
       type: object
@@ -3940,6 +3943,9 @@ components:
         name:
           type: string
           description: 元のチーム定義名
+        project:
+          type: string
+          description: 元のチーム定義があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
     TeamOperationDocument:
       description: チーム定義またはチームのルールに加える編集。
       type: object

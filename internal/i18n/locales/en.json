@@ -593,5 +593,6 @@
   "leftovers.remove": "    to remove: git worktree remove %s\n",
   "leftovers.check": "    it has uncommitted changes or commits not in the base; look at it before removing it\n",
   "leftovers.stashes": "  this project's stashes: %d (see them with git stash list)\n",
-  "leftovers.note": "  hergy removes nothing; check what may go, then run the commands above\n"
+  "leftovers.note": "  hergy removes nothing; check what may go, then run the commands above\n",
+  "error.copy_base_unreadable": "The team definition %s this one stands on has no readable team.yaml. Nothing was written. Take this row back, open that definition, fix its file, and duplicate or copy it again"
 }

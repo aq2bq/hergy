@@ -74,13 +74,22 @@ func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
 	if in.Base == nil {
 		return t2DraftRow{}, refuse(http.StatusBadRequest, "team: a new definition needs new or base")
 	}
+	// The base is read from the place the row it came from stands in. A row of
+	// a listed project's head is that project's file, not this serve's own
+	// (r-a028): reading the wrong project's file left the copy without a base,
+	// and its save could not be pressed at all.
+	from, refusal := s.withProject(in.Base.Project)
+	if refusal != nil {
+		return t2DraftRow{}, refusal
+	}
 	src := catalog.Layer(in.Base.Place)
-	text, err := s.cat.Reader().Read(source.Doc{Path: s.cat.TeamYAML(in.Base.Name, src)})
+	path := from.cat.TeamYAML(in.Base.Name, src)
+	text, err := from.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
-		return t2DraftRow{}, refuse(http.StatusNotFound, t("web.error.not_found"))
+		return t2DraftRow{}, refuse(http.StatusNotFound, tf("error.copy_base_unreadable", from.cat.Display(path)))
 	}
 	out.Team = text
-	out.Agree, _ = s.cat.Reader().Read(source.Doc{Path: s.t2AgreeFile(in.Base.Name, src)})
+	out.Agree, _ = from.cat.Reader().Read(source.Doc{Path: from.t2AgreeFile(in.Base.Name, src)})
 	return out, nil
 }
 

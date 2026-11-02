@@ -799,6 +799,8 @@ export interface components {
                 place: string;
                 /** @description 元の文書のロール名 */
                 name: string;
+                /** @description 元の文書があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+                project?: string;
             } | null;
         };
         /** @description GET /api/profile の答え（spec-boundary 5）。プロファイル名ごとの行、2 つのファイルのハッシュ、2 つのファイルの読み。 */
@@ -2015,6 +2017,8 @@ export interface components {
             place?: string;
             /** @description 元のチーム定義名 */
             name?: string;
+            /** @description 元のチーム定義があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
+            project?: string;
         };
         /** @description チーム定義またはチームのルールに加える編集。 */
         TeamOperationDocument: {

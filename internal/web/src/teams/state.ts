@@ -305,8 +305,11 @@ export type Rec = {
   wide: Sig<boolean>; moved: Set<string>;
   draft: Sig<Team>; key: Sig<string>;
 };
-// TeamBase is the definition a duplicate or a copy stands on.
-export type TeamBase = { place: Place; name: string };
+// TeamBase is the definition a duplicate or a copy stands on. Project names the
+// listed project the base stands in: a row under a project's head is that
+// project's file, and a copy of it must read that file rather than the one this
+// serve was started in (r-a028).
+export type TeamBase = { place: Place; name: string; project?: string };
 
 // dkey is the key the screen's own state and DOM stand on: the definition's
 // saved name, or, for a definition that is not there yet (its name is what the
@@ -842,14 +845,11 @@ function checkersFor(r: Rec): Checkers {
   const had = teamChecks.get(k);
   if (had) return had;
   const load = async (signal: AbortSignal, payload: TeamCheckBody): Promise<CheckAnswer | null> => {
-    try {
-      const res = await apiCheck('team', payload, { signal });
-      return res.json;
-    } catch {
-      // A refused draft answers nothing here: the screen draws no findings of its
-      // own, and the refusal itself is the rules tab's to show (spec-teams X1).
-      return null;
-    }
+    // A refused check is the caller's to read: the resource holds the refusal,
+    // and a row whose base could not be read stands on the server's sentence
+    // (r-a028). A screen draws no findings of its own (spec-teams X1).
+    const res = await apiCheck('team', payload, { signal });
+    return res.json;
   };
   const one: Checkers = { draft: resource(load), base: resource(load), agree: resource(load) };
   teamChecks.set(k, one);
@@ -904,8 +904,20 @@ export async function checkTeam(r: Rec) {
     // on (spec-teams B2), and the file's own problems as the save's baseline.
     const at = r.drawMark.value || 0;
     const json = await one.base.run(payload);
-    if (!json) return;
+    if (!json) {
+      // The check was refused, so nothing seeded the row and its save cannot be
+      // pressed. The server's sentence says what happened and how to fix it, and
+      // it stands on the foot: a row that cannot be saved must not be a row with
+      // no reason on it (r-a028, ac-456e). A row that is already seeded keeps
+      // its own state; a refusal of a later check is the row's to show elsewhere.
+      if (r.draftRow && !r.seeded.value) refuse(r, 't', apiProblemText(one.base.error.value, '元にしたチーム定義を読めませんでした'));
+      return;
+    }
     if (r.draftRow && !r.seeded.value) seedDraft(r, json);
+    // A row whose base was refused keeps the server's sentence on its foot
+    // until a check reads the base: the seed that just succeeded is that
+    // reading, so the sentence goes (r-a028, ac-456e).
+    if (r.draftRow && r.seeded.value) setRefusal('t' + dkey(r), '');
     const findings = figFindings(r, json.problems || []);
     // The baseline is kept even when it is too old to draw (the guard below),
     // but it does not draw over a newer answer (spec-teams X3). The foot is
@@ -1527,8 +1539,18 @@ export function pressStarterProfile(r: Rec) {
   r.starterProfile.value = !r.starterProfile.value;
   checkTeam(r);
 }
+// baseOf is the definition a duplicate or a copy stands on, named the way the
+// server reads it: the place it stands in, its name, and, for a row under a
+// listed project's head, that project. Without the project the server would
+// read the file of the project it was started in, and a copy of another
+// project's row would have no base (r-a028).
+const baseOf = (r: Rec, place: Place): TeamBase => {
+  const group = groupOfRecord(r);
+  if (place === 'global' || !group || group === 'global') return { place, name: r.name.value };
+  return { place, name: r.name.value, project: group };
+};
 export async function pressDup(r: Rec) {
-  await addDraft('dup', r.place.value, theName(r.name.value), { place: r.place.value, name: r.name.value }, r.project);
+  await addDraft('dup', r.place.value, theName(r.name.value), baseOf(r, r.place.value), r.project);
 }
 export async function pressCopy(r: Rec) {
   const to = other(r.place.value);
@@ -1538,7 +1560,7 @@ export async function pressCopy(r: Rec) {
   // The row the person pressed closes: the copy under the other place's head is
   // the one open row they read (d-022a).
   withOpen(r.dom, false);
-  const copy = await addDraft('copy', to, r.name.value, { place: r.place.value, name: r.name.value }, group);
+  const copy = await addDraft('copy', to, r.name.value, baseOf(r, r.place.value), group);
   // The copy is off the screen when the other place's head is below it: the row
   // comes to the band with its name chosen (d-022a).
   focusAsk.value = { dom: copy.dom, sel: '.in-name', scroll: true };

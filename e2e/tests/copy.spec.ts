@@ -9,9 +9,9 @@
 // role, one profile and one definition; the global layer holds two roles, two
 // profiles and one definition.
 import { test, expect, type Page } from './fixtures';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, read, readTo, run, there, viewport, wait } from './helpers';
+import { press, read, readTo, run, set, there, viewport, wait } from './helpers';
 
 test.use({ reads: 'hq' });
 
@@ -413,4 +413,153 @@ test('COPY-V6 a team definition copied from the global layer to the project come
   await open(page, TEAMS, GLOBAL, 'shared');
   await press(page, copyButton(TEAMS, GLOBAL, 'shared', 'global'));
   await copyShows(page, TEAMS, GLOBAL, ALPHA, 'shared');
+});
+
+// ---- COPY-S1 .. COPY-S5 — r-a028 (ac-f07b, ac-456e) ----------------------
+//
+// A definition that stands under a listed project's head is that project's own
+// file. Copying one of those rows into the global layer used to read the file of
+// the project serve was started in: the copy had no base, so its 保存 was shut
+// for good and the screen said nothing about it. Each walk below presses the copy
+// under beta's head — a project serve was not started in — and reads what the
+// global layer got.
+//
+// A copy the base of which cannot be read at all is the one state left; there the
+// save stays shut and the foot must say what happened and what to do (ac-456e).
+const BETA = 'beta';
+
+// betaFile is one document under the listed project's head.
+const betaFile = (app: { home: string }, rel: string) => path.join(app.home, 'src', BETA, '.hergy', rel);
+
+// saveButton is the 保存 of the copy that stands under the global head.
+const saveOfCopy = (name: string) => `${rowIn(TEAMS, GLOBAL, name)}.querySelector('.detail [data-act=t-save]')`;
+
+// whyOfCopy is what the copy's foot says about a save it does not offer.
+const whyOfCopy = (name: string) => `(${rowIn(TEAMS, GLOBAL, name)}.querySelector('.detail .pf .refusal') || {}).textContent || ''`;
+
+test('COPY-S1 a team definition copied from another listed project to the global layer saves', async ({ page, app }) => {
+  const srcFile = betaFile(app, path.join('teams', 'beta-dev', 'team.yaml'));
+  const dstFile = path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml');
+  const before = readFileSync(srcFile, 'utf8');
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+
+  // The copy's save is offered: the row stands on beta's file.
+  await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of the copy is not shut').toBe(false);
+  await readTo<string>(page, whyOfCopy('beta-dev'), 'the foot of a copy that can be saved says no reason').toBe('');
+  await press(page, saveOfCopy('beta-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
+
+  expect(existsSync(dstFile), 'the copy made the definition in the global layer').toBe(true);
+  expect(readFileSync(dstFile, 'utf8'), 'the global team.yaml holds the copied description').toContain('見積もりの計算をそろえる');
+  expect(readFileSync(srcFile, 'utf8'), 'copying left the listed project file alone').toBe(before);
+
+  // The copy is a file: opening the page again shows it under the global head,
+  // and beta still holds its own.
+  await page.reload();
+  await wait(page, there(TEAMS));
+  await readTo<number>(page, countIn(TEAMS, GLOBAL), 'the copy stands under the global head after the page is opened again').toBe(2);
+  expect(readFileSync(dstFile, 'utf8'), 'the global file is still the copy after opening the page again').toContain('見積もりの計算をそろえる');
+});
+
+test('COPY-S2 a team definition whose source is broken is copied and saved as it is', async ({ page, app }) => {
+  // The 0.9.5 shape: team.yaml still writes mission:, and no description.
+  const dir = betaFile(app, path.join('teams', 'old-dev'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 'team.yaml'), [
+    'version: 1',
+    'mission: "古い言い方のまま"',
+    'members:',
+    '  - name: lead',
+    '    role: lead',
+    '    profile: beta-fast',
+    'turns:',
+    '  - human -> lead',
+    '  - lead -> human',
+    '',
+  ].join('\n'));
+  const dstFile = path.join(app.cfg, 'hergy', 'teams', 'old-dev', 'team.yaml');
+  const before = readFileSync(path.join(dir, 'team.yaml'), 'utf8');
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'old-dev');
+
+  // The check says what is wrong with the source, and the save is still offered:
+  // the error was there before the copy stood (d-9abb, spec-teams X3).
+  await press(page, copyButton(TEAMS, BETA, 'old-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'old-dev')}`);
+  await readTo<string>(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.querySelector('.vlist').textContent`, 'the copy says what is wrong with the source').toContain('mission:');
+  await readTo<boolean>(page, `${saveOfCopy('old-dev')}.disabled`, 'the save of a copy whose source is broken is not shut').toBe(false);
+  await press(page, saveOfCopy('old-dev'));
+  // The save writes the folder as it stands. The row then reads as the saved
+  // definition it wrote, and a saved definition that does not read draws the
+  // check column alone (spec-teams 1.9).
+  await expect.poll(() => existsSync(dstFile), { timeout: 8_000, message: 'the copy wrote the global folder' }).toBe(true);
+  await wait(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.classList.contains('open')`);
+  expect(readFileSync(dstFile, 'utf8'), 'the copy kept the source text as it is').toBe(before);
+  await readTo<string>(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.querySelector('.vlist').textContent`, 'the saved copy still says what is wrong with it').toContain('mission:');
+});
+
+// draftRowIn is the row under one head that is not there yet: it is the one with
+// a name field, and it is how a walk keeps hold of a copy once its name changes.
+const draftRowIn = (group: string) => `(${rowsIn(rootOf(TEAMS), TEAMS, group)}.find((el) => el.querySelector('.in-name')) || null)`;
+
+test('COPY-S3 a copy whose name the global layer already holds says why its save is shut', async ({ page, app }) => {
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
+
+  // The person types the name of a definition the global layer already holds.
+  const copy = draftRowIn(GLOBAL);
+  await set(page, `${copy}.querySelector('.in-name[data-f=name]')`, 'shared');
+  await readTo<string>(page, `${copy}.querySelector('.in-name').value`, 'the name field holds the name the person typed').toBe('shared');
+  await readTo<boolean>(page, `${copy}.querySelector('.detail [data-act=t-save]').disabled`, 'the save is shut while the name is taken').toBe(true);
+  await readTo<string>(page, `(${copy}.querySelector('.detail .pf .refusal') || {}).textContent || ''`, 'the foot says the name is taken, and what to do').toContain('別のチーム定義名');
+});
+
+test('COPY-S4 a copy whose source cannot be read says why its save is shut', async ({ page, app }) => {
+  const srcFile = betaFile(app, path.join('teams', 'beta-dev', 'team.yaml'));
+  const kept = readFileSync(srcFile, 'utf8');
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+
+  // The source goes away between the list and the copy: the base cannot be read.
+  rmSync(srcFile);
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  const copy = rowIn(TEAMS, GLOBAL, 'beta-dev');
+  await wait(page, `!!${copy}`);
+
+  await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of a copy with no base is shut').toBe(true);
+  await readTo<string>(page, whyOfCopy('beta-dev'), 'the foot says what could not be read, and how to fix it').toContain('もう一度');
+  expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'a copy whose base was not read wrote nothing').toBe(false);
+  writeFileSync(srcFile, kept);
+});
+
+test('COPY-S5 a role copied from another listed project stands on that project’s document', async ({ page, app }) => {
+  const srcFile = betaFile(app, path.join('roles', 'builder.yaml'));
+  const dstFile = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  // A line only this project's document carries: the copy keeps it only when the
+  // base it stands on is this project's file.
+  writeFileSync(srcFile, '# beta だけが書いているメモ\n' + readFileSync(srcFile, 'utf8'));
+  const before = readFileSync(srcFile, 'utf8');
+  expect(existsSync(dstFile), 'the global layer holds no builder before the copy').toBe(false);
+
+  await page.goto(`${app.base}/roles`);
+  await wait(page, there(ROLES));
+  await open(page, ROLES, BETA, 'builder');
+  await press(page, copyButton(ROLES, BETA, 'builder', 'project'));
+  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}`);
+  await press(page, `${rowIn(ROLES, GLOBAL, 'builder')}.querySelector('.panel[data-l=global] [data-act=save]')`);
+  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}.querySelector('.panel[data-l=global] .ok')`);
+
+  expect(readFileSync(dstFile, 'utf8'), 'the global role document is the copy of beta’s document').toBe(before);
 });

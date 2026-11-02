@@ -306,9 +306,17 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	// The text the draft stands on: the file being replaced, or the file a
 	// duplicate or a copy is based on. A row with neither stands on nothing and
 	// is a new document.
-	basePath := old
+	basePath, baseCat := old, s.cat
 	if in.Base != nil {
-		basePath = s.cat.RolePath(in.Base.Place, in.Base.Name)
+		// The base is read from the place the row a duplicate or a copy came
+		// from stands in: a row under a listed project's head is that project's
+		// document, and reading this serve's own one would write the copy from
+		// another project's lines (r-a028, d-73fc).
+		from, refusal := s.withProject(in.Base.Project)
+		if refusal != nil {
+			return nil, refusal
+		}
+		basePath, baseCat = from.cat.RolePath(in.Base.Place, in.Base.Name), from.cat
 	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
 	rename := doc.Name != savedName
@@ -319,14 +327,14 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	}
 	base, baseErr := text, readErr
 	if basePath != old {
-		base, baseErr = s.cat.Reader().Read(source.Doc{Path: basePath})
+		base, baseErr = baseCat.Reader().Read(source.Doc{Path: basePath})
 	}
 	draftDoc := doc.document()
 	var edited []byte
 	var err error
 	var saved *rules.Document
 	if baseErr == nil {
-		saved, _ = rules.ReadAll(base, s.cat.Display(basePath))
+		saved, _ = rules.ReadAll(base, baseCat.Display(basePath))
 		if saved == nil {
 			saved = &rules.Document{Path: basePath}
 		}
