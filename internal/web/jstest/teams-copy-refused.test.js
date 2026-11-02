@@ -6,7 +6,7 @@ import { expect, test } from 'bun:test';
 import { serve, settle } from './page.js';
 import { copyOf, page, refused, save, why } from './teams-copy-place.js';
 
-const SAID = '元にしたチーム定義 ~/.config/hergy/teams/beta-dev/team.yaml を読めませんでした（そのファイルはありません）。何も書き込んでいません。取り消してから、その行を開いてファイルを直し、もう一度 複製 か コピー をしてください';
+const SAID = '元にしたチーム定義の ~/.config/hergy/teams/beta-dev/team.yaml を読めませんでした。何も書き込んでいません。取り消してから、その行を開いてファイルを直し、もう一度 複製 か コピー をしてください';
 
 test('a copy whose base cannot be read keeps its save shut, and its foot says why and what to do', async () => {
   page();

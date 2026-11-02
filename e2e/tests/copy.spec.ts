@@ -415,7 +415,7 @@ test('COPY-V6 a team definition copied from the global layer to the project come
   await copyShows(page, TEAMS, GLOBAL, ALPHA, 'shared');
 });
 
-// ---- COPY-S1 .. COPY-S5 — r-a028 (ac-f07b, ac-456e) ----------------------
+// ---- COPY-S1 .. COPY-S7 — r-a028 (ac-f07b, ac-456e) ----------------------
 //
 // A definition that stands under a listed project's head is that project's own
 // file. Copying one of those rows into the global layer used to read the file of
@@ -431,11 +431,58 @@ const BETA = 'beta';
 // betaFile is one document under the listed project's head.
 const betaFile = (app: { home: string }, rel: string) => path.join(app.home, 'src', BETA, '.hergy', rel);
 
+// alphaFile is the same under the project serve was started in.
+const alphaFile = (app: { proj: string }, rel: string) => path.join(app.proj, '.hergy', rel);
+
 // saveButton is the 保存 of the copy that stands under the global head.
 const saveOfCopy = (name: string) => `${rowIn(TEAMS, GLOBAL, name)}.querySelector('.detail [data-act=t-save]')`;
 
 // whyOfCopy is what the copy's foot says about a save it does not offer.
 const whyOfCopy = (name: string) => `(${rowIn(TEAMS, GLOBAL, name)}.querySelector('.detail .pf .refusal') || {}).textContent || ''`;
+
+// ---- the reason a save is shut, read at the windows a person reads it in ----
+//
+// The foot says why the save is shut, and the sentence carries the way to fix
+// it: it must be readable to its last character at a wide window and at a narrow
+// one, and the page must not scroll sideways to show it (r-a028, ac-456e).
+
+// whyIn is the sentence one row's foot says about the save it does not offer.
+const whyIn = (row: string) => `(${row}.querySelector('.pf .refusal') || null)`;
+
+// across is how far the page scrolls sideways; 0 is a page a person reads
+// without pushing it left and right.
+const across = () => '(() => { const d = document.documentElement; return Math.max(d.scrollWidth, document.body.scrollWidth) - d.clientWidth; })()';
+
+// whyWhole is whether the whole sentence stands inside the window.
+const whyWhole = (row: string) => `(() => { const w = ${whyIn(row)}; if (!w) return false; w.scrollIntoView({ block: 'center' });
+  const r = w.getBoundingClientRect();
+  return r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5 && r.bottom <= innerHeight + 0.5; })()`;
+
+// whyLast is whether the sentence's last character stands inside the window: the
+// way to fix it is the end of the sentence.
+const whyLast = (row: string) => `(() => { const w = ${whyIn(row)}; if (!w) return false; w.scrollIntoView({ block: 'center' });
+  const n = w.firstChild;
+  if (!n || n.nodeType !== 3 || !n.length) return false;
+  const g = document.createRange(); g.setStart(n, n.length - 1); g.setEnd(n, n.length);
+  const r = g.getBoundingClientRect();
+  return r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.top >= -0.5 && r.bottom <= innerHeight + 0.5; })()`;
+
+// whyCut is whether the sentence is cut inside its own box.
+const whyCut = (row: string) => `(() => { const w = ${whyIn(row)}; return !w || w.scrollWidth > w.clientWidth + 1; })()`;
+
+// reasonRead reads one row's reason at 1520 and at 500: the whole sentence and
+// its last character inside the window, nothing cut, no sideways scroll, and the
+// way to fix it still in the sentence.
+async function reasonRead(page: Page, row: string, tail: string, what: string): Promise<void> {
+  for (const width of [1520, 500]) {
+    await viewport(page, width, 900);
+    await readTo<number>(page, across(), `the page of ${what} does not scroll sideways at ${width}`).toBeLessThanOrEqual(0);
+    await readTo<boolean>(page, whyWhole(row), `the whole reason of ${what} stands inside the window at ${width}`).toBe(true);
+    await readTo<boolean>(page, whyLast(row), `the last character of the reason of ${what} stands inside the window at ${width}`).toBe(true);
+    await readTo<boolean>(page, whyCut(row), `the reason of ${what} is not cut at ${width}`).toBe(false);
+    await readTo<string>(page, `${whyIn(row)}.textContent`, `the reason of ${what} still says how to fix it at ${width}`).toContain(tail);
+  }
+}
 
 test('COPY-S1 a team definition copied from another listed project to the global layer saves', async ({ page, app }) => {
   const srcFile = betaFile(app, path.join('teams', 'beta-dev', 'team.yaml'));
@@ -521,7 +568,8 @@ test('COPY-S3 a copy whose name the global layer already holds says why its save
   await set(page, `${copy}.querySelector('.in-name[data-f=name]')`, 'shared');
   await readTo<string>(page, `${copy}.querySelector('.in-name').value`, 'the name field holds the name the person typed').toBe('shared');
   await readTo<boolean>(page, `${copy}.querySelector('.detail [data-act=t-save]').disabled`, 'the save is shut while the name is taken').toBe(true);
-  await readTo<string>(page, `(${copy}.querySelector('.detail .pf .refusal') || {}).textContent || ''`, 'the foot says the name is taken, and what to do').toContain('別のチーム定義名');
+  // The reason is read whole at a wide window and at a narrow one (ac-456e).
+  await reasonRead(page, copy, '別のチーム定義名を指定してください', 'a copy whose name is taken');
 });
 
 test('COPY-S4 a copy whose source cannot be read says why its save is shut', async ({ page, app }) => {
@@ -539,7 +587,9 @@ test('COPY-S4 a copy whose source cannot be read says why its save is shut', asy
   await wait(page, `!!${copy}`);
 
   await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of a copy with no base is shut').toBe(true);
-  await readTo<string>(page, whyOfCopy('beta-dev'), 'the foot says what could not be read, and how to fix it').toContain('もう一度');
+  // The reason names what could not be read and what to do, and it is read whole
+  // at a wide window and at a narrow one (ac-456e).
+  await reasonRead(page, copy, 'もう一度 複製 か コピー をしてください', 'a copy whose base cannot be read');
   expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'a copy whose base was not read wrote nothing').toBe(false);
   writeFileSync(srcFile, kept);
 });
@@ -562,4 +612,74 @@ test('COPY-S5 a role copied from another listed project stands on that project�
   await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}.querySelector('.panel[data-l=global] .ok')`);
 
   expect(readFileSync(dstFile, 'utf8'), 'the global role document is the copy of beta’s document').toBe(before);
+});
+
+test('COPY-S6 a copy that grows an error says why its save is shut, and the reason is read whole', async ({ page, app }) => {
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'beta-dev');
+  await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
+  const copy = rowIn(TEAMS, GLOBAL, 'beta-dev');
+  await wait(page, `!!${copy}`);
+  await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of a sound copy is offered').toBe(false);
+
+  // The person clears the description the copy stands on: that error was not in
+  // the definition it stands on, so the save shuts (spec-teams X3, d-9abb).
+  await set(page, `${copy}.querySelector('.in-description')`, '');
+  await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save is shut by the error the copy grew').toBe(true);
+  await reasonRead(page, copy, 'description: を 1 行書いてください', 'a copy that grew an error');
+});
+
+test('COPY-S7 a team definition with its own rules is copied with the rules of its project', async ({ page, app }) => {
+  // The same name stands in both projects, with rules and a description of its
+  // own: the copy into the global layer must carry beta's two files, not the
+  // ones of the project serve was started in (ac-f07b).
+  // The ids are hergy's own shape: an id in an older shape is written again on
+  // the next save (d-4aab), and this walk reads what the copy carries.
+  const both = [
+    { file: alphaFile(app, path.join('teams', 'both-dev')), description: 'alpha の見積もり', id: 'ABAA', rule: 'alpha の相談は 1 文で書く。' },
+    { file: betaFile(app, path.join('teams', 'both-dev')), description: 'beta の見積もり', id: 'BAAA', rule: 'beta の相談は 1 文で書く。' },
+  ];
+  for (const one of both) {
+    mkdirSync(one.file, { recursive: true });
+    writeFileSync(path.join(one.file, 'team.yaml'), [
+      'version: 1',
+      `description: "${one.description}"`,
+      'members:',
+      '  - name: lead',
+      '    role: lead',
+      '    profile: alpha-fast',
+      'turns:',
+      '  - human -> lead',
+      '  - lead -> human',
+      '',
+    ].join('\n'));
+    writeFileSync(path.join(one.file, 'agreement.yaml'), [
+      'version: 1',
+      'sections:',
+      '  - rules:',
+      '      - id: ' + one.id,
+      '        text: ' + one.rule,
+      '',
+    ].join('\n'));
+  }
+  const srcTeam = readFileSync(path.join(both[1].file, 'team.yaml'), 'utf8');
+  const srcAgree = readFileSync(path.join(both[1].file, 'agreement.yaml'), 'utf8');
+  expect(srcAgree, 'the two projects’ rules differ before the copy').not.toBe(readFileSync(path.join(both[0].file, 'agreement.yaml'), 'utf8'));
+
+  await page.goto(`${app.base}/teams`);
+  await wait(page, there(TEAMS));
+  await open(page, TEAMS, BETA, 'both-dev');
+  await press(page, copyButton(TEAMS, BETA, 'both-dev', 'project'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'both-dev')}`);
+  await readTo<boolean>(page, `${saveOfCopy('both-dev')}.disabled`, 'the save of the copy is not shut').toBe(false);
+  await press(page, saveOfCopy('both-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'both-dev')}.querySelector('.ok')`);
+
+  const dstTeam = path.join(app.cfg, 'hergy', 'teams', 'both-dev', 'team.yaml');
+  const dstAgree = path.join(app.cfg, 'hergy', 'teams', 'both-dev', 'agreement.yaml');
+  expect(existsSync(dstAgree), 'the copy made the rules in the global layer').toBe(true);
+  expect(readFileSync(dstAgree, 'utf8'), 'the global agreement.yaml is beta’s document, byte for byte').toBe(srcAgree);
+  expect(readFileSync(dstTeam, 'utf8'), 'the global team.yaml is beta’s document').toBe(srcTeam);
+  expect(readFileSync(dstAgree, 'utf8'), 'the other project’s rule is not mixed in').not.toContain('alpha の相談');
 });

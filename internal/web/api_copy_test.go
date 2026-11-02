@@ -153,8 +153,13 @@ func TestCopyWithoutItsProjectSaysWhy(t *testing.T) {
 	if err := json.Unmarshal([]byte(said), &refused); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(refused.Text, "team.yaml を読めませんでした") || !strings.Contains(refused.Text, "もう一度") {
+	if !strings.Contains(refused.Text, "元にしたチーム定義の") || !strings.Contains(refused.Text, "もう一度") {
 		t.Errorf("the refusal says %q, want what could not be read and how to fix it", refused.Text)
+	}
+	// The file is named once, by its path: the sentence does not say team.yaml
+	// twice (r-a028).
+	if n := strings.Count(refused.Text, "team.yaml"); n > 1 {
+		t.Errorf("the refusal names team.yaml %d times: %q", n, refused.Text)
 	}
 	if strings.Contains(refused.Text, "その画面はありません") {
 		t.Errorf("the refusal tells the person about a screen that has nothing to do with it: %q", refused.Text)
