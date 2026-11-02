@@ -5,94 +5,67 @@
 // the cursor on the person's row of the assign tab, the YAML text a person
 // types is still theirs after the check answered, and the delete of a profile
 // goes through whatever shape the file wrote profiles: in (ac-adb6).
-import { test } from './fixtures';
-import { press, q, read, readTo, set, there, wait } from './helpers';
+import { test, expect } from './fixtures';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 test.use({ reads: 'profiles' });
 
-// row is the list row one profile name stands on.
 const row = (name: string) => `#rows .row[data-name="${name}"]`;
 
 test('PROFILES-P1 rows open in place', async ({ page, app }) => {
-  // P1: the row opens under itself, and the detail it opens stands in the view
-  // (d-d475: a press changed something off screen).
   await page.goto(`${app.base}/profiles`);
-  await wait(page, there('#rows .row'));
-  await press(page, `${q(`${row('sonnet-fast')} .sum`)}`);
-  await wait(page, `!${q(`${row('sonnet-fast')} .detail`)}.hidden`);
-  const visible = `(function(){var d=${q(`${row('sonnet-fast')} .detail`)};if(!d){return;}var r=d.getBoundingClientRect();return r.top < window.innerHeight && r.bottom > 0;})()`;
-  await readTo<boolean>(page, visible, 'the opened detail is not in the view').toBe(true);
+  // Both layers hold this name; this test edits the project's profile.
+  const profile = page.locator(`${row('sonnet-fast')}:not([data-group="global"])`);
+  await profile.locator('.sum').click();
+  await expect(profile.locator('.detail')).toBeVisible();
+  await expect(profile.locator('.detail')).toBeInViewport();
 
-  // R1・P1: a name both files hold still counts the readers of the panel's own
-  // file, and the box that rewrites them is ticked at first — the write the
-  // screen starts with, which no 中 test can see.
   await page.goto(`${app.base}/profiles?open=sonnet-fast`);
-  await wait(page, there(row('sonnet-fast')));
-  await set(page, q(`${row('sonnet-fast')} .panel[data-file=project] [data-f=name]`), 'sonnet-5.5');
-  await wait(page, `!${q(`${row('sonnet-fast')} .panel[data-file=project] .rename`)}.hidden`);
-  await readTo<boolean>(
-    page,
-    `${q(`${row('sonnet-fast')} .panel[data-file=project] .rename input`)}.checked`,
-    'the rename box is not ticked at first',
-  ).toBe(true);
+  const panel = profile.locator('.panel[data-file=project]');
+  await panel.locator('[data-f=name]').fill('sonnet-5.5');
+  await expect(panel.locator('.rename')).toBeVisible();
+  await expect(panel.locator('.rename input')).toBeChecked();
 });
 
 test('PROFILES-P11 usage jumps', async ({ page, app }) => {
-  // P11: a person's chip moves to the assign tab, centers the person's row and
-  // lights it.
   await page.goto(`${app.base}/profiles?open=opus-plan`);
-  await wait(page, there('.uchip'));
-  await press(page, q(`${row('opus-plan')} .uchip`));
-  await wait(page, there('.team[data-g=core] .arow[data-k="m-0"].flash'));
-  await readTo<string>(
-    page,
-    `document.activeElement.closest('.arow').dataset.k`,
-    'the focus is on, want m-0',
-  ).toBe('m-0');
+  await page.locator(`${row('opus-plan')}[data-group="global"] .uchip`).first().click();
+  await expect(page.locator('.team[data-g=core] .arow[data-k="m-0"]')).toHaveClass(/(^|\s)flash(\s|$)/);
+  await expect.poll(() => page.evaluate(() =>
+    document.activeElement?.closest('.arow')?.getAttribute('data-k'),
+  )).toBe('m-0');
 });
 
 test('PROFILES-C1 typing in the YAML tab survives the check, and the save writes it', async ({ page, app }) => {
-  // C1 is the rewrite's own reason (webui-preact-design 1 章): the check answers
-  // while the person is in the field, and a screen drawn again from a string put
-  // its own text back and lost the typing. So this walk holds four things the
-  // drawing must not take away: the typed text, the problem's press, 元に戻す,
-  // and the save that writes the file.
-  const yed = `document.querySelector('.yed')`;
+  // The check answers after typing. Its redraw must keep the typed text and
+  // caret; an error closes the save only when that check has answered. Revert
+  // restores the file, and a valid edit must still save (PROFILES-C1).
   await page.goto(`${app.base}/profiles/yaml`);
-  await wait(page, there('.yed .vlist .vhead'));
-  const file = await read<string>(page, `${yed}.querySelector('.path').textContent`);
-  const before = await read<string>(page, `${yed}.querySelector('.ytext').value`);
+  const editor = page.locator('.yed').first();
+  const field = editor.locator('.ytext');
+  const save = editor.locator('[data-act=yaml-save]');
+  await expect(editor.locator('.vlist .vhead')).toBeVisible();
+  const file = await editor.locator('.path').textContent();
+  const before = await field.inputValue();
   const typed = 'profiles:\n  x: [\n';
 
-  // The server answers with the problem on its line, and the field still holds
-  // what the person typed: no draw put the page's own text back. The save shuts
-  // only when the check has answered about this text (the file's own warning
-  // does not shut it), so that wait is what says the answer is here.
-  await set(page, `document.querySelector('.yed .ytext')`, typed);
-  await readTo<boolean>(page, `${yed}.querySelector('[data-act=yaml-save]').disabled`, 'the save stands open over an error the file did not have').toBe(true);
-  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'the drawing put the text it was built with back').toBe(typed);
-  await readTo<number>(page, `${yed}.querySelectorAll('.vitem').length`, 'the check said nothing about the text').toBeGreaterThan(0);
+  await field.fill(typed);
+  await expect(save, 'the check must close the save over an invalid draft').toBeDisabled();
+  await expect(field, 'the check must not replace the typed text').toHaveValue(typed);
+  await expect(editor.locator('.vitem').first(), 'the check must show the text problem').toBeVisible();
+  await editor.locator('.vitem').first().click();
+  await expect.poll(() => field.evaluate((element) => {
+    const input = element as HTMLTextAreaElement;
+    return input.value.slice(0, input.selectionStart).split('\n').length;
+  }), { message: 'pressing the problem must move the caret to its line' }).toBe(2);
 
-  // A problem's press puts the caret on the line it names: line 2 is the one the
-  // server called out.
-  await press(page, `${yed}.querySelector('.vitem')`);
-  await readTo<number>(page, `(function(){var t=${yed}.querySelector('.ytext');return t.value.slice(0, t.selectionStart).split('\\n').length;})()`, 'the caret did not move to the problem').toBe(2);
-
-  // 元に戻す puts the file's own text back.
-  await press(page, `${yed}.querySelector('[data-act=yaml-revert]')`);
-  await readTo<string>(page, `${yed}.querySelector('.ytext').value`, 'revert did not put the file text back').toBe(before);
-
-  // A change the check takes saves, and the sentence and the file follow it.
-  await set(page, `document.querySelector('.yed .ytext')`, `${before}\n# a line the check takes\n`);
-  await wait(page, `!${yed}.querySelector('[data-act=yaml-save]').disabled`);
-  await press(page, `${yed}.querySelector('[data-act=yaml-save]')`);
-  await readTo<string>(page, `${yed}.querySelector('.ok').textContent`, 'the save said nothing').toBe('保存しました');
-  const written = readFileSync(path.join(app.proj, file), 'utf8');
-  if (!written.endsWith('# a line the check takes\n')) {
-    throw new Error(`the save did not write the file: ${JSON.stringify(written.slice(-40))}`);
-  }
+  await editor.locator('[data-act=yaml-revert]').click();
+  await expect(field, 'revert must restore the file text').toHaveValue(before);
+  await field.fill(`${before}\n# a line the check takes\n`);
+  await save.click();
+  await expect(editor.locator('.ok'), 'the save must confirm it wrote the edit').toHaveText('保存しました');
+  expect(readFileSync(path.join(app.proj, file!), 'utf8').endsWith('# a line the check takes\n')).toBe(true);
 });
 
 test('PROFILES-ADB6 a profile is deleted from a file hergy could not rewrite', async ({ page, app }) => {
@@ -114,10 +87,9 @@ test('PROFILES-ADB6 a profile is deleted from a file hergy could not rewrite', a
     writeFileSync(file, one.text, 'utf8');
     await page.goto(`${app.base}/profiles?open=${one.name}`);
     const panel = `${row(one.name)} .panel[data-file=project]`;
-    await wait(page, there(`${panel} [data-act=del]`));
-    await press(page, q(`${panel} [data-act=del]`));
+    await page.locator(`${panel} [data-act=del]`).click();
     const answer = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes(`/api/profile/${one.name}`));
-    await press(page, q(`${panel} [data-act=del-yes]`));
+    await page.locator(`${panel} [data-act=del-yes]`).click();
     const res = await answer;
     if (res.status() !== 200) {
       throw new Error(`the delete of ${one.name} was refused (${res.status()}): ${await res.text()}`);
@@ -125,6 +97,6 @@ test('PROFILES-ADB6 a profile is deleted from a file hergy could not rewrite', a
     if (readFileSync(file, 'utf8') !== one.want) {
       throw new Error(`the delete of ${one.name} wrote ${JSON.stringify(readFileSync(file, 'utf8'))}`);
     }
-    await wait(page, `!${q(row(one.name))}`);
+    await expect(page.locator(row(one.name))).toHaveCount(0);
   }
 });
