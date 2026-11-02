@@ -894,7 +894,9 @@ test('COPY-F2 a copied profile whose name the global layer holds says why its sa
 
   await set(page, `${profilePanel()}.querySelector('.in-name')`, 'coder');
   await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut by the name').toBe(true);
-  await sentenceRead(page, footOf(profilePanel()), 'はすでにあります', 'a copied profile whose name the global layer holds');
+  // The sentence says the way to fix it: the name is one the file already holds,
+  // so another profile name is what the person picks (ac-456e, r-a028).
+  await sentenceRead(page, footOf(profilePanel()), '別のプロファイル名を指定してください', 'a copied profile whose name the global layer holds');
 });
 
 test('COPY-F3 a copied profile whose variable name is not a name says why its save is shut', async ({ page, app }) => {

@@ -441,7 +441,7 @@
   "error.edit_worker_twice": "team.yaml's workers: already holds %s (from: %s); reload the page and try again",
   "error.edit_no_worker": "team.yaml's workers: has no %s (from: %s); reload the page and try again",
   "error.edit_no_profile": "profiles.yaml's profiles: has no %s; reload the page and try again",
-  "error.edit_profile_twice": "profiles.yaml's profiles: already holds %s; reload the page and try again",
+  "error.edit_profile_twice": "profiles.yaml's profiles: already holds %s; pass another profile name",
   "error.edit_unknown_op": "unknown edit to team.yaml; reload the page and try again",
   "error.internal_bug": "hergy stopped %[1]s because of a bug in hergy. The file has not changed. %[2]s. Report this bug at https://github.com/aq2bq/hergy/issues",
   "bug.operation_team_save": "saving the team definition",

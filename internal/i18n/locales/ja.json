@@ -441,7 +441,7 @@
   "error.edit_worker_twice": "team.yaml の workers: に %s（from: %s）はすでにあります。画面を読み直してから、もう一度操作してください",
   "error.edit_no_worker": "team.yaml の workers: に %s（from: %s）がありません。画面を読み直してから、もう一度操作してください",
   "error.edit_no_profile": "profiles.yaml の profiles: に %s がありません。画面を読み直してから、もう一度操作してください",
-  "error.edit_profile_twice": "profiles.yaml の profiles: に %s はすでにあります。画面を読み直してから、もう一度操作してください",
+  "error.edit_profile_twice": "profiles.yaml の profiles: に %s はすでにあります。別のプロファイル名を指定してください",
   "error.edit_unknown_op": "team.yaml への知らない書き換えです。画面を読み直してから、もう一度操作してください",
   "error.internal_bug": "hergy の不具合で%[1]sを止めました。ファイルは変わっていません。%[2]s。この不具合は https://github.com/aq2bq/hergy/issues で報告してください",
   "bug.operation_team_save": "チーム定義の保存",
