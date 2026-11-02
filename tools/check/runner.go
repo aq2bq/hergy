@@ -46,6 +46,8 @@ type runner struct {
 	stdout io.Writer
 	// cachedTests keeps go test's cache in the test gate (the diff run).
 	cachedTests bool
+	// e2eSpecs is set only by diff; nil keeps every browser spec.
+	e2eSpecs []string
 	// write is whether the gates that write (webbuild, apitypes) may write their
 	// files (go run ./tools/check webbuild -write).
 	write bool

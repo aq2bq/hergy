@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -20,7 +22,7 @@ func (r *runner) changedPaths() ([]string, error) {
 	if out, err := r.git("merge-base", "HEAD", "@{upstream}"); err == nil {
 		base = strings.TrimSpace(out)
 	}
-	changed, err := r.git("diff", "--name-only", base)
+	changed, err := r.git("diff", "--no-renames", "--name-only", base)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +78,10 @@ func gatesFor(paths []string) []gate {
 			// The packages the WebUI is built from, and the build itself.
 			add("webbuild", "deadcode")
 		case strings.HasSuffix(p, ".go"):
-			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode", "e2e")
+			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode")
+			if !cliOnly(p) {
+				add("e2e")
+			}
 		case strings.HasPrefix(p, e2eDir+"/"):
 			add("reading", "e2e")
 		case strings.HasPrefix(p, "internal/web/src/"):
@@ -96,7 +101,7 @@ func gatesFor(paths []string) []gate {
 				add("webbuild")
 			}
 		case strings.HasPrefix(p, "internal/web/tsconfig.json"):
-			add("types", "webbuild", "unit")
+			add("types", "webbuild", "unit", "e2e")
 		case strings.HasPrefix(p, "internal/"):
 			// The WebUI's pages, scripts and styles are embedded into the binary.
 			add("e2e")
@@ -131,5 +136,76 @@ func (r *runner) diff() error {
 	}
 	fmt.Printf("%d changed paths; the gates they can fail: %s\n", len(paths), strings.Join(names, " "))
 	r.cachedTests = true
+	specs, err := filepath.Glob(filepath.Join(r.root, browserGlob))
+	if err != nil {
+		return err
+	}
+	r.e2eSpecs = specsFor(paths, specs)
 	return r.runGates(selected)
+}
+
+// Only these CLI presentation files are known not to run in the browser
+// fixtures (which also invoke hergy new). Unknown Go files keep all walks.
+func cliOnly(path string) bool {
+	return strings.HasPrefix(path, "internal/cheat/") || path == "internal/options/help.go" || path == "internal/app/apply_cli.go"
+}
+
+// specsFor narrows only screen-owned changes. A nil selection means all specs,
+// including new/unknown specs. Cross-screen walks always stay in the selection.
+func specsFor(paths, specs []string) []string {
+	want := map[string]bool{}
+	for _, path := range paths {
+		if !slices.ContainsFunc(gatesFor([]string{path}), func(g gate) bool { return g.name == "e2e" }) {
+			continue
+		}
+		if strings.HasPrefix(path, "e2e/tests/") && strings.HasSuffix(path, ".spec.ts") {
+			name := filepath.Base(path)
+			if !slices.ContainsFunc(specs, func(s string) bool { return filepath.Base(s) == name }) {
+				return nil // A deleted or renamed spec needs the remaining suite.
+			}
+			want[name] = true
+			continue
+		}
+		screen := changedScreen(path)
+		if screen == "" {
+			return nil
+		}
+		for _, spec := range specs {
+			name := filepath.Base(spec)
+			if owner := specScreen(name); owner == "" || owner == screen {
+				want[name] = true
+			}
+		}
+	}
+	var selected []string
+	for name := range want {
+		selected = append(selected, "tests/"+name)
+	}
+	slices.Sort(selected)
+	return selected
+}
+
+func changedScreen(path string) string {
+	for _, screen := range []string{"profiles", "roles", "teams", "activity"} {
+		if strings.HasPrefix(path, "internal/web/src/"+screen+"/") ||
+			strings.HasPrefix(path, "internal/web/static/"+screen+"/") {
+			return screen
+		}
+	}
+	return ""
+}
+
+func specScreen(name string) string {
+	switch name {
+	case "profiles.spec.ts":
+		return "profiles"
+	case "roles.spec.ts", "roles-rule-id.spec.ts":
+		return "roles"
+	case "teams.spec.ts", "teams-shape-size.spec.ts":
+		return "teams"
+	case "activity.spec.ts", "activity-actions.spec.ts":
+		return "activity"
+	default:
+		return "" // Includes navigation, copy, save, conflict and unknown walks.
+	}
 }

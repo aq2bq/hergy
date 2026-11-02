@@ -1,5 +1,5 @@
-// Command check runs hergy's quality gates: the same set on a laptop and in
-// CI, so that whoever says "done" has run what CI will run.
+// Command check runs hergy's quality gates. Local work ends with diff;
+// CI runs every gate. Both use the same gate implementations.
 //
 //	go run ./tools/check             every gate, in order
 //	go run ./tools/check lint test   only the named gates
@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Rule says what a failing gate means for the person fixing it.
@@ -49,8 +50,8 @@ var gates = []gate{
 	{"apitypes", Hard, "internal/apicontract/api-types.d.ts is what openapi-typescript (tools/webtools) makes from internal/apicontract/openapi.yaml, the API's written promise (go run ./tools/check apitypes -write)", (*runner).apitypesGate},
 	{"unit", Hard, "the WebUI's modules' own tests (internal/web/jstest/*.test.js) under bun test, with happy-dom's document and no browser (tools/webtools)", (*runner).unitGate},
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
-	{"arch", Hard, "the direction of imports (arch_test.go); os/exec outside internal/herdrcli is caught by lint (depguard)", (*runner).archGate},
-	{"test", Hard, "go test -race -count=1 ./... with a coverage profile", (*runner).testGate},
+	{"arch", Hard, "the direction of imports (arch_test.go); lint restricts os/exec to herdrcli, gycli, browser and tools/check (test files excepted)", (*runner).archGate},
+	{"test", Hard, "go test -race ./... with a coverage profile; diff keeps the cache, other runs add -count=1", (*runner).testGate},
 	{"reading", Hard, "no walk compares what the page said once: an expect( never takes an awaited read, a reading is read again until it matches (e2e/tests/*.spec.ts, r-291a)", (*runner).readingGate},
 	{"e2e", Hard, "the browser walks of e2e/tests (*.spec.ts) in Playwright, run by bun: e2e/bun.lock's dependency and Playwright's pinned chromium are fetched into .bin/ and e2e/.bin/ when missing (d-bb0d)", (*runner).e2eGate},
 	{"coverage", Ratchet, "go-test-coverage against .testcoverage.yml; the total threshold moves up only", (*runner).coverageGate},
@@ -141,15 +142,16 @@ func (r *runner) runGates(selected []gate) error {
 			failed = append(failed, g.name)
 			continue
 		}
+		started := time.Now()
 		if err := g.run(r); err != nil {
-			fmt.Printf("-- %s FAILED: %v\n", g.name, err)
+			fmt.Printf("-- %s FAILED (%s): %v\n", g.name, time.Since(started).Round(time.Millisecond), err)
 			failed = append(failed, g.name)
 			if g.name == "test" {
 				testFailed = true
 			}
 			continue
 		}
-		fmt.Printf("-- %s ok\n", g.name)
+		fmt.Printf("-- %s ok (%s)\n", g.name, time.Since(started).Round(time.Millisecond))
 	}
 	fmt.Println()
 	if len(failed) > 0 {
@@ -163,6 +165,7 @@ func usage() string {
 	var b strings.Builder
 	b.WriteString("go run ./tools/check [gate ...]   run every gate, or the named ones, in this order\n")
 	b.WriteString("go run ./tools/check diff         the gates a change can fail, picked from the files that differ from the upstream; test keeps go test's cache (tools/check/diff.go)\n")
+	b.WriteString("                                 known CLI-only files skip e2e; screen-only changes run that screen and cross-screen specs; shared or unknown browser changes run all specs\n")
 	b.WriteString("go run ./tools/check nightly      the daily run: gremlins mutation testing and go test -fuzz (tools/check/nightly.yml)\n")
 	b.WriteString("go run ./tools/check webbuild -write  write internal/web/static's scripts again from internal/web/src\n")
 	b.WriteString("go run ./tools/check apitypes -write  write internal/apicontract/api-types.d.ts again from openapi.yaml\n")

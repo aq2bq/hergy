@@ -148,5 +148,6 @@ func (r *runner) e2eGate() error {
 	if err := r.execIn(dir, env, bun, "x", "playwright", "install", "chromium"); err != nil {
 		return err
 	}
-	return r.execIn(dir, env, bun, "x", "playwright", "test")
+	args := append([]string{"x", "playwright", "test"}, r.e2eSpecs...)
+	return r.execIn(dir, env, bun, args...)
 }
