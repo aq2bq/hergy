@@ -18,7 +18,7 @@ import os from 'node:os';
 import { hergyBin, lay, startHerdrSocket, zone } from '../scripts/fixture.mjs';
 
 // Screen is the screen a walk reads: the fixture each one stands on.
-export type Screen = 'nav' | 'profiles' | 'roles' | 'teams' | 'activity';
+export type Screen = 'nav' | 'profiles' | 'roles' | 'teams' | 'activity' | 'hq';
 
 // App is one test's project: where its parts stand, and the serve over it.
 export type App = {

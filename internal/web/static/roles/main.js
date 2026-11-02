@@ -20,7 +20,7 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-vyr0f22b.js";
+} from "../chunk/nav-se93pzn8.js";
 import {
   Refusal2,
   check2,
@@ -31,12 +31,12 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-1nz0k24n.js";
+} from "../chunk/nav-59pgz9xy.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-ffaq8wz1.js";
-import"../chunk/nav-bvvpz2s6.js";
+} from "../chunk/nav-0nv4k2p4.js";
+import"../chunk/nav-xkc88djp.js";
 import {
   fromJSON2,
   toDoc2,
@@ -52,24 +52,24 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-c1mj7qyn.js";
+} from "../chunk/nav-vqrj5e2b.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-55ktrx0j.js";
+} from "../chunk/nav-5s3bqeb3.js";
 import {
   Measure
-} from "../chunk/nav-9n0vwt3f.js";
+} from "../chunk/nav-vrc2smmf.js";
 import {
   copyGroupOf,
   projectOfGroup,
-  bringUnderBand
-} from "../chunk/nav-y4vzs6yk.js";
+  bringUnderBand,
+  ProjectView
+} from "../chunk/nav-z3b2t3ze.js";
 import {
-  Field,
-  inText
-} from "../chunk/nav-3qezehpb.js";
+  Field
+} from "../chunk/nav-rjt8w20v.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -259,7 +259,7 @@ var eff = (r) => live(r, "project") ? "project" : live(r, "global") ? "global" :
 var cur = (r) => r[eff(r)].draft;
 var curName = (r) => r.markdown ? r.name || "" : (r[eff(r)].saved || r[eff(r)].draft).name;
 var savedRoles = () => roles.value.filter((r) => live(r, "project") || live(r, "global"));
-var roleByName = (n) => savedRoles().find((r) => curName(r) === n);
+var roleByName = (n) => savedRoles().find((r) => curName(r) === n && (!GROUPED || r.group === CURRENT)) || savedRoles().find((r) => curName(r) === n && r.group === "global");
 var whoReads = (n, group) => {
   const pool = GROUPED ? hqTeams.filter((t) => group === "global" ? true : t.group === group) : teams.value;
   return pool.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
@@ -484,9 +484,9 @@ function parseURL() {
     (qs.get("rule") || "").split(",").filter(Boolean).forEach((spec) => {
       const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
       const place = m && isPlace(m[2]) ? m[2] : null;
-      const wanted = m && place ? [{ name: m[1], place, id: m[3] }] : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
-      wanted.forEach(({ name, place, id }) => {
-        const r = roleByName(name);
+      const wanted = m && place ? [{ name: m[1], group: openedRows.find((r) => r.name === m[1])?.group, place, id: m[3] }] : openedRows.map(({ name, group }) => ({ name, group, place: null, id: spec }));
+      wanted.forEach(({ name, group, place, id }) => {
+        const r = group ? savedRoles().find((r) => curName(r) === name && r.group === group) : roleByName(name) || savedRoles().find((r) => curName(r) === name);
         if (!r)
           return;
         const places = place ? [place] : [eff(r)];
@@ -1097,7 +1097,7 @@ async function boot() {
 
 // roles/assign.tsx
 function roleOptions(curRole) {
-  const rs = savedRoles();
+  const rs = savedRoles().filter((r) => !r.group || r.group === CURRENT || r.group === "global");
   const missing = !rs.some((r) => curName(r) === curRole);
   return /* @__PURE__ */ u(S, {
     children: [
@@ -1266,7 +1266,7 @@ function RoleBar() {
   }));
   return /* @__PURE__ */ u("div", {
     class: "rolebar",
-    children: savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
+    children: savedRoles().filter((r) => (!r.group || r.group === CURRENT || r.group === "global") && cnt[curName(r)]).map((r) => {
       const n = curName(r);
       return /* @__PURE__ */ u("button", {
         class: "rseg" + (hi === n ? " on" : hi ? " dim" : ""),
@@ -1279,7 +1279,11 @@ function RoleBar() {
             children: n
           }),
           /* @__PURE__ */ u("span", {
-            children: cur(r).title
+            children: [
+              cur(r).title,
+              " · ",
+              r.group === "global" ? "グローバル" : HQ?.projects.current?.name || "プロジェクト"
+            ]
           }),
           /* @__PURE__ */ u("b", {
             children: cnt[n]
@@ -1292,12 +1296,22 @@ function RoleBar() {
 function AssignPage() {
   const list = teams.value;
   if (!list.length)
-    return /* @__PURE__ */ u("p", {
-      class: "none",
-      children: "チーム定義はありません"
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(ProjectView, {
+          projects: HQ?.projects
+        }),
+        /* @__PURE__ */ u("p", {
+          class: "none",
+          children: "チーム定義はありません"
+        })
+      ]
     });
   return /* @__PURE__ */ u(S, {
     children: [
+      /* @__PURE__ */ u(ProjectView, {
+        projects: HQ?.projects
+      }),
       /* @__PURE__ */ u(RoleBar, {}),
       /* @__PURE__ */ u("div", {
         class: "teams",
@@ -1358,7 +1372,7 @@ function ychecksText(place, name) {
     children: "●"
   }) : "";
 }
-function YamlPage() {
+function YamlPageBody() {
   const files = filesList();
   const picked = state.value.yfile;
   const chosen = picked && files.some(({ r, l }) => keyOfYed(r, l) === picked) ? picked : files[0] ? keyOfYed(files[0].r, files[0].l) : null;
@@ -1462,6 +1476,16 @@ function badgeOrCount(issues, saved) {
     children: n
   }) : "";
 }
+function YamlPage() {
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(ProjectView, {
+        projects: HQ?.projects
+      }),
+      /* @__PURE__ */ u(YamlPageBody, {})
+    ]
+  });
+}
 
 // roles/view.tsx
 var other2 = (l) => l === "project" ? "global" : "project";
@@ -1471,6 +1495,10 @@ function Tabs() {
   const tabs = [["roles", "一覧", ""], ["assign", "割り当て", people], ["yaml", "YAML", ""]];
   return tabs.map(([t, label, n]) => /* @__PURE__ */ u("button", {
     class: "tab" + (s.tab === t ? " on" : ""),
+    role: "tab",
+    "aria-controls": "view",
+    "aria-selected": s.tab === t,
+    tabIndex: s.tab === t ? 0 : -1,
     "data-act": "tab",
     "data-t": t,
     "aria-pressed": s.tab === t,
@@ -1511,7 +1539,11 @@ function List() {
                 label,
                 /* @__PURE__ */ u("span", {
                   class: "n",
-                  children: filterCount(f)
+                  children: [
+                    filterCount(f),
+                    " ",
+                    f === "off" ? "ロール" : "規則"
+                  ]
                 })
               ]
             }))
@@ -1661,19 +1693,9 @@ function Role({ r }) {
     children: [
       /* @__PURE__ */ u("div", {
         class: "sum",
-        role: "button",
-        tabIndex: 0,
-        "aria-expanded": open,
+        role: "group",
         "data-act": "toggle",
         onClick: () => pressToggle(r.uid),
-        onKeyDown: (e) => {
-          if (inText(e))
-            return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            pressToggle(r.uid);
-          }
-        },
         children: sumInner(r)
       }),
       open ? detail(r) : ""
@@ -1773,8 +1795,15 @@ function sumInner(r) {
   if (r.markdown) {
     return /* @__PURE__ */ u(S, {
       children: [
-        /* @__PURE__ */ u("span", {
-          class: "chev"
+        /* @__PURE__ */ u("button", {
+          type: "button",
+          class: "chev disclosure",
+          "aria-label": `${r.markdown ? r.name : curName(r)} を開閉する`,
+          "aria-expanded": state.value.open.has(r.uid),
+          onClick: (e) => {
+            e.stopPropagation();
+            pressToggle(r.uid);
+          }
         }),
         /* @__PURE__ */ u("span", {
           class: "c-name",
@@ -1826,8 +1855,15 @@ function sumInner(r) {
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return /* @__PURE__ */ u(S, {
     children: [
-      /* @__PURE__ */ u("span", {
-        class: "chev"
+      /* @__PURE__ */ u("button", {
+        type: "button",
+        class: "chev disclosure",
+        "aria-label": `${r.markdown ? r.name : curName(r)} を開閉する`,
+        "aria-expanded": state.value.open.has(r.uid),
+        onClick: (e) => {
+          e.stopPropagation();
+          pressToggle(r.uid);
+        }
       }),
       /* @__PURE__ */ u("span", {
         class: "c-name",

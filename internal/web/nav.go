@@ -93,6 +93,10 @@ func (s *Server) navOf(current string) navData {
 				// the global layer's: the band takes those numbers rather than
 				// reading every list again (r-5b96, Enter lag).
 				nav.Teams, nav.Roles, nav.Profiles = hqNavTotals(projects)
+			} else {
+				nav.Teams = projects.Current.Defs + projects.Global.Defs
+				nav.Roles = projects.Current.Roles + projects.Global.Roles
+				nav.Profiles = projects.Current.Profiles + projects.Global.Profiles
 			}
 		}
 	}

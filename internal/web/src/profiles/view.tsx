@@ -6,7 +6,7 @@
 // onInput から actions.ts の関数を直接呼ぶ（5 章 1）。DOM は自分では書かない
 // （ドラッグの途中の class だけは、動かしている間の印として付ける）。
 import { useEffect, useRef } from '../lib/preact.js';
-import { Field, inText } from '../lib/field.js';
+import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { bringUnderBand } from '../lib/band.js';
 import {
@@ -96,7 +96,7 @@ function PlacePills({ row }: { row: Row }) {
 // opens (P1: under itself, inside the view).
 export function Row({ row }: { row: Row }) {
   const detail = useRef<HTMLDivElement>(null);
-  const sum = useRef<HTMLDivElement>(null);
+  const sum = useRef<HTMLButtonElement>(null);
 
   // A row a person pressed into opens in front of them (d-d475), and the caret
   // goes back to the line they pressed (5 章 5). Opening from the address is not
@@ -114,8 +114,8 @@ export function Row({ row }: { row: Row }) {
   const kindClass = row.isNew && first ? classOf(first.draft.kind) : row.kindClass;
   return (
     <div class={'row' + (row.open ? ' open' : '') + (rowUnsaved(row) ? ' unsaved' : '')} data-key={row.key} data-name={row.name} data-group={row.group || ''} data-kind={row.isNew ? 'claude' : kind}>
-      <div class="sum" role="button" tabindex={0} aria-expanded={row.open ? 'true' : 'false'} data-act="toggle" ref={sum} onClick={() => pressToggle(row.key)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(row.key); } }}>
-        <span class="chev"></span>
+      <div class="sum" role="group" data-act="toggle" onClick={() => pressToggle(row.key)}>
+        <button type="button" class="chev disclosure" ref={sum} aria-label={`${name || '新しいプロファイル'} を開閉する`} aria-expanded={row.open} onClick={(e) => { e.stopPropagation(); pressToggle(row.key); }}></button>
         <span class="c-name">
           <span class="nm">{name ? name : <span class="none">—</span>}</span>
           {row.isNew ? <span class="tag">新規</span> : ''}
@@ -166,6 +166,7 @@ function Panel({ panel }: { panel: PanelState }) {
   // and the way to fix a shut save stands beside the save too.
   const held: string[] = [];
   const say = (text: string | undefined) => { if (text && !held.includes(text)) held.push(text); };
+  if (!panel.draft.name.trim()) say("プロファイル名を入力してください。");
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === 'err').forEach((p) => say(p.text));
   const nameInput = useRef<HTMLInputElement>(null);
@@ -193,7 +194,7 @@ function Panel({ panel }: { panel: PanelState }) {
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
-      {saved ? <button class="btn danger" data-act="del" onClick={() => pressDel(panel.key)}>削除</button> : <button class="btn danger" data-act="discard" onClick={() => pressDiscard(panel.key)}>取り消し</button>}
+      {saved ? <button class="btn danger" data-act="del" onClick={() => pressDel(panel.key)}>削除</button> : <button class="btn" data-act="discard" onClick={() => pressDiscard(panel.key)}>取り消し</button>}
     </>
   );
   return (
@@ -204,7 +205,7 @@ function Panel({ panel }: { panel: PanelState }) {
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
       </header>
       <div class="field"><label>プロファイル名</label><div>
-        <Field class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
+        <Field aria-label="プロファイル名" class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
         <label class="rename" hidden={!hints}><input type="checkbox" data-f="rename" checked={panel.rename} onChange={(e: Event) => pressRename(panel.key, checkedOf(e))} /><span>{hints ? `使っている ${panel.rename_targets} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
         <ul class="vm" data-for="name">{problemsOf(panel, 'name')}</ul>
       </div></div>

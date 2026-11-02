@@ -55,3 +55,23 @@ func (apiActivity) Delete(string, apiIn) (any, *apiErr) {
 func (s *Server) apiActivityReadOnly(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, t("web.error.read_only"), http.StatusMethodNotAllowed)
 }
+
+// apiActivityFocus moves to a currently running member, with the ordinary write guard.
+func (s *Server) apiActivityFocus(w http.ResponseWriter, r *http.Request) {
+	if !s.apiGuard(w, r) {
+		return
+	}
+	in, ok := readHQIn[struct {
+		Team   string `json:"team"`
+		Member string `json:"member"`
+	}](w, r)
+	if !ok {
+		return
+	}
+	focuser, ok := s.activity().(interface{ FocusMember(string, string) error })
+	if !ok {
+		http.Error(w, t("web.error.not_found"), http.StatusNotFound)
+		return
+	}
+	answerHQ(w, map[string]bool{"ok": true}, focuser.FocusMember(in.Team, in.Member))
+}

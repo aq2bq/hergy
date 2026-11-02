@@ -26,11 +26,11 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-1nz0k24n.js";
+} from "./nav-59pgz9xy.js";
 import {
   setCount2,
   setActivity2
-} from "./nav-vyr0f22b.js";
+} from "./nav-se93pzn8.js";
 
 // lib/hq/state.ts
 var POLL2 = 1e4;
@@ -274,6 +274,7 @@ function closeSheet2() {
   sheetHost = null;
 }
 function openSheet2(vnode, side) {
+  const anchor = document.activeElement instanceof HTMLElement ? document.activeElement.getBoundingClientRect() : null;
   closeSheet2();
   sheetHost = document.createElement("div");
   sheetHost.className = "hq-sheet " + (side || "right");
@@ -281,6 +282,12 @@ function openSheet2(vnode, side) {
   sheetHost.setAttribute("aria-modal", "false");
   sheetHost.tabIndex = -1;
   document.body.appendChild(sheetHost);
+  if (anchor && side !== "left") {
+    sheetHost.style.right = "auto";
+    sheetHost.style.left = `${Math.max(16, Math.min(anchor.left, innerWidth - 608))}px`;
+    sheetHost.style.top = `${Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420))}px`;
+    sheetHost.style.maxHeight = `${innerHeight - Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420)) - 16}px`;
+  }
   sheetHost.focus();
   R(vnode, sheetHost);
   return sheetHost;
@@ -642,7 +649,7 @@ function StartSheet({ definition, place, project }) {
   const take = (next) => {
     setOptions(next);
     setChosen(next.project ? next.project.path : "");
-    setPicked(next.last_workspace ? next.last_workspace.id : "");
+    setPicked(next.last_workspace ? next.last_workspace.id : "__new");
     setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
@@ -688,7 +695,7 @@ function StartSheet({ definition, place, project }) {
       new_workspace_name: next.new_workspace_name || definition,
       workspaces: next.workspaces || []
     }));
-    setPicked(next.last_workspace ? next.last_workspace.id : "");
+    setPicked(next.last_workspace ? next.last_workspace.id : "__new");
     setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
@@ -1356,7 +1363,7 @@ function StopSheet({ team }) {
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
         children: [
-          `エージェントを終了してペインを閉じます。会話は残りません。${place ? `${place} ` : ""}`,
+          `エージェントを終了してペインを閉じます。${place ? `${place} ` : ""}`,
           /* @__PURE__ */ u("code", {
             children: `hergy down ${team}`
           }),
@@ -1365,6 +1372,12 @@ function StopSheet({ team }) {
       }),
       /* @__PURE__ */ u(Err, {
         text: error
+      }),
+      /* @__PURE__ */ u("p", {
+        class: "hq-err",
+        children: /* @__PURE__ */ u("strong", {
+          children: "会話は残りません。この操作は取り消せません。"
+        })
       }),
       /* @__PURE__ */ u("div", {
         class: "hq-acts",

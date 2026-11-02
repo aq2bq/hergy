@@ -256,6 +256,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/hq/launches/{id}", s.hqLaunchState)
 	mux.HandleFunc("DELETE /api/hq/launches/{id}", s.hqLaunchCancel)
 	mux.HandleFunc("POST /api/hq/stop", s.hqStop)
+	mux.HandleFunc("POST /api/activity/focus", s.apiActivityFocus)
 
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)

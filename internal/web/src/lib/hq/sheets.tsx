@@ -68,6 +68,7 @@ export function closeSheet(): void {
 // openSheet stands one sheet behind the page: the element the screen scrolls
 // under, and the tree inside it.
 function openSheet(vnode: JSX.Element, side?: string): HTMLDivElement {
+  const anchor = document.activeElement instanceof HTMLElement ? document.activeElement.getBoundingClientRect() : null;
   closeSheet();
   sheetHost = document.createElement('div');
   sheetHost.className = 'hq-sheet ' + (side || 'right');
@@ -75,6 +76,12 @@ function openSheet(vnode: JSX.Element, side?: string): HTMLDivElement {
   sheetHost.setAttribute('aria-modal', 'false');
   sheetHost.tabIndex = -1;
   document.body.appendChild(sheetHost);
+  if (anchor && side !== 'left') {
+    sheetHost.style.right = 'auto';
+    sheetHost.style.left = `${Math.max(16, Math.min(anchor.left, innerWidth - 608))}px`;
+    sheetHost.style.top = `${Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420))}px`;
+    sheetHost.style.maxHeight = `${innerHeight - Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420)) - 16}px`;
+  }
   sheetHost.focus();
   draw(vnode, sheetHost);
   return sheetHost;
@@ -195,7 +202,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   const take = (next: HQLaunchOptions): void => {
     setOptions(next);
     setChosen(next.project ? next.project.path : '');
-    setPicked(next.last_workspace ? next.last_workspace.id : '');
+    setPicked(next.last_workspace ? next.last_workspace.id : '__new');
     setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
@@ -233,7 +240,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       members: next.members || [], clash: next.clash || [], suggested_name: next.suggested_name || '',
       new_workspace_name: next.new_workspace_name || definition, workspaces: next.workspaces || [],
     }));
-    setPicked(next.last_workspace ? next.last_workspace.id : '');
+    setPicked(next.last_workspace ? next.last_workspace.id : '__new');
     setAsName(seedName(next));
     setWsName(next.new_workspace_name || definition);
   };
@@ -485,9 +492,9 @@ function StopSheet({ team }: { team: string }): JSX.Element {
       <Head title="終了する" label={team} />
       <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
       <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl>
-      <p class="hq-sub">{`エージェントを終了してペインを閉じます。会話は残りません。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
+      <p class="hq-sub">{`エージェントを終了してペインを閉じます。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
       <Err text={error} />
-      <div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
+      <p class="hq-err"><strong>会話は残りません。この操作は取り消せません。</strong></p><div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
     </>;
 }
 

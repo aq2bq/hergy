@@ -102,7 +102,7 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
   expect(idleTile.querySelector('[data-hq="apply"]')).toBe(null);
   expect(idleTile.querySelector('[data-hq="stop"]').textContent).toBe('チームを終了する…');
 
-  const figure = tile.querySelector('svg.hq-svg.packed');
+  let figure = tile.querySelector('svg.hq-svg.packed');
   const [, width] = figure.getAttribute('viewBox').match(/^0 0 (\d+) /);
   expect(Number(width)).toBeGreaterThanOrEqual(440);
   expectLabelsDoNotOverlap(figure);
@@ -166,9 +166,14 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
       }
     }
   }
+  const selector = tile.querySelector('.hq-fig select');
+  selector.value = 'lead';
+  selector.dispatchEvent(new Event('change', { bubbles: true }));
+  await settle();
+  figure = document.querySelector('.hq-tile[data-team="large"] svg.hq-svg.packed');
   const memberY = Number(columns[0].querySelector('.hq-n:not(.wkr) .dot').getAttribute('cy'));
   const memberTurns = [...figure.querySelectorAll('.hq-e.turn[data-control-y]')];
-  expect(memberTurns).toHaveLength(turns.filter(([from, to]) => from !== 'human' && to !== 'human').length);
+  expect(memberTurns).toHaveLength(turns.filter(([from, to]) => from !== 'human' && to !== 'human' && (from === 'lead' || to === 'lead')).length);
   for (const edge of memberTurns) expect(Number(edge.getAttribute('data-control-y'))).toBeLessThan(memberY - 15);
   expect(figure.querySelector('.hq-column[data-member="lead"] .hq-n.active title').textContent).toBe('lead · 仕事中 · 設計を読む');
   expect(figure.querySelector('.hq-column[data-member="webui-design"] .hq-n.idle title').textContent).toBe('webui-design · 止まっている');

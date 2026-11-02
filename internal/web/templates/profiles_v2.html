@@ -20,14 +20,15 @@
 <body>
 <div class="wrap">
   {{template "nav_band" .Nav}}
+  <h1 class="page-title">プロファイル</h1>
   <header class="top">
-    <nav class="tabs" id="tabs">
-      <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>一覧</a>
-      <a class="tab {{if eq .Tab "assign"}}on{{end}}" href="/profiles/assign"{{if eq .Tab "assign"}} aria-current="page"{{end}}>割り当て<span class="n">{{.AssignCount}}</span></a>
-      <a class="tab {{if eq .Tab "yaml"}}on{{end}}" href="/profiles/yaml"{{if eq .Tab "yaml"}} aria-current="page"{{end}}>YAML</a>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="表示方法">
+      <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles" role="tab" aria-controls="view" aria-selected="{{if eq .Tab "profiles"}}true{{else}}false{{end}}" tabindex="{{if eq .Tab "profiles"}}0{{else}}-1{{end}}"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>一覧</a>
+      <a class="tab {{if eq .Tab "assign"}}on{{end}}" href="/profiles/assign" role="tab" aria-controls="view" aria-selected="{{if eq .Tab "assign"}}true{{else}}false{{end}}" tabindex="{{if eq .Tab "assign"}}0{{else}}-1{{end}}"{{if eq .Tab "assign"}} aria-current="page"{{end}}>割り当て<span class="n">{{.AssignCount}}</span></a>
+      <a class="tab {{if eq .Tab "yaml"}}on{{end}}" href="/profiles/yaml" role="tab" aria-controls="view" aria-selected="{{if eq .Tab "yaml"}}true{{else}}false{{end}}" tabindex="{{if eq .Tab "yaml"}}0{{else}}-1{{end}}"{{if eq .Tab "yaml"}} aria-current="page"{{end}}>YAML</a>
     </nav>
   </header>
-  <main id="view" data-tab="{{.Tab}}" data-token="{{.Token}}" data-hash-project="{{.HashProject}}" data-hash-shared="{{.HashShared}}" data-path-project="{{.PathProject}}" data-path-shared="{{.PathShared}}" data-other-kinds="{{.OtherKinds}}">
+  <main role="tabpanel" id="view" data-tab="{{.Tab}}" data-token="{{.Token}}" data-hash-project="{{.HashProject}}" data-hash-shared="{{.HashShared}}" data-path-project="{{.PathProject}}" data-path-shared="{{.PathShared}}" data-other-kinds="{{.OtherKinds}}">
   {{if eq .Tab "assign"}}{{template "p2_body_assign" .}}{{else if eq .Tab "yaml"}}{{template "p2_body_yaml" .}}{{else}}{{template "p2_body_profiles" .}}{{end}}
   </main>
 </div>

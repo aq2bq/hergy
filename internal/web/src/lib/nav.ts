@@ -21,7 +21,7 @@ declare global {
 }
 
 const band = document.querySelector<HTMLElement>('.screens');
-const key = band?.dataset.key || '';
+const key = new URLSearchParams(location.search).get('project') || band?.dataset.key || '';
 
 // The page's own script runs after this one (both are deferred, and the page
 // is read second), so what the page is is read when it is needed, not here.
@@ -138,10 +138,17 @@ if (band) {
   // The page moves the address bar (a filter, an opened row, a chosen file)
   // through these two calls: wrapping them is what keeps the place right
   // without the pages doing anything for it.
+  const scopedURL = (value?: string | URL | null) => {
+    const project = new URLSearchParams(location.search).get('project');
+    if (!value || !project) return value;
+    const url = new URL(value, location.href);
+    if (!url.searchParams.has('project')) url.searchParams.set('project', project);
+    return url;
+  };
   const pushState = history.pushState.bind(history);
   const replaceState = history.replaceState.bind(history);
-  history.pushState = function (data: unknown, unused: string, url?: string | URL | null): void { pushState(data, unused, url); remember(); };
-  history.replaceState = function (data: unknown, unused: string, url?: string | URL | null): void { replaceState(data, unused, url); remember(); };
+  history.pushState = function (data: unknown, unused: string, url?: string | URL | null): void { pushState(data, unused, scopedURL(url)); remember(); };
+  history.replaceState = function (data: unknown, unused: string, url?: string | URL | null): void { replaceState(data, unused, scopedURL(url)); remember(); };
 
   // ---- 保存前の変更 (1.5) ----------------------------------------------
   // Only the band's own walk carries the changes: pressing a link here writes
@@ -153,6 +160,7 @@ if (band) {
   // back the same way from there.
   band.querySelectorAll<HTMLAnchorElement>('a.scr').forEach((a) => {
     a.addEventListener('click', () => {
+      remember();
       write(at('carry', a.dataset.screen), '1');
       const screen = mine();
       if (!screen) return;
@@ -167,3 +175,39 @@ if (band) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { remember(); decorate(); });
   else { remember(); decorate(); }
 }
+
+// Full-page editor navigation must not silently discard a draft.
+export function confirmLeave(): boolean {
+  return !page()?.dirty?.() || window.confirm('保存していない変更があります。変更を破棄して移動しますか？');
+}
+
+// Keep the explicitly selected project when following links between editors.
+document.addEventListener('click', (e) => {
+  const project = new URLSearchParams(location.search).get('project');
+  const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>('a[href]') : null;
+  if (!link) return;
+  if (link.closest('#tabs') && !confirmLeave()) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    link.closest('#tabs')?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
+    return;
+  }
+  if (!project) return;
+  const url = new URL(link.href, location.href);
+  if (url.origin !== location.origin || !/^\/(activity|teams|roles|profiles)(?:\/|$)/.test(url.pathname)) return;
+  if (!url.searchParams.has('project')) url.searchParams.set('project', project);
+  link.href = url.href;
+}, true);
+
+// Tabs expose the standard arrow/Home/End keyboard navigation.
+document.addEventListener('keydown', (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return;
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const list = e.target instanceof Element ? e.target.closest('[role="tablist"]') : null;
+  if (!list) return;
+  const tabs = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]'));
+  const at = tabs.indexOf(e.target as HTMLElement);
+  if (at < 0) return;
+  e.preventDefault();
+  const index = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[index].focus(); tabs[index].click();
+});

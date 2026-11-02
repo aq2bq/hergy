@@ -450,10 +450,14 @@ var glossary = []term{
 		japanese: "元に戻す",
 		meaning:  "throw away every change not saved in this panel and write the file's own text again (the save band's 元に戻す)",
 	},
+	{id: "settings-check", english: "settings check", japanese: "設定の検査", meaning: "the result of checking the settings; the CLI remains hergy validate"},
+	{id: "revision-number", english: "revision", japanese: "改訂番号", meaning: "a document management number not sent to the agent, separate from the format version"},
+	{id: "size-guide", english: "provisional size guide", japanese: "暫定の目安", meaning: "the character meter line; exceeding it does not prohibit saving or starting"},
+
 	{
 		id:       "running-column",
 		english:  "Running",
-		japanese: "動き",
+		japanese: "状態と操作",
 		meaning:  "the column of the team definitions list that says whether a team of that definition is running, and starts or stops it",
 	},
 	{

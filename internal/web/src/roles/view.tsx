@@ -6,7 +6,7 @@
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
-import { Field, inText } from '../lib/field.js';
+import { Field } from '../lib/field.js';
 import {
   PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, CURRENT, roleGroups, groupOfRow,
   live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checks,
@@ -31,7 +31,7 @@ export function Tabs() {
   const s = state.value;
   const people = teams.value.reduce((n, t) => n + t.members.length, 0);
   const tabs: Array<['roles' | 'assign' | 'yaml', string, string | number]> = [['roles', '一覧', ''], ['assign', '割り当て', people], ['yaml', 'YAML', '']];
-  return tabs.map(([t, label, n]) => <button class={'tab' + (s.tab === t ? ' on' : '')} data-act="tab" data-t={t} aria-pressed={s.tab === t} onClick={() => pressTab(t)}>{label}{n !== '' ? <span class="n">{n}</span> : ''}</button>);
+  return tabs.map(([t, label, n]) => <button class={'tab' + (s.tab === t ? ' on' : '')} role="tab" aria-controls="view" aria-selected={s.tab === t} tabIndex={s.tab === t ? 0 : -1} data-act="tab" data-t={t} aria-pressed={s.tab === t} onClick={() => pressTab(t)}>{label}{n !== '' ? <span class="n">{n}</span> : ''}</button>);
 }
 
 export function App() {
@@ -47,7 +47,7 @@ export function App() {
 export function List() {
   const s = state.value;
   return <><div class="toolbar">
-      <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)}</span></button>)}</div>
+      <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} {f === 'off' ? 'ロール' : '規則'}</span></button>)}</div>
       <Field id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     {HQ && HQ.error
@@ -103,7 +103,7 @@ function Role({ r }: { r: RoleRow }) {
     if (ask.scroll) bringUnderBand(el.current);
   }, [focusAsk.value]);
   return <div class={'role' + (open ? ' open' : '') + (unsaved(r) ? ' unsaved' : '')} data-uid={r.uid} ref={el}>
-      <div class="sum" role="button" tabIndex={0} aria-expanded={open} data-act="toggle" onClick={() => pressToggle(r.uid)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressToggle(r.uid); } }}>{sumInner(r)}</div>
+      <div class="sum" role="group" data-act="toggle" onClick={() => pressToggle(r.uid)}>{sumInner(r)}</div>
       {open ? detail(r) : ''}
     </div>;
 }
@@ -149,7 +149,7 @@ function placePills(r: RoleRow) {
 
 function sumInner(r: RoleRow) {
   if (r.markdown) {
-    return <><span class="chev"></span>
+    return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
         <span class="c-name"><span class="nm">{r.name}</span><span class="sev err">問題 1</span></span>
         <span class="c-place">{placePills(r)}</span>
         <span class="c-count"><span class="none">—</span></span>
@@ -164,7 +164,7 @@ function sumInner(r: RoleRow) {
   const on = rs.filter(inP).length, off = rs.length - on;
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
-  return <><span class="chev"></span>
+  return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
       <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span><span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
       <span class="c-place">{r.noDoc ? '' : placePills(r)}</span>
       <span class="c-count">{saved ? rs.length : <span class="none">—</span>}</span>

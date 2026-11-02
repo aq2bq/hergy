@@ -10,16 +10,19 @@
 import {
   S,
   R,
+  d,
   y,
   O,
   u
 } from "../chunk/nav-fa78a466.js";
 import {
-  read2
-} from "../chunk/nav-1nz0k24n.js";
+  call2,
+  read2,
+  problemText2
+} from "../chunk/nav-59pgz9xy.js";
 import {
   setActivity2
-} from "../chunk/nav-vyr0f22b.js";
+} from "../chunk/nav-se93pzn8.js";
 import {
   setRunning2,
   token2,
@@ -31,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-ffaq8wz1.js";
+} from "../chunk/nav-0nv4k2p4.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-bvvpz2s6.js";
+} from "../chunk/nav-xkc88djp.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -77,7 +80,7 @@ function sheetOf(item, docs) {
   const byName = new Map(nodes.map((n) => [n.name, n]));
   const crew = order.filter((n) => byName.has(n)).map((name) => {
     const n = byName.get(name);
-    return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "" };
+    return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "", question: n.question || "" };
   });
   const hired = doc ? doc.hired || [] : (run && run.workers || []).map((w) => ({ name: w.name, state: w.live ? "active" : "idle" }));
   const workers = hired.map((w) => ({
@@ -160,14 +163,44 @@ function pick(name) {
 
 // activity/figure.tsx
 function Figure({ team }) {
+  const [member, setMember] = d("human");
+  const turns = team.turns.filter(([from, to]) => from === member || to === member);
+  const unknown = team.workers.some((w) => !team.crew.some((m) => m.name === w.from));
   return /* @__PURE__ */ u("div", {
     class: "hq-fig",
-    children: /* @__PURE__ */ u(TeamFigure2, {
-      team,
-      turns: team.turns,
-      W: 440,
-      layout: "packed"
-    })
+    children: [
+      /* @__PURE__ */ u("label", {
+        class: "hq-worker-note",
+        children: [
+          "表示するターン ",
+          /* @__PURE__ */ u("select", {
+            "aria-label": `${team.name} の表示するターン`,
+            value: member,
+            onChange: (e) => setMember(e.currentTarget.value),
+            children: [
+              /* @__PURE__ */ u("option", {
+                value: "human",
+                children: "人間"
+              }),
+              team.crew.map((m) => /* @__PURE__ */ u("option", {
+                value: m.name,
+                children: m.name
+              }))
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u(TeamFigure2, {
+        team,
+        turns,
+        W: 440,
+        layout: "packed"
+      }),
+      unknown ? /* @__PURE__ */ u("p", {
+        class: "hq-worker-note",
+        children: "ワーカー（雇ったメンバーを確認できない）：起動記録では、ワーカーを雇ったメンバーを確認できません。ワーカーのペインで確認してください。"
+      }) : null
+    ]
   });
 }
 
@@ -185,14 +218,29 @@ function pickTile(name) {
     tile.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 function Attention({ rows }) {
+  const [error, setError] = d("");
+  const [pending, setPending] = d("");
+  async function focus(t, m) {
+    if (pending)
+      return;
+    setPending(m.herdr);
+    setError("");
+    try {
+      await call2("POST", "/api/activity/focus", { team: t.name, member: m.herdr });
+      setError("");
+    } catch (e) {
+      setError(problemText2(e, "端末へ移動できませんでした"));
+    } finally {
+      setPending("");
+    }
+  }
   const waiting = [];
   for (const t of rows) {
     for (const m of t.crew) {
       if (m.state !== "blocked" && m.state !== "handed")
         continue;
-      const q = t.question || (t.starting ? "起動の途中で、このフォルダを信頼するかを聞いています" : "");
-      waiting.push(/* @__PURE__ */ u("button", {
-        type: "button",
+      const q = m.question || t.question || (t.starting ? "起動の途中で、このフォルダを信頼するかを聞いています" : "");
+      waiting.push(/* @__PURE__ */ u("div", {
         class: "hq-at",
         "data-pick": t.name,
         onClick: () => pickTile(t.name),
@@ -224,6 +272,23 @@ function Attention({ rows }) {
           /* @__PURE__ */ u("span", {
             class: "hq-tl",
             children: m.since ? m.since : ""
+          }),
+          /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "hq-btn",
+            onClick: () => pickTile(t.name),
+            children: "チームを見る"
+          }),
+          /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "hq-btn primary",
+            disabled: !!pending,
+            "aria-busy": pending === m.herdr,
+            onClick: (e) => {
+              e.stopPropagation();
+              focus(t, m);
+            },
+            children: pending === m.herdr ? "端末へ移動中…" : "端末で返答する"
           })
         ]
       }));
@@ -305,6 +370,15 @@ function Attention({ rows }) {
           waiting,
           stalled
         ]
+      }),
+      error ? /* @__PURE__ */ u("p", {
+        role: "alert",
+        class: "hq-err",
+        children: error
+      }) : null,
+      /* @__PURE__ */ u("p", {
+        class: "hq-sub",
+        children: "止まっている：エージェントは起動していますが、今は作業していません。動いていない：起動中のエージェントがいません。"
       })
     ]
   });

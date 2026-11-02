@@ -14,8 +14,8 @@ import {
   A,
   u
 } from "../chunk/nav-fa78a466.js";
-import"../chunk/nav-1nz0k24n.js";
-import"../chunk/nav-vyr0f22b.js";
+import"../chunk/nav-59pgz9xy.js";
+import"../chunk/nav-se93pzn8.js";
 import {
   POLL,
   count,
@@ -33,7 +33,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-ffaq8wz1.js";
+} from "../chunk/nav-0nv4k2p4.js";
 
 // lib/apply/view.tsx
 var STATE = {
@@ -41,7 +41,7 @@ var STATE = {
   handed: { word: "人間の返事待ち", why: "ターンを人間に渡して、返事を待っています。今、反映できます。" },
   active: { word: "仕事中", why: "仕事が終わると、反映できます。" },
   blocked: { word: "許可待ち", why: "ペインで許可を求めています。答えると、反映できます。" },
-  absent: { word: "動いていない", why: "このメンバーのペインがありません。起動すると、定義のとおりに加わります。" }
+  absent: { word: "動いていない", why: "このメンバーの起動中のエージェントがいません。起動すると、定義のとおりに加わります。" }
 };
 var HOW = { resend: "送り直し", start: "起動", restart: "起動し直し" };
 var COST = { resend: "（会話は残る）", start: "（新しいペインで始める）", restart: "（会話が消える）" };

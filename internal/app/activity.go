@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -506,7 +507,7 @@ func (a *activityRead) List() web.ActivityList {
 	if read.err != nil {
 		// herdr is not there: the screen says so in herdr's own words and the
 		// band writes no number (2.7).
-		list.Herdr = web.ActivityNote{OK: false, Text: read.err.Error()}
+		list.Herdr = web.ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
 		return list
 	}
 	teams := a.teamsOf(read)
@@ -741,6 +742,9 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	if main != "" && (t.State == activity.WaitingAnswer || t.State == activity.WaitingTurn) {
 		if text, err := a.herdrPane(main); err == nil {
 			question = askingLine(text)
+			if t.State == activity.WaitingAnswer {
+				question = permissionQuestion(text)
+			}
 		}
 	}
 	// A member waiting for an answer whose screen herdr cannot read, or whose
@@ -765,13 +769,31 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
 		Question: question,
 	}
+	for i := range doc.Nodes {
+		node := &doc.Nodes[i]
+		if node.State != "blocked" && node.State != "handed" {
+			continue
+		}
+		text, err := a.herdrPane(node.Herdr)
+		if err != nil {
+			node.Question = i18n.T("web.activity.question_unread")
+			continue
+		}
+		node.Question = askingLine(text)
+		if node.State == "blocked" {
+			node.Question = permissionQuestion(text)
+		}
+		if node.Question == "" {
+			node.Question = i18n.T("web.activity.question_unread")
+		}
+	}
 	// With no member the line is about, there is no question: a working team's
 	// opened part is the right-hand column alone (2.5).
 	return doc, true
 }
 
-// askingLine keeps the one confirmation line the waiting row uses from a member's pane. The
-// pane itself is not part of the activity API.
+// askingLine keeps the legacy team-level summary. Each waiting member also
+// carries a focused question or permission block, without terminal history.
 func askingLine(text string) string {
 	var lines []string
 	for line := range strings.SplitSeq(text, "\n") {
@@ -791,6 +813,62 @@ func askingLine(text string) string {
 		return lines[0]
 	}
 	return ""
+}
+
+// permissionQuestion exposes only a recognized approval block, never the preceding
+// terminal history. Unknown or oversized prompts stay in the terminal.
+var permissionYes = regexp.MustCompile(`(?i)^(?:[›❯>]\s*)?1\.\s+Yes(?:$|[, .].*)`)
+var permissionAgain = regexp.MustCompile(`(?i)^(?:[›❯>]\s*)?2\.\s+Yes(?:$|[, .].*)`)
+var permissionNo = regexp.MustCompile(`(?i)^(?:[›❯>]\s*)?3\.\s+No(?:$|[, .].*)`)
+
+func permissionQuestion(text string) string {
+	var lines []string
+	start, yes, no := -1, -1, -1
+	for line := range strings.SplitSeq(strings.TrimSpace(text), "\n") {
+		// Here-documents can contain literal headings and menu choices. Text alone
+		// cannot distinguish those from the terminal UI, so leave them in the terminal.
+		if strings.Contains(line, "<<") {
+			return ""
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		i := len(lines)
+		lines = append(lines, strings.TrimRight(line, " \t"))
+		lower := strings.ToLower(trimmed)
+		if lower == "would you like to run the following command?" || lower == "bash command" || lower == "permission required" {
+			if start >= 0 {
+				return ""
+			}
+			start = i
+		}
+		if permissionYes.MatchString(trimmed) {
+			if yes >= 0 {
+				return ""
+			}
+			yes = i
+		}
+		if permissionNo.MatchString(trimmed) {
+			if no >= 0 {
+				return ""
+			}
+			no = i
+		}
+	}
+	if start < 0 || yes <= start+1 || no != len(lines)-1 || no <= yes {
+		return ""
+	}
+	// The choices must be consecutive at the tail, never separated by command text
+	// or output from an earlier answered prompt.
+	if no != yes+1 && (no != yes+2 || !permissionAgain.MatchString(strings.TrimSpace(lines[yes+1]))) {
+		return ""
+	}
+	result := strings.Join(lines[start:], "\n")
+	if len(lines)-start > 24 || len(result) > 4000 {
+		return ""
+	}
+	return result
 }
 
 // mainAgent is the herdr name of the member the line is about: the one the
@@ -873,4 +951,20 @@ func hireSources(project, teamName string) map[string]string {
 // that line empty.
 func (a *activityRead) herdrPane(name string) (string, error) {
 	return herdr.New(a.herdrPort()).Read(name)
+}
+
+// FocusMember rechecks membership before moving focus; it never answers a prompt.
+func (a *activityRead) FocusMember(teamName, member string) error {
+	doc, ok := a.One(teamName)
+	if ok {
+		for _, node := range doc.Nodes {
+			if node.Herdr == member && node.State != "absent" {
+				if err := herdr.New(a.herdrPort()).Focus(member); err != nil {
+					return &web.HQError{Status: 500, Text: i18n.T("web.activity.focus_failed")}
+				}
+				return nil
+			}
+		}
+	}
+	return &web.HQError{Status: 404, Text: "対象のメンバーは起動していません。アクティビティを読み直してください"}
 }

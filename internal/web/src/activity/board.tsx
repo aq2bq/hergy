@@ -1,3 +1,5 @@
+import { call, problemText } from '../lib/api';
+import { useState } from '../lib/preact';
 // activity/board.tsx — アクティビティの画面（spec 6 章、r-8a67、d-8a45）。
 //
 // 上から、人間を待っている（許可待ち・人間の返事待ち）と止まっているチーム、
@@ -30,16 +32,25 @@ function pickTile(name: string): void {
 // attention is the first tier: every member waiting for a human, with where to
 // answer, and every team none of whose members holds the turn (spec 6 章).
 function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
+  const [error, setError] = useState('');
+  const [pending, setPending] = useState('');
+  async function focus(t: ActivityTeam, m: CrewMember) {
+    if (pending) return;
+    setPending(m.herdr); setError('');
+    try { await call('POST', '/api/activity/focus', { team: t.name, member: m.herdr }); setError(''); }
+    catch (e) { setError(problemText(e, '端末へ移動できませんでした')); }
+    finally { setPending(''); }
+  }
   const waiting: JSX.Element[] = [];
   for (const t of rows) {
     for (const m of t.crew) {
       if (m.state !== 'blocked' && m.state !== 'handed') continue;
-      const q = t.question || (t.starting ? '起動の途中で、このフォルダを信頼するかを聞いています' : '');
-      waiting.push(<button type="button" class="hq-at" data-pick={t.name} onClick={() => pickTile(t.name)}><span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? '許可待ち' : ST.turn}</span>
+      const q = m.question || t.question || (t.starting ? '起動の途中で、このフォルダを信頼するかを聞いています' : '');
+      waiting.push(<div class="hq-at" data-pick={t.name} onClick={() => pickTile(t.name)}><span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? '許可待ち' : ST.turn}</span>
         <span class="hq-aw"><code>{m.herdr || (t.name + '-' + m.name)}</code><span class="hq-pw">{t.projectName}</span></span>
         <span class="hq-aq">{q}</span>
         <span class="hq-where">{whereText(t, m)}</span>
-        <span class="hq-tl">{m.since ? m.since : ''}</span></button>);
+        <span class="hq-tl">{m.since ? m.since : ''}</span><button type="button" class="hq-btn" onClick={() => pickTile(t.name)}>チームを見る</button><button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={(e) => { e.stopPropagation(); focus(t, m); }}>{pending === m.herdr ? '端末へ移動中…' : '端末で返答する'}</button></div>);
     }
   }
   const stalled: JSX.Element[] = rows.filter((t) => t.state === 'stalled').map((t) => <button type="button" class="hq-at stall" data-pick={t.name} onClick={() => pickTile(t.name)}><span class="st stalled">止まっている</span>
@@ -48,7 +59,7 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
     <span class="hq-where">{tabWhere(t)}</span>
     <span class="hq-tl">{(t.since && t.since.len) || ''}</span></button>);
   if (!waiting.length && !stalled.length) return <section class="hq-att calm"><p>人間を待っているチームも、止まっているチームもありません。</p></section>;
-  return <section class="hq-att"><div class="hq-ah"><b>人間を待っている</b><span class="n">{waiting.length}</span>{stalled.length ? <><b class="sp">止まっている</b><span class="n">{stalled.length}</span></> : ''}</div><div class="hq-al">{waiting}{stalled}</div></section>;
+  return <section class="hq-att"><div class="hq-ah"><b>人間を待っている</b><span class="n">{waiting.length}</span>{stalled.length ? <><b class="sp">止まっている</b><span class="n">{stalled.length}</span></> : ''}</div><div class="hq-al">{waiting}{stalled}</div>{error ? <p role="alert" class="hq-err">{error}</p> : null}<p class="hq-sub">止まっている：エージェントは起動していますが、今は作業していません。動いていない：起動中のエージェントがいません。</p></section>;
 }
 
 function countsLine(t: ActivityTeam): JSX.Element {

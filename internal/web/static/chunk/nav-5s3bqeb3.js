@@ -19,7 +19,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-1nz0k24n.js";
+} from "./nav-59pgz9xy.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -506,7 +506,7 @@ function YamlTab2(props) {
                 children: [
                   /* @__PURE__ */ u("span", {
                     class: "vt",
-                    children: "validate"
+                    children: "設定の検査"
                   }),
                   now.problems.length ? /* @__PURE__ */ u("span", {
                     class: "vcount",

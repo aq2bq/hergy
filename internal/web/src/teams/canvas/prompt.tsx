@@ -86,7 +86,7 @@ const PLABEL: Record<string, string> = { roster: '名簿', turns: 'ターンを�
 // d-20ac: a definition with a problem is not given a prompt, by hergy up or by
 // this column. The words are the screen's own; the problem itself is the
 // server's, under the canvas.
-const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の validate の欄の問題を直すと、ここに出ます。';
+const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。';
 
 export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const hit = (promptsOf(r) || []).find((x) => x.name === m.name);

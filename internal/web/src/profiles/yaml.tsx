@@ -1,3 +1,5 @@
+import { HQ } from './state';
+import { ProjectView } from '../lib/project-view';
 // profiles/yaml.tsx — YAML のタブ（spec-boundary 7）。
 //
 // 面は共有部品（lib/yamltab.js）が描く。この画面が持つのは、どのファイルを
@@ -22,10 +24,12 @@ function YamlFileSection({ file }: { file: YamlFile }) {
   );
 }
 
-export function YamlPage() {
+function YamlPageBody() {
   return (
     <div class="yeds">
       {yamlFiles.value.map((file) => <YamlFileSection key={file.file} file={file} />)}
     </div>
   );
 }
+
+export function YamlPage() { return <><ProjectView projects={HQ?.projects} /><YamlPageBody /></>; }

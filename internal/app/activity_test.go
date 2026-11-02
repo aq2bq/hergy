@@ -579,8 +579,8 @@ func TestActivityWatchRemembersAcrossServes(t *testing.T) {
 }
 
 // TestActivityScreensThatReadTheTeamsAgree: hergy status and the screen read the
-// running teams through one function (6 A1), so a herdr that cannot be read is
-// the same failure to both.
+// running teams through one function (6 A1). The CLI retains diagnostic
+// detail while the screen gives an actionable summary.
 func TestActivityScreensThatReadTheTeamsAgree(t *testing.T) {
 	f := newActivityFixture(t)
 	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "no-such-herdr"))
@@ -590,8 +590,14 @@ func TestActivityScreensThatReadTheTeamsAgree(t *testing.T) {
 		t.Fatalf("hergy status succeeded with no herdr:\n%s", stderr)
 	}
 	list := f.reader(t).List()
-	if list.Herdr.Text == "" || !strings.Contains(stderr, strings.TrimSpace(list.Herdr.Text)) {
-		t.Errorf("status says %q and the screen says %q, want one reason", stderr, list.Herdr.Text)
+	if list.Herdr.OK || list.Herdr.Text != i18n.T("web.activity.herdr_unavailable") {
+		t.Errorf("unexpected screen failure: %+v", list.Herdr)
+	}
+	if strings.Contains(list.Herdr.Text, "fork/exec") {
+		t.Fatal("screen exposed execution details")
+	}
+	if !strings.Contains(stderr, "no-such-herdr") {
+		t.Fatalf("CLI lost diagnostic detail: %s", stderr)
 	}
 }
 
@@ -808,5 +814,76 @@ func TestActivityQuestionSaysWhenTheScreenCannotBeRead(t *testing.T) {
 	}
 	if want := i18n.T("web.activity.question_unread"); doc.Question != want {
 		t.Errorf("the waiting row question is %q, want %q", doc.Question, want)
+	}
+}
+
+// Permission rows retain the command and focus only an actual member of the team.
+func TestActivityPermissionCommandAndFocus(t *testing.T) {
+	f := newActivityFixture(t)
+	command := "Would you like to run the following command?\n$ psql staging -f 0042_split_ledger.sql\n1. Yes, proceed\n3. No"
+	f.writeHerdr(t, "agents.json", `{"result":{"agents":[{"name":"core-lead","agent_status":"blocked","tab_id":"t1","state_change_seq":90}]}}`)
+	writeFile(t, filepath.Join(f.cfg, "activity-herdr", "screens", "core-lead.txt"), strings.Repeat("private old log\n", 40)+command)
+	f.stateFile(t, map[string]string{"core-lead": entry(90, activityNow.Add(-time.Minute), false)})
+	reader := f.reader(t)
+	doc, ok := reader.One("core")
+	if !ok {
+		t.Fatal("running team missing")
+	}
+	found := false
+	for _, node := range doc.Nodes {
+		if node.Herdr == "core-lead" {
+			found = node.Question == command
+		}
+	}
+	if !found {
+		t.Fatalf("command missing from member: %+v", doc.Nodes)
+	}
+	if err := reader.FocusMember("core", "core-lead"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(calls(t, f.herdrLog), "agent focus core-lead") {
+		t.Fatal("member was not focused")
+	}
+	before := calls(t, f.herdrLog)
+	if err := reader.FocusMember("core", "another-team-lead"); err == nil {
+		t.Fatal("foreign member accepted")
+	}
+	after := strings.TrimPrefix(calls(t, f.herdrLog), before)
+	if strings.Contains(after, "agent focus") {
+		t.Fatal("foreign member was focused")
+	}
+}
+
+func TestPermissionQuestion(t *testing.T) {
+	quoted := `Bash command
+rm -rf /data && \
+ echo "bash command finished"
+1. Yes
+3. No`
+
+	command := "Would you like to run the following command?\n$ psql staging -f migration.sql\n1. Yes\n3. No"
+	for _, tt := range []struct{ name, text, want string }{
+		{"history", strings.Repeat("old log\n", 40) + command, command},
+		{"multiple headings", command + "\nold output\n" + command, ""},
+		{"trailing", command + "\nprivate unrelated text", ""},
+		{"unknown", "private terminal history", ""},
+		{"only heading is in heredoc", "Unknown approval format\nrm -rf /data && cat <<EOF\nBash command\nEOF\n1. Yes\n3. No", ""},
+		{"old prompt before unsupported edit", command + "\nDo you want to edit main.go?\n1. Yes\n3. No", ""},
+		{"old two choices before edit", "Bash command\n$ ls\n1. Yes\n2. No\nold output\nEdit main.go?\n1. Yes\n3. No", ""},
+		{"choices in heredoc", "Bash command\ncat <<EOF\n1. Yes\n3. No\nEOF\nrm -rf /data\n1. Yes\n3. No", ""},
+		{"heading in heredoc", "Would you like to run the following command?\nrm -rf /data && cat <<EOF\nBash command\nEOF\n1. Yes\n3. No", ""},
+		{"no end", "Bash command\nrm -rf /data\n1. Yes", ""},
+		{"history contains heading words", "bash command で確認しました\nAPI_TOKEN=abc123\n" + command, command},
+		{"unrecognized prompt after history", "bash command で確認しました\nAPI_TOKEN=abc123\nApprove execution?\n1. Yes\n3. No", ""},
+		{"quoted heading in command", quoted, quoted},
+		{"comment resembles option", "Bash command\n# step 3. normalize\nrm -rf /data\n1. Yes\n3. No", "Bash command\n# step 3. normalize\nrm -rf /data\n1. Yes\n3. No"},
+		{"oversized", "Bash command\n" + strings.Repeat("long\n", 30), ""},
+		{"claude", "history\nBash command\n  git status\nDo you want to proceed?\n1. Yes\n3. No", "Bash command\n  git status\nDo you want to proceed?\n1. Yes\n3. No"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := permissionQuestion(tt.text); got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

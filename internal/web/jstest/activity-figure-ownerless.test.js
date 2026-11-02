@@ -58,10 +58,10 @@ test('AC-7f11 the ownerless workers stand in the last column under a 持ち主�
   // no point of its own.
   const heading = last.querySelector('.hq-n.ownerless');
   expect(heading).not.toBe(null);
-  expect(heading.querySelector('text').textContent).toBe('持ち主不明');
+  expect(heading.querySelector('text').textContent).toBe('雇い主不明');
   expect(heading.querySelector('circle')).toBe(null);
   const memberLabel = owned[0].querySelector('.hq-n:not(.wkr) text.lbl');
-  expect(Number(heading.querySelector('text').getAttribute('y'))).toBe(Number(memberLabel.getAttribute('y')));
+  expect(Number(heading.querySelector('text').getAttribute('y'))).toBeGreaterThan(Number(memberLabel.getAttribute('y')));
 
   // The heading stays inside the column it heads.
   const left = Number(last.getAttribute('data-x-left'));

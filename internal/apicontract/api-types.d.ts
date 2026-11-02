@@ -220,6 +220,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/activity/focus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move focus to a running member without answering its prompt */
+        post: operations["focusActivityMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/activity/check": {
         parameters: {
             query?: never;
@@ -1077,6 +1094,8 @@ export interface components {
         };
         /** @description アクティビティの札にあるメンバーまたはワーカー */
         ActivityNode: {
+            /** @description This member's question or recognized approval block, excluding terminal history; unknown approval formats show a terminal-reading notice */
+            question?: string;
             /** @description メンバー名、またはワーカー名 */
             name: string;
             /** @description メンバーまたはワーカーの herdr 名 */
@@ -2975,6 +2994,56 @@ export interface operations {
                 content: {
                     "text/plain": string;
                 };
+            };
+        };
+    };
+    focusActivityMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    team: string;
+                    member: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Focus moved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                    };
+                };
+            };
+            /** @description Invalid write token or origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Focus is unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Terminal focus failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

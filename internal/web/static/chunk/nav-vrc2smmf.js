@@ -17,6 +17,7 @@ function Measure({ chars, limit }) {
   const over = chars > limit;
   const w = Math.min(100, chars / (limit * 1.25) * 100);
   return /* @__PURE__ */ u("span", {
+    title: `暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`,
     class: "amt" + (over ? " over" : ""),
     children: [
       /* @__PURE__ */ u("span", {

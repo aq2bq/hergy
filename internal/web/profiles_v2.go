@@ -38,6 +38,12 @@ type p2Island struct {
 // drawn inside the old frame: this screen carries its own stylesheet and loads
 // no other, so its look is the one the mock agreed on.
 func (s *Server) p2Page(w http.ResponseWriter, r *http.Request, tab string) {
+	scoped, refusal := s.withProject(projectQuery(r))
+	if refusal != nil {
+		writeJSON(w, refusal.status, refusal)
+		return
+	}
+	s = scoped
 	data := s.p2Data(tab, r.URL.Query())
 	island := p2Island{Profile: s.p2List(), HQ: s.hqScreenIsland(apiProfileKind)}
 	if tab == "assign" {

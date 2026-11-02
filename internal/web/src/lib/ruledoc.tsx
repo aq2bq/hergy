@@ -463,7 +463,7 @@ function Edit({ row, issues, nameError, h }: EditProps) {
   return <><div class="dh">
       {h.hasName === false ? '' : <div class="dhf"><label for={'n' + key}>ロール名</label><Field id={'n' + key} class={'in-name' + (s && s.name === d.name ? '' : ' changed')} data-f="name" spellcheck={false} autocomplete="off" value={d.name} /><span class="errline name" hidden={!nameError}>{nameError || ''}</span></div>}
       <div class="dhf"><label for={'t' + key}>タイトル</label><Field id={'t' + key} class={'in-title' + (s && s.title === d.title ? '' : ' changed')} data-f="title" autocomplete="off" value={d.title} /></div>
-      <div class="dhf"><label for={'v' + key}>revision</label><Field id={'v' + key} class={'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value={d.revision} /></div>
+      <div class="dhf"><label for={'v' + key}>改訂番号</label><Field id={'v' + key} class={'in-rev' + (s && s.revision === d.revision ? '' : ' changed')} data-f="revision" type="number" min="1" value={d.revision} /></div>
       <label class="rename" hidden={!nread}><input type="checkbox" id={'rn' + key} checked={renameBox.value[key] !== false} /><span>{nread ? `読んでいる ${nread} 人の role も ${d.name || '—'} に書き換える` : ''}</span></label>
     </div>
     <ul class="vm dhvm"><Vm list={doc} /></ul>
@@ -513,7 +513,7 @@ function ruleHTML(row: RulePanel, x: EditableRule, issues: RuleIssue[], h: Inter
   const mine = issues.filter((m) => m.k === x._k);
   const cls = ['rule', open ? 'open' : '', ruleChanged(row, x) ? 'unsaved' : '', inP(x) ? '' : 'out'].filter(Boolean).join(' ');
   return <div class={cls} data-k={x._k}>
-      <div class="rsum" role="button" tabIndex={0} aria-expanded={open} data-act="rtoggle">{rsumInner(row, x, mine, h)}</div>
+      <div class="rsum" role="group" data-act="rtoggle">{rsumInner(row, x, mine, h)}</div>
       {open ? ruleEditHTML(row, x, mine) : ''}
     </div>;
 }
@@ -522,7 +522,7 @@ function rsumInner(row: RulePanel, x: EditableRule, mine: RuleIssue[], h: Intern
   const id = String(x.id || '');
   return <><span class="grip" aria-hidden="true">⋮</span>
       <span class="rid"><b>{id ? deco(id, h.query || '') : <span class="none">保存で付く</span>}</b><Badge list={mine} /></span>
-      <span class="rtx">{deco(snippet(String(x.text || ''), h.query || ''), h.query || '')}</span>
+      <button type="button" class="rtx disclosure" data-act="rtoggle" aria-expanded={ropen.value.has(rkey(row, x))}>{deco(snippet(String(x.text || ''), h.query || ''), h.query || '')}</button>
       <span class="marks">{x.note ? <span class="mk memo">メモ</span> : ''}{inP(x) ? '' : <span class="since">{sinceText(row, x)}</span>}<button class="onsw" type="button" role="switch" aria-checked={inP(x)} data-act="rule-toggle" aria-label={`${id || 'この規則'} をプロンプトに${inP(x) ? '入れている' : '入れていない'}`}>{inP(x) ? 'オン' : 'オフ'}</button></span></>;
 }
 

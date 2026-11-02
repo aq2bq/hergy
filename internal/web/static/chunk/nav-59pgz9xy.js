@@ -24,6 +24,15 @@ class Refusal2 extends Error {
   }
 }
 async function raw2(method, url, payload, { signal: stop } = {}) {
+  const project = new URLSearchParams(location.search).get("project");
+  if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
+    const target = new URL(url, location.origin);
+    if (!target.searchParams.has("project"))
+      target.searchParams.set("project", project);
+    url = target.pathname + target.search;
+    if (payload && typeof payload === "object" && !("project" in payload))
+      payload = { ...payload, project };
+  }
   const headers = { Accept: "application/json" };
   if (token3)
     headers["X-Hergy-Token"] = token3;

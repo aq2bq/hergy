@@ -7,7 +7,7 @@
 import { expect, test } from './fixtures';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { choose, press, q, read, readTo, set, there, wait, waitPath } from './helpers';
+import { choose, press, q, read, readTo, ready, set, there, wait, waitPath } from './helpers';
 
 // pick is the assign row N6〜N9 work on: the core team's impl-a, whose profile
 // the fixture has as codex-high.
@@ -103,27 +103,15 @@ test('NAV-N10 the team definition carries the description a person did not save'
   // (the screen used to answer dirty with a word the band then called as a
   // function, so the walk threw and the draft was lost).
   const description = '帯が運ぶ、保存していない説明';
-  await page.goto(`${app.base}/teams?open=core`);
-  await wait(page, there('.tdef.open .in-description'));
-  await set(page, q('.tdef.open .in-description'), description);
-  await readTo<string>(
-    page,
-    `String(!!${q('.scr.on[data-screen="teams"] .dot')})`,
-    'the band marks no dot while the description is changed',
-  ).toBe('true');
-  await press(page, q('a.scr[data-screen="roles"]'));
-  await waitPath(page, '/roles');
-  await wait(page, there('#rows'));
-  await press(page, q('a.scr[data-screen="teams"]'));
-  await waitPath(page, '/teams');
-  await wait(page, there('.tdef[data-name="core"] .sum'));
-  await press(page, q('.tdef[data-name="core"] .sum'));
-  await wait(page, there('.tdef.open .in-description'));
-  await readTo<string>(
-    page,
-    `${q('.tdef.open .in-description')}.value`,
-    'ac-afc9: the description the band carried back does not hold what was typed',
-  ).toBe(description);
+  await page.goto(`${app.base}/teams?open=core`); await ready(page);
+  const field = page.locator('.tdef.open .in-description');
+  await field.fill(description);
+  await expect(page.locator('.scr.on[data-screen="teams"] .dot')).toBeVisible();
+  await page.locator('a.scr[data-screen="roles"]').click(); await ready(page);
+  await expect(page).toHaveURL(/\/roles$/);
+  await page.locator('a.scr[data-screen="teams"]').click(); await ready(page);
+  await expect(page).toHaveURL(/\/teams\?open=core$/);
+  await expect(field).toHaveValue(description);
 });
 
 test('NAV-F1 Find picks a row with the arrows and Enter opens it', async ({ page, app }) => {

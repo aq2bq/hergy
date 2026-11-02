@@ -1,3 +1,5 @@
+import { HQ } from './state';
+import { ProjectView } from '../lib/project-view';
 // profiles/assign.tsx — 割り当てのタブ（spec 2 節、R6）。
 //
 // チーム定義ごとの札と、メンバー・ワーカーのプロファイルの選択を描く。押し込みは
@@ -91,7 +93,7 @@ function TeamCard({ team }: { team: Team }) {
   );
 }
 
-export function AssignPage() {
+function AssignPageBody() {
   return (
     <>
       <Kindbar />
@@ -102,3 +104,5 @@ export function AssignPage() {
     </>
   );
 }
+
+export function AssignPage() { return <><ProjectView projects={HQ?.projects} /><AssignPageBody /></>; }

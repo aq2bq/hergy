@@ -22,7 +22,7 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-vyr0f22b.js";
+} from "../chunk/nav-se93pzn8.js";
 import {
   list2,
   check2,
@@ -32,7 +32,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-1nz0k24n.js";
+} from "../chunk/nav-59pgz9xy.js";
 import {
   clone2,
   fromJSON2,
@@ -49,33 +49,34 @@ import {
   openRule2,
   RuleDoc2,
   observeKeys2
-} from "../chunk/nav-c1mj7qyn.js";
+} from "../chunk/nav-vqrj5e2b.js";
 import {
   st,
+  token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-ffaq8wz1.js";
+} from "../chunk/nav-0nv4k2p4.js";
 import {
   RunCell2
-} from "../chunk/nav-bvvpz2s6.js";
+} from "../chunk/nav-xkc88djp.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-55ktrx0j.js";
+} from "../chunk/nav-5s3bqeb3.js";
 import {
   Measure
-} from "../chunk/nav-9n0vwt3f.js";
+} from "../chunk/nav-vrc2smmf.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
-  bringUnderBand
-} from "../chunk/nav-y4vzs6yk.js";
+  bringUnderBand,
+  ProjectView
+} from "../chunk/nav-z3b2t3ze.js";
 import {
-  Field,
-  inText
-} from "../chunk/nav-3qezehpb.js";
+  Field
+} from "../chunk/nav-rjt8w20v.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -897,8 +898,15 @@ var vlistParts = (r) => {
   const roleHref = (m) => {
     if (!m.role)
       return "/roles";
-    const q = `open=${encodeURIComponent(m.role)}`;
-    return m.ruleID ? `/roles?${q}&rule=${encodeURIComponent(m.ruleID)}` : `/roles?${q}`;
+    ROLES_REV.value;
+    const project = r.project && r.project !== "global" ? r.project : CURRENT;
+    const group = (ROLES_BY[project] || []).some((role) => role.name === m.role) ? project : "global";
+    const q = new URLSearchParams({ open: token2(m.role, group) });
+    if (project)
+      q.set("project", project);
+    if (m.ruleID)
+      q.set("rule", m.ruleID);
+    return `/roles?${q}`;
   };
   return { issues, own, teamOut, out, where, file, roleHref, ruleID };
 };
@@ -980,6 +988,11 @@ async function checkTeam(r) {
 }
 async function checkAgree(r) {
   const one = checkersFor(r);
+  if (!r.agreeSaved.value && !r.agreeDraft.value.sections.length) {
+    one.agree.abort();
+    r.check.value = null;
+    return;
+  }
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
   const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops.value, doc } }));
   if (!json)
@@ -2576,7 +2589,7 @@ function TemplateChip({ seg }) {
   });
 }
 var PLABEL = { roster: "名簿", turns: "ターンを渡す相手", workers: "ワーカーの追加" };
-var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の validate の欄の問題を直すと、ここに出ます。";
+var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
   const hit = (promptsOf(r) || []).find((x) => x.name === m.name);
   let body;
@@ -4254,9 +4267,6 @@ function inputValue(e) {
   const t = e.target;
   return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ? t.value : "";
 }
-function keyOf(e) {
-  return e instanceof KeyboardEvent ? e.key : "";
-}
 var other2 = (p) => p === "project" ? "global" : "project";
 var placeName = (p) => p === "global" ? PLACE.global : PLACE.project;
 var TABS = [["list", "一覧"], ["yaml", "YAML"]];
@@ -4265,6 +4275,10 @@ function Tabs() {
   const tab = state.value.tab;
   return TABS.map(([t, label]) => /* @__PURE__ */ u("button", {
     class: "tab" + (tab === t ? " on" : ""),
+    role: "tab",
+    "aria-controls": "view",
+    "aria-selected": tab === t,
+    tabIndex: tab === t ? 0 : -1,
     "data-act": "tab",
     "data-t": t,
     "aria-pressed": tab === t,
@@ -4275,7 +4289,14 @@ function Tabs() {
 function App() {
   return /* @__PURE__ */ u(S, {
     children: [
-      state.value.tab === "list" ? /* @__PURE__ */ u(List, {}) : /* @__PURE__ */ u(YamlPage, {}),
+      state.value.tab === "list" ? /* @__PURE__ */ u(List, {}) : /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u(ProjectView, {
+            projects: HQ?.projects
+          }),
+          /* @__PURE__ */ u(YamlPage, {})
+        ]
+      }),
       /* @__PURE__ */ u(CanvasToast, {})
     ]
   });
@@ -4314,7 +4335,7 @@ function List() {
       }),
       HQ ? /* @__PURE__ */ u("span", {
         class: "hq-runh",
-        children: "動き"
+        children: "状態と操作"
       }) : null
     ]
   });
@@ -4352,7 +4373,7 @@ function PlaceHead({ g }) {
   const target = key === "global" ? "global" : "project";
   const said = key === "global" ? "グローバル" : g.name;
   const count = rowsOfGroup(key).length;
-  const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === key).length;
+  const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
   return /* @__PURE__ */ u("div", {
     class: "hq-gh" + (g.global ? " global" : ""),
     "data-group": key,
@@ -4432,19 +4453,9 @@ function Row({ r }) {
     children: [
       /* @__PURE__ */ u("div", {
         class: "sum",
-        role: "button",
-        tabindex: 0,
-        "aria-expanded": open,
+        role: "group",
         "data-act": "toggle",
         onClick: (e) => pressSum(r, e),
-        onKeyDown: (e) => {
-          if (inText(e))
-            return;
-          if (keyOf(e) === "Enter" || keyOf(e) === " ") {
-            e.preventDefault();
-            pressToggle(r);
-          }
-        },
         children: /* @__PURE__ */ u(Sum, {
           r,
           open
@@ -4560,8 +4571,15 @@ function Sum({ r, open }) {
   }) : t.description ? t.description : "—";
   return /* @__PURE__ */ u(S, {
     children: [
-      /* @__PURE__ */ u("span", {
-        class: "chev"
+      /* @__PURE__ */ u("button", {
+        type: "button",
+        class: "chev disclosure",
+        "aria-label": `${teamLabel(r)} を開閉する`,
+        "aria-expanded": open,
+        onClick: (e) => {
+          e.stopPropagation();
+          pressToggle(r);
+        }
       }),
       /* @__PURE__ */ u("span", {
         class: "c-name",
@@ -4692,11 +4710,15 @@ function DtabsNav({ r }) {
     children: [
       /* @__PURE__ */ u("span", {
         class: "dtl",
+        role: "tablist",
+        "aria-label": "チーム定義の編集",
         children: tabs.map(([t, label, n, ch]) => /* @__PURE__ */ u("button", {
           class: "dtab" + (cur === t ? " on" : ""),
           "data-act": "dtab",
           "data-t": t,
-          "aria-pressed": cur === t,
+          role: "tab",
+          "aria-selected": cur === t,
+          tabIndex: cur === t ? 0 : -1,
           onClick: () => pressDtab(r, t),
           children: [
             label,
@@ -4950,7 +4972,7 @@ function VList({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "vt",
-            children: "validate"
+            children: "設定の検査"
           }),
           issues.length ? /* @__PURE__ */ u("span", {
             class: "vcount",
@@ -5116,10 +5138,15 @@ function Foot({ r, agree }) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.text));
-    const blocked = !s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0;
+    const empty = !s && !r.agreeDraft.value.sections.length;
+    const blocked = empty || (!s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0);
     return /* @__PURE__ */ u(S, {
       children: [
         notice,
+        empty ? /* @__PURE__ */ u("p", {
+          class: "empty-guide",
+          children: "チームのルールは任意です。追加する場合は「＋ 節」から始めてください。"
+        }) : null,
         /* @__PURE__ */ u("footer", {
           class: "pf",
           children: [
@@ -5373,6 +5400,7 @@ function YamlFile({ f }) {
       path: f.path,
       badge: both ? { cls: "state " + (f.hidden ? "off" : "on"), text: f.hidden ? "隠れている" : "効いている" } : null,
       text: f.text,
+      carried: state.value.ytext[f.file],
       hash: f.hash,
       kind: "team",
       place: f.place,

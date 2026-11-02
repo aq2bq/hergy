@@ -22,7 +22,7 @@ const STATE: Record<string, { word: string; why: string }> = {
   handed: { word: '人間の返事待ち', why: 'ターンを人間に渡して、返事を待っています。今、反映できます。' },
   active: { word: '仕事中', why: '仕事が終わると、反映できます。' },
   blocked: { word: '許可待ち', why: 'ペインで許可を求めています。答えると、反映できます。' },
-  absent: { word: '動いていない', why: 'このメンバーのペインがありません。起動すると、定義のとおりに加わります。' },
+  absent: { word: '動いていない', why: 'このメンバーの起動中のエージェントがいません。起動すると、定義のとおりに加わります。' },
 };
 
 // HOW is the mark of the way hergy would apply one member's change (d-3d30),

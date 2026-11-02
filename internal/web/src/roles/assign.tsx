@@ -1,3 +1,4 @@
+import { ProjectView } from '../lib/project-view';
 // roles/assign.js — 割り当てのタブ（spec 4 章、spec-roles 2「割り当てのタブ」）。
 //
 // チーム定義ごとのカードと、メンバーのロールの選択を描く。押し込みは自分の
@@ -5,7 +6,7 @@
 // 選んだロールは、そのチームの保存が書くまで画面の下書き（state.js）。
 import { useEffect, useRef } from '../lib/preact.js';
 import {
-  PLACES, LNAME, DIR, TEXT, state, teams, savedRoles, cur, curName, eff,
+  HQ, CURRENT, PLACES, LNAME, DIR, TEXT, state, teams, savedRoles, cur, curName, eff,
   roleByName, okOf, teamErrorOf, fill, gotoAsk, pickRole, pressRoleHi, doAssignSave,
 } from './state.js';
 import type { ComponentChildren } from 'preact';
@@ -15,7 +16,7 @@ type TeamCard = (typeof teams.value)[number];
 type TeamMember = TeamCard['members'][number];
 
 function roleOptions(curRole: string): ComponentChildren {
-  const rs = savedRoles();
+  const rs = savedRoles().filter((r) => !r.group || r.group === CURRENT || r.group === 'global');
   const missing = !rs.some((r) => curName(r) === curRole);
   return <>{missing ? <option selected>{curRole}</option> : ''}{PLACES.map((l) => {
     const mine = rs.filter((r) => eff(r) === l);
@@ -71,14 +72,14 @@ function RoleBar() {
   const cnt: Record<string, number> = {};
   const hi = state.value.roleHi;
   teams.value.forEach((t) => t.members.forEach((m) => { cnt[m.draft] = (cnt[m.draft] || 0) + 1; }));
-  return <div class="rolebar">{savedRoles().filter((r) => cnt[curName(r)]).map((r) => {
+  return <div class="rolebar">{savedRoles().filter((r) => (!r.group || r.group === CURRENT || r.group === 'global') && cnt[curName(r)]).map((r) => {
     const n = curName(r);
-    return <button class={'rseg' + (hi === n ? ' on' : hi ? ' dim' : '')} data-act="role-hi" data-n={n} aria-pressed={hi === n} onClick={() => pressRoleHi(n)}><code>{n}</code><span>{cur(r).title}</span><b>{cnt[n]}</b></button>;
+    return <button class={'rseg' + (hi === n ? ' on' : hi ? ' dim' : '')} data-act="role-hi" data-n={n} aria-pressed={hi === n} onClick={() => pressRoleHi(n)}><code>{n}</code><span>{cur(r).title} · {r.group === 'global' ? 'グローバル' : HQ?.projects.current?.name || 'プロジェクト'}</span><b>{cnt[n]}</b></button>;
   })}</div>;
 }
 
 export function AssignPage() {
   const list = teams.value;
-  if (!list.length) return <p class="none">チーム定義はありません</p>;
-  return <><RoleBar /><div class="teams">{list.map((t) => <Team key={t.id} t={t} />)}</div></>;
+  if (!list.length) return <><ProjectView projects={HQ?.projects} /><p class="none">チーム定義はありません</p></>;
+  return <><ProjectView projects={HQ?.projects} /><RoleBar /><div class="teams">{list.map((t) => <Team key={t.id} t={t} />)}</div></>;
 }

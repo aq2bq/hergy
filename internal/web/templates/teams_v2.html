@@ -23,10 +23,11 @@
 <body>
 <div class="wrap">
   {{template "nav_band" .Nav}}
+  <h1 class="page-title">チーム定義</h1>
   <header class="top">
-    <nav class="tabs" id="tabs"></nav>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="表示方法"></nav>
   </header>
-  <main id="view" data-tab="{{.Tab}}" data-token="{{.Token}}"></main>
+  <main role="tabpanel" id="view" data-tab="{{.Tab}}" data-token="{{.Token}}"></main>
 </div>
 <script id="teams-data" type="application/json">{{.Data}}</script>
 </body>

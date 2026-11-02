@@ -55,11 +55,5 @@ function Field({ as: Tag = "input", value, fieldRef, ...rest }) {
     }
   });
 }
-function inText(e) {
-  if (e.isComposing || e.keyCode === 229)
-    return true;
-  const t = e.target;
-  return t instanceof Element && !!t.closest('input, textarea, select, [contenteditable="true"]');
-}
 
-export { Field, inText };
+export { Field };

@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-ffaq8wz1.js";
+} from "./nav-0nv4k2p4.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -366,7 +366,7 @@ var nodeState = (state) => {
   };
   return labels[state] || state || "状態不明";
 };
-var ownerlessHeading = "持ち主不明";
+var ownerlessHeading = "雇い主不明";
 function PackedFigure({ team, turns, W }) {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
   const memberDotRadius = 11;
@@ -563,7 +563,7 @@ function PackedFigure({ team, turns, W }) {
           /* @__PURE__ */ u("text", {
             class: "lbl left",
             x: column.x,
-            y: memberY + 4,
+            y: 184,
             "data-label-width": labelWidth(ownerlessHeading, 11.5),
             "data-label-row": "member",
             children: ownerlessHeading
@@ -638,6 +638,24 @@ function PackedFigure({ team, turns, W }) {
     role: "img",
     "aria-label": `${t.name} のアクティビティ図。${summary}`,
     children: [
+      workers.length ? /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("rect", {
+            class: "hq-worker-zone",
+            x: "4",
+            y: "164",
+            width: viewWidth - 8,
+            height: H - 168,
+            rx: "5"
+          }),
+          /* @__PURE__ */ u("text", {
+            class: "lbl left",
+            x: "12",
+            y: "184",
+            children: "ワーカー"
+          })
+        ]
+      }) : null,
       humanEdges,
       turnEdges,
       calls,

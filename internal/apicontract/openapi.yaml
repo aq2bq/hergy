@@ -671,6 +671,38 @@ paths:
               schema:
                 type: string
                 description: 読み取り専用のため断った理由
+  /api/activity/focus:
+    post:
+      operationId: focusActivityMember
+      summary: Move focus to a running member without answering its prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [team, member]
+              properties:
+                team: {type: string}
+                member: {type: string}
+      responses:
+        '200':
+          description: Focus moved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok]
+                properties:
+                  ok: {type: boolean}
+        '403':
+          description: Invalid write token or origin
+        '404':
+          description: Focus is unavailable
+        '500':
+          description: Terminal focus failed
   /api/activity/check:
     post:
       operationId: checkActivity
@@ -2254,6 +2286,10 @@ components:
       additionalProperties: false
       required: [name, herdr, state, at]
       properties:
+        question:
+          type: string
+          description: This member's question or recognized approval block, excluding terminal history; unknown approval formats show a terminal-reading notice
+
         name:
           type: string
           description: メンバー名、またはワーカー名

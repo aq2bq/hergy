@@ -30,6 +30,12 @@ type t2PageData struct {
 // t2Page draws one tab of the team screen. The client script draws the tabs,
 // the rows, the figure and the agreement from the data island.
 func (s *Server) t2Page(w http.ResponseWriter, r *http.Request, tab string) {
+	scoped, refusal := s.withProject(projectQuery(r))
+	if refusal != nil {
+		writeJSON(w, refusal.status, refusal)
+		return
+	}
+	s = scoped
 	raw, err := json.Marshal(s.t2Island())
 	if err != nil {
 		s.problem(w, r, err)

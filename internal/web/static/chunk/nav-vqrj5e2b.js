@@ -16,7 +16,7 @@ import {
 } from "./nav-fa78a466.js";
 import {
   Field
-} from "./nav-3qezehpb.js";
+} from "./nav-rjt8w20v.js";
 
 // lib/ruledoc.tsx
 var clone2 = (o) => structuredClone(o);
@@ -368,7 +368,7 @@ function Edit({ row, issues, nameError, h }) {
             children: [
               /* @__PURE__ */ u("label", {
                 for: "v" + key,
-                children: "revision"
+                children: "改訂番号"
               }),
               /* @__PURE__ */ u(Field, {
                 id: "v" + key,
@@ -551,9 +551,7 @@ function ruleHTML(row, x, issues, h) {
     children: [
       /* @__PURE__ */ u("div", {
         class: "rsum",
-        role: "button",
-        tabIndex: 0,
-        "aria-expanded": open,
+        role: "group",
         "data-act": "rtoggle",
         children: rsumInner(row, x, mine, h)
       }),
@@ -584,8 +582,11 @@ function rsumInner(row, x, mine, h) {
           })
         ]
       }),
-      /* @__PURE__ */ u("span", {
-        class: "rtx",
+      /* @__PURE__ */ u("button", {
+        type: "button",
+        class: "rtx disclosure",
+        "data-act": "rtoggle",
+        "aria-expanded": ropen.value.has(rkey(row, x)),
         children: deco(snippet(String(x.text || ""), h.query || ""), h.query || "")
       }),
       /* @__PURE__ */ u("span", {

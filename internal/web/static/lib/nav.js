@@ -11,9 +11,11 @@ import {
   takeDraft2,
   setDirty2,
   setCount2,
-  setActivity2
-} from "../chunk/nav-vyr0f22b.js";
+  setActivity2,
+  confirmLeave2
+} from "../chunk/nav-se93pzn8.js";
 export {
+  confirmLeave2 as confirmLeave,
   setActivity2 as setActivity,
   setCount2 as setCount,
   setDirty2 as setDirty,

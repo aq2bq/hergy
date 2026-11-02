@@ -19,7 +19,7 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-vyr0f22b.js";
+} from "../chunk/nav-se93pzn8.js";
 import {
   check2,
   save2,
@@ -27,27 +27,27 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-1nz0k24n.js";
+} from "../chunk/nav-59pgz9xy.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-ffaq8wz1.js";
-import"../chunk/nav-bvvpz2s6.js";
+} from "../chunk/nav-0nv4k2p4.js";
+import"../chunk/nav-xkc88djp.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-55ktrx0j.js";
+} from "../chunk/nav-5s3bqeb3.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
-  bringUnderBand
-} from "../chunk/nav-y4vzs6yk.js";
+  bringUnderBand,
+  ProjectView
+} from "../chunk/nav-z3b2t3ze.js";
 import {
-  Field,
-  inText
-} from "../chunk/nav-3qezehpb.js";
+  Field
+} from "../chunk/nav-rjt8w20v.js";
 import {
   resource
 } from "../chunk/nav-hqj3327q.js";
@@ -1221,23 +1221,20 @@ function Row({ row }) {
     children: [
       /* @__PURE__ */ u("div", {
         class: "sum",
-        role: "button",
-        tabindex: 0,
-        "aria-expanded": row.open ? "true" : "false",
+        role: "group",
         "data-act": "toggle",
-        ref: sum,
         onClick: () => pressToggle(row.key),
-        onKeyDown: (e) => {
-          if (inText(e))
-            return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            pressToggle(row.key);
-          }
-        },
         children: [
-          /* @__PURE__ */ u("span", {
-            class: "chev"
+          /* @__PURE__ */ u("button", {
+            type: "button",
+            class: "chev disclosure",
+            ref: sum,
+            "aria-label": `${name || "新しいプロファイル"} を開閉する`,
+            "aria-expanded": row.open,
+            onClick: (e) => {
+              e.stopPropagation();
+              pressToggle(row.key);
+            }
           }),
           /* @__PURE__ */ u("span", {
             class: "c-name",
@@ -1385,6 +1382,8 @@ function Panel({ panel }) {
     if (text && !held.includes(text))
       held.push(text);
   };
+  if (!panel.draft.name.trim())
+    say("プロファイル名を入力してください。");
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === "err").forEach((p) => say(p.text));
   const nameInput = A(null);
@@ -1429,7 +1428,7 @@ function Panel({ panel }) {
         onClick: () => pressDel(panel.key),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
-        class: "btn danger",
+        class: "btn",
         "data-act": "discard",
         onClick: () => pressDiscard(panel.key),
         children: "取り消し"
@@ -1472,6 +1471,7 @@ function Panel({ panel }) {
           /* @__PURE__ */ u("div", {
             children: [
               /* @__PURE__ */ u(Field, {
+                "aria-label": "プロファイル名",
                 class: "in-name" + (changed.name ? " changed" : "") + (bad.name ? " bad" : ""),
                 "data-f": "name",
                 value: panel.draft.name,
@@ -2249,7 +2249,7 @@ function TeamCard({ team }) {
     ]
   });
 }
-function AssignPage() {
+function AssignPageBody() {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Kindbar, {}),
@@ -2265,6 +2265,16 @@ function AssignPage() {
           }, team.name))
         ]
       })
+    ]
+  });
+}
+function AssignPage() {
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(ProjectView, {
+        projects: HQ?.projects
+      }),
+      /* @__PURE__ */ u(AssignPageBody, {})
     ]
   });
 }
@@ -2294,12 +2304,22 @@ function YamlFileSection({ file }) {
     }, file.file)
   });
 }
-function YamlPage() {
+function YamlPageBody() {
   return /* @__PURE__ */ u("div", {
     class: "yeds",
     children: yamlFiles.value.map((file) => /* @__PURE__ */ u(YamlFileSection, {
       file
     }, file.file))
+  });
+}
+function YamlPage() {
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(ProjectView, {
+        projects: HQ?.projects
+      }),
+      /* @__PURE__ */ u(YamlPageBody, {})
+    ]
   });
 }
 

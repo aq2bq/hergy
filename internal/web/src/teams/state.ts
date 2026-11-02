@@ -28,7 +28,7 @@ type TeamCheckBody = Request<'team', 'check'>;
 import {
   fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
 } from '../lib/ruledoc.js';
-import { parseOpen } from '../lib/hq.js';
+import { parseOpen, token as roleToken } from '../lib/hq.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
@@ -837,8 +837,13 @@ export const vlistParts = (r: Rec) => {
   // still opens the roles screen, the way it did.
   const roleHref = (m: Finding): string => {
     if (!m.role) return '/roles';
-    const q = `open=${encodeURIComponent(m.role)}`;
-    return m.ruleID ? `/roles?${q}&rule=${encodeURIComponent(m.ruleID)}` : `/roles?${q}`;
+    void ROLES_REV.value;
+    const project = r.project && r.project !== 'global' ? r.project : CURRENT;
+    const group = (ROLES_BY[project] || []).some((role) => role.name === m.role) ? project : 'global';
+    const q = new URLSearchParams({ open: roleToken(m.role, group) });
+    if (project) q.set('project', project);
+    if (m.ruleID) q.set('rule', m.ruleID);
+    return `/roles?${q}`;
   };
   return { issues, own, teamOut, out, where, file, roleHref, ruleID };
 };
@@ -967,6 +972,11 @@ export async function checkTeam(r: Rec) {
 // is held to (spec-teams X3).
 export async function checkAgree(r: Rec) {
   const one = checkersFor(r);
+  if (!r.agreeSaved.value && !r.agreeDraft.value.sections.length) {
+    one.agree.abort();
+    r.check.value = null;
+    return;
+  }
   const doc = toDoc(r.agreeDraft.value, r.agreeSaved.value);
   const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops.value, doc } }));
   if (!json) return;

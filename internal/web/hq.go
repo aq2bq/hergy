@@ -457,6 +457,12 @@ func (s *Server) hqScreenIsland(kindNames ...string) *hqScreenIsland {
 	if err != nil {
 		return &hqScreenIsland{Error: hqRefusal(err).Text}
 	}
+	for _, project := range projects.Projects {
+		if project.Path == s.cat.Base() {
+			projects.Current = project
+			break
+		}
+	}
 	out := &hqScreenIsland{Projects: projects}
 	for _, kindName := range kindNames {
 		groups, refusal := s.hqGroupsOf(projects, kindName)

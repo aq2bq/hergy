@@ -102,6 +102,8 @@ type ActivityDoc struct {
 // ActivityNode is one member or one worker of the right-hand column: the name,
 // the agent, its state, and the moment that state began (2.5).
 type ActivityNode struct {
+	// Question is this member’s question or recognized approval block, not terminal history.
+	Question string `json:"question,omitempty"`
 	// Name is the member's short name, and a worker's name with the team's own
 	// prefix taken off ("deps" for the agent "core-deps", X1).
 	Name string `json:"name"`

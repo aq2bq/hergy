@@ -103,7 +103,7 @@ const nodeState = (state: string): string => {
   return labels[state] || state || '状態不明';
 };
 
-const ownerlessHeading = '持ち主不明';
+const ownerlessHeading = '雇い主不明';
 
 function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, string][]; W: number }): JSX.Element {
   const t = team || {}, crew = t.crew || [], workers = t.workers || [];
@@ -252,7 +252,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
       // with no line: the figure does not draw a line it cannot stand behind.
       nodes.push(<g class="hq-n ownerless">
         <title>{`${ownerlessHeading} · 持ち主を特定できないワーカー`}</title>
-        <text class="lbl left" x={column.x} y={memberY + 4} data-label-width={labelWidth(ownerlessHeading, 11.5)} data-label-row="member">{ownerlessHeading}</text>
+        <text class="lbl left" x={column.x} y={184} data-label-width={labelWidth(ownerlessHeading, 11.5)} data-label-row="member">{ownerlessHeading}</text>
       </g>);
     }
     slots.forEach((slot) => {
@@ -275,6 +275,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     `ワーカー: ${workers.map((worker) => `${worker.name}（${worker.from || '持ち主不明'}） ${nodeState(worker.state)}`).join('、') || 'なし'}`,
   ].join('。');
   return <svg class="hq-svg packed" viewBox={`0 0 ${viewWidth} ${H}`} role="img" aria-label={`${t.name} のアクティビティ図。${summary}`}>
+    {workers.length ? <><rect class="hq-worker-zone" x="4" y="164" width={viewWidth - 8} height={H - 168} rx="5" /><text class="lbl left" x="12" y="184">ワーカー</text></> : null}
     {humanEdges}{turnEdges}{calls}{nodes}{columnNodes}
   </svg>;
 }

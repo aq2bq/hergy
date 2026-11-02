@@ -1,3 +1,4 @@
+import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
 // 一覧の行・パネル・足・YAML のタブ・トポロジーの器を描く。class と data-* と
@@ -10,7 +11,7 @@ import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
-import { Field, inText } from '../lib/field.js';
+import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
@@ -45,11 +46,6 @@ function inputValue(e: Event): string {
   return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ? t.value : '';
 }
 
-// keyOf is the key a person pressed.
-function keyOf(e: Event): string {
-  return e instanceof KeyboardEvent ? e.key : '';
-}
-
 const other = (p: 'project' | 'global'): 'project' | 'global' => (p === 'project' ? 'global' : 'project');
 // placeName is the word a place is drawn by; anything else is this project's.
 const placeName = (p: string): string => (p === 'global' ? PLACE.global : PLACE.project);
@@ -63,14 +59,14 @@ const MODES: [string, string][] = [['edit', '編集'], ['md', 'Markdown']];
 export function Tabs() {
   const tab = state.value.tab;
   return TABS.map(([t, label]) => (
-    <button class={'tab' + (tab === t ? ' on' : '')} data-act="tab" data-t={t} aria-pressed={tab === t} onClick={() => pressTab(t)}>{label}</button>
+    <button class={'tab' + (tab === t ? ' on' : '')} role="tab" aria-controls="view" aria-selected={tab === t} tabIndex={tab === t ? 0 : -1} data-act="tab" data-t={t} aria-pressed={tab === t} onClick={() => pressTab(t)}>{label}</button>
   ));
 }
 
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <YamlPage />}<CanvasToast /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------
@@ -82,7 +78,7 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">動き</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = rowsOfGroup(g.key);
@@ -101,7 +97,7 @@ function PlaceHead({ g }: { g: TeamGroup }) {
   const target = key === 'global' ? 'global' : 'project';
   const said = key === 'global' ? 'グローバル' : g.name;
   const count = rowsOfGroup(key).length;
-  const live = ((hq.running.value && hq.running.value.teams) || []).filter((t: { project?: string }) => t.project === key).length;
+  const live = ((hq.running.value && hq.running.value.teams) || []).filter((t: { project?: string }) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
   return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`置き場所: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
       {g.global
@@ -135,7 +131,7 @@ function Row({ r }: { r: Rec }) {
   }, [focusAsk.value]);
   return (
     <div class={'tdef' + (open ? ' open' : '') + (dirtyDef(r) ? ' unsaved' : '')} data-name={r.dom} data-key={dkey(r)} ref={el}>
-      <div class="sum" role="button" tabindex={0} aria-expanded={open} data-act="toggle" onClick={(e) => pressSum(r, e)} onKeyDown={(e: KeyboardEvent) => { if (inText(e)) return; if (keyOf(e) === 'Enter' || keyOf(e) === ' ') { e.preventDefault(); pressToggle(r); } }}><Sum r={r} open={open} /></div>
+      <div class="sum" role="group" data-act="toggle" onClick={(e) => pressSum(r, e)}><Sum r={r} open={open} /></div>
       {open ? <Detail r={r} /> : null}</div>
   );
 }
@@ -210,7 +206,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
       : t.description ? t.description : '—';
   return (
     <>
-      <span class="chev"></span>
+      <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
       <span class="c-name"><NameCell r={r} open={open} /><span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
       <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
@@ -246,7 +242,7 @@ function DtabsNav({ r }: { r: Rec }) {
   ];
   return (
     <>
-      <span class="dtl">{tabs.map(([t, label, n, ch]) => <button class={'dtab' + (cur === t ? ' on' : '')} data-act="dtab" data-t={t} aria-pressed={cur === t} onClick={() => pressDtab(r, t)}>{label}{n !== '' ? <span class="n">{n}</span> : null}{ch ? <i class="dot"></i> : null}</button>)}</span>
+      <span class="dtl" role="tablist" aria-label="チーム定義の編集">{tabs.map(([t, label, n, ch]) => <button class={'dtab' + (cur === t ? ' on' : '')} data-act="dtab" data-t={t} role="tab" aria-selected={cur === t} tabIndex={cur === t ? 0 : -1} onClick={() => pressDtab(r, t)}>{label}{n !== '' ? <span class="n">{n}</span> : null}{ch ? <i class="dot"></i> : null}</button>)}</span>
       <span class="dacts"><Dacts r={r} /></span>
     </>
   );
@@ -379,7 +375,7 @@ function VList({ r }: { r: Rec }) {
   const { issues, own, teamOut, out, where, file, roleHref, ruleID } = vlistParts(r);
   return (
     <>
-      <div class="vhead"><span class="vt">validate</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
+      <div class="vhead"><span class="vt">設定の検査</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
       {own.map((m) => <button class="vitem" data-act="vpick" data-node={m.node || null} data-worker={m.worker != null && m.worker >= 0 ? m.worker : null} data-name-field={m.field === 'name' ? 1 : null} onClick={() => pressVpick(r, { ...m, node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === 'name' })}><Sev sev={m.sev} /><span class="lno">{where(m)}</span><span class="msg">{m.text}</span></button>)}
       {teamOut.length ? <><div class="vsub">チームのルール</div>{teamOut.map((m) => <button class="vitem" data-act="vrule" data-name={r.dom} data-id={ruleID(m)} data-k={m.ruleKey || 0} onClick={() => pressVrule(r, m.ruleKey || ruleID(m))}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></button>)}</> : null}
       {out.length ? <><div class="vsub">ロールの文書</div>{out.map((m) => <a class="vitem" href={roleHref(m)}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></a>)}</> : null}
@@ -445,9 +441,10 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
-    const blocked = !s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0);
+    const empty = !s && !r.agreeDraft.value.sections.length;
+    const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0));
     return (
-      <>{notice}<footer class="pf">
+      <>{notice}{empty ? <p class="empty-guide">チームのルールは任意です。追加する場合は「＋ 節」から始めてください。</p> : null}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span><span class="vcount"><Counts list={messagesOf(errs)} /></span>{ok}
         <span class="acts"><button class="btn" data-act="revert" hidden={!(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
       </footer></>
@@ -542,7 +539,7 @@ function YamlFile({ f }: { f: YFile }) {
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
         badge={both ? { cls: 'state ' + (f.hidden ? 'off' : 'on'), text: f.hidden ? '隠れている' : '効いている' } : null}
-        text={f.text} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
+        text={f.text} carried={state.value.ytext[f.file]} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)}
         onProblems={(probs: Schemas['Problem'][]) => yamlProblems(f.file, probs)}
         onRevert={() => yamlRevert(f.file)}

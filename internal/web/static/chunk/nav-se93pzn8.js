@@ -9,7 +9,7 @@
 
 // lib/nav.ts
 var band = document.querySelector(".screens");
-var key = band?.dataset.key || "";
+var key = new URLSearchParams(location.search).get("project") || band?.dataset.key || "";
 var page = () => window.hergyPage || null;
 var mine = () => {
   const p = page();
@@ -120,18 +120,28 @@ function setActivity2(running, waiting, counts) {
     wait.remove();
 }
 if (band) {
+  const scopedURL = (value) => {
+    const project = new URLSearchParams(location.search).get("project");
+    if (!value || !project)
+      return value;
+    const url = new URL(value, location.href);
+    if (!url.searchParams.has("project"))
+      url.searchParams.set("project", project);
+    return url;
+  };
   const pushState = history.pushState.bind(history);
   const replaceState = history.replaceState.bind(history);
   history.pushState = function(data, unused, url) {
-    pushState(data, unused, url);
+    pushState(data, unused, scopedURL(url));
     remember();
   };
   history.replaceState = function(data, unused, url) {
-    replaceState(data, unused, url);
+    replaceState(data, unused, scopedURL(url));
     remember();
   };
   band.querySelectorAll("a.scr").forEach((a) => {
     a.addEventListener("click", () => {
+      remember();
       write(at("carry", a.dataset.screen), "1");
       const screen = mine();
       if (!screen)
@@ -153,5 +163,45 @@ if (band) {
     decorate();
   }
 }
+function confirmLeave2() {
+  return !page()?.dirty?.() || window.confirm("保存していない変更があります。変更を破棄して移動しますか？");
+}
+document.addEventListener("click", (e) => {
+  const project = new URLSearchParams(location.search).get("project");
+  const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+  if (!link)
+    return;
+  if (link.closest("#tabs") && !confirmLeave2()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    link.closest("#tabs")?.querySelector('[aria-selected="true"]')?.focus();
+    return;
+  }
+  if (!project)
+    return;
+  const url = new URL(link.href, location.href);
+  if (url.origin !== location.origin || !/^\/(activity|teams|roles|profiles)(?:\/|$)/.test(url.pathname))
+    return;
+  if (!url.searchParams.has("project"))
+    url.searchParams.set("project", project);
+  link.href = url.href;
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing)
+    return;
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+    return;
+  const list = e.target instanceof Element ? e.target.closest('[role="tablist"]') : null;
+  if (!list)
+    return;
+  const tabs = Array.from(list.querySelectorAll('[role="tab"]'));
+  const at = tabs.indexOf(e.target);
+  if (at < 0)
+    return;
+  e.preventDefault();
+  const index = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[index].focus();
+  tabs[index].click();
+});
 
-export { takeDraft2, setDirty2, setCount2, setActivity2 };
+export { takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };

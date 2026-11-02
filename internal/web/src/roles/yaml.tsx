@@ -1,3 +1,5 @@
+import { HQ } from './state';
+import { ProjectView } from '../lib/project-view';
 // roles/yaml.js — YAML のタブ（spec-boundary 7）。
 //
 // 左にファイルの並び、右に選んだ 1 つのファイルの面。面そのものは共有部品
@@ -52,7 +54,7 @@ function ychecksText(place: Place, name: string) {
   return y && y.some((m) => m.sev === 'err') ? <span class="dirty">●</span> : '';
 }
 
-export function YamlPage() {
+function YamlPageBody() {
   const files = filesList();
   // With no role document at all, the tab says what is missing and the one thing
   // that makes the documents (n-f2ef, the same shape as the team definition's
@@ -87,3 +89,5 @@ function badgeOrCount(issues: RuleIssue[], saved: EditableDocument | null) {
   const n = saved ? rulesOf(saved).length : 0;
   return n ? <>{n}</> : '';
 }
+
+export function YamlPage() { return <><ProjectView projects={HQ?.projects} /><YamlPageBody /></>; }

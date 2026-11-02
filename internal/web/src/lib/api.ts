@@ -57,6 +57,13 @@ export class Refusal extends Error {
 // the header, so POST, PUT and DELETE are one shape (a DELETE carries no body at
 // all). Nothing here decides what a screen does with a non-OK answer.
 export async function raw<T = unknown>(method: string, url: string, payload?: unknown, { signal: stop }: CallOptions = {}): Promise<RawAnswer<T>> {
+  const project = new URLSearchParams(location.search).get('project');
+  if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
+    const target = new URL(url, location.origin);
+    if (!target.searchParams.has('project')) target.searchParams.set('project', project);
+    url = target.pathname + target.search;
+    if (payload && typeof payload === 'object' && !('project' in payload)) payload = { ...payload, project };
+  }
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (token) headers['X-Hergy-Token'] = token;
   const opts: RequestInit = { method, credentials: 'same-origin', headers, signal: stop };

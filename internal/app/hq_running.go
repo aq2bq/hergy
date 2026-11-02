@@ -6,6 +6,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/herdr"
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
@@ -23,7 +24,7 @@ func (h *hqRead) Running() web.HQRunning {
 	read := h.act.readHerdr(now)
 	out := web.HQRunning{Herdr: web.ActivityNote{OK: true}, Teams: []web.HQRunningTeam{}}
 	if read.err != nil {
-		out.Herdr = web.ActivityNote{OK: false, Text: read.err.Error()}
+		out.Herdr = web.ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
 		return out
 	}
 	for _, one := range h.act.teamsOf(read) {

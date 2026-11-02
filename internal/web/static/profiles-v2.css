@@ -175,7 +175,7 @@ button { font: inherit; color: inherit; }
   grid-template-areas: "chev name kind place args env users";
   padding: 0 10px;
 }
-.head { font-size: 12px; color: var(--faint); padding-block: 8px; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
+.head { font-size: 12px; color: var(--muted); padding-block: 8px; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
 .head > :nth-child(2) { grid-area: name; } .head > :nth-child(3) { grid-area: kind; } .head > :nth-child(4) { grid-area: place; }
 .head > :nth-child(5) { grid-area: args; } .head > :nth-child(6) { grid-area: env; } .head > :nth-child(7) { grid-area: users; }
 .row { border-bottom: 1px solid var(--line); }
@@ -347,7 +347,7 @@ select:hover { border-color: var(--muted); }
 @media (max-width: 1000px) {
   .ybody { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .head { display: none; }
   .sum {
     grid-template-columns: 14px minmax(0, 1fr) auto;

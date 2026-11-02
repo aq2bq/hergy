@@ -312,7 +312,7 @@ export const eff = (r: RoleRow): Place => (live(r, 'project') ? 'project' : live
 export const cur = (r: RoleRow): EditableDocument => r[eff(r)]!.draft;
 export const curName = (r: RoleRow): string => (r.markdown ? r.name || '' : (r[eff(r)]!.saved || r[eff(r)]!.draft).name);
 export const savedRoles = (): RoleRow[] => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));
-export const roleByName = (n: string): RoleRow | undefined => savedRoles().find((r) => curName(r) === n);
+export const roleByName = (n: string): RoleRow | undefined => savedRoles().find((r) => curName(r) === n && (!GROUPED || r.group === CURRENT)) || savedRoles().find((r) => curName(r) === n && r.group === 'global');
 // whoReads is the members that name a role: the row's own project's teams, and
 // for a global row every project's (spec 4 章). Each answer says which project
 // the team belongs to.
@@ -591,11 +591,11 @@ export function parseURL(): void {
     (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
       const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
       const place = m && isPlace(m[2]) ? m[2] : null;
-      const wanted: Array<{ name: string; place: Place | null; id: string }> = m && place
-        ? [{ name: m[1], place, id: m[3] }]
-        : openedRows.map(({ name }) => ({ name, place: null, id: spec }));
-      wanted.forEach(({ name, place, id }) => {
-        const r = roleByName(name);
+      const wanted: Array<{ name: string; group?: string; place: Place | null; id: string }> = m && place
+        ? [{ name: m[1], group: openedRows.find((r) => r.name === m[1])?.group, place, id: m[3] }]
+        : openedRows.map(({ name, group }) => ({ name, group, place: null, id: spec }));
+      wanted.forEach(({ name, group, place, id }) => {
+        const r = group ? savedRoles().find((r) => curName(r) === name && r.group === group) : roleByName(name) || savedRoles().find((r) => curName(r) === name);
         if (!r) return;
         const places: Place[] = place ? [place] : [eff(r)];
         places.forEach((l) => {
