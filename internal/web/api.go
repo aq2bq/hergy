@@ -38,6 +38,7 @@ type apiIn struct {
 	Hash            string          `json:"hash"`
 	RenameUsers     bool            `json:"rename_users"`
 	RenameTo        *string         `json:"rename_to"`
+	RoleContext     string          `json:"role_context"`
 	AgreementExists *bool           `json:"agreement_exists"`
 	Changes         json.RawMessage `json:"changes"`
 	Base            *apiBase        `json:"base"`

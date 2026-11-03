@@ -276,6 +276,9 @@ func r2Problems(problems []check.RoleProblem, fromText bool) []apiProblem {
 // request carries no doc. The name in the path is the row's; the doc is the one
 // that says what to write.
 func (k apiRole) Save(_ string, in apiIn) (any, *apiErr) {
+	if refusal := k.s.roleContextStillCurrent(in); refusal != nil {
+		return nil, refusal
+	}
 	if len(in.Doc) == 0 {
 		return k.saveYAML(in)
 	}

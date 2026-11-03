@@ -661,3 +661,14 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
 .team-rename { padding: 10px 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .team-rename input { max-width: 100%; }
 .team-rename > .none { margin-left: 12px; }
+.role-dialog { width: min(1100px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; padding: 20px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.role-dialog::backdrop { background: rgb(0 0 0 / .45); }
+.role-dialog > header, .role-dialog > footer { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.role-dialog h2 { font-size: 18px; margin: 0; }
+.role-dialog fieldset { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.role-dialog .pmain { grid-template-columns: minmax(0, 1fr); }
+.role-dialog .role-usage { border: 1px solid var(--line); padding: 12px; margin: 16px 0; overflow-wrap: anywhere; }
+.role-dialog[open] { display: flex; flex-direction: column; height: min(880px, calc(100dvh - 32px)); overflow: hidden; }
+.role-dialog > header, .role-dialog > footer { flex-shrink: 0; }
+.role-dialog .role-usage { flex-shrink: 0; max-height: 25dvh; overflow: auto; }
+.role-dialog-body { flex: 1; min-height: 0; overflow: auto; }

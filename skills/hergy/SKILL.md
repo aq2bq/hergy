@@ -65,6 +65,10 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 
 In the definition editor, use 名前を変更 to save its name separately. Save or revert its unsaved topology, agreement and YAML first. Stop every team using that file; the server refuses a running or starting team or unreadable herdr state. For a global definition it checks all projects in the connected session, including those not listed in the UI. Starts and renames share file locks across processes on macOS and Linux. A same-place collision, invalid name or changed file is refused. A same name in the other place is allowed and its effect is shown. Launch history keeps the old name and path; the renamed definition has no previous launch until it starts again. Old URLs do not redirect.
 
+## Editing a role while editing a team definition
+
+Open ロールを確認・編集 from the member attributes or its prompt. The modal edits the title, sections and rules, saves the role file alone, then refreshes the team checks and prompt while preserving team drafts and selection. The file place and known usages stay visible. Usage is matched to the actual file across registered projects, with the confirmed scope shown; a failed usage read disables saving. A global definition opens the same global role its displayed prompt reads, and explains that a same-named project role takes precedence when running there. Missing or unreadable documents explain the problem and link to /roles. Escape and 閉じる ask before discarding a dirty role draft and return focus to the trigger. Rename, copy, duplicate and delete remain on /roles. The scoped link to /roles carries the team draft like the screen band does.
+
 ## The web UI
 
 - `hergy serve` serves the screens on 127.0.0.1, prints the URL and opens it in this machine's default browser; it holds the foreground until you stop it. Run it with `--no-open` when nothing should take the person's screen, and hand them the URL yourself instead.

@@ -8,6 +8,7 @@ import type { Finding, Member, Rec, RoleName, Team, Worker } from '../state.js';
 import { NAME, selOf, typedOf } from './shared.js';
 import { MemberPrompt, WorkerPromptSection } from './prompt.js';
 import { Field } from '../../lib/field.js';
+import { RoleButton } from '../role-modal.js';
 
 // Opt is one choice of a select: the option carries the selected attribute a
 // person (and the walks) read, and the property the browser picks by, so the two
@@ -174,7 +175,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
       <div class="cv-f">
         <label for={`cv-mr-${team}`}>ロール</label>
         <span class="sel"><select id={`cv-mr-${team}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>ロールを選ぶ</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
-        <span class="cv-sub">無いロールは <a href="/roles">ロールの画面</a> で先に作る</span>
+        <RoleButton r={r} name={m.role} />
       </div>
       <div class="cv-f">
         <label for={`cv-mp-${team}`}>プロファイル</label>

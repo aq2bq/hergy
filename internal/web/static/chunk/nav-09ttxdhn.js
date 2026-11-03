@@ -33,6 +33,19 @@ var drop = (k) => {
     window.sessionStorage.removeItem(k);
   } catch {}
 };
+function carryTo2(target, destinationProject) {
+  remember();
+  const destination = (what, screen) => "hergy." + (destinationProject || key) + "." + what + "." + screen;
+  write(destination("carry", target), "1");
+  const screen = mine(), p = page();
+  if (!screen)
+    return;
+  write(destination("at", screen), location.pathname + location.search);
+  if (p?.dirty?.())
+    write(destination("draft", screen), JSON.stringify(p.take()));
+  else
+    drop(destination("draft", screen));
+}
 var scr = (name) => band?.querySelector('.scr[data-screen="' + name + '"]') || null;
 var setDot = (el, on) => {
   if (!el)
@@ -141,16 +154,7 @@ if (band) {
   };
   band.querySelectorAll("a.scr").forEach((a) => {
     a.addEventListener("click", () => {
-      remember();
-      write(at("carry", a.dataset.screen), "1");
-      const screen = mine();
-      if (!screen)
-        return;
-      const p = page();
-      if (p && p.dirty && p.dirty())
-        write(at("draft", screen), String(JSON.stringify(p.take())));
-      else
-        drop(at("draft", screen));
+      carryTo2(a.dataset.screen || "");
     });
   });
   if (document.readyState === "loading")
@@ -204,4 +208,4 @@ document.addEventListener("keydown", (e) => {
   tabs[index].click();
 });
 
-export { takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };
+export { carryTo2, takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };

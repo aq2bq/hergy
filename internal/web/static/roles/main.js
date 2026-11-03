@@ -20,10 +20,8 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-se93pzn8.js";
+} from "../chunk/nav-09ttxdhn.js";
 import {
-  Refusal2,
-  check2,
   save2,
   del2,
   saved2,
@@ -35,8 +33,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-9p5zrmhe.js";
-import"../chunk/nav-8dvkde9e.js";
+} from "../chunk/nav-bb65tqp4.js";
+import"../chunk/nav-xf4emtj1.js";
 import {
   fromJSON2,
   toDoc2,
@@ -59,20 +57,20 @@ import {
   YamlTab2
 } from "../chunk/nav-980mkyvx.js";
 import {
+  roleEditor,
+  roleProblems,
   Measure
-} from "../chunk/nav-8jj28qz6.js";
+} from "../chunk/nav-vabskx3v.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-439wmac8.js";
+} from "../chunk/nav-e0m8mka3.js";
 import {
   Field
 } from "../chunk/nav-wwnacjpe.js";
-import {
-  resource
-} from "../chunk/nav-gwkv74cd.js";
+import"../chunk/nav-gwkv74cd.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -290,79 +288,19 @@ function redraw() {
   tellDirty();
   setCount2("roles", savedRoles().length);
 }
-function record(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isProblem(value) {
-  if (!record(value))
-    return false;
-  return (value.sev === "err" || value.sev === "warn") && typeof value.at === "string" && typeof value.text === "string" && typeof value.section === "number" && typeof value.rule === "number" && (value.field === undefined || typeof value.field === "string") && (value.line === undefined || typeof value.line === "number") && (value.definition === undefined || typeof value.definition === "string") && (value.role === undefined || typeof value.role === "string") && (value.rule_id === undefined || typeof value.rule_id === "string");
-}
-function isProblemList(value) {
-  return Array.isArray(value) && value.every(isProblem);
-}
-function isRolePreviewLine(value) {
-  return record(value) && typeof value.text === "string" && typeof value.part === "string" && typeof value.section === "number" && typeof value.rule === "number";
-}
-function isRolePreview(value) {
-  return record(value) && typeof value.chars === "number" && (value.lines === null || Array.isArray(value.lines) && value.lines.every(isRolePreviewLine));
-}
-function isRoleDiff(value) {
-  return record(value) && (value.added === null || Array.isArray(value.added) && value.added.every((line) => typeof line === "number")) && (value.removedBefore === null || Array.isArray(value.removedBefore) && value.removedBefore.every((line) => typeof line === "number")) && typeof value.removedAtEnd === "boolean";
-}
-function isRoleTurn(value) {
-  return record(value) && typeof value.section === "number" && typeof value.rule === "number" && typeof value.arrow === "string" && typeof value.definition === "string" && typeof value.ok === "boolean";
-}
-function isRoleReader(value) {
-  return record(value) && typeof value.definition === "string" && typeof value.member === "string";
-}
-function isRoleEffect(value) {
-  return record(value) && isRoleDiff(value.diff) && Array.isArray(value.turns) && value.turns.every(isRoleTurn);
-}
-function isRoleCheckData(value) {
-  if (!record(value))
-    return false;
-  return (value.problems === undefined || isProblemList(value.problems)) && (value.preview === undefined || isRolePreview(value.preview)) && (value.effect === undefined || isRoleEffect(value.effect)) && (value.readers === undefined || Array.isArray(value.readers) && value.readers.every(isRoleReader)) && (value.size === undefined || typeof value.size === "number") && (value.limit === undefined || typeof value.limit === "number");
-}
-function roleCheckData(value) {
-  return isRoleCheckData(value) ? value : {};
-}
-var checkers = new Map;
-function checkerFor(k) {
-  let one = checkers.get(k);
-  if (one)
-    return one;
-  one = resource(async (signal, payload) => {
-    try {
-      return await check2("role", payload, { signal });
-    } catch (err) {
-      if (err instanceof Refusal2) {
-        return { ok: false, status: err.status, text: err.text, json: roleCheckData(err.json) };
-      }
-      throw err;
-    }
-  });
-  checkers.set(k, one);
+var editors = new Map;
+function editorFor(k) {
+  let one = editors.get(k);
+  if (!one) {
+    one = roleEditor();
+    editors.set(k, one);
+  }
   return one;
 }
+var checkerFor = (k) => editorFor(k).check;
 var timers = {};
 var keyOf = (r, l) => r.uid + l;
-var ruleKeyAt = (d, si, ri) => {
-  const s = d.sections[si];
-  if (!s)
-    return 0;
-  const x = s.rules[ri];
-  return x ? x._k : 0;
-};
-function convertProblems(d, list) {
-  return (list || []).map((p) => ({
-    sev: p.sev,
-    k: (p.section ?? -1) >= 0 ? ruleKeyAt(d, p.section ?? -1, p.rule ?? -1) : 0,
-    f: p.field || "",
-    text: p.text || "",
-    definition: p.definition || ""
-  }));
-}
+var convertProblems = roleProblems;
 function issuesOf(r, l) {
   const c = checks.value[keyOf(r, l)];
   return c ? c.issues : [];
@@ -878,7 +816,7 @@ async function doSave(id, l, over) {
     payload.base = e.basePlace;
   let res;
   try {
-    res = await save2("role", e.draft.name || (e.saved ? e.saved.name : "_"), payload);
+    res = await editorFor(keyOf(r, l)).save(e.draft.name || (e.saved ? e.saved.name : "_"), payload);
   } catch (err) {
     const c = conflictOf(err);
     if (c) {

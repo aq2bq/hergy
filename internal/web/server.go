@@ -262,6 +262,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)
 	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)
 	mux.HandleFunc("POST /api/team/{name}/rename", s.apiTeamRename)
+	mux.HandleFunc("GET /api/role/{name}/context", s.apiRoleContext)
 	mux.HandleFunc("PUT /api/{kind}/{name}", s.apiSave)
 	mux.HandleFunc("DELETE /api/{kind}/{name}", s.apiDelete)
 

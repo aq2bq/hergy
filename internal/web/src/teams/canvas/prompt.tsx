@@ -5,6 +5,7 @@
 // came from (spec-boundary 5). The screen lays them out and says where a folded
 // document is read; it builds no line.
 import type { ComponentChildren, JSX } from 'preact';
+import { RoleButton } from '../role-modal.js';
 import { promptBlockedOf, promptsOf, workerPrompt } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
 
@@ -99,7 +100,7 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
     body = blocks.map(({ seg, a, b }) => {
       const o = seg.origin;
       if (seg.kind === 'role_doc') {
-        return <div class="cv-fold" data-a={a} data-b={b} data-doc="role" data-role={o.name || ''} data-place={o.place || ''}><span class="cv-range">{prange(a, b)}</span><b>ロールの文書</b><code>{o.path || ''}</code><span>{pcount(lines, a, b)} 行</span><a href={`/roles?open=${encodeURIComponent(o.name || '')}`}>ロールの画面で見る</a></div>;
+        return <div class="cv-fold" data-a={a} data-b={b} data-doc="role" data-role={o.name || ''} data-place={o.place || ''}><span class="cv-range">{prange(a, b)}</span><b>ロールの文書</b><code>{o.path || ''}</code><span>{pcount(lines, a, b)} 行</span><RoleButton r={r} name={o.name === m.role ? m.role : ''} expectedPlace={o.place} children="ロールを確認・編集" /></div>;
       }
       if (seg.kind === 'team_rules') {
         return <div class="cv-fold" data-a={a} data-b={b} data-doc="team"><span class="cv-range">{prange(a, b)}</span><b>チームのルール</b><span>{pcount(lines, a, b)} 行</span><button class="cv-go" type="button" data-cv-act="to-agree">ルールのタブで見る</button></div>;

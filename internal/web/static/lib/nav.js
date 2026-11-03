@@ -8,13 +8,15 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  carryTo2,
   takeDraft2,
   setDirty2,
   setCount2,
   setActivity2,
   confirmLeave2
-} from "../chunk/nav-se93pzn8.js";
+} from "../chunk/nav-09ttxdhn.js";
 export {
+  carryTo2 as carryTo,
   confirmLeave2 as confirmLeave,
   setActivity2 as setActivity,
   setCount2 as setCount,

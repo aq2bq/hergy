@@ -21,12 +21,14 @@ import {
   u
 } from "../chunk/nav-1697d4rr.js";
 import {
+  carryTo2,
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-se93pzn8.js";
+} from "../chunk/nav-09ttxdhn.js";
 import {
   call2,
+  read2,
   list2,
   check2,
   save2,
@@ -58,25 +60,27 @@ import {
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-9p5zrmhe.js";
+} from "../chunk/nav-bb65tqp4.js";
 import {
   RunCell2
-} from "../chunk/nav-8dvkde9e.js";
+} from "../chunk/nav-xf4emtj1.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
 } from "../chunk/nav-980mkyvx.js";
 import {
+  roleEditor,
+  roleProblems,
   Measure
-} from "../chunk/nav-8jj28qz6.js";
+} from "../chunk/nav-vabskx3v.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-439wmac8.js";
+} from "../chunk/nav-e0m8mka3.js";
 import {
   Field
 } from "../chunk/nav-wwnacjpe.js";
@@ -1015,6 +1019,30 @@ function syncTeam(r) {
 }
 function syncAgree(r) {
   checkAgree(r);
+}
+async function refreshAfterRoleSave() {
+  saved2();
+  await Promise.all(recs.value.map(async (r) => {
+    const base = await checkersFor(r).base.run(teamIn(r, { doc: { ops: [] } }));
+    if (base)
+      r.baseFindings.value = figFindings(r, base.problems || []);
+    await checkTeam(r);
+    await checkAgree(r);
+    const checks = checkersFor(r);
+    if (checks.base.error.value || checks.draft.error.value || checks.agree.error.value)
+      throw new Error("ロールは保存しましたが、チーム定義を再検査できませんでした。文書を読み直してください");
+  }));
+  const roleList = await list2("role");
+  ROLES.value = (roleList.items || []).map((item) => {
+    const place = item.effective || "project";
+    return { name: item.name, title: item.places[place]?.doc?.title || "" };
+  });
+  if (HQ) {
+    const groups = await hqList2("roles");
+    for (const g of groups.groups)
+      ROLES_BY[groupKeyOf(g)] = (g.list?.items || []).map((item) => ({ name: item.name, title: item.places[item.effective || "project"]?.doc?.title || "" }));
+  }
+  bumpRoles();
 }
 function pushOp(r, op) {
   r.ops.value = [...r.ops.value, op];
@@ -2517,6 +2545,336 @@ function Menu({ r }) {
   });
 }
 
+// teams/role-modal.tsx
+var active = y(null);
+var ids = 1e6;
+function RoleButton({ r, name, expectedPlace, children = "ロールを確認・編集" }) {
+  return /* @__PURE__ */ u("button", {
+    class: "btn sm",
+    type: "button",
+    disabled: !name,
+    onClick: () => {
+      active.value = { id: ++ids, r, name, expectedPlace, trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null };
+    },
+    children
+  });
+}
+function RoleModal() {
+  const session = active.value;
+  return session ? /* @__PURE__ */ u(Editor, {
+    session
+  }, session.id) : null;
+}
+function Editor({ session }) {
+  const dialog = A(null);
+  const model = T(() => {
+    const global = session.r.place.value === "global";
+    const project = global ? undefined : projectOfGroup(groupOfRecord(session.r)) || CURRENT;
+    const query = new URLSearchParams({ context: global ? "global" : "project" });
+    if (project)
+      query.set("project", project);
+    return {
+      global,
+      project,
+      editor: roleEditor(),
+      entry: y(null),
+      baseline: y(null),
+      error: y(""),
+      ok: y(false),
+      target: y(null),
+      conflict: y(null),
+      context: resource(async (signal) => read2(`/api/role/${encodeURIComponent(session.name)}/context?${query}`, { signal }))
+    };
+  }, [session]);
+  const { editor, entry } = model;
+  const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
+  const canClose = () => !editor.saving.value && (!dirty() || window.confirm("ロールに保存していない変更があります。変更を破棄して閉じますか？"));
+  function close() {
+    if (canClose())
+      active.value = null;
+  }
+  async function check(resetBaseline = false) {
+    const e = entry.value, ctx = model.context.value.value;
+    if (!e || !ctx)
+      return;
+    const answer = await editor.check.run({ project: model.project, place: model.target.value?.place || ctx.place, original: session.name, doc: toDoc2(e.draft, e.saved) });
+    if (answer?.json?.problems && resetBaseline)
+      model.baseline.value = new Set(answer.json.problems.filter((p) => p.sev === "err").map((p) => p.text));
+  }
+  async function load() {
+    const ctx = await model.context.run();
+    if (!ctx?.doc || ctx.state !== "readable")
+      return;
+    if (session.expectedPlace && session.expectedPlace !== ctx.place) {
+      await checkTeam(session.r);
+      model.error.value = "プロンプトの文書が変わったため、プロンプトを再検査しました。閉じて、もう一度開いてください";
+      return;
+    }
+    const saved = fromJSON2(ctx.doc);
+    model.target.value = { place: ctx.place, path: ctx.path };
+    entry.value = { saved, draft: structuredClone(saved), hash: ctx.hash, text: ctx.text };
+    model.baseline.value = null;
+    await check(true);
+  }
+  h(() => {
+    dialog.current?.showModal();
+    load();
+    return () => {
+      model.context.abort();
+      editor.check.abort();
+      dialog.current?.close();
+      session.trigger?.focus({ preventScroll: true });
+    };
+  }, [model]);
+  async function save(over) {
+    const e = entry.value, ctx = model.context.value.value, target = model.target.value;
+    if (!e || !ctx || !target || target.path !== ctx.path || editor.saving.value || model.context.loading.value || model.context.error.value || ctx.errors.length)
+      return;
+    editor.check.abort();
+    model.error.value = "";
+    model.ok.value = false;
+    try {
+      const answer = await editor.save(session.name, {
+        project: model.project,
+        place: target.place,
+        original: session.name,
+        role_context: model.global ? "global" : "project",
+        hash: over || e.hash,
+        doc: toDoc2(e.draft, e.saved)
+      });
+      if (!answer.json)
+        throw new Error("保存の結果を読めませんでした。文書を読み直してください");
+      const saved = fromJSON2(answer.json.doc);
+      entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
+      model.conflict.value = null;
+      model.ok.value = true;
+      await check(true);
+      await model.context.run();
+      await refreshAfterRoleSave();
+    } catch (err) {
+      const conflict = conflictOf(err);
+      if (conflict)
+        model.conflict.value = { c: conflict };
+      else
+        model.error.value = problemText2(err, "ロールを保存できませんでした");
+    }
+  }
+  const ctx = model.context.value.value, e = entry.value;
+  const answer = editor.check.value.value?.json;
+  const issues = e && answer?.problems ? roleProblems(e.draft, answer.problems) : [];
+  const errors = issues.filter((p) => p.sev === "err" && !model.baseline.value?.has(p.text));
+  const unavailable = model.context.loading.value || !!model.context.error.value || !ctx || ctx.errors.length > 0 || model.target.value?.path !== ctx.path;
+  const blocked = unavailable || !dirty() || !model.baseline.value || editor.check.loading.value || !!editor.check.error.value || !answer?.problems || errors.length > 0 || editor.saving.value;
+  const other = ctx?.uses.filter((u2) => !(u2.name === session.r.name.value && u2.place === session.r.place.value && (u2.place === "global" || u2.project === model.project))) || [];
+  const query = new URLSearchParams({ open: session.name + "|" + (ctx?.place === "global" ? "global" : model.project || "") });
+  if (model.project)
+    query.set("project", model.project);
+  function leave(event) {
+    if (!canClose())
+      event.preventDefault();
+    else
+      carryTo2("roles", model.project);
+  }
+  function keyDown(event) {
+    event.stopPropagation();
+    if (event.key !== "Tab" || !dialog.current)
+      return;
+    const fields = Array.from(dialog.current.querySelectorAll("button, a[href], input, select, textarea, summary, [tabindex]")).filter((el) => !el.matches(':disabled, [tabindex="-1"]') && el.getClientRects().length > 0);
+    const at = fields.indexOf(document.activeElement);
+    if (event.shiftKey ? at <= 0 : at < 0 || at === fields.length - 1) {
+      event.preventDefault();
+      (event.shiftKey ? fields.at(-1) : fields[0])?.focus();
+    }
+  }
+  return /* @__PURE__ */ u("dialog", {
+    class: "role-dialog",
+    ref: dialog,
+    "aria-modal": "true",
+    "aria-labelledby": `role-title-${session.id}`,
+    onKeyDown: keyDown,
+    onCancel: (event) => {
+      event.preventDefault();
+      close();
+    },
+    children: [
+      /* @__PURE__ */ u("header", {
+        children: [
+          /* @__PURE__ */ u("h2", {
+            id: `role-title-${session.id}`,
+            children: [
+              "ロール ",
+              session.name
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            disabled: editor.saving.value,
+            onClick: close,
+            children: "閉じる"
+          })
+        ]
+      }),
+      ctx ? /* @__PURE__ */ u("section", {
+        class: "role-usage",
+        "aria-label": "保存の影響",
+        children: [
+          /* @__PURE__ */ u("p", {
+            children: [
+              ctx.place === "global" ? "グローバル" : "プロジェクト",
+              " · ",
+              /* @__PURE__ */ u("code", {
+                children: ctx.path
+              })
+            ]
+          }),
+          ctx.place === "global" ? /* @__PURE__ */ u("p", {
+            children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
+          }) : null,
+          /* @__PURE__ */ u("p", {
+            children: [
+              "このチーム定義で編集中: ",
+              session.r.name.value,
+              "。確認できた範囲: ",
+              ctx.scanned.join("、")
+            ]
+          }),
+          other.length ? /* @__PURE__ */ u("ul", {
+            children: other.map((u2) => /* @__PURE__ */ u("li", {
+              children: [
+                u2.project_name,
+                " / ",
+                u2.name,
+                "（",
+                u2.place === "global" ? "グローバル" : "プロジェクト",
+                "）: ",
+                u2.members.join("、")
+              ]
+            }))
+          }) : /* @__PURE__ */ u("p", {
+            children: "確認できた範囲では、ほかに使うチーム定義はありません。"
+          }),
+          ctx.errors.map((text) => /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: text
+          })),
+          ctx.state !== "readable" ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: ctx.problem
+          }) : null
+        ]
+      }) : null,
+      /* @__PURE__ */ u("div", {
+        class: "role-dialog-body",
+        children: [
+          model.context.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: problemText2(model.context.error.value, "ロールと使用先を読み込めませんでした")
+          }) : null,
+          model.context.loading.value ? /* @__PURE__ */ u("p", {
+            role: "status",
+            children: "ロールと使用先を読んでいます。"
+          }) : null,
+          /* @__PURE__ */ u("p", {
+            children: [
+              /* @__PURE__ */ u("a", {
+                href: `/roles?${query}`,
+                onClick: leave,
+                children: "ロールの画面で開く"
+              }),
+              ctx?.state === "unreadable" ? /* @__PURE__ */ u(S, {
+                children: [
+                  " · ",
+                  /* @__PURE__ */ u("a", {
+                    href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
+                    onClick: leave,
+                    children: "ロールのYAMLで直す"
+                  })
+                ]
+              }) : null
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            disabled: editor.saving.value,
+            onClick: () => {
+              if (canClose())
+                load();
+            },
+            children: "文書を読み直す"
+          }),
+          model.target.value && ctx && model.target.value.path !== ctx.path ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: "使われるロールの置き場所が変わりました。文書を読み直してください。"
+          }) : null,
+          e && ctx?.state === "readable" ? /* @__PURE__ */ u("fieldset", {
+            disabled: editor.saving.value || !model.baseline.value,
+            children: /* @__PURE__ */ u("div", {
+              class: "pmain",
+              children: /* @__PURE__ */ u(RuleDoc2, {
+                hasName: false,
+                row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, turns: answer?.effect?.turns || [], savedIssues: [] },
+                issues,
+                onChange: () => {
+                  entry.value = { ...e, draft: structuredClone(e.draft) };
+                  model.ok.value = false;
+                  check();
+                }
+              })
+            })
+          }) : null,
+          model.conflict.value && e ? /* @__PURE__ */ u(ConflictNotice, {
+            c: model.conflict.value.c,
+            mine: e.text,
+            busy: editor.saving.value,
+            undone: model.conflict.value.undone,
+            onOverwrite: () => void save(model.conflict.value?.c.file.hash),
+            onRevert: () => {
+              const hold = model.conflict.value;
+              const before = entry.value;
+              load().then(() => {
+                model.conflict.value = { c: hold.c, before, undone: true };
+              });
+            },
+            onUndo: () => {
+              if (model.conflict.value?.before) {
+                entry.value = model.conflict.value.before;
+                model.conflict.value = { c: model.conflict.value.c };
+                check();
+              }
+            }
+          }) : null,
+          errors.map((error) => /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: error.text
+          })),
+          editor.check.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: problemText2(editor.check.error.value, "ロールを検査できませんでした")
+          }) : null,
+          model.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: model.error.value
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ u("footer", {
+        children: [
+          e ? /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            disabled: blocked,
+            onClick: () => void save(),
+            children: "ロールを保存"
+          }) : null,
+          model.ok.value ? /* @__PURE__ */ u("span", {
+            role: "status",
+            children: "ロールを保存しました"
+          }) : null
+        ]
+      })
+    ]
+  });
+}
+
 // teams/canvas/prompt.tsx
 function lineAtMaker(full) {
   const starts = [0];
@@ -2691,9 +3049,11 @@ function MemberPrompt({ r, m }) {
                 " 行"
               ]
             }),
-            /* @__PURE__ */ u("a", {
-              href: `/roles?open=${encodeURIComponent(o.name || "")}`,
-              children: "ロールの画面で見る"
+            /* @__PURE__ */ u(RoleButton, {
+              r,
+              name: o.name === m.role ? m.role : "",
+              expectedPlace: o.place,
+              children: "ロールを確認・編集"
             })
           ]
         });
@@ -3528,16 +3888,9 @@ function SideAttr({ r }) {
               ]
             })
           }),
-          /* @__PURE__ */ u("span", {
-            class: "cv-sub",
-            children: [
-              "無いロールは ",
-              /* @__PURE__ */ u("a", {
-                href: "/roles",
-                children: "ロールの画面"
-              }),
-              " で先に作る"
-            ]
+          /* @__PURE__ */ u(RoleButton, {
+            r,
+            name: m.role
           })
         ]
       }),
@@ -4488,7 +4841,8 @@ function App() {
           /* @__PURE__ */ u(YamlPage, {})
         ]
       }),
-      /* @__PURE__ */ u(CanvasToast, {})
+      /* @__PURE__ */ u(CanvasToast, {}),
+      /* @__PURE__ */ u(RoleModal, {})
     ]
   });
 }

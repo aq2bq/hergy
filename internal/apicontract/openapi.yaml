@@ -406,6 +406,30 @@ paths:
             text/plain:
               schema:
                 type: string
+  /api/role/{name}/context:
+    get:
+      operationId: getRoleContext
+      summary: 使われるロールの文書と使用先を読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: {type: string}
+        - name: project
+          in: query
+          schema: {type: string}
+        - name: context
+          in: query
+          schema: {type: string, enum: [project, global]}
+      responses:
+        '200':
+          description: 文書の状態と確認できた使用先
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleContext'
+        '422':
+          description: 名前かプロジェクトの指定が不正
   /api/role/check:
     post:
       operationId: checkRole
@@ -1471,6 +1495,43 @@ components:
         isNew:
           type: boolean
           description: これからロールの文書を作る行か
+    RoleUse:
+      type: object
+      additionalProperties: false
+      required: [project, project_name, place, name, members]
+      properties:
+        project: {type: string}
+        project_name: {type: string}
+        place: {type: string, enum: [project, global]}
+        name: {type: string}
+        members:
+          type: array
+          items: {type: string}
+    RoleContext:
+      type: object
+      additionalProperties: false
+      required: [name, project, place, path, state, text, hash, uses, scanned, errors, problem]
+      properties:
+        name: {type: string}
+        project: {type: string}
+        place: {type: string, enum: [project, global]}
+        path: {type: string}
+        state: {type: string, enum: [readable, missing, unreadable]}
+        text: {type: string}
+        hash: {type: string}
+        problem: {type: string}
+        doc:
+          $ref: '#/components/schemas/RoleDoc'
+        uses:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleUse'
+        scanned:
+          type: array
+          items: {type: string}
+        errors:
+          type: array
+          items: {type: string}
     RoleGet:
       description: GET /api/role/{name} の答え。ロールの文書 1 つと、それが入っているファイルの文とハッシュ。
       type: object
@@ -1773,6 +1834,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        role_context: {type: string, enum: [project, global]}
         project:
           type: string
           description: 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。

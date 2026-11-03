@@ -993,6 +993,30 @@ export function syncTeam(r: Rec) {
 export function syncAgree(r: Rec) {
   checkAgree(r);
 }
+
+// A role save changes the inputs of both the saved and draft team checks.
+// Keep the canvas records and operations while refreshing their baselines.
+export async function refreshAfterRoleSave(): Promise<void> {
+  apiSaved();
+  await Promise.all(recs.value.map(async (r) => {
+    const base = await checkersFor(r).base.run(teamIn(r, { doc: { ops: [] } }));
+    if (base) r.baseFindings.value = figFindings(r, base.problems || []);
+    await checkTeam(r);
+    await checkAgree(r);
+    const checks = checkersFor(r);
+    if (checks.base.error.value || checks.draft.error.value || checks.agree.error.value) throw new Error('ロールは保存しましたが、チーム定義を再検査できませんでした。文書を読み直してください');
+  }));
+  const roleList = await apiList('role');
+  ROLES.value = (roleList.items || []).map((item) => {
+    const place = item.effective || 'project';
+    return { name: item.name, title: item.places[place]?.doc?.title || '' };
+  });
+  if (HQ) {
+    const groups = await hqList('roles');
+    for (const g of groups.groups) ROLES_BY[groupKeyOf(g)] = (g.list?.items || []).map((item) => ({ name: item.name, title: item.places[item.effective || 'project']?.doc?.title || '' }));
+  }
+  bumpRoles();
+}
 export function pushOp(r: Rec, op: Op) {
   r.ops.value = [...r.ops.value, op];
   seedPlaces(r);

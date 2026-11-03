@@ -7,13 +7,13 @@
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
 import { signal } from '../lib/preact.js';
-import { resource } from '../lib/resource';
+import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setCount, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
-  check as apiCheck, save as apiSave, del as apiDel, saved as apiSaved,
-  roleModel, teamModel, problemText, Refusal, bases,
+  save as apiSave, del as apiDel, saved as apiSaved,
+  roleModel, teamModel, problemText, bases,
 } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
@@ -99,7 +99,6 @@ type CheckState = {
 };
 type FileEntry = { r: RoleRow; l: Place; e: RoleEntry };
 export type SavedFileEntry = { r: RoleRow; l: Place; e: RoleEntry & { saved: EditableDocument } };
-type RoleCheckRequest = Request<'role', 'check'>;
 // group is the project the role's file stands in (a headquarters screen's
 // group): a draft belongs to that project's file, not to another one's of the
 // same name (r-57d8).
@@ -364,114 +363,16 @@ function redraw(): void {
 // checkers are one resource per document place: a check is a reading like any
 // other, so the newest request is the one whose answer is kept, and the one
 // before it is dropped (5 章 3). The screen keeps no numbering of its own.
-type RoleCheckData = Partial<Answer<'role', 'check'>>;
-type RoleCheckReading = RawAnswer<RoleCheckData>;
-
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isProblem(value: unknown): value is components['schemas']['Problem'] {
-  if (!record(value)) return false;
-  return (value.sev === 'err' || value.sev === 'warn')
-    && typeof value.at === 'string'
-    && typeof value.text === 'string'
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number'
-    && (value.field === undefined || typeof value.field === 'string')
-    && (value.line === undefined || typeof value.line === 'number')
-    && (value.definition === undefined || typeof value.definition === 'string')
-    && (value.role === undefined || typeof value.role === 'string')
-    && (value.rule_id === undefined || typeof value.rule_id === 'string');
-}
-
-function isProblemList(value: unknown): value is components['schemas']['Problem'][] {
-  return Array.isArray(value) && value.every(isProblem);
-}
-
-function isRolePreviewLine(value: unknown): value is components['schemas']['RolePreviewLine'] {
-  return record(value)
-    && typeof value.text === 'string'
-    && typeof value.part === 'string'
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number';
-}
-
-function isRolePreview(value: unknown): value is components['schemas']['RolePreview'] {
-  return record(value)
-    && typeof value.chars === 'number'
-    && (value.lines === null || (Array.isArray(value.lines) && value.lines.every(isRolePreviewLine)));
-}
-
-function isRoleDiff(value: unknown): value is components['schemas']['RoleDiff'] {
-  return record(value)
-    && (value.added === null || (Array.isArray(value.added) && value.added.every((line) => typeof line === 'number')))
-    && (value.removedBefore === null || (Array.isArray(value.removedBefore) && value.removedBefore.every((line) => typeof line === 'number')))
-    && typeof value.removedAtEnd === 'boolean';
-}
-
-function isRoleTurn(value: unknown): value is components['schemas']['RoleTurn'] {
-  return record(value)
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number'
-    && typeof value.arrow === 'string'
-    && typeof value.definition === 'string'
-    && typeof value.ok === 'boolean';
-}
-
-function isRoleReader(value: unknown): value is components['schemas']['RoleReader'] {
-  return record(value) && typeof value.definition === 'string' && typeof value.member === 'string';
-}
-
-function isRoleEffect(value: unknown): value is components['schemas']['RoleEffect'] {
-  return record(value)
-    && isRoleDiff(value.diff)
-    && Array.isArray(value.turns)
-    && value.turns.every(isRoleTurn);
-}
-
-function isRoleCheckData(value: unknown): value is RoleCheckData {
-  if (!record(value)) return false;
-  return (value.problems === undefined || isProblemList(value.problems))
-    && (value.preview === undefined || isRolePreview(value.preview))
-    && (value.effect === undefined || isRoleEffect(value.effect))
-    && (value.readers === undefined || (Array.isArray(value.readers) && value.readers.every(isRoleReader)))
-    && (value.size === undefined || typeof value.size === 'number')
-    && (value.limit === undefined || typeof value.limit === 'number');
-}
-
-function roleCheckData(value: unknown): RoleCheckData {
-  return isRoleCheckData(value) ? value : {};
-}
-
-const checkers = new Map<string, ReturnType<typeof resource<RoleCheckReading, [RoleCheckRequest]>>>();
-function checkerFor(k: string): ReturnType<typeof resource<RoleCheckReading, [RoleCheckRequest]>> {
-  let one = checkers.get(k);
-  if (one) return one;
-  one = resource<RoleCheckReading, [RoleCheckRequest]>(async (signal, payload) => {
-    try {
-      return await apiCheck('role', payload, { signal });
-    } catch (err) {
-      // A refusal about the text still carries what is wrong with it.
-      if (err instanceof Refusal) {
-        return { ok: false, status: err.status, text: err.text, json: roleCheckData(err.json) };
-      }
-      throw err;
-    }
-  });
-  checkers.set(k, one);
+const editors = new Map<string, ReturnType<typeof roleEditor>>();
+function editorFor(k: string) {
+  let one = editors.get(k);
+  if (!one) { one = roleEditor(); editors.set(k, one); }
   return one;
 }
+const checkerFor = (k: string) => editorFor(k).check;
 const timers: Record<string, ReturnType<typeof setTimeout>> = {};
 const keyOf = (r: RoleRow, l: Place): string => r.uid + l;
-const ruleKeyAt = (d: EditableDocument, si: number, ri: number): number => { const s = d.sections[si]; if (!s) return 0; const x = s.rules[ri]; return x ? x._k : 0; };
-
-function convertProblems(d: EditableDocument, list: components['schemas']['Problem'][]): RuleIssue[] {
-  return (list || []).map((p) => ({
-    sev: p.sev, k: (p.section ?? -1) >= 0 ? ruleKeyAt(d, p.section ?? -1, p.rule ?? -1) : 0,
-    f: p.field || '', text: p.text || '', definition: p.definition || '',
-  }));
-}
+const convertProblems = roleProblems;
 
 export function issuesOf(r: RoleRow, l: Place): RuleIssue[] { const c = checks.value[keyOf(r, l)]; return c ? c.issues : []; }
 
@@ -1022,7 +923,7 @@ export async function doSave(id: number | string, l: Place, over?: string): Prom
   if (e.basePlace) payload.base = e.basePlace;
   let res: RawAnswer<Answer<'role', 'save'>>;
   try {
-    res = await apiSave('role', e.draft.name || (e.saved ? e.saved.name : '_'), payload);
+    res = await editorFor(keyOf(r, l)).save(e.draft.name || (e.saved ? e.saved.name : '_'), payload);
   } catch (err) {
     const c = conflictOf(err);
     if (c) {

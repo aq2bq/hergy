@@ -11,6 +11,7 @@ import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
+import { RoleModal } from './role-modal.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
@@ -67,7 +68,7 @@ export function Tabs() {
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><RoleModal /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------

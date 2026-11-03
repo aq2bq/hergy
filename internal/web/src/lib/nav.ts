@@ -39,6 +39,18 @@ const read = (k: string): string | null => { try { return window.sessionStorage.
 const write = (k: string, v: string): void => { try { window.sessionStorage.setItem(k, v); } catch { /* the band still links */ } };
 const drop = (k: string): void => { try { window.sessionStorage.removeItem(k); } catch { /* as above */ } };
 
+// carryTo is the same draft handover for the band and an editor's scoped link.
+export function carryTo(target: string, destinationProject?: string): void {
+  remember();
+  const destination = (what: string, screen: string) => 'hergy.' + (destinationProject || key) + '.' + what + '.' + screen;
+  write(destination('carry', target), '1');
+  const screen = mine(), p = page();
+  if (!screen) return;
+  write(destination('at', screen), location.pathname + location.search);
+  if (p?.dirty?.()) write(destination('draft', screen), JSON.stringify(p.take()));
+  else drop(destination('draft', screen));
+}
+
 const scr = (name: string): HTMLElement | null => band?.querySelector<HTMLElement>('.scr[data-screen="' + name + '"]') || null;
 const setDot = (el: Element | null, on: boolean): void => {
   if (!el) return;
@@ -160,13 +172,7 @@ if (band) {
   // back the same way from there.
   band.querySelectorAll<HTMLAnchorElement>('a.scr').forEach((a) => {
     a.addEventListener('click', () => {
-      remember();
-      write(at('carry', a.dataset.screen), '1');
-      const screen = mine();
-      if (!screen) return;
-      const p = page();
-      if (p && p.dirty && p.dirty()) write(at('draft', screen), String(JSON.stringify(p.take())));
-      else drop(at('draft', screen));
+      carryTo(a.dataset.screen || '');
     });
   });
 

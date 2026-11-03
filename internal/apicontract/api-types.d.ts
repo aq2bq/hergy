@@ -128,6 +128,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/role/{name}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 使われるロールの文書と使用先を読む */
+        get: operations["getRoleContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/role/check": {
         parameters: {
             query?: never;
@@ -648,6 +665,30 @@ export interface components {
             /** @description これからロールの文書を作る行か */
             isNew?: boolean;
         };
+        RoleUse: {
+            project: string;
+            project_name: string;
+            /** @enum {string} */
+            place: "project" | "global";
+            name: string;
+            members: string[];
+        };
+        RoleContext: {
+            name: string;
+            project: string;
+            /** @enum {string} */
+            place: "project" | "global";
+            path: string;
+            /** @enum {string} */
+            state: "readable" | "missing" | "unreadable";
+            text: string;
+            hash: string;
+            problem: string;
+            doc?: components["schemas"]["RoleDoc"];
+            uses: components["schemas"]["RoleUse"][];
+            scanned: string[];
+            errors: string[];
+        };
         /** @description GET /api/role/{name} の答え。ロールの文書 1 つと、それが入っているファイルの文とハッシュ。 */
         RoleGet: {
             doc: components["schemas"]["RoleDoc"];
@@ -812,6 +853,8 @@ export interface components {
         };
         /** @description PUT /api/role/{name} に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
         RoleSaveRequest: {
+            /** @enum {string} */
+            role_context?: "project" | "global";
             /** @description 書くプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
             project?: string;
             /** @description 置き場所。project はプロジェクト、global はグローバル。 */
@@ -2704,6 +2747,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Refusal"];
                 };
+            };
+        };
+    };
+    getRoleContext: {
+        parameters: {
+            query?: {
+                project?: string;
+                context?: "project" | "global";
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 文書の状態と確認できた使用先 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleContext"];
+                };
+            };
+            /** @description 名前かプロジェクトの指定が不正 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
