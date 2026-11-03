@@ -10,6 +10,7 @@ import type { ComponentChildren, TargetedEvent } from 'preact';
 import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
+import { Rename } from './rename.js';
 import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
@@ -19,7 +20,7 @@ import { copyGroupOf } from '../lib/copy.js';
 import { bringUnderBand } from '../lib/band.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup, placeGroups,
-  dkey, currentProjectName, teamLabel, dtabOf, isOpen,
+  dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
   rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
@@ -86,7 +87,7 @@ export function List() {
       {rows.length === 0 ? <div class="hq-empty"><span class="none">{g.name} にはチーム定義がありません。</span></div> : null}
     </>;
   });
-  return <div class="list hq-grouped">{head}{body}</div>;
+  return <>{missingOpen.value.length ? <p role="status">チーム定義 {missingOpen.value.join('、')} が見つかりません。<a href="/teams">一覧を見る</a></p> : null}<div class="list hq-grouped">{head}{body}</div></>;
 }
 
 // PlaceHead is one place's head (spec 4 章, d-e77c): its name, where it is,
@@ -226,6 +227,7 @@ function Detail({ r }: { r: Rec }) {
     <div class="detail">
       <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'description')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
       <nav class="dtabs"><DtabsNav r={r} /></nav>
+      {!r.draftRow ? <Rename r={r} /> : null}
       {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       {hidden.map((h) => (
         <section class="panel shadowed"><header class="ph"><span class="ln">{placeName(h.place)}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>

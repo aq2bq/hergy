@@ -61,6 +61,10 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - To write, change or move a team's rules, read the `hergy-rules` skill first: it asks the person the questions one at a time, so they answer and never write YAML.
 - Start in the project's `.hergy/`; ask the person before you change `~/.config/hergy/`.
 
+## Renaming a team definition
+
+In the definition editor, use 名前を変更 to save its name separately. Save or revert its unsaved topology, agreement and YAML first. Stop every team using that file; the server refuses a running or starting team or unreadable herdr state. For a global definition it checks all projects in the connected session, including those not listed in the UI. Starts and renames share file locks across processes on macOS and Linux. A same-place collision, invalid name or changed file is refused. A same name in the other place is allowed and its effect is shown. Launch history keeps the old name and path; the renamed definition has no previous launch until it starts again. Old URLs do not redirect.
+
 ## The web UI
 
 - `hergy serve` serves the screens on 127.0.0.1, prints the URL and opens it in this machine's default browser; it holds the foreground until you stop it. Run it with `--no-open` when nothing should take the person's screen, and hand them the URL yourself instead.

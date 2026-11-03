@@ -1,0 +1,60 @@
+package app
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/team"
+)
+
+func TestUpHonorsRenameLock(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	release, err := source.LockTeams(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	_, stderr, code := run("up", "demo")
+	if code == 0 || !strings.Contains(stderr, i18n.T("web.rename.busy")) {
+		t.Fatalf("up ignored lock: %d %s", code, stderr)
+	}
+}
+
+func TestRenameReadsUnlistedRunningProjects(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:foreign@demo"}`, "")
+	env, err := team.NewEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := newActivityRead(env)
+	path := filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml")
+	// An unrecorded tab must not be interpreted as a stopped definition.
+	if err := reader.CheckDefinitionRename(path); err == nil {
+		t.Fatal("accepted an unknown running definition")
+	}
+	log, err := launchlog.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(launchlog.Record{Team: "foreign", Definition: "demo", Project: filepath.Join(f.proj, "unlisted"), Layer: source.LayerGlobal, TeamYAML: path}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.CheckDefinitionRename(path); err == nil {
+		t.Fatal("missed global use by an unlisted project")
+	}
+	// A same-named, independent project definition is not this global file.
+	if err := reader.CheckDefinitionRename(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "missing"))
+	if err := reader.CheckDefinitionRename(path); err == nil {
+		t.Fatal("accepted unavailable herdr")
+	}
+}

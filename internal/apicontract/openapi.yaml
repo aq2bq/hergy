@@ -189,6 +189,37 @@ paths:
               schema:
                 type: string
                 description: 書き込み用トークンなどを断った理由
+  /api/team/{name}/rename:
+    post:
+      operationId: renameTeam
+      summary: 停止中のチーム定義の名前を変更する
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamRenameRequest'
+      responses:
+        '200':
+          description: 新しい名前の定義と一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamRenamed'
+        '409':
+          description: 競合または動いているチームがある
+        '422':
+          description: 名前または保存対象の指定が不正
+        '500':
+          description: ファイルを移動できない
+        '503':
+          description: 動いているチームを確認できない
+
   /api/team/check:
     post:
       operationId: checkTeam
@@ -3751,12 +3782,37 @@ components:
         member:
           type: string
           description: チーム定義のメンバー名
+    TeamRenamePreview:
+      type: object
+      additionalProperties: false
+      required: [from, to, notes]
+      properties:
+        from: {type: string}
+        to: {type: string}
+        notes:
+          type: array
+          items: {type: string}
+    TeamRenameRequest:
+      type: object
+      additionalProperties: false
+      required: [place, rename_to, hash, agreement_hash, agreement_exists]
+      properties:
+        project: {type: string}
+        place: {type: string, enum: [project, global]}
+        rename_to: {type: string}
+        hash: {type: string}
+        agreement_hash: {type: string}
+        agreement_exists: {type: boolean}
+    TeamRenamed:
+      $ref: '#/components/schemas/TeamSaved'
     TeamCheckAnswer:
       description: 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。
       type: object
       additionalProperties: false
       required: [problems]
       properties:
+        rename:
+          $ref: '#/components/schemas/TeamRenamePreview'
         problems:
           type: array
           nullable: true
@@ -3866,6 +3922,9 @@ components:
       additionalProperties: false
       required: [doc, text, hash, path]
       properties:
+        name: {type: string}
+        rename:
+          $ref: '#/components/schemas/TeamRenamePreview'
         doc:
           oneOf:
             - $ref: '#/components/schemas/TeamDocument'
@@ -3909,6 +3968,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        rename_to: {type: string}
         project:
           type: string
           description: 検査対象を持つ、並べたプロジェクトのパス

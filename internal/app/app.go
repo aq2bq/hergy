@@ -1391,6 +1391,16 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	if opts.Dry {
 		return dryPlan(stdout, env, r, "boot", r.starts, opts, "up "+r.team.Definition.Name+asSuffix(opts))
 	}
+	release, err := source.LockTeams(r.team.Definition.TeamYAML)
+	if err != nil {
+		return i18n.Errorf("web.rename.busy")
+	}
+	defer release()
+	// A rename may have finished after the first read, before this lock.
+	r, err = readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, opts.Team, opts.As)
+	if err != nil {
+		return err
+	}
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}

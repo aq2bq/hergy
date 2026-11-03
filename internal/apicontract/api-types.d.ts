@@ -52,6 +52,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/team/{name}/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停止中のチーム定義の名前を変更する */
+        post: operations["renameTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/team/check": {
         parameters: {
             query?: never;
@@ -1910,8 +1927,24 @@ export interface components {
             /** @description チーム定義のメンバー名 */
             member: string;
         };
+        TeamRenamePreview: {
+            from: string;
+            to: string;
+            notes: string[];
+        };
+        TeamRenameRequest: {
+            project?: string;
+            /** @enum {string} */
+            place: "project" | "global";
+            rename_to: string;
+            hash: string;
+            agreement_hash: string;
+            agreement_exists: boolean;
+        };
+        TeamRenamed: components["schemas"]["TeamSaved"];
         /** @description 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。 */
         TeamCheckAnswer: {
+            rename?: components["schemas"]["TeamRenamePreview"];
             /** @description 検査で見つかった問題 */
             problems: components["schemas"]["Problem"][] | null;
             /** @description team.yaml またはチームのルールの検査表示 */
@@ -1968,6 +2001,8 @@ export interface components {
         };
         /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
         TeamSaved: {
+            name?: string;
+            rename?: components["schemas"]["TeamRenamePreview"];
             /** @description 保存したチーム定義またはチームのルールの文書 */
             doc: components["schemas"]["TeamDocument"] | components["schemas"]["TeamRuleDocument"];
             /** @description 保存したファイルの全文 */
@@ -1991,6 +2026,7 @@ export interface components {
         };
         /** @description チーム定義、チームのルール、YAML 全文、ワーカーの初期プロンプトの検査本文。 */
         TeamCheckRequest: {
+            rename_to?: string;
             /** @description 検査対象を持つ、並べたプロジェクトのパス */
             project?: string;
             /** @description 検査するチーム定義の場所。project または global。 */
@@ -2411,6 +2447,60 @@ export interface operations {
                     "application/json": components["schemas"]["Refusal"];
                     "text/plain": string;
                 };
+            };
+        };
+    };
+    renameTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description 新しい名前の定義と一覧 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamRenamed"];
+                };
+            };
+            /** @description 競合または動いているチームがある */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 名前または保存対象の指定が不正 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ファイルを移動できない */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 動いているチームを確認できない */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

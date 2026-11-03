@@ -547,6 +547,10 @@ func (s *Server) t2Places(name string) (string, []string) {
 // text. The payload's own shape says which: a Doc is a document's draft, no Doc
 // is a whole text the YAML tab is typing.
 func (k apiTeam) Check(in apiIn) (any, *apiErr) {
+	if in.RenameTo != nil {
+		preview, refusal := k.s.renamePreview(in.Name, *in.RenameTo, in.Place)
+		return apiCheck{Problems: []apiProblem{}, Rename: preview}, refusal
+	}
 	if in.Part == "worker" {
 		return k.checkWorkerPrompt(in)
 	}

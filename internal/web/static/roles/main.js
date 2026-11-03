@@ -15,7 +15,7 @@ import {
   y,
   x,
   u
-} from "../chunk/nav-fa78a466.js";
+} from "../chunk/nav-1697d4rr.js";
 import {
   takeDraft2,
   setDirty2,
@@ -35,8 +35,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-0nv4k2p4.js";
-import"../chunk/nav-xkc88djp.js";
+} from "../chunk/nav-9p5zrmhe.js";
+import"../chunk/nav-8dvkde9e.js";
 import {
   fromJSON2,
   toDoc2,
@@ -52,27 +52,27 @@ import {
   RuleDoc2,
   nextKey2,
   observeKeys2
-} from "../chunk/nav-vqrj5e2b.js";
+} from "../chunk/nav-7cjn77zc.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-5s3bqeb3.js";
+} from "../chunk/nav-980mkyvx.js";
 import {
   Measure
-} from "../chunk/nav-vrc2smmf.js";
+} from "../chunk/nav-8jj28qz6.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-z3b2t3ze.js";
+} from "../chunk/nav-439wmac8.js";
 import {
   Field
-} from "../chunk/nav-rjt8w20v.js";
+} from "../chunk/nav-wwnacjpe.js";
 import {
   resource
-} from "../chunk/nav-hqj3327q.js";
+} from "../chunk/nav-gwkv74cd.js";
 
 // roles/state.ts
 var view = document.getElementById("view");

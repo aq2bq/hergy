@@ -5,7 +5,7 @@
   "help.options_placeholder": "[オプション]",
   "help.arguments": "引数",
   "help.options": "オプション",
-  "cheat.people": "hergy cheat\n\nはじめて使うとき\n  hergy new myteam  チーム定義のひな形を作る（ロールとプロファイルは、今あるものから選ぶ）\n  hergy validate    ロールかプロファイルが引けないと言われたら、team.yaml の直し方を確かめる\n  team.yaml を編集  説明とメンバー、使うエージェントを書く\n  hergy up myteam   チームを起動する（--dry で中身だけ確認）\n\nよく使うコマンド\n  チームを起動する          hergy up [チーム定義]\n  チームを終了する          hergy down [チーム]\n  ワーカーを終了する        hergy down <ワーカー>（動いているチームのワーカー）\n  チームの状態を見る        hergy status [チーム]\n  定義の変更を反映する      hergy apply [メンバー...]\n  メンバーを起動し直す      hergy refresh <メンバー>\n  初期プロンプトを送り直す  hergy reprompt <メンバー>\n  メンバーのペインに行く    hergy focus <メンバー>\n  止まったメンバーをうながす hergy nudge <メンバー> [本文]\n  メンバーのターンを止める  hergy stop <メンバー>\n  メンバーに伝える          hergy tell <メンバー> \"<本文>\" [--from <メンバー>]\n  ワーカーを追加する        hergy hire <名前> --purpose X --task \"...\" [--from <メンバー>]\n  チーム定義の一覧を見る    hergy ls\n  チーム定義を確認する      hergy show <チーム定義>\n  設定を検査する            hergy validate\n  バージョンを見る          hergy version\n  ブラウザで WebUI を開く   hergy serve [--port <ポート>]（--no-open なら開かない）\n\nチームを終了したあと\n  hergy down は、閉じたペインがいた git ワークツリー（プロジェクトのルートを除く）と、このプロジェクトの stash を一覧にし、消すコマンドを示します。hergy は消しません。一時文書は一覧に入れません\n\n起動の途中で許可待ちになったとき\n  hergy はメンバーとタブ・ペインを名指して、答えを待ちます（上限なし）。そのペインで答えると、hergy は初期プロンプトを送って続きを進めます。やめるときは Ctrl-C\n\nWebUI の画面（hergy serve で開く。上の帯で切り替える）\n  アクティビティ       /activity（動いているチームを札で確認。各札からチーム定義を開く、反映していない変更を反映する、チームを終了する）\n  チーム定義           /teams（トポロジーとルール。YAML は /teams/yaml）\n  プロファイル         /profiles（割り当ては /profiles/assign、YAML は /profiles/yaml）\n  ロール               /roles（同じ）\n  / で開くと           動いているチームがあればアクティビティ（/activity）、無ければチーム定義（/teams）\n\n起動したエージェントに hergy が渡すもの\n  ペインの env に GY_ACTOR=<herdr 名>。gy に書くときの名前で、hergy が決めます\n\nチーム定義の場所\n  プロジェクト        .hergy/teams/<チーム定義>/team.yaml\n  プロジェクトの外    ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとのオプションは hergy <コマンド> --help、全体の一覧は hergy --help、AI 向けは hergy cheat --ai\n",
+  "cheat.people": "hergy cheat\n\nはじめて使うとき\n  hergy new myteam  チーム定義のひな形を作る（ロールとプロファイルは、今あるものから選ぶ）\n  hergy validate    ロールかプロファイルが引けないと言われたら、team.yaml の直し方を確かめる\n  team.yaml を編集  説明とメンバー、使うエージェントを書く\n  hergy up myteam   チームを起動する（--dry で中身だけ確認）\n\nよく使うコマンド\n  チームを起動する          hergy up [チーム定義]\n  チームを終了する          hergy down [チーム]\n  ワーカーを終了する        hergy down <ワーカー>（動いているチームのワーカー）\n  チームの状態を見る        hergy status [チーム]\n  定義の変更を反映する      hergy apply [メンバー...]\n  メンバーを起動し直す      hergy refresh <メンバー>\n  初期プロンプトを送り直す  hergy reprompt <メンバー>\n  メンバーのペインに行く    hergy focus <メンバー>\n  止まったメンバーをうながす hergy nudge <メンバー> [本文]\n  メンバーのターンを止める  hergy stop <メンバー>\n  メンバーに伝える          hergy tell <メンバー> \"<本文>\" [--from <メンバー>]\n  ワーカーを追加する        hergy hire <名前> --purpose X --task \"...\" [--from <メンバー>]\n  チーム定義の一覧を見る    hergy ls\n  チーム定義を確認する      hergy show <チーム定義>\n  設定を検査する            hergy validate\n  バージョンを見る          hergy version\n  ブラウザで WebUI を開く   hergy serve [--port <ポート>]（--no-open なら開かない）\n\nチームを終了したあと\n  hergy down は、閉じたペインがいた git ワークツリー（プロジェクトのルートを除く）と、このプロジェクトの stash を一覧にし、消すコマンドを示します。hergy は消しません。一時文書は一覧に入れません\n\n起動の途中で許可待ちになったとき\n  hergy はメンバーとタブ・ペインを名指して、答えを待ちます（上限なし）。そのペインで答えると、hergy は初期プロンプトを送って続きを進めます。やめるときは Ctrl-C\n\nWebUI の画面（hergy serve で開く。上の帯で切り替える）\n  アクティビティ       /activity（動いているチームを札で確認。各札からチーム定義を開く、反映していない変更を反映する、チームを終了する）\n  チーム定義           /teams（トポロジーとルール。YAML は /teams/yaml）\n  プロファイル         /profiles（割り当ては /profiles/assign、YAML は /profiles/yaml）\n  ロール               /roles（同じ）\n  / で開くと           動いているチームがあればアクティビティ（/activity）、無ければチーム定義（/teams）\n\n起動したエージェントに hergy が渡すもの\n  ペインの env に GY_ACTOR=<herdr 名>。gy に書くときの名前で、hergy が決めます\n\nチーム定義の場所\n  プロジェクト        .hergy/teams/<チーム定義>/team.yaml\n  プロジェクトの外    ~/.config/hergy/teams/<チーム定義>/team.yaml\n\nコマンドごとのオプションは hergy <コマンド> --help、全体の一覧は hergy --help、AI 向けは hergy cheat --ai\n\n  チーム定義名の変更は、編集画面の「名前を変更」から名前だけを保存します。未保存の編集がある間、チームが動いている間、herdrの状態を確認できない間は変更できません。起動の記録は変更前の名前で残ります。\n",
   "error.prefix": "エラー: %v",
   "error.unhandled_command": "このコマンドは扱えません。hergy --help で使えるコマンドを見てください",
   "error.unknown_language": "未対応の言語です: %q（使える言語: %s）。--lang にこの中のどれかを指定してください",
@@ -601,5 +601,18 @@
   "place.project": "プロジェクト",
   "error.role_to_carry": "メンバー %s: ロール %s の文書は%sにありません（%s にあります）。この行で選ぶと、保存のときに%sに書きます",
   "error.profile_to_carry": "メンバー %s: プロファイル %s は%sにありません（%s にあります）。この行で選ぶと、保存のときに%sに書きます",
-  "error.workers_profile_to_carry": "メンバー %s のワーカー %s: プロファイル %s は%sにありません（%s にあります）。この行で選ぶと、保存のときに%sに書きます"
+  "error.workers_profile_to_carry": "メンバー %s のワーカー %s: プロファイル %s は%sにありません（%s にあります）。この行で選ぶと、保存のときに%sに書きます",
+  "web.rename.name": "英小文字で始め、英小文字・数字・ハイフン・下線で25文字以内の、別の名前を入力してください",
+  "web.rename.place": "プロジェクトかグローバルを選び直してください",
+  "web.rename.taken": "この置き場所には同じ名前のチーム定義があります。別の名前を入力してください",
+  "web.rename.history": "起動の記録は変更前の名前で残ります。変更後は、新しい名前で起動するまで前回の起動との比較がありません",
+  "web.rename.reveals": "変更後は、グローバルの %s がこのプロジェクトで使われます",
+  "web.rename.hides": "変更後は、このプロジェクトではグローバルの %s が使われなくなります",
+  "web.rename.global": "同じ名前のプロジェクト定義がある場所では、プロジェクトの定義が使われます。変更前の名前では、このグローバル定義を使えなくなります",
+  "web.rename.shadowed": "%s では、プロジェクトの %s が使われます",
+  "web.rename.unavailable": "動いているチームを確認できません。herdrを起動し、状態を確認してから、もう一度保存してください",
+  "web.rename.read_again": "読み取り後にファイルが変わったか、読み取り情報が不足しています。画面を読み直してから名前を変更してください",
+  "web.rename.busy": "このチーム定義の起動か名前の変更が進行中です。終わってから、もう一度操作してください",
+  "web.rename.unknown": "チーム %s が使う定義の置き場所を確認できません。状態を確認してから名前を変更してください",
+  "web.rename.running": "チーム %s がこの定義を使っています。チームを止めてから名前を変更してください"
 }

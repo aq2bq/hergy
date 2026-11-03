@@ -297,6 +297,7 @@ export type Rec = {
   prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
   sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
   lastAct: Sig<number>;
+  renameNotes: Sig<string[]>;
   wprompts: Sig<Record<string, WorkerPrompt>>; wpromptReq: Record<string, boolean>;
   placed: Sig<Positions>; layout: Sig<Positions>;
   // wide is the figure laid out in rows rather than round the human: a ring too
@@ -445,7 +446,7 @@ function recOf(init: RecInit): Rec {
     preview: signal(init.preview), baseFindings: signal(init.baseFindings),
     prompts: signal(init.prompts), promptsReady: signal(init.promptsReady),
     sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
-    lastAct: signal(init.lastAct),
+    lastAct: signal(init.lastAct), renameNotes: signal<string[]>([]),
     // wprompts is the worker prompts the server answered, per worker; the request
     // that is out is the drawing's own bookkeeping and is not a signal.
     wprompts: signal<Record<string, WorkerPrompt>>({}), wpromptReq: {},
@@ -482,6 +483,7 @@ export function setWide(r: Rec): void {
   r.placed.value = place(r.draft.value, kept, thin.value, true);
 }
 export const recs = signal<Rec[]>([]);
+export const missingOpen = signal<string[]>([]);
 let uids = 0;
 
 // defOf is one item of GET /api/team (or of one group of GET /api/hq/teams)
@@ -1136,6 +1138,44 @@ export async function doDelete(r: Rec) {
   }
   syncURL();
 }
+
+// renamed replaces only the saved target; other rows keep their drafts.
+export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']): Promise<void> {
+  const old = r.name.value, group = groupOfRecord(r), tab = dtabOf(r), at = firstIndexOf((x) => x === r);
+  forgetChecks(r);
+  resetCanvas(r);
+  withOpen(r.dom, false);
+  recs.value = recs.value.filter((x) => x !== r);
+  const item = (json.items || []).find((x) => x.name === name);
+  if (!item) throw new Error('保存したチーム定義を読めませんでした。画面を読み直してください');
+  const next = defOf(itemInGroup(item, group), group, r.place.value);
+  next.renameNotes.value = json.rename?.notes || [];
+  if (GROUPS) {
+    try {
+      const fresh = await hqList('teams');
+      for (const g of GROUPS) {
+        const item = fresh.groups.find((x) => !!x.global === !!g.global && x.project?.path === g.project?.path);
+        if (item) { g.overridden_by = item.overridden_by; g.list = item.list; }
+      }
+      put({});
+    } catch { next.renameNotes.value = [...next.renameNotes.value, '置き場所の表示を更新できませんでした。画面を読み直してください']; }
+  }
+
+  orderRows(next, at);
+  withOpen(next.dom, true);
+  setDtab(next.dom, tab);
+  const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
+  yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f): YFile => ({
+    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '',
+    label: PLACE[f.place], path: f.path, hash: f.hash || '', text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
+  })));
+  await checkTeam(next);
+  if (next.agreeSaved.value) await checkAgree(next);
+  syncURL();
+  apiSaved();
+}
+
+export const renameDirty = (r: Rec): boolean => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && fileDirty(f.file));
 // answered waits for a save's or a delete's answer and answers its document, or,
 // when the server refused it, puts the server's sentence on the row's foot and
 // answers null (spec-boundary 3): a screen builds no sentence of its own.
@@ -1436,6 +1476,7 @@ export function syncURL() {
 export function readURL() {
   const p = new URLSearchParams(location.search);
   const open = p.get('open');
+  missingOpen.value = (parseOpen(open || '') || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
   if (open) {
     const rows = parseOpen(open) || [];
     rows.forEach(({ name, group }) => { const r = byRef(name, group); if (r) withOpen(r.dom, true); });

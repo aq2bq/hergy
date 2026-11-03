@@ -94,11 +94,11 @@ function H() {
 }
 function L(n, l, u, t, i, r, o, e, f, c, a) {
   var s, h, p, v, y, _, g = t && t.__k || w, m = l.length;
-  for (f = T(u, l, g, f, m), s = 0;s < m; s++)
+  for (f = T2(u, l, g, f, m), s = 0;s < m; s++)
     (p = u.__k[s]) != null && (h = p.__i != -1 && g[p.__i] || d2, p.__i = s, _ = q(n, p, h, i, r, o, e, f, c, a), v = p.__e, p.ref && h.ref != p.ref && (h.ref && J(h.ref, null, p), a.push(p.ref, p.__c || v, p)), y == null && v != null && (y = v), 4 & p.__u ? (f = j(p, f, n), h.__e && (h.__e = null)) : typeof p.type == "function" && _ !== undefined ? f = _ : v && (f = v.nextSibling), p.__u &= -7);
   return u.__e = y, f;
 }
-function T(n, l, u, t, i) {
+function T2(n, l, u, t, i) {
   var r, o, e, f, c, a = u.length, s = a, h = 0;
   for (n.__k = new Array(i), r = 0;r < i; r++)
     (o = l[r]) != null && typeof o != "boolean" && typeof o != "function" ? (typeof o == "string" || typeof o == "number" || typeof o == "bigint" || o.constructor == String ? o = n.__k[r] = x2(null, o, null, null, null) : g(o) ? o = n.__k[r] = x2(S, { children: o }, null, null, null) : o.constructor === undefined && o.__b > 0 ? o = n.__k[r] = x2(o.type, o.props, o.key, o.ref ? o.ref : null, o.__v) : n.__k[r] = o, f = r + h, o.__ = n, o.__b = n.__b + 1, e = null, (c = o.__i = O2(o, u, f, s)) != -1 && (s--, (e = u[c]) && (e.__u |= 2)), e == null || e.__v == null ? (c == -1 && (i > a ? h-- : i < a && h++), typeof o.type != "function" && (o.__u |= 4)) : c != f && (c == f - 1 ? h-- : c == f + 1 ? h++ : (c > f ? h-- : h++, o.__u |= 4))) : n.__k[r] = null;
@@ -416,11 +416,11 @@ function _(n, u) {
   !c2.__s && C2(i.__H, u) && (i.__ = n, i.u = u, r2.__h.push(i));
 }
 function A(n) {
-  return o2 = 5, T2(function() {
+  return o2 = 5, T(function() {
     return { current: n };
   }, []);
 }
-function T2(n, r) {
+function T(n, r) {
   var u = s2(t3++, 7);
   return C2(u.__H, r) && (u.__ = n(), u.__H = r, u.__h = n), u.__;
 }
@@ -954,7 +954,7 @@ function w4(i) {
   var n = this, r = i.data, t2 = useSignal(r);
   t2.name = "ReactiveDom";
   t2.value = r;
-  var e = T2(function() {
+  var e = T(function() {
     var i = n, r = n.__v;
     while (r = r.__)
       if (r.__c) {
@@ -1157,7 +1157,7 @@ C.prototype.shouldComponentUpdate = function(i, n) {
   return false;
 };
 function useSignal(i, n) {
-  return T2(function() {
+  return T(function() {
     return y(i, n);
   }, []);
 }
@@ -1195,7 +1195,7 @@ function u(e, t, n, o, i, u) {
   return l.vnode && l.vnode(l2), l2;
 }
 
-export { S, R, d, h, _, A, y, O, x, u };
+export { S, R, d, h, _, A, T, y, O, x, u };
 
 // ---- licences ---------------------------------------------------------
 //

@@ -28,17 +28,19 @@ type apiIn struct {
 	// Project names the listed project a read or write is about (d-73fc): the
 	// kind then reads and writes that project's .hergy/ instead of the project
 	// serve was started in. Empty keeps the old behaviour.
-	Project     string          `json:"project"`
-	Place       string          `json:"place"`
-	Name        string          `json:"name"`
-	Part        string          `json:"part"`
-	Original    string          `json:"original"`
-	Doc         json.RawMessage `json:"doc"`
-	Text        string          `json:"text"`
-	Hash        string          `json:"hash"`
-	RenameUsers bool            `json:"rename_users"`
-	Changes     json.RawMessage `json:"changes"`
-	Base        *apiBase        `json:"base"`
+	Project         string          `json:"project"`
+	Place           string          `json:"place"`
+	Name            string          `json:"name"`
+	Part            string          `json:"part"`
+	Original        string          `json:"original"`
+	Doc             json.RawMessage `json:"doc"`
+	Text            string          `json:"text"`
+	Hash            string          `json:"hash"`
+	RenameUsers     bool            `json:"rename_users"`
+	RenameTo        *string         `json:"rename_to"`
+	AgreementExists *bool           `json:"agreement_exists"`
+	Changes         json.RawMessage `json:"changes"`
+	Base            *apiBase        `json:"base"`
 	// New says the name is one that is not there yet: the starter team's own
 	// files are the text its draft stands on (spec-teams B2, C8).
 	New bool `json:"new"`
@@ -214,10 +216,11 @@ type apiCheckCarry struct {
 // of the change and the people that read it. A kind that has none of the latter
 // leaves them out.
 type apiCheck struct {
-	Problems []apiProblem `json:"problems"`
-	Preview  any          `json:"preview,omitempty"`
-	Effect   any          `json:"effect,omitempty"`
-	Readers  any          `json:"readers,omitempty"`
+	Rename   *apiRenamePreview `json:"rename,omitempty"`
+	Problems []apiProblem      `json:"problems"`
+	Preview  any               `json:"preview,omitempty"`
+	Effect   any               `json:"effect,omitempty"`
+	Readers  any               `json:"readers,omitempty"`
 	// Limit is the provisional size budget the check holds this unit to, for a
 	// screen that shows a document's size against it (d-8bbf). A kind whose
 	// screen shows no budget leaves it out.

@@ -244,6 +244,22 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	if err != nil {
 		return web.HQLaunch{}, err
 	}
+	release, err := source.LockTeams(r.team.Definition.TeamYAML)
+	if err != nil {
+		return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.T("web.rename.busy"))
+	}
+	// Release on every refused start; an accepted start holds the lock until
+	// its asynchronous boot and launch record have both finished.
+	accepted := false
+	defer func() {
+		if !accepted {
+			release()
+		}
+	}()
+	r, err = buildForStart(env, in, name)
+	if err != nil {
+		return web.HQLaunch{}, err
+	}
 	workspace, err := h.startWorkspace(in.Workspace, env)
 	if err != nil {
 		return web.HQLaunch{}, err
@@ -262,7 +278,11 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	op.cancel = cancel
 	op.stepLocked("stage", i18n.T("progress.stage.creating_tab"))
 	op.mu.Unlock()
-	go h.runStart(ctx, op, env, r, in, workspace)
+	accepted = true
+	go func() {
+		defer release()
+		h.runStart(ctx, op, env, r, in, workspace)
+	}()
 	return op.snapshot(), nil
 }
 

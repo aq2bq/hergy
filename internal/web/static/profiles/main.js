@@ -15,7 +15,7 @@ import {
   y,
   O,
   u
-} from "../chunk/nav-fa78a466.js";
+} from "../chunk/nav-1697d4rr.js";
 import {
   takeDraft2,
   setDirty2
@@ -31,26 +31,26 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-0nv4k2p4.js";
-import"../chunk/nav-xkc88djp.js";
+} from "../chunk/nav-9p5zrmhe.js";
+import"../chunk/nav-8dvkde9e.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-5s3bqeb3.js";
+} from "../chunk/nav-980mkyvx.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-z3b2t3ze.js";
+} from "../chunk/nav-439wmac8.js";
 import {
   Field
-} from "../chunk/nav-rjt8w20v.js";
+} from "../chunk/nav-wwnacjpe.js";
 import {
   resource
-} from "../chunk/nav-hqj3327q.js";
+} from "../chunk/nav-gwkv74cd.js";
 
 // profiles/state.ts
 function mustElement(id) {

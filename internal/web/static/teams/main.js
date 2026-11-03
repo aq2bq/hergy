@@ -10,20 +10,23 @@
 import {
   S,
   R,
+  d,
   h,
   _,
   A,
+  T,
   y,
   O,
   x,
   u
-} from "../chunk/nav-fa78a466.js";
+} from "../chunk/nav-1697d4rr.js";
 import {
   takeDraft2,
   setDirty2,
   setCount2
 } from "../chunk/nav-se93pzn8.js";
 import {
+  call2,
   list2,
   check2,
   save2,
@@ -49,37 +52,37 @@ import {
   openRule2,
   RuleDoc2,
   observeKeys2
-} from "../chunk/nav-vqrj5e2b.js";
+} from "../chunk/nav-7cjn77zc.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-0nv4k2p4.js";
+} from "../chunk/nav-9p5zrmhe.js";
 import {
   RunCell2
-} from "../chunk/nav-xkc88djp.js";
+} from "../chunk/nav-8dvkde9e.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-5s3bqeb3.js";
+} from "../chunk/nav-980mkyvx.js";
 import {
   Measure
-} from "../chunk/nav-vrc2smmf.js";
+} from "../chunk/nav-8jj28qz6.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-z3b2t3ze.js";
+} from "../chunk/nav-439wmac8.js";
 import {
   Field
-} from "../chunk/nav-rjt8w20v.js";
+} from "../chunk/nav-wwnacjpe.js";
 import {
   resource
-} from "../chunk/nav-hqj3327q.js";
+} from "../chunk/nav-gwkv74cd.js";
 
 // teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
@@ -515,6 +518,7 @@ function recOf(init) {
     typed: y(init.typed),
     flash: y(init.flash),
     lastAct: y(init.lastAct),
+    renameNotes: y([]),
     wprompts: y({}),
     wpromptReq: {},
     placed: y({}),
@@ -542,6 +546,7 @@ function setWide(r) {
   r.placed.value = place(r.draft.value, kept, thin.value, true);
 }
 var recs = y([]);
+var missingOpen = y([]);
 var uids = 0;
 var NO_AGREEMENT = { path: "", hash: "", has: false, rules: 0 };
 function defOf(item, project, only) {
@@ -924,6 +929,9 @@ function checkersFor(r) {
   teamChecks.set(k, one);
   return one;
 }
+function forgetChecks(r) {
+  teamChecks.delete(dkey(r));
+}
 function applyTeamAnswer(r, json, findings) {
   r.findings.value = findings;
   r.prompts.value = Array.isArray(json.members) ? json.members : [];
@@ -1140,6 +1148,55 @@ async function doDelete(r) {
   }
   syncURL();
 }
+async function renamed(r, name, json) {
+  const old = r.name.value, group = groupOfRecord(r), tab = dtabOf(r), at = firstIndexOf((x) => x === r);
+  forgetChecks(r);
+  resetCanvas(r);
+  withOpen(r.dom, false);
+  recs.value = recs.value.filter((x) => x !== r);
+  const item = (json.items || []).find((x) => x.name === name);
+  if (!item)
+    throw new Error("保存したチーム定義を読めませんでした。画面を読み直してください");
+  const next = defOf(itemInGroup(item, group), group, r.place.value);
+  next.renameNotes.value = json.rename?.notes || [];
+  if (GROUPS) {
+    try {
+      const fresh = await hqList2("teams");
+      for (const g of GROUPS) {
+        const item = fresh.groups.find((x) => !!x.global === !!g.global && x.project?.path === g.project?.path);
+        if (item) {
+          g.overridden_by = item.overridden_by;
+          g.list = item.list;
+        }
+      }
+      put({});
+    } catch {
+      next.renameNotes.value = [...next.renameNotes.value, "置き場所の表示を更新できませんでした。画面を読み直してください"];
+    }
+  }
+  orderRows(next, at);
+  withOpen(next.dom, true);
+  setDtab(next.dom, tab);
+  const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
+  yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f) => ({
+    file: `${f.name}.${f.place}.${f.kind}`,
+    place: f.place,
+    name: f.name || "",
+    kind: f.kind || "",
+    label: PLACE[f.place],
+    path: f.path,
+    hash: f.hash || "",
+    text: f.text || "",
+    hidden: !!f.hidden,
+    problems: f.problems || []
+  })));
+  await checkTeam(next);
+  if (next.agreeSaved.value)
+    await checkAgree(next);
+  syncURL();
+  saved2();
+}
+var renameDirty = (r) => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && fileDirty(f.file));
 async function answered(r, which, one, fallback) {
   try {
     const res = await one;
@@ -1422,6 +1479,7 @@ function syncURL() {
 function readURL() {
   const p = new URLSearchParams(location.search);
   const open = p.get("open");
+  missingOpen.value = (parseOpen2(open || "") || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
   if (open) {
     const rows = parseOpen2(open) || [];
     rows.forEach(({ name, group }) => {
@@ -4272,6 +4330,126 @@ function Canvas({ r, vlist }) {
   });
 }
 
+// teams/rename.tsx
+function Rename({ r }) {
+  const [open, setOpen] = d(false), [name, setName] = d(r.name.value);
+  const [saving, setSaving] = d(false), [error, setError] = d("");
+  const reading = T(() => resource(async (signal, next) => {
+    const res = await check2("team", { name: r.name.value, place: r.place.value, project: projectOfGroup(groupOfRecord(r)), rename_to: next }, { signal });
+    return res.json?.rename || null;
+  }), [r]);
+  h(() => {
+    if (open)
+      reading.run(name);
+    return () => reading.abort();
+  }, [open, name, reading]);
+  const dirty = renameDirty(r);
+  async function save() {
+    if (dirty || saving || reading.loading.value || reading.error.value || !reading.value.value)
+      return;
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        project: projectOfGroup(groupOfRecord(r)),
+        place: r.place.value,
+        rename_to: name,
+        hash: r.hash.value,
+        agreement_hash: r.agreeHash.value || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        agreement_exists: !!r.agreeHash.value
+      };
+      const res = await call2("POST", `/api/team/${encodeURIComponent(r.name.value)}/rename`, payload);
+      if (!res.json)
+        throw new Error("保存の結果を読めませんでした。画面を読み直してください");
+      await renamed(r, name, res.json);
+      setOpen(false);
+    } catch (err) {
+      setError(problemText2(err, "名前を変更できませんでした"));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return /* @__PURE__ */ u("section", {
+    class: "team-rename",
+    "aria-label": "チーム定義名の変更",
+    children: [
+      /* @__PURE__ */ u("button", {
+        class: "btn",
+        type: "button",
+        disabled: dirty || saving,
+        onClick: () => setOpen(!open),
+        children: "名前を変更"
+      }),
+      dirty ? /* @__PURE__ */ u("span", {
+        class: "none",
+        children: "保存していない変更があります。保存するか、元に戻してから名前を変更してください"
+      }) : null,
+      open ? /* @__PURE__ */ u("div", {
+        children: [
+          /* @__PURE__ */ u("label", {
+            children: [
+              "新しいチーム定義名 ",
+              /* @__PURE__ */ u("input", {
+                value: name,
+                disabled: saving,
+                onInput: (e) => setName(e.currentTarget.value)
+              })
+            ]
+          }),
+          reading.value.value ? /* @__PURE__ */ u(S, {
+            children: [
+              /* @__PURE__ */ u("p", {
+                children: [
+                  /* @__PURE__ */ u("code", {
+                    children: reading.value.value.from
+                  }),
+                  " → ",
+                  /* @__PURE__ */ u("code", {
+                    children: reading.value.value.to
+                  })
+                ]
+              }),
+              /* @__PURE__ */ u("ul", {
+                children: reading.value.value.notes.map((note) => /* @__PURE__ */ u("li", {
+                  children: note
+                }))
+              })
+            ]
+          }) : null,
+          reading.loading.value ? /* @__PURE__ */ u("p", {
+            children: "変更先を確認しています。"
+          }) : null,
+          reading.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: problemText2(reading.error.value, "変更先を確認できませんでした")
+          }) : null,
+          error ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: error
+          }) : null,
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            disabled: dirty || saving || reading.loading.value || !!reading.error.value || !reading.value.value,
+            onClick: () => void save(),
+            children: "名前を保存"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            disabled: saving,
+            onClick: () => setOpen(false),
+            children: "取り消す"
+          })
+        ]
+      }) : null,
+      r.renameNotes.value.length ? /* @__PURE__ */ u("ul", {
+        children: r.renameNotes.value.map((note) => /* @__PURE__ */ u("li", {
+          children: note
+        }))
+      }) : null
+    ]
+  });
+}
+
 // teams/view.tsx
 function messagesOf(list) {
   return list.map((m) => ({ sev: m.sev, text: m.text || "" }));
@@ -4373,11 +4551,27 @@ function List() {
       ]
     });
   });
-  return /* @__PURE__ */ u("div", {
-    class: "list hq-grouped",
+  return /* @__PURE__ */ u(S, {
     children: [
-      head,
-      body
+      missingOpen.value.length ? /* @__PURE__ */ u("p", {
+        role: "status",
+        children: [
+          "チーム定義 ",
+          missingOpen.value.join("、"),
+          " が見つかりません。",
+          /* @__PURE__ */ u("a", {
+            href: "/teams",
+            children: "一覧を見る"
+          })
+        ]
+      }) : null,
+      /* @__PURE__ */ u("div", {
+        class: "list hq-grouped",
+        children: [
+          head,
+          body
+        ]
+      })
     ]
   });
 }
@@ -4672,6 +4866,9 @@ function Detail({ r }) {
           r
         })
       }),
+      !r.draftRow ? /* @__PURE__ */ u(Rename, {
+        r
+      }) : null,
       dtabOf(r) === "shape" ? /* @__PURE__ */ u(TeamPanel, {
         r
       }) : /* @__PURE__ */ u(AgreePanel, {
