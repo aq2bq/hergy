@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -28,7 +29,10 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 	for _, running := range team.RunningTeams(read.tabs, launchTeams(), read.agentsRead) {
 		record, known := renameLaunch(records, running)
 		if !known || record.TeamYAML == "" {
-			return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.unknown", running.Team))
+			if running.Definition == filepath.Base(filepath.Dir(path)) {
+				return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.unknown", running.Team))
+			}
+			continue
 		}
 		if samePath(record.TeamYAML, path) {
 			return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.running", running.Team))

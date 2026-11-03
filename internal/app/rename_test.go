@@ -1,6 +1,10 @@
 package app
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/web"
 )
 
 func TestUpHonorsRenameLock(t *testing.T) {
@@ -56,5 +61,87 @@ func TestRenameReadsUnlistedRunningProjects(t *testing.T) {
 	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "missing"))
 	if err := reader.CheckDefinitionRename(path); err == nil {
 		t.Fatal("accepted unavailable herdr")
+	}
+}
+
+func TestRenameIgnoresUnrelatedUnknownDefinitions(t *testing.T) {
+	for _, recorded := range []bool{false, true} {
+		for _, definition := range []string{"demo", "other"} {
+			t.Run(fmt.Sprintf("recorded=%t/%s", recorded, definition), func(t *testing.T) {
+				f := newFixture(t)
+				mustRun(t, "new", "demo")
+				f.runningHerdr(t, `{"tab_id":"t1","label":"team:foreign@`+definition+`"}`, "")
+				if recorded {
+					log, err := launchlog.Open()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := log.Append(launchlog.Record{Team: "foreign", Definition: definition}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				env, err := team.NewEnv()
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = newActivityRead(env).CheckDefinitionRename(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
+				if (err != nil) != (definition == "demo") {
+					t.Fatalf("rename refusal = %v, definition = %s", err, definition)
+				}
+			})
+		}
+	}
+}
+
+func TestUpContinuesWithoutRenameLockState(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	blocked := filepath.Join(f.cfg, "blocked-state")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_STATE_HOME", blocked)
+	mustRun(t, "up", "demo")
+}
+
+func TestWebStartOnlyRefusesConflictingRenameLock(t *testing.T) {
+	for _, state := range []string{"shared", "exclusive", "unavailable"} {
+		t.Run(state, func(t *testing.T) {
+			f, env, _ := hqFixture(t)
+			mustRun(t, "new", "wave")
+			path := filepath.Join(f.proj, ".hergy", "teams", "wave", "team.yaml")
+			if state == "unavailable" {
+				blocked := filepath.Join(f.cfg, "blocked-state")
+				if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("XDG_STATE_HOME", blocked)
+			} else {
+				lock := source.LockTeamStart
+				if state == "exclusive" {
+					lock = func(path string) (func(), error) { return source.LockTeams(path) }
+				}
+				release, err := lock(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer release()
+			}
+			// An invalid workspace stops before booting any asynchronous launcher.
+			_, err := newActivityRead(env).StartLaunch(web.HQLaunchIn{
+				Project: env.ProjectRoot, Definition: "wave", Place: "project", Workspace: web.HQWorkspaceIn{ID: "missing"},
+			})
+			refusal, ok := errors.AsType[*web.HQError](err)
+			want := http.StatusUnprocessableEntity
+			if state == "exclusive" {
+				want = http.StatusConflict
+			}
+			if !ok || refusal.Status != want {
+				t.Fatalf("start returned %v, want status %d", err, want)
+			}
+		})
 	}
 }

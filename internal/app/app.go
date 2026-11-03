@@ -1391,7 +1391,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	if opts.Dry {
 		return dryPlan(stdout, env, r, "boot", r.starts, opts, "up "+r.team.Definition.Name+asSuffix(opts))
 	}
-	release, err := source.LockTeams(r.team.Definition.TeamYAML)
+	release, err := source.LockTeamStart(r.team.Definition.TeamYAML)
 	if err != nil {
 		return i18n.Errorf("web.rename.busy")
 	}

@@ -244,7 +244,7 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	if err != nil {
 		return web.HQLaunch{}, err
 	}
-	release, err := source.LockTeams(r.team.Definition.TeamYAML)
+	release, err := source.LockTeamStart(r.team.Definition.TeamYAML)
 	if err != nil {
 		return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.T("web.rename.busy"))
 	}
