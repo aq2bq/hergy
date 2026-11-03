@@ -1,5 +1,5 @@
 /* 画面を選ぶ帯は上に 1 本。押すと帯の下がまるごと替わる (spec-nav.md 1.1, 1.7)。
-   トークンは各ページの CSS の :root から来る。ここに色は書かない。 */
+   ページの色は各 CSS の :root から読み、ロゴの朱色トークンはここで管理する。 */
 /* The two families every screen draws with. They are read here, once, because
    nav.css is the one file every screen carries: the page's policy allows this
    server's own files only, so nothing comes from elsewhere. The OFL texts are in
@@ -56,13 +56,15 @@
    outline for the logo, so its links do not inherit page underlines. */
 .bar a { text-decoration: none; }
 .crumb { font-family: var(--f-mono); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
-.crumb .mark { color: var(--ink); display: flex; align-self: center; flex: none; border-radius: 2px; }
+.crumb .mark { color: var(--ink); display: flex; align-items: center; align-self: center; flex: none; height: 30px; border-radius: 2px; }
 .crumb .mark:hover { color: var(--accent); }
-.brand-logo { display: block; width: 90px; height: 26.087px; }
-.logo-lead { fill: #c3482b; }
-@media (prefers-color-scheme: dark) { .logo-lead { fill: #f38d70; } }
-[data-theme="dark"] .logo-lead { fill: #f38d70; }
-[data-theme="light"] .logo-lead { fill: #c3482b; }
+/* Center the taller artwork in the existing crumb height, keeping the band unchanged. */
+.brand-logo { display: block; flex: none; width: 62.88px; height: 36px; stroke: currentColor; }
+.brand-logo path { stroke-width: 1px; vector-effect: non-scaling-stroke; }
+:root { --logo-antenna: #c3482b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --logo-antenna: #f38d70; } }
+:root[data-theme="dark"] { --logo-antenna: #f38d70; }
+.brand-logo .logo-antenna { stroke: var(--logo-antenna); }
 .crumb .mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .crumb .sep { color: var(--faint); }
 .screens {
