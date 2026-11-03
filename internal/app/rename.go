@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -37,8 +38,7 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 }
 
 func renameLaunch(records []launchlog.Record, running team.Running) (launchlog.Record, bool) {
-	for i := len(records) - 1; i >= 0; i-- {
-		one := records[i]
+	for _, one := range slices.Backward(records) {
 		if !one.IsHire() && one.Team == running.Team && (running.Project == "" || samePath(one.Project, running.Project)) {
 			return one, true
 		}
