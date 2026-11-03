@@ -2553,8 +2553,8 @@ function RoleButton({ r, name, expectedPlace, children = "ロールを確認・�
     class: "btn sm",
     type: "button",
     disabled: !name,
-    onClick: () => {
-      active.value = { id: ++ids, r, name, expectedPlace, trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null };
+    onClick: (event) => {
+      active.value = { id: ++ids, r, name, expectedPlace, trigger: event.currentTarget };
     },
     children
   });
@@ -2630,6 +2630,7 @@ function Editor({ session }) {
     const e = entry.value, ctx = model.context.value.value, target = model.target.value;
     if (!e || !ctx || !target || target.path !== ctx.path || editor.saving.value || model.context.loading.value || model.context.error.value || ctx.errors.length)
       return;
+    dialog.current?.querySelector("h2")?.focus({ preventScroll: true });
     editor.check.abort();
     model.error.value = "";
     model.ok.value = false;
@@ -2701,6 +2702,7 @@ function Editor({ session }) {
         children: [
           /* @__PURE__ */ u("h2", {
             id: `role-title-${session.id}`,
+            tabIndex: -1,
             children: [
               "ロール ",
               session.name

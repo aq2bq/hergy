@@ -18,8 +18,8 @@ const active = signal<Session | null>(null);
 let ids = 1000000;
 
 export function RoleButton({ r, name, expectedPlace, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
-  return <button class="btn sm" type="button" disabled={!name} onClick={() => {
-    active.value = { id: ++ids, r, name, expectedPlace, trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null };
+  return <button class="btn sm" type="button" disabled={!name} onClick={(event) => {
+    active.value = { id: ++ids, r, name, expectedPlace, trigger: event.currentTarget };
   }}>{children}</button>;
 }
 
@@ -79,6 +79,8 @@ function Editor({ session }: { session: Session }) {
   async function save(over?: string) {
     const e = entry.value, ctx = model.context.value.value, target = model.target.value;
     if (!e || !ctx || !target || target.path !== ctx.path || editor.saving.value || model.context.loading.value || model.context.error.value || ctx.errors.length) return;
+    // Saving disables the controls; keep focus on a stable, enabled element.
+    dialog.current?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
     editor.check.abort(); model.error.value = ''; model.ok.value = false;
     try {
       const answer = await editor.save(session.name, { project: model.project, place: target.place,
@@ -122,7 +124,7 @@ function Editor({ session }: { session: Session }) {
   }
   return <dialog class="role-dialog" ref={dialog} aria-modal="true" aria-labelledby={`role-title-${session.id}`}
     onKeyDown={keyDown} onCancel={(event) => { event.preventDefault(); close(); }}>
-    <header><h2 id={`role-title-${session.id}`}>ロール {session.name}</h2><button class="btn" disabled={editor.saving.value} onClick={close}>閉じる</button></header>
+    <header><h2 id={`role-title-${session.id}`} tabIndex={-1}>ロール {session.name}</h2><button class="btn" disabled={editor.saving.value} onClick={close}>閉じる</button></header>
     {ctx ? <section class="role-usage" aria-label="保存の影響">
       <p>{ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · <code>{ctx.path}</code></p>
       {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}

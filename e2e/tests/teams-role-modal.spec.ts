@@ -130,3 +130,26 @@ test('opening the role screen from the dialog carries the team draft back throug
   await ready(page); await page.locator('.screens a[data-screen="teams"]').click(); await ready(page);
   await expect(row.getByRole('textbox', { name: /の説明/ })).toHaveValue('画面をまたいで残す編集');
 });
+
+for (const outcome of ['success', 'failure'] as const) {
+  test(`mouse save keeps focus inside the role dialog after ${outcome} and one Escape restores its trigger`, async ({ page, app }) => {
+    await page.goto(`${app.base}/teams?open=core`); await ready(page);
+    const row = page.locator('.tdef[data-name="core"]');
+    await row.locator('[data-cv-n="impl-a"]').click();
+    const trigger = row.getByRole('button', { name: 'ロールを確認・編集' }).first();
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'ロール builder', exact: true });
+    const title = dialog.getByLabel('タイトル', { exact: true });
+    await expect(title).toBeEnabled(); await title.fill('マウス保存後のフォーカス');
+    if (outcome === 'failure') {
+      await page.route('**/api/role/builder', (route) => route.fulfill({ status: 503, json: { text: '保存失敗の検査' } }));
+    }
+    await dialog.getByRole('button', { name: 'ロールを保存', exact: true }).click();
+    await expect(dialog.getByText(outcome === 'success' ? 'ロールを保存しました' : '保存失敗の検査', { exact: true })).toBeVisible();
+    await expect.poll(() => dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    if (outcome === 'failure') page.once('dialog', question => question.accept());
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+}
