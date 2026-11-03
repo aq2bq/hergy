@@ -3775,7 +3775,7 @@ function onPointerDown(r, e) {
     return;
   const h = target.closest("[data-cv-h]");
   if (h) {
-    DRAG = { what: "conn", r, from: h.dataset.cvH || "", svg, start: svgPt(svg, e) };
+    DRAG = { what: "conn", r, from: h.dataset.cvH || "", svg, start: svgPt(svg, e), pointerId: e.pointerId };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
     return;
@@ -3784,7 +3784,7 @@ function onPointerDown(r, e) {
   if (n) {
     const id = n.dataset.cvN || "w" + n.dataset.cvW;
     const spot = layoutOf(r)[id];
-    DRAG = { what: "move", r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [spot[0], spot[1]], moved: false };
+    DRAG = { what: "move", r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [spot[0], spot[1]], moved: false, pointerId: e.pointerId };
     svg.setPointerCapture(e.pointerId);
     return;
   }
@@ -3843,11 +3843,22 @@ function onPointerMove(e) {
   }
   label.textContent = to ? hasTurn(t, d.from, to) ? `${nodeName(d.from)} → ${nodeName(to)} はもうある` : `${nodeName(d.from)} → ${nodeName(to)} に渡す` : `${nodeName(d.from)} から、渡す相手の点まで引く`;
 }
-function onPointerUp(e) {
+function endDrag(e) {
   const d = DRAG;
+  if (!d || d.pointerId !== e.pointerId)
+    return null;
+  DRAG = null;
+  if (d.what === "conn") {
+    d.svg.querySelector(".cv-ghost")?.setAttribute("hidden", "hidden");
+    d.svg.querySelector(".cv-gl")?.setAttribute("hidden", "hidden");
+    d.svg.querySelectorAll(".cv-n.drop").forEach((g) => g.classList.remove("drop"));
+  }
+  return d;
+}
+function onPointerUp(e) {
+  const d = endDrag(e);
   if (!d)
     return;
-  DRAG = null;
   const r = d.r;
   if (d.what === "move") {
     if (d.moved) {
@@ -4106,6 +4117,8 @@ function mountCanvas(el) {
   document.addEventListener("keydown", onKey);
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", endDrag);
+  document.addEventListener("lostpointercapture", endDrag);
   if (!el)
     return;
   el.addEventListener("focusout", (e) => {

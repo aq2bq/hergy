@@ -11,9 +11,48 @@
 import { test, expect } from './fixtures';
 import { realpathSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { choose, diff, press, q, read, readTo, set, there, wait } from './helpers';
+import { choose, diff, press, q, read, readTo, ready, set, there, wait } from './helpers';
 
 test.use({ reads: 'teams' });
+
+for (const end of ['blank', 'new turn', 'existing turn', 'self', 'cancel', 'lost capture'] as const) {
+  test(`drawing a turn clears its guides after ${end}`, async ({ page, app }) => {
+    await page.goto(`${app.base}/teams?open=core`);
+    await ready(page);
+    const panel = page.locator('.tdef[data-name="core"] .panel.team-p');
+    const svg = panel.locator('.cv-canvas svg');
+    const source = svg.locator('[data-cv-n="impl-a"]');
+    await source.click();
+    const handle = await svg.locator('[data-cv-h="impl-a"]').first().boundingBox();
+    expect(handle).not.toBeNull();
+    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
+    await page.mouse.down();
+    const target = await svg.locator(`[data-cv-n="${end === 'existing turn' ? 'reviewer' : 'impl-b'}"]`).boundingBox();
+    expect(target).not.toBeNull();
+    await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, { steps: 4 });
+    await expect(svg.locator('.cv-ghost')).not.toHaveAttribute('hidden');
+    await expect(svg.locator('.cv-gl')).not.toHaveAttribute('hidden');
+    await expect(svg.locator('.cv-n.drop')).toHaveCount(1);
+
+    if (end === 'blank') {
+      const box = await svg.boundingBox();
+      expect(box).not.toBeNull();
+      await page.mouse.move(box!.x + 12, box!.y + 12);
+    } else if (end === 'self') {
+      const box = await source.boundingBox();
+      expect(box).not.toBeNull();
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    } else if (end === 'cancel' || end === 'lost capture') {
+      // Browsers cancel pointers or lose capture without a mouse release.
+      await svg.dispatchEvent(end === 'cancel' ? 'pointercancel' : 'lostpointercapture', { pointerId: 1 });
+    }
+    await page.mouse.up();
+    await expect(svg.locator('.cv-ghost')).toHaveAttribute('hidden', 'hidden');
+    await expect(svg.locator('.cv-gl')).toHaveAttribute('hidden', 'hidden');
+    await expect(svg.locator('.cv-n.drop')).toHaveCount(0);
+    await expect(svg.locator('[data-cv-e="impl-a|impl-b"].cv-hit')).toHaveCount(end === 'new turn' ? 1 : 0);
+  });
+}
 
 test('the team definition action opens the end sheet', async ({ page, app }) => {
   await page.route('**/api/hq/running', (route) => route.fulfill({ json: {

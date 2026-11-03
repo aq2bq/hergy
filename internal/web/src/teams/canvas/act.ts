@@ -142,7 +142,7 @@ function del(r: Rec): void {
 // being drawn from one point's handle to another.
 type DragMove = { what: 'move'; r: Rec; id: string; wi: number | null; svg: SVGSVGElement; start: DOMPoint; orig: Spot; moved: boolean };
 type DragConn = { what: 'conn'; r: Rec; from: string; svg: SVGSVGElement; start: DOMPoint };
-type Drag = DragMove | DragConn;
+type Drag = (DragMove | DragConn) & { pointerId: number };
 
 // lastPress and DRAG are the part's own short-lived memory: the double press on
 // the blank space, and the pointer's drag while it is out.
@@ -160,12 +160,12 @@ export function onPointerDown(r: Rec, e: PointerEvent): void {
   endField();
   if (target.closest('[data-cv-act]')) return;
   const h = target.closest<HTMLElement>('[data-cv-h]');
-  if (h) { DRAG = { what: 'conn', r, from: h.dataset.cvH || '', svg, start: svgPt(svg, e) }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+  if (h) { DRAG = { what: 'conn', r, from: h.dataset.cvH || '', svg, start: svgPt(svg, e), pointerId: e.pointerId }; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
   const n = target.closest<HTMLElement>('[data-cv-n], [data-cv-w]');
   if (n) {
     const id = n.dataset.cvN || ('w' + n.dataset.cvW);
     const spot = layoutOf(r)[id];
-    DRAG = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [spot[0], spot[1]], moved: false };
+    DRAG = { what: 'move', r, id, wi: n.dataset.cvW != null ? Number(n.dataset.cvW) : null, svg, start: svgPt(svg, e), orig: [spot[0], spot[1]], moved: false, pointerId: e.pointerId };
     svg.setPointerCapture(e.pointerId); return;
   }
   const ed = target.closest<HTMLElement>('[data-cv-e]');
@@ -216,9 +216,20 @@ function onPointerMove(e: PointerEvent): void {
   }
   label.textContent = to ? (hasTurn(t, d.from, to) ? `${nodeName(d.from)} → ${nodeName(to)} はもうある` : `${nodeName(d.from)} → ${nodeName(to)} に渡す`) : `${nodeName(d.from)} から、渡す相手の点まで引く`;
 }
-function onPointerUp(e: PointerEvent): void {
-  const d = DRAG; if (!d) return;
+// The drag writes these DOM attributes directly, so a redraw with unchanged
+// vnode attributes cannot clear them. Every end path must restore them first.
+function endDrag(e: PointerEvent): Drag | null {
+  const d = DRAG; if (!d || d.pointerId !== e.pointerId) return null;
   DRAG = null;
+  if (d.what === 'conn') {
+    d.svg.querySelector('.cv-ghost')?.setAttribute('hidden', 'hidden');
+    d.svg.querySelector('.cv-gl')?.setAttribute('hidden', 'hidden');
+    d.svg.querySelectorAll('.cv-n.drop').forEach((g) => g.classList.remove('drop'));
+  }
+  return d;
+}
+function onPointerUp(e: PointerEvent): void {
+  const d = endDrag(e); if (!d) return;
   const r = d.r;
   if (d.what === 'move') {
     if (d.moved) { selectPick(r, null); return; }
@@ -413,6 +424,8 @@ export function mountCanvas(el: HTMLElement): void {
   document.addEventListener('keydown', onKey);
   document.addEventListener('pointermove', onPointerMove);
   document.addEventListener('pointerup', onPointerUp);
+  document.addEventListener('pointercancel', endDrag);
+  document.addEventListener('lostpointercapture', endDrag);
   if (!el) return;
   el.addEventListener('focusout', (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
