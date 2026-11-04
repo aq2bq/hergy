@@ -56,7 +56,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-head .prose-title, .prose-head .path, .prose-readers { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; height: 18px; line-height: 18px; }
 .prose-title { font-size: 13px; }
 .prose-head .path, .prose-readers, .prose-detail { color: var(--muted); font-size: 11px; }
-.prose-budget { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; font-size: 11px; min-height: 24px; }
+.prose-budget { display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 4px 8px; font-size: 11px; min-height: 24px; }
 .prose-budget .amt { flex: 1; }
 .prose-budget .meter { flex: 1; min-width: 24px; }
 .prose-budget .over { color: var(--warn); }
@@ -112,12 +112,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-transfer footer { display: flex; gap: 8px; margin: 16px 0; }
 .prose-heading-link { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 2px; }
 .prose-grip, .prose-outline li > span:nth-child(2) { flex: none; white-space: nowrap; }
-.prose-column:has([data-width="narrow"]) .prose-budget { height: 24px; gap: 0; font-size: 10px; line-height: 12px; }
-.prose-column:has([data-width="narrow"]) .prose-budget .amt { flex-basis: 100%; font-size: 10px; line-height: 12px; }
-.prose-column:has([data-width="narrow"]) .prose-budget > span:last-child { margin-left: auto; }
 .prose-actions svg { display: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.prose-column:has([data-width="narrow"]) .prose-actions .btn > span { display: none; }
-.prose-column:has([data-width="narrow"]) .prose-actions svg { display: block; }
 .prose-head h2 > .prose-width { flex-shrink: 0; }
 /* Width choices share the mode controls' size and selected state. */
 .prose-tools { display: flex; align-items: center; gap: 12px; height: 26px; padding-inline: 8px; color: var(--muted); font-size: 11px; }
@@ -149,10 +144,15 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .transfer-notice { color: var(--warn); }
 /* Redistributed columns keep the same header height as the narrow column. */
 .prose-column { container-type: inline-size; }
+@container (max-width: 300px) {
+  .prose-actions .btn > span { display: none; }
+  .prose-actions svg { display: block; }
+}
 @container (max-width: 280px) {
-  .prose-column .prose-budget { height: 24px; gap: 0; font-size: 11px; line-height: 12px; }
-  .prose-column .prose-budget .amt { flex-basis: 100%; font-size: 11px; line-height: 12px; }
-  .prose-column .prose-budget > span:last-child { margin-left: auto; }
+  .prose-column .prose-budget { height: 24px; gap: 4px; font-size: 11px; white-space: nowrap; }
+  .prose-column .prose-budget .amt { min-width: 0; gap: 4px; font-size: 11px; }
+  .prose-column .prose-budget .meter { width: 24px; min-width: 12px; }
+  .prose-column .prose-budget > span:last-child { flex: none; }
 }
 
 .prose-workspace:not(:has(.prose-grip)) .prose-drag-hint { visibility: hidden; }

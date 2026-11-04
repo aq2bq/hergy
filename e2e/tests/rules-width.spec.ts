@@ -45,6 +45,36 @@ for (const theme of ['light', 'dark'] as const) {
         await expect.poll(async () => (await columns.evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().width))).every((width, i) => width >= results[0].widths[i])).toBe(true);
         await expect.poll(() => board.evaluate(n => n.scrollWidth <= n.clientWidth)).toBe(true);
       }
+      // Content must fit at the actual column width, regardless of width mode.
+      await expect.poll(() => columns.evaluateAll(nodes => {
+        const budgets = nodes.map(node => node.querySelector('.prose-budget')!);
+        const top = budgets[0].getBoundingClientRect().top;
+        const saves = nodes.map(node => [...node.querySelectorAll('button')].find(button => button.textContent === '保存')!.getBoundingClientRect());
+        if (!saves.every(save => save.top === saves[0].top)) return false;
+        const feet = nodes.flatMap(node => [...node.querySelectorAll('.prose-actions .btn')].map(button => button.getBoundingClientRect()));
+        if (!feet.every(foot => foot.top === feet[0].top && foot.height === feet[0].height)) return false;
+        return budgets.every(budget => {
+          const box = budget.getBoundingClientRect();
+          return box.top === top && box.height === 24 && budget.scrollWidth <= budget.clientWidth
+            && [...budget.querySelectorAll('.v, :scope > span:last-child')].every(child => {
+              const rect = child.getBoundingClientRect();
+              return rect.top >= box.top && rect.bottom <= box.bottom && rect.left >= box.left && rect.right <= box.right;
+            });
+        }) && nodes.every(node => [...node.querySelectorAll('.prose-actions .btn')].every(button => {
+          const box = button.getBoundingClientRect(), column = node.getBoundingClientRect();
+          return button.scrollWidth <= button.clientWidth && box.left >= column.left && box.right <= column.right;
+        }));
+      })).toBe(true);
+      if (viewport.width === 1440) {
+        for (const column of await columns.filter({ has: page.locator('.prose-actions') }).all()) {
+          for (const name of ['ロールの画面で開く', 'ファイルからリロード']) {
+            const action = column.getByRole(name === 'ロールの画面で開く' ? 'link' : 'button', { name, exact: true });
+            await expect(action).toHaveAttribute('title', name);
+            await expect(action.locator('svg')).toBeVisible();
+            await expect(action.locator('span')).toBeHidden();
+          }
+        }
+      }
       await columns.first().scrollIntoViewIfNeeded();
       await page.screenshot({ path: info.outputPath(`${viewport.width}-${theme}-normal.png`) });
       await role.getByRole('button', { name: '広く', exact: true }).click();
