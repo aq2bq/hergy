@@ -1,5 +1,5 @@
 // Package launchlog writes and reads the record of hergy's launches: what hergy
-// handed each member, and which rule files it read to build it. The WebUI reads
+// recorded for each member, and which rule files it read to build it. The WebUI reads
 // it to show what changed since the last launch and how the prompts differ; an
 // evaluation reads it to line the launches up with an agent's own logs. The
 // commands write it after a launch succeeds, and a launch that cannot write it
@@ -55,7 +55,8 @@ type Hire struct {
 	Tab     string `json:"tab"`
 }
 
-// Member is one member as it was handed a prompt. Prompt is the hash of the
+// Member records the body before any apply/reprompt change-reason preamble.
+// Recording follows successful sending, but is not a receipt. Prompt is the hash of the
 // prompt text, which is in blobs/. Start and Env are the fingerprints of how the
 // member was started: what the comparison needs to tell a changed profile from a
 // changed prompt (d-36ef). A record written before they were kept has neither.

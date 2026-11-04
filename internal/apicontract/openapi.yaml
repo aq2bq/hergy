@@ -6,6 +6,35 @@ info:
   version: "1"
   description: hergy serve が 127.0.0.1 で答える、WebUI のための API。書き込みは X-Hergy-Token が要る。
 paths:
+  /api/team/prompt-comparison:
+    post:
+      operationId: compareMemberPrompt
+      summary: トポロジーの下書きと最後に記録された本文を読み取り専用で比較する
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptComparisonRequest'
+      responses:
+        '200':
+          description: 記録、現在の文、全行の差
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptComparison'
+        '409':
+          description: 定義のハッシュが変わった
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
+        '422':
+          description: 対象または入力が不正
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refusal'
   /api/team:
     get:
       operationId: listTeams
@@ -3803,6 +3832,116 @@ components:
           items:
             $ref: '#/components/schemas/TeamFile'
           description: YAML タブが読むチーム定義とチームの規則
+    PromptComparisonRequest:
+      description: メンバーの本文の比較。保存・送信を行わない。
+      type: object
+      additionalProperties: false
+      required: [place, name, member, doc]
+      properties:
+        member: {type: string}
+        running_team: {type: string}
+        hash: {type: string}
+        rename_to: {type: string}
+        project:
+          type: string
+          description: 検査対象を持つ、並べたプロジェクトのパス
+        place:
+          type: string
+          description: 検査するチーム定義の場所。project または global。
+        name:
+          type: string
+          description: 検査するチーム定義名
+        part:
+          type: string
+          description: 検査する対象。team、agreement、worker のいずれか
+        new:
+          type: boolean
+          description: 雛形から作るチーム定義か
+        starter_roles:
+          type: boolean
+          description: ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8）
+        starter_profile:
+          type: boolean
+          description: ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8）
+        carry_roles:
+          type: array
+          items:
+            type: string
+          description: コピーで一緒にグローバルに書くロールの文書の名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a）
+        carry_profiles:
+          type: array
+          items:
+            type: string
+          description: コピーで一緒にグローバルに書くプロファイルの名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a）
+        base:
+          allOf:
+            - $ref: '#/components/schemas/TeamBase'
+          nullable: true
+          description: 複製またはコピー元のチーム定義
+        text:
+          type: string
+          description: YAML 全文を入力するときの文
+        doc:
+          anyOf:
+            - $ref: '#/components/schemas/TeamOperationDocument'
+            - $ref: '#/components/schemas/TeamWorkerPromptRequest'
+          nullable: true
+          description: 検査する編集、チームの規則の文書、またはワーカーの情報
+    PromptRun:
+      type: object
+      additionalProperties: false
+      required: [team, project]
+      properties:
+        team: {type: string}
+        project: {type: string}
+    RecordedPrompt:
+      type: object
+      additionalProperties: false
+      required: [text, command, time]
+      properties:
+        text: {type: string}
+        command: {type: string}
+        time: {type: string}
+    PromptDiffLine:
+      type: object
+      additionalProperties: false
+      required: [kind, old, new, text]
+      properties:
+        kind: {type: string, enum: [same, add, remove]}
+        old: {type: integer}
+        new: {type: integer}
+        text:
+          type: string
+          description: 改行を含む元の文字列。改行のない最終行も保持する。
+    PromptComparison:
+      type: object
+      additionalProperties: false
+      required: [runs, selected, status, reason, recorded, current, problems, diff, project, executable, language, team, member, draft]
+      properties:
+        runs:
+          type: array
+          items: {$ref: '#/components/schemas/PromptRun'}
+        selected:
+          allOf: [{$ref: '#/components/schemas/PromptRun'}]
+          nullable: true
+        status: {type: string, enum: [stopped, missing, choose, recorded, error]}
+        reason: {type: string}
+        recorded:
+          allOf: [{$ref: '#/components/schemas/RecordedPrompt'}]
+          nullable: true
+        current: {type: string, nullable: true}
+        problems:
+          type: array
+          items: {$ref: '#/components/schemas/Problem'}
+        diff:
+          type: array
+          items: {$ref: '#/components/schemas/PromptDiffLine'}
+        project: {type: string}
+        executable: {type: string}
+        language: {type: string}
+        team: {type: string}
+        member: {type: string}
+        draft: {type: boolean}
     TeamCheckRequest:
       description: チーム定義、チームの規則、YAML 全文、ワーカーの初期プロンプトの検査本文。
       type: object

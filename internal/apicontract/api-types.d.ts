@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/team/prompt-comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** トポロジーの下書きと最後に記録された本文を読み取り専用で比較する */
+        post: operations["compareMemberPrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/team": {
         parameters: {
             query?: never;
@@ -1940,6 +1957,71 @@ export interface components {
             /** @description YAML タブが読むチーム定義とチームの規則 */
             files?: components["schemas"]["TeamFile"][];
         };
+        /** @description メンバーの本文の比較。保存・送信を行わない。 */
+        PromptComparisonRequest: {
+            member: string;
+            running_team?: string;
+            hash?: string;
+            rename_to?: string;
+            /** @description 検査対象を持つ、並べたプロジェクトのパス */
+            project?: string;
+            /** @description 検査するチーム定義の場所。project または global。 */
+            place: string;
+            /** @description 検査するチーム定義名 */
+            name: string;
+            /** @description 検査する対象。team、agreement、worker のいずれか */
+            part?: string;
+            /** @description 雛形から作るチーム定義か */
+            new?: boolean;
+            /** @description ひな形のロール lead と builder を使うか。押したときだけ、どちらの置き場所にも無いロールの文書を書く（r-54b8） */
+            starter_roles?: boolean;
+            /** @description ひな形のプロファイル claude-default を使うか。押したときだけ、どちらの置き場所にも無いプロファイルを書く（r-54b8） */
+            starter_profile?: boolean;
+            /** @description コピーで一緒にグローバルに書くロールの文書の名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_roles?: string[];
+            /** @description コピーで一緒にグローバルに書くプロファイルの名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
+            carry_profiles?: string[];
+            /** @description 複製またはコピー元のチーム定義 */
+            base?: components["schemas"]["TeamBase"] | null;
+            /** @description YAML 全文を入力するときの文 */
+            text?: string;
+            /** @description 検査する編集、チームの規則の文書、またはワーカーの情報 */
+            doc: (components["schemas"]["TeamOperationDocument"] | components["schemas"]["TeamWorkerPromptRequest"]) | null;
+        };
+        PromptRun: {
+            team: string;
+            project: string;
+        };
+        RecordedPrompt: {
+            text: string;
+            command: string;
+            time: string;
+        };
+        PromptDiffLine: {
+            /** @enum {string} */
+            kind: "same" | "add" | "remove";
+            old: number;
+            new: number;
+            /** @description 改行を含む元の文字列。改行のない最終行も保持する。 */
+            text: string;
+        };
+        PromptComparison: {
+            runs: components["schemas"]["PromptRun"][];
+            selected: components["schemas"]["PromptRun"] | null;
+            /** @enum {string} */
+            status: "stopped" | "missing" | "choose" | "recorded" | "error";
+            reason: string;
+            recorded: components["schemas"]["RecordedPrompt"] | null;
+            current: string | null;
+            problems: components["schemas"]["Problem"][];
+            diff: components["schemas"]["PromptDiffLine"][];
+            project: string;
+            executable: string;
+            language: string;
+            team: string;
+            member: string;
+            draft: boolean;
+        };
         /** @description チーム定義、チームの規則、YAML 全文、ワーカーの初期プロンプトの検査本文。 */
         TeamCheckRequest: {
             rename_to?: string;
@@ -2110,6 +2192,48 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    compareMemberPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptComparisonRequest"];
+            };
+        };
+        responses: {
+            /** @description 記録、現在の文、全行の差 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptComparison"];
+                };
+            };
+            /** @description 定義のハッシュが変わった */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            /** @description 対象または入力が不正 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+        };
+    };
     listTeams: {
         parameters: {
             query?: {

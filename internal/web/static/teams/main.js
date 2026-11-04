@@ -814,6 +814,7 @@ var draftIn = (r) => {
 var projectIn = (project) => ({ project: projectOfGroup(project) });
 var teamIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "team", ...projectIn(r.project), ...draftIn(r), ...extra });
 var agreeIn = (r, extra = {}) => ({ place: r.place.value, name: r.name.value, part: "agreement", ...projectIn(r.project), ...draftIn(r), ...extra });
+var promptComparisonInput = (r) => ({ ...teamIn(r), place: r.place.value, name: r.name.value, hash: r.hash.value, doc: { ops: r.ops.value } });
 var cloneTeam = (t) => ({
   description: t && t.description || "",
   members: (t && t.members || []).map((m) => ({ name: m.name, role: m.role, profile: m.profile })),
@@ -1862,7 +1863,6 @@ function yamlSaved(file, answer) {
   setYtext(file, undefined);
   setYc(file, undefined);
 }
-var promptsOf = (r) => r.prompts.value;
 var promptBlockedOf = (r) => r.promptsReady.value === false;
 var teamLabel = (r) => r.name.value || "新しいチーム定義";
 var currentProjectName = () => {
@@ -2919,6 +2919,267 @@ function Menu({ r }) {
   });
 }
 
+// teams/canvas/prompt-comparison.tsx
+function PromptComparison({ r, member, close }) {
+  const dialog = A(null);
+  const [running, setRunning] = d("");
+  const [view, setView] = d("diff");
+  const initialized = A(false);
+  const reading = T(() => resource(async (signal, payload) => {
+    const answer = await call2("POST", "/api/team/prompt-comparison", payload, { signal });
+    if (!answer.json)
+      throw new Error("本文の応答がありません");
+    return answer.json;
+  }), [r, member]);
+  const payload = JSON.stringify({ ...promptComparisonInput(r), member, running_team: running });
+  const load = () => reading.run(JSON.parse(payload)).then((answer) => {
+    if (answer && !initialized.current) {
+      setView(answer.recorded ? "diff" : "current");
+      initialized.current = true;
+    }
+  });
+  h(() => {
+    const trigger = document.activeElement;
+    dialog.current?.showModal();
+    return () => {
+      reading.abort();
+      dialog.current?.close();
+      trigger?.focus();
+    };
+  }, [reading]);
+  h(() => {
+    load();
+    return () => reading.abort();
+  }, [reading, payload]);
+  const answer = reading.value.value;
+  const busy = reading.loading.value;
+  const error = reading.error.value;
+  return /* @__PURE__ */ u("dialog", {
+    class: "prompt-comparison",
+    ref: dialog,
+    "aria-labelledby": "prompt-comparison-title",
+    onKeyDown: (event) => event.stopPropagation(),
+    onCancel: (event) => {
+      event.preventDefault();
+      close();
+    },
+    children: [
+      /* @__PURE__ */ u("header", {
+        children: [
+          /* @__PURE__ */ u("h2", {
+            id: "prompt-comparison-title",
+            children: [
+              "プロンプト · ",
+              r.name.value,
+              " / ",
+              member
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            onClick: close,
+            children: "閉じる"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "prompt-controls",
+        children: [
+          !!answer?.runs.length && /* @__PURE__ */ u("label", {
+            children: [
+              "実行中のチーム ",
+              /* @__PURE__ */ u("select", {
+                value: running || answer.selected?.team || "",
+                onChange: (event) => {
+                  initialized.current = false;
+                  setRunning(event.currentTarget.value);
+                },
+                children: [
+                  /* @__PURE__ */ u("option", {
+                    value: "",
+                    children: "チームを選ぶ"
+                  }),
+                  answer.runs.map((run) => /* @__PURE__ */ u("option", {
+                    value: run.team,
+                    children: [
+                      run.team,
+                      " · ",
+                      run.project
+                    ]
+                  }, run.team))
+                ]
+              })
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            disabled: busy,
+            onClick: () => {
+              load();
+            },
+            children: "再取得"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("nav", {
+        class: "prompt-tabs",
+        "aria-label": "プロンプトの表示",
+        children: [["recorded", "渡した文"], ["current", "今の文"], ["diff", "差"]].map(([key, label]) => /* @__PURE__ */ u("button", {
+          class: "btn sm",
+          type: "button",
+          "aria-pressed": view === key,
+          onClick: () => {
+            initialized.current = true;
+            setView(key);
+          },
+          children: label
+        }))
+      }),
+      busy ? /* @__PURE__ */ u("p", {
+        role: "status",
+        children: "本文を読んでいます。"
+      }) : error ? /* @__PURE__ */ u("p", {
+        role: "alert",
+        children: problemText2(error, "本文を読めませんでした")
+      }) : answer && /* @__PURE__ */ u(S, {
+        children: [
+          /* @__PURE__ */ u("div", {
+            class: "prompt-context",
+            children: [
+              answer.reason && /* @__PURE__ */ u("p", {
+                role: "status",
+                children: answer.reason
+              }),
+              answer.recorded && /* @__PURE__ */ u(S, {
+                children: [
+                  /* @__PURE__ */ u("p", {
+                    children: [
+                      "最後に記録された本文 · ",
+                      answer.recorded.command,
+                      " · ",
+                      /* @__PURE__ */ u("time", {
+                        dateTime: answer.recorded.time,
+                        children: answer.recorded.time
+                      })
+                    ]
+                  }),
+                  /* @__PURE__ */ u("p", {
+                    children: "反映・送り直しの変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。"
+                  })
+                ]
+              }),
+              /* @__PURE__ */ u("p", {
+                children: [
+                  answer.draft ? "未保存の編集を含む" : "保存済みの定義",
+                  " · ",
+                  answer.team,
+                  " · ",
+                  answer.language
+                ]
+              }),
+              /* @__PURE__ */ u("p", {
+                class: "prompt-environment",
+                title: `${answer.project} · ${answer.executable}`,
+                children: [
+                  "生成条件: ",
+                  answer.project,
+                  " · ",
+                  answer.executable
+                ]
+              }),
+              answer.problems.map((problem) => /* @__PURE__ */ u("p", {
+                class: problem.sev === "err" ? "err" : "",
+                children: problem.text
+              }))
+            ]
+          }),
+          /* @__PURE__ */ u("div", {
+            class: "prompt-body",
+            tabIndex: 0,
+            "aria-label": view === "recorded" ? "渡した文の全文" : view === "current" ? "今の文の全文" : "本文の差",
+            children: [
+              view === "recorded" && (answer.recorded ? /* @__PURE__ */ u(FullText, {
+                text: answer.recorded.text
+              }) : /* @__PURE__ */ u("p", {
+                children: "渡した文を表示できません。"
+              })),
+              view === "current" && (answer.current !== null ? /* @__PURE__ */ u(FullText, {
+                text: answer.current
+              }) : /* @__PURE__ */ u("p", {
+                children: "定義に問題があるため、今の文を組み立てられません。"
+              })),
+              view === "diff" && /* @__PURE__ */ u(Difference, {
+                answer
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+function FullText({ text }) {
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("pre", {
+        class: "prompt-full",
+        children: text
+      }),
+      text && !text.endsWith(`
+`) && /* @__PURE__ */ u("p", {
+        class: "prompt-eof",
+        children: "末尾に改行はありません"
+      })
+    ]
+  });
+}
+function Difference({ answer }) {
+  if (!answer.recorded || answer.current === null)
+    return /* @__PURE__ */ u("p", {
+      children: "両方の本文がそろわないため、比較できません。"
+    });
+  return /* @__PURE__ */ u(S, {
+    children: [
+      answer.recorded.text === answer.current && /* @__PURE__ */ u("p", {
+        children: "差はありません。"
+      }),
+      answer.diff.map((line, i) => /* @__PURE__ */ u("div", {
+        class: `prompt-diff-line ${line.kind}`,
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "prompt-line-number",
+            "aria-label": "記録の行",
+            children: line.old || ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "prompt-line-number",
+            "aria-label": "今の行",
+            children: line.new || ""
+          }),
+          /* @__PURE__ */ u("span", {
+            "aria-label": line.kind === "add" ? "追加" : line.kind === "remove" ? "削除" : "変更なし",
+            children: line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "
+          }),
+          /* @__PURE__ */ u("div", {
+            children: [
+              /* @__PURE__ */ u("pre", {
+                children: line.text
+              }),
+              !line.text.endsWith(`
+`) && /* @__PURE__ */ u("span", {
+                class: "prompt-eof",
+                children: "末尾に改行はありません"
+              })
+            ]
+          })
+        ]
+      }, i))
+    ]
+  });
+}
+
 // teams/canvas/prompt.tsx
 function lineAtMaker(full) {
   const starts = [0];
@@ -3004,227 +3265,30 @@ function PLines({ lines, a, b, slot }) {
   }));
 }
 var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
-var pcount = (lines, a, b) => lines.slice(a, b).filter((x) => x !== "").length;
-function TemplateChip({ seg }) {
-  const o = seg.origin;
-  if (o.kind === "team")
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("span", {
-          class: "cv-ptpl own",
-          children: "ひな形: チームの prompt:"
-        }),
-        /* @__PURE__ */ u("button", {
-          class: "cv-go",
-          type: "button",
-          "data-cv-act": "to-yaml",
-          children: "YAML で直す"
-        })
-      ]
-    });
-  if (o.kind === "member")
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("span", {
-          class: "cv-ptpl own",
-          children: [
-            "ひな形: メンバー ",
-            o.name || "",
-            " の prompt:"
-          ]
-        }),
-        /* @__PURE__ */ u("button", {
-          class: "cv-go",
-          type: "button",
-          "data-cv-act": "to-yaml",
-          children: "YAML で直す"
-        })
-      ]
-    });
-  return /* @__PURE__ */ u(S, {
-    children: /* @__PURE__ */ u("span", {
-      class: "cv-ptpl",
-      children: "ひな形: hergy の既定"
-    })
-  });
-}
-var PLABEL = { roster: "名簿", turns: "ターンを渡す相手", workers: "ワーカーの追加" };
 var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
-  const hit = (promptsOf(r) || []).find((x) => x.name === m.name);
-  let body;
-  if (promptBlockedOf(r))
-    body = /* @__PURE__ */ u("span", {
-      class: "cv-note",
-      children: PROMPT_BLOCKED
-    });
-  else if (!hit)
-    body = /* @__PURE__ */ u("span", {
-      class: "cv-note",
-      children: "プロンプトを読んでいます。"
-    });
-  else {
-    const { lines, blocks } = promptBlocks(hit.segments || []);
-    let head = false, labelled = "";
-    body = blocks.map(({ seg, a, b }) => {
-      const o = seg.origin;
-      if (seg.kind === "role_doc") {
-        return /* @__PURE__ */ u("div", {
-          class: "cv-fold",
-          "data-a": a,
-          "data-b": b,
-          "data-doc": "role",
-          "data-role": o.name || "",
-          "data-place": o.place || "",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-range",
-              children: prange(a, b)
-            }),
-            /* @__PURE__ */ u("b", {
-              children: "ロールの文書"
-            }),
-            /* @__PURE__ */ u("code", {
-              children: o.path || ""
-            }),
-            /* @__PURE__ */ u("span", {
-              children: [
-                pcount(lines, a, b),
-                " 行"
-              ]
-            }),
-            /* @__PURE__ */ u(RoleButton, {
-              r,
-              name: o.name === m.role ? m.role : "",
-              expectedPlace: o.place,
-              children: "ロールを確認・編集"
-            })
-          ]
-        });
-      }
-      if (seg.kind === "team_rules") {
-        return /* @__PURE__ */ u("div", {
-          class: "cv-fold",
-          "data-a": a,
-          "data-b": b,
-          "data-doc": "team",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-range",
-              children: prange(a, b)
-            }),
-            /* @__PURE__ */ u("b", {
-              children: "チームの規則"
-            }),
-            /* @__PURE__ */ u("span", {
-              children: [
-                pcount(lines, a, b),
-                " 行"
-              ]
-            }),
-            /* @__PURE__ */ u("button", {
-              class: "cv-go",
-              type: "button",
-              "data-cv-act": "to-agree",
-              children: "規則のタブで見る"
-            })
-          ]
-        });
-      }
-      if (seg.kind === "herdr") {
-        return /* @__PURE__ */ u("div", {
-          class: "cv-fold cv-fixed",
-          "data-a": a,
-          "data-b": b,
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-range",
-              children: prange(a, b)
-            }),
-            /* @__PURE__ */ u("details", {
-              children: [
-                /* @__PURE__ */ u("summary", {
-                  children: [
-                    "連絡のしかた",
-                    /* @__PURE__ */ u("span", {
-                      children: " · hergy の決まった文 · どのチームでも同じ"
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ u(PLines, {
-                  lines,
-                  a,
-                  b
-                })
-              ]
-            })
-          ]
-        });
-      }
-      let label = "";
-      const heading = (lines.slice(a, b).find((x) => /^##\s/.test(x)) || "").replace(/^##\s*/, "");
-      if (seg.kind === "template" || seg.kind === "actor") {
-        if (!head) {
-          head = true;
-          label = /* @__PURE__ */ u("div", {
-            class: "cv-pbl",
-            children: [
-              /* @__PURE__ */ u("b", {
-                children: "冒頭"
-              }),
-              /* @__PURE__ */ u(TemplateChip, {
-                seg
-              })
-            ]
-          });
-        }
-        const named = Object.values(PLABEL).find((x) => x === heading);
-        if (named) {
-          label = /* @__PURE__ */ u(S, {
-            children: [
-              label,
-              /* @__PURE__ */ u("div", {
-                class: "cv-pbl",
-                children: /* @__PURE__ */ u("b", {
-                  children: named
-                })
-              })
-            ]
-          });
-          labelled = named;
-        }
-      } else if (PLABEL[seg.kind]) {
-        label = labelled === PLABEL[seg.kind] ? "" : /* @__PURE__ */ u("div", {
-          class: "cv-pbl",
-          children: /* @__PURE__ */ u("b", {
-            children: PLABEL[seg.kind]
-          })
-        });
-        labelled = PLABEL[seg.kind];
-      }
-      return /* @__PURE__ */ u(S, {
-        children: [
-          label,
-          /* @__PURE__ */ u(PLines, {
-            lines,
-            a,
-            b
-          })
-        ]
-      });
-    });
-  }
-  return /* @__PURE__ */ u("details", {
+  const [opened, setOpened] = d(false);
+  return /* @__PURE__ */ u("section", {
     class: "cv-sec cv-prompt",
     children: [
-      /* @__PURE__ */ u("summary", {
-        class: "cv-sl",
-        children: "プロンプト（このチーム定義から渡る行）"
+      /* @__PURE__ */ u("button", {
+        class: "btn sm",
+        type: "button",
+        onClick: () => setOpened(true),
+        children: "プロンプトを読む"
       }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-pr",
-        children: body
-      })
+      promptBlockedOf(r) && /* @__PURE__ */ u("p", {
+        class: "cv-note",
+        children: [
+          PROMPT_BLOCKED,
+          " 記録された本文は確認できます。"
+        ]
+      }),
+      opened && /* @__PURE__ */ u(PromptComparison, {
+        r,
+        member: m.name,
+        close: () => setOpened(false)
+      }, m.name)
     ]
   });
 }

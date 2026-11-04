@@ -346,6 +346,8 @@ const draftIn = (r: Rec): { new?: boolean; starter_roles?: boolean; starter_prof
 const projectIn = (project: string): { project?: string } => ({ project: projectOfGroup(project) });
 const teamIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'team', ...projectIn(r.project), ...draftIn(r), ...extra });
 const agreeIn = (r: Rec, extra: Partial<TeamSaveBody> = {}): TeamSaveBody => ({ place: r.place.value, name: r.name.value, part: 'agreement', ...projectIn(r.project), ...draftIn(r), ...extra });
+export const promptComparisonInput = (r: Rec): Omit<Schemas['PromptComparisonRequest'], 'member'> => ({...teamIn(r), place: r.place.value, name: r.name.value, hash: r.hash.value, doc: {ops: r.ops.value}});
+
 
 // ---- 下書き（姿） ------------------------------------------------------
 // TeamLike is a definition as either entrance answers it: a saved document

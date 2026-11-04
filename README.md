@@ -62,6 +62,8 @@ The members run in herdr as `myteam-lead` and `myteam-builder`: the team name is
 
 Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the whole shape for an agent). `hergy <command> --help` prints one command's flags, each with what it means for that command; `hergy new --help` says where it writes.
 
+In the topology editor, select a member and open “プロンプトを読む” to switch between the recorded body, current text, and their full line diff. No text is folded. The recorded body shows the operation and time; it excludes the change-reason preamble added by apply or reprompt and is not a receipt. Current text includes unsaved topology edits. A stopped member or missing record shows the reason and current text only. The panel does not save or send prompts.
+
 ## Commands
 
 | Command | What it does |
@@ -78,7 +80,7 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
 | `hergy migrate [--dry] [--global]` | Migrate legacy YAML definitions to Markdown rules explicitly, retaining adjacent backups; dry-run checks every target without writing |
 | `hergy validate` | Check every settings file and show each broken one. A team definition is checked once and a role document once (not once per team that uses it); it then prints the size of each team definition's rules and templates and of each role document, warning when one is over the provisional budget (1,200 characters each); a warning does not change the exit code |
-| `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows the profiles and the roles: each profile's name, kind, arguments and environment with the members and workers that run it, and the role documents behind the members' rules. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
+| `hergy serve` | Serve Activity, Team definitions (including prompt comparison), Roles and Profiles on 127.0.0.1. Print the URL and open the browser; `--no-open` skips opening it. `--port` selects the port (8787 by default; 0 chooses an available port). Ctrl-C waits for active responses and stops the server. |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
 
@@ -133,7 +135,7 @@ turns:                  # who hands the turn to whom (the human is written "huma
 
 Write each `members[].name` as a short member name (`lead`, `builder`). hergy adds the team name when it boots the team, so the herdr name is `<team>-<member>`: the `demo` definition gives `demo-lead` and `demo-builder`, and `--as dev2` gives `dev2-lead` and `dev2-builder`. Because hergy adds the team name for you, two team definitions that both name a member `lead` never collide in herdr. A member name that still contains `%{team}` is refused: that placeholder is no longer used in names.
 
-The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<member>` must match `[a-z][a-z0-9_-]{0,31}`. hergy keeps no record of running teams; a team command finds the team definition from the team's herdr tab (labelled `team:<team>@<definition>`), so `down`, `apply`, `refresh`, `reprompt` and `hire` all point at a running team by its team name. The members on the command line (`apply <member>`, `refresh <member>`, `reprompt <member>`, `hire --from <member>`) are the short member names:
+The team name must match `[a-z][a-z0-9_-]{0,24}`, and the resulting `<team>-<member>` must match `[a-z][a-z0-9_-]{0,31}`. hergy reads live teams from herdr and finds their definitions in the launch record; each team's tab is labelled with its team name, so `down`, `apply`, `refresh`, `reprompt` and `hire` all point at a running team by its team name. The members on the command line (`apply <member>`, `refresh <member>`, `reprompt <member>`, `hire --from <member>`) are the short member names:
 
 ```sh
 hergy up demo --as alpha            # boot the demo definition as the team "alpha"

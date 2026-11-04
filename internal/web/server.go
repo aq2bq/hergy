@@ -239,6 +239,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/apply", s.apiApplyList)
 	mux.HandleFunc("GET /api/apply/count", s.apiApplyCount)
 	mux.HandleFunc("POST /api/apply", s.apiApply)
+	mux.HandleFunc("POST /api/team/prompt-comparison", s.apiPromptComparison)
 
 	// 本部 (d-73fc, r-b7e1): the projects a person lists, the lists of every
 	// project and the global layer, the workspaces, and starting and stopping a

@@ -69,7 +69,7 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 }
 
 // writeLaunch builds one record and appends it. The texts the record points at —
-// the prompts it handed out and the rule files it read — go into blobs/ first.
+// prompt bodies before change-reason preambles and the files read — go into blobs/ first.
 func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
 	material, err := teamMaterial(r)
 	if err != nil {

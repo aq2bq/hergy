@@ -6,7 +6,7 @@ import { expect, test } from 'bun:test';
 import { layout, serve, settle } from './page.js';
 import { choose, click, island } from './teams-page.js';
 
-test('a definition with a problem says why, and gives the lines once it is fixed', async () => {
+test('a definition with a problem says why, keeps the history entry available after it is fixed', async () => {
   history.replaceState({}, '', '/teams?open=core');
   layout('teams-data', island({ turns: [['human', 'lead']] }));
   const blocked = 'このチーム定義には問題があるので、hergy はプロンプトを組みません';
@@ -59,9 +59,7 @@ test('a definition with a problem says why, and gives the lines once it is fixed
   click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));
   await settle();
   box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
-  expect(box.querySelectorAll('.yl').length).toBeGreaterThan(0);
-  expect(box.textContent).toContain(`core-${name}`);
-  expect(box.textContent).toContain(`core-${name}（ロール`);
+  expect(box.querySelector('button').textContent).toBe('プロンプトを読む');
   expect(box.textContent).not.toContain(blocked);
 
   // The lines came from the check of the unsaved draft: both turns were sent.
