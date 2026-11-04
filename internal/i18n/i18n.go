@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -185,4 +186,13 @@ func Errorf(key string, args ...any) error {
 
 func has(list []string, value string) bool {
 	return slices.Contains(list, value)
+}
+
+// Number groups character counts consistently in both supported languages.
+func Number(n int) string {
+	text := strconv.Itoa(n)
+	for i := len(text) - 3; i > 0 && text[i-1] != '-'; i -= 3 {
+		text = text[:i] + "," + text[i:]
+	}
+	return text
 }

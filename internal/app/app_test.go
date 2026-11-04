@@ -849,9 +849,9 @@ func TestValidateShape(t *testing.T) {
 		"checked: 5",
 		"problems: 0",
 		i18n.T("validate.size_heading"),
-		"  team .hergy/teams/demo: 202 characters (the provisional budget is 1200)",
-		"  role .hergy/roles/builder.md: 233 characters (the provisional budget is 1200)",
-		"  role .hergy/roles/lead.md: 168 characters (the provisional budget is 1200)",
+		"  team .hergy/teams/demo: 202 characters (the provisional budget is 1,200)",
+		"  role .hergy/roles/builder.md: 233 characters (the provisional budget is 1,200)",
+		"  role .hergy/roles/lead.md: 168 characters (the provisional budget is 1,200)",
 		"This budget is provisional, for cutting team and role definitions; it does not stop hergy up.",
 	)
 }

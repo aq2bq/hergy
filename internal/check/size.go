@@ -80,7 +80,7 @@ func teamSizeFinding(cat *catalog.Catalog, def *definition.Definition) []Finding
 	}
 	return []Finding{{
 		Kind: KindSize,
-		Text: i18n.Tf("size.team_chars", chars, TeamCharLimit),
+		Text: i18n.Tf("size.team_chars", i18n.Number(chars), i18n.Number(TeamCharLimit)),
 	}}
 }
 
@@ -92,7 +92,8 @@ func roleSizeProblems(chars int) []RoleProblem {
 		return nil
 	}
 	return []RoleProblem{{
-		Sev:  "warn",
-		Text: i18n.Tf("size.role_chars", chars, RoleCharLimit),
+		Sev:   "warn",
+		Field: "size",
+		Text:  i18n.Tf("size.role_chars", i18n.Number(chars), i18n.Number(RoleCharLimit)),
 	}}
 }

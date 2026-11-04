@@ -733,7 +733,7 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
   });
 }
 export const agreeIssues = (r: Rec): Issue[] => (r.check.value ? r.check.value.issues : []);
-export const agreeDiff = (r: Rec): number => diffCount({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
+export const agreeDiff = (r: Rec): number => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : diffCount({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 export const teamIssues = (r: Rec): Finding[] => r.findings.value;
 const pcountList = (c: Schemas['TeamCounts'] | null | undefined): { sev: string }[] => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
 // rowIssues is the problems a row's own chip shows: the server's count for a

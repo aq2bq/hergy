@@ -39,7 +39,10 @@ import {
   problemText2
 } from "../chunk/nav-59pgz9xy.js";
 import {
+  num,
+  Measure,
   chars,
+  ProseHeader,
   clone2,
   fromJSON2,
   toDoc2,
@@ -48,7 +51,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-jdqdf3n2.js";
+} from "../chunk/nav-6d1ddyhw.js";
 import {
   st,
   token2,
@@ -65,9 +68,8 @@ import {
 } from "../chunk/nav-dedhn2tx.js";
 import {
   roleEditor,
-  roleProblems,
-  Measure
-} from "../chunk/nav-4cnq0vav.js";
+  roleProblems
+} from "../chunk/nav-anrp8ayw.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -237,90 +239,51 @@ function Editor({ session }) {
     else
       carryTo2("roles", model.project);
   }
+  const heading = {
+    kind: "ロール",
+    name: session.name,
+    title: e?.draft.title,
+    id: `role-title-${session.id}`,
+    path: ctx ? `${ctx.place === "global" ? "グローバル" : "プロジェクト"} · roles/${session.name}.md` : "",
+    members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join("、"),
+    state: ctx?.state === "missing" ? "文書なし" : ctx?.state === "unreadable" ? "読み込み不可" : dirty() ? "未保存" : model.ok.value ? "保存しました" : "保存済み"
+  };
   return /* @__PURE__ */ u("section", {
     class: "prose-column role-column",
     ref: dialog,
     id: `prose-${session.r.uid}-${session.name}`,
     "aria-labelledby": `role-title-${session.id}`,
     children: [
-      /* @__PURE__ */ u("header", {
-        children: [
-          /* @__PURE__ */ u("h2", {
-            id: `role-title-${session.id}`,
-            tabIndex: -1,
-            children: [
-              e?.draft.title || session.name,
-              "（",
-              session.name,
-              "）"
-            ]
-          }),
-          ctx ? /* @__PURE__ */ u("code", {
-            class: "path",
-            title: ctx.path,
-            children: [
-              ctx.place === "global" ? "グローバル" : "プロジェクト",
-              " · roles/",
-              session.name,
-              ".md"
-            ]
-          }) : null
-        ]
-      }),
-      ctx ? /* @__PURE__ */ u("details", {
-        class: "role-usage",
-        children: [
-          /* @__PURE__ */ u("summary", {
-            children: "保存先と影響するチーム"
-          }),
-          /* @__PURE__ */ u("p", {
-            children: [
-              ctx.place === "global" ? "グローバル" : "プロジェクト",
-              " · ",
-              /* @__PURE__ */ u("code", {
-                children: ctx.path
-              })
-            ]
-          }),
-          ctx.place === "global" ? /* @__PURE__ */ u("p", {
-            children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
-          }) : null,
-          /* @__PURE__ */ u("p", {
-            children: [
-              "このチーム定義で編集中: ",
-              session.r.name.value,
-              "。確認できた範囲: ",
-              ctx.scanned.join("、")
-            ]
-          }),
-          other.length ? /* @__PURE__ */ u("ul", {
-            children: other.map((u2) => /* @__PURE__ */ u("li", {
-              children: [
-                u2.project_name,
-                " / ",
-                u2.name,
-                "（",
-                u2.place === "global" ? "グローバル" : "プロジェクト",
-                "）: ",
-                u2.members.join("、")
-              ]
-            }))
-          }) : /* @__PURE__ */ u("p", {
-            children: "確認できた範囲では、ほかに使うチーム定義はありません。"
-          }),
-          ctx.errors.map((text) => /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: text
-          })),
-          ctx.state !== "readable" ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: ctx.problem
-          }) : null
-        ]
-      }) : null,
       /* @__PURE__ */ u("div", {
         class: "role-dialog-body",
         children: [
+          !e || ctx?.state !== "readable" ? /* @__PURE__ */ u(S, {
+            children: [
+              /* @__PURE__ */ u(ProseHeader, {
+                heading,
+                text: ""
+              }),
+              /* @__PURE__ */ u("div", {
+                class: "prose-unavailable",
+                children: [
+                  /* @__PURE__ */ u("p", {
+                    role: "alert",
+                    children: ctx?.problem || (model.context.loading.value ? "ロールの文書を読んでいます。" : "ロールの文書を読み込めませんでした。")
+                  }),
+                  ctx?.state === "missing" ? /* @__PURE__ */ u("a", {
+                    class: "btn",
+                    href: `/roles?${query}`,
+                    onClick: leave,
+                    children: "ロールの画面で作る"
+                  }) : null
+                ]
+              })
+            ]
+          }) : null,
+          ctx?.errors.map((text) => /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: text
+          })),
           model.context.error.value ? /* @__PURE__ */ u("p", {
             role: "alert",
             children: problemText2(model.context.error.value, "ロールと使用先を読み込めませんでした")
@@ -339,6 +302,7 @@ function Editor({ session }) {
               class: "pmain",
               children: /* @__PURE__ */ u(RuleDoc2, {
                 hasName: false,
+                heading,
                 row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] },
                 issues,
                 onChange: () => {
@@ -385,7 +349,23 @@ function Editor({ session }) {
         ]
       }),
       /* @__PURE__ */ u("footer", {
+        class: "prose-foot",
         children: [
+          /* @__PURE__ */ u("div", {
+            class: "prose-save",
+            children: [
+              /* @__PURE__ */ u("button", {
+                class: "btn primary",
+                disabled: blocked,
+                onClick: () => void save(),
+                children: "保存"
+              }),
+              model.ok.value ? /* @__PURE__ */ u("span", {
+                role: "status",
+                children: "保存しました"
+              }) : null
+            ]
+          }),
           /* @__PURE__ */ u("div", {
             class: "prose-actions",
             children: [
@@ -395,12 +375,6 @@ function Editor({ session }) {
                 onClick: leave,
                 children: "ロールの画面で開く"
               }),
-              ctx?.state === "unreadable" ? /* @__PURE__ */ u("a", {
-                class: "btn sm",
-                href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
-                onClick: leave,
-                children: "ロールの Markdown で直す"
-              }) : null,
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
                 disabled: editor.saving.value,
@@ -412,15 +386,37 @@ function Editor({ session }) {
               })
             ]
           }),
-          e ? /* @__PURE__ */ u("button", {
-            class: "btn primary",
-            disabled: blocked,
-            onClick: () => void save(),
-            children: "ロールを保存"
-          }) : null,
-          model.ok.value ? /* @__PURE__ */ u("span", {
-            role: "status",
-            children: "ロールを保存しました"
+          ctx ? /* @__PURE__ */ u("details", {
+            class: "role-usage",
+            children: [
+              /* @__PURE__ */ u("summary", {
+                children: "保存先と影響するチーム"
+              }),
+              ctx.place === "global" ? /* @__PURE__ */ u("p", {
+                children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
+              }) : null,
+              ctx.scanned.length ? /* @__PURE__ */ u("p", {
+                children: [
+                  "確認できた範囲: ",
+                  ctx.scanned.join("、")
+                ]
+              }) : null,
+              other.length ? /* @__PURE__ */ u("ul", {
+                children: other.map((u2) => /* @__PURE__ */ u("li", {
+                  children: [
+                    u2.project_name,
+                    " / ",
+                    u2.name,
+                    "（",
+                    u2.place === "global" ? "グローバル" : "プロジェクト",
+                    "）: ",
+                    u2.members.join("、")
+                  ]
+                }))
+              }) : /* @__PURE__ */ u("p", {
+                children: "確認できた範囲では、ほかに使うチーム定義はありません。"
+              })
+            ]
           }) : null
         ]
       })
@@ -1131,7 +1127,7 @@ function figFindings(r, problems) {
   });
 }
 var agreeIssues = (r) => r.check.value ? r.check.value.issues : [];
-var agreeDiff = (r) => diffCount2({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
+var agreeDiff = (r) => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : diffCount2({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 var teamIssues = (r) => r.findings.value;
 var pcountList = (c) => [...Array(c && c.err || 0)].map(() => ({ sev: "err" })).concat([...Array(c && c.warn || 0)].map(() => ({ sev: "warn" })));
 var rowIssues = (r) => r.draftRow ? teamIssues(r) : pcountList(r.problems.value);
@@ -5129,7 +5125,7 @@ function Sum({ r, open }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "c-agree c-num",
-        children: chars(r.agreeDraft.value.text)
+        children: num(chars(r.agreeDraft.value.text))
       }),
       /* @__PURE__ */ u("span", {
         class: "c-size",
@@ -5217,7 +5213,7 @@ function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
     ["shape", "トポロジー", "", changeCount(r) > 0],
-    ["agree", "散文", String(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
+    ["agree", "散文", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
   ];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -5627,10 +5623,6 @@ function Foot({ r, agree }) {
     return /* @__PURE__ */ u(S, {
       children: [
         notice,
-        empty ? /* @__PURE__ */ u("p", {
-          class: "empty-guide",
-          children: "チームの散文は任意です。本文を入力して保存できます。"
-        }) : null,
         /* @__PURE__ */ u("footer", {
           class: "pf",
           children: [
@@ -5650,19 +5642,13 @@ function Foot({ r, agree }) {
               class: "dirty",
               children: s && d ? `${d} か所` : ""
             }),
-            /* @__PURE__ */ u("span", {
-              class: "vcount",
-              children: /* @__PURE__ */ u(Counts2, {
-                list: messagesOf(errs)
-              })
-            }),
             ok,
             /* @__PURE__ */ u("span", {
               class: "acts",
               children: /* @__PURE__ */ u("button", {
                 class: "btn",
                 "data-act": "revert",
-                hidden: !(d > 0),
+                hidden: empty || !(d > 0),
                 onClick: () => pressRevert(r),
                 children: "元に戻す"
               })
@@ -5714,10 +5700,26 @@ function onChangeDraft(r) {
   scheduleAgree(r);
 }
 function AgreePanel({ r }) {
-  const both = (r.places || []).length > 1, shadowed = r.place.value === "global" && (r.places || []).includes("project");
+  const shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
+  const board = A(null);
+  h(() => {
+    const fit = () => {
+      const node = board.current;
+      if (node)
+        node.style.setProperty("--prose-height", `${Math.max(420, window.innerHeight - Math.max(60, node.getBoundingClientRect().top) - 12)}px`);
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("scroll", fit, { passive: true });
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("scroll", fit);
+    };
+  }, []);
   return /* @__PURE__ */ u("div", {
     class: "prose-board",
+    ref: board,
     children: [
       /* @__PURE__ */ u("section", {
         class: "prose-column panel agree-p" + (shadowed ? " shadowed" : ""),
@@ -5726,50 +5728,21 @@ function AgreePanel({ r }) {
         "data-key": dkey(r),
         "data-mode": mode,
         children: [
-          /* @__PURE__ */ u("header", {
-            class: "ph",
-            children: [
-              /* @__PURE__ */ u("strong", {
-                children: r.agreeDraft.value.title || r.name.value
-              }),
-              /* @__PURE__ */ u("code", {
-                class: "path",
-                title: r.agreePath.value,
-                children: [
-                  placeName(r.place.value),
-                  " · teams/",
-                  r.name.value,
-                  "/agreement.md"
-                ]
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "phr",
-                children: both ? /* @__PURE__ */ u("span", {
-                  class: "state " + (shadowed ? "off" : "on"),
-                  children: shadowed ? "隠れている" : "効いている"
-                }) : null
-              })
-            ]
-          }),
-          /* @__PURE__ */ u("p", {
-            class: "prose-budget" + (chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0) > 1200 ? " sev warn" : ""),
-            children: [
-              "散文 ",
-              chars(r.agreeDraft.value.text),
-              " 字 · ひな形 ",
-              r.check.value?.templateSize ?? 0,
-              " 字 · 合計 ",
-              chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0),
-              " / 1,200 字"
-            ]
-          }),
           /* @__PURE__ */ u("div", {
             class: "pmain",
             children: /* @__PURE__ */ u(RuleDoc2, {
               row: rowOfPanel(r),
               issues: agreeIssues(r),
               hasName: false,
-              budget: false,
+              heading: {
+                kind: "チーム定義",
+                name: r.name.value,
+                title: r.agreeDraft.value.title,
+                path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
+                members: r.draft.value.members.map((m) => m.name).join("、"),
+                template: r.check.value?.templateSize || 0,
+                state: (agreeDiff(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
+              },
               onChange: () => onChangeDraft(r),
               onMode: (v) => pressPmode(r, v),
               onURL: () => syncURL()

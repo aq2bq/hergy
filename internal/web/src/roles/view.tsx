@@ -201,7 +201,7 @@ function onChangeDraft(r: RoleRow, l: Place): void {
 function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const e = r[l];
   if (!e) return '';
-  const d = e.draft, key = r.uid + l, both = live(r, 'project') && live(r, 'global');
+  const d = e.draft, key = r.uid + l;
   const shadowed = l === 'global' && live(r, 'project');
   const row = rowOfPanel(r, l);
   if (!row) return '';
@@ -230,14 +230,8 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   say(nameIssue ? nameIssue.text : '');
   (e.saved ? grew : issues.filter((m) => m.sev === 'err')).forEach((m) => say(m.text));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
-      <header class="ph">
-        <span class="ln">{placeLabel}</span>
-        <code class="path">{pathOfRow(r, l, d)}</code>
-        <span class="phr">
-          {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : ''}
-        </span>
-      </header>
-      <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError}
+      <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
+          path: `${placeLabel} · ${pathOfRow(r, l, d)}`, state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onChange={() => onChangeDraft(r, l)}
@@ -248,7 +242,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         onRevert={() => pressRevertConflict(r.uid, l)}
         onUndo={() => pressUndoConflict(r.uid, l)} /> : null}
       <footer class="pf">
-        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button>{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}<span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
+        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button>{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}<span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues.filter((p) => p.f !== 'size')} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
         <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}

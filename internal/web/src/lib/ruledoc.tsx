@@ -2,7 +2,7 @@
 import type { components, operations } from '../../../apicontract/api-types';
 import { signal } from './preact.js';
 import { Field } from './field.js';
-import { ProseEditor, title } from './prose-editor.js';
+import { ProseEditor, title, type ProseHeading } from './prose-editor.js';
 
 export type EditableDocument = { name: string; title: string; text: string; __path?: string };
 export type RulePanelDocument = EditableDocument;
@@ -15,7 +15,7 @@ export type RulePanel = {
 };
 export type RulePanelInput = RulePanel & { newRow?: boolean };
 export type RuleDocProps = {
- row: RulePanelInput; issues: RuleIssue[]; nameError?: string; hasName?: boolean; budget?: boolean;
+ row: RulePanelInput; issues: RuleIssue[]; nameError?: string; hasName?: boolean; heading?: ProseHeading;
  filtering?: boolean; query?: string; readerCount?: (name: string) => number;
  onChange?: (row: RulePanel) => void; onMode?: (mode: 'edit' | 'md') => void; onURL?: () => void;
 };
@@ -42,9 +42,9 @@ export function Badge({ list }: { list: Pick<RuleIssue, 'sev'>[] }) { return <Co
 export function Vm({ list }: { list: Pick<RuleIssue, 'sev' | 'text'>[] }) {
  return <ul class="vm">{list.map((p) => <li><Sev sev={p.sev} /><span>{p.text}</span></li>)}</ul>;
 }
-export function RuleDoc({ row, hasName = true, budget = true, nameError, issues, onChange }: RuleDocProps) {
- return <>{hasName ? <label>ロール名<Field class="in-name" data-f="name" value={row.draft.name} onInput={(event: Event) => { if (event.currentTarget instanceof HTMLInputElement) { row.draft.name = event.currentTarget.value; onChange?.(row); } }} />{nameError ? <span class="errline name" role="alert">{nameError}</span> : null}</label> : null}
+export function RuleDoc({ row, hasName = true, heading, nameError, issues, onChange }: RuleDocProps) {
+ return <>{hasName ? <label class="prose-name">ロール名<Field class="in-name" data-f="name" value={row.draft.name} onInput={(event: Event) => { if (event.currentTarget instanceof HTMLInputElement) { row.draft.name = event.currentTarget.value; onChange?.(row); } }} />{nameError ? <span class="errline name" role="alert">{nameError}</span> : null}</label> : null}
  {hasName && row.saved && row.saved.name !== row.draft.name ? <label class="rename"><input type="checkbox" checked={renameCarries(row.uid + row.l)} onChange={(event) => { renameBox.value = { ...renameBox.value, [row.uid + row.l]: event.currentTarget.checked }; }} />使っているチームのロール名も変更する</label> : null}
- <ProseEditor budget={budget} text={row.draft.text} onChange={(text) => { row.draft.text = text; row.draft.title = title(text, row.draft.name); onChange?.(row); }} />
- <Vm list={issues.filter((p) => p.f !== 'name')} /></>;
+ <ProseEditor heading={heading || { kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title, path: row.draft.__path, state: diffCount(row) ? '未保存' : '保存済み' }} text={row.draft.text} onChange={(text) => { row.draft.text = text; row.draft.title = title(text, row.draft.name); onChange?.(row); }} />
+ <Vm list={issues.filter((p) => p.f !== 'name' && p.f !== 'size')} /></>;
 }

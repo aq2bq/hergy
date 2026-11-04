@@ -61,7 +61,7 @@ test('a document-wide budget warning leaves prose saving available', async () =>
   const panel = document.querySelector('#rows .role.open .panel');
   expect(panel.querySelectorAll('.vm .sev.warn').length).toBe(1);
   const want = '字'.repeat(1201);
-  type(panel.querySelector('textarea[aria-label="散文の全文"]'), want);
+  type(panel.querySelector('textarea[aria-label$="の散文の全文"]'), want);
   await settle();
   const button = panel.querySelector('[data-act=save]');
   expect(button.disabled).toBe(false);

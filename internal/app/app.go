@@ -1234,10 +1234,10 @@ func printSize(w io.Writer, teams []teamSize, roles []roleSize) {
 	line := func(text string) { fmt.Fprintf(w, "%s\n", text) }
 	line(i18n.T("validate.size_heading"))
 	for _, team := range teams {
-		line(i18n.Tf("validate.size_team", team.name, team.chars, check.TeamCharLimit))
+		line(i18n.Tf("validate.size_team", team.name, i18n.Number(team.chars), i18n.Number(check.TeamCharLimit)))
 	}
 	for _, role := range roles {
-		line(i18n.Tf("validate.size_role", role.name, role.chars, check.RoleCharLimit))
+		line(i18n.Tf("validate.size_role", role.name, i18n.Number(role.chars), i18n.Number(check.RoleCharLimit)))
 	}
 	line(i18n.T("validate.size_note"))
 }

@@ -104,3 +104,11 @@ func TestUseAndT(t *testing.T) {
 		t.Errorf("T(%q) = %q, want the message", key, T(key))
 	}
 }
+
+func TestNumber(t *testing.T) {
+	for n, want := range map[int]string{0: "0", 999: "999", 1200: "1,200", 1234567: "1,234,567", -1200: "-1,200"} {
+		if got := Number(n); got != want {
+			t.Errorf("Number(%d) = %q, want %q", n, got, want)
+		}
+	}
+}

@@ -19,7 +19,7 @@ test('the full prose is editable and saved without IDs or whitespace rewriting',
   await import('../src/roles/main');
   await settle();
   const panel = document.querySelector('.role.open .panel');
-  const input = panel.querySelector('textarea[aria-label="散文の全文"]');
+  const input = panel.querySelector('textarea[aria-label$="の散文の全文"]');
   expect(input).not.toBeNull();
   const changed = '# 作り方\n\n 空白を残す  \n\n## 検証\n→ は本文。\n';
   type(input, changed);

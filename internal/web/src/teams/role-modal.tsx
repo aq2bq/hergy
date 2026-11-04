@@ -4,6 +4,7 @@ import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { RuleDoc, fromJSON, toDoc } from '../lib/ruledoc.js';
+import { ProseHeader, type ProseHeading } from '../lib/prose-editor.js';
 import type { EditableDocument } from '../lib/ruledoc.js';
 import { ConflictNotice, conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
@@ -129,21 +130,21 @@ function Editor({ session }: { session: Session }) {
   const query = new URLSearchParams({ open: session.name + '|' + (ctx?.place === 'global' ? 'global' : (model.project || '')) });
   if (model.project) query.set('project', model.project);
   function leave(event: MouseEvent) { if (!canClose()) event.preventDefault(); else carryTo('roles', model.project); }
+  const heading: ProseHeading = { kind: 'ロール', name: session.name, title: e?.draft.title,
+    id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/${session.name}.md` : '',
+    members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
+    state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : model.ok.value ? '保存しました' : '保存済み' };
   return <section class="prose-column role-column" ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
-    <header><h2 id={`role-title-${session.id}`} tabIndex={-1}>{e?.draft.title || session.name}（{session.name}）</h2>{ctx ? <code class="path" title={ctx.path}>{ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/{session.name}.md</code> : null}</header>
-    {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
-      <p>{ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · <code>{ctx.path}</code></p>
-      {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
-      <p>このチーム定義で編集中: {session.r.name.value}。確認できた範囲: {ctx.scanned.join('、')}</p>
-      {other.length ? <ul>{other.map((u) => <li>{u.project_name} / {u.name}（{u.place === 'global' ? 'グローバル' : 'プロジェクト'}）: {u.members.join('、')}</li>)}</ul> : <p>確認できた範囲では、ほかに使うチーム定義はありません。</p>}
-      {ctx.errors.map((text) => <p role="alert">{text}</p>)}
-      {ctx.state !== 'readable' ? <p role="alert">{ctx.problem}</p> : null}
-    </details> : null}
     <div class="role-dialog-body">
+    {!e || ctx?.state !== 'readable' ? <><ProseHeader heading={heading} text="" /><div class="prose-unavailable">
+      <p role="alert">{ctx?.problem || (model.context.loading.value ? 'ロールの文書を読んでいます。' : 'ロールの文書を読み込めませんでした。')}</p>
+      {ctx?.state === 'missing' ? <a class="btn" href={`/roles?${query}`} onClick={leave}>ロールの画面で作る</a> : null}
+    </div></> : null}
+    {ctx?.errors.map((text) => <p role="alert">{text}</p>)}
     {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, 'ロールと使用先を読み込めませんでした')}</p> : null}
     {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
     {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。文書を読み直してください。</p> : null}
-    {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc hasName={false}
+    {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc hasName={false} heading={heading}
       row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] }}
       issues={issues} onChange={() => { entry.value = { ...e, draft: structuredClone(e.draft) }; model.ok.value = false; void check(); }} /></div></fieldset> : null}
     {model.conflict.value && e ? <ConflictNotice c={model.conflict.value.c} mine={e.text} busy={editor.saving.value} undone={model.conflict.value.undone}
@@ -154,8 +155,17 @@ function Editor({ session }: { session: Session }) {
     {editor.check.error.value ? <p role="alert">{problemText(editor.check.error.value, 'ロールを検査できませんでした')}</p> : null}
     {model.error.value ? <p role="alert">{model.error.value}</p> : null}
     </div>
-    <footer><div class="prose-actions"><a class="btn sm" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>{ctx?.state === 'unreadable' ? <a class="btn sm" href={`/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`} onClick={leave}>ロールの Markdown で直す</a> : null}
-    <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
-{e ? <button class="btn primary" disabled={blocked} onClick={() => void save()}>ロールを保存</button> : null}{model.ok.value ? <span role="status">ロールを保存しました</span> : null}</footer>
+    <footer class="prose-foot"><div class="prose-save">
+      <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
+      {model.ok.value ? <span role="status">保存しました</span> : null}
+    </div><div class="prose-actions">
+      <a class="btn sm" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>
+      <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
+    {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
+      {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
+      {ctx.scanned.length ? <p>確認できた範囲: {ctx.scanned.join('、')}</p> : null}
+      {other.length ? <ul>{other.map((u) => <li>{u.project_name} / {u.name}（{u.place === 'global' ? 'グローバル' : 'プロジェクト'}）: {u.members.join('、')}</li>)}</ul> : <p>確認できた範囲では、ほかに使うチーム定義はありません。</p>}
+    </details> : null}
+</footer>
   </section>;
 }

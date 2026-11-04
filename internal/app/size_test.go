@@ -73,16 +73,16 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 		t.Fatalf("a team over the size limit is a break?\n%s", got)
 	}
 	for _, want := range []string{
-		i18n.Tf("validate.size_team", small.dir, small.teamChars, check.TeamCharLimit),
-		i18n.Tf("validate.size_team", large.dir, large.teamChars, check.TeamCharLimit),
-		i18n.Tf("validate.size_role", ".hergy/roles/lead.md", large.roleChars, check.RoleCharLimit),
+		i18n.Tf("validate.size_team", small.dir, i18n.Number(small.teamChars), i18n.Number(check.TeamCharLimit)),
+		i18n.Tf("validate.size_team", large.dir, i18n.Number(large.teamChars), i18n.Number(check.TeamCharLimit)),
+		i18n.Tf("validate.size_role", ".hergy/roles/lead.md", i18n.Number(large.roleChars), i18n.Number(check.RoleCharLimit)),
 		i18n.T("validate.size_note"),
 	} {
 		if !strings.Contains(got, want+"\n") {
 			t.Errorf("validate does not print %q:\n%s", want, got)
 		}
 	}
-	warning := i18n.Tf("size.team_chars", large.teamChars, check.TeamCharLimit)
+	warning := i18n.Tf("size.team_chars", i18n.Number(large.teamChars), i18n.Number(check.TeamCharLimit))
 	if n := strings.Count(got, warning); n != 1 {
 		t.Errorf("the large team's size warning stands %d times, want once:\n%s", n, got)
 	}
@@ -113,13 +113,13 @@ func TestValidateTellsTwoDefinitionsOfTheSameNameApart(t *testing.T) {
 	if !strings.Contains(got, i18n.T("validate.size_heading")+"\n") {
 		t.Errorf("validate does not head the size list:\n%s", got)
 	}
-	if want := i18n.Tf("validate.size_team", local.dir, local.teamChars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
+	if want := i18n.Tf("validate.size_team", local.dir, i18n.Number(local.teamChars), i18n.Number(check.TeamCharLimit)); !strings.Contains(got, want+"\n") {
 		t.Errorf("validate does not print the effective definition's size %q:\n%s", want, got)
 	}
-	if hidden := i18n.Tf("validate.size_team", global.dir, global.teamChars, check.TeamCharLimit); strings.Contains(got, hidden) {
+	if hidden := i18n.Tf("validate.size_team", global.dir, i18n.Number(global.teamChars), i18n.Number(check.TeamCharLimit)); strings.Contains(got, hidden) {
 		t.Errorf("validate prints the hidden definition's size %q:\n%s", hidden, got)
 	}
-	warning := i18n.Tf("size.team_chars", local.teamChars, check.TeamCharLimit)
+	warning := i18n.Tf("size.team_chars", i18n.Number(local.teamChars), i18n.Number(check.TeamCharLimit))
 	if n := strings.Count(got, warning); n != 1 {
 		t.Errorf("the local definition's warning stands %d times, want once:\n%s", n, got)
 	}
@@ -146,7 +146,7 @@ func TestValidateSizesADefinitionThatDoesNotRead(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("a worker with a missing profile is not a break:\n%s", got)
 	}
-	if want := i18n.Tf("validate.size_team", team.dir, team.teamChars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
+	if want := i18n.Tf("validate.size_team", team.dir, i18n.Number(team.teamChars), i18n.Number(check.TeamCharLimit)); !strings.Contains(got, want+"\n") {
 		t.Errorf("validate does not print the broken definition's size %q:\n%s", want, got)
 	}
 }
@@ -253,7 +253,7 @@ func TestProseBudgetCLIBoundariesDoNotStopUp(t *testing.T) {
 				if code != 0 {
 					t.Fatalf("validate: %s %s", got, err)
 				}
-				warning := i18n.Tf(key, n, 1200)
+				warning := i18n.Tf(key, i18n.Number(n), i18n.Number(1200))
 				count := strings.Count(got, warning)
 				want := 0
 				if n == 1201 {

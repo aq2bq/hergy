@@ -152,12 +152,12 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; paddi
 .head, .sum {
   display: grid; align-items: center; column-gap: 18px;
   grid-template-columns: 14px minmax(13rem, 1.3fr) 10rem 12.5rem minmax(0, 1.6fr);
-  grid-template-areas: "chev name place count backing amount readers";
+  grid-template-areas: "chev name place amount readers";
   padding: 0 10px;
 }
 .head { font-size: 12px; color: var(--muted); padding-block: 8px; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
-.head > :nth-child(2) { grid-area: name; } .head > :nth-child(3) { grid-area: place; } .head > :nth-child(4) { grid-area: count; }
-.head > :nth-child(5) { grid-area: backing; } .head > :nth-child(6) { grid-area: amount; } .head > :nth-child(7) { grid-area: readers; }
+.head > :nth-child(2) { grid-area: name; } .head > :nth-child(3) { grid-area: place; } .head > :nth-child(4) { grid-area: amount; }
+.head > :nth-child(5) { grid-area: readers; }
 .role { border-bottom: 1px solid var(--line); }
 .sum { min-height: 50px; padding-block: 9px; cursor: pointer; }
 .sum:hover { background: var(--surface); }

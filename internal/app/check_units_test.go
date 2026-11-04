@@ -280,8 +280,8 @@ func TestCHECK_EachAnswerNamesItsOwnUnit(t *testing.T) {
 }
 
 // teamSize is one line of validate's size list.
-var teamSizeLine = regexp.MustCompile(`^  team (.+): (\d+) characters \(the provisional budget is \d+\)$`)
-var roleSizeLine = regexp.MustCompile(`^  role (.+): (\d+) characters \(the provisional budget is \d+\)$`)
+var teamSizeLine = regexp.MustCompile(`^  team (.+): ([\d,]+) characters \(the provisional budget is [\d,]+\)$`)
+var roleSizeLine = regexp.MustCompile(`^  role (.+): ([\d,]+) characters \(the provisional budget is [\d,]+\)$`)
 
 // TestCHECK_ValidateSplitsTheUnitsAndSizes: hergy validate keeps a role
 // document's own warning in its own section, checked once however many teams
@@ -345,10 +345,10 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	roleSizes := map[string]int{}
 	for line := range strings.SplitSeq(out, "\n") {
 		if m := teamSizeLine.FindStringSubmatch(line); m != nil {
-			teamSizes[m[1]], _ = strconv.Atoi(m[2])
+			teamSizes[m[1]], _ = strconv.Atoi(strings.ReplaceAll(m[2], ",", ""))
 		}
 		if m := roleSizeLine.FindStringSubmatch(line); m != nil {
-			roleSizes[m[1]], _ = strconv.Atoi(m[2])
+			roleSizes[m[1]], _ = strconv.Atoi(strings.ReplaceAll(m[2], ",", ""))
 		}
 	}
 	wantTeams := map[string]int{}

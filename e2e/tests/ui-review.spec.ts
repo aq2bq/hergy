@@ -66,8 +66,9 @@ test.describe('UI review: waiting and editing', () => {
     await page.goto(app.base + '/teams?open=core'); await ready(page);
     const row = page.locator('.tdef[data-name="core"]');
     await row.locator('[data-act="dtab"][data-t="agree"]').click();
-    await expect(row.getByText('チームの散文は任意です。本文を入力して保存できます。')).toBeVisible();
-    await expect(row.locator('.agree-p .vcount')).not.toContainText('問題');
+    await expect(row.getByPlaceholder('チームの散文は任意です。本文を入力して保存できます。')).toBeVisible();
+    await expect(row.locator('.agree-p .vm')).not.toContainText('問題');
+    await expect(row.locator('.agree-p').getByRole('button', { name: '元に戻す' })).not.toBeVisible();
     await expect(row.locator('.agree-p').getByRole('textbox', { name: '散文の全文' })).toBeVisible();
   });
   test('end sheet stays by its trigger and explains the irreversible result', async ({ page, app }, testInfo) => {

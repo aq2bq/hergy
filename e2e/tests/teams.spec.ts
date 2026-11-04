@@ -511,7 +511,8 @@ test('TEAMS-R1 team prose and roles use one full-text editor per document', asyn
   const row = page.locator('.tdef[data-name="core"]');
   await expect(row.locator('.prose-column')).toHaveCount(5);
   await expect(row.getByRole('textbox', { name: '散文の全文' })).toHaveCount(5);
-  await expect(row.locator('.prose-budget')).toContainText('ひな形');
+  await expect(row.locator('.prose-budget')).toHaveCount(5);
+  await expect(row.locator('.agree-p .prose-detail')).not.toContainText('ひな形 0 字');
 });
 
 test('TEAMS-N1c the starter roles follow the members the row has', async ({ page, app }) => {

@@ -11,8 +11,8 @@ test('prose saves exactly and an old rule link opens its document', async ({ pag
   await panel.locator('[data-act=save]').click();
   await expect(panel.locator('.ok')).toBeVisible();
   expect(readFileSync(path.join(app.proj, '.hergy/roles/lead.md'), 'utf8')).toBe(text);
-  await panel.getByRole('button', { name: '見出しだけを表示する' }).click();
+  await panel.getByRole('button', { name: '見出しだけ' }).click();
   await expect(panel.locator('.prose-outline li')).toHaveCount(2);
-  await panel.getByRole('button', { name: '全文を編集する' }).click();
+  await panel.getByRole('button', { name: '全文' }).click();
   await expect(panel.getByRole('textbox', { name: '散文の全文' })).toHaveValue(text);
 });

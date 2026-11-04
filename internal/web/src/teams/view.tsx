@@ -7,7 +7,7 @@ import { ProjectView } from '../lib/project-view';
 // 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共有部品（lib/ruledoc.js）が描く。
 import { useEffect, useRef } from '../lib/preact.js';
 import type { ComponentChildren, TargetedEvent } from 'preact';
-import { Measure } from '../lib/measure.js';
+import { Measure, num } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
@@ -214,7 +214,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
-      <span class="c-agree c-num">{chars(r.agreeDraft.value.text)}</span>
+      <span class="c-agree c-num">{num(chars(r.agreeDraft.value.text))}</span>
       <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <Measure chars={chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || '')))} limit={r.limit.value} />}</span>
       {HQ && !r.draftRow ? <span class="hq-runc"><RunCell definition={r.name.value} place={r.place.value} project={runProject(r)} /></span> : null}
     </>
@@ -241,7 +241,7 @@ function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
     ['shape', 'トポロジー', '', changeCount(r) > 0],
-    ['agree', '散文', String(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
+    ['agree', '散文', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
   ];
   return (
     <>
@@ -446,9 +446,9 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     const empty = !s && !r.agreeDraft.value.text.length;
     const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0));
     return (
-      <>{notice}{empty ? <p class="empty-guide">チームの散文は任意です。本文を入力して保存できます。</p> : null}<footer class="pf">
-        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span><span class="vcount"><Counts list={messagesOf(errs)} /></span>{ok}
-        <span class="acts"><button class="btn" data-act="revert" hidden={!(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
+      <>{notice}<footer class="pf">
+        <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
+        <span class="acts"><button class="btn" data-act="revert" hidden={empty || !(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
       </footer></>
     );
   }
@@ -469,17 +469,25 @@ function onChangeDraft(r: Rec): void {
 }
 
 function AgreePanel({ r }: { r: Rec }) {
-  const both = (r.places || []).length > 1, shadowed = r.place.value === 'global' && (r.places || []).includes('project');
+  const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
   const mode = pmodeOf(r);
+  const board = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fit = () => {
+      const node = board.current;
+      if (node) node.style.setProperty('--prose-height', `${Math.max(420, window.innerHeight - Math.max(60, node.getBoundingClientRect().top) - 12)}px`);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('scroll', fit, { passive: true });
+    return () => { window.removeEventListener('resize', fit); window.removeEventListener('scroll', fit); };
+  }, []);
   return (
-    <div class="prose-board"><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
-      <header class="ph"><strong>{r.agreeDraft.value.title || r.name.value}</strong><code class="path" title={r.agreePath.value}>{placeName(r.place.value)} · teams/{r.name.value}/agreement.md</code>
-        <span class="phr">
-          {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : null}
-        </span></header>
-      <p class={'prose-budget' + (chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0) > 1200 ? ' sev warn' : '')}>散文 {chars(r.agreeDraft.value.text)} 字 · ひな形 {r.check.value?.templateSize ?? 0} 字 · 合計 {chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0)} / 1,200 字</p>
+    <div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
-        <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} budget={false}
+        <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
+            path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
+            template: r.check.value?.templateSize || 0, state: (agreeDiff(r) ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : '') }}
           onChange={() => onChangeDraft(r)}
           onMode={(v: string) => pressPmode(r, v)}
           onURL={() => syncURL()} />

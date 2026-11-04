@@ -36,6 +36,7 @@ import {
 } from "../chunk/nav-b83cb4fx.js";
 import"../chunk/nav-t4sxvpzm.js";
 import {
+  Measure,
   renameCarries2,
   fromJSON2,
   toDoc2,
@@ -44,7 +45,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-jdqdf3n2.js";
+} from "../chunk/nav-6d1ddyhw.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -52,9 +53,8 @@ import {
 } from "../chunk/nav-dedhn2tx.js";
 import {
   roleEditor,
-  roleProblems,
-  Measure
-} from "../chunk/nav-4cnq0vav.js";
+  roleProblems
+} from "../chunk/nav-anrp8ayw.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -1874,7 +1874,7 @@ function Panel({ r, l }) {
   const e = r[l];
   if (!e)
     return "";
-  const d = e.draft, key = r.uid + l, both = live(r, "project") && live(r, "global");
+  const d = e.draft, key = r.uid + l;
   const shadowed = l === "global" && live(r, "project");
   const row = rowOfPanel(r, l);
   if (!row)
@@ -1905,32 +1905,20 @@ function Panel({ r, l }) {
     "data-l": l,
     "data-mode": mode,
     children: [
-      /* @__PURE__ */ u("header", {
-        class: "ph",
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "ln",
-            children: placeLabel
-          }),
-          /* @__PURE__ */ u("code", {
-            class: "path",
-            children: pathOfRow(r, l, d)
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "phr",
-            children: both ? /* @__PURE__ */ u("span", {
-              class: "state " + (shadowed ? "off" : "on"),
-              children: shadowed ? "隠れている" : "効いている"
-            }) : ""
-          })
-        ]
-      }),
       /* @__PURE__ */ u("div", {
         class: "pmain",
         children: /* @__PURE__ */ u(RuleDoc2, {
           row,
           issues,
           nameError,
+          heading: {
+            kind: "ロール",
+            name: row.draft.name || "新しいロール",
+            title: row.draft.title,
+            path: `${placeLabel} · ${pathOfRow(r, l, d)}`,
+            state: (n ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : ""),
+            members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
+          },
           filtering: filtering(),
           query: state.value.q,
           readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
@@ -1968,7 +1956,7 @@ function Panel({ r, l }) {
           /* @__PURE__ */ u("span", {
             class: "vcount",
             children: /* @__PURE__ */ u(Counts2, {
-              list: issues
+              list: issues.filter((p) => p.f !== "size")
             })
           }),
           okOf(key) ? /* @__PURE__ */ u("span", {

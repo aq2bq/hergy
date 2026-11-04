@@ -8,8 +8,7 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  y,
-  u
+  y
 } from "./nav-1697d4rr.js";
 import {
   Refusal2,
@@ -94,38 +93,4 @@ function roleProblems(_doc, list) {
   }));
 }
 
-// lib/measure.tsx
-var num = (n) => Number(n || 0).toLocaleString("ja-JP");
-function Measure({ chars, limit }) {
-  const over = chars > limit;
-  const w = Math.min(100, chars / (limit * 1.25) * 100);
-  return /* @__PURE__ */ u("span", {
-    title: `暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`,
-    class: "amt" + (over ? " over" : ""),
-    children: [
-      /* @__PURE__ */ u("span", {
-        class: "meter" + (over ? " over" : ""),
-        children: /* @__PURE__ */ u("i", {
-          "data-w": w,
-          style: { width: w + "%" }
-        })
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "v",
-        children: [
-          num(chars),
-          /* @__PURE__ */ u("span", {
-            class: "lim",
-            children: [
-              " / ",
-              num(limit),
-              " 字"
-            ]
-          })
-        ]
-      })
-    ]
-  });
-}
-
-export { roleEditor, roleProblems, Measure };
+export { roleEditor, roleProblems };

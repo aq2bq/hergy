@@ -54,7 +54,7 @@ test('a check that answers after the save does not take away 保存しました,
 
   // Type into the rule and save at once: the typing scheduled a check for 300ms
   // later, and that check answers after the save's own.
-  type(panel().querySelector('textarea[aria-label="散文の全文"]'), '書き直した本文。');
+  type(panel().querySelector('textarea[aria-label$="の散文の全文"]'), '書き直した本文。');
   await settle();
   expect(notice()).toBe(null);
   click(panel().querySelector('[data-act=save]'));
@@ -68,7 +68,7 @@ test('a check that answers after the save does not take away 保存しました,
   expect(notice(), 'a check that answers is not a change, so the notice stands').not.toBe(null);
 
   // A change of the person's own takes it away.
-  type(panel().querySelector('textarea[aria-label="散文の全文"]'), 'もう一度書き直した本文。');
+  type(panel().querySelector('textarea[aria-label$="の散文の全文"]'), 'もう一度書き直した本文。');
   await settle();
   expect(notice(), 'a change takes the notice away').toBe(null);
 });

@@ -39,7 +39,8 @@ func TestRoleWarnsAboutItsOwnSize(t *testing.T) {
 	}
 	want := RoleProblem{
 		Sev: "warn", Line: 0,
-		Text: i18n.Tf("size.role_chars", report.Markdown.Chars, RoleCharLimit),
+		Field: "size",
+		Text:  i18n.Tf("size.role_chars", i18n.Number(report.Markdown.Chars), i18n.Number(RoleCharLimit)),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {
 		t.Errorf("problems = %+v, want the one size warning %+v", report.Problems, want)
