@@ -5,7 +5,7 @@ import { ProjectView } from '../lib/project-view';
 // 入れ子は、移す前のマークアップから 1 つも変えない（5 章 6）。状態は state.ts の
 // signal を読み、押し込みは自分の onClick / onInput / onKeyDown から state.ts の
 // 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共有部品（lib/ruledoc.js）が描く。
-import { useEffect, useRef } from '../lib/preact.js';
+import { useEffect, useRef, useState, useCallback } from '../lib/preact.js';
 import type { ComponentChildren, TargetedEvent } from 'preact';
 import { Measure, num } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
@@ -472,6 +472,11 @@ function onChangeDraft(r: Rec): void {
 }
 
 function AgreePanel({ r }: { r: Rec }) {
+  const [scanned, setScanned] = useState<Record<string, string[]>>({});
+  const onScanned = useCallback((name: string, places: string[] | null) => {
+    setScanned((previous) => { const next = { ...previous }; if (places) next[name] = places; else delete next[name]; return next; });
+  }, []);
+  const places = [...new Set(Object.values(scanned).flat())];
   const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
   const mode = pmodeOf(r);
   const board = useRef<HTMLDivElement>(null);
@@ -498,7 +503,7 @@ function AgreePanel({ r }: { r: Rec }) {
     return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, []);
   return (
-    <div class="prose-workspace"><div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span></div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+    <div class="prose-workspace"><div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
@@ -508,7 +513,7 @@ function AgreePanel({ r }: { r: Rec }) {
           onURL={() => syncURL()} />
       </div>
       <Foot r={r} agree={true} />
-    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div></div>
+    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} onScanned={onScanned} />)}</div></div>
   );
 }
 

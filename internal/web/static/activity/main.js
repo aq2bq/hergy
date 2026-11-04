@@ -14,7 +14,7 @@ import {
   y,
   O,
   u
-} from "../chunk/nav-1697d4rr.js";
+} from "../chunk/nav-wtffyt4p.js";
 import {
   call2,
   read2,
@@ -34,14 +34,14 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-788q322j.js";
+} from "../chunk/nav-vahmk4me.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-8kc731s7.js";
+} from "../chunk/nav-0znfs6e2.js";
 import {
   resource
-} from "../chunk/nav-gwkv74cd.js";
+} from "../chunk/nav-spnv3sy9.js";
 
 // activity/state.ts
 var POLL = 1e4;

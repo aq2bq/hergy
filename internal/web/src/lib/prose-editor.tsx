@@ -20,7 +20,7 @@ export function title(text: string, fallback = ''): string {
 
 
 
-export type ProseHeading = { kind: string; name: string; title?: string; path?: string; members?: string; template?: number; state?: string; id?: string; compact?: boolean; fullPath?: string };
+export type ProseHeading = { kind: string; name: string; title?: string; path?: string; members?: string; otherTeams?: string; template?: number; state?: string; id?: string; compact?: boolean; fullPath?: string };
 export function ProseIdentity({ heading }: { heading: ProseHeading }) {
  return <h2 data-width={widths.value[heading.id || '']} id={heading.id} tabIndex={-1}><span class="prose-kind">{heading.kind}</span><span class="prose-label" title={heading.name}>{heading.name}</span>{heading.id ? <WidthButtons id={heading.id} /> : null}</h2>;
 }
@@ -31,6 +31,7 @@ export function ProseHeader({ heading, text, children, position }: { heading: Pr
   <p class="prose-title" title={heading.title}>{heading.title && heading.title !== heading.name ? heading.title : '題なし'}</p>
   <code class="path" title={heading.fullPath || heading.path}>{heading.path || '保存先を確認しています'}</code>
   {!heading.compact ? <p class="prose-readers" title={heading.members}>{heading.members ? `使うメンバー: ${heading.members}` : '使うメンバーなし'}</p> : null}
+  {heading.otherTeams ? <p class="prose-readers prose-other-teams" title={`ほかのチーム: ${heading.otherTeams}`}>ほかのチーム: {heading.otherTeams}</p> : null}
   <div class="prose-budget" title={template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /><span class={total > 1200 ? 'over' : ''}>{total > 1200 ? `${num(total - 1200)} 字超過` : `残り ${num(1200 - total)} 字`}</span></div>
   <div class="prose-status"><span class={position ? 'prose-current' : undefined} title={position} aria-live="polite">{position || heading.state || '保存済み'}</span>{children}</div>
  </header>;

@@ -26,9 +26,10 @@ export function RoleButton({ r, name, children = 'ロールを確認・編集' }
     pressDtab(r, 'agree');
   }}>{children}</button>;
 }
-export function RoleColumn({ r, name }: { r: Rec; name: string }) {
+type Scanned = (name: string, places: string[] | null) => void;
+export function RoleColumn({ r, name, onScanned }: { r: Rec; name: string; onScanned: Scanned }) {
   const session = useMemo<Session>(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
-  return <Editor session={session} />;
+  return <Editor session={session} onScanned={onScanned} />;
 }
 
 function newModel(session: Session) {
@@ -53,7 +54,7 @@ export function roleDraftsDirty(): boolean {
   });
 }
 
-function Editor({ session }: { session: Session }) {
+function Editor({ session, onScanned }: { session: Session; onScanned: Scanned }) {
   const dialog = useRef<HTMLElement>(null);
   const model = useMemo(() => {
     const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
@@ -120,6 +121,10 @@ function Editor({ session }: { session: Session }) {
 
   const ctx = model.context.value.value, e = entry.value;
   useEffect(() => {
+    onScanned(session.name, ctx?.scanned || []);
+    return () => onScanned(session.name, null);
+  }, [ctx?.scanned, onScanned]);
+  useEffect(() => {
     if (!e || focusTarget.value !== `prose-${session.r.uid}-${session.name}`) return;
     const input = dialog.current?.querySelector('textarea');
     if (input) { input.focus(); input.scrollIntoView({ block: 'nearest', inline: 'nearest' }); focusTarget.value = ''; }
@@ -144,6 +149,7 @@ function Editor({ session }: { session: Session }) {
   const heading: ProseHeading = { kind: 'ロール', name: session.name, title: e?.draft.title,
     id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/${session.name}.md` : '',
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
+    otherTeams: other.map((u) => `${u.project_name} ${u.name}（${u.members.join('、')}）`).join('、'),
     state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : model.ok.value ? '保存しました' : '保存済み' };
   return <section class={'prose-column role-column' + (ctx?.state === 'missing' ? ' missing-document' : '')} ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
     <div class="role-dialog-body">
@@ -171,10 +177,7 @@ function Editor({ session }: { session: Session }) {
     </div><div class="prose-actions">
       <a class="btn sm" title="ロールの画面で開く" aria-label="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>ロールの画面で開く</span></a>
       <button class="btn sm" title="ファイルからリロード" aria-label="ファイルからリロード" disabled={editor.saving.value} onClick={() => { if (canDiscard('保存していない変更を捨てて、ファイルからリロードしますか？')) void load(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>ファイルからリロード</span></button></div>
-    {ctx ? <div class="role-usage">
-      {ctx.scanned.length ? <div class="usage"><span class="lbl">確認できた範囲</span>{ctx.scanned.map((name) => <span class="uchip">{name}</span>)}</div> : null}
-      {other.length ? <div class="usage"><span class="lbl">使っているチーム</span>{other.flatMap((u) => u.members.map((member) => <span class="uchip"><span class="g">{u.project_name}: {u.name}</span>{member}</span>))}</div> : null}
-    </div> : null}
+
 </footer> : null}
   </section>;
 }

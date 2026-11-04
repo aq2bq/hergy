@@ -71,7 +71,7 @@ function $(n, l) {
 function I(n) {
   if (n.__P && n.__d) {
     var u = n.__v, t = u.__e, i = [], r = [], o = m({}, u);
-    o.__v = u.__v + 1, l.vnode && l.vnode(o), q(n.__P, o, u, n.__n, n.__P.namespaceURI, 32 & u.__u ? [t] : null, i, t == null ? $(u) : t, !!(32 & u.__u), r), o.__v = u.__v, o.__.__k[o.__i] = o, D(i, o, r), u.__e = u.__ = null, o.__e != t && P(o);
+    o.__v = u.__v + 1, l.vnode && l.vnode(o), q2(n.__P, o, u, n.__n, n.__P.namespaceURI, 32 & u.__u ? [t] : null, i, t == null ? $(u) : t, !!(32 & u.__u), r), o.__v = u.__v, o.__.__k[o.__i] = o, D(i, o, r), u.__e = u.__ = null, o.__e != t && P(o);
   }
 }
 function P(n) {
@@ -95,7 +95,7 @@ function H() {
 function L(n, l, u, t, i, r, o, e, f, c, a) {
   var s, h, p, v, y, _, g = t && t.__k || w, m = l.length;
   for (f = T2(u, l, g, f, m), s = 0;s < m; s++)
-    (p = u.__k[s]) != null && (h = p.__i != -1 && g[p.__i] || d2, p.__i = s, _ = q(n, p, h, i, r, o, e, f, c, a), v = p.__e, p.ref && h.ref != p.ref && (h.ref && J(h.ref, null, p), a.push(p.ref, p.__c || v, p)), y == null && v != null && (y = v), 4 & p.__u ? (f = j(p, f, n), h.__e && (h.__e = null)) : typeof p.type == "function" && _ !== undefined ? f = _ : v && (f = v.nextSibling), p.__u &= -7);
+    (p = u.__k[s]) != null && (h = p.__i != -1 && g[p.__i] || d2, p.__i = s, _ = q2(n, p, h, i, r, o, e, f, c, a), v = p.__e, p.ref && h.ref != p.ref && (h.ref && J(h.ref, null, p), a.push(p.ref, p.__c || v, p)), y == null && v != null && (y = v), 4 & p.__u ? (f = j(p, f, n), h.__e && (h.__e = null)) : typeof p.type == "function" && _ !== undefined ? f = _ : v && (f = v.nextSibling), p.__u &= -7);
   return u.__e = y, f;
 }
 function T2(n, l, u, t, i) {
@@ -173,7 +173,7 @@ function V(n) {
     }
   };
 }
-function q(n, u, t, i, r, o, e, f, c, a) {
+function q2(n, u, t, i, r, o, e, f, c, a) {
   var s, h, p, v, y, d, _, k, x, M, I, P, A, H, T, j, F = u.type;
   if (u.constructor !== undefined)
     return null;
@@ -303,7 +303,7 @@ function Q(n, l, u) {
 }
 function R(u, t, i) {
   var r, o, e, f;
-  t == document && (t = document.documentElement), l.__ && l.__(u, t), o = (r = typeof i == "function") ? null : i && i.__k || t.__k, e = [], f = [], q(t, u = (!r && i || t).__k = k(S, null, [u]), o || d2, d2, t.namespaceURI, !r && i ? [i] : o ? null : t.firstChild ? n.call(t.childNodes) : null, e, !r && i ? i : o ? o.__e : t.firstChild, r, f), D(e, u, f), u.props.children = null;
+  t == document && (t = document.documentElement), l.__ && l.__(u, t), o = (r = typeof i == "function") ? null : i && i.__k || t.__k, e = [], f = [], q2(t, u = (!r && i || t).__k = k(S, null, [u]), o || d2, d2, t.namespaceURI, !r && i ? [i] : o ? null : t.firstChild ? n.call(t.childNodes) : null, e, !r && i ? i : o ? o.__e : t.firstChild, r, f), D(e, u, f), u.props.children = null;
 }
 n = w.slice, l = { __e: function(n, l, u, t) {
   for (var i, r, o;l = l.__; )
@@ -423,6 +423,11 @@ function A(n) {
 function T(n, r) {
   var u = s2(t3++, 7);
   return C2(u.__H, r) && (u.__ = n(), u.__H = r, u.__h = n), u.__;
+}
+function q(n, t) {
+  return o2 = 8, T(function() {
+    return n;
+  }, t);
 }
 function j2() {
   for (var n;n = f2.shift(); ) {
@@ -1195,7 +1200,7 @@ function u(e, t, n, o, i, u) {
   return l.vnode && l.vnode(l2), l2;
 }
 
-export { S, R, d, h, _, A, T, y, O, x, u };
+export { S, R, d, h, _, A, T, q, y, O, x, u };
 
 // ---- licences ---------------------------------------------------------
 //

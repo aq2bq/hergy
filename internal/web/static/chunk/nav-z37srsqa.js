@@ -14,13 +14,13 @@ import {
   A,
   y,
   u
-} from "./nav-1697d4rr.js";
+} from "./nav-wtffyt4p.js";
 import {
   problemText2
 } from "./nav-59pgz9xy.js";
 import {
   Field
-} from "./nav-wwnacjpe.js";
+} from "./nav-hrc2s6sc.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
@@ -584,6 +584,14 @@ function ProseHeader({ heading, text, children, position }) {
         class: "prose-readers",
         title: heading.members,
         children: heading.members ? `使うメンバー: ${heading.members}` : "使うメンバーなし"
+      }) : null,
+      heading.otherTeams ? /* @__PURE__ */ u("p", {
+        class: "prose-readers prose-other-teams",
+        title: `ほかのチーム: ${heading.otherTeams}`,
+        children: [
+          "ほかのチーム: ",
+          heading.otherTeams
+        ]
       }) : null,
       /* @__PURE__ */ u("div", {
         class: "prose-budget",

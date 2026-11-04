@@ -30,9 +30,10 @@ test('saving a shared role writes only its actual file and another team reads it
   const before = [readFileSync(team, 'utf8'), readFileSync(agree, 'utf8')];
   const { column } = await open(page, app.base);
   await expect(column.locator('details')).toHaveCount(0);
-  await expect(column.getByText('確認できた範囲', { exact: true })).toBeVisible();
-  await expect(column.locator('.role-usage .uchip').filter({ hasText: 'migrate' })).toBeVisible();
-  await expect(column.locator('.role-usage')).toContainText('migrate');
+  await expect(page.getByText('確認できた範囲', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('確認できた範囲', { exact: true })).toBeVisible();
+  await expect(column.locator('.prose-other-teams').filter({ hasText: 'migrate' })).toBeVisible();
+  await expect(column.locator('.prose-other-teams')).toHaveAttribute('title', /migrate/);
   const text = '# 共有の設計担当\n全文を更新する。\n';
   await column.getByRole('textbox', { name: '規則の全文' }).fill(text);
   await column.getByRole('button', { name: '保存', exact: true }).click();
@@ -119,8 +120,8 @@ test('a missing role explains the next action outside collapsed details', async 
   await expect.poll(async () => {
     const missing = (await column.locator('.prose-unavailable').boundingBox())!;
     const editor = (await readable.locator('textarea').boundingBox())!;
-    return missing.y - editor.y;
-  }).toBe(0);
+    return { top: missing.y - editor.y, height: missing.height - editor.height };
+  }).toEqual({ top: 0, height: 0 });
 });
 
 test('opening prose allocates a stable viewport below the real band and keeps save visible', async ({ page, app }) => {
@@ -167,5 +168,20 @@ test('file reload asks to discard drafts and reloads both text and usage', async
   await context;
   await expect(input).toHaveValue('# ファイルの新しい内容\n');
   await expect(column.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
-  await expect(column.locator('.role-usage .uchip').filter({ hasText: 'migrate' })).toBeVisible();
+  await expect(column.locator('.prose-other-teams').filter({ hasText: 'migrate' })).toBeVisible();
+});
+
+
+test('all columns align both editor edges and save buttons', async ({ page, app }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+  const board = page.locator('.prose-board');
+  await expect(board.locator('textarea')).toHaveCount(5);
+  await expect.poll(async () => board.locator('.prose-column').evaluateAll(nodes => {
+    const boxes = nodes.map(n => ({ input: n.querySelector('textarea')!.getBoundingClientRect(), save: n.querySelector('footer .primary')!.getBoundingClientRect() }));
+    return ['top', 'bottom', 'save'].map(key => {
+      const values = boxes.map(b => key === 'save' ? b.save.y : b.input[key]);
+      return Math.max(...values) - Math.min(...values);
+    });
+  })).toEqual([0, 0, 0]);
 });

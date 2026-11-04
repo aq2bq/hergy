@@ -15,11 +15,12 @@ import {
   _,
   A,
   T,
+  q,
   y,
   O,
   x,
   u
-} from "../chunk/nav-1697d4rr.js";
+} from "../chunk/nav-wtffyt4p.js";
 import {
   carryTo2,
   takeDraft2,
@@ -57,38 +58,38 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-011rs80d.js";
+} from "../chunk/nav-z37srsqa.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-788q322j.js";
+} from "../chunk/nav-vahmk4me.js";
 import {
   RunCell2
-} from "../chunk/nav-8kc731s7.js";
+} from "../chunk/nav-0znfs6e2.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-dedhn2tx.js";
+} from "../chunk/nav-kvfj6dq7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-anrp8ayw.js";
+} from "../chunk/nav-45g6ysqq.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-e0m8mka3.js";
+} from "../chunk/nav-p855w4vj.js";
 import {
   Field
-} from "../chunk/nav-wwnacjpe.js";
+} from "../chunk/nav-hrc2s6sc.js";
 import {
   resource
-} from "../chunk/nav-gwkv74cd.js";
+} from "../chunk/nav-spnv3sy9.js";
 
 // teams/prose-transfer.ts
 function teamTransfer(r) {
@@ -171,10 +172,11 @@ function RoleButton({ r, name, children = "ロールを確認・編集" }) {
     children
   });
 }
-function RoleColumn({ r, name }) {
+function RoleColumn({ r, name, onScanned }) {
   const session = T(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
   return /* @__PURE__ */ u(Editor, {
-    session
+    session,
+    onScanned
   });
 }
 function newModel(session) {
@@ -203,7 +205,7 @@ function roleDraftsDirty() {
     return !!e && e.draft.text !== e.saved.text;
   });
 }
-function Editor({ session }) {
+function Editor({ session, onScanned }) {
   const dialog = A(null);
   const model = T(() => {
     const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
@@ -294,6 +296,10 @@ function Editor({ session }) {
   }
   const ctx = model.context.value.value, e = entry.value;
   h(() => {
+    onScanned(session.name, ctx?.scanned || []);
+    return () => onScanned(session.name, null);
+  }, [ctx?.scanned, onScanned]);
+  h(() => {
     if (!e || focusTarget.value !== `prose-${session.r.uid}-${session.name}`)
       return;
     const input = dialog.current?.querySelector("textarea");
@@ -340,6 +346,7 @@ function Editor({ session }) {
     id: `role-title-${session.id}`,
     path: ctx ? `${ctx.place === "global" ? "グローバル" : "プロジェクト"} · roles/${session.name}.md` : "",
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join("、"),
+    otherTeams: other.map((u2) => `${u2.project_name} ${u2.name}（${u2.members.join("、")}）`).join("、"),
     state: ctx?.state === "missing" ? "文書なし" : ctx?.state === "unreadable" ? "読み込み不可" : dirty() ? "未保存" : model.ok.value ? "保存しました" : "保存済み"
   };
   return /* @__PURE__ */ u("section", {
@@ -502,48 +509,7 @@ function Editor({ session }) {
                 ]
               })
             ]
-          }),
-          ctx ? /* @__PURE__ */ u("div", {
-            class: "role-usage",
-            children: [
-              ctx.scanned.length ? /* @__PURE__ */ u("div", {
-                class: "usage",
-                children: [
-                  /* @__PURE__ */ u("span", {
-                    class: "lbl",
-                    children: "確認できた範囲"
-                  }),
-                  ctx.scanned.map((name) => /* @__PURE__ */ u("span", {
-                    class: "uchip",
-                    children: name
-                  }))
-                ]
-              }) : null,
-              other.length ? /* @__PURE__ */ u("div", {
-                class: "usage",
-                children: [
-                  /* @__PURE__ */ u("span", {
-                    class: "lbl",
-                    children: "使っているチーム"
-                  }),
-                  other.flatMap((u2) => u2.members.map((member) => /* @__PURE__ */ u("span", {
-                    class: "uchip",
-                    children: [
-                      /* @__PURE__ */ u("span", {
-                        class: "g",
-                        children: [
-                          u2.project_name,
-                          ": ",
-                          u2.name
-                        ]
-                      }),
-                      member
-                    ]
-                  })))
-                ]
-              }) : null
-            ]
-          }) : null
+          })
         ]
       }) : null
     ]
@@ -5826,6 +5792,18 @@ function onChangeDraft(r) {
   scheduleAgree(r);
 }
 function AgreePanel({ r }) {
+  const [scanned, setScanned] = d({});
+  const onScanned = q((name, places) => {
+    setScanned((previous) => {
+      const next = { ...previous };
+      if (places)
+        next[name] = places;
+      else
+        delete next[name];
+      return next;
+    });
+  }, []);
+  const places = [...new Set(Object.values(scanned).flat())];
   const shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
   const board = A(null);
@@ -5871,7 +5849,19 @@ function AgreePanel({ r }) {
               "見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。",
               transferKeys()
             ]
-          })
+          }),
+          places.length ? /* @__PURE__ */ u("span", {
+            class: "prose-scope",
+            children: [
+              /* @__PURE__ */ u("span", {
+                children: "確認できた範囲"
+              }),
+              places.map((place) => /* @__PURE__ */ u("span", {
+                class: "scope-place",
+                children: place
+              }))
+            ]
+          }) : null
         ]
       }),
       /* @__PURE__ */ u("div", {
@@ -5915,7 +5905,8 @@ function AgreePanel({ r }) {
           }),
           [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => /* @__PURE__ */ u(RoleColumn, {
             r,
-            name
+            name,
+            onScanned
           }, name))
         ]
       })

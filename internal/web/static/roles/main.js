@@ -15,7 +15,7 @@ import {
   y,
   x,
   u
-} from "../chunk/nav-1697d4rr.js";
+} from "../chunk/nav-wtffyt4p.js";
 import {
   takeDraft2,
   setDirty2,
@@ -33,8 +33,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-788q322j.js";
-import"../chunk/nav-8kc731s7.js";
+} from "../chunk/nav-vahmk4me.js";
+import"../chunk/nav-0znfs6e2.js";
 import {
   Measure,
   renameCarries2,
@@ -45,26 +45,26 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-011rs80d.js";
+} from "../chunk/nav-z37srsqa.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-dedhn2tx.js";
+} from "../chunk/nav-kvfj6dq7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-anrp8ayw.js";
+} from "../chunk/nav-45g6ysqq.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-e0m8mka3.js";
+} from "../chunk/nav-p855w4vj.js";
 import {
   Field
-} from "../chunk/nav-wwnacjpe.js";
-import"../chunk/nav-gwkv74cd.js";
+} from "../chunk/nav-hrc2s6sc.js";
+import"../chunk/nav-spnv3sy9.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
