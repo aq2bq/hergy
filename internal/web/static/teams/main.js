@@ -463,19 +463,43 @@ function Editor({ session }) {
               /* @__PURE__ */ u("a", {
                 class: "btn sm",
                 title: "ロールの画面で開く",
+                "aria-label": "ロールの画面で開く",
                 href: `/roles?${query}`,
                 onClick: leave,
-                children: "ロールの画面で開く"
+                children: [
+                  /* @__PURE__ */ u("svg", {
+                    viewBox: "0 0 24 24",
+                    "aria-hidden": "true",
+                    children: /* @__PURE__ */ u("path", {
+                      d: "M14 3h7v7M21 3 10 14M10 5H4v15h15v-6"
+                    })
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    children: "ロールの画面で開く"
+                  })
+                ]
               }),
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
                 title: "文書を読み直す",
+                "aria-label": "文書を読み直す",
                 disabled: editor.saving.value,
                 onClick: () => {
                   if (canClose())
                     load();
                 },
-                children: "文書を読み直す"
+                children: [
+                  /* @__PURE__ */ u("svg", {
+                    viewBox: "0 0 24 24",
+                    "aria-hidden": "true",
+                    children: /* @__PURE__ */ u("path", {
+                      d: "M20 4v6h-6M20 10a8 8 0 1 0 0 6"
+                    })
+                  }),
+                  /* @__PURE__ */ u("span", {
+                    children: "文書を読み直す"
+                  })
+                ]
               })
             ]
           }),
@@ -5802,20 +5826,22 @@ function AgreePanel({ r }) {
       return;
     const bar = document.querySelector(".bar");
     const summary = node.closest(".tdef")?.querySelector(":scope > .sum");
+    const tools = node.previousElementSibling;
+    const bandBottom = () => (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
     const fit = () => {
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
+      const top = bandBottom() + node.getBoundingClientRect().top - tools.getBoundingClientRect().top;
       node.style.setProperty("--prose-height", `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
-      window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: "instant" });
+      window.scrollBy({ top: tools.getBoundingClientRect().top - bandBottom(), behavior: "instant" });
     });
     const observer = new ResizeObserver(fit);
     if (bar)
       observer.observe(bar);
     if (summary)
       observer.observe(summary);
+    observer.observe(tools);
     window.addEventListener("resize", fit);
     return () => {
       cancelAnimationFrame(frame);
@@ -5823,14 +5849,19 @@ function AgreePanel({ r }) {
       window.removeEventListener("resize", fit);
     };
   }, []);
-  return /* @__PURE__ */ u(S, {
+  return /* @__PURE__ */ u("div", {
+    class: "prose-workspace",
     children: [
       /* @__PURE__ */ u("div", {
         class: "prose-tools",
         children: [
           /* @__PURE__ */ u(EqualWidths, {}),
           /* @__PURE__ */ u("span", {
-            children: transferKeys()
+            class: "prose-drag-hint",
+            children: [
+              "見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。",
+              transferKeys()
+            ]
           })
         ]
       }),

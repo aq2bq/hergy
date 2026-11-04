@@ -18,6 +18,8 @@ async function menu(page, column, heading, destination, move = false) {
  await column.getByRole('button', { name: heading, exact: true }).hover();
  await column.getByRole('button', { name: heading + ' を写す・移す', exact: true }).click();
  const dialog = page.getByRole('dialog', { name: '見出しを写す・移す' });
+ await expect(dialog.getByLabel('挿入位置')).toBeDisabled();
+ await expect(dialog.getByLabel('挿入位置')).toHaveCSS('opacity', '0.4');
  await dialog.getByLabel('宛先', { exact: true }).selectOption({ label: destination });
  if (move) await dialog.getByLabel('操作', { exact: true }).selectOption('move');
  await expect(dialog.getByRole('button', { name: '下書きに反映' })).toBeEnabled();
@@ -79,6 +81,10 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await role.getByRole('button', { name: '狭く（見出しだけにする）', exact: true }).click();
  await expect(role.locator('.prose-outline')).toBeVisible();
  await expect(role).toHaveCSS('width', '240px');
+ await expect(row.locator('.prose-drag-hint')).toBeVisible();
+ await expect(row.locator('.prose-drag-hint')).toContainText('行の左の ⠿');
+ await expect(role.getByRole('link', { name: 'ロールの画面で開く' }).locator('svg')).toBeVisible();
+ await expect(role.getByRole('button', { name: '文書を読み直す' }).locator('svg')).toBeVisible();
  await expect(role.locator('.prose-width .btn').first()).toHaveCSS('padding-left', '4px');
  await expect.poll(async () => { const reset = await row.getByRole('button', { name: '均等', exact: true }).boundingBox(); return reset!.x + reset!.width <= 1440; }).toBe(true);
  await expect(role.locator('.prose-heading-link').first()).toHaveCSS('white-space', 'nowrap');

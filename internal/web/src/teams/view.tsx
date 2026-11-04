@@ -480,23 +480,25 @@ function AgreePanel({ r }: { r: Rec }) {
     if (!node) return;
     const bar = document.querySelector<HTMLElement>('.bar');
     const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum');
+    const tools = node.previousElementSibling as HTMLElement;
+    const bandBottom = () => (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
     const fit = () => {
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
+      const top = bandBottom() + node.getBoundingClientRect().top - tools.getBoundingClientRect().top;
       node.style.setProperty('--prose-height', `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
-      window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: 'instant' });
+      window.scrollBy({ top: tools.getBoundingClientRect().top - bandBottom(), behavior: 'instant' });
     });
     const observer = new ResizeObserver(fit);
     if (bar) observer.observe(bar);
     if (summary) observer.observe(summary);
+    observer.observe(tools);
     window.addEventListener('resize', fit);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, []);
   return (
-    <><div class="prose-tools"><EqualWidths /><span>{transferKeys()}</span></div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+    <div class="prose-workspace"><div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span></div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
@@ -506,7 +508,7 @@ function AgreePanel({ r }: { r: Rec }) {
           onURL={() => syncURL()} />
       </div>
       <Foot r={r} agree={true} />
-    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div></>
+    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div></div>
   );
 }
 

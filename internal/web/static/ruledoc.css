@@ -117,7 +117,9 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-column:has([data-width="narrow"]) .prose-budget { height: 24px; gap: 0; font-size: 10px; line-height: 12px; }
 .prose-column:has([data-width="narrow"]) .prose-budget .amt { flex-basis: 100%; font-size: 10px; line-height: 12px; }
 .prose-column:has([data-width="narrow"]) .prose-budget > span:last-child { margin-left: auto; }
-.prose-column:has([data-width="narrow"]) .prose-actions .btn { display: block; overflow: hidden; text-overflow: ellipsis; }
+.prose-actions svg { display: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.prose-column:has([data-width="narrow"]) .prose-actions .btn > span { display: none; }
+.prose-column:has([data-width="narrow"]) .prose-actions svg { display: block; }
 .prose-head h2 > .prose-width { flex-shrink: 0; }
 /* Width choices share the mode controls' size and selected state. */
 .prose-tools { display: flex; align-items: center; gap: 12px; height: 26px; padding-inline: 8px; color: var(--muted); font-size: 11px; }
@@ -153,3 +155,6 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
   .prose-column .prose-budget .amt { flex-basis: 100%; font-size: 11px; line-height: 12px; }
   .prose-column .prose-budget > span:last-child { margin-left: auto; }
 }
+
+.prose-workspace:not(:has(.prose-grip)) .prose-drag-hint { visibility: hidden; }
+.prose-transfer select:disabled { opacity: .4; cursor: default; }

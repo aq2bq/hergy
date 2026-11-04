@@ -127,6 +127,12 @@ test('opening prose allocates a stable viewport below the real band and keeps sa
   const board = page.locator('.prose-board');
   const input = board.locator('.agree-p textarea');
   await expect.poll(async () => (await input.boundingBox())!.height).toBeGreaterThan(465);
+  await expect.poll(async () => page.locator('.prose-tools').evaluate(n => {
+    const band = document.querySelector('.bar')!.getBoundingClientRect();
+    const summary = n.closest('.tdef')!.querySelector(':scope > .sum')!.getBoundingClientRect();
+    return n.getBoundingClientRect().top >= Math.max(band.bottom, summary.bottom);
+  })).toBe(true);
+  await expect(page.locator('.prose-drag-hint')).toBeHidden();
   const before = (await board.boundingBox())!;
   const height = (await input.boundingBox())!.height;
   expect(before.y).toBeGreaterThan(80);

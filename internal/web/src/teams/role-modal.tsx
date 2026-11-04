@@ -169,8 +169,8 @@ function Editor({ session }: { session: Session }) {
     {ctx?.state !== 'missing' ? <footer class="prose-foot"><div class="prose-save">
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
     </div><div class="prose-actions">
-      <a class="btn sm" title="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>
-      <button class="btn sm" title="文書を読み直す" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
+      <a class="btn sm" title="ロールの画面で開く" aria-label="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>ロールの画面で開く</span></a>
+      <button class="btn sm" title="文書を読み直す" aria-label="文書を読み直す" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>文書を読み直す</span></button></div>
     {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
       {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
       {ctx.scanned.length ? <p>確認できた範囲: {ctx.scanned.join('、')}</p> : null}
