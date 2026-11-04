@@ -100,11 +100,9 @@ type RoleReport = DocReport
 // goes into the prompt (d-00a9), and the Markdown a member reads, with how that
 // changed from the saved document.
 //
-// The answer does not depend on which team definitions use the role (d-8bbf): a
-// rule that names a team's turn is the team definition's check (TurnFindings),
-// and the documents one member reads are checked together there
-// (betweenFindings). Readers carries only who uses the role, by name, apart from
-// the check.
+// The answer does not depend on which team definitions use the role (d-8bbf):
+// who hands the turn to whom is the team definition's (turns:, d-5ce4), and
+// Readers carries only who uses the role, by name, apart from the check.
 //
 // The draft is checked as if it were saved: the document is read through a
 // catalog that carries the draft in its place (C5), so the readers see it.
