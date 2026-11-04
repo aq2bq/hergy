@@ -7,7 +7,8 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useState } from '../../lib/preact.js';
 import { PromptComparison } from './prompt-comparison.js';
-import { promptBlockedOf, workerPrompt } from '../state.js';
+import { topologySections } from './prompt-origins.js';
+import { promptBlockedOf, promptsOf, workerPrompt } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
@@ -81,8 +82,20 @@ const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy
 
 export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const [opened, setOpened] = useState(false);
-  return <section class="cv-sec cv-prompt"><button class="btn sm" type="button" onClick={() => setOpened(true)}>プロンプトを読む</button>
-    {promptBlockedOf(r) && <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>}
+  const hit = promptsOf(r).find(item => item.name === m.name);
+  return <section class="cv-sec cv-prompt cv-topology-prompt">
+    <h3>このメンバーにトポロジーから渡る文</h3>
+    <button class="btn sm cv-prompt-open" type="button" onClick={() => setOpened(true)}>全文と差分を読む</button>
+    <p class="cv-note">今の定義から出る文。未保存の編集を含みます。</p>
+    {promptBlockedOf(r) ? <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>
+      : !hit ? <p role="status">プロンプトを読んでいます。</p>
+      : topologySections.map(([kind, label]) => {
+        const parts = (hit.segments || []).filter(segment => segment.kind === kind && segment.text !== '');
+        if (kind === 'workers' && !parts.length) return null;
+        return <section class="cv-topology-section" data-kind={kind} key={kind}><h4>{label}</h4>
+          {parts.length ? parts.map((segment, i) => <pre class="cv-topology-text" key={i}>{segment.text}</pre>) : <p class="cv-note">この節は今のプロンプトに含まれません。</p>}
+        </section>;
+      })}
     {opened && <PromptComparison key={m.name} r={r} member={m.name} close={() => setOpened(false)} />}
   </section>;
 }

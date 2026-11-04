@@ -2013,6 +2013,8 @@ export interface components {
             reason: string;
             recorded: components["schemas"]["RecordedPrompt"] | null;
             current: string | null;
+            /** @description current と同じ生成結果。text を順に連結すると current と一致する。 */
+            segments: components["schemas"]["TeamPromptSegment"][];
             problems: components["schemas"]["Problem"][];
             diff: components["schemas"]["PromptDiffLine"][];
             project: string;

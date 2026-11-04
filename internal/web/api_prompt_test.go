@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -27,13 +28,20 @@ func TestPromptComparisonCurrentMatchesMemberAndNeverWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Current == nil || *out.Current != built.Text || out.Recorded != nil {
+	if out.Current == nil || *out.Current != built.Text || out.Recorded != nil || !reflect.DeepEqual(out.Segments, built.Segments) {
 		t.Fatalf("%+v", out)
 	}
 	in.Doc = json.RawMessage(`{"ops":[{"kind":"addTurn","from":"lead","to":"human"}]}`)
 	out, failure = s.comparePrompt(in)
 	if failure != nil || out.Current == nil || !out.Draft || *out.Current == built.Text {
 		t.Fatalf("out=%+v failure=%+v", out, failure)
+	}
+	var joined strings.Builder
+	for _, segment := range out.Segments {
+		joined.WriteString(segment.Text)
+	}
+	if joined.String() != *out.Current {
+		t.Fatal("draft segments differ from current")
 	}
 	if readFile(t, f.teamYAML()) != before {
 		t.Fatal("comparison saved the draft")
@@ -59,7 +67,7 @@ func TestPromptComparisonInvalidDraftAndRoute(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &out); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 200 || out.Current != nil || len(out.Problems) == 0 {
+	if response.StatusCode != 200 || out.Current != nil || len(out.Segments) != 0 || len(out.Problems) == 0 {
 		t.Fatalf("%d %s", response.StatusCode, body)
 	}
 }
@@ -92,5 +100,22 @@ func TestPromptComparisonRejectsTraversalAndUnknownTargets(t *testing.T) {
 		if response.StatusCode != 422 {
 			t.Fatal(response.StatusCode, name)
 		}
+	}
+}
+
+func TestPromptComparisonSegmentsUseRunningAlias(t *testing.T) {
+	f := newFixture(t)
+	s := f.server(t)
+	s.act = promptReaderFixture{history: PromptHistory{Runs: []PromptRun{}, Selected: &PromptRun{Team: "sample-run", Project: ""}, Status: "missing"}}
+	out, failure := s.comparePrompt(promptComparisonIn{apiIn: apiIn{Name: "demo", Place: "project", Hash: source.Hash(readFile(t, f.teamYAML())), Doc: json.RawMessage(`{"ops":[]}`)}, Member: "lead"})
+	if failure != nil || out.Current == nil {
+		t.Fatalf("%+v %+v", out, failure)
+	}
+	var joined strings.Builder
+	for _, segment := range out.Segments {
+		joined.WriteString(segment.Text)
+	}
+	if joined.String() != *out.Current || !strings.Contains(joined.String(), "sample-run-lead") {
+		t.Fatal("segments must describe the running alias, not the definition preview")
 	}
 }

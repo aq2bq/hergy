@@ -6,6 +6,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
+	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
@@ -44,15 +45,16 @@ type promptComparisonIn struct {
 }
 type promptComparison struct {
 	PromptHistory
-	Current    *string          `json:"current"`
-	Problems   []apiProblem     `json:"problems"`
-	Diff       []PromptDiffLine `json:"diff"`
-	Project    string           `json:"project"`
-	Executable string           `json:"executable"`
-	Language   string           `json:"language"`
-	Team       string           `json:"team"`
-	Member     string           `json:"member"`
-	Draft      bool             `json:"draft"`
+	Segments   []definition.PromptSegment `json:"segments"`
+	Current    *string                    `json:"current"`
+	Problems   []apiProblem               `json:"problems"`
+	Diff       []PromptDiffLine           `json:"diff"`
+	Project    string                     `json:"project"`
+	Executable string                     `json:"executable"`
+	Language   string                     `json:"language"`
+	Team       string                     `json:"team"`
+	Member     string                     `json:"member"`
+	Draft      bool                       `json:"draft"`
 }
 
 func (s *Server) apiPromptComparison(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +89,7 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 	}
 	out := &promptComparison{
 		PromptHistory: PromptHistory{Runs: []PromptRun{}, Status: "missing", Reason: "このメンバーへ渡した本文の記録がありません"},
+		Segments:      []definition.PromptSegment{},
 		Problems:      []apiProblem{}, Diff: []PromptDiffLine{}, Team: in.Name, Member: in.Member,
 		Draft:      len(body.ops) > 0 || in.New || in.Base != nil,
 		Executable: promptExecutable(), Language: i18n.Language(), Project: s.cat.Base(),
@@ -140,6 +143,7 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 			return nil, refuse(422, err.Error())
 		}
 		out.Current = &built.Text
+		out.Segments = built.Segments
 		if out.Recorded != nil {
 			out.Diff = PromptDiff(out.Recorded.Text, built.Text)
 		}

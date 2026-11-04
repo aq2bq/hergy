@@ -59,7 +59,7 @@ test('a definition with a problem says why, keeps the history entry available af
   click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));
   await settle();
   box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
-  expect(box.querySelector('button').textContent).toBe('プロンプトを読む');
+  expect(box.querySelector('button').textContent).toBe('全文と差分を読む');
   expect(box.textContent).not.toContain(blocked);
 
   // The lines came from the check of the unsaved draft: both turns were sent.

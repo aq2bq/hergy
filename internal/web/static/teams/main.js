@@ -1863,6 +1863,7 @@ function yamlSaved(file, answer) {
   setYtext(file, undefined);
   setYc(file, undefined);
 }
+var promptsOf = (r) => r.prompts.value;
 var promptBlockedOf = (r) => r.promptsReady.value === false;
 var teamLabel = (r) => r.name.value || "新しいチーム定義";
 var currentProjectName = () => {
@@ -2919,6 +2920,105 @@ function Menu({ r }) {
   });
 }
 
+// teams/canvas/prompt-origins.tsx
+var topologySections = [
+  ["roster", "名簿"],
+  ["herdr", "連絡"],
+  ["turns", "ターンを渡す相手"],
+  ["workers", "ワーカーの追加"]
+];
+var labels = {
+  roster: "名簿",
+  herdr: "連絡",
+  turns: "ターン",
+  workers: "ワーカー",
+  role_doc: "ロールの規則",
+  team_rules: "チームの規則"
+};
+function originLines(text, segments) {
+  if (segments.map((segment) => segment.text).join("") !== text)
+    return null;
+  const lines = (text.match(/[^\n]*\n|[^\n]+$/g) || []).map((text) => ({ text, segments: [] }));
+  let offset = 0, index = 0, start = 0;
+  for (const segment of segments) {
+    const end = offset + segment.text.length;
+    while (index < lines.length && start + lines[index].text.length <= offset)
+      start += lines[index++].text.length;
+    let at = start;
+    for (let i = index;i < lines.length && at < end; i++) {
+      if (labels[segment.kind] && end > offset && !lines[i].segments.some((one) => one.kind === segment.kind && one.origin.name === segment.origin.name && one.origin.path === segment.origin.path && one.origin.place === segment.origin.place))
+        lines[i].segments.push(segment);
+      at += lines[i].text.length;
+    }
+    offset = end;
+  }
+  return lines;
+}
+function OriginMarks({ segments }) {
+  return /* @__PURE__ */ u("span", {
+    class: "prompt-origins",
+    children: segments.map((segment) => {
+      const group = segment.kind === "role_doc" || segment.kind === "team_rules" ? "規則" : "トポロジー";
+      const place = segment.origin.place === "global" ? "グローバル" : segment.origin.place === "project" ? "プロジェクト" : "";
+      const description = [group, labels[segment.kind], segment.origin.name, place, segment.origin.path].filter(Boolean).join(" · ");
+      return /* @__PURE__ */ u("span", {
+        class: "prompt-origin",
+        "data-kind": segment.kind,
+        title: description,
+        "aria-label": description,
+        children: labels[segment.kind]
+      });
+    })
+  });
+}
+function OriginLegend({ diff }) {
+  return /* @__PURE__ */ u("p", {
+    class: "prompt-origin-legend",
+    children: [
+      "トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。",
+      diff && "印は今の文の由来。削除行の由来は記録にありません。"
+    ]
+  });
+}
+function CurrentPrompt({ text, lines }) {
+  if (!lines)
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("p", {
+          role: "alert",
+          children: "本文と由来が一致しないため、印を表示できません。再取得してください。"
+        }),
+        /* @__PURE__ */ u("pre", {
+          class: "prompt-full",
+          children: text
+        })
+      ]
+    });
+  return /* @__PURE__ */ u("div", {
+    class: "prompt-full",
+    children: [
+      lines.map((line, index) => /* @__PURE__ */ u("div", {
+        class: "prompt-current-line",
+        "data-line": index + 1,
+        children: [
+          /* @__PURE__ */ u(OriginMarks, {
+            segments: line.segments
+          }),
+          /* @__PURE__ */ u("pre", {
+            class: "prompt-line-text",
+            children: line.text
+          })
+        ]
+      }, index)),
+      text && !text.endsWith(`
+`) && /* @__PURE__ */ u("p", {
+        class: "prompt-eof",
+        children: "末尾に改行はありません"
+      })
+    ]
+  });
+}
+
 // teams/canvas/prompt-comparison.tsx
 function PromptComparison({ r, member, close }) {
   const dialog = A(null);
@@ -2952,6 +3052,7 @@ function PromptComparison({ r, member, close }) {
     return () => reading.abort();
   }, [reading, payload]);
   const answer = reading.value.value;
+  const lines = T(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
   const busy = reading.loading.value;
   const error = reading.error.value;
   return /* @__PURE__ */ u("dialog", {
@@ -3095,6 +3196,9 @@ function PromptComparison({ r, member, close }) {
               }))
             ]
           }),
+          view !== "recorded" && /* @__PURE__ */ u(OriginLegend, {
+            diff: view === "diff"
+          }),
           /* @__PURE__ */ u("div", {
             class: "prompt-body",
             tabIndex: 0,
@@ -3105,13 +3209,15 @@ function PromptComparison({ r, member, close }) {
               }) : /* @__PURE__ */ u("p", {
                 children: "渡した文を表示できません。"
               })),
-              view === "current" && (answer.current !== null ? /* @__PURE__ */ u(FullText, {
-                text: answer.current
+              view === "current" && (answer.current !== null ? /* @__PURE__ */ u(CurrentPrompt, {
+                text: answer.current,
+                lines
               }) : /* @__PURE__ */ u("p", {
                 children: "定義に問題があるため、今の文を組み立てられません。"
               })),
               view === "diff" && /* @__PURE__ */ u(Difference, {
-                answer
+                answer,
+                lines
               })
             ]
           })
@@ -3135,18 +3241,23 @@ function FullText({ text }) {
     ]
   });
 }
-function Difference({ answer }) {
+function Difference({ answer, lines }) {
   if (!answer.recorded || answer.current === null)
     return /* @__PURE__ */ u("p", {
       children: "両方の本文がそろわないため、比較できません。"
     });
   return /* @__PURE__ */ u(S, {
     children: [
+      !lines && /* @__PURE__ */ u("p", {
+        role: "alert",
+        children: "本文と由来が一致しないため、印を表示できません。再取得してください。"
+      }),
       answer.recorded.text === answer.current && /* @__PURE__ */ u("p", {
         children: "差はありません。"
       }),
       answer.diff.map((line, i) => /* @__PURE__ */ u("div", {
         class: `prompt-diff-line ${line.kind}`,
+        "data-new-line": line.new || undefined,
         children: [
           /* @__PURE__ */ u("span", {
             class: "prompt-line-number",
@@ -3161,6 +3272,9 @@ function Difference({ answer }) {
           /* @__PURE__ */ u("span", {
             "aria-label": line.kind === "add" ? "追加" : line.kind === "remove" ? "削除" : "変更なし",
             children: line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "
+          }),
+          /* @__PURE__ */ u(OriginMarks, {
+            segments: line.new ? lines?.[line.new - 1]?.segments || [] : []
           }),
           /* @__PURE__ */ u("div", {
             children: [
@@ -3268,21 +3382,52 @@ var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
 var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
+  const hit = promptsOf(r).find((item) => item.name === m.name);
   return /* @__PURE__ */ u("section", {
-    class: "cv-sec cv-prompt",
+    class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
+      /* @__PURE__ */ u("h3", {
+        children: "このメンバーにトポロジーから渡る文"
+      }),
       /* @__PURE__ */ u("button", {
-        class: "btn sm",
+        class: "btn sm cv-prompt-open",
         type: "button",
         onClick: () => setOpened(true),
-        children: "プロンプトを読む"
+        children: "全文と差分を読む"
       }),
-      promptBlockedOf(r) && /* @__PURE__ */ u("p", {
+      /* @__PURE__ */ u("p", {
+        class: "cv-note",
+        children: "今の定義から出る文。未保存の編集を含みます。"
+      }),
+      promptBlockedOf(r) ? /* @__PURE__ */ u("p", {
         class: "cv-note",
         children: [
           PROMPT_BLOCKED,
           " 記録された本文は確認できます。"
         ]
+      }) : !hit ? /* @__PURE__ */ u("p", {
+        role: "status",
+        children: "プロンプトを読んでいます。"
+      }) : topologySections.map(([kind, label]) => {
+        const parts = (hit.segments || []).filter((segment) => segment.kind === kind && segment.text !== "");
+        if (kind === "workers" && !parts.length)
+          return null;
+        return /* @__PURE__ */ u("section", {
+          class: "cv-topology-section",
+          "data-kind": kind,
+          children: [
+            /* @__PURE__ */ u("h4", {
+              children: label
+            }),
+            parts.length ? parts.map((segment, i) => /* @__PURE__ */ u("pre", {
+              class: "cv-topology-text",
+              children: segment.text
+            }, i)) : /* @__PURE__ */ u("p", {
+              class: "cv-note",
+              children: "この節は今のプロンプトに含まれません。"
+            })
+          ]
+        }, kind);
       }),
       opened && /* @__PURE__ */ u(PromptComparison, {
         r,

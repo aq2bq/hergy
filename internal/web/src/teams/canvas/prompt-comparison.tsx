@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from '../../lib/preact.js';
 import { call, problemText } from '../../lib/api.js';
 import type { Schemas } from '../../lib/api.js';
 import { resource } from '../../lib/resource.js';
+import { CurrentPrompt, OriginLegend, OriginMarks, originLines } from './prompt-origins.js';
+import type { OriginLine } from './prompt-origins.js';
 import { promptComparisonInput } from '../state.js';
 import type { Rec } from '../state.js';
 
@@ -29,6 +31,7 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  }, [reading]);
  useEffect(() => { void load(); return () => reading.abort(); }, [reading, payload]);
  const answer = reading.value.value;
+ const lines = useMemo(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
  const busy = reading.loading.value;
  const error = reading.error.value;
  return <dialog class="prompt-comparison" ref={dialog} aria-labelledby="prompt-comparison-title" onKeyDown={(event) => event.stopPropagation()} onCancel={(event) => {event.preventDefault(); close();}}>
@@ -48,10 +51,11 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
     <p class="prompt-environment" title={`${answer.project} · ${answer.executable}`}>生成条件: {answer.project} · {answer.executable}</p>
     {answer.problems.map((problem) => <p class={problem.sev==='err' ? 'err' : ''}>{problem.text}</p>)}
    </div>
+   {view !== 'recorded' && <OriginLegend diff={view === 'diff'} />}
    <div class="prompt-body" tabIndex={0} aria-label={view==='recorded' ? '渡した文の全文' : view==='current' ? '今の文の全文' : '本文の差'}>
     {view==='recorded' && (answer.recorded ? <FullText text={answer.recorded.text}/> : <p>渡した文を表示できません。</p>)}
-    {view==='current' && (answer.current!==null ? <FullText text={answer.current}/> : <p>定義に問題があるため、今の文を組み立てられません。</p>)}
-    {view==='diff' && <Difference answer={answer}/>}
+    {view==='current' && (answer.current!==null ? <CurrentPrompt text={answer.current} lines={lines}/> : <p>定義に問題があるため、今の文を組み立てられません。</p>)}
+    {view==='diff' && <Difference answer={answer} lines={lines}/>}
    </div>
   </>}
  </dialog>;
@@ -59,9 +63,9 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
 function FullText({text}: {text: string}) {
  return <><pre class="prompt-full">{text}</pre>{text && !text.endsWith('\n') && <p class="prompt-eof">末尾に改行はありません</p>}</>;
 }
-function Difference({answer}: {answer: Answer}) {
+function Difference({answer, lines}: {answer: Answer; lines: OriginLine[] | null}) {
  if (!answer.recorded || answer.current===null) return <p>両方の本文がそろわないため、比較できません。</p>;
- return <>{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => <div key={i} class={`prompt-diff-line ${line.kind}`}>
-  <span class="prompt-line-number" aria-label="記録の行">{line.old || ''}</span><span class="prompt-line-number" aria-label="今の行">{line.new || ''}</span><span aria-label={line.kind==='add' ? '追加' : line.kind==='remove' ? '削除' : '変更なし'}>{line.kind==='add' ? '+' : line.kind==='remove' ? '−' : ' '}</span><div><pre>{line.text}</pre>{!line.text.endsWith('\n') && <span class="prompt-eof">末尾に改行はありません</span>}</div>
+ return <>{!lines && <p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined}>
+  <span class="prompt-line-number" aria-label="記録の行">{line.old || ''}</span><span class="prompt-line-number" aria-label="今の行">{line.new || ''}</span><span aria-label={line.kind==='add' ? '追加' : line.kind==='remove' ? '削除' : '変更なし'}>{line.kind==='add' ? '+' : line.kind==='remove' ? '−' : ' '}</span><OriginMarks segments={line.new ? lines?.[line.new - 1]?.segments || [] : []}/><div><pre>{line.text}</pre>{!line.text.endsWith('\n') && <span class="prompt-eof">末尾に改行はありません</span>}</div>
  </div>)}</>;
 }

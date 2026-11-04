@@ -3916,7 +3916,7 @@ components:
     PromptComparison:
       type: object
       additionalProperties: false
-      required: [runs, selected, status, reason, recorded, current, problems, diff, project, executable, language, team, member, draft]
+      required: [runs, selected, status, reason, recorded, current, segments, problems, diff, project, executable, language, team, member, draft]
       properties:
         runs:
           type: array
@@ -3930,6 +3930,10 @@ components:
           allOf: [{$ref: '#/components/schemas/RecordedPrompt'}]
           nullable: true
         current: {type: string, nullable: true}
+        segments:
+          type: array
+          description: current と同じ生成結果。text を順に連結すると current と一致する。
+          items: {$ref: '#/components/schemas/TeamPromptSegment'}
         problems:
           type: array
           items: {$ref: '#/components/schemas/Problem'}
