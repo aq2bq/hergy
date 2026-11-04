@@ -85,6 +85,8 @@ Open ロールを確認・編集 from the member attributes or its prompt. This 
 
 ## Rule definitions and migration
 
+In the team screen’s rules tab, switch to headings and use a heading’s ⋯ menu to choose another team or role, an insertion position, and whether to include child headings. Drag the grip to another column to move; hold Alt when dropping to copy, or Shift when starting the drag to include children. Review the drafts and undo before saving. Moves save the destination first; if saving the source fails, the screen says the text remains in both files. Use Narrow or Wide in a column header, and Equal to restore equal widths.
+
 Edit `teams/<name>/agreement.md` and `roles/<name>.md` as complete Markdown documents. Saved bytes go into the prompt unchanged. There are no rule IDs, on/off switches or separate note fields. The team screen places the team's rules and each distinct shared role side by side; the roles screen edits the same files. A shared role save affects every team that reads that file. A stale hash refuses the save and offers conflict recovery.
 
 The provisional budget is 1,200 Unicode code points per role and per team. The team's total includes its rules and the fixed words in team/member prompt templates, excluding placeholders and generated text. CRLF counts as LF; whitespace and Markdown syntax count. Exceeding the budget warns but does not prevent startup.

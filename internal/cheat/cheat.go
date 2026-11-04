@@ -267,6 +267,7 @@ Settings files and their keys:
   A team definition reads the project's profiles.yaml over the one outside it, wherever the definition sits: a profile of the same name resolves to the project's.
 
 Rule documents:
+  In the team screen’s rules tab, switch to headings and use a heading’s ⋯ menu to choose another team or role, an insertion position, and whether to include child headings. Drag the grip to another column to move; hold Alt when dropping to copy, or Shift when starting the drag to include children. Review the drafts and undo before saving. Moves save the destination first; if saving the source fails, the screen says the text remains in both files. Use Narrow or Wide in a column header, and Equal to restore equal widths.
   roles/<role>.md and teams/<definition>/agreement.md hold complete Markdown text.
   Saved text is inserted unchanged into %{role_doc} and %{docs}; placeholders inside rules are not expanded again.
   The roster includes the short member name, the first-line title, role name, herdr contact and the self marker.

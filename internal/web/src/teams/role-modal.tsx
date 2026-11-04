@@ -1,10 +1,13 @@
+import { transferTargets } from './prose-transfer.js';
+import { documentID, documents } from '../lib/prose-transfer.js';
+import type { TransferSource } from '../lib/prose-transfer.js';
 import { signal, useEffect, useMemo, useRef } from '../lib/preact.js';
 import { read, problemText } from '../lib/api.js';
 import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { RuleDoc, fromJSON, toDoc } from '../lib/ruledoc.js';
-import { ProseIdentity, type ProseHeading } from '../lib/prose-editor.js';
+import { ProseIdentity, title, type ProseHeading } from '../lib/prose-editor.js';
 import type { EditableDocument } from '../lib/ruledoc.js';
 import { ConflictNotice, conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
@@ -105,9 +108,9 @@ function Editor({ session }: { session: Session }) {
       const saved = fromJSON(answer.json.doc);
       entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
       model.conflict.value = null; model.ok.value = true;
-      await check(true);
-      await model.context.run();
-      await refreshAfterRoleSave();
+      try { await check(true); await model.context.run(); } catch { model.error.value = '保存しましたが、文書の再検査に失敗しました。'; }
+      void refreshAfterRoleSave().catch(() => { model.error.value = '保存しましたが、チーム定義を再検査できませんでした。'; });
+      return true;
     } catch (err) {
       const conflict = conflictOf(err);
       if (conflict) model.conflict.value = { c: conflict };
@@ -130,6 +133,14 @@ function Editor({ session }: { session: Session }) {
   const query = new URLSearchParams({ open: session.name + '|' + (ctx?.place === 'global' ? 'global' : (model.project || '')) });
   if (model.project) query.set('project', model.project);
   function leave(event: MouseEvent) { if (!canClose()) event.preventDefault(); else carryTo('roles', model.project); }
+  const transfer: TransferSource | undefined = e && ctx?.state === 'readable' ? {
+    id: documentID('role', session.name, ctx.place, model.project || CURRENT),
+    label: `ロール ${session.name}（${ctx.place === 'global' ? 'グローバル' : model.project || CURRENT}）`,
+    text: () => entry.value!.draft.text,
+    set: (text) => { const old = entry.value!; entry.value = { ...old, draft: { ...old.draft, text, title: title(text, session.name) } }; model.ok.value = false; void check(); },
+    save: async () => !!await save(), targets: transferTargets,
+  } : undefined;
+  if (transfer) documents.set(transfer.id, transfer);
   const heading: ProseHeading = { kind: 'ロール', name: session.name, title: e?.draft.title,
     id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/${session.name}.md` : '',
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
@@ -144,7 +155,7 @@ function Editor({ session }: { session: Session }) {
     {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, 'ロールと使用先を読み込めませんでした')}</p> : null}
     {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
     {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。文書を読み直してください。</p> : null}
-    {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc hasName={false} heading={heading}
+    {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc transfer={transfer} hasName={false} heading={heading}
       row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] }}
       issues={issues} onChange={() => { entry.value = { ...e, draft: structuredClone(e.draft) }; model.ok.value = false; void check(); }} /></div></fieldset> : null}
     {model.conflict.value && e ? <ConflictNotice c={model.conflict.value.c} mine={e.text} busy={editor.saving.value} undone={model.conflict.value.undone}

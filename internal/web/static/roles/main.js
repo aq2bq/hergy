@@ -45,7 +45,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-grpdx5pn.js";
+} from "../chunk/nav-gwbx5aaq.js";
 import {
   conflictOf,
   ConflictNotice,

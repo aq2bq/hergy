@@ -93,3 +93,25 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-column .role-dialog-body { overflow: hidden; }
 .prose-editor textarea, .prose-outline { overscroll-behavior: contain; }
 .role .panel > .pf { position: static; }
+/* Column widths are view state; restoring equal widths never rewrites text. */
+.prose-board { display: flex; }
+.prose-board .prose-column { flex: 1 0 290px; }
+.prose-board .prose-column:has([data-width="narrow"]) { flex: 0 0 200px; }
+.prose-board .prose-column:has([data-width="wide"]) { flex: 0 0 580px; }
+.prose-head h2 .prose-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prose-width { display: inline-flex; margin-left: auto; gap: 2px; }
+.prose-width .btn, .prose-grip { display: inline-flex; padding: 2px; }
+.prose-width svg, .prose-grip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.prose-outline li { align-items: center; gap: 6px; }
+.prose-block-name { display: flex; align-items: center; flex: 1; min-width: 0; }
+.prose-heading-link { color: inherit; background: none; border: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.prose-grip { cursor: grab; }
+.prose-transfer { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; width: min(820px, 90vw); max-height: 85vh; padding: 24px; overflow: auto; }
+.prose-transfer::backdrop { background: #0008; }
+.prose-transfer fieldset { display: flex; flex-wrap: wrap; gap: 16px; border: 0; padding: 0; }
+.prose-transfer label { display: flex; gap: 8px; align-items: center; }
+.prose-transfer select { max-width: 500px; }
+.prose-transfer pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow: auto; padding: 12px; border: 1px solid var(--line); background: var(--bg); }
+.transfer-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.transfer-preview > div { min-width: 0; }
+.prose-transfer footer { display: flex; gap: 8px; margin: 16px 0; }

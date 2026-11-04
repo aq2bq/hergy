@@ -30,6 +30,7 @@ import {
   call2,
   read2,
   list2,
+  get2,
   check2,
   save2,
   del2,
@@ -41,7 +42,10 @@ import {
 import {
   num,
   Measure,
+  documents,
+  documentID,
   chars,
+  title,
   ProseIdentity,
   clone2,
   fromJSON2,
@@ -51,7 +55,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-grpdx5pn.js";
+} from "../chunk/nav-gwbx5aaq.js";
 import {
   st,
   token2,
@@ -83,6 +87,72 @@ import {
 import {
   resource
 } from "../chunk/nav-gwkv74cd.js";
+
+// teams/prose-transfer.ts
+function teamTransfer(r) {
+  return {
+    id: documentID("team", r.name.value, r.place.value, projectOfGroup(groupOfRecord(r)) || CURRENT),
+    label: `チーム定義 ${r.name.value}（${r.place.value === "global" ? "グローバル" : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName() || CURRENT}）`,
+    text: () => r.agreeDraft.value.text,
+    set: (text) => {
+      r.agreeDraft.value = { ...r.agreeDraft.value, text, title: title(text) };
+      scheduleAgree(r);
+    },
+    save: async () => {
+      const text = r.agreeDraft.value.text;
+      await saveAgree(r);
+      return r.agreeSaved.value?.text === text;
+    },
+    targets: transferTargets
+  };
+}
+async function transferTargets() {
+  const out = recs.value.filter((r) => !r.draftRow).map((r) => {
+    const doc = teamTransfer(r);
+    return { id: doc.id, label: doc.label, load: async () => doc };
+  });
+  const groups = await hqList2("roles");
+  for (const group of groups.groups)
+    for (const item of group.list?.items || []) {
+      for (const place of ["project", "global"]) {
+        if (!item.places[place]?.doc)
+          continue;
+        const project = group.project?.path || CURRENT;
+        const id = documentID("role", item.name, place, project);
+        if (out.some((x) => x.id === id))
+          continue;
+        const label = `ロール ${item.name}（${place === "global" ? "グローバル" : group.project?.name || project}）`;
+        out.push({ id, label, load: async () => {
+          const held = documents.get(id);
+          if (held)
+            return held;
+          const file = await get2("role", item.name, place, project);
+          let text = file.doc.text, hash = file.hash;
+          const doc = { id, label, text: () => text, set: (value) => {
+            text = value;
+          }, save: async () => {
+            const query = new URLSearchParams({ context: place, project });
+            const context = await read2(`/api/role/${encodeURIComponent(item.name)}/context?${query}`);
+            if (context.state !== "readable" || context.place !== place || context.errors.length)
+              throw new Error(context.problem || context.errors.join("、") || "ロールの保存先と使用先を確認できませんでした");
+            try {
+              const answer = await save2("role", item.name, { place, project, original: item.name, hash, role_context: place, doc: { name: item.name, title: title(text), text } });
+              if (!answer.json)
+                return false;
+              hash = answer.json.hash;
+              saved2();
+            } catch (err) {
+              throw new Error(problemText2(err, "ロールを保存できませんでした"));
+            }
+            refreshAfterRoleSave().catch(() => {});
+            return true;
+          } };
+          return doc;
+        } });
+      }
+    }
+  return out;
+}
 
 // teams/role-modal.tsx
 var ids = 1e6;
@@ -202,9 +272,16 @@ function Editor({ session }) {
       entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
       model.conflict.value = null;
       model.ok.value = true;
-      await check(true);
-      await model.context.run();
-      await refreshAfterRoleSave();
+      try {
+        await check(true);
+        await model.context.run();
+      } catch {
+        model.error.value = "保存しましたが、文書の再検査に失敗しました。";
+      }
+      refreshAfterRoleSave().catch(() => {
+        model.error.value = "保存しましたが、チーム定義を再検査できませんでした。";
+      });
+      return true;
     } catch (err) {
       const conflict = conflictOf(err);
       if (conflict)
@@ -239,6 +316,21 @@ function Editor({ session }) {
     else
       carryTo2("roles", model.project);
   }
+  const transfer = e && ctx?.state === "readable" ? {
+    id: documentID("role", session.name, ctx.place, model.project || CURRENT),
+    label: `ロール ${session.name}（${ctx.place === "global" ? "グローバル" : model.project || CURRENT}）`,
+    text: () => entry.value.draft.text,
+    set: (text) => {
+      const old = entry.value;
+      entry.value = { ...old, draft: { ...old.draft, text, title: title(text, session.name) } };
+      model.ok.value = false;
+      check();
+    },
+    save: async () => !!await save(),
+    targets: transferTargets
+  } : undefined;
+  if (transfer)
+    documents.set(transfer.id, transfer);
   const heading = {
     kind: "ロール",
     name: session.name,
@@ -303,6 +395,7 @@ function Editor({ session }) {
             children: /* @__PURE__ */ u("div", {
               class: "pmain",
               children: /* @__PURE__ */ u(RuleDoc2, {
+                transfer,
                 hasName: false,
                 heading,
                 row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] },
@@ -5746,10 +5839,12 @@ function AgreePanel({ r }) {
           /* @__PURE__ */ u("div", {
             class: "pmain",
             children: /* @__PURE__ */ u(RuleDoc2, {
+              transfer: r.draftRow ? undefined : teamTransfer(r),
               row: rowOfPanel(r),
               issues: agreeIssues(r),
               hasName: false,
               heading: {
+                id: `team-prose-${r.uid}`,
                 kind: "チーム定義",
                 name: r.name.value,
                 title: r.agreeDraft.value.title,

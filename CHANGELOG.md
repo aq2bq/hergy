@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Copy or move exact heading ranges between team and role documents, with optional child headings and a chosen insertion point. Review and undo drafts before saving; moves save the destination first and report partial completion. Resize columns or restore equal widths.
+
 - Team and role rules are stored as complete Markdown documents. The team screen edits the team and shared roles side by side. The roster includes each member's name, first-line document title, role and herdr contact. Arrows in rules are no longer interpreted; topology validation still uses `turns:`.
 - The provisional warning budget is 1,200 Unicode code points per role and team. Team totals include fixed template words. Warnings do not prevent startup.
 

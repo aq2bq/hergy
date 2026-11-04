@@ -11,6 +11,7 @@ import { Measure, num } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
+import { teamTransfer } from './prose-transfer.js';
 import { RoleColumn } from './role-modal.js';
 import { RuleDoc, Counts, Vm, Sev, clone } from '../lib/ruledoc.js';
 import { chars } from '../lib/prose-editor.js';
@@ -495,7 +496,7 @@ function AgreePanel({ r }: { r: Rec }) {
   return (
     <div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
-        <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
+        <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
             template: r.check.value?.templateSize || 0, state: (agreeDiff(r) ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : '') }}
           onChange={() => onChangeDraft(r)}
