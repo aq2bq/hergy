@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.9.6 - 2026-11-04
+
+### Added
+
+- **A team definition is renamed on its screen**: 名前を変更 saves the name on
+  its own, without making the definition again. It is refused while a team
+  started from the definition is running or starting, while herdr cannot be
+  read, when the same place already holds the name, and when the file changed
+  under the screen. The launch history keeps the old name, and an old URL does
+  not redirect. Starts (CLI and web UI) and renames share a lock kept under
+  `$XDG_STATE_HOME/hergy/team-locks`, so a rename never overlaps a start; starts
+  from the same definition still run side by side.
+- **A member's role document opens in place**: ロールを確認・編集 on the team
+  definition screen shows the role document the member reads and edits its
+  title, sections and rules. The save writes the role document alone and keeps
+  the team definition's draft and selection. The other team definitions that
+  read the role stay in view, and the save is off while they cannot be read.
+  Rename, copy, duplicate and delete stay on the roles screen.
+- **A copy into the global place brings the role documents and profiles the
+  person picks**: the copy row lists the names the global place lacks and the
+  source project holds, and only the picked ones are written, never over a name
+  the global place already holds.
+
+### Changed
+
+- **The header carries a larger hand-drawn logo**: hergy in pen script beside a
+  robot's face, about 2.25 times the size of the old artwork. The band grows by
+  what the logo needs, the screen switch and the search line up with the robot's
+  face, and below 420px the project button's text wraps.
+- **The project a screen edits is chosen and kept**: with several projects
+  listed, the screens keep the chosen project and its draft across a move, ask
+  before a draft is thrown away, and a link to a role of the same name opens the
+  project it names.
+- **A member waiting for permission shows what it asks**: the screen shows the
+  part of the prompt it recognises and moves to the terminal that answers; when
+  the prompt cannot be told apart from the command's own text, it says to answer
+  in the terminal.
+- **A profile name another profile holds says to pass another name**, rather
+  than to reload the page.
+
+### Fixed
+
+- **Drawing a turn on the topology leaves nothing behind**: the dashed line, the
+  hint and the highlight are cleared however the drag ends, including a release
+  on empty space, a cancel and a lost pointer.
+- **A late or failed check no longer clears a save's errors**: the screens keep
+  the last answer until a newer one reads, so 保存 is not opened by a check
+  that did not answer.
+- **A copy from a row under a listed project reads that project's definition**,
+  and a copy whose 保存 is shut says why — on team definitions, roles and
+  profiles, read whole at any width.
+- **`error.copy_base_unreadable` names team.yaml once.**
+
 ## 0.9.5 - 2026-10-30
 
 ### Breaking
