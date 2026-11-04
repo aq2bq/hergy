@@ -21,13 +21,14 @@ import {
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
 function Measure({ chars, limit }) {
   const over = chars > limit;
+  const near = !over && chars > limit * 0.9;
   const w = Math.min(100, chars / (limit * 1.25) * 100);
   return /* @__PURE__ */ u("span", {
     title: `暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`,
     class: "amt" + (over ? " over" : ""),
     children: [
       /* @__PURE__ */ u("span", {
-        class: "meter" + (over ? " over" : ""),
+        class: "meter" + (over ? " over" : near ? " near" : ""),
         children: /* @__PURE__ */ u("i", {
           "data-w": w,
           style: { width: w + "%" }
@@ -85,12 +86,12 @@ function blocks(text) {
   });
   return out;
 }
-function ProseHeader({ heading, text, children }) {
+function ProseHeader({ heading, text, children, position }) {
   const count = chars(text), template = heading.template || 0, total = count + template;
   return /* @__PURE__ */ u("header", {
     class: "prose-head",
     children: [
-      /* @__PURE__ */ u("h2", {
+      !heading.compact ? /* @__PURE__ */ u("h2", {
         id: heading.id,
         tabIndex: -1,
         children: [
@@ -102,7 +103,7 @@ function ProseHeader({ heading, text, children }) {
             children: heading.name
           })
         ]
-      }),
+      }) : null,
       /* @__PURE__ */ u("p", {
         class: "prose-title",
         title: heading.title,
@@ -110,16 +111,17 @@ function ProseHeader({ heading, text, children }) {
       }),
       /* @__PURE__ */ u("code", {
         class: "path",
-        title: heading.path,
+        title: heading.fullPath || heading.path,
         children: heading.path || "保存先を確認しています"
       }),
-      /* @__PURE__ */ u("p", {
+      !heading.compact ? /* @__PURE__ */ u("p", {
         class: "prose-readers",
         title: heading.members,
         children: heading.members ? `使うメンバー: ${heading.members}` : "使うメンバーなし"
-      }),
+      }) : null,
       /* @__PURE__ */ u("div", {
         class: "prose-budget",
+        title: template ? `内訳: 散文 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
         children: [
           /* @__PURE__ */ u(Measure, {
             chars: total,
@@ -131,15 +133,14 @@ function ProseHeader({ heading, text, children }) {
           })
         ]
       }),
-      /* @__PURE__ */ u("p", {
-        class: "prose-detail",
-        children: template ? `内訳: 散文 ${num(count)} 字・ひな形 ${num(template)} 字` : " "
-      }),
       /* @__PURE__ */ u("div", {
         class: "prose-status",
         children: [
           /* @__PURE__ */ u("span", {
-            children: heading.state || "保存済み"
+            class: position ? "prose-current" : undefined,
+            title: position,
+            "aria-live": "polite",
+            children: position || heading.state || "保存済み"
           }),
           children
         ]
@@ -161,6 +162,7 @@ function ProseEditor({ text, heading, onChange }) {
       /* @__PURE__ */ u(ProseHeader, {
         heading,
         text,
+        position: focused && !outline && text && current ? `入力位置: ${current.heading}（${num(chars(text.slice(current.start, current.end)))} 字）` : undefined,
         children: /* @__PURE__ */ u("div", {
           class: "prose-modes",
           role: "group",
@@ -227,11 +229,6 @@ function ProseEditor({ text, heading, onChange }) {
             })
           ]
         })
-      }),
-      /* @__PURE__ */ u("p", {
-        class: "prose-current",
-        "aria-live": "polite",
-        children: focused && !outline && text && current ? `入力位置: ${current.heading}（${num(chars(text.slice(current.start, current.end)))} 字）` : " "
       }),
       outline ? /* @__PURE__ */ u("ul", {
         class: "prose-outline",
@@ -390,4 +387,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange })
   });
 }
 
-export { num, Measure, chars, ProseHeader, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, Measure, chars, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

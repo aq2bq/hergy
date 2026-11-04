@@ -89,6 +89,18 @@ function groupHeader(g: RoleGroup) {
 function Role({ r }: { r: RoleRow }) {
   const open = filtering() || state.value.open.has(r.uid);
   const el = useRef<HTMLDivElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current && !filtering()) {
+      const frame = requestAnimationFrame(() => {
+        const top = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0;
+        if (el.current) window.scrollBy({ top: el.current.getBoundingClientRect().top - top, behavior: 'instant' });
+      });
+      wasOpen.current = open;
+      return () => cancelAnimationFrame(frame);
+    }
+    wasOpen.current = open;
+  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.uid !== r.uid || !el.current) return;
@@ -231,7 +243,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   (e.saved ? grew : issues.filter((m) => m.sev === 'err')).forEach((m) => say(m.text));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
-          path: `${placeLabel} · ${pathOfRow(r, l, d)}`, state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
+          compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onChange={() => onChangeDraft(r, l)}

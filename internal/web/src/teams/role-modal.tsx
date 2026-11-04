@@ -4,7 +4,7 @@ import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { RuleDoc, fromJSON, toDoc } from '../lib/ruledoc.js';
-import { ProseHeader, type ProseHeading } from '../lib/prose-editor.js';
+import { type ProseHeading } from '../lib/prose-editor.js';
 import type { EditableDocument } from '../lib/ruledoc.js';
 import { ConflictNotice, conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
@@ -136,7 +136,7 @@ function Editor({ session }: { session: Session }) {
     state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : model.ok.value ? '保存しました' : '保存済み' };
   return <section class="prose-column role-column" ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
     <div class="role-dialog-body">
-    {!e || ctx?.state !== 'readable' ? <><ProseHeader heading={heading} text="" /><div class="prose-unavailable">
+    {!e || ctx?.state !== 'readable' ? <><h2 id={heading.id} tabIndex={-1}>ロール {session.name}</h2><div class="prose-unavailable">
       <p role="alert">{ctx?.problem || (model.context.loading.value ? 'ロールの文書を読んでいます。' : 'ロールの文書を読み込めませんでした。')}</p>
       {ctx?.state === 'missing' ? <a class="btn" href={`/roles?${query}`} onClick={leave}>ロールの画面で作る</a> : null}
     </div></> : null}
@@ -155,7 +155,7 @@ function Editor({ session }: { session: Session }) {
     {editor.check.error.value ? <p role="alert">{problemText(editor.check.error.value, 'ロールを検査できませんでした')}</p> : null}
     {model.error.value ? <p role="alert">{model.error.value}</p> : null}
     </div>
-    <footer class="prose-foot"><div class="prose-save">
+    {ctx?.state !== 'missing' ? <footer class="prose-foot"><div class="prose-save">
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
       {model.ok.value ? <span role="status">保存しました</span> : null}
     </div><div class="prose-actions">
@@ -166,6 +166,6 @@ function Editor({ session }: { session: Session }) {
       {ctx.scanned.length ? <p>確認できた範囲: {ctx.scanned.join('、')}</p> : null}
       {other.length ? <ul>{other.map((u) => <li>{u.project_name} / {u.name}（{u.place === 'global' ? 'グローバル' : 'プロジェクト'}）: {u.members.join('、')}</li>)}</ul> : <p>確認できた範囲では、ほかに使うチーム定義はありません。</p>}
     </details> : null}
-</footer>
+</footer> : null}
   </section>;
 }

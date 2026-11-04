@@ -26,7 +26,7 @@ type r2Reading struct {
 
 // r2Row is one role name and the documents behind it: the project's, the
 // global one, or both. A name no layer holds a document for keeps its row and
-// offers to make one (W8); a name whose document is still Markdown carries the
+// offers to make one (W8); a name whose document is still legacy YAML carries the
 // sentence that says so instead of a panel (設計 1.2.10).
 type r2Row struct {
 	UID      int    `json:"uid"`
@@ -78,9 +78,9 @@ func (s *Server) r2ReadingOf() r2Reading {
 				row.Global = s.r2Read(entry.UnusedPath)
 			}
 		default:
-			// A member names this role and no layer holds a .yaml for it. A
-			// document still left as Markdown is named as such, and hergy does
-			// not write over it: the team-building skill moves it over.
+			// A member names this role and no layer holds a .md for it. A
+			// legacy YAML document is named as such, and hergy does not write
+			// over it: hergy migrate converts it explicitly.
 			if md, ok := s.cat.LegacyRole(entry.Name); ok {
 				row.Name = entry.Name
 				row.Markdown = tf("error.role_markdown", entry.Name, s.cat.Display(md.Path))

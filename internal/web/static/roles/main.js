@@ -45,7 +45,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-6d1ddyhw.js";
+} from "../chunk/nav-cc18n8gp.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -1542,6 +1542,19 @@ function groupHeader(g) {
 function Role({ r }) {
   const open = filtering() || state.value.open.has(r.uid);
   const el = A(null);
+  const wasOpen = A(false);
+  h(() => {
+    if (open && !wasOpen.current && !filtering()) {
+      const frame = requestAnimationFrame(() => {
+        const top = document.querySelector(".bar")?.offsetHeight || 0;
+        if (el.current)
+          window.scrollBy({ top: el.current.getBoundingClientRect().top - top, behavior: "instant" });
+      });
+      wasOpen.current = open;
+      return () => cancelAnimationFrame(frame);
+    }
+    wasOpen.current = open;
+  }, [open]);
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.uid !== r.uid || !el.current)
@@ -1915,7 +1928,9 @@ function Panel({ r, l }) {
             kind: "ロール",
             name: row.draft.name || "新しいロール",
             title: row.draft.title,
-            path: `${placeLabel} · ${pathOfRow(r, l, d)}`,
+            compact: true,
+            path: `${placeLabel} · roles/${d.name}.md`,
+            fullPath: pathOfRow(r, l, d),
             state: (n ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : ""),
             members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
           },

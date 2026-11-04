@@ -45,8 +45,7 @@ func (c *Catalog) HoldsDefinition(name, layer string) bool {
 }
 
 // HoldsRole reports whether one layer holds a role document of this name: the
-// .yaml hergy reads, or a .md still left as Markdown (which the roles list shows
-// as a row that says so).
+// .md hergy reads, or a legacy .yaml awaiting explicit migration.
 func (c *Catalog) HoldsRole(name, layer string) bool {
 	dir := c.LayerDir(layer)
 	return c.hasFile(filepath.Join(dir, "roles", name+".yaml")) ||

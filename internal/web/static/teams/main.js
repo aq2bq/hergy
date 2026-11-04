@@ -42,7 +42,6 @@ import {
   num,
   Measure,
   chars,
-  ProseHeader,
   clone2,
   fromJSON2,
   toDoc2,
@@ -51,7 +50,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-6d1ddyhw.js";
+} from "../chunk/nav-cc18n8gp.js";
 import {
   st,
   token2,
@@ -259,9 +258,13 @@ function Editor({ session }) {
         children: [
           !e || ctx?.state !== "readable" ? /* @__PURE__ */ u(S, {
             children: [
-              /* @__PURE__ */ u(ProseHeader, {
-                heading,
-                text: ""
+              /* @__PURE__ */ u("h2", {
+                id: heading.id,
+                tabIndex: -1,
+                children: [
+                  "ロール ",
+                  session.name
+                ]
               }),
               /* @__PURE__ */ u("div", {
                 class: "prose-unavailable",
@@ -348,7 +351,7 @@ function Editor({ session }) {
           }) : null
         ]
       }),
-      /* @__PURE__ */ u("footer", {
+      ctx?.state !== "missing" ? /* @__PURE__ */ u("footer", {
         class: "prose-foot",
         children: [
           /* @__PURE__ */ u("div", {
@@ -419,7 +422,7 @@ function Editor({ session }) {
             ]
           }) : null
         ]
-      })
+      }) : null
     ]
   });
 }
@@ -4939,7 +4942,7 @@ function Row({ r }) {
   const el = A(null);
   const wasOpen = A(false);
   h(() => {
-    if (open && !wasOpen.current)
+    if (open && !wasOpen.current && dtabOf(r) !== "agree")
       bringUnderBand(el.current);
     wasOpen.current = open;
   }, [open]);
@@ -5704,17 +5707,30 @@ function AgreePanel({ r }) {
   const mode = pmodeOf(r);
   const board = A(null);
   h(() => {
+    const node = board.current;
+    if (!node)
+      return;
+    const bar = document.querySelector(".bar");
+    const summary = node.closest(".tdef")?.querySelector(":scope > .sum");
     const fit = () => {
-      const node = board.current;
-      if (node)
-        node.style.setProperty("--prose-height", `${Math.max(420, window.innerHeight - Math.max(60, node.getBoundingClientRect().top) - 12)}px`);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      node.style.setProperty("--prose-height", `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
-    fit();
+    const frame = requestAnimationFrame(() => {
+      fit();
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: "instant" });
+    });
+    const observer = new ResizeObserver(fit);
+    if (bar)
+      observer.observe(bar);
+    if (summary)
+      observer.observe(summary);
     window.addEventListener("resize", fit);
-    window.addEventListener("scroll", fit, { passive: true });
     return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
       window.removeEventListener("resize", fit);
-      window.removeEventListener("scroll", fit);
     };
   }, []);
   return /* @__PURE__ */ u("div", {

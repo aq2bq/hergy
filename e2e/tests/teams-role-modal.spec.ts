@@ -34,7 +34,7 @@ test('saving a shared role writes only its actual file and another team reads it
   const text = '# 共有の設計担当\n全文を更新する。\n';
   await column.getByRole('textbox', { name: '散文の全文' }).fill(text);
   await column.getByRole('button', { name: '保存', exact: true }).click();
-  await expect(column.getByRole('status')).toHaveText('保存しました');
+  await expect(column.locator('footer').getByRole('status')).toHaveText('保存しました');
   expect(readFileSync(file, 'utf8')).toBe(text);
   expect([readFileSync(team, 'utf8'), readFileSync(agree, 'utf8')]).toEqual(before);
   await page.goto(`${app.base}/teams?open=migrate&agree=migrate`); await ready(page);
@@ -70,7 +70,7 @@ test('the team budget warns on prose plus template while roles count their own t
   await team.getByRole('textbox', { name: '散文の全文' }).fill('文'.repeat(1150));
   await expect(team.locator('.prose-budget .v')).toHaveText('1,250 / 1,200 字');
   await expect(team.locator('.prose-budget .amt')).toHaveClass(/over/);
-  await expect(team.locator('.prose-detail')).toHaveText('内訳: 散文 1,150 字・ひな形 100 字');
+  await expect(team.locator('.prose-budget')).toHaveAttribute('title', '内訳: 散文 1,150 字・ひな形 100 字');
   await expect(team.locator('.prose-budget .v')).toHaveCount(1);
   await team.getByRole('textbox', { name: '散文の全文' }).fill('文'.repeat(1100));
   await expect(team.locator('.prose-budget .amt')).not.toHaveClass(/over/);
@@ -91,7 +91,7 @@ test('caret movement updates the block count, blur clears it, and outline keeps 
   await expect(column.locator('.prose-current')).toHaveText('入力位置: Two（10 字）');
   const frame = await input.boundingBox();
   await column.getByRole('button', { name: '見出しだけ', exact: true }).click();
-  await expect(column.locator('.prose-current')).toHaveText('');
+  await expect(column.locator('.prose-current')).toHaveCount(0);
   await expect(column.getByRole('button', { name: '見出しだけ', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const outline = column.locator('.prose-outline');
   await expect.poll(() => outline.boundingBox()).toEqual(frame);
@@ -110,6 +110,25 @@ test('a missing role explains the next action outside collapsed details', async 
   const column = page.locator('.role-column').filter({ has: page.getByRole('heading', { name: /builder/ }) });
   await expect(column.getByRole('alert')).toHaveText('builder の文書がありません。');
   await expect(column.getByRole('link', { name: 'ロールの画面で作る' })).toBeVisible();
-  await expect(column.locator('details')).not.toHaveAttribute('open', '');
-  await expect(column.locator('.role-usage')).not.toContainText('確認できた範囲:');
+  await expect(column.locator('.prose-budget, footer, details')).toHaveCount(0);
+  await expect(column.getByRole('link')).toHaveCount(1);
+});
+
+test('opening prose allocates a stable viewport below the real band and keeps save visible', async ({ page, app }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+  const board = page.locator('.prose-board');
+  const input = board.locator('.agree-p textarea');
+  await expect.poll(async () => (await input.boundingBox())!.height).toBeGreaterThan(465);
+  const before = (await board.boundingBox())!;
+  const height = (await input.boundingBox())!.height;
+  expect(before.y).toBeGreaterThan(80);
+  expect(before.y + before.height).toBeLessThanOrEqual(900);
+  await input.hover();
+  await page.mouse.wheel(0, 700);
+  await expect.poll(async () => (await input.boundingBox())!.height).toBe(height);
+  await expect.poll(async () => (await board.boundingBox())!.y).toBe(before.y);
+  await expect(board.locator('.role-dialog-body').first()).toHaveCSS('overflow', 'hidden');
+  const save = board.locator('.agree-p').getByRole('button', { name: '保存', exact: true });
+  await expect.poll(async () => { const b = (await save.boundingBox())!; return b.y + b.height; }).toBeLessThanOrEqual(900);
 });

@@ -117,7 +117,7 @@ function Row({ r }: { r: Rec }) {
   const el = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
-    if (open && !wasOpen.current) bringUnderBand(el.current);
+    if (open && !wasOpen.current && dtabOf(r) !== 'agree') bringUnderBand(el.current);
     wasOpen.current = open;
   }, [open]);
   useEffect(() => {
@@ -473,14 +473,24 @@ function AgreePanel({ r }: { r: Rec }) {
   const mode = pmodeOf(r);
   const board = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const node = board.current;
+    if (!node) return;
+    const bar = document.querySelector<HTMLElement>('.bar');
+    const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum');
     const fit = () => {
-      const node = board.current;
-      if (node) node.style.setProperty('--prose-height', `${Math.max(420, window.innerHeight - Math.max(60, node.getBoundingClientRect().top) - 12)}px`);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      node.style.setProperty('--prose-height', `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
-    fit();
+    const frame = requestAnimationFrame(() => {
+      fit();
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: 'instant' });
+    });
+    const observer = new ResizeObserver(fit);
+    if (bar) observer.observe(bar);
+    if (summary) observer.observe(summary);
     window.addEventListener('resize', fit);
-    window.addEventListener('scroll', fit, { passive: true });
-    return () => { window.removeEventListener('resize', fit); window.removeEventListener('scroll', fit); };
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, []);
   return (
     <div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
