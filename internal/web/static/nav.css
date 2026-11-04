@@ -50,16 +50,16 @@
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   background: var(--bg);
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
-  padding-block: 14px 12px;
+  padding-block: 40px 12px;
 }
 /* The pages carry their own link rules; the band uses color and a focus
    outline for the logo, so its links do not inherit page underlines. */
 .bar a { text-decoration: none; }
-.crumb { font-family: var(--f-mono); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
-.crumb .mark { color: var(--ink); display: flex; align-items: center; align-self: center; flex: none; height: 30px; border-radius: 2px; }
+.crumb { font-family: var(--f-mono); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.crumb .mark { color: var(--ink); display: flex; align-items: center; align-self: center; flex: none; height: 81px; margin-block: -36px -8px; border-radius: 2px; }
 .crumb .mark:hover { color: var(--accent); }
-/* Center the taller artwork in the existing crumb height, keeping the band unchanged. */
-.brand-logo { display: block; flex: none; width: 62.88px; height: 36px; stroke: currentColor; }
+/* Reserve the tall ascender above the row; center controls on the robot face. */
+.brand-logo { display: block; flex: none; width: 115.02px; height: 81px; stroke: currentColor; }
 .brand-logo path { stroke-width: 1px; vector-effect: non-scaling-stroke; }
 :root { --logo-antenna: #c3482b; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --logo-antenna: #f38d70; } }
@@ -96,12 +96,15 @@
 .gone { color: var(--muted); padding-block: 24px; }
 
 @media (max-width: 760px) {
-  .bar { gap: 8px; padding-block: 10px; }
+  .bar { gap: 8px; padding-block: 36px 10px; }
   .crumb { width: 100%; }
+  .crumb .mark { margin-block: -32px -4px; }
   .screens { width: 100%; display: grid; grid-template-columns: repeat(4, auto); }
   .scr { justify-content: center; padding: 6px 8px; gap: 6px; font-size: 13.5px; }
 }
 @media (max-width: 420px) {
+  /* Keep the project button on this row while its text wraps. */
+  .crumb .hq-pbtn { min-width: 0; white-space: normal; }
   .screens { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   .scr .wait { padding: 0 4px; }
   .scr { font-size: 13px; padding: 6px 4px; }
