@@ -65,7 +65,7 @@ In the definition editor, use 名前を変更 to save its name separately. Save 
 
 ## Editing a role while editing a team definition
 
-Open ロールを確認・編集 from the member attributes. This moves to the role’s rules column beside the team agreement. Edit the raw Markdown and save the role document alone; saving refreshes the team checks and prompt while preserving team drafts and selection. The file place and known usages stay visible. Usage is matched to the actual file across registered projects, with the confirmed scope shown; a failed usage read disables saving. A global definition opens the same global role its displayed prompt reads, and explains that a same-named project role takes precedence when running there. Missing or unreadable documents explain the problem and link to /roles. Rename, copy, duplicate and delete remain on /roles. The scoped link to /roles carries the team draft like the screen band does.
+Open ロールを確認・編集 from the member attributes. This moves to the role’s rules column beside the team agreement. Edit the raw Markdown and save the role document alone; saving refreshes the team checks and prompt while preserving team drafts and selection. The file place and known usages stay visible. Usage is matched to the actual file across registered projects, with the confirmed scope shown; a failed usage read disables saving. A global definition opens the same global role its displayed prompt reads. Missing or unreadable documents explain the problem and link to /roles. Rename, copy, duplicate and delete remain on /roles. The scoped link to /roles carries the team draft like the screen band does.
 
 ## The web UI
 
