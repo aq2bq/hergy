@@ -11,7 +11,7 @@ const logoLayout = (page: Page) => page.locator('.bar').evaluate(bar => {
   const band = bar.getBoundingClientRect(), mark = bar.querySelector('.mark')!.getBoundingClientRect();
   const robot = bar.querySelector('.logo-robot')!.getBoundingClientRect();
   const faceCenter = (robot.top + robot.bottom) / 2;
-  const others = [...bar.querySelectorAll('.crumb > :not(.mark), .screens, .hq-search, .apl-bandbtn')].filter(el => el.getClientRects().length > 0).map(el => el.getBoundingClientRect());
+  const others = [...bar.querySelectorAll('.crumb > :not(.mark), .screens, .hq-search, .apl-bandbtn, .theme-trigger')].filter(el => el.getClientRects().length > 0).map(el => el.getBoundingClientRect());
   return {
     height: line.bottom - line.top, ratio: (line.right - line.left) / (line.bottom - line.top), bandHeight: band.height,
     inset: Math.min(line.left - band.left, line.top - band.top, band.right - line.right, band.bottom - line.bottom),
@@ -43,13 +43,16 @@ for (const reads of ['teams', 'hq'] as const) {
             await expect(logo).toHaveAttribute('href', '/');
             await expect(logo.locator('[style]')).toHaveCount(0);
             await page.keyboard.press('Tab'); await expect(logo).toBeFocused();
+            // The 34px theme button reserves 46px: the long project action
+            // in this fixture gains one 22px line at 375px. Logo bounds stay fixed.
+            const bandMin = reads === 'teams' && width === 375 ? 192 : baselineHeight[width];
             await expect.poll(async () => {
               const layout = await logoLayout(page);
               return {
                 size: layout.height >= 72 && layout.height <= 83,
                 ratio: layout.ratio >= (48.89 / 34.43) * .95 && layout.ratio <= (48.89 / 34.43) * 1.05,
-                band: layout.bandHeight >= baselineHeight[width]
-                  && layout.bandHeight <= baselineHeight[width] + (width <= 760 ? 50 : 30),
+                band: layout.bandHeight >= bandMin
+                  && layout.bandHeight <= bandMin + (width <= 760 ? 50 : 30),
                 inset: layout.inset >= 2, gap: layout.gap >= 8 && layout.gap <= 16,
                 focus: layout.contained, clear: !layout.overlaps, parts: layout.partsContained, aligned: layout.centerDelta <= 2,
               };

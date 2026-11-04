@@ -130,3 +130,25 @@ button.chev { padding:0; min-width:14px; min-height:24px; }
 .sum button.chev.disclosure { width:24px; height:24px; min-width:24px; border:0; transform:none; display:grid; place-items:center; }
 button.chev.disclosure::before { content:""; width:8px; height:8px; border-right:2px solid var(--faint); border-bottom:2px solid var(--faint); transform:rotate(-45deg); }
 button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); border-color:var(--ink); }
+
+/* Reserve the right edge even when search and screen links wrap. */
+.bar { padding-right: 46px; }
+.theme-control { position: absolute; top: 40px; right: 0; z-index: 10; }
+.theme-control button { font: inherit; cursor: pointer; color: var(--ink); }
+.theme-control svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.theme-trigger { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.theme-trigger:disabled { opacity: .4; cursor: default; }
+.theme-trigger svg { display: none; }
+.theme-trigger[data-mode="light"] [data-icon="light"], .theme-trigger[data-mode="dark"] [data-icon="dark"], .theme-trigger[data-mode="system"] [data-icon="system"] { display: block; }
+.theme-panel { position: absolute; top: 42px; right: 0; width: 220px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: 0 6px 18px #0002; }
+.theme-panel [role="menuitemradio"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 3px; background: transparent; text-align: left; font-size: 13px; }
+.theme-panel [aria-checked="true"] { color: var(--accent); background: var(--accent-soft); }
+.theme-check { margin-left: auto; visibility: hidden; }
+.theme-panel [aria-checked="true"] .theme-check { visibility: visible; }
+.theme-control button:hover { background: var(--bg); }
+.theme-control button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-notice { margin: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .crumb { position: relative; }
+  .theme-control { top: 50%; right: -46px; transform: translateY(-50%); }
+}

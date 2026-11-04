@@ -4,7 +4,7 @@
 //	go run ./tools/check webbuild -write    write them again
 //
 // The entries are not a list kept here: they are the files the templates load
-// (`<script type="module" src="/static/…">`), so a screen a template names is
+// (module scripts and the synchronous theme initializer), so each entry is
 // built without this file being touched, and a template that names a file src
 // does not hold stops the build rather than leaving a page that loads nothing.
 //
@@ -76,6 +76,8 @@ if (entries.size === 0) {
 const where = process.env.HERGY_WEB_OUT || staticDir;
 // The entry points are named relative to src/, so bun writes each one back to
 // the path the template loads it at: activity/main.js, lib/hq/run.js and so on.
+const boot = entries.get('lib/theme-init.js');
+entries.delete('lib/theme-init.js');
 const entrypoints = [...entries.values()].map((path) => relative(src, path).split(sep).join('/'));
 
 const built = await Bun.build({
@@ -92,6 +94,18 @@ const built = await Bun.build({
 if (!built.success) {
   for (const log of built.logs) console.error(log);
   process.exit(1);
+}
+
+// The initializer must run before parsing stylesheets, without module deferral.
+const outputs = [...built.outputs];
+if (boot) {
+  const init = await Bun.build({ entrypoints: [boot], outdir: join(where, 'lib'),
+    format: 'iife', target: 'browser', splitting: false, minify: false });
+  if (!init.success) {
+    for (const log of init.logs) console.error(log);
+    process.exit(1);
+  }
+  outputs.push(...init.outputs);
 }
 
 // The licence of every package whose code a file carries travels with it: the
@@ -120,7 +134,7 @@ const note = (s) => s.split('\n').map((l) => (l === '' ? '//' : '// ' + l)).join
 // Written after the build, so what was built is what is read: the files are the
 // ones bun wrote, and a comment says where they came from and what they carry.
 let written = 0;
-for (const output of built.outputs) {
+for (const output of outputs) {
   const code = (await output.text()).trimEnd();
   const packages = [];
   for (const line of code.split('\n')) {

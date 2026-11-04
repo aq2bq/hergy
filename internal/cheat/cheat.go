@@ -268,6 +268,8 @@ Settings files and their keys:
 
 Rule documents:
   In the team screen’s rules tab, switch to headings and use a heading’s ⋯ menu to choose another team or role, an insertion position, and whether to include child headings. Drag the grip to another column to move; hold Alt (⌥ on Mac) when dropping to copy, or Shift (⇧ on Mac) when starting the drag to include children. The selected text stays unchanged; a missing blank line at the insertion boundary is supplied. Review the drafts and undo before saving. Moves save the destination first; if saving the source fails, the screen says the text remains in both files. Use Narrow or Wide in a column header, and the board’s Equal button to restore all columns to equal widths. Wide uses a minimum of 480px and twice the normal column’s growth rate; scroll within the board to reach columns that do not fit. The team and role screens use the window width for both the header and content. Activity and profiles keep their width limit, so the header width changes between screens.
+
+  Choose Light, Dark, or Follow OS at the top right. The preference stays in the same browser for the same host and port, across all four screens and projects. Different hostnames (including localhost versus 127.0.0.1), ports, and browsers do not share it. If browser storage cannot be read or written, the screens follow the OS and explain why. No hergy configuration file is changed.
   roles/<role>.md and teams/<definition>/agreement.md hold complete Markdown text.
   Saved text is inserted unchanged into %{role_doc} and %{docs}; placeholders inside rules are not expanded again.
   The roster includes the short member name, the first-line title, role name, herdr contact and the self marker.
