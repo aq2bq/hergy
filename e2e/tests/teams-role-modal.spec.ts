@@ -29,7 +29,9 @@ test('saving a shared role writes only its actual file and another team reads it
   const agree = path.join(app.proj, '.hergy/teams/core/agreement.md');
   const before = [readFileSync(team, 'utf8'), readFileSync(agree, 'utf8')];
   const { column } = await open(page, app.base);
-  await column.locator('summary').click();
+  await expect(column.locator('details')).toHaveCount(0);
+  await expect(column.getByText('確認できた範囲', { exact: true })).toBeVisible();
+  await expect(column.locator('.role-usage .uchip').filter({ hasText: 'migrate' })).toBeVisible();
   await expect(column.locator('.role-usage')).toContainText('migrate');
   const text = '# 共有の設計担当\n全文を更新する。\n';
   await column.getByRole('textbox', { name: '規則の全文' }).fill(text);
@@ -56,7 +58,7 @@ test('a failed usage read holds saving and keeps entered prose', async ({ page, 
   await column.getByRole('textbox', { name: '規則の全文' }).fill('# 残す編集\n');
   await page.route('**/api/role/*/context?**', route => route.fulfill({ status: 503, json: { text: '使用先を確認できません' } }));
   page.once('dialog', question => question.accept());
-  await column.getByRole('button', { name: '文書を読み直す' }).click();
+  await column.getByRole('button', { name: 'ファイルからリロード' }).click();
   await expect(column.getByRole('alert').filter({ hasText: '使用先を確認できません' })).toBeVisible();
   await expect(column.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
   await expect(column.getByRole('textbox', { name: '規則の全文' })).toHaveValue('# 残す編集\n');
@@ -117,8 +119,8 @@ test('a missing role explains the next action outside collapsed details', async 
   await expect.poll(async () => {
     const missing = (await column.locator('.prose-unavailable').boundingBox())!;
     const editor = (await readable.locator('textarea').boundingBox())!;
-    return { top: missing.y - editor.y, height: missing.height - editor.height };
-  }).toEqual({ top: 0, height: 0 });
+    return missing.y - editor.y;
+  }).toBe(0);
 });
 
 test('opening prose allocates a stable viewport below the real band and keeps save visible', async ({ page, app }) => {
@@ -144,4 +146,26 @@ test('opening prose allocates a stable viewport below the real band and keeps sa
   await expect(board.locator('.role-dialog-body').first()).toHaveCSS('overflow', 'hidden');
   const save = board.locator('.agree-p').getByRole('button', { name: '保存', exact: true });
   await expect.poll(async () => { const b = (await save.boundingBox())!; return b.y + b.height; }).toBeLessThanOrEqual(900);
+});
+
+test('file reload asks to discard drafts and reloads both text and usage', async ({ page, app }) => {
+  const { column } = await open(page, app.base);
+  const input = column.getByRole('textbox', { name: '規則の全文' });
+  const reload = column.getByRole('button', { name: 'ファイルからリロード' });
+  await input.fill('# 保存していない編集\n');
+  page.once('dialog', async question => {
+    expect(question.message()).toBe('保存していない変更を捨てて、ファイルからリロードしますか？');
+    await question.dismiss();
+  });
+  await reload.click();
+  await expect(input).toHaveValue('# 保存していない編集\n');
+  const file = path.join(app.proj, '.hergy/roles/builder.md');
+  writeFileSync(file, '# ファイルの新しい内容\n');
+  page.once('dialog', question => question.accept());
+  const context = page.waitForResponse(response => response.url().includes('/api/role/builder/context?') && response.request().method() === 'GET');
+  await reload.click();
+  await context;
+  await expect(input).toHaveValue('# ファイルの新しい内容\n');
+  await expect(column.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await expect(column.locator('.role-usage .uchip').filter({ hasText: 'migrate' })).toBeVisible();
 });

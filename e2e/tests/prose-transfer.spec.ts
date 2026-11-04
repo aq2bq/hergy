@@ -84,7 +84,7 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await expect(row.locator('.prose-drag-hint')).toBeVisible();
  await expect(row.locator('.prose-drag-hint')).toContainText('行の左の ⠿');
  await expect(role.getByRole('link', { name: 'ロールの画面で開く' }).locator('svg')).toBeVisible();
- await expect(role.getByRole('button', { name: '文書を読み直す' }).locator('svg')).toBeVisible();
+ await expect(role.getByRole('button', { name: 'ファイルからリロード' }).locator('svg')).toBeVisible();
  await expect(role.locator('.prose-width .btn').first()).toHaveCSS('padding-left', '4px');
  await expect.poll(async () => { const reset = await row.getByRole('button', { name: '均等', exact: true }).boundingBox(); return reset!.x + reset!.width <= 1440; }).toBe(true);
  await expect(role.locator('.prose-heading-link').first()).toHaveCSS('white-space', 'nowrap');

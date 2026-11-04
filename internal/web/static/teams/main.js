@@ -216,7 +216,7 @@ function Editor({ session }) {
   }, [session]);
   const { editor, entry } = model;
   const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
-  const canClose = () => !editor.saving.value && (!dirty() || window.confirm("ロールに保存していない変更があります。変更を破棄して閉じますか？"));
+  const canDiscard = (message) => !editor.saving.value && (!dirty() || window.confirm(message));
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;
     if (!e || !ctx)
@@ -269,7 +269,7 @@ function Editor({ session }) {
         doc: toDoc2(e.draft, e.saved)
       });
       if (!answer.json)
-        throw new Error("保存の結果を読めませんでした。文書を読み直してください");
+        throw new Error("保存の結果を読めませんでした。ファイルからリロードしてください");
       const saved = fromJSON2(answer.json.doc);
       entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
       model.conflict.value = null;
@@ -313,7 +313,7 @@ function Editor({ session }) {
   if (model.project)
     query.set("project", model.project);
   function leave(event) {
-    if (!canClose())
+    if (!canDiscard("ロールに保存していない変更があります。変更を破棄して閉じますか？"))
       event.preventDefault();
     else
       carryTo2("roles", model.project);
@@ -390,7 +390,7 @@ function Editor({ session }) {
           }) : null,
           model.target.value && ctx && model.target.value.path !== ctx.path ? /* @__PURE__ */ u("p", {
             role: "alert",
-            children: "使われるロールの置き場所が変わりました。文書を読み直してください。"
+            children: "使われるロールの置き場所が変わりました。ファイルからリロードしてください。"
           }) : null,
           e && ctx?.state === "readable" ? /* @__PURE__ */ u("fieldset", {
             disabled: editor.saving.value || !model.baseline.value,
@@ -481,11 +481,11 @@ function Editor({ session }) {
               }),
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
-                title: "文書を読み直す",
-                "aria-label": "文書を読み直す",
+                title: "ファイルからリロード",
+                "aria-label": "ファイルからリロード",
                 disabled: editor.saving.value,
                 onClick: () => {
-                  if (canClose())
+                  if (canDiscard("保存していない変更を捨てて、ファイルからリロードしますか？"))
                     load();
                 },
                 children: [
@@ -497,42 +497,51 @@ function Editor({ session }) {
                     })
                   }),
                   /* @__PURE__ */ u("span", {
-                    children: "文書を読み直す"
+                    children: "ファイルからリロード"
                   })
                 ]
               })
             ]
           }),
-          ctx ? /* @__PURE__ */ u("details", {
+          ctx ? /* @__PURE__ */ u("div", {
             class: "role-usage",
             children: [
-              /* @__PURE__ */ u("summary", {
-                children: "保存先と影響するチーム"
-              }),
-              ctx.place === "global" ? /* @__PURE__ */ u("p", {
-                children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
-              }) : null,
-              ctx.scanned.length ? /* @__PURE__ */ u("p", {
+              ctx.scanned.length ? /* @__PURE__ */ u("div", {
+                class: "usage",
                 children: [
-                  "確認できた範囲: ",
-                  ctx.scanned.join("、")
+                  /* @__PURE__ */ u("span", {
+                    class: "lbl",
+                    children: "確認できた範囲"
+                  }),
+                  ctx.scanned.map((name) => /* @__PURE__ */ u("span", {
+                    class: "uchip",
+                    children: name
+                  }))
                 ]
               }) : null,
-              other.length ? /* @__PURE__ */ u("ul", {
-                children: other.map((u2) => /* @__PURE__ */ u("li", {
-                  children: [
-                    u2.project_name,
-                    " / ",
-                    u2.name,
-                    "（",
-                    u2.place === "global" ? "グローバル" : "プロジェクト",
-                    "）: ",
-                    u2.members.join("、")
-                  ]
-                }))
-              }) : /* @__PURE__ */ u("p", {
-                children: "確認できた範囲では、ほかに使うチーム定義はありません。"
-              })
+              other.length ? /* @__PURE__ */ u("div", {
+                class: "usage",
+                children: [
+                  /* @__PURE__ */ u("span", {
+                    class: "lbl",
+                    children: "使っているチーム"
+                  }),
+                  other.flatMap((u2) => u2.members.map((member) => /* @__PURE__ */ u("span", {
+                    class: "uchip",
+                    children: [
+                      /* @__PURE__ */ u("span", {
+                        class: "g",
+                        children: [
+                          u2.project_name,
+                          ": ",
+                          u2.name
+                        ]
+                      }),
+                      member
+                    ]
+                  })))
+                ]
+              }) : null
             ]
           }) : null
         ]

@@ -63,7 +63,7 @@ function Editor({ session }: { session: Session }) {
   }, [session]);
   const { editor, entry } = model;
   const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
-  const canClose = () => !editor.saving.value && (!dirty() || window.confirm('ロールに保存していない変更があります。変更を破棄して閉じますか？'));
+  const canDiscard = (message: string) => !editor.saving.value && (!dirty() || window.confirm(message));
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;
     if (!e || !ctx) return;
@@ -104,7 +104,7 @@ function Editor({ session }: { session: Session }) {
         original: session.name, role_context: model.global ? 'global' : 'project',
         hash: over || e.hash, doc: toDoc(e.draft, e.saved),
       });
-      if (!answer.json) throw new Error('保存の結果を読めませんでした。文書を読み直してください');
+      if (!answer.json) throw new Error('保存の結果を読めませんでした。ファイルからリロードしてください');
       const saved = fromJSON(answer.json.doc);
       entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
       model.conflict.value = null; model.ok.value = true;
@@ -132,7 +132,7 @@ function Editor({ session }: { session: Session }) {
   const other = ctx?.uses.filter((u) => !(u.name === session.r.name.value && u.place === session.r.place.value && (u.place === 'global' || u.project === model.project))) || [];
   const query = new URLSearchParams({ open: session.name + '|' + (ctx?.place === 'global' ? 'global' : (model.project || '')) });
   if (model.project) query.set('project', model.project);
-  function leave(event: MouseEvent) { if (!canClose()) event.preventDefault(); else carryTo('roles', model.project); }
+  function leave(event: MouseEvent) { if (!canDiscard('ロールに保存していない変更があります。変更を破棄して閉じますか？')) event.preventDefault(); else carryTo('roles', model.project); }
   const transfer: TransferSource | undefined = e && ctx?.state === 'readable' ? {
     id: documentID('role', session.name, ctx.place, model.project || CURRENT),
     label: `ロール ${session.name}（${ctx.place === 'global' ? 'グローバル' : model.project || CURRENT}）`,
@@ -154,7 +154,7 @@ function Editor({ session }: { session: Session }) {
     {ctx?.errors.map((text) => <p role="alert">{text}</p>)}
     {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, 'ロールと使用先を読み込めませんでした')}</p> : null}
     {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
-    {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。文書を読み直してください。</p> : null}
+    {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。ファイルからリロードしてください。</p> : null}
     {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc transfer={transfer} hasName={false} heading={heading}
       row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] }}
       issues={issues} onChange={() => { entry.value = { ...e, draft: structuredClone(e.draft) }; model.ok.value = false; void check(); }} /></div></fieldset> : null}
@@ -170,12 +170,11 @@ function Editor({ session }: { session: Session }) {
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
     </div><div class="prose-actions">
       <a class="btn sm" title="ロールの画面で開く" aria-label="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>ロールの画面で開く</span></a>
-      <button class="btn sm" title="文書を読み直す" aria-label="文書を読み直す" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>文書を読み直す</span></button></div>
-    {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
-      {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
-      {ctx.scanned.length ? <p>確認できた範囲: {ctx.scanned.join('、')}</p> : null}
-      {other.length ? <ul>{other.map((u) => <li>{u.project_name} / {u.name}（{u.place === 'global' ? 'グローバル' : 'プロジェクト'}）: {u.members.join('、')}</li>)}</ul> : <p>確認できた範囲では、ほかに使うチーム定義はありません。</p>}
-    </details> : null}
+      <button class="btn sm" title="ファイルからリロード" aria-label="ファイルからリロード" disabled={editor.saving.value} onClick={() => { if (canDiscard('保存していない変更を捨てて、ファイルからリロードしますか？')) void load(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>ファイルからリロード</span></button></div>
+    {ctx ? <div class="role-usage">
+      {ctx.scanned.length ? <div class="usage"><span class="lbl">確認できた範囲</span>{ctx.scanned.map((name) => <span class="uchip">{name}</span>)}</div> : null}
+      {other.length ? <div class="usage"><span class="lbl">使っているチーム</span>{other.flatMap((u) => u.members.map((member) => <span class="uchip"><span class="g">{u.project_name}: {u.name}</span>{member}</span>))}</div> : null}
+    </div> : null}
 </footer> : null}
   </section>;
 }

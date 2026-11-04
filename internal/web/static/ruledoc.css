@@ -74,9 +74,11 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-save .btn, .prose-actions .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; box-sizing: border-box; text-decoration: none; margin: 0; }
 .prose-save .btn:first-child { margin-right: auto; }
 .prose-actions .btn { flex: 1; min-width: 0; white-space: nowrap; padding-inline: 6px; }
-.prose-column .role-usage { font-size: 11px; color: var(--muted); max-height: 130px; overflow: auto; }
-.prose-column .role-usage p { margin: 6px 0; }
-.prose-column .role-usage code { overflow-wrap: anywhere; }
+.prose-column .role-usage { font-size: 12px; color: var(--muted); max-height: 130px; overflow: auto; }
+.prose-column .role-usage .usage + .usage { margin-top: 6px; }
+.prose-column .role-usage .uchip { cursor: default; font-family: var(--f-mono); overflow-wrap: anywhere; min-width: 0; flex-wrap: wrap; }
+.prose-column .role-usage .uchip:hover { border-color: var(--line); }
+.prose-column .role-usage .g { color: var(--faint); }
 /* Keep the absent document's identity and frame aligned with readable columns.
    The normal head is 22 + 3×18 + 24 + 26px; the action area is 100px. */
 .prose-head-unavailable { height: 126px; }
