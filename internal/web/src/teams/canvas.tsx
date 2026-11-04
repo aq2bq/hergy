@@ -54,7 +54,9 @@ function fitFigure(main: HTMLElement, r: Rec, f: { vw: number; vh: number }): vo
   let scale = Math.min(1, across / f.vw, room / f.vh);
   if (scale < MIN_SCALE && !r.wide.value) { setWide(r); return; }
   scale = Math.max(MIN_SCALE, scale);
-  const w = `${Math.round(f.vw * scale)}px`, h = `${Math.round(f.vh * scale)}px`;
+  // Integer pixels must not cross the readable floor, even just above it.
+  const w = `${Math.max(Math.round(f.vw * scale), Math.ceil(f.vw * MIN_SCALE))}px`;
+  const h = `${Math.max(Math.round(f.vh * scale), Math.ceil(f.vh * MIN_SCALE))}px`;
   if (svg.style.width !== w || svg.style.height !== h) { svg.style.width = w; svg.style.height = h; }
 }
 

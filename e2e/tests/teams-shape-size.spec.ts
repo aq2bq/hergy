@@ -5,11 +5,11 @@
 // whole figure and the check column under it are in the window after the row is
 // opened, without the person scrolling. The letters stay readable (a member's
 // name is 11px or more), and the figure is never drawn larger than its own units.
-import { test } from './fixtures';
-import type { Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Locator, Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, readTo, wait } from './helpers';
+import { ready } from './helpers';
 
 test.use({ reads: 'teams' });
 
@@ -64,51 +64,46 @@ function writeEight(proj: string): void {
 // shape is one open row's figure as a person sees it: the multiplier it is
 // drawn at (drawn width ÷ its own units), the member name's pixels on the
 // screen, and where the figure, the save's band and the check column stand.
-const shape = (name: string) => `(function(){
-  var row=document.querySelector('.tdef[data-name=${JSON.stringify(name)}]');
-  if(!row) return null;
-  var svg=row.querySelector('.panel.team-p .cv-canvas svg');
-  if(!svg) return null;
-  var box=svg.getBoundingClientRect(), vw=Number(svg.dataset.vw), vh=Number(svg.dataset.vh);
-  var foot=row.querySelector('.panel.team-p footer.pf');
-  var head=row.querySelector('.panel.team-p .vlist .vhead');
-  var nm=row.querySelector('.cv-n.member .nm');
+const shape = (row: Locator) => row.locator('.cv-canvas svg').evaluate(svg => {
+  const row = svg.closest('.tdef')!;
+  const box = svg.getBoundingClientRect(), vw = Number((svg as SVGElement).dataset.vw), vh = Number((svg as SVGElement).dataset.vh);
+  const foot = row.querySelector('.panel.team-p footer.pf')!;
+  const head = row.querySelector('.panel.team-p .vlist .vhead')!;
+  const nm = row.querySelector('.cv-n.member .nm')!;
   return {
-    scale: box.width/vw,
-    ownW: vw,
-    ownH: vh,
-    top: box.top,
-    bottom: box.bottom,
+    scale: box.width / vw, heightScale: box.height / vh,
+    ownW: vw, ownH: vh, width: box.width, height: box.height,
+    top: box.top, bottom: box.bottom,
     footTop: foot.getBoundingClientRect().top,
     checkTop: head.getBoundingClientRect().top,
     font: parseFloat(getComputedStyle(nm).fontSize),
     across: document.documentElement.scrollWidth,
-    windowW: window.innerWidth,
-    windowH: window.innerHeight
+    windowW: window.innerWidth, windowH: window.innerHeight,
   };
-})()`;
+});
 
 // fails lists what a person would find wrong with one row's figure: a
 // multiplier above its own units or under the smallest readable size, letters
 // under 11px, the figure or the check column out of the window, or the page
 // scrolling sideways. The walk reads it again until the list is empty.
-const fails = (name: string) => `(function(){
-  var s=${shape(name)};
-  var bad=[];
-  if(!(s.scale<=1.001)) bad.push('drawn at '+s.scale.toFixed(2)+'x, larger than its own units');
-  if(s.scale<0.8) bad.push('drawn at '+s.scale.toFixed(2)+'x, under 0.8');
-  if(s.font*s.scale<11) bad.push('the member name is '+(s.font*s.scale).toFixed(1)+'px');
-  if(s.top<0) bad.push('the figure starts above the window at '+s.top.toFixed(0));
-  if(s.bottom>s.footTop) bad.push('the figure ends at '+s.bottom.toFixed(0)+', under the band at '+s.footTop.toFixed(0));
-  if(s.checkTop>=s.windowH) bad.push('the check column starts at '+s.checkTop.toFixed(0)+' of '+s.windowH);
-  if(s.across>s.windowW) bad.push('the page scrolls sideways: '+s.across+'>'+s.windowW);
+const fails = (s: Awaited<ReturnType<typeof shape>>) => {
+  const bad = [];
+  if (!(s.scale <= 1.001)) bad.push('drawn at ' + s.scale.toFixed(2) + 'x, larger than its own units');
+  if (s.scale < 0.8) bad.push('drawn at ' + s.scale.toFixed(2) + 'x, under 0.8');
+  if (s.font * s.scale < 11) bad.push('the member name is ' + (s.font * s.scale).toFixed(1) + 'px');
+  if (s.top < 0) bad.push('the figure starts above the window at ' + s.top.toFixed(0));
+  if (s.bottom > s.footTop) bad.push('the figure ends at ' + s.bottom.toFixed(0) + ', under the band at ' + s.footTop.toFixed(0));
+  if (s.checkTop >= s.windowH) bad.push('the check column starts at ' + s.checkTop.toFixed(0) + ' of ' + s.windowH);
+  if (s.across > s.windowW) bad.push('the page scrolls sideways: ' + s.across + '>' + s.windowW);
   return bad;
-})()`;
+};
 
 // opened opens one row the way a person does and waits for its figure.
-async function opened(page: Page, name: string): Promise<void> {
-  await press(page, `[...document.querySelectorAll('.tdef')].find(function(r){return r.dataset.name===${JSON.stringify(name)}}).querySelector('.sum')`);
-  await wait(page, `!!document.querySelector('.tdef[data-name=${JSON.stringify(name)}] .panel.team-p .cv-canvas svg')`);
+async function opened(page: Page, name: string): Promise<Locator> {
+  const row = page.locator(`.tdef[data-name="${name}"]`);
+  await row.locator(':scope > .sum').click();
+  await expect(row.locator('.cv-canvas svg')).toBeVisible();
+  return row;
 }
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
@@ -116,11 +111,32 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720
     writeEight(app.proj);
     await page.setViewportSize(viewport);
     await page.goto(`${app.base}/teams`);
-    await wait(page, `!!document.querySelector('.tdef[data-name="draft"]') && !!document.querySelector('.tdef[data-name="eight"]')`);
+    await ready(page);
 
     for (const name of ['draft', 'eight']) {
-      await opened(page, name);
-      await readTo<string[]>(page, fails(name), `the figure of ${name} never fit the window`).toEqual([]);
+      const row = await opened(page, name);
+      await expect.poll(async () => fails(await shape(row)), `the figure of ${name} never fit the window`).toEqual([]);
     }
   });
 }
+
+// A short viewport forces the packed figure to stop at the readable floor on
+// every platform; rounding must not turn 0.8 into a smaller rendered ratio.
+test('TEAMS-C4 rounding at the scale floor keeps both dimensions at least 0.8x', async ({ page, app }) => {
+  await page.setViewportSize({ width: 1280, height: 500 });
+  await page.goto(`${app.base}/teams`); await ready(page);
+  const row = await opened(page, 'draft');
+  await expect.poll(async () => {
+    const s = await shape(row);
+    return {
+      // Even the minimum 160px room cannot fit this packed figure at 0.8.
+      floor: 160 / s.ownH < 0.8,
+      width: s.width === Math.ceil(s.ownW * 0.8),
+      height: s.height === Math.ceil(s.ownH * 0.8),
+      scale: s.scale >= 0.8 && s.scale <= 1,
+      heightScale: s.heightScale >= 0.8 && s.heightScale <= 1,
+      readable: s.font * Math.min(s.scale, s.heightScale) >= 11,
+      noHorizontalScroll: s.across <= s.windowW,
+    };
+  }).toEqual({ floor: true, width: true, height: true, scale: true, heightScale: true, readable: true, noHorizontalScroll: true });
+});
