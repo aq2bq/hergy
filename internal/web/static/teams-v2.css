@@ -60,12 +60,7 @@ button { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 [hidden] { display: none !important; }
 
-.wrap {
-  margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 72px;
-}
+.wrap { padding-block: 0 72px; }
 
 /* 画面を選ぶ帯（mock-nav バージョン 2 のまま） */
 .bar {

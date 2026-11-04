@@ -43,9 +43,9 @@ for (const reads of ['teams', 'hq'] as const) {
             await expect(logo).toHaveAttribute('href', '/');
             await expect(logo.locator('[style]')).toHaveCount(0);
             await page.keyboard.press('Tab'); await expect(logo).toBeFocused();
-            // The 34px theme button reserves 46px: the long project action
-            // in this fixture gains one 22px line at 375px. Logo bounds stay fixed.
-            const bandMin = reads === 'teams' && width === 375 ? 192 : baselineHeight[width];
+            // The 40px page gutters put the project selector on its own row
+            // at 375px. The logo and theme control keep their first-row bounds.
+            const bandMin = width === 375 ? 249 : baselineHeight[width];
             await expect.poll(async () => {
               const layout = await logoLayout(page);
               return {

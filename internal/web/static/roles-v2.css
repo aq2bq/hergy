@@ -64,12 +64,7 @@ code, input, textarea, select { font-family: var(--f-mono); }
 button { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
-.wrap {
-  margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 72px;
-}
+.wrap { padding-block: 0 72px; }
 
 /* ヘッダとタブ。上の余白は帯が持つ (spec-nav.md 1.7) */
 .top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 28px; border-bottom: 1px solid var(--line); margin-bottom: 18px; padding-top: 6px; }
