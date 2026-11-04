@@ -55,7 +55,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-gwbx5aaq.js";
+} from "../chunk/nav-rsgm0d9h.js";
 import {
   st,
   token2,
@@ -466,12 +466,14 @@ function Editor({ session }) {
             children: [
               /* @__PURE__ */ u("a", {
                 class: "btn sm",
+                title: "ロールの画面で開く",
                 href: `/roles?${query}`,
                 onClick: leave,
                 children: "ロールの画面で開く"
               }),
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
+                title: "文書を読み直す",
                 disabled: editor.saving.value,
                 onClick: () => {
                   if (canClose())

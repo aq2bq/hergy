@@ -170,8 +170,8 @@ function Editor({ session }: { session: Session }) {
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
       {model.ok.value ? <span role="status">保存しました</span> : null}
     </div><div class="prose-actions">
-      <a class="btn sm" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>
-      <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
+      <a class="btn sm" title="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>
+      <button class="btn sm" title="文書を読み直す" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
     {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
       {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
       {ctx.scanned.length ? <p>確認できた範囲: {ctx.scanned.join('、')}</p> : null}

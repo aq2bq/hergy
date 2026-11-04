@@ -70,6 +70,8 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await role.getByRole('button', { name: '狭く', exact: true }).click();
  await expect(role.locator('.prose-outline')).toBeVisible();
  await expect(role).toHaveCSS('width', '200px');
+ await expect(role.locator('.prose-heading-link').first()).toHaveCSS('white-space', 'nowrap');
+ await expect.poll(async () => (await role.locator('.prose-budget').boundingBox())!.height).toBe(24);
  await role.getByRole('button', { name: '広く', exact: true }).click();
  await expect(role).toHaveCSS('width', '580px');
  await role.getByRole('button', { name: '均等', exact: true }).click();

@@ -124,10 +124,12 @@ async function saveTransfer(destination, source, move, failure) {
 // lib/prose-transfer-view.tsx
 var dragged = null;
 function dropTransfer(event, target, at) {
-  if (!dragged || dragged.source === target)
+  if (!dragged)
     return;
   event.preventDefault();
   event.stopPropagation();
+  if (dragged.source === target)
+    return;
   dragged.open({ target, at, move: !event.altKey, children: dragged.children });
   dragged = null;
 }
@@ -144,7 +146,7 @@ function TransferGrip({ source, index: _index, open }) {
       dragged = { source: source.id, open, children: event.shiftKey };
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "copyMove";
-        event.dataTransfer.setData("text/plain", "hergy-heading");
+        event.dataTransfer.setData("application/x-hergy-heading", source.id);
       }
     },
     onDragEnd: () => {
@@ -471,6 +473,7 @@ function ProseIdentity({ heading }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "prose-label",
+        title: heading.name,
         children: heading.name
       }),
       heading.id ? /* @__PURE__ */ u(WidthButtons, {
@@ -649,7 +652,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
             if (transfer)
               dropTransfer(e, transfer.id, part.start);
           },
-          style: { paddingLeft: `${Math.max(0, part.depth - 1) * 14}px` },
+          style: { paddingLeft: `${Math.max(0, part.depth - 1) * (narrow ? 2 : 14)}px` },
           children: [
             /* @__PURE__ */ u("span", {
               class: "prose-block-name",
@@ -662,6 +665,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
                 /* @__PURE__ */ u("button", {
                   type: "button",
                   class: "prose-heading-link",
+                  title: part.heading,
                   onClick: () => {
                     setOutline(false);
                     if (heading.id)

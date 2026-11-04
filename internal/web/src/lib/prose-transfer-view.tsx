@@ -7,15 +7,16 @@ import { problemText } from './api.js';
 type Choice = { target?: string; at?: number; move?: boolean; children?: boolean };
 let dragged: { source: string; open: (choice: Choice) => void; children: boolean } | null = null;
 export function dropTransfer(event: DragEvent, target: string, at: number) {
- if (!dragged || dragged.source === target) return;
+ if (!dragged) return;
  event.preventDefault(); event.stopPropagation();
+ if (dragged.source === target) return;
  dragged.open({ target, at, move: !event.altKey, children: dragged.children }); dragged = null;
 }
 export function TransferGrip({ source, index: _index, open }: { source: TransferSource; index: number; open: (choice: Choice) => void }) {
  const label = 'つかんで移す（Altで写す・Shiftで子見出しを含める）';
  return <button type="button" class="btn sm prose-grip" draggable title={label} aria-label={label} onClick={() => open({})} onDragStart={(event) => {
   dragged = { source: source.id, open, children: event.shiftKey };
-  if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain', 'hergy-heading'); }
+  if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('application/x-hergy-heading', source.id); }
  }} onDragEnd={() => { dragged = null; }}><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M5 4h1M10 4h1M5 10h1M10 10h1M5 16h1M10 16h1" /></svg></button>;
 }
 type Prepared = { source: string; destination: string; next: {source: string; destination: string} };
