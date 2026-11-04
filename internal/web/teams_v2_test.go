@@ -564,7 +564,7 @@ func TestTEAMS_F7_FigureSaveRefusesANewProblem(t *testing.T) {
 func TestTeamsAgreementCheckSharesThePart(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n\nこのチームの散文。\n"}
+	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n\nこのチームの規則。\n"}
 	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
 		"place": "project", "name": "demo", "part": "agreement",
 		"doc": map[string]any{"ops": []map[string]any{}, "doc": doc},

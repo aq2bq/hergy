@@ -80,7 +80,7 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>散文</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>規則</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = rowsOfGroup(g.key);
@@ -241,7 +241,7 @@ function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
     ['shape', 'トポロジー', '', changeCount(r) > 0],
-    ['agree', '散文', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
+    ['agree', '規則', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
   ];
   return (
     <>
@@ -387,7 +387,7 @@ function VList({ r }: { r: Rec }) {
 
 // Foot is the shape panel's foot: the save of the ops, the count 1.4.6 counts,
 // and 元に戻す while there is something to put back. A definition that is not
-// there yet shows what its save would write, and no 元に戻す. The ルール tab
+// there yet shows what its save would write, and no 元に戻す. The 規則 tab
 // draws that same row's foot — either tab's 保存 writes the whole folder — so
 // the press the save carries and the key its 保存しました stands under are the
 // caller's (spec-teams B6, 監査 R9).
@@ -460,7 +460,7 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   );
 }
 
-// ---- ルールのパネル（ロールの画面と同じ共有の部品） --------------------
+// ---- 規則のパネル（ロールの画面と同じ共有の部品） --------------------
 // onChange is the shared part saying the document it was handed changed: the row
 // gets a new draft (a copy) and the check rides on it.
 function onChangeDraft(r: Rec): void {

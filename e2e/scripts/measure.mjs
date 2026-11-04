@@ -135,7 +135,7 @@ function createFixture() {
     }
     for (const team of teams.filter((one) => one.project === project)) {
       writeDocument(path.join(hergy, 'teams', team.name, 'team.yaml'), teamYAML(team));
-      writeDocument(path.join(hergy, 'teams', team.name, 'agreement.md'), proseDocument(`${team.name} チームの散文`));
+      writeDocument(path.join(hergy, 'teams', team.name, 'agreement.md'), proseDocument(`${team.name} チームの規則`));
     }
     execFileSync('git', ['init', '-q'], {
       cwd: projectRoot,

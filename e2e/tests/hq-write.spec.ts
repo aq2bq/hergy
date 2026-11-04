@@ -168,11 +168,11 @@ test('HQ-WRITE-P1 a listed project’s role uses its own hash and leaves the ser
   const beta = listedFiles(betaDir), served = servedFiles(alpha);
   await page.goto(`${app.base}/roles?${new URLSearchParams({ open: 'builder|' + alpha })}`); await ready(page);
   const panel = page.locator('.role.open .panel[data-l=project]');
-  await panel.getByRole('textbox', { name: '散文の全文' }).fill('# served の本文。\n');
+  await panel.getByRole('textbox', { name: '規則の全文' }).fill('# served の本文。\n');
   await panel.locator('[data-act=save]').click(); await expect(panel.locator('.ok')).toBeVisible();
   const before = { profiles: read(served.profiles), role: read(served.role), team: read(served.team) };
   await page.goto(`${app.base}/roles?${new URLSearchParams({ open: 'builder|' + betaDir, project: betaDir })}`); await ready(page);
-  await panel.getByRole('textbox', { name: '散文の全文' }).fill('# listed の本文。\n');
+  await panel.getByRole('textbox', { name: '規則の全文' }).fill('# listed の本文。\n');
   await panel.locator('[data-act=save]').click(); await expect(panel.locator('.ok')).toBeVisible();
   expect(read(beta.role)).toBe('# listed の本文。\n');
   await panel.locator('[data-act=del]').click(); await panel.locator('[data-act=del-yes]').click();

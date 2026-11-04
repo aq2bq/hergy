@@ -42,6 +42,7 @@ import {
   num,
   Measure,
   chars,
+  ProseIdentity,
   clone2,
   fromJSON2,
   toDoc2,
@@ -50,16 +51,16 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-cc18n8gp.js";
+} from "../chunk/nav-grpdx5pn.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-b83cb4fx.js";
+} from "../chunk/nav-788q322j.js";
 import {
   RunCell2
-} from "../chunk/nav-t4sxvpzm.js";
+} from "../chunk/nav-8kc731s7.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -248,7 +249,7 @@ function Editor({ session }) {
     state: ctx?.state === "missing" ? "文書なし" : ctx?.state === "unreadable" ? "読み込み不可" : dirty() ? "未保存" : model.ok.value ? "保存しました" : "保存済み"
   };
   return /* @__PURE__ */ u("section", {
-    class: "prose-column role-column",
+    class: "prose-column role-column" + (ctx?.state === "missing" ? " missing-document" : ""),
     ref: dialog,
     id: `prose-${session.r.uid}-${session.name}`,
     "aria-labelledby": `role-title-${session.id}`,
@@ -258,13 +259,11 @@ function Editor({ session }) {
         children: [
           !e || ctx?.state !== "readable" ? /* @__PURE__ */ u(S, {
             children: [
-              /* @__PURE__ */ u("h2", {
-                id: heading.id,
-                tabIndex: -1,
-                children: [
-                  "ロール ",
-                  session.name
-                ]
+              /* @__PURE__ */ u("header", {
+                class: "prose-head prose-head-unavailable",
+                children: /* @__PURE__ */ u(ProseIdentity, {
+                  heading
+                })
               }),
               /* @__PURE__ */ u("div", {
                 class: "prose-unavailable",
@@ -3025,7 +3024,7 @@ function MemberPrompt({ r, m }) {
               children: prange(a, b)
             }),
             /* @__PURE__ */ u("b", {
-              children: "チームのルール"
+              children: "チームの規則"
             }),
             /* @__PURE__ */ u("span", {
               children: [
@@ -3037,7 +3036,7 @@ function MemberPrompt({ r, m }) {
               class: "cv-go",
               type: "button",
               "data-cv-act": "to-agree",
-              children: "ルールのタブで見る"
+              children: "規則のタブで見る"
             })
           ]
         });
@@ -4826,7 +4825,7 @@ function List() {
         children: "ワーカー"
       }),
       /* @__PURE__ */ u("span", {
-        children: "散文"
+        children: "規則"
       }),
       /* @__PURE__ */ u("span", {
         children: "大きさ"
@@ -5216,7 +5215,7 @@ function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
     ["shape", "トポロジー", "", changeCount(r) > 0],
-    ["agree", "散文", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
+    ["agree", "規則", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
   ];
   return /* @__PURE__ */ u(S, {
     children: [

@@ -184,7 +184,7 @@ var glossary = []term{
 		id:       "role-document",
 		english:  "role document",
 		japanese: "ロールの文書",
-		meaning:  "one role's rule document, roles/<role>.yaml; every member of that role reads it",
+		meaning:  "one role's rule document, roles/<role>.md; every member of that role reads it",
 		banned: []ban{
 			// 役割ファイル was the old Japanese name for a role document.
 			{lang: "ja", word: "役割ファイル"},
@@ -199,13 +199,13 @@ var glossary = []term{
 	{
 		id:       "team-agreement",
 		english:  "team agreement",
-		japanese: "チームの散文",
+		japanese: "チームの規則",
 		meaning:  "the rules a team definition gives every member of that team, written in the definition's own folder",
 	},
 	{
 		id:       "shared-agreement",
 		english:  "shared agreement",
-		japanese: "全チームのルール",
+		japanese: "全チームの規則",
 		meaning:  "the rules hergy used to read for every team of one place, kept in agreement.yaml beside the teams; it is not read any more (d-31ad), and what is left stops the commands that build a prompt",
 	},
 	{
@@ -367,7 +367,8 @@ var glossary = []term{
 		id:       "rule",
 		english:  "rule",
 		japanese: "規則",
-		meaning:  "a legacy YAML rule, read only during explicit migration; current definitions are complete prose documents",
+		meaning:  "the contents of a definition; there are no individual units with IDs",
+		banned:   []ban{{lang: "ja", word: "散文"}},
 	},
 	{
 		id:       "rule-note",

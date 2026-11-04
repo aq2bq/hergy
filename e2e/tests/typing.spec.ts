@@ -141,7 +141,7 @@ test.describe('the role screen’s text fields', () => {
   test.use({ reads: 'roles' });
   test('TYPING-3 full prose keeps focus and every typed character', async ({ page, app }) => {
     await page.goto(`${app.base}/roles?open=lead`); await ready(page);
-    const input = page.locator('.role.open .panel').getByRole('textbox', { name: '散文の全文' });
+    const input = page.locator('.role.open .panel').getByRole('textbox', { name: '規則の全文' });
     await input.fill('');
     await input.pressSequentially(SIXTY, { delay: 15 });
     await expect(input).toBeFocused(); await expect(input).toHaveValue(SIXTY);

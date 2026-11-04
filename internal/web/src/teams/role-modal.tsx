@@ -4,7 +4,7 @@ import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { RuleDoc, fromJSON, toDoc } from '../lib/ruledoc.js';
-import { type ProseHeading } from '../lib/prose-editor.js';
+import { ProseIdentity, type ProseHeading } from '../lib/prose-editor.js';
 import type { EditableDocument } from '../lib/ruledoc.js';
 import { ConflictNotice, conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
@@ -134,9 +134,9 @@ function Editor({ session }: { session: Session }) {
     id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/${session.name}.md` : '',
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
     state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : model.ok.value ? '保存しました' : '保存済み' };
-  return <section class="prose-column role-column" ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
+  return <section class={'prose-column role-column' + (ctx?.state === 'missing' ? ' missing-document' : '')} ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
     <div class="role-dialog-body">
-    {!e || ctx?.state !== 'readable' ? <><h2 id={heading.id} tabIndex={-1}>ロール {session.name}</h2><div class="prose-unavailable">
+    {!e || ctx?.state !== 'readable' ? <><header class="prose-head prose-head-unavailable"><ProseIdentity heading={heading} /></header><div class="prose-unavailable">
       <p role="alert">{ctx?.problem || (model.context.loading.value ? 'ロールの文書を読んでいます。' : 'ロールの文書を読み込めませんでした。')}</p>
       {ctx?.state === 'missing' ? <a class="btn" href={`/roles?${query}`} onClick={leave}>ロールの画面で作る</a> : null}
     </div></> : null}

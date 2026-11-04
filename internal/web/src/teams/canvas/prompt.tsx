@@ -103,7 +103,7 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
         return <div class="cv-fold" data-a={a} data-b={b} data-doc="role" data-role={o.name || ''} data-place={o.place || ''}><span class="cv-range">{prange(a, b)}</span><b>ロールの文書</b><code>{o.path || ''}</code><span>{pcount(lines, a, b)} 行</span><RoleButton r={r} name={o.name === m.role ? m.role : ''} expectedPlace={o.place} children="ロールを確認・編集" /></div>;
       }
       if (seg.kind === 'team_rules') {
-        return <div class="cv-fold" data-a={a} data-b={b} data-doc="team"><span class="cv-range">{prange(a, b)}</span><b>チームのルール</b><span>{pcount(lines, a, b)} 行</span><button class="cv-go" type="button" data-cv-act="to-agree">ルールのタブで見る</button></div>;
+        return <div class="cv-fold" data-a={a} data-b={b} data-doc="team"><span class="cv-range">{prange(a, b)}</span><b>チームの規則</b><span>{pcount(lines, a, b)} 行</span><button class="cv-go" type="button" data-cv-act="to-agree">規則のタブで見る</button></div>;
       }
       if (seg.kind === 'herdr') {
         return <div class="cv-fold cv-fixed" data-a={a} data-b={b}><span class="cv-range">{prange(a, b)}</span><details><summary>連絡のしかた<span> · hergy の決まった文 · どのチームでも同じ</span></summary><PLines lines={lines} a={a} b={b} /></details></div>;

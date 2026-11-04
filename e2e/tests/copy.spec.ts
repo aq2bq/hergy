@@ -840,7 +840,7 @@ test('COPY-R2 a copied role can save empty prose', async ({ page, app }) => {
   const source = page.locator('.role.open .panel[data-l=project]');
   await source.locator('[data-act=copy]').click();
   const target = page.locator('.role.open .panel[data-l=global]').filter({ has: page.locator('[data-f=name]') });
-  await target.getByRole('textbox', { name: '散文の全文' }).fill('');
+  await target.getByRole('textbox', { name: '規則の全文' }).fill('');
   await target.locator('[data-act=save]').click(); await expect(target.locator('.ok')).toBeVisible();
   expect(readFileSync(path.join(app.cfg, 'hergy/roles/builder.md'), 'utf8')).toBe('');
 });

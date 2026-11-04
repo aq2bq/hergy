@@ -26,7 +26,7 @@ test.describe('the role screen', () => {
   test('RB41C-1 a role is saved three times without stale hashes', async ({ page, app }) => {
     await page.goto(`${app.base}/roles?open=builder`); await ready(page);
     const panel = page.locator('.role.open .panel[data-l=project]');
-    const input = panel.getByRole('textbox', { name: '散文の全文' });
+    const input = panel.getByRole('textbox', { name: '規則の全文' });
     let text = await input.inputValue();
     for (let i = 1; i <= 3; i++) {
       text += `\n${i} 回目の保存。\n`;
@@ -40,12 +40,12 @@ test.describe('the role screen', () => {
     const original = readFileSync(lead, 'utf8');
     await page.goto(`${app.base}/roles?open=builder&open=lead`); await ready(page);
     const builder = page.locator('.role.open').filter({ has: page.locator('.nm').filter({ hasText: /^builder$/ }) }).locator('.panel');
-    await builder.getByRole('textbox', { name: '散文の全文' }).fill('# 更新した設計担当\n');
+    await builder.getByRole('textbox', { name: '規則の全文' }).fill('# 更新した設計担当\n');
     await builder.locator('[data-act=save]').click(); await expect(builder.locator('.ok')).toBeVisible();
     expect(readFileSync(lead, 'utf8')).toBe(original);
     await page.locator('.role').filter({ has: page.locator('.nm').filter({ hasText: /^lead$/ }) }).locator('.sum').click();
     const leadPanel = page.locator('.role.open').filter({ has: page.locator('.nm').filter({ hasText: /^lead$/ }) }).locator('.panel');
-    await leadPanel.getByRole('textbox', { name: '散文の全文' }).fill('# 更新した進行担当\n');
+    await leadPanel.getByRole('textbox', { name: '規則の全文' }).fill('# 更新した進行担当\n');
     await leadPanel.locator('[data-act=save]').click(); await expect(leadPanel.locator('.ok')).toBeVisible();
     expect(readFileSync(lead, 'utf8')).toBe('# 更新した進行担当\n');
   });
@@ -94,7 +94,7 @@ test.describe('the team screen', () => {
     const file = path.join(app.proj, '.hergy/teams/core/agreement.md');
     await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
     const panel = page.locator('.tdef[data-name="core"] .agree-p');
-    const input = panel.getByRole('textbox', { name: '散文の全文' });
+    const input = panel.getByRole('textbox', { name: '規則の全文' });
     let text = await input.inputValue();
     for (let i = 1; i <= 3; i++) {
       text += `\n${i} 回目の保存。\n`;

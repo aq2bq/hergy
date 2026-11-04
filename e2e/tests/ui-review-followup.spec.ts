@@ -57,8 +57,8 @@ test.describe('review 1-8: listed projects', () => {
     await expect(link).toHaveCount(1);
     await link.click(); await ready(page);
     await expect(page).toHaveURL(/project=.*beta/);
-    await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveCount(1);
-    await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveValue(/beta task/);
+    await expect(page.locator('.role.open').getByRole('textbox', { name: '規則の全文' })).toHaveCount(1);
+    await expect(page.locator('.role.open').getByRole('textbox', { name: '規則の全文' })).toHaveValue(/beta task/);
   });
   test('activity preserves the selected project and last tab', async ({ page, app }) => {
     const beta = realpathSync(path.join(app.home, 'src', 'beta'));
@@ -76,8 +76,8 @@ test.describe('review 1-8: listed projects', () => {
     for (const name of ['beta-only', 'builder']) {
       const open = name === 'builder' ? `${name}|${beta}` : name;
       await page.goto(`${app.base}/roles?${new URLSearchParams({ open, rule: `${name}.project.DAAA` })}`); await ready(page);
-      await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveCount(1);
-      await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).not.toBeEmpty();
+      await expect(page.locator('.role.open').getByRole('textbox', { name: '規則の全文' })).toHaveCount(1);
+      await expect(page.locator('.role.open').getByRole('textbox', { name: '規則の全文' })).not.toBeEmpty();
     }
   });
 });

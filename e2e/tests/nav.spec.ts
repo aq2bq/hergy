@@ -77,7 +77,7 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
 
   // Editing prose marks the screen; restoring the full original clears it.
   await page.goto(`${app.base}/roles?open=builder`); await ready(page);
-  const prose = page.locator('.role.open .panel[data-l="project"]').getByRole('textbox', { name: '散文の全文' });
+  const prose = page.locator('.role.open .panel[data-l="project"]').getByRole('textbox', { name: '規則の全文' });
   const original = await prose.inputValue();
   await prose.fill(original + '\n書きかけの本文。\n');
   await expect(page.locator('.scr.on[data-screen="roles"] .dot')).toBeVisible();

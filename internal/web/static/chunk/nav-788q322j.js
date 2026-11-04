@@ -1563,7 +1563,7 @@ function buildIndex() {
       }
       const agree = doc.agreement && doc.agreement.doc;
       if (agree)
-        out.push({ kind: "def", group, project: label, label: agree.title || item.name, sub: `${item.name} の散文`, text: agree.text, body: agree.text, href: href + "&agree=" + encodeURIComponent(item.name) });
+        out.push({ kind: "def", group, project: label, label: agree.title || item.name, sub: `${item.name} の規則`, text: agree.text, body: agree.text, href: href + "&agree=" + encodeURIComponent(item.name) });
     }
   }
   for (const g of groupOf("roles")) {

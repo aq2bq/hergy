@@ -510,7 +510,7 @@ test('TEAMS-R1 team prose and roles use one full-text editor per document', asyn
   await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
   const row = page.locator('.tdef[data-name="core"]');
   await expect(row.locator('.prose-column')).toHaveCount(5);
-  await expect(row.getByRole('textbox', { name: '散文の全文' })).toHaveCount(5);
+  await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(5);
   await expect(row.locator('.prose-budget')).toHaveCount(5);
   await expect(row.locator('.agree-p .prose-budget')).not.toHaveAttribute('title', /ひな形 0 字/);
 });

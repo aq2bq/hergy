@@ -86,23 +86,28 @@ function blocks(text) {
   });
   return out;
 }
+function ProseIdentity({ heading }) {
+  return /* @__PURE__ */ u("h2", {
+    id: heading.id,
+    tabIndex: -1,
+    children: [
+      /* @__PURE__ */ u("span", {
+        class: "prose-kind",
+        children: heading.kind
+      }),
+      /* @__PURE__ */ u("span", {
+        children: heading.name
+      })
+    ]
+  });
+}
 function ProseHeader({ heading, text, children, position }) {
   const count = chars(text), template = heading.template || 0, total = count + template;
   return /* @__PURE__ */ u("header", {
     class: "prose-head",
     children: [
-      !heading.compact ? /* @__PURE__ */ u("h2", {
-        id: heading.id,
-        tabIndex: -1,
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "prose-kind",
-            children: heading.kind
-          }),
-          /* @__PURE__ */ u("span", {
-            children: heading.name
-          })
-        ]
+      !heading.compact ? /* @__PURE__ */ u(ProseIdentity, {
+        heading
       }) : null,
       /* @__PURE__ */ u("p", {
         class: "prose-title",
@@ -121,7 +126,7 @@ function ProseHeader({ heading, text, children, position }) {
       }) : null,
       /* @__PURE__ */ u("div", {
         class: "prose-budget",
-        title: template ? `内訳: 散文 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
+        title: template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
         children: [
           /* @__PURE__ */ u(Measure, {
             chars: total,
@@ -249,8 +254,8 @@ function ProseEditor({ text, heading, onChange }) {
         }))
       }) : /* @__PURE__ */ u(Field, {
         as: "textarea",
-        "aria-label": `${heading.name} の散文の全文`,
-        placeholder: heading.kind === "チーム定義" ? "チームの散文は任意です。本文を入力して保存できます。" : "本文を入力してください。",
+        "aria-label": `${heading.name} の規則の全文`,
+        placeholder: heading.kind === "チーム定義" ? "チームの規則は任意です。本文を入力して保存できます。" : "本文を入力してください。",
         value: text,
         spellcheck: false,
         onInput: (event) => {
@@ -387,4 +392,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange })
   });
 }
 
-export { num, Measure, chars, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, Measure, chars, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

@@ -794,7 +794,7 @@ export function changeCount(r: Rec): number {
 }
 
 // ownAgreement is whether a rule finding is about the team's own agreement:
-// those are the team's promises and stand under チームのルール, while the rules of
+// those are the team's promises and stand under チームの規則, while the rules of
 // the role documents its members read stand under ロールの文書 (spec-teams 1.4.5,
 // 1.7, 監査 R9).
 export const vlistParts = (r: Rec) => {
@@ -1862,7 +1862,7 @@ export function boot() {
   });
   return Promise.allSettled([...later, ...checks]);
 }
-// openAgree puts a row on its ルール tab and asks the rules' check: the same
+// openAgree puts a row on its 規則 tab and asks the rules' check: the same
 // step the tab's press takes, for a part that names the tab without a press.
 export function openAgree(r: Rec) {
   withOpen(r.dom, true);

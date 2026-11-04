@@ -376,7 +376,7 @@ var specs = []Spec{
 			use(flagDir, descDir),
 		},
 	},
-	{Kind: Migrate, Name: "migrate", Summary: text("Convert legacy YAML definitions to prose", "旧形式の YAML を散文へ変換する"),
+	{Kind: Migrate, Name: "migrate", Summary: text("Migrate legacy YAML definitions to Markdown rules", "旧形式の YAML の定義を Markdown の規則へ移す"),
 		Flags: []Use{use(flagDry, text("Inspect every conversion without writing", "全対象を検査して表示する。書き込まない")), use(flagGlobal, text("Convert the global layer instead of the project", "プロジェクトではなくグローバルを変換する")), use(flagDir, descDir)}},
 	{
 		Kind: Validate, Name: "validate",

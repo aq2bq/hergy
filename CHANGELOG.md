@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Team and role prose is stored as complete Markdown documents. The team screen edits the team and shared roles side by side. The roster includes each member's name, first-line document title, role and herdr contact. Prose arrows are no longer interpreted; topology validation still uses `turns:`.
+- Team and role rules are stored as complete Markdown documents. The team screen edits the team and shared roles side by side. The roster includes each member's name, first-line document title, role and herdr contact. Arrows in rules are no longer interpreted; topology validation still uses `turns:`.
 - The provisional warning budget is 1,200 Unicode code points per role and team. Team totals include fixed template words. Warnings do not prevent startup.
 
-### Migration to Markdown prose
+### Migration to Markdown rules
 
 Run these commands from the project directory with the new executable:
 

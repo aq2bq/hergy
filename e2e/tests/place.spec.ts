@@ -72,7 +72,7 @@ test.describe('the one project', () => {
     await noPlaceSwitch(page, row);
     await readTo<string>(page, `${row}.querySelector('.c-place .pill').textContent`, 'the new row says the project').toBe(said);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p1');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('置き場所の見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('置き場所の見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'project', 'place-p1')}).querySelector('.ok')`);
 
@@ -99,7 +99,7 @@ test.describe('the one project', () => {
     const row = await addUnder(page, ROLES, 'global');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g1');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('グローバルの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('グローバルの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'global', 'place-g1')}).querySelector('.ok')`);
 
@@ -191,7 +191,7 @@ test.describe('the headquarters', () => {
     const row = await addUnder(page, ROLES, 'project');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p3');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('本部のプロジェクトの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('本部のプロジェクトの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'project', 'place-p3')}).querySelector('.ok')`);
 
@@ -216,7 +216,7 @@ test.describe('the headquarters', () => {
     const row = await addUnder(page, ROLES, 'global');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g4');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('本部のグローバルの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('本部のグローバルの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'global', 'place-g4')}).querySelector('.ok')`);
 

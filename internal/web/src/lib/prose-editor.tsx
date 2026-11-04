@@ -33,14 +33,17 @@ export function blocks(text: string): { heading: string; depth: number; start: n
 
 
 export type ProseHeading = { kind: string; name: string; title?: string; path?: string; members?: string; template?: number; state?: string; id?: string; compact?: boolean; fullPath?: string };
+export function ProseIdentity({ heading }: { heading: ProseHeading }) {
+ return <h2 id={heading.id} tabIndex={-1}><span class="prose-kind">{heading.kind}</span><span>{heading.name}</span></h2>;
+}
 export function ProseHeader({ heading, text, children, position }: { heading: ProseHeading; text: string; children?: ComponentChildren; position?: string }) {
  const count = chars(text), template = heading.template || 0, total = count + template;
  return <header class="prose-head">
-  {!heading.compact ? <h2 id={heading.id} tabIndex={-1}><span class="prose-kind">{heading.kind}</span><span>{heading.name}</span></h2> : null}
+  {!heading.compact ? <ProseIdentity heading={heading} /> : null}
   <p class="prose-title" title={heading.title}>{heading.title && heading.title !== heading.name ? heading.title : '題なし'}</p>
   <code class="path" title={heading.fullPath || heading.path}>{heading.path || '保存先を確認しています'}</code>
   {!heading.compact ? <p class="prose-readers" title={heading.members}>{heading.members ? `使うメンバー: ${heading.members}` : '使うメンバーなし'}</p> : null}
-  <div class="prose-budget" title={template ? `内訳: 散文 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /><span class={total > 1200 ? 'over' : ''}>{total > 1200 ? `${num(total - 1200)} 字超過` : `残り ${num(1200 - total)} 字`}</span></div>
+  <div class="prose-budget" title={template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /><span class={total > 1200 ? 'over' : ''}>{total > 1200 ? `${num(total - 1200)} 字超過` : `残り ${num(1200 - total)} 字`}</span></div>
   <div class="prose-status"><span class={position ? 'prose-current' : undefined} title={position} aria-live="polite">{position || heading.state || '保存済み'}</span>{children}</div>
  </header>;
 }
@@ -56,7 +59,7 @@ export function ProseEditor({ text, heading, onChange }: { text: string; heading
    <button type="button" class="btn sm" title="見出しだけ" aria-label="見出しだけ" aria-pressed={outline} onClick={() => { setOutline(true); setFocused(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h13M8 19h13"/><circle cx="3" cy="5" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="19" r="1"/></svg></button>
   </div></ProseHeader>
   {outline ? <ul class="prose-outline" aria-label={`${heading.name} の見出し`}>{parts.map((part) => <li style={{ paddingLeft: `${(part.depth - 1) * 14}px` }}><span>{part.heading}</span><span>{num(chars(text.slice(part.start, part.end)))} 字</span></li>)}</ul>
-   : <Field as="textarea" aria-label={`${heading.name} の散文の全文`} placeholder={heading.kind === 'チーム定義' ? 'チームの散文は任意です。本文を入力して保存できます。' : '本文を入力してください。'} value={text} spellcheck={false}
+   : <Field as="textarea" aria-label={`${heading.name} の規則の全文`} placeholder={heading.kind === 'チーム定義' ? 'チームの規則は任意です。本文を入力して保存できます。' : '本文を入力してください。'} value={text} spellcheck={false}
      onInput={(event: Event) => { position(event); if (event.currentTarget instanceof HTMLTextAreaElement) onChange(event.currentTarget.value); }}
      onSelect={position} onKeyUp={position} onClick={position} onFocus={(event: Event) => { setFocused(true); position(event); }} onBlur={() => setFocused(false)} />}
  </div>;

@@ -23,7 +23,7 @@ test.describe('the role screen', () => {
       const file = path.join(app.proj, '.hergy/roles/builder.md');
       await page.goto(`${app.base}/roles?open=builder`); await ready(page);
       const panel = page.locator('.role.open .panel');
-      const input = panel.getByRole('textbox', { name: '散文の全文' });
+      const input = panel.getByRole('textbox', { name: '規則の全文' });
       const typed = '# 編集中の本文\n空白  \n';
       await input.fill(typed); appendFileSync(file, '\nほかの編集\n');
       const theirs = readFileSync(file, 'utf8');
@@ -68,7 +68,7 @@ test.describe('the team screen', () => {
     const file = path.join(app.proj, '.hergy/teams/core/agreement.md');
     await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
     const panel = page.locator('.tdef[data-name="core"] .agree-p');
-    const input = panel.getByRole('textbox', { name: '散文の全文' });
+    const input = panel.getByRole('textbox', { name: '規則の全文' });
     const typed = '# チームの下書き\n'; await input.fill(typed);
     appendFileSync(file, '\nほかの編集\n'); const theirs = readFileSync(file, 'utf8');
     await panel.locator('[data-act=save]').click(); await expect(panel.locator('.conflict')).toBeVisible();
