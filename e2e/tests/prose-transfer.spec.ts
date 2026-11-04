@@ -91,7 +91,13 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await expect.poll(async () => (await role.locator('.prose-budget').boundingBox())!.height).toBe(24);
  await role.getByRole('button', { name: '広く', exact: true }).click();
  await expect(role.locator('.prose-width button').last()).toHaveAttribute('aria-pressed', 'true');
- await expect.poll(async () => row.locator('.prose-board').evaluate(n => n.scrollWidth <= n.clientWidth)).toBe(true);
+ await expect(role).toHaveCSS('min-width', '480px');
+ await expect.poll(async () => row.locator('.prose-column').evaluateAll(nodes => nodes.every(n => n.getBoundingClientRect().width >= 240))).toBe(true);
+ for (const column of await row.locator('.prose-column').all()) {
+  await column.scrollIntoViewIfNeeded();
+  await expect(column.getByRole('button', { name: '広く', exact: true })).toBeInViewport();
+ }
+ await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  await row.getByRole('button', { name: '均等', exact: true }).click();
  await expect(role.getByRole('textbox', { name: '規則の全文' })).toHaveValue(before);
  await expect.poll(async () => {

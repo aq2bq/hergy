@@ -61,7 +61,7 @@ a { color: inherit; text-decoration: none; }
 [hidden] { display: none !important; }
 
 .wrap {
-  max-width: 1680px; margin: 0 auto;
+  margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 0 72px;

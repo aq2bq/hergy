@@ -42,7 +42,9 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .yl.warn .lno { background: var(--warn); color: var(--on-warn); }
 
 .pmain { display: block; }
-.prose-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(290px, 1fr); gap: 12px; overflow: auto; align-items: stretch; padding: 8px; height: var(--prose-height, 650px); min-height: 360px; box-sizing: border-box; }
+/* Keep column overflow inside the board, not the parent detail grid. */
+.prose-workspace { min-width: 0; }
+.prose-board { display: flex; gap: 12px; overflow: auto; align-items: stretch; padding: 8px; height: var(--prose-height, 650px); min-height: 360px; box-sizing: border-box; }
 .prose-board .prose-column { gap: 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 8px; }
 .prose-column .pmain, .prose-column .role-dialog-body, .prose-column fieldset { display: flex; flex-direction: column; flex: 1; align-items: stretch; gap: 0; min-height: 0; min-width: 0; padding: 0; margin: 0; border: 0; }
 .prose-column .vm:empty { display: none; }
@@ -80,7 +82,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-column.missing-document .role-dialog-body { padding-bottom: 82px; }
 .prose-unavailable p { margin: 0 0 12px; }
 .prose-name { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
-.role .panel .pmain { max-width: 52rem; min-width: 0; width: 100%; }
+.role .panel .pmain { min-width: 0; width: 100%; }
 .prose-name .errline { flex-basis: 100%; }
 .role .panel .prose-editor { height: 600px; max-height: calc(100vh - 190px); min-height: 360px; }
 [hidden] { display: none !important; }
@@ -91,7 +93,6 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-editor textarea, .prose-outline { overscroll-behavior: contain; }
 .role .panel > .pf { position: static; }
 /* Column widths are view state; restoring equal widths never rewrites text. */
-.prose-board { display: flex; }
 .prose-head h2 .prose-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prose-width { display: inline-flex; margin-left: auto; gap: 2px; }
 .prose-width .btn, .prose-grip { display: inline-flex; padding: 2px; }
@@ -126,7 +127,8 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-equal:disabled { opacity: .4; cursor: default; }
 .prose-board .prose-column { flex: 1 1 0; min-width: 240px; }
 .prose-board .prose-column:has([data-width="narrow"]) { flex: 0 0 240px; }
-.prose-board .prose-column:has([data-width="wide"]) { flex: 2 1 0; }
+.prose-board .prose-column:has([data-width="wide"]) { flex: 2 1 0; min-width: 480px; }
+.prose-board .prose-column:only-child:has([data-width="wide"]) { min-width: min(480px, 100%); }
 .prose-outline .prose-grip, .prose-outline .prose-more { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; padding: 0; border: 0; background: transparent; color: var(--muted); }
 .prose-outline .prose-more { cursor: pointer; visibility: hidden; }
 .prose-outline li:hover .prose-more, .prose-outline li:focus-within .prose-more { visibility: visible; }
