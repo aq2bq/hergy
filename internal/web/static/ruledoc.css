@@ -121,3 +121,5 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-column:has([data-width="narrow"]) .prose-budget .amt { flex-basis: 100%; font-size: 10px; line-height: 12px; }
 .prose-column:has([data-width="narrow"]) .prose-budget > span:last-child { margin-left: auto; }
 .prose-column:has([data-width="narrow"]) .prose-actions .btn { display: block; overflow: hidden; text-overflow: ellipsis; }
+.prose-width .btn.sm { padding: 2px; }
+.prose-head h2 > .prose-width { flex-shrink: 0; }
