@@ -60,11 +60,13 @@ type Hire struct {
 // member was started: what the comparison needs to tell a changed profile from a
 // changed prompt (d-36ef). A record written before they were kept has neither.
 type Member struct {
-	Name   string `json:"name"`            // the name herdr sees ("<team>-<member>")
-	Short  string `json:"short"`           // the short name team.yaml writes
-	Prompt string `json:"prompt"`          // sha256 of the prompt text
-	Start  string `json:"start,omitempty"` // sha256 of the command the member is started by
-	Env    string `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
+	// Docs names the documents this member read. Nil means a legacy record.
+	Docs   []string `json:"docs"`
+	Name   string   `json:"name"`            // the name herdr sees ("<team>-<member>")
+	Short  string   `json:"short"`           // the short name team.yaml writes
+	Prompt string   `json:"prompt"`          // sha256 of the prompt text
+	Start  string   `json:"start,omitempty"` // sha256 of the command the member is started by
+	Env    string   `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
 }
 
 // Worker is one worker entry of a team definition as it stood at a launch: the

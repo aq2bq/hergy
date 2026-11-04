@@ -145,7 +145,7 @@ func TestProseChangesIncludeEmptyDeletedAndLegacyDocuments(t *testing.T) {
 		{"deleted", map[string]string{path: "Before.\n"}, nil, "- Before.", ""},
 		{"legacy", map[string]string{"/roles/builder.yaml": legacy}, []Doc{{Path: path, Display: path, Text: "After.\n"}}, "- - Before.", ""},
 		{"unreadable", map[string]string{"/roles/builder.yaml": "["}, []Doc{{Path: path, Display: path, Text: "After.\n"}}, "", i18n.Tf("delivery.document_unreadable", "builder.md")},
-		{"unreadable removed", map[string]string{"/roles/builder.yaml": "["}, nil, "", i18n.Tf("delivery.document_unreadable", "builder.yaml")},
+		{"unreadable removed", map[string]string{"/roles/builder.yaml": "["}, nil, "", i18n.Tf("delivery.document_unreadable", "builder.md")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

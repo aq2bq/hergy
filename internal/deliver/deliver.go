@@ -85,7 +85,7 @@ type Doc struct {
 // Compare is what changed between the prompt a member last read and the prompt
 // its current definition builds. lang is the language both prompts are written
 // in (the launch record's, which the current prompt is rebuilt with); oldDocs is
-// the launch record's documents by path; current is the current Start (its
+// only that member's previously read documents by path; current is the current Start (its
 // prompt, segments, turns and workers) and docs are the current rule documents.
 func Compare(lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
 	if oldPrompt == "" {
@@ -409,15 +409,17 @@ func documentChanges(old map[string]string, docs []Doc) []Change {
 			continue
 		}
 		before := old[path]
+		display := path
 		if filepath.Ext(path) == ".yaml" {
+			display = strings.TrimSuffix(path, ".yaml") + ".md"
 			converted, err := migrate.Convert(before, path)
 			if err != nil {
-				out = append(out, Change{Kind: "document", Document: path, Text: i18n.Tf("delivery.document_unreadable", filepath.Base(path))})
+				out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_unreadable", filepath.Base(display))})
 				continue
 			}
 			before = converted.Text
 		}
-		out = append(out, Change{Kind: "document", Document: path, Text: i18n.Tf("delivery.document_changed", filepath.Base(path)), Diff: textDiff(before, "")})
+		out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_changed", filepath.Base(display)), Diff: textDiff(before, "")})
 	}
 	return out
 }

@@ -114,7 +114,12 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		if err != nil {
 			return err
 		}
+		paths := make([]string, 0, len(docsReadBy(member)))
+		for _, doc := range docsReadBy(member) {
+			paths = append(paths, doc.Path)
+		}
 		rec.Members = append(rec.Members, launchlog.Member{
+			Docs:   paths,
 			Name:   member.Name,
 			Short:  member.Short,
 			Prompt: hash,

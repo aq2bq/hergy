@@ -21,3 +21,13 @@ func Convert(text, path string) (prose.Document, error) {
 	}
 	return prose.Document{Text: doc.Markdown()}, nil
 }
+
+// LegacyMarkdown is the text an unmigrated snapshot put in its old prompt.
+// It is read-only and retains the historical rule IDs.
+func LegacyMarkdown(text, path string) (string, error) {
+	doc, err := rules.Parse(text, path)
+	if err != nil {
+		return "", err
+	}
+	return doc.Markdown(), nil
+}

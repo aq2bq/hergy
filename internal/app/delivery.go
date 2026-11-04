@@ -390,7 +390,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record), current, currentDocs(cat, built))
+	changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
 	if len(changes) == 0 {
 		changes = []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}
@@ -455,19 +455,6 @@ func teamsRecorded(records map[string]map[string]map[string]launchlog.Record, pr
 		}
 	}
 	return records[""]
-}
-
-// oldDocs is the documents the launch record holds, by the path the record
-// names. A missing blob simply leaves that document out.
-func oldDocs(log launchlog.Log, record launchlog.Record) map[string]string {
-	out := make(map[string]string, len(record.Docs))
-	for _, doc := range record.Docs {
-		text, err := log.Text(doc.SHA256)
-		if err == nil {
-			out[doc.Path] = string(text)
-		}
-	}
-	return out
 }
 
 // currentDocs is the rule documents of one current prompt, with the path a
