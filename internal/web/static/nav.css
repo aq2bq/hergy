@@ -153,12 +153,18 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
   .crumb { position: relative; }
   .theme-control { top: 50%; right: -46px; transform: translateY(-50%); }
 }
+/* Use the existing two-column band's 420px boundary; keep 40px at the boundary. */
+@media (width < 420px) {
+  html { scrollbar-gutter: auto; }
+  .wrap {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+}
 @media (max-width: 420px) {
-  /* Let a long project action use its own row instead of a thin text column. */
-  .crumb { flex-wrap: wrap; position: static; }
+  /* Keep the project button on this row while its text wraps. */
   .crumb .hq-pbtn { min-width: 0; white-space: normal; }
   .screens { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   .scr .wait { padding: 0 4px; }
   .scr { font-size: 13px; padding: 6px 4px; }
-  .theme-control { top: 40px; right: 0; transform: none; }
 }

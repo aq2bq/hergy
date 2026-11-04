@@ -55,3 +55,31 @@ for (const width of [2000, 1440]) for (const theme of ['light', 'dark'] as const
   writeFileSync(info.outputPath('band.json'), JSON.stringify(measurements, null, 2));
  });
 }
+
+for (const theme of ['light', 'dark'] as const) {
+ test(`narrow pages restore the original wrapping below the existing band boundary (${theme})`, async ({ page, app }) => {
+  await page.emulateMedia({ colorScheme: theme });
+  for (const width of [375, 419, 420, 421]) {
+   await page.setViewportSize({ width, height: 1100 });
+   for (const screen of ['teams', 'activity', 'roles', 'profiles']) {
+    await page.goto(`${app.base}/${screen}`);await ready(page);await page.evaluate(() => document.fonts.ready);
+    await expect(page.locator('.wrap')).toHaveCSS('padding-left', width < 420 ? '16px' : '40px');
+    await expect(page.locator('.wrap')).toHaveCSS('padding-right', width < 420 ? '16px' : '40px');
+    await expect(page.locator('html')).toHaveCSS('scrollbar-gutter', width < 420 ? 'auto' : 'stable');
+    if (screen === 'teams' && width === 375) {
+     // Actual rendered line breaks measured on a6ef96d with this same fixture.
+     await expect.poll(() => page.locator('.tdef[data-name="docs"] .c-description').filter({ hasText: '利用者向けの文書を整える' }).evaluate(el => {
+      const node = el.firstChild!;const lines: string[] = [];let last = -1;
+      for (let i = 0; i < node.textContent!.length; i++) {
+       const range = document.createRange();range.setStart(node, i);range.setEnd(node, i + 1);
+       const top = range.getBoundingClientRect().top;
+       if (top !== last) { lines.push('');last = top; }
+       lines[lines.length - 1] += node.textContent![i];
+      }
+      return lines;
+     })).toEqual(['利用者向け', 'の文書を整', 'える']);
+    }
+   }
+  }
+ });
+}
