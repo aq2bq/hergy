@@ -18,7 +18,7 @@ export function teamTransfer(r: Rec): TransferSource {
  };
 }
 export async function transferTargets(): Promise<TransferTarget[]> {
- const out: TransferTarget[] = recs.value.filter((r) => !r.draftRow).map((r) => { const doc = teamTransfer(r); return { id: doc.id, label: doc.label, load: async () => doc }; });
+ const out: TransferTarget[] = recs.value.filter((r) => !r.draftRow).map((r) => { const doc = teamTransfer(r); return { id: doc.id, label: doc.label, kind: 'team', group: r.place.value === 'global' ? 'グローバル' : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== 'global' && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc }; });
  const groups = await hqList('roles');
  for (const group of groups.groups) for (const item of group.list?.items || []) {
   for (const place of ['project', 'global'] as const) {
@@ -27,7 +27,7 @@ export async function transferTargets(): Promise<TransferTarget[]> {
    const id = documentID('role', item.name, place, project);
    if (out.some((x) => x.id === id)) continue;
    const label = `ロール ${item.name}（${place === 'global' ? 'グローバル' : group.project?.name || project}）`;
-   out.push({ id, label, load: async () => {
+   out.push({ id, label, kind: 'role', group: place === 'global' ? 'グローバル' : group.project?.name || project, otherProject: place !== 'global' && project !== CURRENT, load: async () => {
     const held = documents.get(id);
     if (held) return held;
     const file = await get('role', item.name, place, project);

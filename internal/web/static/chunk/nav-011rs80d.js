@@ -103,7 +103,13 @@ function blockRange(parts, index, children) {
 function transferDraft(source, destination, start, end, at, move) {
   if (start < 0 || end > source.length || start >= end || at < 0 || at > destination.length)
     throw new Error("挿入位置を選び直してください");
-  return { source: move ? source.slice(0, start) + source.slice(end) : source, destination: destination.slice(0, at) + source.slice(start, end) + destination.slice(at) };
+  const before = destination.slice(0, at), copied = source.slice(start, end);
+  const newline = destination.includes(`\r
+`) ? `\r
+` : `
+`;
+  const separator = !before || /\r?\n[ \t]*\r?\n$/.test(before) ? "" : /\n$/.test(before) ? newline : newline + newline;
+  return { source: move ? source.slice(0, start) + source.slice(end) : source, destination: before + separator + copied + destination.slice(at) };
 }
 async function saveTransfer(destination, source, move, failure) {
   const attempt = async (doc) => {
@@ -133,11 +139,15 @@ function dropTransfer(event, target, at) {
   dragged.open({ target, at, move: !event.altKey, children: dragged.children });
   dragged = null;
 }
+function transferKeys() {
+  const mac = /Mac/.test(navigator.platform);
+  return `${mac ? "⇧" : "Shift"} を押しながらつかむと子見出しも含める。${mac ? "⌥" : "Alt"} を押しながら放すと写す。`;
+}
 function TransferGrip({ source, index: _index, open }) {
-  const label = "つかんで移す（Altで写す・Shiftで子見出しを含める）";
+  const label = `つかんで移す。${transferKeys()}`;
   return /* @__PURE__ */ u("button", {
     type: "button",
-    class: "btn sm prose-grip",
+    class: "prose-grip",
     draggable: true,
     title: label,
     "aria-label": label,
@@ -161,6 +171,26 @@ function TransferGrip({ source, index: _index, open }) {
     })
   });
 }
+function ChangedText({ text, start, end, removed = false }) {
+  const mark = A(null);
+  h(() => {
+    const node = mark.current;
+    if (node?.parentElement)
+      node.parentElement.scrollTop = node.offsetTop - 40;
+  }, []);
+  return /* @__PURE__ */ u("pre", {
+    children: [
+      text.slice(0, start),
+      /* @__PURE__ */ u("mark", {
+        ref: mark,
+        class: removed ? "removed" : "inserted",
+        "aria-label": removed ? "削除する範囲" : "追加した範囲",
+        children: text.slice(start, end)
+      }),
+      text.slice(end)
+    ]
+  });
+}
 function TransferMenu({ source, index, target: initialTarget, at: initialAt, move: initialMove, children: initialChildren, close }) {
   const dialog = A(null), request = A(0);
   const [original] = d(source.text());
@@ -169,6 +199,10 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
   const [children, setChildren] = d(!!initialChildren), [move, setMove] = d(!!initialMove);
   const [prepared, setPrepared] = d(null), [busy, setBusy] = d(false), [error, setError] = d(""), [done, setDone] = d("");
   const parts = blocks(original), [start, end] = blockRange(parts, index, children);
+  const destination = prepared?.destination ?? target?.text() ?? "";
+  const choice = targets.find((x) => x.id === selected);
+  const groups = [...new Set(targets.map((t) => `${t.kind === "team" ? "チーム定義" : "ロール"} · ${t.group}`))];
+  const insertion = at < 0 ? destination.length : at;
   h(() => {
     dialog.current?.showModal();
     source.targets().then((items) => setTargets(items.filter((x) => x.id !== source.id))).catch((err) => setError(problemText2(err, "宛先を読めませんでした")));
@@ -243,7 +277,7 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
         if (result === "source-failed")
           source.set(prepared.source);
         setPrepared(null);
-        setDone(result === "source-failed" ? "宛先は保存しましたが、元を保存できませんでした。本文は両方のファイルに残っています。元の文書の競合や検査結果を確認してください。" : move ? "宛先、元の順に保存しました。" : "写した先を保存しました。");
+        setDone(result === "source-failed" ? `${choice?.label || target.label} は保存しましたが、元を保存できませんでした。本文は両方のファイルに残っています。元の文書の競合や検査結果を確認してください。` : `${parts[index].heading} を ${choice?.label || target.label}へ${move ? "移して" : "写して"}保存しました。`);
       }
     } finally {
       setBusy(false);
@@ -298,16 +332,6 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
               }),
               /* @__PURE__ */ u("label", {
                 children: [
-                  /* @__PURE__ */ u("input", {
-                    type: "checkbox",
-                    checked: children,
-                    onChange: (e) => setChildren(e.currentTarget.checked)
-                  }),
-                  "子見出しを含める"
-                ]
-              }),
-              /* @__PURE__ */ u("label", {
-                children: [
                   "宛先",
                   /* @__PURE__ */ u("select", {
                     "aria-label": "宛先",
@@ -322,9 +346,12 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
                         value: "",
                         children: "選んでください"
                       }),
-                      targets.map((t) => /* @__PURE__ */ u("option", {
-                        value: t.id,
-                        children: t.label
+                      groups.map((group) => /* @__PURE__ */ u("optgroup", {
+                        label: group,
+                        children: targets.filter((t) => `${t.kind === "team" ? "チーム定義" : "ロール"} · ${t.group}` === group).map((t) => /* @__PURE__ */ u("option", {
+                          value: t.id,
+                          children: t.label
+                        }))
                       }))
                     ]
                   })
@@ -343,39 +370,69 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
                         value: -1,
                         children: "末尾"
                       }),
-                      target ? blocks(target.text()).map((part) => /* @__PURE__ */ u("option", {
+                      target ? blocks(destination).map((part) => /* @__PURE__ */ u("option", {
                         value: part.start,
-                        children: part.start === 0 ? "先頭" : part.heading + " の前"
+                        children: "　".repeat(Math.max(0, part.depth - 1)) + (part.start === 0 ? `題（${part.heading}）の前` : part.heading + " の前")
                       })) : null
                     ]
                   })
+                ]
+              }),
+              /* @__PURE__ */ u("label", {
+                class: "transfer-children",
+                children: [
+                  /* @__PURE__ */ u("input", {
+                    type: "checkbox",
+                    checked: children,
+                    onChange: (e) => setChildren(e.currentTarget.checked)
+                  }),
+                  "子見出しを含める"
                 ]
               })
             ]
           }),
           /* @__PURE__ */ u("p", {
-            children: "空白と改行をそのまま写します。共有ロールへの保存は、その文書を読むすべてのチームに反映されます。"
-          }),
-          prepared ? /* @__PURE__ */ u("div", {
-            class: "transfer-preview",
             children: [
-              /* @__PURE__ */ u("div", {
+              "選んだ範囲の空白と改行はそのまま写し、境目に空行がないときだけ補います。",
+              choice?.kind === "role" ? "共有ロールへの保存は、その文書を読むすべてのチームに反映されます。" : ""
+            ]
+          }),
+          choice?.otherProject ? /* @__PURE__ */ u("p", {
+            class: "transfer-notice",
+            children: [
+              "宛先は、いま開いているプロジェクトとは別の場所です：",
+              choice.label
+            ]
+          }) : null,
+          target && at === 0 && destination ? /* @__PURE__ */ u("p", {
+            class: "transfer-notice",
+            children: "題の前へ挿入すると、文書の題が変わります。"
+          }) : null,
+          prepared ? /* @__PURE__ */ u("div", {
+            class: "transfer-preview" + (move ? "" : " copy"),
+            children: [
+              move ? /* @__PURE__ */ u("div", {
                 children: [
                   /* @__PURE__ */ u("b", {
-                    children: "元の下書き"
+                    children: "元から削除する範囲"
                   }),
-                  /* @__PURE__ */ u("pre", {
-                    children: prepared.next.source
+                  /* @__PURE__ */ u(ChangedText, {
+                    text: prepared.source,
+                    start,
+                    end,
+                    removed: true
                   })
                 ]
-              }),
+              }) : null,
               /* @__PURE__ */ u("div", {
                 children: [
                   /* @__PURE__ */ u("b", {
-                    children: "宛先の下書き"
+                    children: "宛先に追加した範囲"
                   }),
-                  /* @__PURE__ */ u("pre", {
-                    children: prepared.next.destination
+                  /* @__PURE__ */ u(ChangedText, {
+                    text: prepared.next.destination,
+                    start: insertion,
+                    end: insertion + prepared.next.destination.length - prepared.destination.length
                   })
                 ]
               })
@@ -387,21 +444,32 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
           error ? /* @__PURE__ */ u("p", {
             role: "alert",
             children: error
-          }) : null,
-          /* @__PURE__ */ u("footer", {
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ u("footer", {
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            disabled: busy,
+            onClick: cancel,
+            children: done ? "閉じる" : "取り消して閉じる"
+          }),
+          !done ? /* @__PURE__ */ u("span", {
+            class: "transfer-submit",
             children: prepared ? /* @__PURE__ */ u(S, {
               children: [
+                /* @__PURE__ */ u("button", {
+                  class: "btn",
+                  disabled: busy,
+                  onClick: undo,
+                  children: "下書きをやめる"
+                }),
                 /* @__PURE__ */ u("button", {
                   class: "btn primary",
                   disabled: busy,
                   onClick: () => void persist(),
                   children: busy ? "保存中…" : move ? "宛先から順に保存" : "写した先を保存"
-                }),
-                /* @__PURE__ */ u("button", {
-                  class: "btn",
-                  disabled: busy,
-                  onClick: undo,
-                  children: "元に戻す"
                 })
               ]
             }) : /* @__PURE__ */ u("button", {
@@ -410,14 +478,8 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
               onClick: prepare,
               children: "下書きに反映"
             })
-          })
+          }) : null
         ]
-      }),
-      /* @__PURE__ */ u("button", {
-        class: "btn",
-        disabled: busy,
-        onClick: cancel,
-        children: done ? "閉じる" : "取り消して閉じる"
       })
     ]
   });
@@ -425,28 +487,46 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
 
 // lib/prose-width.tsx
 var widths = y({});
+function EqualWidths() {
+  return /* @__PURE__ */ u("button", {
+    type: "button",
+    class: "btn sm prose-equal",
+    title: "幅をそろえる（すべての欄を元の等しい幅に戻す）",
+    "aria-label": "均等",
+    disabled: !Object.values(widths.value).some(Boolean),
+    onClick: () => {
+      widths.value = {};
+    },
+    children: /* @__PURE__ */ u("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true",
+      children: /* @__PURE__ */ u("path", {
+        d: "M3 4v16M9 4v16M15 4v16M21 4v16"
+      })
+    })
+  });
+}
 function WidthButtons({ id }) {
   return /* @__PURE__ */ u("span", {
     class: "prose-width",
     role: "group",
     "aria-label": "欄の幅",
-    children: ["narrow", "wide", ""].map((value, i) => {
-      const label = ["狭く", "広く", "均等"][i];
+    children: ["narrow", "wide"].map((value, i) => {
+      const label = i === 0 ? "狭く（見出しだけにする）" : "広く";
       return /* @__PURE__ */ u("button", {
         type: "button",
         class: "btn sm",
         title: label,
         "aria-label": label,
-        "aria-pressed": value ? widths.value[id] === value : undefined,
-        disabled: !value && !Object.values(widths.value).some(Boolean),
+        "aria-pressed": widths.value[id] === value,
         onClick: () => {
-          widths.value = value ? { ...widths.value, [id]: widths.value[id] === value ? "" : value } : {};
+          widths.value = { ...widths.value, [id]: widths.value[id] === value ? "" : value };
         },
         children: /* @__PURE__ */ u("svg", {
           viewBox: "0 0 24 24",
           "aria-hidden": "true",
           children: /* @__PURE__ */ u("path", {
-            d: i === 0 ? "M3 4v16M21 4v16M6 12h12M9 9l3 3-3 3M15 9l-3 3 3 3" : i === 1 ? "M3 4v16M21 4v16M6 12h12M9 9l-3 3 3 3M15 9l3 3-3 3" : "M3 4v16M9 4v16M15 4v16M21 4v16"
+            d: i === 0 ? "M9 4v16M15 4v16M1 12h6m-3-3 3 3-3 3M23 12h-6m3-3-3 3 3 3" : "M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 3 3M15 9l6-6M9 15l-6 6M15 15l6 6"
           })
         })
       });
@@ -553,7 +633,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
     },
     onDrop: (e) => {
       if (transfer)
-        dropTransfer(e, transfer.id, text.length);
+        dropTransfer(e, transfer.id, -1);
     },
     children: [
       menu && transfer ? /* @__PURE__ */ u(TransferMenu, {
@@ -687,7 +767,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
             }),
             transfer ? /* @__PURE__ */ u("button", {
               type: "button",
-              class: "btn sm",
+              class: "prose-more",
               title: `${part.heading} を写す・移す`,
               "aria-label": `${part.heading} を写す・移す`,
               onClick: () => setMenu({ index }),
@@ -837,4 +917,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
   });
 }
 
-export { num, Measure, documents, documentID, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, diffCount2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

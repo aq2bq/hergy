@@ -44,6 +44,8 @@ import {
   Measure,
   documents,
   documentID,
+  transferKeys,
+  EqualWidths,
   chars,
   title,
   ProseIdentity,
@@ -55,7 +57,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-rsgm0d9h.js";
+} from "../chunk/nav-011rs80d.js";
 import {
   st,
   token2,
@@ -109,7 +111,7 @@ function teamTransfer(r) {
 async function transferTargets() {
   const out = recs.value.filter((r) => !r.draftRow).map((r) => {
     const doc = teamTransfer(r);
-    return { id: doc.id, label: doc.label, load: async () => doc };
+    return { id: doc.id, label: doc.label, kind: "team", group: r.place.value === "global" ? "グローバル" : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== "global" && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc };
   });
   const groups = await hqList2("roles");
   for (const group of groups.groups)
@@ -122,7 +124,7 @@ async function transferTargets() {
         if (out.some((x) => x.id === id))
           continue;
         const label = `ロール ${item.name}（${place === "global" ? "グローバル" : group.project?.name || project}）`;
-        out.push({ id, label, load: async () => {
+        out.push({ id, label, kind: "role", group: place === "global" ? "グローバル" : group.project?.name || project, otherProject: place !== "global" && project !== CURRENT, load: async () => {
           const held = documents.get(id);
           if (held)
             return held;
@@ -448,18 +450,12 @@ function Editor({ session }) {
         children: [
           /* @__PURE__ */ u("div", {
             class: "prose-save",
-            children: [
-              /* @__PURE__ */ u("button", {
-                class: "btn primary",
-                disabled: blocked,
-                onClick: () => void save(),
-                children: "保存"
-              }),
-              model.ok.value ? /* @__PURE__ */ u("span", {
-                role: "status",
-                children: "保存しました"
-              }) : null
-            ]
+            children: /* @__PURE__ */ u("button", {
+              class: "btn primary",
+              disabled: blocked,
+              onClick: () => void save(),
+              children: "保存"
+            })
           }),
           /* @__PURE__ */ u("div", {
             class: "prose-actions",
@@ -5807,12 +5803,12 @@ function AgreePanel({ r }) {
     const bar = document.querySelector(".bar");
     const summary = node.closest(".tdef")?.querySelector(":scope > .sum");
     const fit = () => {
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
       node.style.setProperty("--prose-height", `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
       window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: "instant" });
     });
     const observer = new ResizeObserver(fit);
@@ -5827,49 +5823,62 @@ function AgreePanel({ r }) {
       window.removeEventListener("resize", fit);
     };
   }, []);
-  return /* @__PURE__ */ u("div", {
-    class: "prose-board",
-    ref: board,
+  return /* @__PURE__ */ u(S, {
     children: [
-      /* @__PURE__ */ u("section", {
-        class: "prose-column panel agree-p" + (shadowed ? " shadowed" : ""),
-        "data-uid": r.uid,
-        "data-l": r.place.value,
-        "data-key": dkey(r),
-        "data-mode": mode,
+      /* @__PURE__ */ u("div", {
+        class: "prose-tools",
         children: [
-          /* @__PURE__ */ u("div", {
-            class: "pmain",
-            children: /* @__PURE__ */ u(RuleDoc2, {
-              transfer: r.draftRow ? undefined : teamTransfer(r),
-              row: rowOfPanel(r),
-              issues: agreeIssues(r),
-              hasName: false,
-              heading: {
-                id: `team-prose-${r.uid}`,
-                kind: "チーム定義",
-                name: r.name.value,
-                title: r.agreeDraft.value.title,
-                path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
-                members: r.draft.value.members.map((m) => m.name).join("、"),
-                template: r.check.value?.templateSize || 0,
-                state: (agreeDiff(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
-              },
-              onChange: () => onChangeDraft(r),
-              onMode: (v) => pressPmode(r, v),
-              onURL: () => syncURL()
-            })
-          }),
-          /* @__PURE__ */ u(Foot, {
-            r,
-            agree: true
+          /* @__PURE__ */ u(EqualWidths, {}),
+          /* @__PURE__ */ u("span", {
+            children: transferKeys()
           })
         ]
       }),
-      [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => /* @__PURE__ */ u(RoleColumn, {
-        r,
-        name
-      }, name))
+      /* @__PURE__ */ u("div", {
+        class: "prose-board",
+        ref: board,
+        children: [
+          /* @__PURE__ */ u("section", {
+            class: "prose-column panel agree-p" + (shadowed ? " shadowed" : ""),
+            "data-uid": r.uid,
+            "data-l": r.place.value,
+            "data-key": dkey(r),
+            "data-mode": mode,
+            children: [
+              /* @__PURE__ */ u("div", {
+                class: "pmain",
+                children: /* @__PURE__ */ u(RuleDoc2, {
+                  transfer: r.draftRow ? undefined : teamTransfer(r),
+                  row: rowOfPanel(r),
+                  issues: agreeIssues(r),
+                  hasName: false,
+                  heading: {
+                    id: `team-prose-${r.uid}`,
+                    kind: "チーム定義",
+                    name: r.name.value,
+                    title: r.agreeDraft.value.title,
+                    path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
+                    members: r.draft.value.members.map((m) => m.name).join("、"),
+                    template: r.check.value?.templateSize || 0,
+                    state: (agreeDiff(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
+                  },
+                  onChange: () => onChangeDraft(r),
+                  onMode: (v) => pressPmode(r, v),
+                  onURL: () => syncURL()
+                })
+              }),
+              /* @__PURE__ */ u(Foot, {
+                r,
+                agree: true
+              })
+            ]
+          }),
+          [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => /* @__PURE__ */ u(RoleColumn, {
+            r,
+            name
+          }, name))
+        ]
+      })
     ]
   });
 }

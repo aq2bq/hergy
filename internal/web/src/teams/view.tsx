@@ -11,6 +11,8 @@ import { Measure, num } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
+import { EqualWidths } from '../lib/prose-width.js';
+import { transferKeys } from '../lib/prose-transfer-view.js';
 import { teamTransfer } from './prose-transfer.js';
 import { RoleColumn } from './role-modal.js';
 import { RuleDoc, Counts, Vm, Sev, clone } from '../lib/ruledoc.js';
@@ -479,12 +481,12 @@ function AgreePanel({ r }: { r: Rec }) {
     const bar = document.querySelector<HTMLElement>('.bar');
     const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum');
     const fit = () => {
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
       node.style.setProperty('--prose-height', `${Math.max(360, window.innerHeight - top - 8)}px`);
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      const top = (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0) + 26;
       window.scrollBy({ top: node.getBoundingClientRect().top - top, behavior: 'instant' });
     });
     const observer = new ResizeObserver(fit);
@@ -494,7 +496,7 @@ function AgreePanel({ r }: { r: Rec }) {
     return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, []);
   return (
-    <div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+    <><div class="prose-tools"><EqualWidths /><span>{transferKeys()}</span></div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
@@ -504,7 +506,7 @@ function AgreePanel({ r }: { r: Rec }) {
           onURL={() => syncURL()} />
       </div>
       <Foot r={r} agree={true} />
-    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div>
+    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div></>
   );
 }
 

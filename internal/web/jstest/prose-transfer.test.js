@@ -34,3 +34,13 @@ test('global file identity ignores caller project while local files remain disti
  expect(documentID('role', 'a', 'global', '/one')).toBe(documentID('role', 'a', 'global', '/two'));
  expect(documentID('role', 'a', 'project', '/one')).not.toBe(documentID('role', 'a', 'project', '/two'));
 });
+
+
+test('insertion supplies only the missing boundary blank line and preserves the copied range', () => {
+ const source = '## Heading\r\nbody  \r\n';
+ for (const [before, expected] of [['', ''], ['text', 'text\n\n'], ['text\n', 'text\n\n'], ['text\n\n', 'text\n\n'], ['text\r\n', 'text\r\n\r\n']]) {
+  expect(transferDraft(source, before, 0, source.length, before.length, false).destination).toBe(expected + source);
+ }
+ const target = '# Title\n## Next\n';
+ expect(transferDraft(source, target, 0, source.length, 8, false).destination).toBe('# Title\n\n' + source + '## Next\n');
+});

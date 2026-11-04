@@ -34,7 +34,7 @@ test('saving a shared role writes only its actual file and another team reads it
   const text = '# 共有の設計担当\n全文を更新する。\n';
   await column.getByRole('textbox', { name: '規則の全文' }).fill(text);
   await column.getByRole('button', { name: '保存', exact: true }).click();
-  await expect(column.locator('footer').getByRole('status')).toHaveText('保存しました');
+  await expect(column.locator('.prose-status > span')).toHaveText('保存しました');
   expect(readFileSync(file, 'utf8')).toBe(text);
   expect([readFileSync(team, 'utf8'), readFileSync(agree, 'utf8')]).toEqual(before);
   await page.goto(`${app.base}/teams?open=migrate&agree=migrate`); await ready(page);

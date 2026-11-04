@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { ready } from './helpers';
 test.use({ reads: 'teams' });
+const separate = (text: string) => !text || /\n[ \t]*\n$/.test(text) ? text : text + (text.endsWith('\n') ? '\n' : '\n\n');
 
 async function open(page, app) {
  await page.setViewportSize({ width: 1440, height: 900 });
@@ -14,6 +15,7 @@ async function open(page, app) {
 }
 async function menu(page, column, heading, destination, move = false) {
  await column.getByRole('button', { name: '見出しだけ', exact: true }).click();
+ await column.getByRole('button', { name: heading, exact: true }).hover();
  await column.getByRole('button', { name: heading + ' を写す・移す', exact: true }).click();
  const dialog = page.getByRole('dialog', { name: '見出しを写す・移す' });
  await dialog.getByLabel('宛先', { exact: true }).selectOption({ label: destination });
@@ -33,17 +35,24 @@ test('copy a heading to another role and team, preserving bytes and undoing draf
  let dialog = await menu(page, role, '作る', 'ロール lead（proj）');
  await dialog.getByLabel('子見出しを含める').check();
  await dialog.getByRole('button', { name: '下書きに反映' }).click();
- await dialog.getByRole('button', { name: '元に戻す', exact: true }).click();
+ await dialog.getByRole('button', { name: '下書きをやめる', exact: true }).click();
  expect(readFileSync(b, 'utf8')).toBe(targetBefore);
  await dialog.getByRole('button', { name: '下書きに反映' }).click();
  await dialog.getByRole('button', { name: '写した先を保存', exact: true }).click();
- await expect(dialog.getByRole('status')).toHaveText('写した先を保存しました。');
- expect(readFileSync(b, 'utf8')).toBe(targetBefore + source);
+ await expect(dialog.getByRole('status')).toHaveText('作る を ロール lead（proj）へ写して保存しました。');
+ expect(readFileSync(b, 'utf8')).toBe(separate(targetBefore) + source);
  expect(readFileSync(a, 'utf8')).toBe(source);
  await dialog.getByRole('button', { name: '閉じる', exact: true }).click();
  dialog = await menu(page, row.locator('.agree-p'), '合意', 'チーム定義 migrate（proj）');
  await dialog.getByLabel('挿入位置').selectOption('0');
+ await expect(dialog.getByText('題の前へ挿入すると、文書の題が変わります。')).toBeVisible();
+ const position = dialog.getByLabel('挿入位置').locator('option:checked');
+ const positionLabel = await position.textContent();
  await dialog.getByRole('button', { name: '下書きに反映' }).click();
+ await expect(position).toHaveText(positionLabel!);
+ await expect(dialog.locator('.transfer-preview > div')).toHaveCount(1);
+ await expect(dialog.getByLabel('追加した範囲')).toContainText('合意');
+ await expect(dialog.getByText(/共有ロールへの保存/)).toHaveCount(0);
  await dialog.getByRole('button', { name: '写した先を保存', exact: true }).click();
  await expect(dialog.getByRole('status')).toBeVisible();
  expect(readFileSync(y, 'utf8')).toBe('# 合意\n\t約束  \n' + beforeY);
@@ -60,23 +69,24 @@ test('a move saves the destination first and explains a conflicting source witho
  writeFileSync(a, source + '\n別の変更\n');
  await dialog.getByRole('button', { name: '宛先から順に保存' }).click();
  await expect(dialog.getByRole('status')).toContainText('両方のファイルに残っています');
- expect(readFileSync(b, 'utf8')).toBe(beforeB + source);
+ expect(readFileSync(b, 'utf8')).toBe(separate(beforeB) + source);
  expect(readFileSync(a, 'utf8')).toBe(source + '\n別の変更\n');
 });
 
 test('column width changes and equal reset keep the full text', async ({ page, app }) => {
  const { row, role } = await open(page, app);
  const before = readFileSync(path.join(app.proj, '.hergy/roles/builder.md'), 'utf8');
- await role.getByRole('button', { name: '狭く', exact: true }).click();
+ await role.getByRole('button', { name: '狭く（見出しだけにする）', exact: true }).click();
  await expect(role.locator('.prose-outline')).toBeVisible();
- await expect(role).toHaveCSS('width', '200px');
- await expect(role.locator('.prose-width .btn').first()).toHaveCSS('padding-left', '2px');
- await expect.poll(async () => { const reset = await role.getByRole('button', { name: '均等', exact: true }).boundingBox(); const box = await role.boundingBox(); return reset!.x + reset!.width <= box!.x + box!.width; }).toBe(true);
+ await expect(role).toHaveCSS('width', '240px');
+ await expect(role.locator('.prose-width .btn').first()).toHaveCSS('padding-left', '4px');
+ await expect.poll(async () => { const reset = await row.getByRole('button', { name: '均等', exact: true }).boundingBox(); return reset!.x + reset!.width <= 1440; }).toBe(true);
  await expect(role.locator('.prose-heading-link').first()).toHaveCSS('white-space', 'nowrap');
  await expect.poll(async () => (await role.locator('.prose-budget').boundingBox())!.height).toBe(24);
  await role.getByRole('button', { name: '広く', exact: true }).click();
- await expect(role).toHaveCSS('width', '580px');
- await role.getByRole('button', { name: '均等', exact: true }).click();
+ await expect(role.locator('.prose-width button').last()).toHaveAttribute('aria-pressed', 'true');
+ await expect.poll(async () => row.locator('.prose-board').evaluate(n => n.scrollWidth <= n.clientWidth)).toBe(true);
+ await row.getByRole('button', { name: '均等', exact: true }).click();
  await expect(role.getByRole('textbox', { name: '規則の全文' })).toHaveValue(before);
  await expect.poll(async () => {
   const widths = await row.locator('.prose-column').evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().width));
@@ -95,6 +105,7 @@ test('dragging stages a move and a failed destination never deletes the source',
  await role.locator('.prose-grip').first().dragTo(lead.getByRole('textbox', { name: '規則の全文' }));
  const dialog = page.getByRole('dialog', { name: '見出しを写す・移す' });
  await expect(dialog.getByLabel('操作', { exact: true })).toHaveValue('move');
+ await expect(dialog.getByLabel('挿入位置')).toHaveValue('-1');
  await dialog.getByRole('button', { name: '下書きに反映' }).click();
  await page.route('**/api/role/lead', route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, json: { text: '保存先に接続できません' } }) : route.continue(), { times: 1 });
  await dialog.getByRole('button', { name: '宛先から順に保存' }).click();
@@ -102,7 +113,28 @@ test('dragging stages a move and a failed destination never deletes the source',
  expect(readFileSync(a, 'utf8')).toBe(section + remainder);
  expect(readFileSync(b, 'utf8')).toBe(beforeB);
  await dialog.getByRole('button', { name: '宛先から順に保存' }).click();
- await expect(dialog.getByRole('status')).toHaveText('宛先、元の順に保存しました。');
+ await expect(dialog.getByRole('status')).toHaveText('移動 を ロール lead（proj）へ移して保存しました。');
  expect(readFileSync(a, 'utf8')).toBe(remainder);
- expect(readFileSync(b, 'utf8')).toBe(beforeB + section);
+ expect(readFileSync(b, 'utf8')).toBe(separate(beforeB) + section);
+});
+
+test('draft preview keeps the chosen heading and brings the insertion into view', async ({ page, app }) => {
+ const source = '# Source\nselected text\n';
+ const destination = '# Destination\n' + 'unchanged line\n'.repeat(50) + '\n## Context\nkeep\n';
+ writeFileSync(path.join(app.proj, '.hergy/roles/builder.md'), source);
+ writeFileSync(path.join(app.proj, '.hergy/roles/lead.md'), destination);
+ const { role } = await open(page, app);
+ const dialog = await menu(page, role, 'Source', 'ロール lead（proj）');
+ await dialog.getByLabel('挿入位置').selectOption(String(destination.indexOf('## Context')));
+ await expect(dialog.getByLabel('挿入位置').locator('option:checked')).toHaveText('　Context の前');
+ await dialog.getByRole('button', { name: '下書きに反映' }).click();
+ await expect(dialog.getByLabel('挿入位置').locator('option:checked')).toHaveText('　Context の前');
+ await expect(dialog.locator('.transfer-preview > div')).toHaveCount(1);
+ await expect(dialog.getByLabel('追加した範囲')).toContainText(source.trim());
+ await expect.poll(async () => dialog.getByLabel('追加した範囲').evaluate(n => {
+  const mark = n.getBoundingClientRect(), frame = n.parentElement!.getBoundingClientRect();
+  return mark.top >= frame.top && mark.top < frame.bottom;
+ })).toBe(true);
+ await dialog.getByRole('button', { name: '取り消して閉じる' }).click();
+ expect(readFileSync(path.join(app.proj, '.hergy/roles/lead.md'), 'utf8')).toBe(destination);
 });
